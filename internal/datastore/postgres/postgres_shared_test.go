@@ -132,6 +132,10 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			QuantizedRevisionTest(t, b)
 		})
 
+		t.Run("OverlappingRevision", func(t *testing.T) {
+			OverlappingRevisionTest(t, b)
+		})
+
 		t.Run("WatchNotEnabled", func(t *testing.T) {
 			WatchNotEnabledTest(t, b, config.pgVersion)
 		})
@@ -211,14 +215,14 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				MigrationPhase(config.migrationPhase),
 			))
 
-			t.Run("TestCheckpointsOnOutOfBandChanges", createDatastoreTest(
+			t.Run("TestContinuousCheckpointTest", createDatastoreTest(
 				b,
-				CheckpointsOnOutOfBandChangesTest,
-				RevisionQuantization(0),
-				GCWindow(1*time.Millisecond),
+				ContinuousCheckpointTest,
+				RevisionQuantization(100*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
 				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
+				WithRevisionHeartbeat(true),
 			))
 
 			t.Run("TestSerializationError", createDatastoreTest(
@@ -325,6 +329,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
+		t.Helper()
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID, options...)
@@ -779,32 +784,46 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			1, 0,
 		},
 		{
+			"OldestInWindowIsSelected",
+			1 * time.Second,
+			0,
+			[]time.Duration{1 * time.Millisecond, 2 * time.Millisecond},
+			1, 1,
+		},
+		{
+			"ShouldObservePreviousAndCurrent",
+			1 * time.Second,
+			0,
+			[]time.Duration{-1 * time.Second, 0},
+			2, 0,
+		},
+		{
 			"OnlyFutureRevisions",
 			1 * time.Second,
 			0,
 			[]time.Duration{2 * time.Second},
-			0, 1,
+			1, 0,
 		},
 		{
 			"QuantizedLower",
 			2 * time.Second,
 			0,
 			[]time.Duration{-4 * time.Second, -1 * time.Nanosecond, 0},
-			1, 2,
+			2, 1,
 		},
 		{
 			"QuantizedRecentWithFollowerReadDelay",
 			500 * time.Millisecond,
 			2 * time.Second,
 			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
-			1, 2,
+			2, 1,
 		},
 		{
 			"QuantizedRecentWithoutFollowerReadDelay",
 			500 * time.Millisecond,
 			0,
 			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
-			2, 1,
+			3, 0,
 		},
 		{
 			"QuantizationDisabled",
@@ -833,7 +852,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 					ctx,
 					uri,
 					primaryInstanceID,
-					RevisionQuantization(5*time.Second),
+					RevisionQuantization(tc.quantization),
 					GCWindow(24*time.Hour),
 					WatchBufferLength(1),
 					FollowerReadDelay(tc.followerReadDelay),
@@ -865,35 +884,112 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				}
 			}
 
-			queryRevision := fmt.Sprintf(
-				querySelectRevision,
-				colXID,
-				tableTransaction,
-				colTimestamp,
-				tc.quantization.Nanoseconds(),
-				colSnapshot,
-				tc.followerReadDelay.Nanoseconds(),
-			)
-
-			var revision xid8
-			var snapshot pgSnapshot
-			var validFor time.Duration
-			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &snapshot, &validFor)
-			require.NoError(err)
-
-			queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
-			numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "true")
-			numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "false")
-
-			var numLower, numHigher uint64
-			require.NoError(conn.QueryRow(ctx, numLowerQuery, snapshot).Scan(&numLower), "%s - %s", revision, snapshot)
-			require.NoError(conn.QueryRow(ctx, numHigherQuery, snapshot).Scan(&numHigher), "%s - %s", revision, snapshot)
-
-			// Subtract one from numLower because of the artificially injected first transaction row
-			require.Equal(tc.numLower, numLower-1)
-			require.Equal(tc.numHigher, numHigher)
+			assertRevisionLowerAndHigher(ctx, t, ds, conn, tc.numLower, tc.numHigher)
 		})
 	}
+}
+
+func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	testCases := []struct {
+		testName          string
+		quantization      time.Duration
+		followerReadDelay time.Duration
+		revisions         []postgresRevision
+		numLower          uint64
+		numHigher         uint64
+	}{
+		{ // the two revisions are concurrent, and given they are past the quantization window (are way in the past, around unix epoch)
+			// the function should return a revision snapshot that captures both of them
+			"ConcurrentRevisions",
+			5 * time.Second,
+			0,
+			[]postgresRevision{
+				{optionalTxID: newXid8(3), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{2}}, optionalNanosTimestamp: uint64((time.Second * 1) * time.Nanosecond)},
+				{optionalTxID: newXid8(2), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{3}}, optionalNanosTimestamp: uint64((time.Second * 2) * time.Nanosecond)},
+			},
+			2, 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			require := require.New(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			var conn *pgx.Conn
+			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				var err error
+				conn, err = pgx.Connect(ctx, uri)
+				require.NoError(err)
+
+				RegisterTypes(conn.TypeMap())
+
+				ds, err := newPostgresDatastore(
+					ctx,
+					uri,
+					primaryInstanceID,
+					RevisionQuantization(tc.quantization),
+					GCWindow(24*time.Hour),
+					WatchBufferLength(1),
+					FollowerReadDelay(tc.followerReadDelay),
+				)
+				require.NoError(err)
+
+				return ds
+			})
+			defer ds.Close()
+
+			// set a random time zone to ensure the queries are unaffected by tz
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
+			require.NoError(err)
+
+			for _, rev := range tc.revisions {
+				stmt := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+				insertTxn := stmt.Insert(tableTransaction).Columns(colXID, colSnapshot, colTimestamp)
+
+				ts := time.Unix(0, int64(rev.optionalNanosTimestamp))
+				sql, args, err := insertTxn.Values(rev.optionalTxID, rev.snapshot, ts).ToSql()
+				require.NoError(err)
+
+				_, err = conn.Exec(ctx, sql, args...)
+				require.NoError(err)
+			}
+
+			assertRevisionLowerAndHigher(ctx, t, ds, conn, tc.numLower, tc.numHigher)
+		})
+	}
+}
+
+func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastore.Datastore, conn *pgx.Conn,
+	expectedNumLower, expectedNumHigher uint64,
+) {
+	t.Helper()
+
+	var revision xid8
+	var snapshot pgSnapshot
+	pgDS, ok := ds.(*pgDatastore)
+	require.True(t, ok)
+	rev, _, err := pgDS.optimizedRevisionFunc(ctx)
+	require.NoError(t, err)
+
+	pgRev, ok := rev.(postgresRevision)
+	require.True(t, ok)
+	revision = pgRev.optionalTxID
+	require.NotNil(t, revision)
+	snapshot = pgRev.snapshot
+
+	queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
+	numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "true")
+	numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "false")
+
+	var numLower, numHigher uint64
+	require.NoError(t, conn.QueryRow(ctx, numLowerQuery, snapshot).Scan(&numLower), "%s - %s", revision, snapshot)
+	require.NoError(t, conn.QueryRow(ctx, numHigherQuery, snapshot).Scan(&numHigher), "%s - %s", revision, snapshot)
+
+	// Subtract one from numLower because of the artificially injected first transaction row
+	require.Equal(t, expectedNumLower, numLower-1, "incorrect number of revisions visible to snapshot, expected %d, got %d", expectedNumLower, numLower-1)
+	require.Equal(t, expectedNumHigher, numHigher, "incorrect number of revisions invisible to snapshot, expected %d, got %d", expectedNumHigher, numHigher)
 }
 
 // ConcurrentRevisionHeadTest uses goroutines and channels to intentionally set up a pair of
@@ -1847,7 +1943,7 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 	}
 }
 
-func CheckpointsOnOutOfBandChangesTest(t *testing.T, ds datastore.Datastore) {
+func ContinuousCheckpointTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1858,59 +1954,38 @@ func CheckpointsOnOutOfBandChangesTest(t *testing.T, ds datastore.Datastore) {
 
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
-		Content: datastore.WatchRelationships | datastore.WatchSchema | datastore.WatchCheckpoints,
-		// loop quickly over the changes to make sure we don't re-issue checkpoints
-		CheckpointInterval: 10 * time.Nanosecond,
+		Content:            datastore.WatchCheckpoints,
+		CheckpointInterval: 100 * time.Millisecond,
 	})
 	require.Zero(len(errchan))
 
-	// Make the current snapshot move
-	pds := ds.(*pgDatastore)
-	tx, err := pds.writePool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
-	require.NoError(err)
-	_, err = tx.Exec(ctx, "LOCK pg_class;")
-	require.NoError(err)
-	require.NoError(tx.Commit(ctx))
-
-	newRevision, err := ds.HeadRevision(ctx)
-	require.NoError(err)
-	require.True(newRevision.GreaterThan(lowestRevision))
-
-	awaitManyCheckpoints := time.NewTimer(1 * time.Second)
-	checkpointCount := make(map[string]int)
+	var checkpointCount int
 	for {
 		changeWait := time.NewTimer(waitForChangesTimeout)
 		select {
 		case change, ok := <-changes:
 			if !ok {
-				for _, count := range checkpointCount {
-					require.Equal(1, count, "found duplicated checkpoint revision event")
-				}
+				require.GreaterOrEqual(checkpointCount, 10, "expected at least 5 checkpoints")
 
 				return
 			}
 
 			if change.IsCheckpoint {
-				if change.Revision.Equal(newRevision) || change.Revision.GreaterThan(newRevision) {
-					checkpointCount[change.Revision.String()] = checkpointCount[change.Revision.String()] + 1
+				if change.Revision.GreaterThan(lowestRevision) {
+					checkpointCount++
+					lowestRevision = change.Revision
+				}
+
+				if checkpointCount >= 10 {
+					return
 				}
 			}
 
 			time.Sleep(10 * time.Millisecond)
 		case <-changeWait.C:
 			require.Fail("timed out waiting for checkpoint for out of band change")
-		// we want to make sure checkpoints are not reissued when moving out-of-band, so with a short poll interval
-		// we wait a bit before checking if we received checkpoints,
-		case <-awaitManyCheckpoints.C:
-			if len(checkpointCount) > 0 {
-				for _, count := range checkpointCount {
-					require.Equal(1, count, "found duplicated checkpoint revision event")
-				}
-
-				return
-			}
 		}
 	}
 }
 
-const waitForChangesTimeout = 30 * time.Second
+const waitForChangesTimeout = 10 * time.Second

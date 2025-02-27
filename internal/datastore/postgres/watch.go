@@ -125,7 +125,7 @@ func (pgd *pgDatastore) Watch(
 		currentTxn := afterRevision
 		requestedCheckpoints := options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints
 		for {
-			newTxns, optionalHeadRevision, err := pgd.getNewRevisions(ctx, currentTxn, requestedCheckpoints)
+			newTxns, err := pgd.getNewRevisions(ctx, currentTxn)
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
@@ -187,31 +187,6 @@ func (pgd *pgDatastore) Watch(
 					}
 				}
 			} else {
-				// PG head revision could move outside of changes (e.g. VACUUM ANALYZE), and we still need to
-				// send a checkpoint to the client, as could have determined also via Head that changes exist and
-				// called Watch API
-				//
-				// we need to compute the head revision in the same transaction where we determine any new spicedb,
-				// transactions, otherwise there could be a race that means we issue a checkpoint before we issue
-				// the corresponding changes.
-				if requestedCheckpoints {
-					if optionalHeadRevision == nil {
-						errs <- spiceerrors.MustBugf("expected to have an optional head revision")
-						return
-					}
-
-					if optionalHeadRevision.GreaterThan(currentTxn) {
-						if !sendChange(datastore.RevisionChanges{
-							Revision:     *optionalHeadRevision,
-							IsCheckpoint: true,
-						}) {
-							return
-						}
-
-						currentTxn = *optionalHeadRevision
-					}
-				}
-
 				select {
 				case <-time.NewTimer(watchSleep).C:
 					break
@@ -226,18 +201,9 @@ func (pgd *pgDatastore) Watch(
 	return updates, errs
 }
 
-func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision, returnHeadRevision bool) ([]postgresRevision, *postgresRevision, error) {
+func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision) ([]postgresRevision, error) {
 	var ids []postgresRevision
-	var optionalHeadRevision *postgresRevision
-	var err error
 	if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		if returnHeadRevision {
-			optionalHeadRevision, err = pgd.getHeadRevision(ctx, tx)
-			if err != nil {
-				return fmt.Errorf("unable to get head revision: %w", err)
-			}
-		}
-
 		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot)
 		if err != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
@@ -270,10 +236,10 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 		}
 		return nil
 	}); err != nil {
-		return nil, optionalHeadRevision, fmt.Errorf("transaction error: %w", err)
+		return nil, fmt.Errorf("transaction error: %w", err)
 	}
 
-	return ids, optionalHeadRevision, nil
+	return ids, nil
 }
 
 func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRevision, options datastore.WatchOptions) ([]datastore.RevisionChanges, error) {

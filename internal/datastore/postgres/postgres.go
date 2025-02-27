@@ -5,6 +5,7 @@ import (
 	dbsql "database/sql"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"strings"
@@ -311,6 +312,15 @@ func newPostgresDatastore(
 		followerReadDelayNanos,
 	)
 
+	revisionHeartbeatQuery := fmt.Sprintf(
+		insertHeartBeatRevision,
+		colXID,
+		tableTransaction,
+		colTimestamp,
+		quantizationPeriodNanos,
+		colSnapshot,
+	)
+
 	validTransactionQuery := fmt.Sprintf(
 		queryValidTransaction,
 		colXID,
@@ -353,12 +363,13 @@ func newPostgresDatastore(
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		optimizedRevisionQuery:  revisionQuery,
 		validTransactionQuery:   validTransactionQuery,
+		revisionHeartbeatQuery:  revisionHeartbeatQuery,
 		gcWindow:                config.gcWindow,
 		gcInterval:              config.gcInterval,
 		gcTimeout:               config.gcMaxOperationTime,
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
 		watchEnabled:            watchEnabled,
-		gcCtx:                   gcCtx,
+		workerCtx:               gcCtx,
 		cancelGc:                cancelGc,
 		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
@@ -367,6 +378,7 @@ func newPostgresDatastore(
 		inStrictReadMode:        config.readStrictMode,
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		schema:                  *schema,
+		quantizationPeriodNanos: quantizationPeriodNanos,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -381,11 +393,17 @@ func newPostgresDatastore(
 
 	// Start a goroutine for garbage collection.
 	if isPrimary {
+		datastore.workerGroup, datastore.workerCtx = errgroup.WithContext(datastore.workerCtx)
+		if config.revisionHeartbeatEnabled {
+			datastore.workerGroup.Go(func() error {
+				return datastore.startRevisionHeartbeat(datastore.workerCtx)
+			})
+		}
+
 		if datastore.gcInterval > 0*time.Minute && config.gcEnabled {
-			datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
-			datastore.gcGroup.Go(func() error {
+			datastore.workerGroup.Go(func() error {
 				return common.StartGarbageCollector(
-					datastore.gcCtx,
+					datastore.workerCtx,
 					datastore,
 					datastore.gcInterval,
 					datastore.gcWindow,
@@ -410,6 +428,7 @@ type pgDatastore struct {
 	watchBufferWriteTimeout        time.Duration
 	optimizedRevisionQuery         string
 	validTransactionQuery          string
+	revisionHeartbeatQuery         string
 	gcWindow                       time.Duration
 	gcInterval                     time.Duration
 	gcTimeout                      time.Duration
@@ -424,11 +443,12 @@ type pgDatastore struct {
 
 	credentialsProvider datastore.CredentialsProvider
 
-	gcGroup              *errgroup.Group
-	gcCtx                context.Context
-	cancelGc             context.CancelFunc
-	gcHasRun             atomic.Bool
-	filterMaximumIDCount uint16
+	workerGroup             *errgroup.Group
+	workerCtx               context.Context
+	cancelGc                context.CancelFunc
+	gcHasRun                atomic.Bool
+	filterMaximumIDCount    uint16
+	quantizationPeriodNanos int64
 }
 
 func (pgd *pgDatastore) IsStrictReadModeEnabled() bool {
@@ -651,8 +671,8 @@ func wrapError(err error) error {
 func (pgd *pgDatastore) Close() error {
 	pgd.cancelGc()
 
-	if pgd.gcGroup != nil {
-		err := pgd.gcGroup.Wait()
+	if pgd.workerGroup != nil {
+		err := pgd.workerGroup.Wait()
 		log.Warn().Err(err).Msg("completed shutdown of postgres datastore")
 	}
 
@@ -721,7 +741,7 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 				Status: datastore.FeatureUnsupported,
 			},
 			ContinuousCheckpointing: datastore.Feature{
-				Status: datastore.FeatureUnsupported,
+				Status: datastore.FeatureSupported,
 			},
 			WatchEmitsImmediately: datastore.Feature{
 				Status: datastore.FeatureUnsupported,
@@ -740,6 +760,53 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 			Status: datastore.FeatureUnsupported,
 		},
 	}, nil
+}
+
+const defaultMaxHeartbeatLeaderJitterPercent = 10
+
+func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
+	heartbeatDuration := time.Nanosecond * time.Duration(pgd.quantizationPeriodNanos)
+	log.Info().Stringer("interval", heartbeatDuration).Msg("starting revision heartbeat")
+	tick := time.NewTicker(heartbeatDuration)
+
+	// Leader election. Continue trying to acquire in case the current leader died.
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		ok, err := pgd.tryAcquireLock(ctx, revisionHeartbeatLock)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed to acquire revision heartbeat lock")
+		}
+
+		if ok {
+			break
+		}
+
+		jitter := time.Duration(float64(heartbeatDuration) * rand.Float64() * defaultMaxHeartbeatLeaderJitterPercent / 100) // nolint:gosec
+		time.Sleep(jitter)
+	}
+
+	defer func() {
+		if err := pgd.releaseLock(ctx, revisionHeartbeatLock); err != nil {
+			log.Warn().Err(err).Msg("failed to release revision heartbeat lock")
+		}
+	}()
+
+	log.Info().Stringer("interval", heartbeatDuration).Msg("got elected revision heartbeat leader, starting")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tick.C:
+			_, err := pgd.writePool.Exec(ctx, pgd.revisionHeartbeatQuery)
+			if err != nil {
+				log.Warn().Err(err).Msg("failed to write heartbeat revision")
+			}
+		}
+	}
 }
 
 func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer {

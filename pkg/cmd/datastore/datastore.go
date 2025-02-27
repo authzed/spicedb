@@ -174,6 +174,7 @@ type Config struct {
 	// Expermimental
 	ExperimentalColumnOptimization           bool `debugmap:"visible"`
 	EnableExperimentalRelationshipExpiration bool `debugmap:"visible"`
+	EnableExperimentalRevisionHeartbeat      bool `debugmap:"visible"`
 }
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.relintegritykey.options.go . RelIntegrityKey
@@ -627,6 +628,7 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		postgres.MigrationPhase(opts.MigrationPhase),
 		postgres.AllowedMigrations(opts.AllowedMigrations),
+		postgres.WithRevisionHeartbeat(opts.EnableExperimentalRevisionHeartbeat),
 	}
 
 	commonOptions, err := commonPostgresDatastoreOptions(opts)
