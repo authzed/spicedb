@@ -56,7 +56,7 @@ jobs:
           webhook: "${{ secrets.SLACK_WEBHOOK_URL }}"
           webhook-type: "incoming-webhook"
           payload: |
-            text: "*Goreleaser Job Finished* with status: ${{ job.status }}"
+            text: "*Release Job Finished* with status: ${{ job.status }}"
             blocks:
               - type: "section"
                 text:
