@@ -4,6 +4,7 @@ on:  # yamllint disable-line rule:truthy
   push:
     tags:
       - "*"
+  workflow_dispatch:
 permissions:
   contents: "write"
   packages: "write"
@@ -48,3 +49,22 @@ jobs:
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
           GEMFURY_PUSH_TOKEN: "${{ secrets.GEMFURY_PUSH_TOKEN }}"
           SNAPCRAFT_STORE_CREDENTIALS: "${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}"
+      - name: "Notify Slack of goreleaser status"
+        if: "always()"
+        uses: "slackapi/slack-github-action@v2.0.0"
+        with:
+          webhook: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          webhook-type: "incoming-webhook"
+          payload: |
+            text: "*Release Job Finished* with status: ${{ job.status }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: |
+                    *Goreleaser Job* finished with status: ${{ job.status }}
+                    *Repository:* ${{ github.repository }}
+                    *Commit:* ${{ github.sha }}
+                    *Author:* ${{ github.actor }}
+                    *Ref:* ${{ github.ref }}
+                    *Workflow:* ${{ github.workflow }}
