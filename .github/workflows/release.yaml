@@ -4,6 +4,7 @@ on:  # yamllint disable-line rule:truthy
   push:
     tags:
       - "*"
+  workflow_dispatch:
 permissions:
   contents: "write"
   packages: "write"
