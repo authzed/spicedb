@@ -51,9 +51,20 @@ jobs:
           SNAPCRAFT_STORE_CREDENTIALS: "${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}"
       - name: "Notify Slack of goreleaser status"
         if: "always()"
-        uses: "8398a7/action-slack@v3"
+        uses: "slackapi/slack-github-action@v2.0.0"
         with:
-          status: "${{ job.status }}"
-          fields: "repo,commit,author,ref,workflow,job,took"
-        env:
-          SLACK_WEBHOOK_URL: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          webhook: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          webhook-type: "incoming-webhook"
+          payload: |
+            text: "*Goreleaser Job Finished* with status: ${{ job.status }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: |
+                    *Goreleaser Job* finished with status: ${{ job.status }}
+                    *Repository:* ${{ github.repository }}
+                    *Commit:* ${{ github.sha }}
+                    *Author:* ${{ github.actor }}
+                    *Ref:* ${{ github.ref }}
+                    *Workflow:* ${{ github.workflow }}
