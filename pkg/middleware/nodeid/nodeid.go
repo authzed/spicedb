@@ -7,6 +7,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 )
 
@@ -22,6 +23,23 @@ type nodeIDHandle struct {
 
 var defaultNodeID string
 
+func init() {
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to get hostname, using an empty node ID")
+		return
+	}
+
+	// Hash the hostname to get the final default node ID.
+	hasher := xxhash.New()
+	if _, err := hasher.WriteString(hostname); err != nil {
+		log.Warn().Err(err).Msg("failed to hash hostname, using an empty node ID")
+		return
+	}
+
+	defaultNodeID = spiceDBPrefix + fmt.Sprintf("%x", hasher.Sum(nil))
+}
+
 // ContextWithHandle adds a placeholder to a context that will later be
 // filled by the Node ID.
 func ContextWithHandle(ctx context.Context) context.Context {
@@ -35,21 +53,6 @@ func FromContext(ctx context.Context) (string, error) {
 		if handle.nodeID != "" {
 			return handle.nodeID, nil
 		}
-	}
-
-	if defaultNodeID == "" {
-		hostname, err := os.Hostname()
-		if err != nil {
-			return "", err
-		}
-
-		// Hash the hostname to get the final default node ID.
-		hasher := xxhash.New()
-		if _, err := hasher.WriteString(hostname); err != nil {
-			return "", fmt.Errorf("failed to hash hostname: %w", err)
-		}
-
-		defaultNodeID = spiceDBPrefix + fmt.Sprintf("%x", hasher.Sum(nil))
 	}
 
 	if err := setInContext(ctx, defaultNodeID); err != nil {
