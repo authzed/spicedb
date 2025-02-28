@@ -78,7 +78,7 @@ const (
 	defaultExpirationDisabled                = false
 	// no follower delay by default, it should only be set if using read replicas
 	defaultFollowerReadDelay = 0
-	defaultRevisionHeartbeat = false
+	defaultRevisionHeartbeat = true
 )
 
 // Option provides the facility to configure how clients within the

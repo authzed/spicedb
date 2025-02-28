@@ -121,7 +121,7 @@ type Config struct {
 	MaxBulkExportRelationshipsLimit          uint32        `debugmap:"visible"`
 	EnableExperimentalLookupResources        bool          `debugmap:"visible"`
 	EnableExperimentalRelationshipExpiration bool          `debugmap:"visible"`
-	EnableExperimentalRevisionHeartbeat      bool          `debugmap:"visible"`
+	EnableRevisionHeartbeat                  bool          `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -229,7 +229,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
 			datastorecfg.WithEnableExperimentalRelationshipExpiration(c.EnableExperimentalRelationshipExpiration),
-			datastorecfg.WithEnableExperimentalRevisionHeartbeat(c.EnableExperimentalRevisionHeartbeat),
+			datastorecfg.WithEnableRevisionHeartbeat(c.EnableRevisionHeartbeat),
 		)
 		if err != nil {
 			return nil, spiceerrors.NewTerminationErrorBuilder(fmt.Errorf("failed to create datastore: %w", err)).

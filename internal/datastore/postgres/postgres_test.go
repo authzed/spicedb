@@ -75,6 +75,7 @@ func TestPostgresDatastoreGC(t *testing.T) {
 			GCInterval(veryLargeGCInterval),
 			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
+			WithRevisionHeartbeat(false),
 		))
 	})
 }

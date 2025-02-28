@@ -89,7 +89,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
-		to.EnableExperimentalRevisionHeartbeat = c.EnableExperimentalRevisionHeartbeat
+		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -159,7 +159,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
 	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
 	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
-	debugMap["EnableExperimentalRevisionHeartbeat"] = helpers.DebugValue(c.EnableExperimentalRevisionHeartbeat, false)
+	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -572,10 +572,10 @@ func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationship
 	}
 }
 
-// WithEnableExperimentalRevisionHeartbeat returns an option that can set EnableExperimentalRevisionHeartbeat on a Config
-func WithEnableExperimentalRevisionHeartbeat(enableExperimentalRevisionHeartbeat bool) ConfigOption {
+// WithEnableRevisionHeartbeat returns an option that can set EnableRevisionHeartbeat on a Config
+func WithEnableRevisionHeartbeat(enableRevisionHeartbeat bool) ConfigOption {
 	return func(c *Config) {
-		c.EnableExperimentalRevisionHeartbeat = enableExperimentalRevisionHeartbeat
+		c.EnableRevisionHeartbeat = enableRevisionHeartbeat
 	}
 }
 

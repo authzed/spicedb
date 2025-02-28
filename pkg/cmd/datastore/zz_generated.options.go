@@ -81,7 +81,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.AllowedMigrations = c.AllowedMigrations
 		to.ExperimentalColumnOptimization = c.ExperimentalColumnOptimization
 		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
-		to.EnableExperimentalRevisionHeartbeat = c.EnableExperimentalRevisionHeartbeat
+		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 	}
 }
 
@@ -137,7 +137,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["AllowedMigrations"] = helpers.DebugValue(c.AllowedMigrations, false)
 	debugMap["ExperimentalColumnOptimization"] = helpers.DebugValue(c.ExperimentalColumnOptimization, false)
 	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
-	debugMap["EnableExperimentalRevisionHeartbeat"] = helpers.DebugValue(c.EnableExperimentalRevisionHeartbeat, false)
+	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	return debugMap
 }
 
@@ -549,9 +549,9 @@ func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationship
 	}
 }
 
-// WithEnableExperimentalRevisionHeartbeat returns an option that can set EnableExperimentalRevisionHeartbeat on a Config
-func WithEnableExperimentalRevisionHeartbeat(enableExperimentalRevisionHeartbeat bool) ConfigOption {
+// WithEnableRevisionHeartbeat returns an option that can set EnableRevisionHeartbeat on a Config
+func WithEnableRevisionHeartbeat(enableRevisionHeartbeat bool) ConfigOption {
 	return func(c *Config) {
-		c.EnableExperimentalRevisionHeartbeat = enableExperimentalRevisionHeartbeat
+		c.EnableRevisionHeartbeat = enableRevisionHeartbeat
 	}
 }

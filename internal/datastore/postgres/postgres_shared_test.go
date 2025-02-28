@@ -89,6 +89,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 					WatchBufferLength(watchBufferLength),
 					DebugAnalyzeBeforeStatistics(),
 					MigrationPhase(config.migrationPhase),
+					WithRevisionHeartbeat(false), // heartbeat revision messes with tests that assert over revisions
 				)
 				require.NoError(t, err)
 				return ds
@@ -111,6 +112,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 					WatchBufferLength(watchBufferLength),
 					DebugAnalyzeBeforeStatistics(),
 					MigrationPhase(config.migrationPhase),
+					WithRevisionHeartbeat(false), // heartbeat revision messes with tests that assert over revisions
 				)
 				require.NoError(t, err)
 				return ds
@@ -173,6 +175,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				GCInterval(veryLargeGCInterval),
 				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
+				WithRevisionHeartbeat(false),
 			))
 
 			t.Run("OverlappingRevisionWatch", createDatastoreTest(
@@ -297,6 +300,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 					GCInterval(veryLargeGCInterval),
 					WatchBufferLength(watchBufferLength),
 					DebugAnalyzeBeforeStatistics(),
+					WithRevisionHeartbeat(false),
 				)
 				require.NoError(t, err)
 				return ds
@@ -316,6 +320,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 					GCInterval(gcInterval),
 					WatchBufferLength(watchBufferLength),
 					DebugAnalyzeBeforeStatistics(),
+					WithRevisionHeartbeat(false),
 				)
 				require.NoError(t, err)
 				return ds
