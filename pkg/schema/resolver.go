@@ -18,15 +18,11 @@ type Resolver interface {
 
 	// LookupCaveat lookups up a caveat.
 	LookupCaveat(ctx context.Context, name string) (*Caveat, error)
-
-	// WithPredefinedElements adds the given predefined elements to this resolver, returning a new
-	// resolver.
-	WithPredefinedElements(predefined PredefinedElements) Resolver
 }
 
 // ResolverForDatastoreReader returns a Resolver for a datastore reader.
 func ResolverForDatastoreReader(ds datastore.Reader) Resolver {
-	return &resolver{
+	return &DatastoreResolver{
 		ds: ds,
 	}
 }
@@ -46,7 +42,7 @@ func (pe PredefinedElements) combineWith(other PredefinedElements) PredefinedEle
 
 // ResolverForPredefinedDefinitions returns a resolver for predefined namespaces and caveats.
 func ResolverForPredefinedDefinitions(predefined PredefinedElements) Resolver {
-	return &resolver{
+	return &DatastoreResolver{
 		predefined: predefined,
 	}
 }
@@ -61,12 +57,12 @@ func ResolverForSchema(schema compiler.CompiledSchema) Resolver {
 	)
 }
 
-type resolver struct {
+type DatastoreResolver struct {
 	ds         datastore.Reader
 	predefined PredefinedElements
 }
 
-func (r *resolver) LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error) {
+func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error) {
 	if len(r.predefined.Definitions) > 0 {
 		for _, def := range r.predefined.Definitions {
 			if def.Name == name {
@@ -83,14 +79,14 @@ func (r *resolver) LookupDefinition(ctx context.Context, name string) (*core.Nam
 	return ns, true, err
 }
 
-func (r *resolver) WithPredefinedElements(predefined PredefinedElements) Resolver {
-	return &resolver{
+func (r *DatastoreResolver) WithPredefinedElements(predefined PredefinedElements) Resolver {
+	return &DatastoreResolver{
 		ds:         r.ds,
 		predefined: predefined.combineWith(r.predefined),
 	}
 }
 
-func (r *resolver) LookupCaveat(ctx context.Context, name string) (*Caveat, error) {
+func (r *DatastoreResolver) LookupCaveat(ctx context.Context, name string) (*Caveat, error) {
 	if len(r.predefined.Caveats) > 0 {
 		for _, caveat := range r.predefined.Caveats {
 			if caveat.Name == name {
