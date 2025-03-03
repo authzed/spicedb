@@ -308,6 +308,36 @@ func TestCompile(t *testing.T) {
 			[]SchemaDefinition{},
 		},
 		{
+			"definition with same name as partial",
+			withTenantPrefix,
+			`
+			partial simple {
+				relation user: user
+			}
+			definition simple {
+				...simple
+			}
+			`,
+			"found definition with same name as existing partial",
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat with same name as partial",
+			withTenantPrefix,
+			`
+			caveat some_caveat(someparam int) { someparam == 42}
+
+			partial some_caveat {
+				relation user: user
+			}
+			definition simple {
+				...some_caveat
+			}
+			`,
+			"found caveat with same name as existing partial",
+			[]SchemaDefinition{},
+		},
+		{
 			"definition reference to another definition errors",
 			withTenantPrefix,
 			`
