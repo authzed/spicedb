@@ -45,5 +45,9 @@ func (c CompiledSchemaResolver) LookupCaveat(ctx context.Context, name string) (
 }
 
 func (c CompiledSchemaResolver) AllDefinitionNames() []string {
-
+	out := make([]string, len(c.schema.ObjectDefinitions))
+	for i, o := range c.schema.ObjectDefinitions {
+		out[i] = o.GetName()
+	}
+	return out
 }

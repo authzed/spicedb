@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
 type expectedRelation struct {
@@ -298,7 +299,8 @@ func TestRelationsReferencing(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			graph, err := BuildGraph(context.Background(), *schema)
+			res := ResolverForCompiledSchema(*schema)
+			graph, err := BuildGraph(context.Background(), res)
 			require.NoError(t, err)
 
 			for _, resource := range schema.ObjectDefinitions {
@@ -353,7 +355,8 @@ func BenchmarkRelationsReferencing(b *testing.B) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(b, err)
 
-	graph, err := BuildGraph(context.Background(), *schema)
+	res := ResolverForCompiledSchema(*schema)
+	graph, err := BuildGraph(context.Background(), res)
 	require.NoError(b, err)
 
 	var size int

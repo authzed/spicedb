@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-	"github.com/stretchr/testify/require"
 )
 
 func TestLookupTuplesetArrows(t *testing.T) {
@@ -84,7 +85,8 @@ func TestLookupTuplesetArrows(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			arrowSet, err := BuildArrowSet(context.Background(), *schema)
+			res := ResolverForCompiledSchema(*schema)
+			arrowSet, err := BuildArrowSet(context.Background(), res)
 			require.NoError(t, err)
 
 			for _, resource := range schema.ObjectDefinitions {
@@ -175,7 +177,8 @@ func TestAllReachableRelations(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			arrows, err := BuildArrowSet(context.Background(), *schema)
+			res := ResolverForCompiledSchema(*schema)
+			arrows, err := BuildArrowSet(context.Background(), res)
 			require.NoError(t, err)
 
 			reachable := arrows.AllReachableRelations()

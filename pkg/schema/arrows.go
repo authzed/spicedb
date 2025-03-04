@@ -64,7 +64,7 @@ func (as *ArrowSet) LookupTuplesetArrows(namespaceName string, relationName stri
 
 func (as *ArrowSet) compute(ctx context.Context) error {
 	for _, name := range as.res.AllDefinitionNames() {
-		def, err := as.ts.GetDefinition(ctx, name)
+		def, err := as.ts.GetValidatedDefinition(ctx, name)
 		if err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ func (as *ArrowSet) add(ttu *core.TupleToUserset, path string, namespaceName str
 	as.arrowsByFullTuplesetRelation.Add(tsKey, ArrowInformation{Path: path, Arrow: ttu, ParentRelationName: relationName})
 }
 
-func (as *ArrowSet) collectArrowInformationForRelation(ctx context.Context, def *Definition, relationName string) error {
+func (as *ArrowSet) collectArrowInformationForRelation(ctx context.Context, def *ValidatedDefinition, relationName string) error {
 	if !def.IsPermission(relationName) {
 		return nil
 	}
@@ -94,7 +94,7 @@ func (as *ArrowSet) collectArrowInformationForRelation(ctx context.Context, def 
 	return as.collectArrowInformationForRewrite(ctx, relation.UsersetRewrite, def, relation, relationName)
 }
 
-func (as *ArrowSet) collectArrowInformationForRewrite(ctx context.Context, rewrite *core.UsersetRewrite, def *Definition, relation *core.Relation, path string) error {
+func (as *ArrowSet) collectArrowInformationForRewrite(ctx context.Context, rewrite *core.UsersetRewrite, def *ValidatedDefinition, relation *core.Relation, path string) error {
 	switch rw := rewrite.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
 		return as.collectArrowInformationForSetOperation(ctx, rw.Union, def, relation, path)
@@ -107,7 +107,7 @@ func (as *ArrowSet) collectArrowInformationForRewrite(ctx context.Context, rewri
 	}
 }
 
-func (as *ArrowSet) collectArrowInformationForSetOperation(ctx context.Context, so *core.SetOperation, def *Definition, relation *core.Relation, path string) error {
+func (as *ArrowSet) collectArrowInformationForSetOperation(ctx context.Context, so *core.SetOperation, def *ValidatedDefinition, relation *core.Relation, path string) error {
 	for index, childOneof := range so.Child {
 		updatedPath := path + "." + strconv.Itoa(index)
 		switch child := childOneof.ChildType.(type) {
@@ -129,7 +129,7 @@ func (as *ArrowSet) collectArrowInformationForSetOperation(ctx context.Context, 
 			}
 
 			for _, ast := range allowedSubjectTypes {
-				def, err := as.ts.GetDefinition(ctx, ast.Namespace)
+				def, err := as.ts.GetValidatedDefinition(ctx, ast.Namespace)
 				if err != nil {
 					return err
 				}

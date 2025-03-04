@@ -21,7 +21,7 @@ type Resolver interface {
 }
 
 // ResolverForDatastoreReader returns a Resolver for a datastore reader.
-func ResolverForDatastoreReader(ds datastore.Reader) Resolver {
+func ResolverForDatastoreReader(ds datastore.Reader) *DatastoreResolver {
 	return &DatastoreResolver{
 		ds: ds,
 	}

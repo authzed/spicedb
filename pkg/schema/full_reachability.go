@@ -8,14 +8,10 @@ import (
 	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // Graph is a struct holding reachability information.
 type Graph struct {
-	schema           compiler.CompiledSchema
 	arrowSet         *ArrowSet
 	ts               *TypeSystem
 	referenceInfoMap map[nsAndRel][]RelationReferenceInfo
@@ -74,7 +70,7 @@ func relationsReferencing(ctx context.Context, arrowSet *ArrowSet, res FullSchem
 	foundReferences := make([]RelationReferenceInfo, 0)
 
 	for _, name := range res.AllDefinitionNames() {
-		def, err := ts.GetDefinition(ctx, name)
+		def, err := ts.GetValidatedDefinition(ctx, name)
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +157,7 @@ func preComputeRelationReferenceInfo(ctx context.Context, arrowSet *ArrowSet, re
 	nsAndRelToInfo := make(map[nsAndRel][]RelationReferenceInfo)
 
 	for _, namespaceName := range res.AllDefinitionNames() {
-		outerTS, err := ts.GetDefinition(ctx, namespaceName)
+		outerTS, err := ts.GetValidatedDefinition(ctx, namespaceName)
 		if err != nil {
 			return nil, err
 		}
@@ -225,20 +221,4 @@ func setOperationReferencesRelation(ctx context.Context, so *core.SetOperation, 
 	}
 
 	return false, nil
-}
-
-func getTypeSystem(ctx context.Context, schema compiler.CompiledSchema, resourceType string) (*typesystem.ValidatedNamespaceTypeSystem, error) {
-	// Find the namespace.
-	for _, nsDef := range schema.ObjectDefinitions {
-		if nsDef.Name == resourceType {
-			ts, err := typesystem.NewNamespaceTypeSystem(nsDef, typesystem.ResolverForSchema(schema))
-			if err != nil {
-				return nil, err
-			}
-
-			return ts.Validate(ctx)
-		}
-	}
-
-	return nil, spiceerrors.MustBugf("unknown namespace %s", resourceType)
 }
