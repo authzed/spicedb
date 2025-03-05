@@ -10,7 +10,7 @@ import (
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
-	"github.com/authzed/spicedb/pkg/typesystem"
+	"github.com/authzed/spicedb/pkg/schema"
 )
 
 // DeltaType defines the type of namespace deltas.
@@ -266,13 +266,13 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		allowedRelsBySource := map[string]*core.AllowedRelation{}
 
 		for _, existingAllowed := range existingTypeInfo.AllowedDirectRelations {
-			source := typesystem.SourceForAllowedRelation(existingAllowed)
+			source := schema.SourceForAllowedRelation(existingAllowed)
 			allowedRelsBySource[source] = existingAllowed
 			existingAllowedRels.Add(source)
 		}
 
 		for _, updatedAllowed := range updatedTypeInfo.AllowedDirectRelations {
-			source := typesystem.SourceForAllowedRelation(updatedAllowed)
+			source := schema.SourceForAllowedRelation(updatedAllowed)
 			allowedRelsBySource[source] = updatedAllowed
 			updatedAllowedRels.Add(source)
 		}

@@ -4,8 +4,8 @@ import (
 	"encoding/hex"
 	"hash/fnv"
 
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/typesystem"
 
 	"github.com/dalzilio/rudd"
 
@@ -55,8 +55,8 @@ const computedKeyPrefix = "%"
 // canonical representation of the binary expression. These hashes can then be used for caching,
 // representing the same *logical* expressions for a permission, even if the relations have
 // different names.
-func computeCanonicalCacheKeys(typeSystem *typesystem.ValidatedNamespaceTypeSystem, aliasMap map[string]string) (map[string]string, error) {
-	varMap, err := buildBddVarMap(typeSystem.Namespace().Relation, aliasMap)
+func computeCanonicalCacheKeys(typeDef *schema.ValidatedDefinition, aliasMap map[string]string) (map[string]string, error) {
+	varMap, err := buildBddVarMap(typeDef.Namespace().Relation, aliasMap)
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +71,8 @@ func computeCanonicalCacheKeys(typeSystem *typesystem.ValidatedNamespaceTypeSyst
 	}
 
 	// For each permission, build a canonicalized cache key based on its expression.
-	cacheKeys := make(map[string]string, len(typeSystem.Namespace().Relation))
-	for _, rel := range typeSystem.Namespace().Relation {
+	cacheKeys := make(map[string]string, len(typeDef.Namespace().Relation))
+	for _, rel := range typeDef.Namespace().Relation {
 		rewrite := rel.GetUsersetRewrite()
 		if rewrite == nil {
 			// If the relation has no rewrite (making it a pure relation), then its canonical

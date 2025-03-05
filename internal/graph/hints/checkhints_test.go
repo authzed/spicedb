@@ -12,10 +12,10 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 func TestHintForEntrypoint(t *testing.T) {
@@ -69,7 +69,7 @@ func TestHintForEntrypoint(t *testing.T) {
 			rg := buildReachabilityGraph(t, tc.schema)
 			subject := tuple.MustParseSubjectONR("user:tom")
 
-			entrypoints, err := rg.OptimizedEntrypointsForSubjectToResource(context.Background(), &core.RelationReference{
+			entrypoints, err := rg.FirstEntrypointsForSubjectToResource(context.Background(), &core.RelationReference{
 				Namespace: tc.subjectType,
 				Relation:  tc.subjectRelation,
 			}, &core.RelationReference{
@@ -95,7 +95,7 @@ func TestHintForEntrypoint(t *testing.T) {
 	}
 }
 
-func buildReachabilityGraph(t *testing.T, schema string) *typesystem.ReachabilityGraph {
+func buildReachabilityGraph(t *testing.T, schemaStr string) *schema.DefinitionReachability {
 	require := require.New(t)
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
@@ -105,7 +105,7 @@ func buildReachabilityGraph(t *testing.T, schema string) *typesystem.Reachabilit
 
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
-		SchemaString: schema,
+		SchemaString: schemaStr,
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
@@ -125,12 +125,12 @@ func buildReachabilityGraph(t *testing.T, schema string) *typesystem.Reachabilit
 	require.NoError(err)
 
 	reader := ds.SnapshotReader(lastRevision)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 
-	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, "resource", reader)
+	vdef, err := ts.GetValidatedDefinition(ctx, "resource")
 	require.NoError(err)
 
-	rg := typesystem.ReachabilityGraphFor(vts)
-	return rg
+	return vdef.Reachability()
 }
 
 func TestCheckHintForComputedUserset(t *testing.T) {

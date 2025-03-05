@@ -20,11 +20,11 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -236,7 +236,8 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -245,8 +246,8 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 	if relationName == "" {
 		relationName = tuple.Ellipsis
 	} else {
-		if _, ok := vts.GetRelation(relationName); !ok {
-			return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, relationName))
+		if _, ok := vdef.GetRelation(relationName); !ok {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, relationName))
 		}
 	}
 
@@ -260,7 +261,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		allDefinitions = append(allDefinitions, ns.Definition)
 	}
 
-	rg := typesystem.ReachabilityGraphFor(vts)
+	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  relationName,
@@ -279,7 +280,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 			continue
 		}
 
-		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		ts, err := ts.GetDefinition(ctx, r.Namespace)
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}
@@ -311,21 +312,22 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	_, ok := vts.GetRelation(req.PermissionName)
+	_, ok := vdef.GetRelation(req.PermissionName)
 	if !ok {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
+		return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
 	}
 
-	if !vts.IsPermission(req.PermissionName) {
+	if !vdef.IsPermission(req.PermissionName) {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
 	}
 
-	rg := typesystem.ReachabilityGraphFor(vts)
+	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  req.PermissionName,
@@ -340,7 +342,7 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 			continue
 		}
 
-		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		ts, err := ts.GetDefinition(ctx, r.Namespace)
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}

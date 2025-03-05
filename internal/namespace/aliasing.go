@@ -3,18 +3,18 @@ package namespace
 import (
 	"sort"
 
-	"github.com/authzed/spicedb/pkg/typesystem"
+	"github.com/authzed/spicedb/pkg/schema"
 )
 
 // computePermissionAliases computes a map of aliases between the various permissions in a
 // namespace. A permission is considered an alias if it *directly* refers to another permission
 // or relation without any other form of expression.
-func computePermissionAliases(typeSystem *typesystem.ValidatedNamespaceTypeSystem) (map[string]string, error) {
+func computePermissionAliases(typeDefinition *schema.ValidatedDefinition) (map[string]string, error) {
 	aliases := map[string]string{}
 	done := map[string]struct{}{}
 	unresolvedAliases := map[string]string{}
 
-	for _, rel := range typeSystem.Namespace().Relation {
+	for _, rel := range typeDefinition.Namespace().Relation {
 		// Ensure the relation has a rewrite...
 		if rel.GetUsersetRewrite() == nil {
 			done[rel.Name] = struct{}{}
@@ -43,7 +43,7 @@ func computePermissionAliases(typeSystem *typesystem.ValidatedNamespaceTypeSyste
 
 		// If the aliased item is a relation, then we've found the alias target.
 		aliasedPermOrRel := computedUserset.GetRelation()
-		if !typeSystem.IsPermission(aliasedPermOrRel) {
+		if !typeDefinition.IsPermission(aliasedPermOrRel) {
 			done[rel.Name] = struct{}{}
 			aliases[rel.Name] = aliasedPermOrRel
 			continue
@@ -74,7 +74,7 @@ func computePermissionAliases(typeSystem *typesystem.ValidatedNamespaceTypeSyste
 				keys = append(keys, key)
 			}
 			sort.Strings(keys)
-			return nil, NewPermissionsCycleErr(typeSystem.Namespace().Name, keys)
+			return nil, NewPermissionsCycleErr(typeDefinition.Namespace().Name, keys)
 		}
 	}
 
