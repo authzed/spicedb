@@ -11,16 +11,16 @@ import (
 	nsdiff "github.com/authzed/spicedb/pkg/diff/namespace"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
 type ValidatedSchemaChanges struct {
 	compiled             *compiler.CompiledSchema
-	validatedTypeSystems map[string]*typesystem.ValidatedNamespaceTypeSystem
+	validatedTypeSystems map[string]*schema.ValidatedDefinition
 	newCaveatDefNames    *mapz.Set[string]
 	newObjectDefNames    *mapz.Set[string]
 	additiveOnly         bool
@@ -41,19 +41,15 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 
 	// 2) Validate the namespaces defined.
 	newObjectDefNames := mapz.NewSet[string]()
-	validatedTypeSystems := make(map[string]*typesystem.ValidatedNamespaceTypeSystem, len(compiled.ObjectDefinitions))
+	validatedTypeSystems := make(map[string]*schema.ValidatedDefinition, len(compiled.ObjectDefinitions))
+	res := schema.ResolverForPredefinedDefinitions(schema.PredefinedElements{
+		Definitions: compiled.ObjectDefinitions,
+		Caveats:     compiled.CaveatDefinitions,
+	})
+	ts := schema.NewTypeSystem(res)
 
 	for _, nsdef := range compiled.ObjectDefinitions {
-		ts, err := typesystem.NewNamespaceTypeSystem(nsdef,
-			typesystem.ResolverForPredefinedDefinitions(typesystem.PredefinedElements{
-				Namespaces: compiled.ObjectDefinitions,
-				Caveats:    compiled.CaveatDefinitions,
-			}))
-		if err != nil {
-			return nil, err
-		}
-
-		vts, err := ts.Validate(ctx)
+		vts, err := ts.GetValidatedDefinition(ctx, nsdef.GetName())
 		if err != nil {
 			return nil, err
 		}
@@ -428,7 +424,7 @@ func sanityCheckNamespaceChanges(
 				qyr,
 				qyrErr,
 				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
-				typesystem.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
+				schema.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
 			if err != nil {
 				return diff, err
 			}

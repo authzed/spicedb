@@ -18,6 +18,10 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 	if err != nil {
 		return nil, err
 	}
+	return def.Validate(ctx)
+}
+
+func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, error) {
 	for _, relation := range def.relationMap {
 		relation := relation
 
@@ -64,7 +68,7 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
-				referencedWildcard, err := ts.referencesWildcardType(ctx, def, relationName)
+				referencedWildcard, err := def.TypeSystem().referencesWildcardType(ctx, def, relationName)
 				if err != nil {
 					return err, nil
 				}
@@ -110,7 +114,7 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
-				referencedWildcard, err := ts.referencesWildcardType(ctx, def, relationName)
+				referencedWildcard, err := def.TypeSystem().referencesWildcardType(ctx, def, relationName)
 				if err != nil {
 					return err, nil
 				}
@@ -198,7 +202,7 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 					}
 				}
 			} else {
-				subjectTS, err := ts.GetDefinition(ctx, allowedRelation.GetNamespace())
+				subjectTS, err := def.TypeSystem().GetDefinition(ctx, allowedRelation.GetNamespace())
 				if err != nil {
 					return nil, NewTypeWithSourceError(
 						fmt.Errorf("could not lookup definition `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err),
@@ -220,7 +224,7 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 					}
 
 					// Ensure the relation doesn't itself import wildcard.
-					referencedWildcard, err := ts.referencesWildcardType(ctx, subjectTS, allowedRelation.GetRelation())
+					referencedWildcard, err := def.TypeSystem().referencesWildcardType(ctx, subjectTS, allowedRelation.GetRelation())
 					if err != nil {
 						return nil, err
 					}
@@ -244,7 +248,7 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 
 			// Check the caveat, if any.
 			if allowedRelation.GetRequiredCaveat() != nil {
-				_, err := ts.resolver.LookupCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
+				_, err := def.TypeSystem().resolver.LookupCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
 				if err != nil {
 					return nil, NewTypeWithSourceError(
 						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetRequiredCaveat().CaveatName, relation.Name, err),

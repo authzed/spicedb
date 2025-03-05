@@ -12,8 +12,8 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // PopulatedValidationFile contains the fully parsed information from a validation file.
@@ -57,7 +57,7 @@ func PopulateFromFiles(ctx context.Context, ds datastore.Datastore, filePaths []
 // PopulateFromFilesContents populates the given datastore with the namespaces and tuples found in
 // the validation file(s) contents specified.
 func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
-	var schema string
+	var schemaStr string
 	var objectDefs []*core.NamespaceDefinition
 	var caveatDefs []*core.CaveatDefinition
 	var rels []tuple.Relationship
@@ -90,7 +90,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		if parsed.Schema.CompiledSchema != nil {
 			defs := parsed.Schema.CompiledSchema.ObjectDefinitions
 			if len(defs) > 0 {
-				schema += parsed.Schema.Schema + "\n\n"
+				schemaStr += parsed.Schema.Schema + "\n\n"
 			}
 
 			log.Ctx(ctx).Info().Str("filePath", filePath).
@@ -118,19 +118,15 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 			return err
 		}
 
+		res := schema.ResolverForDatastoreReader(rwt).WithPredefinedElements(schema.PredefinedElements{
+			Definitions: objectDefs,
+			Caveats:     caveatDefs,
+		})
+		ts := schema.NewTypeSystem(res)
 		// Validate and write the object definitions.
 		for _, objectDef := range objectDefs {
-			ts, err := typesystem.NewNamespaceTypeSystem(objectDef,
-				typesystem.ResolverForDatastoreReader(rwt).WithPredefinedElements(typesystem.PredefinedElements{
-					Namespaces: objectDefs,
-					Caveats:    caveatDefs,
-				}))
-			if err != nil {
-				return err
-			}
-
 			ctx := dsctx.ContextWithDatastore(ctx, ds)
-			vts, terr := ts.Validate(ctx)
+			vts, terr := ts.GetValidatedDefinition(ctx, objectDef.GetName())
 			if terr != nil {
 				return terr
 			}
@@ -171,5 +167,5 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		return nil, nil, err
 	}
 
-	return &PopulatedValidationFile{schema, objectDefs, caveatDefs, rels, files}, revision, err
+	return &PopulatedValidationFile{schemaStr, objectDefs, caveatDefs, rels, files}, revision, err
 }

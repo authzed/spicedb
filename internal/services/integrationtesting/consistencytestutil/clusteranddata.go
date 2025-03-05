@@ -19,7 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/typesystem"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -58,17 +58,12 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 
 	dsCtx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(dsCtx, ds))
+	res := schema.ResolverForDatastoreReader(ds.SnapshotReader(revision))
+	ts := schema.NewTypeSystem(res)
 
 	// Validate the type system for each namespace.
 	for _, nsDef := range populated.NamespaceDefinitions {
-		_, ts, err := typesystem.ReadNamespaceAndTypes(
-			dsCtx,
-			nsDef.Name,
-			ds.SnapshotReader(revision),
-		)
-		require.NoError(err)
-
-		_, err = ts.Validate(dsCtx)
+		_, err = ts.GetValidatedDefinition(dsCtx, nsDef.GetName())
 		require.NoError(err)
 	}
 
