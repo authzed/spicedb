@@ -552,8 +552,8 @@ func TestTypeSystemAccessors(t *testing.T) {
 					})
 
 					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
 
 						_, err := vts.IsAllowedPublicNamespace("unknown", "user")
 						require.Error(t, err)
@@ -641,8 +641,8 @@ func TestTypeSystemAccessors(t *testing.T) {
 					})
 
 					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
 					})
 
 					t.Run("GetAllowedDirectNamespaceSubjectRelations", func(t *testing.T) {
@@ -717,9 +717,9 @@ func TestTypeSystemAccessors(t *testing.T) {
 					})
 
 					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("member", "user")))
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("member", "group")))
-						require.Equal(t, AllowedNamespaceNotValid, noError(vts.IsAllowedDirectNamespace("member", "thirdtype")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("member", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("member", "group")))
+						require.Equal(t, AllowedDefinitionNotValid, noError(vts.IsAllowedDirectNamespace("member", "thirdtype")))
 					})
 
 					t.Run("GetAllowedDirectNamespaceSubjectRelations", func(t *testing.T) {
@@ -802,9 +802,9 @@ func TestTypeSystemAccessors(t *testing.T) {
 					})
 
 					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("onlycaveated", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("onlycaveated", "user")))
 					})
 
 					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
@@ -890,8 +890,8 @@ func TestTypeSystemAccessors(t *testing.T) {
 					})
 
 					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
-						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
 					})
 
 					t.Run("IsAllowedDirectRelation", func(t *testing.T) {

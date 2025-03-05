@@ -33,7 +33,7 @@ func (ts *TypeSystem) GetDefinition(ctx context.Context, definition string) (*De
 	if err != nil {
 		return nil, err
 	}
-	d, err := newDefinition(ts, ns)
+	d, err := NewDefinition(ts, ns)
 	if err != nil {
 		return nil, err
 	}

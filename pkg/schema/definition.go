@@ -60,24 +60,23 @@ const (
 	AllowedRelationNotValid
 )
 
-// AllowedNamespaceOption indicates whether an allowed namespace of a particular kind is allowed on the right side of another relation.
-type AllowedNamespaceOption int
+// AllowedDefinitionOption indicates whether an allowed definition of a particular kind is allowed on the right side of another relation.
+type AllowedDefinitionOption int
 
 const (
-	// UnknownIfAllowedNamespace indicates that no type information is defined for
+	// UnknownIfAllowedDefinition indicates that no type information is defined for
 	// this relation.
-	UnknownIfAllowedNamespace AllowedNamespaceOption = iota
+	UnknownIfAllowedDefinition AllowedDefinitionOption = iota
 
-	// AllowedNamespaceValid indicates that the specified subject namespace is valid.
-	AllowedNamespaceValid
+	// AllowedDefinitionValid indicates that the specified subject definition is valid.
+	AllowedDefinitionValid
 
-	// AllowedNamespaceNotValid indicates that the specified subject namespace is not valid.
-	AllowedNamespaceNotValid
+	// AllowedDefinitionNotValid indicates that the specified subject definition is not valid.
+	AllowedDefinitionNotValid
 )
 
-// NewNamespaceTypeSystem returns a new type system for the given namespace. Note that the type
-// system is not validated until Validate is called.
-func newDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition, error) {
+// NewDefinition returns a new type definition for the given namespace proto.
+func NewDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition, error) {
 	relationMap := make(map[string]*core.Relation, len(nsDef.GetRelation()))
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
@@ -109,6 +108,11 @@ type Definition struct {
 // Namespace is the namespace for which the type system was constructed.
 func (def *Definition) Namespace() *core.NamespaceDefinition {
 	return def.nsDef
+}
+
+// TypeSystem returns the typesystem for this definition
+func (def *Definition) TypeSystem() *TypeSystem {
+	return def.ts
 }
 
 // HasTypeInformation returns true if the relation with the given name exists and has type
@@ -167,25 +171,25 @@ func (def *Definition) GetAllowedDirectNamespaceSubjectRelations(sourceRelationN
 
 // IsAllowedDirectNamespace returns whether the target namespace is defined as appearing somewhere on the
 // right side of a relation (except public).
-func (def *Definition) IsAllowedDirectNamespace(sourceRelationName string, targetNamespaceName string) (AllowedNamespaceOption, error) {
+func (def *Definition) IsAllowedDirectNamespace(sourceRelationName string, targetNamespaceName string) (AllowedDefinitionOption, error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {
-		return UnknownIfAllowedNamespace, asTypeError(NewRelationNotFoundErr(def.nsDef.Name, sourceRelationName))
+		return UnknownIfAllowedDefinition, asTypeError(NewRelationNotFoundErr(def.nsDef.Name, sourceRelationName))
 	}
 
 	typeInfo := found.GetTypeInformation()
 	if typeInfo == nil {
-		return UnknownIfAllowedNamespace, nil
+		return UnknownIfAllowedDefinition, nil
 	}
 
 	allowedRelations := typeInfo.GetAllowedDirectRelations()
 	for _, allowedRelation := range allowedRelations {
 		if allowedRelation.GetNamespace() == targetNamespaceName && allowedRelation.GetPublicWildcard() == nil {
-			return AllowedNamespaceValid, nil
+			return AllowedDefinitionValid, nil
 		}
 	}
 
-	return AllowedNamespaceNotValid, nil
+	return AllowedDefinitionNotValid, nil
 }
 
 // IsAllowedPublicNamespace returns whether the target namespace is defined as public on the source relation.
