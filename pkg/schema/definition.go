@@ -75,7 +75,7 @@ const (
 	AllowedDefinitionNotValid
 )
 
-// NewDefinition returns a new type definition for the given namespace proto.
+// NewDefinition returns a new type definition for the given definition proto.
 func NewDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition, error) {
 	relationMap := make(map[string]*core.Relation, len(nsDef.GetRelation()))
 	for _, relation := range nsDef.GetRelation() {
@@ -98,14 +98,14 @@ func NewDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition
 	}, nil
 }
 
-// TypeSystem represents typing information found in a namespace.
+// TypeSystem represents typing information found in a definition.
 type Definition struct {
 	ts          *TypeSystem
 	nsDef       *core.NamespaceDefinition
 	relationMap map[string]*core.Relation
 }
 
-// Namespace is the namespace for which the type system was constructed.
+// Namespace is the NamespaceDefinition for which the type system was constructed.
 func (def *Definition) Namespace() *core.NamespaceDefinition {
 	return def.nsDef
 }
@@ -122,7 +122,7 @@ func (def *Definition) HasTypeInformation(relationName string) bool {
 	return ok && rel.GetTypeInformation() != nil
 }
 
-// HasRelation returns true if the namespace has the given relation defined.
+// HasRelation returns true if the definition has the given relation defined.
 func (def *Definition) HasRelation(relationName string) bool {
 	_, ok := def.relationMap[relationName]
 	return ok
@@ -134,7 +134,7 @@ func (def *Definition) GetRelation(relationName string) (*core.Relation, bool) {
 	return rel, ok
 }
 
-// IsPermission returns true if the namespace has the given relation defined and it is
+// IsPermission returns true if the definition has the given relation defined and it is
 // a permission.
 func (def *Definition) IsPermission(relationName string) bool {
 	found, ok := def.relationMap[relationName]
@@ -145,8 +145,8 @@ func (def *Definition) IsPermission(relationName string) bool {
 	return nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION
 }
 
-// GetAllowedDirectNamespaceSubjectRelations returns the subject relations for the target namespace, if it is defined as appearing
-// somewhere on the right side of a relation (except public). Returns nil if there is no type information or it is not allowed.
+// GetAllowedDirectNamespaceSubjectRelations returns the subject relations for the target definition, if it is defined as appearing
+// somewhere on the right side of a relation (except wildcards). Returns nil if there is no type information or it is not allowed.
 func (def *Definition) GetAllowedDirectNamespaceSubjectRelations(sourceRelationName string, targetNamespaceName string) (*mapz.Set[string], error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {
@@ -169,7 +169,7 @@ func (def *Definition) GetAllowedDirectNamespaceSubjectRelations(sourceRelationN
 	return allowedSubjectRelations, nil
 }
 
-// IsAllowedDirectNamespace returns whether the target namespace is defined as appearing somewhere on the
+// IsAllowedDirectNamespace returns whether the target definition is defined as appearing somewhere on the
 // right side of a relation (except public).
 func (def *Definition) IsAllowedDirectNamespace(sourceRelationName string, targetNamespaceName string) (AllowedDefinitionOption, error) {
 	found, ok := def.relationMap[sourceRelationName]
@@ -192,7 +192,7 @@ func (def *Definition) IsAllowedDirectNamespace(sourceRelationName string, targe
 	return AllowedDefinitionNotValid, nil
 }
 
-// IsAllowedPublicNamespace returns whether the target namespace is defined as public on the source relation.
+// IsAllowedPublicNamespace returns whether the target definition is defined as public on the source relation.
 func (def *Definition) IsAllowedPublicNamespace(sourceRelationName string, targetNamespaceName string) (AllowedPublicSubject, error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {

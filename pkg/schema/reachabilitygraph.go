@@ -137,8 +137,8 @@ func (rg *DefinitionReachability) AllEntrypointsForSubjectToResource(
 // FirstEntrypointsForSubjectToResource returns the *optimized* set of entrypoints into the
 // reachability graph, starting at the given subject type and walking to the given resource type.
 //
-// The optimized set will skip branches on intersections and exclusions in an attempt to minimize
-// the number of entrypoints.
+// It does this by limiting the number of entrypoints (and checking the alternatives) and so simply returns the first entrypoint in an
+// intersection or exclusion branch.
 func (rg *DefinitionReachability) FirstEntrypointsForSubjectToResource(
 	ctx context.Context,
 	subjectType *core.RelationReference,
