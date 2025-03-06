@@ -86,7 +86,7 @@ func TestLookupTuplesetArrows(t *testing.T) {
 			require.NoError(t, err)
 
 			res := ResolverForCompiledSchema(*schema)
-			arrowSet, err := BuildArrowSet(context.Background(), res)
+			arrowSet, err := buildArrowSet(context.Background(), res)
 			require.NoError(t, err)
 
 			for _, resource := range schema.ObjectDefinitions {
@@ -178,7 +178,7 @@ func TestAllReachableRelations(t *testing.T) {
 			require.NoError(t, err)
 
 			res := ResolverForCompiledSchema(*schema)
-			arrows, err := BuildArrowSet(context.Background(), res)
+			arrows, err := buildArrowSet(context.Background(), res)
 			require.NoError(t, err)
 
 			reachable := arrows.AllReachableRelations()

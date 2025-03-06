@@ -52,6 +52,7 @@ func (err RelationNotFoundError) NotFoundRelationName() string {
 	return err.relationName
 }
 
+// MarshalZerologObject implements zerolog object marshalling.
 func (err RelationNotFoundError) MarshalZerologObject(e *zerolog.Event) {
 	e.Err(err.error).Str("definition", err.definitionName).Str("relation", err.relationName)
 }
@@ -75,6 +76,7 @@ func (err CaveatNotFoundError) CaveatName() string {
 	return err.caveatName
 }
 
+// MarshalZerologObject implements zerolog object marshalling.
 func (err CaveatNotFoundError) MarshalZerologObject(e *zerolog.Event) {
 	e.Err(err.error).Str("caveat", err.caveatName)
 }

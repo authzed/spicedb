@@ -98,7 +98,8 @@ func NewDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition
 	}, nil
 }
 
-// TypeSystem represents typing information found in a definition.
+// Definition represents typing information found in a definition.
+// It also provides better ergonomic accessors to the defintion's type information.
 type Definition struct {
 	ts          *TypeSystem
 	nsDef       *core.NamespaceDefinition

@@ -7,16 +7,21 @@ import (
 )
 
 type (
-	Caveat   = core.CaveatDefinition
+	// Caveat is an alias for a core.CaveatDefinition proto
+	Caveat = core.CaveatDefinition
+	// Relation is an alias for a core.Relation proto
 	Relation = core.Relation
 )
 
+// TypeSystem is a cache and view into an entire combined schema of type definitions and caveats.
+// It also provides accessors to build reachability graphs for the underlying types.
 type TypeSystem struct {
 	definitions        map[string]*Definition
 	resolver           Resolver
 	wildcardCheckCache map[string]*WildcardTypeReference
 }
 
+// NewTypeSystem builds a TypeSystem object from a resolver, which can look up the definitions.
 func NewTypeSystem(resolver Resolver) *TypeSystem {
 	return &TypeSystem{
 		definitions:        make(map[string]*Definition),
@@ -25,6 +30,7 @@ func NewTypeSystem(resolver Resolver) *TypeSystem {
 	}
 }
 
+// GetDefinition looks up and returns a definition struct.
 func (ts *TypeSystem) GetDefinition(ctx context.Context, definition string) (*Definition, error) {
 	if v, ok := ts.definitions[definition]; ok {
 		return v, nil

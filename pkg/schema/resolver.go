@@ -13,7 +13,7 @@ import (
 // Resolver is an interface defined for resolving referenced namespaces and caveats when constructing
 // and validating a type system.
 type Resolver interface {
-	// LookupNamespace lookups up a namespace, also returning whether it was pre-validated.
+	// LookupDefinition lookups up a namespace definition, also returning whether it was pre-validated.
 	LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error)
 
 	// LookupCaveat lookups up a caveat.
@@ -57,11 +57,13 @@ func ResolverForSchema(schema compiler.CompiledSchema) Resolver {
 	)
 }
 
+// DatastoreResolver is a resolver implementation for a datastore, to look up schema stored in the underlying storage.
 type DatastoreResolver struct {
 	ds         datastore.Reader
 	predefined PredefinedElements
 }
 
+// LookupDefinition lookups up a namespace definition, also returning whether it was pre-validated.
 func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error) {
 	if len(r.predefined.Definitions) > 0 {
 		for _, def := range r.predefined.Definitions {
@@ -79,6 +81,8 @@ func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (
 	return ns, true, err
 }
 
+// WithPredefinedElements adds elements (definitions and caveats) that will be used as a local overlay
+// for the datastore, often for validation.
 func (r *DatastoreResolver) WithPredefinedElements(predefined PredefinedElements) Resolver {
 	return &DatastoreResolver{
 		ds:         r.ds,
@@ -86,6 +90,7 @@ func (r *DatastoreResolver) WithPredefinedElements(predefined PredefinedElements
 	}
 }
 
+// LookupCaveat lookups up a caveat.
 func (r *DatastoreResolver) LookupCaveat(ctx context.Context, name string) (*Caveat, error) {
 	if len(r.predefined.Caveats) > 0 {
 		for _, caveat := range r.predefined.Caveats {

@@ -19,7 +19,7 @@ type Graph struct {
 
 // BuildGraph builds the graph of all reachable information in the schema.
 func BuildGraph(ctx context.Context, r *CompiledSchemaResolver) (*Graph, error) {
-	arrowSet, err := BuildArrowSet(ctx, r)
+	arrowSet, err := buildArrowSet(ctx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +51,7 @@ func (g *Graph) RelationsReferencing(namespaceName string, relationName string) 
 	}]
 }
 
+// ReferenceType is an enum describing what kind of relation reference we hold in a RelationReferenceInfo.
 type ReferenceType int
 
 const (
@@ -60,6 +61,7 @@ const (
 	RelationIsComputedUsersetForArrow
 )
 
+// RelationReferenceInfo holds the relation and metadata for a relation found in the full reachability graph.
 type RelationReferenceInfo struct {
 	Relation *core.RelationReference
 	Type     ReferenceType
