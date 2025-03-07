@@ -130,6 +130,8 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		return nil, err
 	}
 
+	initialCompiledPartials := make(map[string][]*core.Relation)
+
 	compiled, err := translate(&translationContext{
 		objectTypePrefix:   cfg.objectTypePrefix,
 		mapper:             mapper,
@@ -137,7 +139,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		skipValidate:       cfg.skipValidation,
 		allowedFlags:       cfg.allowedFlags,
 		existingNames:      mapz.NewSet[string](),
-		compiledPartials:   make(map[string][]*core.Relation),
+		compiledPartials:   initialCompiledPartials,
 		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
 	}, root)
 	if err != nil {

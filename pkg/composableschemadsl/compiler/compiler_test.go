@@ -50,7 +50,7 @@ func TestCompile(t *testing.T) {
 			"nested parse error",
 			withTenantPrefix,
 			`definition foo {
-				relation something: rela | relb + relc	
+				relation something: rela | relb + relc
 			}`,
 			"parse error in `nested parse error`, line 2, column 37: Expected end of statement or definition, found: TokenTypePlus",
 			[]SchemaDefinition{},
@@ -305,6 +305,36 @@ func TestCompile(t *testing.T) {
 			}
 			`,
 			"could not find partial reference",
+			[]SchemaDefinition{},
+		},
+		{
+			"definition with same name as partial",
+			withTenantPrefix,
+			`
+			partial simple {
+				relation user: user
+			}
+			definition simple {
+				...simple
+			}
+			`,
+			"found definition with same name as existing partial",
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat with same name as partial",
+			withTenantPrefix,
+			`
+			caveat some_caveat(someparam int) { someparam == 42}
+
+			partial some_caveat {
+				relation user: user
+			}
+			definition simple {
+				...some_caveat
+			}
+			`,
+			"found caveat with same name as existing partial",
 			[]SchemaDefinition{},
 		},
 		{
@@ -925,7 +955,7 @@ func TestCompile(t *testing.T) {
 						"thirdParam":   caveattypes.MustListType(caveattypes.IntType),
 					},
 				), "sometenant/foo",
-					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56 
+					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56
 					&& anotherParam == "hi there" && 42 in thirdParam`),
 			},
 		},
@@ -1210,7 +1240,7 @@ func TestCompile(t *testing.T) {
 			"relation with expiration trait",
 			withTenantPrefix,
 			`use expiration
-			
+
 			definition simple {
 				relation viewer: user with expiration
 			}`,
@@ -1250,7 +1280,7 @@ func TestCompile(t *testing.T) {
 			"relation with expiration trait and caveat",
 			withTenantPrefix,
 			`use expiration
-			
+
 			definition simple {
 				relation viewer: user with somecaveat and expiration
 			}`,
