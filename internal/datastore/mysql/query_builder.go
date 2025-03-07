@@ -16,6 +16,7 @@ type QueryBuilder struct {
 	ReadNamespaceQuery                sq.SelectBuilder
 	DeleteNamespaceQuery              sq.UpdateBuilder
 	DeleteNamespaceRelationshipsQuery sq.UpdateBuilder
+	QueryChangedNamespacesQuery       sq.SelectBuilder
 
 	ReadCounterQuery   sq.SelectBuilder
 	InsertCounterQuery sq.InsertBuilder
@@ -30,10 +31,11 @@ type QueryBuilder struct {
 	QueryChangedQuery            sq.SelectBuilder
 	CountRelsQuery               sq.SelectBuilder
 
-	WriteCaveatQuery  sq.InsertBuilder
-	ReadCaveatQuery   sq.SelectBuilder
-	ListCaveatsQuery  sq.SelectBuilder
-	DeleteCaveatQuery sq.UpdateBuilder
+	WriteCaveatQuery         sq.InsertBuilder
+	ReadCaveatQuery          sq.SelectBuilder
+	ListCaveatsQuery         sq.SelectBuilder
+	DeleteCaveatQuery        sq.UpdateBuilder
+	QueryChangedCaveatsQuery sq.SelectBuilder
 }
 
 // NewQueryBuilder returns a new QueryBuilder instance. The migration
@@ -49,6 +51,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.WriteNamespaceQuery = writeNamespace(driver.Namespace())
 	builder.ReadNamespaceQuery = readNamespace(driver.Namespace())
 	builder.DeleteNamespaceQuery = deleteNamespace(driver.Namespace())
+	builder.QueryChangedNamespacesQuery = changedNamespaces(driver.Namespace())
 
 	// counters builders
 	builder.ReadCounterQuery = readCounter(driver.RelationshipCounters())
@@ -71,6 +74,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.ListCaveatsQuery = listCaveats(driver.Caveat())
 	builder.WriteCaveatQuery = writeCaveat(driver.Caveat())
 	builder.DeleteCaveatQuery = deleteCaveat(driver.Caveat())
+	builder.QueryChangedCaveatsQuery = changedCaveats(driver.Caveat())
 
 	return &builder
 }
@@ -219,6 +223,23 @@ func queryChanged(tableTuple string) sq.SelectBuilder {
 		colCaveatName,
 		colCaveatContext,
 		colExpiration,
+		colCreatedTxn,
+		colDeletedTxn,
+	).From(tableTuple)
+}
+
+func changedCaveats(tableTuple string) sq.SelectBuilder {
+	return sb.Select(
+		colName,
+		colCaveatDefinition,
+		colCreatedTxn,
+		colDeletedTxn,
+	).From(tableTuple)
+}
+
+func changedNamespaces(tableTuple string) sq.SelectBuilder {
+	return sb.Select(
+		colConfig,
 		colCreatedTxn,
 		colDeletedTxn,
 	).From(tableTuple)
