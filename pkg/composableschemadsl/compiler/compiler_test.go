@@ -50,7 +50,7 @@ func TestCompile(t *testing.T) {
 			"nested parse error",
 			withTenantPrefix,
 			`definition foo {
-				relation something: rela | relb + relc	
+				relation something: rela | relb + relc
 			}`,
 			"parse error in `nested parse error`, line 2, column 37: Expected end of statement or definition, found: TokenTypePlus",
 			[]SchemaDefinition{},
@@ -955,7 +955,7 @@ func TestCompile(t *testing.T) {
 						"thirdParam":   caveattypes.MustListType(caveattypes.IntType),
 					},
 				), "sometenant/foo",
-					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56 
+					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56
 					&& anotherParam == "hi there" && 42 in thirdParam`),
 			},
 		},
@@ -1240,7 +1240,7 @@ func TestCompile(t *testing.T) {
 			"relation with expiration trait",
 			withTenantPrefix,
 			`use expiration
-			
+
 			definition simple {
 				relation viewer: user with expiration
 			}`,
@@ -1280,7 +1280,7 @@ func TestCompile(t *testing.T) {
 			"relation with expiration trait and caveat",
 			withTenantPrefix,
 			`use expiration
-			
+
 			definition simple {
 				relation viewer: user with somecaveat and expiration
 			}`,

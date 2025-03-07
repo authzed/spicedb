@@ -139,7 +139,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		skipValidate:       cfg.skipValidation,
 		allowedFlags:       cfg.allowedFlags,
 		existingNames:      mapz.NewSet[string](),
-		compiledPartials:   &initialCompiledPartials,
+		compiledPartials:   initialCompiledPartials,
 		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
 	}, root)
 	if err != nil {

@@ -30,7 +30,7 @@ type translationContext struct {
 	enabledFlags     []string
 	existingNames    *mapz.Set[string]
 	// The mapping of partial name -> relations represented by the partial
-	compiledPartials *map[string][]*core.Relation
+	compiledPartials map[string][]*core.Relation
 	// A mapping of partial name -> partial DSL nodes whose resolution depends on
 	// the resolution of the named partial
 	unresolvedPartials *mapz.MultiMap[string, *dslNode]
@@ -95,7 +95,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 				return nil, topLevelNode.WithSourceErrorf(name, "found name reused between multiple definitions and/or caveats: %s", name)
 			}
 
-			if _, found := (*tctx.compiledPartials)[name]; found {
+			if _, found := tctx.compiledPartials[name]; found {
 				return nil, topLevelNode.WithSourceErrorf(name, "found caveat with same name as existing partial: %s", name)
 			}
 
@@ -115,7 +115,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 				return nil, topLevelNode.WithSourceErrorf(name, "found name reused between multiple definitions and/or caveats: %s", name)
 			}
 
-			if _, found := (*tctx.compiledPartials)[name]; found {
+			if _, found := tctx.compiledPartials[name]; found {
 				return nil, topLevelNode.WithSourceErrorf(name, "found definition with same name as existing partial: %s", name)
 			}
 
@@ -888,7 +888,7 @@ func translatePartial(tctx *translationContext, partialNode *dslNode) error {
 		return nil
 	}
 
-	(*tctx.compiledPartials)[partialPath] = relationsAndPermissions
+	tctx.compiledPartials[partialPath] = relationsAndPermissions
 
 	// Since we've successfully compiled a partial, check the unresolved partials to see if any other partial was
 	// waiting on this partial
@@ -919,7 +919,7 @@ func translatePartialReference(tctx *translationContext, partialReferenceNode *d
 	if err != nil {
 		return nil, "", err
 	}
-	relationsAndPermissions, ok := (*tctx.compiledPartials)[path]
+	relationsAndPermissions, ok := tctx.compiledPartials[path]
 	if !ok {
 		if errorOnMissingReference {
 			return nil, "", partialReferenceNode.Errorf("could not find partial reference with name %s", path)
