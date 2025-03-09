@@ -111,7 +111,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			testUpdates = append(testUpdates, batch, []tuple.RelationshipUpdate{deleteUpdate})
 
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+				_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 					ResourceType:     testResourceNamespace,
 					OptionalRelation: testReaderRelation,
 					OptionalSubjectFilter: &v1.SubjectFilter{

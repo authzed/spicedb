@@ -339,7 +339,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
+func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
 	// Add clauses for the ResourceFilter
 	query := rwt.DeleteRelsQuery
 	if filter.ResourceType != "" {
@@ -353,7 +353,7 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 	}
 	if filter.OptionalResourceIdPrefix != "" {
 		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
-			return false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+			return 0, false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
 		}
 
 		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
@@ -385,29 +385,29 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 
 	querySQL, args, err := query.ToSql()
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	modified, err := rwt.tx.ExecContext(ctx, querySQL, args...)
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	rowsAffected, err := modified.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	uintRowsAffected, err := safecast.ToUint64(rowsAffected)
 	if err != nil {
-		return false, spiceerrors.MustBugf("rowsAffected was negative: %v", err)
+		return 0, false, spiceerrors.MustBugf("rowsAffected was negative: %v", err)
 	}
 
 	if delLimit > 0 && uintRowsAffected == delLimit {
-		return true, nil
+		return uintRowsAffected, true, nil
 	}
 
-	return false, nil
+	return uintRowsAffected, false, nil
 }
 
 func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {
