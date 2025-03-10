@@ -407,7 +407,7 @@ definition document {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			source, _, err := GenerateSchema(compiled.OrderedDefinitions)
+			source, _, err := GenerateSchema(compiled.GetOrderedDefinitions())
 			require.NoError(err)
 			require.Equal(test.expected, source)
 		})

@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -30,7 +31,7 @@ func TestCompile(t *testing.T) {
 		objectPrefix  ObjectPrefixOption
 		input         string
 		expectedError string
-		expectedProto []SchemaDefinition
+		expectedProto []commonschemadsl.SchemaDefinition
 	}
 
 	tests := []compileTest{
@@ -39,14 +40,14 @@ func TestCompile(t *testing.T) {
 			withTenantPrefix,
 			"",
 			"",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"parse error",
 			withTenantPrefix,
 			"foo",
 			"parse error in `parse error`, line 1, column 1: Unexpected token at root level: TokenTypeIdentifier",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"nested parse error",
@@ -55,14 +56,14 @@ func TestCompile(t *testing.T) {
 				relation something: rela | relb + relc	
 			}`,
 			"parse error in `nested parse error`, line 2, column 37: Expected end of statement or definition, found: TokenTypePlus",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"allows bypassing prefix requirement",
 			AllowUnprefixedObjectType(),
 			`definition def {}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("def"),
 			},
 		},
@@ -71,7 +72,7 @@ func TestCompile(t *testing.T) {
 			withTenantPrefix,
 			`definition def {}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/def"),
 			},
 		},
@@ -82,7 +83,7 @@ func TestCompile(t *testing.T) {
 				relation foo: bar;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foo", nil,
 						namespace.AllowedRelation("sometenant/bar", "..."),
@@ -97,7 +98,7 @@ func TestCompile(t *testing.T) {
 				relation foos: bars#mehs;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("sometenant/bars", "mehs"),
@@ -112,7 +113,7 @@ func TestCompile(t *testing.T) {
 				relation foos: bars:*
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos", nil,
 						namespace.AllowedPublicNamespace("sometenant/bars"),
@@ -127,7 +128,7 @@ func TestCompile(t *testing.T) {
 				relation foos: anothertenant/bars#mehs;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("anothertenant/bars", "mehs"),
@@ -143,7 +144,7 @@ func TestCompile(t *testing.T) {
 				relation hello: there | world;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("sometenant/bars", "mehs"),
@@ -164,7 +165,7 @@ func TestCompile(t *testing.T) {
 				relation viewer: user with somecaveat
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someparam": caveattypes.Default.IntType,
@@ -185,7 +186,7 @@ func TestCompile(t *testing.T) {
 				relation viewer: user with somecaveat | user
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
@@ -202,7 +203,7 @@ func TestCompile(t *testing.T) {
 				relation viewer: user with somecaveat | user | team#member with anothercaveat
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
@@ -221,7 +222,7 @@ func TestCompile(t *testing.T) {
 				permission foos = bars;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -238,7 +239,7 @@ func TestCompile(t *testing.T) {
 				permission foos = bars + bazs;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -256,7 +257,7 @@ func TestCompile(t *testing.T) {
 				permission foos = bars & bazs;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Intersection(
@@ -274,7 +275,7 @@ func TestCompile(t *testing.T) {
 				permission foos = bars - bazs;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Exclusion(
@@ -292,7 +293,7 @@ func TestCompile(t *testing.T) {
 				permission foos = bars + bazs + mehs;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -311,7 +312,7 @@ func TestCompile(t *testing.T) {
 				permission foos = bars + bazs - mehs;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
 					namespace.MustRelation("foos",
 						namespace.Exclusion(
@@ -334,7 +335,7 @@ func TestCompile(t *testing.T) {
 				permission foos = bars + (bazs - mehs);
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -357,7 +358,7 @@ func TestCompile(t *testing.T) {
 				permission foos = bars->bazs
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/arrowed",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -376,7 +377,7 @@ func TestCompile(t *testing.T) {
 				permission foos = somerel->brel->crel
 			}`,
 			"parse error in `multiarrow permission`, line 3, column 23: Nested arrows not yet supported",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 
 		/*
@@ -388,7 +389,7 @@ func TestCompile(t *testing.T) {
 					permission foo = somerel->brel->crel
 				}`,
 				"",
-				[]SchemaDefinition{
+				[]commonschemadsl.SchemaDefinition{
 					namespace.Namespace("sometenant/arrowed",
 						namespace.MustRelation("foo",
 							namespace.Union(
@@ -407,7 +408,7 @@ func TestCompile(t *testing.T) {
 				permission foos = ((arel->brel) + nil) - drel
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/expressioned",
 					namespace.MustRelation("foos",
 						namespace.Exclusion(
@@ -433,7 +434,7 @@ func TestCompile(t *testing.T) {
 				permission fourth = bars->bazs
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/multiple",
 					namespace.MustRelation("first",
 						namespace.Union(
@@ -468,7 +469,7 @@ func TestCompile(t *testing.T) {
 				permission foos = aaaa + nil + bbbb;
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -485,14 +486,14 @@ func TestCompile(t *testing.T) {
 			nilPrefix,
 			`definition foos {}`,
 			"parse error in `no implicit tenant with unspecified tenant`, line 1, column 1: found reference `foos` without prefix",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"no implicit tenant with specified tenant",
 			nilPrefix,
 			`definition some_tenant/foos {}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("some_tenant/foos"),
 			},
 		},
@@ -503,14 +504,14 @@ func TestCompile(t *testing.T) {
 				relation somerel: bars
 			}`,
 			"parse error in `no implicit tenant with unspecified tenant on type ref`, line 2, column 23: found reference `bars` without prefix",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"invalid definition name",
 			nilPrefix,
 			`definition someTenant/fo {}`,
 			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"invalid relation name",
@@ -519,7 +520,7 @@ func TestCompile(t *testing.T) {
 				relation ab: some_tenant/foos
 			}`,
 			"parse error in `invalid relation name`, line 2, column 5: error in relation ab: invalid Relation.Name: value does not match regex pattern \"^[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"no implicit tenant with specified tenant on type ref",
@@ -528,7 +529,7 @@ func TestCompile(t *testing.T) {
 				relation somerel: some_tenant/bars
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("some_tenant/foos",
 					namespace.MustRelation(
 						"somerel",
@@ -556,7 +557,7 @@ func TestCompile(t *testing.T) {
 				permission first = bars + bazs
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.WithComment("sometenant/user", `/**
 * user is a user
 */`),
@@ -580,7 +581,7 @@ func TestCompile(t *testing.T) {
 			`definition foo {}
 			definition foo {}`,
 			"parse error in `duplicate definition`, line 2, column 4: found name reused between multiple definitions and/or caveats: sometenant/foo",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"duplicate definitions across objects and caveats",
@@ -590,7 +591,7 @@ func TestCompile(t *testing.T) {
 			}
 			definition foo {}`,
 			"parse error in `duplicate definitions across objects and caveats`, line 4, column 4: found name reused between multiple definitions and/or caveats: sometenant/foo",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat missing parameters",
@@ -599,7 +600,7 @@ func TestCompile(t *testing.T) {
 				someParam == 42
 			}`,
 			"parse error in `caveat missing parameters`, line 1, column 12: Unexpected token at root level: TokenTypeRightParen",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat missing expression",
@@ -607,7 +608,7 @@ func TestCompile(t *testing.T) {
 			`caveat foo(someParam int) {
 			}`,
 			"Unexpected token at root level: TokenTypeRightBrace",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat invalid parameter type",
@@ -616,7 +617,7 @@ func TestCompile(t *testing.T) {
 				someParam == 42
 			}`,
 			"parse error in `caveat invalid parameter type`, line 1, column 12: invalid type for caveat parameter `someParam` on caveat `foo`: unknown type `foobar`",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat invalid parameter type",
@@ -625,7 +626,7 @@ func TestCompile(t *testing.T) {
 				someParam == 42
 			}`,
 			"unknown type `foobar`",
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat missing parameter",
@@ -634,7 +635,7 @@ func TestCompile(t *testing.T) {
 				anotherParam == 42
 			}`,
 			`ERROR: sometenant/foo:2:5: undeclared reference to 'anotherParam'`,
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat missing parameter on a different line",
@@ -644,7 +645,7 @@ func TestCompile(t *testing.T) {
 					anotherParam
 			}`,
 			`ERROR: sometenant/foo:3:6: undeclared reference to 'anotherParam'`,
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat invalid expression type",
@@ -653,7 +654,7 @@ func TestCompile(t *testing.T) {
 				someParam
 			}`,
 			`caveat expression must result in a boolean value`,
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat invalid expression",
@@ -662,7 +663,7 @@ func TestCompile(t *testing.T) {
 				someParam:{}
 			}`,
 			`ERROR: sometenant/foo:2:14: Syntax error: mismatched input ':'`,
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"caveat valid",
@@ -671,7 +672,7 @@ func TestCompile(t *testing.T) {
 				someParam == 42
 			}`,
 			``,
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someParam": caveattypes.Default.IntType,
@@ -687,7 +688,7 @@ func TestCompile(t *testing.T) {
 				someParam > 56 && anotherParam == "hi there" && 42 in thirdParam
 			}`,
 			``,
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someParam":    caveattypes.Default.IntType,
@@ -706,7 +707,7 @@ func TestCompile(t *testing.T) {
 				!user_ip.in_cidr('1.2.3.0')
 			}`,
 			``,
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"user_ip": caveattypes.Default.IPAddressType,
@@ -722,7 +723,7 @@ func TestCompile(t *testing.T) {
 				someMap.isSubtreeOf(anotherMap)
 			}`,
 			``,
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someMap":    caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
@@ -739,7 +740,7 @@ func TestCompile(t *testing.T) {
 				permission foos = first + second + third + fourth
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -759,7 +760,7 @@ func TestCompile(t *testing.T) {
 				permission foos = first + second + (foo - bar) + fourth
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -784,7 +785,7 @@ func TestCompile(t *testing.T) {
 				permission foos = first & second & third & fourth
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Intersection(
@@ -804,7 +805,7 @@ func TestCompile(t *testing.T) {
 				permission foos = first - second - third - fourth
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Exclusion(
@@ -832,7 +833,7 @@ func TestCompile(t *testing.T) {
 				permission foos = (first + second) + (third + fourth)
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("someothertenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -852,7 +853,7 @@ func TestCompile(t *testing.T) {
 				permission foos = (first + second) + (third + fourth)
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/some_team/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -872,7 +873,7 @@ func TestCompile(t *testing.T) {
 				permission foos = (first + second) + (third + fourth)
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -892,7 +893,7 @@ func TestCompile(t *testing.T) {
 				permission foos = (first + second) + (middle & thing) + (third + fourth)
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -918,7 +919,7 @@ func TestCompile(t *testing.T) {
 				permission foos = first + second + (fourth & (sixth - seventh) & fifth) + third
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
@@ -949,7 +950,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar.any(baz)
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foo",
 						namespace.Union(
@@ -966,7 +967,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar.all(baz)
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foo",
 						namespace.Union(
@@ -983,7 +984,7 @@ func TestCompile(t *testing.T) {
 				relation viewer: user with expiration
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...", namespace.AllowedCaveat("sometenant/expiration")),
@@ -1000,7 +1001,7 @@ func TestCompile(t *testing.T) {
 				relation viewer: user with expiration
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithExpiration("sometenant/user", "..."),
@@ -1019,7 +1020,7 @@ func TestCompile(t *testing.T) {
 				relation viewer: user with expiration
 			}`,
 			`found duplicate use flag`,
-			[]SchemaDefinition{},
+			[]commonschemadsl.SchemaDefinition{},
 		},
 		{
 			"relation with expiration trait and caveat",
@@ -1030,7 +1031,7 @@ func TestCompile(t *testing.T) {
 				relation viewer: user with somecaveat and expiration
 			}`,
 			"",
-			[]SchemaDefinition{
+			[]commonschemadsl.SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveatAndExpiration("sometenant/user", "...", namespace.AllowedCaveat("sometenant/somecaveat")),
@@ -1054,8 +1055,8 @@ func TestCompile(t *testing.T) {
 				require.Contains(err.Error(), test.expectedError)
 			} else {
 				require.Nil(err)
-				require.Equal(len(test.expectedProto), len(compiled.OrderedDefinitions))
-				for index, def := range compiled.OrderedDefinitions {
+				require.Equal(len(test.expectedProto), len(compiled.GetOrderedDefinitions()))
+				for index, def := range compiled.GetOrderedDefinitions() {
 					filterSourcePositions(def.ProtoReflect())
 					expectedDef := test.expectedProto[index]
 
@@ -1144,8 +1145,8 @@ func TestSuperLargeCaveatCompile(t *testing.T) {
 		"superlarge", string(b),
 	}, AllowUnprefixedObjectType())
 	require.NoError(t, err)
-	require.Equal(t, 29, len(compiled.ObjectDefinitions))
-	require.Equal(t, 1, len(compiled.CaveatDefinitions))
+	require.Equal(t, 29, len(compiled.GetObjectDefinitions()))
+	require.Equal(t, 1, len(compiled.GetCaveatDefinitions()))
 }
 
 func TestCompileWithCustomCaveatTypeSet(t *testing.T) {

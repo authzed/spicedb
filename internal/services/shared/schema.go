@@ -6,6 +6,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -14,14 +15,13 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
 type ValidatedSchemaChanges struct {
-	compiled             *compiler.CompiledSchema
+	compiled             commonschemadsl.CompiledSchema
 	validatedTypeSystems map[string]*schema.ValidatedDefinition
 	newCaveatDefNames    *mapz.Set[string]
 	newObjectDefNames    *mapz.Set[string]
@@ -30,10 +30,10 @@ type ValidatedSchemaChanges struct {
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
-func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool) (*ValidatedSchemaChanges, error) {
+func ValidateSchemaChanges(ctx context.Context, compiled commonschemadsl.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool) (*ValidatedSchemaChanges, error) {
 	// 1) Validate the caveats defined.
 	newCaveatDefNames := mapz.NewSet[string]()
-	for _, caveatDef := range compiled.CaveatDefinitions {
+	for _, caveatDef := range compiled.GetCaveatDefinitions() {
 		if err := namespace.ValidateCaveatDefinition(caveatTypeSet, caveatDef); err != nil {
 			return nil, err
 		}
@@ -43,14 +43,14 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 
 	// 2) Validate the namespaces defined.
 	newObjectDefNames := mapz.NewSet[string]()
-	validatedTypeSystems := make(map[string]*schema.ValidatedDefinition, len(compiled.ObjectDefinitions))
+	validatedTypeSystems := make(map[string]*schema.ValidatedDefinition, len(compiled.GetObjectDefinitions()))
 	res := schema.ResolverForPredefinedDefinitions(schema.PredefinedElements{
-		Definitions: compiled.ObjectDefinitions,
-		Caveats:     compiled.CaveatDefinitions,
+		Definitions: compiled.GetObjectDefinitions(),
+		Caveats:     compiled.GetCaveatDefinitions(),
 	})
 	ts := schema.NewTypeSystem(res)
 
-	for _, nsdef := range compiled.ObjectDefinitions {
+	for _, nsdef := range compiled.GetObjectDefinitions() {
 		vts, err := ts.GetValidatedDefinition(ctx, nsdef.GetName())
 		if err != nil {
 			return nil, err
@@ -124,8 +124,8 @@ func ApplySchemaChangesOverExisting(
 	}
 
 	// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
-	caveatDefsWithChanges := make([]*core.CaveatDefinition, 0, len(validated.compiled.CaveatDefinitions))
-	for _, caveatDef := range validated.compiled.CaveatDefinitions {
+	caveatDefsWithChanges := make([]*core.CaveatDefinition, 0, len(validated.compiled.GetCaveatDefinitions()))
+	for _, caveatDef := range validated.compiled.GetCaveatDefinitions() {
 		diff, err := sanityCheckCaveatChanges(ctx, rwt, caveatTypeSet, caveatDef, existingCaveatDefMap)
 		if err != nil {
 			return nil, err
@@ -148,8 +148,8 @@ func ApplySchemaChangesOverExisting(
 
 	// For each definition, perform a diff and ensure the changes will not result in any
 	// breaking changes.
-	objectDefsWithChanges := make([]*core.NamespaceDefinition, 0, len(validated.compiled.ObjectDefinitions))
-	for _, nsdef := range validated.compiled.ObjectDefinitions {
+	objectDefsWithChanges := make([]*core.NamespaceDefinition, 0, len(validated.compiled.GetObjectDefinitions()))
+	for _, nsdef := range validated.compiled.GetObjectDefinitions() {
 		diff, err := sanityCheckNamespaceChanges(ctx, rwt, nsdef, existingObjectDefMap)
 		if err != nil {
 			return nil, err
@@ -171,8 +171,8 @@ func ApplySchemaChangesOverExisting(
 
 	log.Ctx(ctx).
 		Trace().
-		Int("objectDefinitions", len(validated.compiled.ObjectDefinitions)).
-		Int("caveatDefinitions", len(validated.compiled.CaveatDefinitions)).
+		Int("objectDefinitions", len(validated.compiled.GetObjectDefinitions())).
+		Int("caveatDefinitions", len(validated.compiled.GetCaveatDefinitions())).
 		Int("objectDefsWithChanges", len(objectDefsWithChanges)).
 		Int("caveatDefsWithChanges", len(caveatDefsWithChanges)).
 		Msg("validated namespace definitions")
@@ -219,8 +219,8 @@ func ApplySchemaChangesOverExisting(
 	}
 
 	log.Ctx(ctx).Trace().
-		Interface("objectDefinitions", validated.compiled.ObjectDefinitions).
-		Interface("caveatDefinitions", validated.compiled.CaveatDefinitions).
+		Interface("objectDefinitions", validated.compiled.GetObjectDefinitions()).
+		Interface("caveatDefinitions", validated.compiled.GetCaveatDefinitions()).
 		Object("addedOrChangedObjectDefinitions", validated.newObjectDefNames).
 		Object("removedObjectDefinitions", removedObjectDefNames).
 		Object("addedOrChangedCaveatDefinitions", validated.newCaveatDefNames).
@@ -228,7 +228,7 @@ func ApplySchemaChangesOverExisting(
 		Msg("completed schema update")
 
 	return &AppliedSchemaChanges{
-		TotalOperationCount:   len(validated.compiled.ObjectDefinitions) + len(validated.compiled.CaveatDefinitions) + removedObjectDefNames.Len() + removedCaveatDefNames.Len(),
+		TotalOperationCount:   len(validated.compiled.GetObjectDefinitions()) + len(validated.compiled.GetCaveatDefinitions()) + removedObjectDefNames.Len() + removedCaveatDefNames.Len(),
 		NewObjectDefNames:     validated.newObjectDefNames.Subtract(existingObjectDefNames).AsSlice(),
 		RemovedObjectDefNames: removedObjectDefNames.AsSlice(),
 		NewCaveatDefNames:     validated.newCaveatDefNames.Subtract(existingCaveatDefNames).AsSlice(),

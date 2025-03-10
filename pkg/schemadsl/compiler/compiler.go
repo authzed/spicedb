@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 
-	"google.golang.org/protobuf/proto"
 	"k8s.io/utils/strings/slices"
 
-	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/parser"
@@ -23,13 +23,6 @@ type InputSchema struct {
 	SchemaString string
 }
 
-// SchemaDefinition represents an object or caveat definition in a schema.
-type SchemaDefinition interface {
-	proto.Message
-
-	GetName() string
-}
-
 // CompiledSchema is the result of compiling a schema when there are no errors.
 type CompiledSchema struct {
 	// ObjectDefinitions holds the object definitions in the schema.
@@ -40,15 +33,22 @@ type CompiledSchema struct {
 
 	// OrderedDefinitions holds the object and caveat definitions in the schema, in the
 	// order in which they were found.
-	OrderedDefinitions []SchemaDefinition
+	OrderedDefinitions []commonschemadsl.SchemaDefinition
 
 	rootNode *dslNode
 	mapper   input.PositionMapper
 }
 
-// SourcePositionToRunePosition converts a source position to a rune position.
-func (cs CompiledSchema) SourcePositionToRunePosition(source input.Source, position input.Position) (int, error) {
-	return cs.mapper.LineAndColToRunePosition(position.LineNumber, position.ColumnPosition, source)
+func (cs *CompiledSchema) GetObjectDefinitions() []*core.NamespaceDefinition {
+	return cs.ObjectDefinitions
+}
+
+func (cs *CompiledSchema) GetCaveatDefinitions() []*core.CaveatDefinition {
+	return cs.CaveatDefinitions
+}
+
+func (cs *CompiledSchema) GetOrderedDefinitions() []commonschemadsl.SchemaDefinition {
+	return cs.OrderedDefinitions
 }
 
 type config struct {
@@ -91,7 +91,7 @@ type Option func(*config)
 type ObjectPrefixOption func(*config)
 
 // Compile compilers the input schema into a set of namespace definition protos.
-func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
+func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (commonschemadsl.CompiledSchema, error) {
 	cfg := &config{
 		allowedFlags: make([]string, 0, 1),
 	}

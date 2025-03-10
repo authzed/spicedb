@@ -58,7 +58,7 @@ func TestParseSchema(t *testing.T) {
 				require.Nil(t, err)
 				if tt.expectedDefCount > 0 {
 					require.NotNil(t, compiled)
-					require.Equal(t, tt.expectedDefCount, len(compiled.OrderedDefinitions))
+					require.Equal(t, tt.expectedDefCount, len(compiled.GetOrderedDefinitions()))
 					require.Equal(t, tt.contents, schemaWithPosition.Schema)
 				}
 			}

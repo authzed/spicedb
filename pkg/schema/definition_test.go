@@ -960,11 +960,11 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 			reader := ds.SnapshotReader(lastRevision)
 			resolver := ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
-				Definitions: compiled.ObjectDefinitions,
-				Caveats:     compiled.CaveatDefinitions,
+				Definitions: compiled.GetObjectDefinitions(),
+				Caveats:     compiled.GetCaveatDefinitions(),
 			})
 			ts := NewTypeSystem(resolver)
-			for _, nsDef := range compiled.ObjectDefinitions {
+			for _, nsDef := range compiled.GetObjectDefinitions() {
 				vts, err := ts.GetValidatedDefinition(ctx, nsDef.GetName())
 				require.NoError(err)
 

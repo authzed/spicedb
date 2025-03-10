@@ -220,7 +220,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 
 			// Write the schema.
 			_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-				for _, nsDef := range compiled.ObjectDefinitions {
+				for _, nsDef := range compiled.GetObjectDefinitions() {
 					if err := tx.WriteNamespaces(ctx, nsDef); err != nil {
 						return err
 					}
@@ -240,7 +240,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 
 			rg := vts.Reachability()
 
-			relations, err := rg.RelationsEncounteredForSubject(ctx, compiled.ObjectDefinitions, &core.RelationReference{
+			relations, err := rg.RelationsEncounteredForSubject(ctx, compiled.GetObjectDefinitions(), &core.RelationReference{
 				Namespace: tc.subjectType,
 				Relation:  tc.relation,
 			})
@@ -589,7 +589,7 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 
 			// Write the schema.
 			_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-				for _, nsDef := range compiled.ObjectDefinitions {
+				for _, nsDef := range compiled.GetObjectDefinitions() {
 					if err := tx.WriteNamespaces(ctx, nsDef); err != nil {
 						return err
 					}
@@ -1204,10 +1204,10 @@ func TestReachabilityGraph(t *testing.T) {
 			reader := ds.SnapshotReader(lastRevision)
 
 			var rdef *ValidatedDefinition
-			for _, nsDef := range compiled.ObjectDefinitions {
+			for _, nsDef := range compiled.GetObjectDefinitions() {
 				resolver := ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
-					Definitions: compiled.ObjectDefinitions,
-					Caveats:     compiled.CaveatDefinitions,
+					Definitions: compiled.GetObjectDefinitions(),
+					Caveats:     compiled.GetCaveatDefinitions(),
 				})
 				ts := NewTypeSystem(resolver)
 

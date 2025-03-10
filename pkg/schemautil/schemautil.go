@@ -7,18 +7,18 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 )
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
-func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, isAdditiveOnly bool) (*shared.ValidatedSchemaChanges, error) {
+func ValidateSchemaChanges(ctx context.Context, compiled commonschemadsl.CompiledSchema, isAdditiveOnly bool) (*shared.ValidatedSchemaChanges, error) {
 	return ValidateSchemaChangesWithCaveatTypeSet(ctx, compiled, caveattypes.Default.TypeSet, isAdditiveOnly)
 }
 
 func ValidateSchemaChangesWithCaveatTypeSet(
 	ctx context.Context,
-	compiled *compiler.CompiledSchema,
+	compiled commonschemadsl.CompiledSchema,
 	caveatTypeSet *caveattypes.TypeSet,
 	isAdditiveOnly bool,
 ) (*shared.ValidatedSchemaChanges, error) {

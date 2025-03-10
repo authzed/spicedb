@@ -61,10 +61,10 @@ func warningForPosition(warningName string, message string, sourceCode string, s
 // GetWarnings returns a list of warnings for the given developer context.
 func GetWarnings(ctx context.Context, devCtx *DevContext) ([]*devinterface.DeveloperWarning, error) {
 	warnings := []*devinterface.DeveloperWarning{}
-	res := schema.ResolverForCompiledSchema(*devCtx.CompiledSchema)
+	res := schema.ResolverForCompiledSchema(devCtx.CompiledSchema)
 	ts := schema.NewTypeSystem(res)
 
-	for _, def := range devCtx.CompiledSchema.ObjectDefinitions {
+ 	for _, def := range devCtx.CompiledSchema.GetObjectDefinitions() {
 		found, err := addDefinitionWarnings(ctx, def, ts)
 		if err != nil {
 			return nil, err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"os"
 
 	"github.com/ccoveille/go-safecast"
@@ -102,21 +103,20 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 
 		// Add schema definitions.
 		if compiled != nil {
-			defs := compiled.ObjectDefinitions
+			defs := compiled.GetObjectDefinitions()
 			if len(defs) > 0 {
 				schemaStr += parsed.Schema.Schema + "\n\n"
 			}
 
 			log.Ctx(ctx).Info().Str("filePath", filePath).
 				Int("definitionCount", len(defs)).
-				Int("caveatDefinitionCount", len(compiled.CaveatDefinitions)).
-				Int("schemaDefinitionCount", len(compiled.OrderedDefinitions)).
+				Int("caveatDefinitionCount", len(compiled.GetCaveatDefinitions())).
+				Int("schemaDefinitionCount", len(compiled.GetOrderedDefinitions())).
 				Msg("adding schema definitions")
 
 			objectDefs = append(objectDefs, defs...)
-			caveatDefs = append(caveatDefs, compiled.CaveatDefinitions...)
+			caveatDefs = append(caveatDefs, compiled.GetCaveatDefinitions()...)
 		}
-
 		// Parse relationships for updates.
 		for _, rel := range parsed.Relationships.Relationships {
 			updates = append(updates, tuple.Touch(rel))
@@ -187,7 +187,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 // CompileSchema takes a SchemaWithPosition and returns the compiled schema, or else an error.
 // TODO: this is probably the wrong place for this, in part because it's coupling to the compiler
 // implementation.
-func CompileSchema(schemaWithPosition blocks.SchemaWithPosition, cts *caveattypes.TypeSet) (*compiler.CompiledSchema, error) {
+func CompileSchema(schemaWithPosition blocks.SchemaWithPosition, cts *caveattypes.TypeSet) (commonschemadsl.CompiledSchema, error) {
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schemaWithPosition.Schema,

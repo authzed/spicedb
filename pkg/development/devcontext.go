@@ -29,12 +29,12 @@ import (
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/schema"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -46,20 +46,22 @@ type DevContext struct {
 	Ctx            context.Context
 	Datastore      datastore.Datastore
 	Revision       datastore.Revision
-	CompiledSchema *compiler.CompiledSchema
+	CompiledSchema commonschemadsl.CompiledSchema
 	Dispatcher     dispatch.Dispatcher
 }
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
 // the datastore as needed.
 func NewDevContext(ctx context.Context, requestContext *devinterface.RequestContext) (*DevContext, *devinterface.DeveloperErrors, error) {
-	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, memdb.DisableGC)
+	ctx, ds, err := newDevDatastore(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	ctx = datastoremw.ContextWithDatastore(ctx, ds)
-
-	dctx, devErrs, nerr := newDevContextWithDatastore(ctx, requestContext, ds)
+	compiledSchema, devErrs, err := compileSchemaForContext(requestContext)
+	if err != nil {
+		return nil, nil, err
+	}
+	dctx, devErrs, nerr := newDevContextImpl(ctx, requestContext, ds, compiledSchema)
 	if nerr != nil || devErrs != nil {
 		// If any form of error occurred, immediately close the datastore
 		derr := ds.Close()
@@ -73,8 +75,39 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 	return dctx, nil, nil
 }
 
-func newDevContextWithDatastore(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore) (*DevContext, *devinterface.DeveloperErrors, error) {
-	// Compile the schema and load its caveats and namespaces into the datastore.
+func NewComposableDevContext(ctx context.Context, requestContext *devinterface.RequestContext) (*DevContext, *devinterface.DeveloperErrors, error) {
+	ctx, ds, err := newDevDatastore(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	compiledSchema, devErrs, err := compileComposableSchemaForContext(requestContext)
+	if err != nil {
+		return nil, nil, err
+	}
+	dctx, devErrs, nerr := newDevContextImpl(ctx, requestContext, ds, compiledSchema)
+	if nerr != nil || devErrs != nil {
+		// If any form of error occurred, immediately close the datastore
+		derr := ds.Close()
+		if derr != nil {
+			return nil, nil, derr
+		}
+
+		return dctx, devErrs, nerr
+	}
+
+	return dctx, nil, nil
+}
+
+func newDevDatastore(ctx context.Context) (context.Context, datastore.Datastore, error) {
+	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, memdb.DisableGC)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx = datastoremw.ContextWithDatastore(ctx, ds)
+	return ctx, ds, nil
+}
+
+func compileSchemaForContext(requestContext *devinterface.RequestContext) (commonschemadsl.CompiledSchema, *devinterface.DeveloperErrors, error) {
 	compiled, devError, err := CompileSchema(requestContext.Schema)
 	if err != nil {
 		return nil, nil, err
@@ -83,10 +116,26 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	if devError != nil {
 		return nil, &devinterface.DeveloperErrors{InputErrors: []*devinterface.DeveloperError{devError}}, nil
 	}
+	return compiled, nil, nil
+}
 
+func compileComposableSchemaForContext(requestContext *devinterface.RequestContext) (commonschemadsl.CompiledSchema, *devinterface.DeveloperErrors, error) {
+	compiled, devError, err := CompileSchema(requestContext.Schema)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if devError != nil {
+		return nil, &devinterface.DeveloperErrors{InputErrors: []*devinterface.DeveloperError{devError}}, nil
+	}
+	return compiled, nil, nil
+}
+
+func newDevContextImpl(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore, compiledSchema commonschemadsl.CompiledSchema) (*DevContext, *devinterface.DeveloperErrors, error) {
+	// load the schema's caveats and namespaces into the datastore.
 	var inputErrors []*devinterface.DeveloperError
 	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		inputErrors, err = loadCompiled(ctx, compiled, rwt)
+		inputErrors, err := loadCompiled(ctx, compiledSchema, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
 		}
@@ -144,7 +193,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	return &DevContext{
 		Ctx:            ctx,
 		Datastore:      ds,
-		CompiledSchema: compiled,
+		CompiledSchema: compiledSchema,
 		Revision:       currentRevision,
 		Dispatcher:     graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100),
 	}, nil, nil
@@ -248,13 +297,13 @@ func loadsRels(ctx context.Context, rels []tuple.Relationship, rwt datastore.Rea
 
 func loadCompiled(
 	ctx context.Context,
-	compiled *compiler.CompiledSchema,
+	compiled commonschemadsl.CompiledSchema,
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
-	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
-	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(*compiled))
+	errors := make([]*devinterface.DeveloperError, 0, len(compiled.GetOrderedDefinitions()))
+	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(compiled))
 
-	for _, caveatDef := range compiled.CaveatDefinitions {
+	for _, caveatDef := range compiled.GetCaveatDefinitions() {
 		cverr := namespace.ValidateCaveatDefinition(caveattypes.Default.TypeSet, caveatDef)
 		if cverr == nil {
 			if err := rwt.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef}); err != nil {
@@ -292,7 +341,7 @@ func loadCompiled(
 		}
 	}
 
-	for _, nsDef := range compiled.ObjectDefinitions {
+	for _, nsDef := range compiled.GetObjectDefinitions() {
 		def, terr := schema.NewDefinition(ts, nsDef)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsWithSourceError(terr)

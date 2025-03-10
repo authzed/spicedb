@@ -173,5 +173,5 @@ func parseUsersetRewrite(s string) (*core.UsersetRewrite, error) {
 		return nil, err
 	}
 
-	return compiled.ObjectDefinitions[0].Relation[0].UsersetRewrite, nil
+	return compiled.GetObjectDefinitions()[0].Relation[0].UsersetRewrite, nil
 }
