@@ -6,6 +6,8 @@ import (
 	"github.com/ccoveille/go-safecast"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	composablecompiler "github.com/authzed/spicedb/pkg/composableschemadsl/compiler"
+	composableinput "github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -15,16 +17,42 @@ import (
 // error if the schema could not be compiled. The non-developer error is returned only if an
 // internal errors occurred.
 func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.DeveloperError, error) {
-	compiled, err := compiler.Compile(compiler.InputSchema{
+	compiled, compilationErr := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schema,
 	}, compiler.AllowUnprefixedObjectType())
 
+	if compilationErr != nil {
+		devError, err := handleCompilationErrors(compilationErr)
+		return nil, devError, err
+	}
+
+	return compiled, nil, nil
+}
+
+// Same as CompileSchema, but for composable schemas. Uses a different compiler.
+func CompileComposableSchema(schema string) (*composablecompiler.CompiledSchema, *devinterface.DeveloperError, error) {
+	compiled, compilationErr := composablecompiler.Compile(composablecompiler.InputSchema{
+		Source:       composableinput.Source("schema"),
+		SchemaString: schema,
+	}, composablecompiler.AllowUnprefixedObjectType())
+
+	if compilationErr != nil {
+		devError, err := handleCompilationErrors(compilationErr)
+		return nil, devError, err
+	}
+
+	return compiled, nil, nil
+}
+
+// Attempts to turn a compilation error into a DeveloperError that can be displayed
+// to the user
+func handleCompilationErrors(compilationErr error) (*devinterface.DeveloperError, error) {
 	var contextError compiler.WithContextError
-	if errors.As(err, &contextError) {
+	if errors.As(compilationErr, &contextError) {
 		line, col, lerr := contextError.SourceRange.Start().LineAndColumn()
 		if lerr != nil {
-			return nil, nil, lerr
+			return nil, lerr
 		}
 
 		// NOTE: zeroes are fine here on failure.
@@ -36,7 +64,7 @@ func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.Devel
 		if err != nil {
 			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
-		return nil, &devinterface.DeveloperError{
+		return &devinterface.DeveloperError{
 			Message: contextError.BaseCompilerError.BaseMessage,
 			Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 			Source:  devinterface.DeveloperError_SCHEMA,
@@ -45,10 +73,5 @@ func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.Devel
 			Context: contextError.ErrorSourceCode,
 		}, nil
 	}
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return compiled, nil, nil
+	return nil, compilationErr
 }

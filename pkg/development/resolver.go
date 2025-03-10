@@ -70,7 +70,7 @@ type Resolver struct {
 
 // NewResolver creates a new resolver for the given schema.
 func NewResolver(compiledSchema *compiler.CompiledSchema) (*Resolver, error) {
-	resolver := schema.ResolverForCompiledSchema(*compiledSchema)
+	resolver := schema.ResolverForCompiledSchema(compiledSchema)
 	ts := schema.NewTypeSystem(resolver)
 	return &Resolver{schema: compiledSchema, typeSystem: ts}, nil
 }

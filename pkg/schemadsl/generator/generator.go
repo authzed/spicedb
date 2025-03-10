@@ -10,11 +10,11 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -24,12 +24,12 @@ const Ellipsis = "..."
 // MaxSingleLineCommentLength sets the maximum length for a comment to made single line.
 const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
-func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
+func GenerateSchema(definitions []commonschemadsl.SchemaDefinition) (string, bool, error) {
 	return GenerateSchemaWithCaveatTypeSet(definitions, caveattypes.Default.TypeSet)
 }
 
 // GenerateSchemaWithCaveatTypeSet generates a DSL view of the given schema.
-func GenerateSchemaWithCaveatTypeSet(definitions []compiler.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
+func GenerateSchemaWithCaveatTypeSet(definitions []commonschemadsl.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
 	generated := make([]string, 0, len(definitions))
 	flags := mapz.NewSet[string]()
 

@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
@@ -54,7 +55,7 @@ func (nc *NodeChain) String() string {
 }
 
 // PositionToAstNodeChain returns the AST node, and its parents (if any), found at the given position in the source, if any.
-func PositionToAstNodeChain(schema *CompiledSchema, source input.Source, position input.Position) (*NodeChain, error) {
+func PositionToAstNodeChain(schema commonschemadsl.CompiledSchema, source input.Source, position input.Position) (*NodeChain, error) {
 	rootSource, err := schema.rootNode.GetString(dslshape.NodePredicateSource)
 	if err != nil {
 		return nil, err
