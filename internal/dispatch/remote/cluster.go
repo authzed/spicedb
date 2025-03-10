@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/authzed/consistent"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/protobuf/proto"
@@ -231,10 +233,10 @@ type receiver[S responseMessage] interface {
 
 const (
 	secondaryCursorPrefix = "$$secondary:"
-	primaryDispatcher     = ""
+	primaryDispatcher     = "$primary"
 )
 
-func publishClient[Q requestMessageWithCursor, R responseMessageWithCursor](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
+func publishClient[R responseMessageWithCursor](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -284,9 +286,13 @@ func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithC
 	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 	defer cancelFn()
 
-	client, err := handler(withTimeout, cr.clusterClient)
-	if err != nil {
-		return err
+	// If no secondary dispatches are defined, just invoke directly.
+	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
+		client, err := handler(withTimeout, cr.clusterClient)
+		if err != nil {
+			return err
+		}
+		return publishClient(withTimeout, client, stream, primaryDispatcher)
 	}
 
 	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
@@ -299,63 +305,144 @@ func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithC
 		}
 	}
 
-	// If no secondary dispatches are defined, just invoke directly.
-	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
-		return publishClient[Q](withTimeout, client, stream, primaryDispatcher)
-	}
-
-	// If the cursor is locked to a known secondary, dispatch to it.
+	// Find the set of valid secondary dispatchers, if any.
+	validSecondaryDispatchers := make([]SecondaryDispatch, 0, len(cr.secondaryDispatch))
+	allowPrimary := true
 	if cursorLockedSecondaryName != "" {
-		secondary, ok := cr.secondaryDispatch[cursorLockedSecondaryName]
-		if ok {
-			secondaryClient, err := handler(withTimeout, secondary.Client)
-			if err != nil {
-				return err
-			}
-
-			log.Debug().Str("secondary-dispatcher", secondary.Name).Object("request", req).Msg("running secondary dispatcher based on cursor")
-			return publishClient[Q](withTimeout, secondaryClient, stream, cursorLockedSecondaryName)
+		// If the cursor is locked to a known secondary, dispatch to it.
+		allowPrimary = false
+		if sd, ok := cr.secondaryDispatch[cursorLockedSecondaryName]; ok {
+			validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
 		}
-
-		return fmt.Errorf("unknown secondary dispatcher in cursor: %s", cursorLockedSecondaryName)
-	}
-
-	// Otherwise, look for a matching expression for the initial secondary dispatch
-	// and, if present, try to dispatch to it.
-	expr, ok := cr.secondaryDispatchExprs[reqKey]
-	if !ok {
-		return publishClient[Q](withTimeout, client, stream, primaryDispatcher)
-	}
-
-	result, err := RunDispatchExpr(expr, req)
-	if err != nil {
-		log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
-	}
-
-	for _, secondaryDispatchName := range result {
-		secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
-		if !ok {
-			log.Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
-			continue
-		}
-
-		log.Trace().Str("secondary-dispatcher", secondary.Name).Object("request", req).Msg("running secondary dispatcher")
-		secondaryClient, err := handler(withTimeout, secondary.Client)
+	} else if expr, ok := cr.secondaryDispatchExprs[reqKey]; ok {
+		dispatcherNames, err := RunDispatchExpr(expr, req)
 		if err != nil {
-			log.Warn().Str("secondary-dispatcher", secondary.Name).Err(err).Msg("failed to create secondary dispatch client")
-			continue
+			log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
+		} else {
+			for _, secondaryDispatchName := range dispatcherNames {
+				if sd, ok := cr.secondaryDispatch[secondaryDispatchName]; ok {
+					validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
+				}
+			}
+		}
+	}
+
+	// If no secondary dispatches are defined, just invoke directly.
+	if len(validSecondaryDispatchers) == 0 {
+		if !allowPrimary {
+			return fmt.Errorf("cursor locked to unknown secondary dispatcher")
 		}
 
-		if err := publishClient[Q](withTimeout, secondaryClient, stream, secondaryDispatchName); err != nil {
-			log.Warn().Str("secondary-dispatcher", secondary.Name).Err(err).Msg("failed to publish secondary dispatch response")
-			continue
+		client, err := handler(withTimeout, cr.clusterClient)
+		if err != nil {
+			return err
+		}
+		return publishClient(withTimeout, client, stream, primaryDispatcher)
+	}
+
+	// For each secondary dispatch (as well as the primary), dispatch. Whichever one returns first,
+	// stream its results and cancel the remaining dispatches.
+	var errorsLock sync.Mutex
+	errorsByDispatcherName := make(map[string]error)
+
+	var wg sync.WaitGroup
+	if allowPrimary {
+		wg.Add(1)
+	}
+
+	wg.Add(len(validSecondaryDispatchers))
+
+	returnedResultsDispatcherName := atomic.NewString("")
+	runHandler := func(name string, clusterClient ClusterClient) {
+		log.Debug().Str("dispatcher", name).Msg("running secondary dispatcher")
+		defer wg.Done()
+
+		clientCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cr.dispatchOverallTimeout)
+		defer cancel()
+		client, err := handler(clientCtx, clusterClient)
+		if err != nil {
+			log.Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
+			errorsLock.Lock()
+			errorsByDispatcherName[name] = err
+			errorsLock.Unlock()
+			return
 		}
 
+		var returnedFirstResult bool
+		for {
+			select {
+			case <-withTimeout.Done():
+				return
+
+			default:
+				result, err := client.Recv()
+				if errors.Is(err, io.EOF) {
+					log.Trace().Str("dispatcher", name).Err(err).Msg("dispatcher recv")
+					returnedResultsDispatcherName.CompareAndSwap("", name)
+					return
+				}
+
+				log.Trace().Str("dispatcher", name).Err(err).Any("result", result).Msg("dispatcher recv")
+
+				if err != nil {
+					errorsLock.Lock()
+					errorsByDispatcherName[name] = err
+					errorsLock.Unlock()
+					return
+				}
+
+				if !returnedFirstResult && !returnedResultsDispatcherName.CompareAndSwap("", name) {
+					return
+				}
+				returnedFirstResult = true
+
+				merr := adjustMetadataForDispatch(result.GetMetadata())
+				if merr != nil {
+					errorsLock.Lock()
+					errorsByDispatcherName[name] = merr
+					errorsLock.Unlock()
+					return
+				}
+
+				serr := stream.Publish(result)
+				if serr != nil {
+					errorsLock.Lock()
+					errorsByDispatcherName[name] = serr
+					errorsLock.Unlock()
+					return
+				}
+			}
+		}
+	}
+
+	// Run the primary.
+	if allowPrimary {
+		go runHandler(primaryDispatcher, cr.clusterClient)
+	}
+
+	// Run each of the secondary dispatches.
+	for _, secondary := range validSecondaryDispatchers {
+		go runHandler(secondary.Name, secondary.Client)
+	}
+
+	// Wait for all the handlers to finish.
+	wg.Wait()
+
+	// Check for the first dispatcher that returned results and return its error, if any.
+	resultHandlerName := returnedResultsDispatcherName.Load()
+	if resultHandlerName != "" {
+		if err, ok := errorsByDispatcherName[resultHandlerName]; ok {
+			return err
+		}
 		return nil
 	}
 
-	// Fallback: use the primary client if no secondary matched.
-	return publishClient[Q](withTimeout, client, stream, primaryDispatcher)
+	// Otherwise return a combined error.
+	cerr := fmt.Errorf("no dispatcher returned results")
+	for name, err := range errorsByDispatcherName {
+		cerr = fmt.Errorf("%w; error in dispatcher %s: %w", cerr, name, err)
+	}
+	return cerr
 }
 
 func adjustMetadataForDispatch(metadata *v1.ResponseMeta) error {
