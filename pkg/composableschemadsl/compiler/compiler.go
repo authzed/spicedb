@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"k8s.io/utils/strings/slices"
 
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/parser"
@@ -40,10 +41,22 @@ type CompiledSchema struct {
 
 	// OrderedDefinitions holds the object and caveat definitions in the schema, in the
 	// order in which they were found.
-	OrderedDefinitions []SchemaDefinition
+	OrderedDefinitions []commonschemadsl.SchemaDefinition
 
 	rootNode *dslNode
 	mapper   input.PositionMapper
+}
+
+func (cs *CompiledSchema) GetObjectDefinitions() []*core.NamespaceDefinition {
+	return cs.ObjectDefinitions
+}
+
+func (cs *CompiledSchema) GetCaveatDefinitions() []*core.CaveatDefinition {
+	return cs.CaveatDefinitions
+}
+
+func (cs *CompiledSchema) GetOrderedDefinitions() []commonschemadsl.SchemaDefinition {
+	return cs.OrderedDefinitions
 }
 
 // SourcePositionToRunePosition converts a source position to a rune position.
