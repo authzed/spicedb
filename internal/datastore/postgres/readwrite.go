@@ -419,20 +419,21 @@ func handleWriteError(err error) error {
 	return fmt.Errorf(errUnableToWriteRelationships, err)
 }
 
-func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
+func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
 	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
 	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
 		return rwt.deleteRelationshipsWithLimit(ctx, filter, *delOpts.DeleteLimit)
 	}
 
-	return false, rwt.deleteRelationships(ctx, filter)
+	numDeleted, err := rwt.deleteRelationships(ctx, filter)
+	return numDeleted, false, err
 }
 
-func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, filter *v1.RelationshipFilter, limit uint64) (bool, error) {
+func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, filter *v1.RelationshipFilter, limit uint64) (uint64, bool, error) {
 	// validate the limit
 	intLimit, err := safecast.ToInt64(limit)
 	if err != nil {
-		return false, fmt.Errorf("limit argument could not safely be cast to int64: %w", err)
+		return 0, false, fmt.Errorf("limit argument could not safely be cast to int64: %w", err)
 	}
 
 	// Construct a select query for the relationships to be removed.
@@ -449,7 +450,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 	}
 	if filter.OptionalResourceIdPrefix != "" {
 		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
-			return false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+			return 0, false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
 		}
 
 		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
@@ -470,7 +471,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 
 	selectSQL, args, err := query.ToSql()
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	args = append(args, rwt.newXID)
@@ -493,13 +494,18 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 
 	result, err := rwt.tx.Exec(ctx, cteSQL, args...)
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	return result.RowsAffected() == intLimit, nil
+	numDeleted, err := safecast.ToUint64(result.RowsAffected())
+	if err != nil {
+		return 0, false, fmt.Errorf("unable to cast rows affected to uint64: %w", err)
+	}
+
+	return numDeleted, result.RowsAffected() == intLimit, nil
 }
 
-func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) (uint64, error) {
 	// Add clauses for the ResourceFilter
 	query := deleteTuple
 	if filter.ResourceType != "" {
@@ -513,7 +519,7 @@ func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.R
 	}
 	if filter.OptionalResourceIdPrefix != "" {
 		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
-			return fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+			return 0, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
 		}
 
 		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
@@ -532,14 +538,20 @@ func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.R
 
 	sql, args, err := query.Set(colDeletedXid, rwt.newXID).ToSql()
 	if err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+	result, err := rwt.tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	return nil
+	numDeleted, err := safecast.ToUint64(result.RowsAffected())
+	if err != nil {
+		return 0, fmt.Errorf("unable to cast rows affected to uint64: %w", err)
+	}
+
+	return numDeleted, nil
 }
 
 func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {

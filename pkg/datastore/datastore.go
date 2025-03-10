@@ -504,11 +504,12 @@ type ReadWriteTransaction interface {
 	WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error
 
 	// DeleteRelationships deletes relationships that match the provided filter, with
-	// the optional limit. If a limit is provided and reached, the method will return
-	// true as the first return value. Otherwise, the boolean can be ignored.
+	// the optional limit. Returns the number of deleted relationships. If a limit
+	// is provided and reached, the method will return true as the second return value.
+	// Otherwise, the boolean can be ignored.
 	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter,
 		options ...options.DeleteOptionsOption,
-	) (bool, error)
+	) (uint64, bool, error)
 
 	// WriteNamespaces takes proto namespace definitions and persists them.
 	WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error

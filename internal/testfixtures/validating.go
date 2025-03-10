@@ -225,9 +225,9 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	return vrwt.delegate.WriteRelationships(ctx, mutations)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
+func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	if err := filter.Validate(); err != nil {
-		return false, err
+		return 0, false, err
 	}
 
 	return vrwt.delegate.DeleteRelationships(ctx, filter, options...)

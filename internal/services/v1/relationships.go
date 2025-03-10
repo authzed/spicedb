@@ -476,7 +476,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		// Delete with the specified limit.
 		if req.OptionalLimit > 0 {
 			deleteLimit := uint64(req.OptionalLimit)
-			reachedLimit, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
+			_, reachedLimit, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
 			if err != nil {
 				return err
 			}
@@ -489,7 +489,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		}
 
 		// Otherwise, kick off an unlimited deletion.
-		_, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		_, _, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter)
 		return err
 	}, options.WithMetadata(req.OptionalTransactionMetadata))
 	if err != nil {
