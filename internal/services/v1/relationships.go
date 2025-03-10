@@ -118,6 +118,7 @@ func NewPermissionsServer(
 		MaxLookupResourcesLimit:         defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
 		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
 		DispatchChunkSize:               defaultIfZero(config.DispatchChunkSize, 100),
+		MaxCheckBulkConcurrency:         defaultIfZero(config.MaxCheckBulkConcurrency, 50),
 		ExpiringRelationshipsEnabled:    true,
 	}
 
