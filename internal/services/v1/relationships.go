@@ -420,6 +420,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	ds := datastoremw.MustFromContext(ctx)
 	deletionProgress := v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE
 
+	var deletedRelationshipCount uint64
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, rwt); err != nil {
 			return err
@@ -477,7 +478,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		// Delete with the specified limit.
 		if req.OptionalLimit > 0 {
 			deleteLimit := uint64(req.OptionalLimit)
-			_, reachedLimit, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
+			drc, reachedLimit, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
 			if err != nil {
 				return err
 			}
@@ -486,11 +487,12 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 				deletionProgress = v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL
 			}
 
+			deletedRelationshipCount = drc
 			return nil
 		}
 
 		// Otherwise, kick off an unlimited deletion.
-		_, _, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		deletedRelationshipCount, _, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter)
 		return err
 	}, options.WithMetadata(req.OptionalTransactionMetadata))
 	if err != nil {
@@ -498,8 +500,9 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	}
 
 	return &v1.DeleteRelationshipsResponse{
-		DeletedAt:        zedtoken.MustNewFromRevision(revision),
-		DeletionProgress: deletionProgress,
+		DeletedAt:                 zedtoken.MustNewFromRevision(revision),
+		DeletionProgress:          deletionProgress,
+		RelationshipsDeletedCount: deletedRelationshipCount,
 	}, nil
 }
 
