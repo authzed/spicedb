@@ -160,8 +160,14 @@ func dispatchRequest[Q requestMessage, S responseMessage](ctx context.Context, c
 
 	// Run the main dispatch.
 	go func() {
-		resp, err := handler(withTimeout, cr.clusterClient)
-		primaryResultChan <- respTuple[S]{resp, err}
+		time.Sleep(5 * time.Millisecond)
+		select {
+		case <-withTimeout.Done():
+			return
+		default:
+			resp, err := handler(withTimeout, cr.clusterClient)
+			primaryResultChan <- respTuple[S]{resp, err}
+		}
 	}()
 
 	result, err := RunDispatchExpr(expr, req)
