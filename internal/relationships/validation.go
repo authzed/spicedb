@@ -11,9 +11,9 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ValidateRelationshipUpdates performs validation on the given relationship updates, ensuring that
@@ -83,7 +83,7 @@ func ValidateRelationshipsForCreateOrTouch(
 	return nil
 }
 
-func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, reader datastore.Reader) (map[string]*typesystem.TypeSystem, map[string]*core.CaveatDefinition, error) {
+func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, reader datastore.Reader) (map[string]*schema.Definition, map[string]*core.CaveatDefinition, error) {
 	referencedNamespaceNames := mapz.NewSet[string]()
 	referencedCaveatNamesWithContext := mapz.NewSet[string]()
 	for _, rel := range rels {
@@ -94,7 +94,7 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 		}
 	}
 
-	var referencedNamespaceMap map[string]*typesystem.TypeSystem
+	var referencedNamespaceMap map[string]*schema.Definition
 	var referencedCaveatMap map[string]*core.CaveatDefinition
 
 	if !referencedNamespaceNames.IsEmpty() {
@@ -102,10 +102,11 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 		if err != nil {
 			return nil, nil, err
 		}
+		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 
-		referencedNamespaceMap = make(map[string]*typesystem.TypeSystem, len(foundNamespaces))
+		referencedNamespaceMap = make(map[string]*schema.Definition, len(foundNamespaces))
 		for _, nsDef := range foundNamespaces {
-			nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, typesystem.ResolverForDatastoreReader(reader))
+			nts, err := schema.NewDefinition(ts, nsDef.Definition)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -141,7 +142,7 @@ const (
 
 // ValidateOneRelationship validates a single relationship for CREATE/TOUCH or DELETE.
 func ValidateOneRelationship(
-	namespaceMap map[string]*typesystem.TypeSystem,
+	namespaceMap map[string]*schema.Definition,
 	caveatMap map[string]*core.CaveatDefinition,
 	rel tuple.Relationship,
 	rule ValidationRelationshipRule,
@@ -212,7 +213,7 @@ func ValidateOneRelationship(
 			return err
 		}
 
-		if isAllowed != typesystem.AllowedRelationValid {
+		if isAllowed != schema.AllowedRelationValid {
 			return NewInvalidSubjectTypeError(rel, relationToCheck, resourceTS)
 		}
 
@@ -224,7 +225,7 @@ func ValidateOneRelationship(
 				return err
 			}
 
-			if isAllowed != typesystem.PublicSubjectAllowed {
+			if isAllowed != schema.PublicSubjectAllowed {
 				return NewInvalidSubjectTypeError(rel, relationToCheck, resourceTS)
 			}
 		} else {
@@ -233,7 +234,7 @@ func ValidateOneRelationship(
 				return err
 			}
 
-			if isAllowed != typesystem.DirectRelationValid {
+			if isAllowed != schema.DirectRelationValid {
 				return NewInvalidSubjectTypeError(rel, relationToCheck, resourceTS)
 			}
 		}

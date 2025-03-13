@@ -14,9 +14,9 @@ import (
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // InvalidSubjectTypeError indicates that a write was attempted with a subject type which is not
@@ -32,9 +32,9 @@ type InvalidSubjectTypeError struct {
 func NewInvalidSubjectTypeError(
 	relationship tuple.Relationship,
 	relationType *core.AllowedRelation,
-	typeSystem *typesystem.TypeSystem,
+	definition *schema.Definition,
 ) error {
-	allowedTypes, err := typeSystem.AllowedDirectRelationsAndWildcards(relationship.Resource.Relation)
+	allowedTypes, err := definition.AllowedDirectRelationsAndWildcards(relationship.Resource.Relation)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func NewInvalidSubjectTypeError(
 			return InvalidSubjectTypeError{
 				error: fmt.Errorf(
 					"subjects of type `%s` are not allowed on relation `%s#%s` without one of the following caveats: %s",
-					typesystem.SourceForAllowedRelation(relationType),
+					schema.SourceForAllowedRelation(relationType),
 					relationship.Resource.ObjectType,
 					relationship.Resource.Relation,
 					strings.Join(allowedCaveatsForSubject.AsSlice(), ","),
@@ -74,16 +74,16 @@ func NewInvalidSubjectTypeError(
 
 	allowedTypeStrings := make([]string, 0, len(allowedTypes))
 	for _, allowedType := range allowedTypes {
-		allowedTypeStrings = append(allowedTypeStrings, typesystem.SourceForAllowedRelation(allowedType))
+		allowedTypeStrings = append(allowedTypeStrings, schema.SourceForAllowedRelation(allowedType))
 	}
 
-	matches := fuzzy.RankFind(typesystem.SourceForAllowedRelation(relationType), allowedTypeStrings)
+	matches := fuzzy.RankFind(schema.SourceForAllowedRelation(relationType), allowedTypeStrings)
 	sort.Sort(matches)
 	if len(matches) > 0 {
 		return InvalidSubjectTypeError{
 			error: fmt.Errorf(
 				"subjects of type `%s` are not allowed on relation `%s#%s`; did you mean `%s`?",
-				typesystem.SourceForAllowedRelation(relationType),
+				schema.SourceForAllowedRelation(relationType),
 				relationship.Resource.ObjectType,
 				relationship.Resource.Relation,
 				matches[0].Target,
@@ -97,7 +97,7 @@ func NewInvalidSubjectTypeError(
 	return InvalidSubjectTypeError{
 		error: fmt.Errorf(
 			"subjects of type `%s` are not allowed on relation `%s#%s`",
-			typesystem.SourceForAllowedRelation(relationType),
+			schema.SourceForAllowedRelation(relationType),
 			relationship.Resource.ObjectType,
 			relationship.Resource.Relation,
 		),
@@ -112,7 +112,7 @@ func (err InvalidSubjectTypeError) GRPCStatus() *status.Status {
 	details := map[string]string{
 		"definition_name": err.relationship.Resource.ObjectType,
 		"relation_name":   err.relationship.Resource.Relation,
-		"subject_type":    typesystem.SourceForAllowedRelation(err.relationType),
+		"subject_type":    schema.SourceForAllowedRelation(err.relationType),
 	}
 
 	if err.additionalDetails != nil {

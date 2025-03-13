@@ -34,9 +34,9 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -127,7 +127,7 @@ type experimentalServer struct {
 
 type bulkLoadAdapter struct {
 	stream                 v1.ExperimentalService_BulkImportRelationshipsServer
-	referencedNamespaceMap map[string]*typesystem.TypeSystem
+	referencedNamespaceMap map[string]*schema.Definition
 	referencedCaveatMap    map[string]*core.CaveatDefinition
 	current                tuple.Relationship
 	caveat                 core.ContextualizedCaveat
@@ -206,7 +206,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 
 func extractBatchNewReferencedNamespacesAndCaveats(
 	batch []*v1.Relationship,
-	existingNamespaces map[string]*typesystem.TypeSystem,
+	existingNamespaces map[string]*schema.Definition,
 	existingCaveats map[string]*core.CaveatDefinition,
 ) ([]string, []string) {
 	newNamespaces := make(map[string]struct{}, 2)
@@ -234,7 +234,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 
 	var numWritten uint64
 	if _, err := ds.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		loadedNamespaces := make(map[string]*typesystem.TypeSystem, 2)
+		loadedNamespaces := make(map[string]*schema.Definition, 2)
 		loadedCaveats := make(map[string]*core.CaveatDefinition, 0)
 
 		adapter := &bulkLoadAdapter{
@@ -244,7 +244,8 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			current:                tuple.Relationship{},
 			caveat:                 core.ContextualizedCaveat{},
 		}
-		resolver := typesystem.ResolverForDatastoreReader(rwt)
+		resolver := schema.ResolverForDatastoreReader(rwt)
+		ts := schema.NewTypeSystem(resolver)
 
 		var streamWritten uint64
 		var err error
@@ -259,12 +260,12 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 				}
 
 				for _, nsDef := range nsDefs {
-					nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, resolver)
+					newDef, err := schema.NewDefinition(ts, nsDef.Definition)
 					if err != nil {
 						return err
 					}
 
-					loadedNamespaces[nsDef.Definition.Name] = nts
+					loadedNamespaces[nsDef.Definition.Name] = newDef
 				}
 				adapter.awaitingNamespaces = nil
 			}
@@ -558,7 +559,8 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -567,8 +569,8 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 	if relationName == "" {
 		relationName = tuple.Ellipsis
 	} else {
-		if _, ok := vts.GetRelation(relationName); !ok {
-			return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, relationName))
+		if _, ok := vdef.GetRelation(relationName); !ok {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, relationName))
 		}
 	}
 
@@ -582,7 +584,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		allDefinitions = append(allDefinitions, ns.Definition)
 	}
 
-	rg := typesystem.ReachabilityGraphFor(vts)
+	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  relationName,
@@ -601,7 +603,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 			continue
 		}
 
-		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		def, err := ts.GetValidatedDefinition(ctx, r.Namespace)
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}
@@ -609,7 +611,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		relations = append(relations, &v1.ExpRelationReference{
 			DefinitionName: r.Namespace,
 			RelationName:   r.Relation,
-			IsPermission:   ts.IsPermission(r.Relation),
+			IsPermission:   def.IsPermission(r.Relation),
 		})
 	}
 
@@ -633,21 +635,22 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	_, ok := vts.GetRelation(req.PermissionName)
+	_, ok := vdef.GetRelation(req.PermissionName)
 	if !ok {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
+		return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
 	}
 
-	if !vts.IsPermission(req.PermissionName) {
+	if !vdef.IsPermission(req.PermissionName) {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
 	}
 
-	rg := typesystem.ReachabilityGraphFor(vts)
+	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  req.PermissionName,
@@ -662,7 +665,7 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 			continue
 		}
 
-		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		ts, err := ts.GetDefinition(ctx, r.Namespace)
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}

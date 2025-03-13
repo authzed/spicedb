@@ -15,9 +15,9 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // runCheckerAndDispatch runs the dispatch and checker for a lookup resources call, and publishes
@@ -31,7 +31,7 @@ func runCheckerAndDispatch(
 	parentStream dispatch.LookupResources2Stream,
 	newSubjectType *core.RelationReference,
 	filteredSubjectIDs []string,
-	entrypoint typesystem.ReachabilityEntrypoint,
+	entrypoint schema.ReachabilityEntrypoint,
 	lrDispatcher dispatch.LookupResources2,
 	checkDispatcher dispatch.Check,
 	concurrencyLimit uint16,
@@ -70,7 +70,7 @@ type checkAndDispatchRunner struct {
 	ci                cursorInformation
 	parentStream      dispatch.LookupResources2Stream
 	newSubjectType    *core.RelationReference
-	entrypoint        typesystem.ReachabilityEntrypoint
+	entrypoint        schema.ReachabilityEntrypoint
 	lrDispatcher      dispatch.LookupResources2
 	checkDispatcher   dispatch.Check
 	dispatchChunkSize uint16
