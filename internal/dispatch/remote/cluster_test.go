@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/influxdata/tdigest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -741,6 +743,83 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 	require.Equal(t, "0", stream.Results()[0].FoundSubjectsByResourceId["foo"].FoundSubjects[0].SubjectId)
 }
 
+func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
+	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 3 * time.Millisecond})
+	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 3 * time.Millisecond})
+
+	parsed, err := ParseDispatchExpression("check", "['secondary']")
+	require.NoError(t, err)
+
+	dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, map[string]SecondaryDispatch{
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
+	}, map[string]*DispatchExpr{
+		"check": parsed,
+	})
+	require.True(t, dispatcher.ReadyState().IsReady)
+
+	// Dispatch the check, which should (since it is the first request) add a delay of ~5ms to
+	// the primary, thus ensuring the secondary is used without any timeout for either,.
+	resp, err := dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
+		ResourceIds:      []string{"foo"},
+		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
+		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint32(2), resp.Metadata.DispatchCount)
+
+	// Ensure the digest for the check was updated.
+	cast := dispatcher.(*clusterDispatcher)
+	require.Equal(t, float64(1), cast.secondaryInitialResponseDigests["check"].digest.Count())
+	require.GreaterOrEqual(t, cast.secondaryInitialResponseDigests["check"].digest.Quantile(0.99), float64(3))
+}
+
+func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
+	conn := connectionForDispatching(t, &fakeDispatchSvc{resultCount: 10, dispatchCount: 1, sleepTime: 3 * time.Millisecond})
+	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{resultCount: 2, dispatchCount: 2, sleepTime: 3 * time.Millisecond})
+
+	parsed, err := ParseDispatchExpression("lookupsubjects", "['secondary']")
+	require.NoError(t, err)
+
+	dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, map[string]SecondaryDispatch{
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
+	}, map[string]*DispatchExpr{
+		"lookupsubjects": parsed,
+	})
+	require.True(t, dispatcher.ReadyState().IsReady)
+
+	// Dispatch the lookupsubjects, which should (since it is the first request) add a delay of ~5ms to
+	// the primary, thus ensuring the secondary is used without any timeout for either,.
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
+	err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+		ResourceRelation: &corev1.RelationReference{
+			Namespace: "somenamespace",
+			Relation:  "somerelation",
+		},
+		SubjectRelation: &corev1.RelationReference{
+			Namespace: "somenamespace",
+			Relation:  "somerelation",
+		},
+		ResourceIds: []string{"foo"},
+		Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
+	}, stream)
+	require.NoError(t, err)
+
+	require.Equal(t, uint32(2), stream.Results()[0].Metadata.DispatchCount)
+	require.Len(t, stream.Results(), 2)
+
+	// Ensure the digest for the lookupsubjects was updated.
+	cast := dispatcher.(*clusterDispatcher)
+	require.Equal(t, float64(1), cast.secondaryInitialResponseDigests["lookupsubjects"].digest.Count())
+	require.GreaterOrEqual(t, cast.secondaryInitialResponseDigests["lookupsubjects"].digest.Quantile(0.99), float64(3))
+}
+
 func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.ClientConn {
 	listener := bufconn.Listen(humanize.MiByte)
 	s := grpc.NewServer()
@@ -769,4 +848,22 @@ func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.
 	})
 
 	return conn
+}
+
+func TestDALCount(t *testing.T) {
+	dal := &digestAndLock{
+		digest: tdigest.NewWithCompression(1000),
+		lock:   sync.RWMutex{},
+	}
+
+	for i := 0; i < minimumDigestCount-1; i++ {
+		dal.addResultTime(3 * time.Millisecond)
+		require.Equal(t, float64(i+1), dal.digest.Count())
+		require.Equal(t, startingPrimaryHedgingDelay+primaryHedgingDelayOffset, dal.getWaitTime())
+	}
+
+	// Add the next result, which pushes it over the minimum count and now uses the quantile.
+	dal.addResultTime(3 * time.Millisecond)
+	require.Equal(t, float64(minimumDigestCount), dal.digest.Count())
+	require.Equal(t, (3*time.Millisecond)+primaryHedgingDelayOffset, dal.getWaitTime())
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/authzed/consistent"
+	"github.com/influxdata/tdigest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.uber.org/atomic"
@@ -30,6 +31,22 @@ var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Name:      "remote_dispatch_handler_total",
 	Help:      "which dispatcher handled a request",
 }, []string{"request_kind", "handler_name"})
+
+// startingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
+// before statistics are available to determine the actual delay.
+const startingPrimaryHedgingDelay = 5 * time.Millisecond
+
+// primaryHedgingDelayOffset is the offset added to the 99th percentile of the digest to determine the
+// actual delay for primary calls.
+const primaryHedgingDelayOffset = 1 * time.Millisecond
+
+// minimumDigestCount is the minimum number of samples required in the digest before it can be used
+// to determine the 99th percentile.
+const minimumDigestCount = 10
+
+const defaultTDigestCompression = float64(1000)
+
+var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 
 func init() {
 	prometheus.MustRegister(dispatchCounter)
@@ -71,13 +88,22 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		dispatchOverallTimeout = 60 * time.Second
 	}
 
+	secondaryInitialResponseDigests := make(map[string]*digestAndLock, len(supportsSecondaries))
+	for _, requestKey := range supportsSecondaries {
+		secondaryInitialResponseDigests[requestKey] = &digestAndLock{
+			digest: tdigest.NewWithCompression(defaultTDigestCompression),
+			lock:   sync.RWMutex{},
+		}
+	}
+
 	return &clusterDispatcher{
-		clusterClient:          client,
-		conn:                   conn,
-		keyHandler:             keyHandler,
-		dispatchOverallTimeout: dispatchOverallTimeout,
-		secondaryDispatch:      secondaryDispatch,
-		secondaryDispatchExprs: secondaryDispatchExprs,
+		clusterClient:                   client,
+		conn:                            conn,
+		keyHandler:                      keyHandler,
+		dispatchOverallTimeout:          dispatchOverallTimeout,
+		secondaryDispatch:               secondaryDispatch,
+		secondaryDispatchExprs:          secondaryDispatchExprs,
+		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
 	}
 }
 
@@ -86,8 +112,37 @@ type clusterDispatcher struct {
 	conn                   *grpc.ClientConn
 	keyHandler             keys.Handler
 	dispatchOverallTimeout time.Duration
-	secondaryDispatch      map[string]SecondaryDispatch
-	secondaryDispatchExprs map[string]*DispatchExpr
+
+	secondaryDispatch               map[string]SecondaryDispatch
+	secondaryDispatchExprs          map[string]*DispatchExpr
+	secondaryInitialResponseDigests map[string]*digestAndLock
+}
+
+// digestAndLock is a struct that holds a TDigest and a lock to protect it.
+type digestAndLock struct {
+	digest *tdigest.TDigest
+	lock   sync.RWMutex
+}
+
+// getWaitTime returns the 99th percentile of the digest, or a default value if the digest is empty.
+// In
+func (dal *digestAndLock) getWaitTime() time.Duration {
+	dal.lock.RLock()
+	milliseconds := dal.digest.Quantile(0.99)
+	count := dal.digest.Count()
+	dal.lock.RUnlock()
+
+	if milliseconds <= 0 || count < minimumDigestCount {
+		return startingPrimaryHedgingDelay + primaryHedgingDelayOffset
+	}
+
+	return (time.Duration(milliseconds) * time.Millisecond) + primaryHedgingDelayOffset
+}
+
+func (dal *digestAndLock) addResultTime(duration time.Duration) {
+	dal.lock.Lock()
+	dal.digest.Add(float64(duration.Milliseconds()), 1)
+	dal.lock.Unlock()
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -160,6 +215,10 @@ func dispatchRequest[Q requestMessage, S responseMessage](ctx context.Context, c
 
 	// Run the main dispatch.
 	go func() {
+		// Have the main dispatch wait some time before returning, to allow the secondaries to
+		// potentially return first.
+		time.Sleep(cr.secondaryInitialResponseDigests[reqKey].getWaitTime())
+
 		resp, err := handler(withTimeout, cr.clusterClient)
 		primaryResultChan <- respTuple[S]{resp, err}
 	}()
@@ -180,14 +239,16 @@ func dispatchRequest[Q requestMessage, S responseMessage](ctx context.Context, c
 
 		log.Trace().Str("secondary-dispatcher", secondary.Name).Object("request", req).Msg("running secondary dispatcher")
 		go func() {
+			startTime := time.Now()
 			resp, err := handler(withTimeout, secondary.Client)
+			endTime := time.Now()
 			if err != nil {
 				// For secondary dispatches, ignore any errors, as only the primary will be handled in
 				// that scenario.
 				log.Trace().Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
 				return
 			}
-
+			cr.secondaryInitialResponseDigests[reqKey].addResultTime(endTime.Sub(startTime))
 			secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
 		}()
 	}
@@ -363,6 +424,15 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 
 		clientCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cr.dispatchOverallTimeout)
 		defer cancel()
+
+		var startTime time.Time
+		if name == primaryDispatcher {
+			// Have the primary wait a bit to ensure the secondaries have a chance to return first.
+			time.Sleep(cr.secondaryInitialResponseDigests[reqKey].getWaitTime())
+		} else {
+			startTime = time.Now()
+		}
+
 		client, err := handler(clientCtx, clusterClient)
 		if err != nil {
 			log.Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
@@ -380,6 +450,12 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 
 			default:
 				result, err := client.Recv()
+				if !returnedFirstResult && name != primaryDispatcher && (err == nil || errors.Is(err, io.EOF)) {
+					finishTime := time.Now()
+					duration := finishTime.Sub(startTime)
+					cr.secondaryInitialResponseDigests[reqKey].addResultTime(duration)
+				}
+
 				if errors.Is(err, io.EOF) {
 					log.Trace().Str("dispatcher", name).Err(err).Msg("dispatcher recv")
 					returnedResultsDispatcherName.CompareAndSwap("", name)
