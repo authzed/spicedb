@@ -236,7 +236,7 @@ const (
 	primaryDispatcher     = "$primary"
 )
 
-func publishClient[R responseMessageWithCursor](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
+func publishClient[R responseMessage](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -256,11 +256,13 @@ func publishClient[R responseMessageWithCursor](ctx context.Context, client rece
 			}
 
 			if secondaryDispatchName != primaryDispatcher {
-				afterResponseCursor := result.GetAfterResponseCursor()
-				if afterResponseCursor == nil {
-					return spiceerrors.MustBugf("received a nil after response cursor for secondary dispatch")
+				if supportsCursors, ok := any(result).(responseMessageWithCursor); ok {
+					afterResponseCursor := supportsCursors.GetAfterResponseCursor()
+					if afterResponseCursor == nil {
+						return spiceerrors.MustBugf("received a nil after response cursor for secondary dispatch")
+					}
+					afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.Sections...)
 				}
-				afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.Sections...)
 			}
 
 			serr := stream.Publish(result)
@@ -275,7 +277,7 @@ func publishClient[R responseMessageWithCursor](ctx context.Context, client rece
 // secondary dispatchers. Unlike the non-streaming version, this will first attempt to dispatch
 // from the allowed secondary dispatchers before falling back to the primary, rather than running
 // them in parallel.
-func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithCursor](
+func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 	ctx context.Context,
 	cr *clusterDispatcher,
 	reqKey string,
@@ -296,12 +298,14 @@ func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithC
 	}
 
 	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
-	cursor := req.GetOptionalCursor()
 	cursorLockedSecondaryName := ""
-	if cursor != nil && len(cursor.Sections) > 0 {
-		if strings.HasPrefix(cursor.Sections[0], secondaryCursorPrefix) {
-			cursorLockedSecondaryName = strings.TrimPrefix(cursor.Sections[0], secondaryCursorPrefix)
-			cursor.Sections = cursor.Sections[1:]
+	if cursorSupports, ok := any(req).(requestMessageWithCursor); ok {
+		cursor := cursorSupports.GetOptionalCursor()
+		if cursor != nil && len(cursor.Sections) > 0 {
+			if strings.HasPrefix(cursor.Sections[0], secondaryCursorPrefix) {
+				cursorLockedSecondaryName = strings.TrimPrefix(cursor.Sections[0], secondaryCursorPrefix)
+				cursor.Sections = cursor.Sections[1:]
+			}
 		}
 	}
 
@@ -521,38 +525,10 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 		return err
 	}
 
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
-	defer cancelFn()
-
-	client, err := cr.clusterClient.DispatchLookupSubjects(withTimeout, req)
-	if err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case <-withTimeout.Done():
-			return withTimeout.Err()
-
-		default:
-			result, err := client.Recv()
-			if errors.Is(err, io.EOF) {
-				return nil
-			} else if err != nil {
-				return err
-			}
-
-			merr := adjustMetadataForDispatch(result.Metadata)
-			if merr != nil {
-				return merr
-			}
-
-			serr := stream.Publish(result)
-			if serr != nil {
-				return serr
-			}
-		}
-	}
+	return dispatchStreamingRequest(ctx, cr, "lookupsubjects", req, stream,
+		func(ctx context.Context, client ClusterClient) (receiver[*v1.DispatchLookupSubjectsResponse], error) {
+			return client.DispatchLookupSubjects(ctx, req)
+		})
 }
 
 func (cr *clusterDispatcher) Close() error {
