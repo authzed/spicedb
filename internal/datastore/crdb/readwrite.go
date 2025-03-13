@@ -386,7 +386,7 @@ func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	}
 }
 
-func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
+func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
 	// Add clauses for the ResourceFilter
 	query := rwt.queryDeleteTuples()
 
@@ -401,7 +401,7 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 	}
 	if filter.OptionalResourceIdPrefix != "" {
 		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
-			return false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+			return 0, false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
 		}
 
 		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
@@ -434,24 +434,24 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	modified, err := rwt.tx.Exec(ctx, sql, args...)
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	rwt.relCountChange -= modified.RowsAffected()
 	rowsAffected, err := safecast.ToUint64(modified.RowsAffected())
 	if err != nil {
-		return false, spiceerrors.MustBugf("could not cast RowsAffected to uint64: %v", err)
+		return 0, false, spiceerrors.MustBugf("could not cast RowsAffected to uint64: %v", err)
 	}
 	if delLimit > 0 && rowsAffected == delLimit {
-		return true, nil
+		return rowsAffected, true, nil
 	}
 
-	return false, nil
+	return rowsAffected, false, nil
 }
 
 func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {

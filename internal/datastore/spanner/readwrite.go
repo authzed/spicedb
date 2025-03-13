@@ -147,22 +147,22 @@ func spannerMutation(
 	return
 }
 
-func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
-	limitReached, err := deleteWithFilter(ctx, rwt.spannerRWT, filter, opts...)
+func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
+	numDeleted, limitReached, err := deleteWithFilter(ctx, rwt.spannerRWT, filter, opts...)
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	return limitReached, nil
+	return numDeleted, limitReached, nil
 }
 
-func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
+func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
 	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
 	var delLimit uint64
 	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
 		delLimit = *delOpts.DeleteLimit
 		if delLimit > inLimit {
-			return false, spiceerrors.MustBugf("delete limit %d exceeds maximum of %d in spanner", delLimit, inLimit)
+			return 0, false, spiceerrors.MustBugf("delete limit %d exceeds maximum of %d in spanner", delLimit, inLimit)
 		}
 	}
 
@@ -170,13 +170,13 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 	if delLimit > 0 {
 		nu, err := deleteWithFilterAndLimit(ctx, rwt, filter, delLimit)
 		if err != nil {
-			return false, err
+			return 0, false, err
 		}
 		numDeleted = nu
 	} else {
 		nu, err := deleteWithFilterAndNoLimit(ctx, rwt, filter)
 		if err != nil {
-			return false, err
+			return 0, false, err
 		}
 
 		numDeleted = nu
@@ -184,14 +184,14 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 
 	uintNumDeleted, err := safecast.ToUint64(numDeleted)
 	if err != nil {
-		return false, spiceerrors.MustBugf("numDeleted was negative: %v", err)
+		return 0, false, spiceerrors.MustBugf("numDeleted was negative: %v", err)
 	}
 
 	if delLimit > 0 && uintNumDeleted == delLimit {
-		return true, nil
+		return uintNumDeleted, true, nil
 	}
 
-	return false, nil
+	return uintNumDeleted, false, nil
 }
 
 func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, delLimit uint64) (int64, error) {
@@ -391,7 +391,7 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...
 		// Ensure the namespace exists.
 
 		relFilter := &v1.RelationshipFilter{ResourceType: nsName}
-		if _, err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter); err != nil {
+		if _, _, err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter); err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
 

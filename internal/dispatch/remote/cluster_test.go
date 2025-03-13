@@ -7,14 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/dispatch"
-
-	humanize "github.com/dustin/go-humanize"
+	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -24,8 +25,11 @@ import (
 type fakeDispatchSvc struct {
 	v1.UnimplementedDispatchServiceServer
 
+	resultCount uint32
+
 	sleepTime     time.Duration
 	dispatchCount uint32
+	errorOnLR2    error
 }
 
 func (fds *fakeDispatchSvc) DispatchCheck(context.Context, *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -45,20 +49,30 @@ func (fds *fakeDispatchSvc) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsR
 }
 
 func (fds *fakeDispatchSvc) DispatchLookupResources2(_ *v1.DispatchLookupResources2Request, srv v1.DispatchService_DispatchLookupResources2Server) error {
-	if fds.dispatchCount == 999 {
-		return fmt.Errorf("error")
+	if fds.errorOnLR2 != nil {
+		return fds.errorOnLR2
 	}
 
-	time.Sleep(fds.sleepTime)
-	return srv.Send(&v1.DispatchLookupResources2Response{
-		Metadata: &v1.ResponseMeta{
-			DispatchCount: fds.dispatchCount,
-		},
-		AfterResponseCursor: &v1.Cursor{
-			Sections:        nil,
-			DispatchVersion: 1,
-		},
-	})
+	if fds.resultCount == 0 {
+		fds.resultCount = 2
+	}
+
+	for i := range fds.resultCount {
+		time.Sleep(fds.sleepTime)
+		if err := srv.Send(&v1.DispatchLookupResources2Response{
+			Resource: &v1.PossibleResource{ResourceId: fmt.Sprintf("%d", i)},
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: fds.dispatchCount,
+			},
+			AfterResponseCursor: &v1.Cursor{
+				Sections:        nil,
+				DispatchVersion: 1,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestDispatchTimeout(t *testing.T) {
@@ -500,12 +514,12 @@ func TestLRSecondaryDispatch(t *testing.T) {
 			false,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 0 * time.Millisecond})
+			// NOTE: we configure the primary to be slow, so that the secondaries are used when applicable.
+			conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 100 * time.Millisecond})
 			secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 0 * time.Millisecond})
 			tertiaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 3, sleepTime: 0 * time.Millisecond})
-			errorConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 999, sleepTime: 0 * time.Millisecond})
+			errorConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 4, sleepTime: 0 * time.Millisecond, errorOnLR2: fmt.Errorf("error")})
 
 			parsed, err := ParseDispatchExpression("lookupresources", tc.expr)
 			require.NoError(t, err)
@@ -529,11 +543,56 @@ func TestLRSecondaryDispatch(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, 1, len(stream.Results()))
+				require.Equal(t, 2, len(stream.Results()))
 				require.Equal(t, tc.expectedDispatchCount, stream.Results()[0].Metadata.DispatchCount)
 			}
 		})
 	}
+}
+
+// TestLRDispatchFallbackToPrimary tests the case where the secondary dispatch returns
+// an error, and the primary dispatch is used as a fallback, even though it is slower.
+func TestLRDispatchFallbackToPrimary(t *testing.T) {
+	results := uint32(10)
+	conn := connectionForDispatching(t, &fakeDispatchSvc{resultCount: results, dispatchCount: 1, sleepTime: 1 * time.Millisecond})
+	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 0 * time.Millisecond, errorOnLR2: grpcstatus.Errorf(codes.NotFound, "not available")})
+
+	parsed, err := ParseDispatchExpression("lookupresources", "['secondary']")
+	require.NoError(t, err)
+
+	dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, map[string]SecondaryDispatch{
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
+	}, map[string]*DispatchExpr{
+		"lookupresources": parsed,
+	})
+	require.True(t, dispatcher.ReadyState().IsReady)
+
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](context.Background())
+	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+		ResourceRelation: &corev1.RelationReference{
+			Namespace: "somenamespace",
+			Relation:  "somerelation",
+		},
+		SubjectRelation: &corev1.RelationReference{
+			Namespace: "somenamespace",
+			Relation:  "somerelation",
+		},
+		SubjectIds: []string{"foo"},
+		TerminalSubject: &corev1.ObjectAndRelation{
+			Namespace: "foo",
+			ObjectId:  "bar",
+			Relation:  "...",
+		},
+		Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+	}, stream)
+	require.NoError(t, err)
+
+	require.Len(t, stream.Results(), int(results))
+	require.Equal(t, uint32(1), stream.Results()[0].Metadata.DispatchCount)
+	require.Equal(t, "0", stream.Results()[0].Resource.ResourceId)
 }
 
 func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.ClientConn {

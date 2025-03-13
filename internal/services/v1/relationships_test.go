@@ -1267,9 +1267,12 @@ func TestDeleteRelationships(t *testing.T) {
 				}
 				require.NoError(err)
 				require.NotNil(resp.DeletedAt)
+
 				rev, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 				require.NoError(err)
 				require.True(rev.GreaterThan(revision))
+
+				require.Equal(uint64(len(tc.deleted)), resp.RelationshipsDeletedCount)
 				require.EqualValues(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))
 			})
 		}
@@ -1377,6 +1380,9 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 
 				afterDelete := readOfType(require, "document", client, resp.DeletedAt)
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
+
+				bs, _ := safecast.ToUint64(batchSize)
+				require.LessOrEqual(resp.RelationshipsDeletedCount, bs)
 
 				if i == 0 {
 					require.Equal(v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL, resp.DeletionProgress)

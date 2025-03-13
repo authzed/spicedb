@@ -80,6 +80,10 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 
 	bulkResponseMutex := sync.Mutex{}
 
+	spiceerrors.DebugAssert(func() bool {
+		return bc.maxConcurrency > 0
+	}, "max concurrency must be greater than 0 in bulk check")
+
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, bc.maxConcurrency, len(groupedItems))
 
 	respMetadata := &dispatchv1.ResponseMeta{
