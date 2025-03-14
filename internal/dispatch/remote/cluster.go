@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/authzed/consistent"
+	"github.com/influxdata/tdigest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.uber.org/atomic"
@@ -30,6 +31,22 @@ var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Name:      "remote_dispatch_handler_total",
 	Help:      "which dispatcher handled a request",
 }, []string{"request_kind", "handler_name"})
+
+// startingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
+// before statistics are available to determine the actual delay.
+const startingPrimaryHedgingDelay = 5 * time.Millisecond
+
+// primaryHedgingDelayOffset is the offset added to the 99th percentile of the digest to determine the
+// actual delay for primary calls.
+const primaryHedgingDelayOffset = 1 * time.Millisecond
+
+// minimumDigestCount is the minimum number of samples required in the digest before it can be used
+// to determine the 99th percentile.
+const minimumDigestCount = 10
+
+const defaultTDigestCompression = float64(1000)
+
+var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 
 func init() {
 	prometheus.MustRegister(dispatchCounter)
@@ -71,13 +88,22 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		dispatchOverallTimeout = 60 * time.Second
 	}
 
+	secondaryInitialResponseDigests := make(map[string]*digestAndLock, len(supportsSecondaries))
+	for _, requestKey := range supportsSecondaries {
+		secondaryInitialResponseDigests[requestKey] = &digestAndLock{
+			digest: tdigest.NewWithCompression(defaultTDigestCompression),
+			lock:   sync.RWMutex{},
+		}
+	}
+
 	return &clusterDispatcher{
-		clusterClient:          client,
-		conn:                   conn,
-		keyHandler:             keyHandler,
-		dispatchOverallTimeout: dispatchOverallTimeout,
-		secondaryDispatch:      secondaryDispatch,
-		secondaryDispatchExprs: secondaryDispatchExprs,
+		clusterClient:                   client,
+		conn:                            conn,
+		keyHandler:                      keyHandler,
+		dispatchOverallTimeout:          dispatchOverallTimeout,
+		secondaryDispatch:               secondaryDispatch,
+		secondaryDispatchExprs:          secondaryDispatchExprs,
+		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
 	}
 }
 
@@ -86,8 +112,38 @@ type clusterDispatcher struct {
 	conn                   *grpc.ClientConn
 	keyHandler             keys.Handler
 	dispatchOverallTimeout time.Duration
-	secondaryDispatch      map[string]SecondaryDispatch
-	secondaryDispatchExprs map[string]*DispatchExpr
+
+	secondaryDispatch               map[string]SecondaryDispatch
+	secondaryDispatchExprs          map[string]*DispatchExpr
+	secondaryInitialResponseDigests map[string]*digestAndLock
+}
+
+// digestAndLock is a struct that holds a TDigest and a lock to protect it.
+type digestAndLock struct {
+	digest *tdigest.TDigest
+	lock   sync.RWMutex
+}
+
+// getWaitTime returns the 99th percentile of the digest, or a default value if the digest is empty.
+// In
+func (dal *digestAndLock) getWaitTime() time.Duration {
+	dal.lock.RLock()
+	milliseconds := dal.digest.Quantile(0.99)
+	count := dal.digest.Count()
+	dal.lock.RUnlock()
+
+	if milliseconds <= 0 || count < minimumDigestCount {
+		return startingPrimaryHedgingDelay + primaryHedgingDelayOffset
+	}
+
+	return (time.Duration(milliseconds) * time.Millisecond) + primaryHedgingDelayOffset
+}
+
+func (dal *digestAndLock) addResultTime(duration time.Duration) {
+	if dal.lock.TryLock() {
+		dal.digest.Add(float64(duration.Milliseconds()), 1)
+		dal.lock.Unlock()
+	}
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -160,6 +216,10 @@ func dispatchRequest[Q requestMessage, S responseMessage](ctx context.Context, c
 
 	// Run the main dispatch.
 	go func() {
+		// Have the main dispatch wait some time before returning, to allow the secondaries to
+		// potentially return first.
+		time.Sleep(cr.secondaryInitialResponseDigests[reqKey].getWaitTime())
+
 		resp, err := handler(withTimeout, cr.clusterClient)
 		primaryResultChan <- respTuple[S]{resp, err}
 	}()
@@ -180,14 +240,16 @@ func dispatchRequest[Q requestMessage, S responseMessage](ctx context.Context, c
 
 		log.Trace().Str("secondary-dispatcher", secondary.Name).Object("request", req).Msg("running secondary dispatcher")
 		go func() {
+			startTime := time.Now()
 			resp, err := handler(withTimeout, secondary.Client)
+			endTime := time.Now()
 			if err != nil {
 				// For secondary dispatches, ignore any errors, as only the primary will be handled in
 				// that scenario.
 				log.Trace().Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
 				return
 			}
-
+			cr.secondaryInitialResponseDigests[reqKey].addResultTime(endTime.Sub(startTime))
 			secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
 		}()
 	}
@@ -236,7 +298,7 @@ const (
 	primaryDispatcher     = "$primary"
 )
 
-func publishClient[R responseMessageWithCursor](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
+func publishClient[R responseMessage](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -256,11 +318,13 @@ func publishClient[R responseMessageWithCursor](ctx context.Context, client rece
 			}
 
 			if secondaryDispatchName != primaryDispatcher {
-				afterResponseCursor := result.GetAfterResponseCursor()
-				if afterResponseCursor == nil {
-					return spiceerrors.MustBugf("received a nil after response cursor for secondary dispatch")
+				if supportsCursors, ok := any(result).(responseMessageWithCursor); ok {
+					afterResponseCursor := supportsCursors.GetAfterResponseCursor()
+					if afterResponseCursor == nil {
+						return spiceerrors.MustBugf("received a nil after response cursor for secondary dispatch")
+					}
+					afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.Sections...)
 				}
-				afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.Sections...)
 			}
 
 			serr := stream.Publish(result)
@@ -275,7 +339,7 @@ func publishClient[R responseMessageWithCursor](ctx context.Context, client rece
 // secondary dispatchers. Unlike the non-streaming version, this will first attempt to dispatch
 // from the allowed secondary dispatchers before falling back to the primary, rather than running
 // them in parallel.
-func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithCursor](
+func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 	ctx context.Context,
 	cr *clusterDispatcher,
 	reqKey string,
@@ -296,12 +360,14 @@ func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithC
 	}
 
 	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
-	cursor := req.GetOptionalCursor()
 	cursorLockedSecondaryName := ""
-	if cursor != nil && len(cursor.Sections) > 0 {
-		if strings.HasPrefix(cursor.Sections[0], secondaryCursorPrefix) {
-			cursorLockedSecondaryName = strings.TrimPrefix(cursor.Sections[0], secondaryCursorPrefix)
-			cursor.Sections = cursor.Sections[1:]
+	if cursorSupports, ok := any(req).(requestMessageWithCursor); ok {
+		cursor := cursorSupports.GetOptionalCursor()
+		if cursor != nil && len(cursor.Sections) > 0 {
+			if strings.HasPrefix(cursor.Sections[0], secondaryCursorPrefix) {
+				cursorLockedSecondaryName = strings.TrimPrefix(cursor.Sections[0], secondaryCursorPrefix)
+				cursor.Sections = cursor.Sections[1:]
+			}
 		}
 	}
 
@@ -359,6 +425,15 @@ func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithC
 
 		clientCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cr.dispatchOverallTimeout)
 		defer cancel()
+
+		var startTime time.Time
+		if name == primaryDispatcher {
+			// Have the primary wait a bit to ensure the secondaries have a chance to return first.
+			time.Sleep(cr.secondaryInitialResponseDigests[reqKey].getWaitTime())
+		} else {
+			startTime = time.Now()
+		}
+
 		client, err := handler(clientCtx, clusterClient)
 		if err != nil {
 			log.Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
@@ -376,6 +451,12 @@ func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithC
 
 			default:
 				result, err := client.Recv()
+				if !returnedFirstResult && name != primaryDispatcher && (err == nil || errors.Is(err, io.EOF)) {
+					finishTime := time.Now()
+					duration := finishTime.Sub(startTime)
+					cr.secondaryInitialResponseDigests[reqKey].addResultTime(duration)
+				}
+
 				if errors.Is(err, io.EOF) {
 					log.Trace().Str("dispatcher", name).Err(err).Msg("dispatcher recv")
 					returnedResultsDispatcherName.CompareAndSwap("", name)
@@ -521,38 +602,10 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 		return err
 	}
 
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
-	defer cancelFn()
-
-	client, err := cr.clusterClient.DispatchLookupSubjects(withTimeout, req)
-	if err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case <-withTimeout.Done():
-			return withTimeout.Err()
-
-		default:
-			result, err := client.Recv()
-			if errors.Is(err, io.EOF) {
-				return nil
-			} else if err != nil {
-				return err
-			}
-
-			merr := adjustMetadataForDispatch(result.Metadata)
-			if merr != nil {
-				return merr
-			}
-
-			serr := stream.Publish(result)
-			if serr != nil {
-				return serr
-			}
-		}
-	}
+	return dispatchStreamingRequest(ctx, cr, "lookupsubjects", req, stream,
+		func(ctx context.Context, client ClusterClient) (receiver[*v1.DispatchLookupSubjectsResponse], error) {
+			return client.DispatchLookupSubjects(ctx, req)
+		})
 }
 
 func (cr *clusterDispatcher) Close() error {
