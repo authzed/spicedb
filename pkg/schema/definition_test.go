@@ -440,12 +440,15 @@ func TestDefinition(t *testing.T) {
 
 			ts := NewTypeSystem(resolver)
 
-			_, terr := ts.GetValidatedDefinition(ctx, tc.toCheck.GetName())
+			def, gerr := ts.GetDefinition(ctx, tc.toCheck.GetName())
+			require.NoError(gerr)
+
+			_, verr := def.Validate(ctx)
 			if tc.expectedError == "" {
-				require.NoError(terr)
+				require.NoError(verr)
 			} else {
-				require.Error(terr)
-				require.Equal(tc.expectedError, terr.Error())
+				require.Error(verr)
+				require.Equal(tc.expectedError, verr.Error())
 			}
 		})
 	}
