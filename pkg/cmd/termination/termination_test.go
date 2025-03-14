@@ -17,7 +17,7 @@ func TestPublishError(t *testing.T) {
 	cmd := cobra.Command{}
 	RegisterFlags(cmd.Flags())
 
-	f, err := os.CreateTemp("", "")
+	f, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	filePath := f.Name()
 	cmd.Flag(terminationLogFlagName).Value = newStringValue(filePath, &filePath)
