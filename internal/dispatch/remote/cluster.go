@@ -423,7 +423,7 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 		log.Debug().Str("dispatcher", name).Msg("running secondary dispatcher")
 		defer wg.Done()
 
-		clientCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cr.dispatchOverallTimeout)
+		clientCtx, cancel := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 		defer cancel()
 
 		var startTime time.Time
