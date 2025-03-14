@@ -427,7 +427,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	}
 
 	if opts.ReadOnly {
-		log.Ctx(ctx).Warn().Msg("setting the datastore to read-only")
+		log.Ctx(ctx).Info().Msg("setting the datastore to read-only")
 		ds = proxy.NewReadonlyDatastore(ds)
 	}
 
