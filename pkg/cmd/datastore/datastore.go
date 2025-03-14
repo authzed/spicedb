@@ -211,7 +211,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	deprecateUnifiedConnFlags(flagSet)
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-read", &legacyConnPool, &opts.ReadConnPool)
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
-	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-read-replica-conn-pool", DefaultReadConnPool(), &opts.ReadReplicaConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-read-replica-conn-pool-read", DefaultReadConnPool(), &opts.ReadReplicaConnPool)
 
 	normalizeFunc := flagSet.GetNormalizeFunc()
 	flagSet.SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
