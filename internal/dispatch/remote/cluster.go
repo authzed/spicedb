@@ -140,9 +140,10 @@ func (dal *digestAndLock) getWaitTime() time.Duration {
 }
 
 func (dal *digestAndLock) addResultTime(duration time.Duration) {
-	dal.lock.Lock()
-	dal.digest.Add(float64(duration.Milliseconds()), 1)
-	dal.lock.Unlock()
+	if dal.lock.TryLock() {
+		dal.digest.Add(float64(duration.Milliseconds()), 1)
+		dal.lock.Unlock()
+	}
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
