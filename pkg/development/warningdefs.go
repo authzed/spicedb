@@ -7,8 +7,8 @@ import (
 
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var lintRelationReferencesParentType = relationCheck{
@@ -16,11 +16,11 @@ var lintRelationReferencesParentType = relationCheck{
 	func(
 		ctx context.Context,
 		relation *corev1.Relation,
-		ts *typesystem.TypeSystem,
+		def *schema.Definition,
 	) (*devinterface.DeveloperWarning, error) {
-		parentDef := ts.Namespace()
+		parentDef := def.Namespace()
 		if strings.HasSuffix(relation.Name, parentDef.Name) {
-			if ts.IsPermission(relation.Name) {
+			if def.IsPermission(relation.Name) {
 				return warningForMetadata(
 					"relation-name-references-parent",
 					fmt.Sprintf("Permission %q references parent type %q in its name; it is recommended to drop the suffix", relation.Name, parentDef.Name),
@@ -47,7 +47,7 @@ var lintPermissionReferencingItself = computedUsersetCheck{
 		ctx context.Context,
 		computedUserset *corev1.ComputedUserset,
 		sourcePosition *corev1.SourcePosition,
-		ts *typesystem.TypeSystem,
+		def *schema.Definition,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 		permName := parentRelation.Name
@@ -70,23 +70,23 @@ var lintArrowReferencingUnreachable = ttuCheck{
 		ctx context.Context,
 		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
-		ts *typesystem.TypeSystem,
+		def *schema.Definition,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
-		referencedRelation, ok := ts.GetRelation(ttu.GetTupleset().GetRelation())
+		referencedRelation, ok := def.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {
 			return nil, nil
 		}
 
-		allowedSubjectTypes, err := ts.AllowedSubjectRelations(referencedRelation.Name)
+		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.Name)
 		if err != nil {
 			return nil, err
 		}
 
 		wasFound := false
 		for _, subjectType := range allowedSubjectTypes {
-			nts, err := ts.TypeSystemForNamespace(ctx, subjectType.Namespace)
+			nts, err := def.TypeSystem().GetDefinition(ctx, subjectType.Namespace)
 			if err != nil {
 				return nil, err
 			}
@@ -127,16 +127,16 @@ var lintArrowOverSubRelation = ttuCheck{
 		ctx context.Context,
 		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
-		ts *typesystem.TypeSystem,
+		def *schema.Definition,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
-		referencedRelation, ok := ts.GetRelation(ttu.GetTupleset().GetRelation())
+		referencedRelation, ok := def.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {
 			return nil, nil
 		}
 
-		allowedSubjectTypes, err := ts.AllowedSubjectRelations(referencedRelation.Name)
+		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -174,18 +174,18 @@ var lintArrowReferencingRelation = ttuCheck{
 		ctx context.Context,
 		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
-		ts *typesystem.TypeSystem,
+		def *schema.Definition,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
-		referencedRelation, ok := ts.GetRelation(ttu.GetTupleset().GetRelation())
+		referencedRelation, ok := def.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {
 			return nil, nil
 		}
 
 		// For each subject type of the referenced relation, check if the referenced permission
 		// is, in fact, a relation.
-		allowedSubjectTypes, err := ts.AllowedSubjectRelations(referencedRelation.Name)
+		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -197,11 +197,11 @@ var lintArrowReferencingRelation = ttuCheck{
 
 		for _, subjectType := range allowedSubjectTypes {
 			// Skip for arrow referencing relations in the same namespace.
-			if subjectType.Namespace == ts.Namespace().Name {
+			if subjectType.Namespace == def.Namespace().Name {
 				continue
 			}
 
-			nts, err := ts.TypeSystemForNamespace(ctx, subjectType.Namespace)
+			nts, err := def.TypeSystem().GetDefinition(ctx, subjectType.Namespace)
 			if err != nil {
 				return nil, err
 			}

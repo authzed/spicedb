@@ -31,10 +31,10 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 const defaultConnBufferSize = humanize.MiByte
@@ -249,10 +249,7 @@ func loadCompiled(
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
 	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
-	resolver := typesystem.ResolverForPredefinedDefinitions(typesystem.PredefinedElements{
-		Namespaces: compiled.ObjectDefinitions,
-		Caveats:    compiled.CaveatDefinitions,
-	})
+	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(*compiled))
 
 	for _, caveatDef := range compiled.CaveatDefinitions {
 		cverr := namespace.ValidateCaveatDefinition(caveatDef)
@@ -293,7 +290,7 @@ func loadCompiled(
 	}
 
 	for _, nsDef := range compiled.ObjectDefinitions {
-		ts, terr := typesystem.NewNamespaceTypeSystem(nsDef, resolver)
+		def, terr := schema.NewDefinition(ts, nsDef)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsWithSourceError(terr)
 			// NOTE: zeroes are fine here to mean "unknown"
@@ -326,7 +323,7 @@ func loadCompiled(
 			continue
 		}
 
-		_, tverr := ts.Validate(ctx)
+		_, tverr := def.Validate(ctx)
 		if tverr == nil {
 			if err := rwt.WriteNamespaces(ctx, nsDef); err != nil {
 				return errors, err

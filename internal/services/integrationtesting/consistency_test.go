@@ -29,8 +29,8 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
@@ -81,15 +81,10 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 	headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
 	require.NoError(t, err)
 
-	for _, nsDef := range cad.Populated.NamespaceDefinitions {
-		_, ts, err := typesystem.ReadNamespaceAndTypes(
-			cad.Ctx,
-			nsDef.Name,
-			cad.DataStore.SnapshotReader(headRevision),
-		)
-		require.NoError(t, err)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
 
-		_, err = ts.Validate(cad.Ctx)
+	for _, nsDef := range cad.Populated.NamespaceDefinitions {
+		_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
 		require.NoError(t, err)
 	}
 

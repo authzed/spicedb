@@ -35,9 +35,9 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 func (ps *permissionServer) rewriteError(ctx context.Context, err error) error {
@@ -734,7 +734,7 @@ func GetCaveatContext(ctx context.Context, caveatCtx *structpb.Struct, maxCaveat
 
 type loadBulkAdapter struct {
 	stream                 grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]
-	referencedNamespaceMap map[string]*typesystem.TypeSystem
+	referencedNamespaceMap map[string]*schema.Definition
 	referencedCaveatMap    map[string]*core.CaveatDefinition
 	current                tuple.Relationship
 	caveat                 core.ContextualizedCaveat
@@ -816,7 +816,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 
 	var numWritten uint64
 	if _, err := ds.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		loadedNamespaces := make(map[string]*typesystem.TypeSystem, 2)
+		loadedNamespaces := make(map[string]*schema.Definition, 2)
 		loadedCaveats := make(map[string]*core.CaveatDefinition, 0)
 
 		adapter := &loadBulkAdapter{
@@ -825,7 +825,8 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			referencedCaveatMap:    loadedCaveats,
 			caveat:                 core.ContextualizedCaveat{},
 		}
-		resolver := typesystem.ResolverForDatastoreReader(rwt)
+		resolver := schema.ResolverForDatastoreReader(rwt)
+		ts := schema.NewTypeSystem(resolver)
 
 		var streamWritten uint64
 		var err error
@@ -840,12 +841,12 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 				}
 
 				for _, nsDef := range nsDefs {
-					nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, resolver)
+					newDef, err := schema.NewDefinition(ts, nsDef.Definition)
 					if err != nil {
 						return err
 					}
 
-					loadedNamespaces[nsDef.Definition.Name] = nts
+					loadedNamespaces[nsDef.Definition.Name] = newDef
 				}
 				adapter.awaitingNamespaces = nil
 			}

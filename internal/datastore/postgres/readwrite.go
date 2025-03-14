@@ -10,8 +10,8 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/typesystem"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -149,7 +149,7 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 			continue
 		}
 
-		vts, err := typesystem.NewNamespaceTypeSystem(nsDef, typesystem.ResolverForDatastoreReader(rwt))
+		vts, err := schema.NewDefinition(schema.NewTypeSystem(schema.ResolverForDatastoreReader(rwt)), nsDef)
 		if err != nil {
 			return nil, handleWriteError(err)
 		}

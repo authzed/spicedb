@@ -14,10 +14,10 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var UserNS = ns.Namespace("user")
@@ -265,18 +265,15 @@ func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objec
 			require.NoError(err)
 		}
 
+		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(rwt).WithPredefinedElements(schema.PredefinedElements{
+			Definitions: objectDefs,
+			Caveats:     caveatDefs,
+		}))
 		for _, nsDef := range objectDefs {
-			ts, err := typesystem.NewNamespaceTypeSystem(nsDef,
-				typesystem.ResolverForDatastoreReader(rwt).WithPredefinedElements(typesystem.PredefinedElements{
-					Namespaces: objectDefs,
-					Caveats:    caveatDefs,
-				}))
+			vdef, err := ts.GetValidatedDefinition(ctx, nsDef.GetName())
 			require.NoError(err)
 
-			vts, err := ts.Validate(ctx)
-			require.NoError(err)
-
-			aerr := namespace.AnnotateNamespace(vts)
+			aerr := namespace.AnnotateNamespace(vdef)
 			require.NoError(aerr)
 
 			err = rwt.WriteNamespaces(ctx, nsDef)
