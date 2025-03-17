@@ -14,11 +14,23 @@ import (
 
 // GetValidatedDefinition runs validation on the type system for the definition to ensure it is consistent.
 func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition string) (*ValidatedDefinition, error) {
-	def, err := ts.GetDefinition(ctx, definition)
+	def, validated, err := ts.getDefinition(ctx, definition)
 	if err != nil {
 		return nil, err
 	}
-	return def.Validate(ctx)
+	if validated {
+		return &ValidatedDefinition{Definition: def}, nil
+	}
+	vdef, err := def.Validate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ts.Lock()
+	defer ts.Unlock()
+	if _, ok := ts.validatedDefinitions[definition]; !ok {
+		ts.validatedDefinitions[definition] = vdef
+	}
+	return vdef, nil
 }
 
 func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, error) {
@@ -27,7 +39,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 
 		// Validate the usersets's.
 		usersetRewrite := relation.GetUsersetRewrite()
-		rerr, err := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) (interface{}, error) {
+		rerr, err := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) (any, error) {
 			switch child := childOneof.ChildType.(type) {
 			case *core.SetOperation_Child_ComputedUserset:
 				relationName := child.ComputedUserset.GetRelation()
