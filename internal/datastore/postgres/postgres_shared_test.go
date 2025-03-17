@@ -1142,7 +1142,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 			<-waitToFinish
 
 			return err
-		})
+		}, options.WithDisableRetries(true))
 		require.NoError(err)
 		return nil
 	})
@@ -1155,16 +1155,16 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 			tuple.Touch(tuple.MustParse("resource:1002#reader@user:456")),
 			tuple.Touch(tuple.MustParse("resource:1003#reader@user:456")),
 		})
-	})
-	close(waitToFinish)
-
+	}, options.WithDisableRetries(true))
 	require.NoError(err)
+
+	close(waitToFinish)
 	require.NoError(g.Wait())
 
 	// Ensure the revisions do not compare.
-	require.False(commitFirstRev.GreaterThan(commitLastRev))
-	require.False(commitLastRev.GreaterThan(commitFirstRev))
-	require.False(commitFirstRev.Equal(commitLastRev))
+	require.False(commitFirstRev.GreaterThan(commitLastRev), "found %v and %v", commitFirstRev, commitLastRev)
+	require.False(commitLastRev.GreaterThan(commitFirstRev), "found %v and %v", commitLastRev, commitFirstRev)
+	require.False(commitFirstRev.Equal(commitLastRev), "found %v and %v", commitFirstRev, commitLastRev)
 
 	// Write another revision.
 	afterRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
