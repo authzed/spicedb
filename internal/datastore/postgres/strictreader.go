@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -13,8 +12,6 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
-
-const pgInvalidArgument = "22023"
 
 // strictReaderQueryFuncs wraps a DBFuncQuerier and adds a strict read assertion to all queries.
 // This assertion ensures that the transaction is not reading from the future or from a
@@ -43,22 +40,11 @@ func (srqf strictReaderQueryFuncs) rewriteError(err error) error {
 		return nil
 	}
 
-	if srqf.isReplicationLagError(err) {
+	if pgxcommon.IsReplicationLagError(err) {
 		return common.NewRevisionUnavailableError(fmt.Errorf("revision %s is not available on the replica", srqf.revision.String()))
 	}
 
 	return err
-}
-
-func (srqf strictReaderQueryFuncs) isReplicationLagError(err error) bool {
-	var pgerr *pgconn.PgError
-	if errors.As(err, &pgerr) {
-		return (pgerr.Code == pgInvalidArgument && strings.Contains(pgerr.Message, "is in the future")) ||
-			strings.Contains(pgerr.Message, "replica missing revision") ||
-			pgxcommon.IsSerializationError(err)
-	}
-
-	return false
 }
 
 func (srqf strictReaderQueryFuncs) addAssertToSelectSQL(sql string) string {

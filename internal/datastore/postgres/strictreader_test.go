@@ -45,7 +45,7 @@ func TestStrictReaderDetectsLagErrors(t *testing.T) {
 		},
 		{
 			name: "missing revision on replica - invalid argument",
-			in:   &pgconn.PgError{Code: pgInvalidArgument, Message: "is in the future"},
+			in:   &pgconn.PgError{Code: "22023", Message: "is in the future"},
 			want: common.RevisionUnavailableError{},
 		},
 		{
