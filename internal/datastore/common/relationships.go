@@ -81,8 +81,7 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 			return fmt.Errorf("received empty explain")
 		}
 
-		builder.sqlExplainCallback(ctx, sqlString, args, builder.queryShape, explainString, expectedIndexes)
-		return nil
+		return builder.sqlExplainCallback(ctx, sqlString, args, builder.queryShape, explainString, expectedIndexes)
 	}, explainSQL, explainArgs...)
 	if err != nil {
 		return fmt.Errorf(errUnableToQueryRels, err)

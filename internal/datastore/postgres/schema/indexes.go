@@ -5,27 +5,47 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
-// IndexForwardRelationships is an index for forward relationships. It is used for
-// the CheckPermission, Expand and LookupSubjects APIs, as well as reading relationships,
-// and the forward checks for schema diffs.
-var IndexForwardRelationships = common.IndexDefinition{
-	Name:       `ix_relationship_covering_index_by_resource`,
-	ColumnsSQL: `relation_tuple (namespace, relation, object_id, userset_namespace, userset_relation, userset_object_id) INCLUDE (expiration, created_xid, deleted_xid)`,
+// UniqueLivingRelationshipIndex is an index for unique living relationships.
+var UniqueLivingRelationshipIndex = common.IndexDefinition{
+	Name: `uq_relation_tuple_living_xid`,
+	ColumnsSQL: `relation_tuple (namespace, object_id, relation, userset_namespace, userset_object_id,
+				                 userset_relation, deleted_xid)`,
 	Shapes: []queryshape.Shape{
 		queryshape.CheckPermissionSelectDirectSubjects,
 		queryshape.CheckPermissionSelectIndirectSubjects,
 	},
 }
 
-// IndexBackwardRelationships is an index for backward relationships. It is used for
-// the LookupResources API, as well as reading relationships, and the backward checks for schema diffs.
-var IndexBackwardRelationships = common.IndexDefinition{
-	Name:       `ix_relationship_covering_index_by_subject`,
-	ColumnsSQL: `relation_tuple (userset_namespace, userset_relation, userset_object_id, namespace, relation, object_id) INCLUDE (expiration, created_xid, deleted_xid)`,
+// IndexRelationshipBySubject is an index for relationships by subject. It is used for
+// the reverse lookup of relationships.
+var IndexRelationshipBySubject = common.IndexDefinition{
+	Name:       `ix_relation_tuple_by_subject`,
+	ColumnsSQL: `userset_object_id, userset_namespace, userset_relation, namespace, relation`,
 	Shapes: []queryshape.Shape{
 		queryshape.CheckPermissionSelectDirectSubjects,
 		queryshape.CheckPermissionSelectIndirectSubjects,
 	},
+}
+
+// IndexRelationshipBySubjectRelation is an index for relationships by subject and relation.
+var IndexRelationshipBySubjectRelation = common.IndexDefinition{
+	Name:       `ix_relation_tuple_by_subject_relation`,
+	ColumnsSQL: `userset_namespace, userset_relation, namespace, relation`,
+	Shapes: []queryshape.Shape{
+		// TODO: Use of this index for these query shapes is VERY inefficient,
+		// and we need to remove it in the future.
+		queryshape.CheckPermissionSelectDirectSubjects,
+		queryshape.CheckPermissionSelectIndirectSubjects,
+	},
+}
+
+// IndexRelationshipAliveByResourceRelationSubjectCovering is an index for alive relationships
+// by resource, relation, and subject. In includes the caveat information for the relationship.
+var IndexRelationshipAliveByResourceRelationSubjectCovering = common.IndexDefinition{
+	Name: `ix_relation_tuple_alive_by_resource_rel_subject_covering`,
+	ColumnsSQL: `relation_tuple (namespace, relation, userset_namespace)
+    			 INCLUDE (userset_object_id, userset_relation, caveat_name, caveat_context)
+    			 WHERE deleted_xid = '9223372036854775807'::xid8`,
 }
 
 // IndexWatchAPI is an index for the Watch API. It is used for the Watch API, and provides
@@ -60,6 +80,16 @@ var IndexSortedRelationTupleTransaction = common.IndexDefinition{
 	ColumnsSQL: `relation_tuple_transaction (xid DESC, timestamp)`,
 }
 
+// IndexRelationTupleTransactionTimestamp adds an index to relation_tuple_transaction table
+// to support garbage collection.
+// DEPRECATED: Superceded by IndexSortedRelationTupleTransaction and should be removed in
+// the future.
+var IndexRelationTupleTransactionTimestamp = common.IndexDefinition{
+	Name:         `ix_relation_tuple_transaction_by_timestamp`,
+	ColumnsSQL:   `relation_tuple_transaction(timestamp)`,
+	IsDeprecated: true,
+}
+
 // IndexGCDeadRelationships is an index for the GC process to quickly find dead relationships
 // to be garbage collected.
 var IndexGCDeadRelationships = common.IndexDefinition{
@@ -68,8 +98,10 @@ var IndexGCDeadRelationships = common.IndexDefinition{
 }
 
 var pgIndexes = []common.IndexDefinition{
-	IndexForwardRelationships,
-	IndexBackwardRelationships,
+	UniqueLivingRelationshipIndex,
+	IndexRelationshipBySubject,
+	IndexRelationshipBySubjectRelation,
+	IndexRelationshipAliveByResourceRelationSubjectCovering,
 	IndexWatchAPI,
 	IndexExpiringRelationships,
 	IndexSortedRelationTupleTransaction,

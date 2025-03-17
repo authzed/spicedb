@@ -952,7 +952,7 @@ func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest)
 
 			for _, rev := range tc.revisions {
 				stmt := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-				insertTxn := stmt.Insert(tableTransaction).Columns(colXID, colSnapshot, colTimestamp)
+				insertTxn := stmt.Insert(schema.TableTransaction).Columns(schema.ColXID, schema.ColSnapshot, schema.ColTimestamp)
 
 				ts := time.Unix(0, int64(rev.optionalNanosTimestamp))
 				sql, args, err := insertTxn.Values(rev.optionalTxID, rev.snapshot, ts).ToSql()
@@ -986,8 +986,8 @@ func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastor
 	snapshot = pgRev.snapshot
 
 	queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
-	numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "true")
-	numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "false")
+	numLowerQuery := fmt.Sprintf(queryFmt, schema.ColXID, schema.TableTransaction, "true")
+	numHigherQuery := fmt.Sprintf(queryFmt, schema.ColXID, schema.TableTransaction, "false")
 
 	var numLower, numHigher uint64
 	require.NoError(t, conn.QueryRow(ctx, numLowerQuery, snapshot).Scan(&numLower), "%s - %s", revision, snapshot)

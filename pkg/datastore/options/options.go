@@ -56,7 +56,7 @@ type SQLIndexInformation struct {
 }
 
 // SQLExplainCallback is a callback invoked with the explain plan of the SQL query string.
-type SQLExplainCallback func(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes SQLIndexInformation)
+type SQLExplainCallback func(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes SQLIndexInformation) error
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {

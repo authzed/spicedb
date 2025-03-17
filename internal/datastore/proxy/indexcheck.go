@@ -129,28 +129,30 @@ func (r *indexcheckingReader) ReadNamespaceByName(ctx context.Context, nsName st
 	return r.delegate.ReadNamespaceByName(ctx, nsName)
 }
 
-func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) {
+func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) error {
 	// If no indexes are expected, there is nothing to check.
 	if len(expectedIndexes.ExpectedIndexNames) == 0 {
-		return
+		return nil
 	}
 
 	parsed, err := r.parent.ParseExplain(explain)
 	if err != nil {
-		panic(fmt.Sprintf("failed to parse explain output: %s", err))
+		return fmt.Errorf("failed to parse explain output: %w", err)
 	}
 
 	// If an index is not used (perhaps because the data is too small), the query is still valid.
 	if len(parsed.IndexesUsed) == 0 {
-		return
+		return nil
 	}
 
 	// Otherwise, ensure the index used is one of the expected indexes.
 	indexesUsed := mapz.NewSet(parsed.IndexesUsed...)
 	indexesExpected := mapz.NewSet(expectedIndexes.ExpectedIndexNames...)
 	if indexesExpected.Intersect(indexesUsed).IsEmpty() {
-		panic(fmt.Sprintf("expected index(es) %v for query shape %v not used: %s", expectedIndexes.ExpectedIndexNames, shape, explain))
+		return fmt.Errorf("expected index(es) %v for query shape %v not used: %s", expectedIndexes.ExpectedIndexNames, shape, explain)
 	}
+
+	return nil
 }
 
 func (r *indexcheckingReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {

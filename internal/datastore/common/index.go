@@ -12,6 +12,9 @@ type IndexDefinition struct {
 
 	// Shapes are those query shapes for which this index should be used.
 	Shapes []queryshape.Shape
+
+	// IsDeprecated is true if this index is deprecated and should not be used.
+	IsDeprecated bool
 }
 
 // matchesShape returns true if the index matches the given shape.
