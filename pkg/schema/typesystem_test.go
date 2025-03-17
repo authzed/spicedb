@@ -5,10 +5,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/pkg/caveats"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTypeSystemConcurrency(t *testing.T) {

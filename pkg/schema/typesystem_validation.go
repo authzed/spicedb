@@ -25,7 +25,11 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 	if err != nil {
 		return nil, err
 	}
-	ts.validatedDefinitions[definition] = vdef
+	ts.Lock()
+	defer ts.Unlock()
+	if _, ok := ts.validatedDefinitions[definition]; !ok {
+		ts.validatedDefinitions[definition] = vdef
+	}
 	return vdef, nil
 }
 
