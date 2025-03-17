@@ -73,9 +73,10 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 			truncateLargeSQL(data)
 
 			// log cancellation and serialization errors at debug level
+			// log revision not available errors at debug level
 			if errArg, ok := data["err"]; ok {
 				err, ok := errArg.(error)
-				if ok && (common.IsCancellationError(err) || IsSerializationError(err)) {
+				if ok && (common.IsCancellationError(err) || IsSerializationError(err) || IsReplicationLagError(err)) {
 					logger.Log(ctx, tracelog.LogLevelDebug, msg, data)
 					return
 				}
