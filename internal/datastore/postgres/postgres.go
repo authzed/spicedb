@@ -454,6 +454,10 @@ type pgDatastore struct {
 	quantizationPeriodNanos int64
 }
 
+func (pgd *pgDatastore) MetricsID() (string, error) {
+	return common.MetricsIDFromURL(pgd.dburl)
+}
+
 func (pgd *pgDatastore) IsStrictReadModeEnabled() bool {
 	return pgd.inStrictReadMode
 }

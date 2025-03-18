@@ -157,6 +157,10 @@ func computeRelationshipHash(rel tuple.Relationship, key *hmacConfig) ([]byte, e
 	return hasher.Sum(nil)[:hashLength], nil
 }
 
+func (r *relationshipIntegrityProxy) MetricsID() (string, error) {
+	return r.ds.MetricsID()
+}
+
 func (r *relationshipIntegrityProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	return relationshipIntegrityReader{
 		parent:  r,

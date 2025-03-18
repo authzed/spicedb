@@ -280,6 +280,10 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 	return spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
 }
 
+func (sd *spannerDatastore) MetricsID() (string, error) {
+	return sd.database, nil
+}
+
 func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transactionTag string) (map[string]any, error) {
 	row, err := sd.client.Single().ReadRow(ctx, tableTransactionMetadata, spanner.Key{transactionTag}, []string{colMetadata})
 	if err != nil {
