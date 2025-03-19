@@ -44,12 +44,11 @@ var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 // before statistics are available to determine the actual delay.
 const defaultStartingPrimaryHedgingDelay = 5 * time.Millisecond
 
-// primaryHedgingDelayOffset is the offset added to the 99th percentile of the digest to determine the
-// actual delay for primary calls.
-const primaryHedgingDelayOffset = 1 * time.Millisecond
+// defaultHedgerQuantile is the default quantile used to determine the hedging delay for primary calls.
+const defaultHedgerQuantile = 0.90
 
 // minimumDigestCount is the minimum number of samples required in the digest before it can be used
-// to determine the 99th percentile.
+// to determine the configured percentile.
 const minimumDigestCount = 10
 
 const defaultTDigestCompression = float64(1000)
@@ -139,19 +138,19 @@ type digestAndLock struct {
 	lock                        sync.RWMutex
 }
 
-// getWaitTime returns the 99th percentile of the digest, or a default value if the digest is empty.
+// getWaitTime returns the configured percentile of the digest, or a default value if the digest is empty.
 // In
 func (dal *digestAndLock) getWaitTime() time.Duration {
 	dal.lock.RLock()
-	milliseconds := dal.digest.Quantile(0.99)
+	milliseconds := dal.digest.Quantile(defaultHedgerQuantile)
 	count := dal.digest.Count()
 	dal.lock.RUnlock()
 
 	if milliseconds <= 0 || count < minimumDigestCount {
-		return dal.startingPrimaryHedgingDelay + primaryHedgingDelayOffset
+		return dal.startingPrimaryHedgingDelay
 	}
 
-	return (time.Duration(milliseconds) * time.Millisecond) + primaryHedgingDelayOffset
+	return time.Duration(milliseconds) * time.Millisecond
 }
 
 func (dal *digestAndLock) addResultTime(duration time.Duration) {

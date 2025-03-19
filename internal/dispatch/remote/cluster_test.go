@@ -859,11 +859,11 @@ func TestDALCount(t *testing.T) {
 	for i := 0; i < minimumDigestCount-1; i++ {
 		dal.addResultTime(3 * time.Millisecond)
 		require.Equal(t, float64(i+1), dal.digest.Count())
-		require.Equal(t, dal.startingPrimaryHedgingDelay+primaryHedgingDelayOffset, dal.getWaitTime())
+		require.Equal(t, dal.startingPrimaryHedgingDelay, dal.getWaitTime())
 	}
 
 	// Add the next result, which pushes it over the minimum count and now uses the quantile.
 	dal.addResultTime(3 * time.Millisecond)
 	require.Equal(t, float64(minimumDigestCount), dal.digest.Count())
-	require.Equal(t, (3*time.Millisecond)+primaryHedgingDelayOffset, dal.getWaitTime())
+	require.Equal(t, 3*time.Millisecond, dal.getWaitTime())
 }
