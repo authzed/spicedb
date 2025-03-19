@@ -74,6 +74,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchChunkSize = c.DispatchChunkSize
 		to.DispatchSecondaryUpstreamAddrs = c.DispatchSecondaryUpstreamAddrs
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
+		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
@@ -464,6 +465,13 @@ func WithDispatchSecondaryUpstreamExprs(key string, value string) ConfigOption {
 func SetDispatchSecondaryUpstreamExprs(dispatchSecondaryUpstreamExprs map[string]string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchSecondaryUpstreamExprs = dispatchSecondaryUpstreamExprs
+	}
+}
+
+// WithDispatchPrimaryDelayForTesting returns an option that can set DispatchPrimaryDelayForTesting on a Config
+func WithDispatchPrimaryDelayForTesting(dispatchPrimaryDelayForTesting time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.DispatchPrimaryDelayForTesting = dispatchPrimaryDelayForTesting
 	}
 }
 

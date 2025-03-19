@@ -103,6 +103,7 @@ type Config struct {
 
 	DispatchSecondaryUpstreamAddrs map[string]string `debugmap:"visible"`
 	DispatchSecondaryUpstreamExprs map[string]string `debugmap:"visible"`
+	DispatchPrimaryDelayForTesting time.Duration     `debugmap:"hidden"`
 
 	DispatchCacheConfig        CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig CacheConfig `debugmap:"visible"`
@@ -306,6 +307,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimits(concurrencyLimits),
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
+			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
