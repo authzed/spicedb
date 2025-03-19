@@ -33,6 +33,12 @@ func (c *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.Engine = c.Engine
 		to.URI = c.URI
+		to.DatastoreHost = c.DatastoreHost
+		to.DatastorePort = c.DatastorePort
+		to.DatastoreUsername = c.DatastoreUsername
+		to.DatastorePassword = c.DatastorePassword
+		to.DatastoreName = c.DatastoreName
+		to.DatastoreSSLMode = c.DatastoreSSLMode
 		to.GCWindow = c.GCWindow
 		to.LegacyFuzzing = c.LegacyFuzzing
 		to.RevisionQuantization = c.RevisionQuantization
@@ -70,6 +76,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerMinSessions = c.SpannerMinSessions
 		to.SpannerMaxSessions = c.SpannerMaxSessions
 		to.SpannerDatastoreMetricsOption = c.SpannerDatastoreMetricsOption
+		to.SpannerInstanceID = c.SpannerInstanceID
+		to.SpannerDatabaseID = c.SpannerDatabaseID
+		to.SpannerProjectID = c.SpannerProjectID
 		to.TablePrefix = c.TablePrefix
 		to.RelationshipIntegrityEnabled = c.RelationshipIntegrityEnabled
 		to.RelationshipIntegrityCurrentKey = c.RelationshipIntegrityCurrentKey
@@ -90,6 +99,12 @@ func (c Config) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	debugMap["Engine"] = helpers.DebugValue(c.Engine, false)
 	debugMap["URI"] = helpers.SensitiveDebugValue(c.URI)
+	debugMap["DatastoreHost"] = helpers.SensitiveDebugValue(c.DatastoreHost)
+	debugMap["DatastorePort"] = helpers.SensitiveDebugValue(c.DatastorePort)
+	debugMap["DatastoreUsername"] = helpers.SensitiveDebugValue(c.DatastoreUsername)
+	debugMap["DatastorePassword"] = helpers.SensitiveDebugValue(c.DatastorePassword)
+	debugMap["DatastoreName"] = helpers.SensitiveDebugValue(c.DatastoreName)
+	debugMap["DatastoreSSLMode"] = helpers.SensitiveDebugValue(c.DatastoreSSLMode)
 	debugMap["GCWindow"] = helpers.DebugValue(c.GCWindow, false)
 	debugMap["LegacyFuzzing"] = helpers.DebugValue(c.LegacyFuzzing, false)
 	debugMap["RevisionQuantization"] = helpers.DebugValue(c.RevisionQuantization, false)
@@ -126,6 +141,9 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["SpannerMinSessions"] = helpers.DebugValue(c.SpannerMinSessions, false)
 	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
 	debugMap["SpannerDatastoreMetricsOption"] = helpers.DebugValue(c.SpannerDatastoreMetricsOption, false)
+	debugMap["SpannerInstanceID"] = helpers.SensitiveDebugValue(c.SpannerInstanceID)
+	debugMap["SpannerDatabaseID"] = helpers.SensitiveDebugValue(c.SpannerDatabaseID)
+	debugMap["SpannerProjectID"] = helpers.SensitiveDebugValue(c.SpannerProjectID)
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
 	debugMap["RelationshipIntegrityEnabled"] = helpers.DebugValue(c.RelationshipIntegrityEnabled, false)
 	debugMap["RelationshipIntegrityCurrentKey"] = helpers.DebugValue(c.RelationshipIntegrityCurrentKey, false)
@@ -168,6 +186,48 @@ func WithEngine(engine string) ConfigOption {
 func WithURI(uRI string) ConfigOption {
 	return func(c *Config) {
 		c.URI = uRI
+	}
+}
+
+// WithDatastoreHost returns an option that can set DatastoreHost on a Config
+func WithDatastoreHost(datastoreHost string) ConfigOption {
+	return func(c *Config) {
+		c.DatastoreHost = datastoreHost
+	}
+}
+
+// WithDatastorePort returns an option that can set DatastorePort on a Config
+func WithDatastorePort(datastorePort string) ConfigOption {
+	return func(c *Config) {
+		c.DatastorePort = datastorePort
+	}
+}
+
+// WithDatastoreUsername returns an option that can set DatastoreUsername on a Config
+func WithDatastoreUsername(datastoreUsername string) ConfigOption {
+	return func(c *Config) {
+		c.DatastoreUsername = datastoreUsername
+	}
+}
+
+// WithDatastorePassword returns an option that can set DatastorePassword on a Config
+func WithDatastorePassword(datastorePassword string) ConfigOption {
+	return func(c *Config) {
+		c.DatastorePassword = datastorePassword
+	}
+}
+
+// WithDatastoreName returns an option that can set DatastoreName on a Config
+func WithDatastoreName(datastoreName string) ConfigOption {
+	return func(c *Config) {
+		c.DatastoreName = datastoreName
+	}
+}
+
+// WithDatastoreSSLMode returns an option that can set DatastoreSSLMode on a Config
+func WithDatastoreSSLMode(datastoreSSLMode string) ConfigOption {
+	return func(c *Config) {
+		c.DatastoreSSLMode = datastoreSSLMode
 	}
 }
 
@@ -455,6 +515,27 @@ func WithSpannerMaxSessions(spannerMaxSessions uint64) ConfigOption {
 func WithSpannerDatastoreMetricsOption(spannerDatastoreMetricsOption string) ConfigOption {
 	return func(c *Config) {
 		c.SpannerDatastoreMetricsOption = spannerDatastoreMetricsOption
+	}
+}
+
+// WithSpannerInstanceID returns an option that can set SpannerInstanceID on a Config
+func WithSpannerInstanceID(spannerInstanceID string) ConfigOption {
+	return func(c *Config) {
+		c.SpannerInstanceID = spannerInstanceID
+	}
+}
+
+// WithSpannerDatabaseID returns an option that can set SpannerDatabaseID on a Config
+func WithSpannerDatabaseID(spannerDatabaseID string) ConfigOption {
+	return func(c *Config) {
+		c.SpannerDatabaseID = spannerDatabaseID
+	}
+}
+
+// WithSpannerProjectID returns an option that can set SpannerProjectID on a Config
+func WithSpannerProjectID(spannerProjectID string) ConfigOption {
+	return func(c *Config) {
+		c.SpannerProjectID = spannerProjectID
 	}
 }
 
