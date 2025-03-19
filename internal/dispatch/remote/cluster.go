@@ -40,9 +40,9 @@ var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Buckets:   []float64{0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
 }, []string{"rpc"})
 
-// startingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
+// defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
-const startingPrimaryHedgingDelay = 5 * time.Millisecond
+const defaultStartingPrimaryHedgingDelay = 5 * time.Millisecond
 
 // primaryHedgingDelayOffset is the offset added to the 99th percentile of the digest to determine the
 // actual delay for primary calls.
@@ -86,7 +86,7 @@ type SecondaryDispatch struct {
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
-func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr) dispatch.Dispatcher {
+func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) dispatch.Dispatcher {
 	keyHandler := config.KeyHandler
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
@@ -97,11 +97,16 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		dispatchOverallTimeout = 60 * time.Second
 	}
 
+	if startingPrimaryHedgingDelay <= 0 {
+		startingPrimaryHedgingDelay = defaultStartingPrimaryHedgingDelay
+	}
+
 	secondaryInitialResponseDigests := make(map[string]*digestAndLock, len(supportsSecondaries))
 	for _, requestKey := range supportsSecondaries {
 		secondaryInitialResponseDigests[requestKey] = &digestAndLock{
-			digest: tdigest.NewWithCompression(defaultTDigestCompression),
-			lock:   sync.RWMutex{},
+			digest:                      tdigest.NewWithCompression(defaultTDigestCompression),
+			startingPrimaryHedgingDelay: startingPrimaryHedgingDelay,
+			lock:                        sync.RWMutex{},
 		}
 	}
 
@@ -129,8 +134,9 @@ type clusterDispatcher struct {
 
 // digestAndLock is a struct that holds a TDigest and a lock to protect it.
 type digestAndLock struct {
-	digest *tdigest.TDigest
-	lock   sync.RWMutex
+	digest                      *tdigest.TDigest
+	startingPrimaryHedgingDelay time.Duration
+	lock                        sync.RWMutex
 }
 
 // getWaitTime returns the 99th percentile of the digest, or a default value if the digest is empty.
@@ -142,7 +148,7 @@ func (dal *digestAndLock) getWaitTime() time.Duration {
 	dal.lock.RUnlock()
 
 	if milliseconds <= 0 || count < minimumDigestCount {
-		return startingPrimaryHedgingDelay + primaryHedgingDelayOffset
+		return dal.startingPrimaryHedgingDelay + primaryHedgingDelayOffset
 	}
 
 	return (time.Duration(milliseconds) * time.Millisecond) + primaryHedgingDelayOffset

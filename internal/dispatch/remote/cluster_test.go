@@ -151,7 +151,7 @@ func TestDispatchTimeout(t *testing.T) {
 			dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: tc.timeout,
-			}, nil, nil)
+			}, nil, nil, 0*time.Second)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
 			// Invoke a dispatched "check" and ensure it times out, as the fake dispatch will wait
@@ -291,7 +291,7 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 				"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 			}, map[string]*DispatchExpr{
 				"check": parsed,
-			})
+			}, 0*time.Second)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
 			resp, err := dispatcher.DispatchCheck(context.Background(), tc.request)
@@ -560,7 +560,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 				"error":     {Name: "error", Client: v1.NewDispatchServiceClient(errorConn)},
 			}, map[string]*DispatchExpr{
 				"lookupresources": parsed,
-			})
+			}, 0*time.Second)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](context.Background())
@@ -594,7 +594,7 @@ func TestLRDispatchFallbackToPrimary(t *testing.T) {
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 	}, map[string]*DispatchExpr{
 		"lookupresources": parsed,
-	})
+	}, 0*time.Second)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](context.Background())
@@ -686,7 +686,7 @@ func TestLSSecondaryDispatch(t *testing.T) {
 				"error":     {Name: "error", Client: v1.NewDispatchServiceClient(errorConn)},
 			}, map[string]*DispatchExpr{
 				"lookupsubjects": parsed,
-			})
+			}, 0*time.Second)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
@@ -720,7 +720,7 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 	}, map[string]*DispatchExpr{
 		"lookupsubjects": parsed,
-	})
+	}, 0*time.Second)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
@@ -757,7 +757,7 @@ func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 	}, map[string]*DispatchExpr{
 		"check": parsed,
-	})
+	}, 0*time.Second)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
 	// Dispatch the check, which should (since it is the first request) add a delay of ~5ms to
@@ -791,7 +791,7 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 	}, map[string]*DispatchExpr{
 		"lookupsubjects": parsed,
-	})
+	}, 0*time.Second)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
 	// Dispatch the lookupsubjects, which should (since it is the first request) add a delay of ~5ms to
@@ -859,7 +859,7 @@ func TestDALCount(t *testing.T) {
 	for i := 0; i < minimumDigestCount-1; i++ {
 		dal.addResultTime(3 * time.Millisecond)
 		require.Equal(t, float64(i+1), dal.digest.Count())
-		require.Equal(t, startingPrimaryHedgingDelay+primaryHedgingDelayOffset, dal.getWaitTime())
+		require.Equal(t, dal.startingPrimaryHedgingDelay+primaryHedgingDelayOffset, dal.getWaitTime())
 	}
 
 	// Add the next result, which pushes it over the minimum count and now uses the quantile.

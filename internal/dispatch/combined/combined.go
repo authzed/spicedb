@@ -27,18 +27,19 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	metricsEnabled         bool
-	prometheusSubsystem    string
-	upstreamAddr           string
-	upstreamCAPath         string
-	grpcPresharedKey       string
-	grpcDialOpts           []grpc.DialOption
-	cache                  cache.Cache[keys.DispatchCacheKey, any]
-	concurrencyLimits      graph.ConcurrencyLimits
-	remoteDispatchTimeout  time.Duration
-	secondaryUpstreamAddrs map[string]string
-	secondaryUpstreamExprs map[string]string
-	dispatchChunkSize      uint16
+	metricsEnabled              bool
+	prometheusSubsystem         string
+	upstreamAddr                string
+	upstreamCAPath              string
+	grpcPresharedKey            string
+	grpcDialOpts                []grpc.DialOption
+	cache                       cache.Cache[keys.DispatchCacheKey, any]
+	concurrencyLimits           graph.ConcurrencyLimits
+	remoteDispatchTimeout       time.Duration
+	secondaryUpstreamAddrs      map[string]string
+	secondaryUpstreamExprs      map[string]string
+	dispatchChunkSize           uint16
+	startingPrimaryHedgingDelay time.Duration
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -132,6 +133,15 @@ func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
 	}
 }
 
+// StartingPrimaryHedgingDelay sets the starting delay for primary hedging for a remote
+// dispatch.
+// Defaults to 0, which uses the default defined in the remote dispatcher.
+func StartingPrimaryHedgingDelay(startingPrimaryHedgingDelay time.Duration) Option {
+	return func(state *optionState) {
+		state.startingPrimaryHedgingDelay = startingPrimaryHedgingDelay
+	}
+}
+
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
 func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
@@ -203,7 +213,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
-		}, secondaryClients, secondaryExprs)
+		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
 		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 	}
 
