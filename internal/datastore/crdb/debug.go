@@ -9,7 +9,7 @@ import (
 
 // See: https://www.cockroachlabs.com/docs/stable/explain
 
-var indexRegex = regexp.MustCompile(`table: relation_tuple@(.+)`)
+var relationTupleIndexRegex = regexp.MustCompile(`table: relation_tuple@(.+)`)
 
 func (cds *crdbDatastore) PreExplainStatements() []string {
 	return nil
@@ -20,7 +20,8 @@ func (cds *crdbDatastore) BuildExplainQuery(sql string, args []interface{}) (str
 }
 
 func (cds *crdbDatastore) ParseExplain(explain string) (datastore.ParsedExplain, error) {
-	parts := indexRegex.FindAllStringSubmatch(explain, -1)
+	// TODO: change to parsing a JSON structure if possible and/or add support for other tables.
+	parts := relationTupleIndexRegex.FindAllStringSubmatch(explain, -1)
 	if len(parts) == 0 {
 		return datastore.ParsedExplain{}, nil
 	}

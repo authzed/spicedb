@@ -482,7 +482,7 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 
 func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	querier := pgxcommon.QuerierFuncsFor(rwt.tx)
-	// For each namespace, check they exist and schema.Collect predicates for the
+	// For each namespace, check they exist and collect predicates for the
 	// "WHERE" clause to delete the namespaces and associated tuples.
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))

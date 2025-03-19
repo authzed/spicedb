@@ -227,7 +227,7 @@ func (cr *crdbReader) QueryRelationships(
 	}
 
 	if spiceerrors.DebugAssertionsEnabled {
-		opts = append(opts, options.WithSQLCheckAssertion(cr.assertHasExpectedAsOfSystemTime))
+		opts = append(opts, options.WithSQLCheckAssertionForTest(cr.assertHasExpectedAsOfSystemTime))
 	}
 
 	return cr.executor.ExecuteQuery(ctx, qBuilder, opts...)
@@ -257,11 +257,11 @@ func (cr *crdbReader) ReverseQueryRelationships(
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),
 		options.WithQueryShape(queryOpts.QueryShapeForReverse),
-		options.WithSQLExplainCallback(queryOpts.SQLExplainCallbackForReverse),
+		options.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
 	}
 
 	if spiceerrors.DebugAssertionsEnabled {
-		eopts = append(eopts, options.WithSQLCheckAssertion(cr.assertHasExpectedAsOfSystemTime))
+		eopts = append(eopts, options.WithSQLCheckAssertionForTest(cr.assertHasExpectedAsOfSystemTime))
 	}
 
 	return cr.executor.ExecuteQuery(

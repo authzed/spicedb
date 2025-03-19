@@ -102,7 +102,7 @@ func appendForInsertion(builder sq.InsertBuilder, tpl tuple.Relationship) sq.Ins
 		tpl.Subject.ObjectID,
 		tpl.Subject.Relation,
 		caveatName,
-		caveatContext, // PGX driver serializes map[string]any to JSONB type schema.Columns,
+		caveatContext, // PGX driver serializes map[string]any to JSONB columns,
 		tpl.OptionalExpiration,
 	}
 

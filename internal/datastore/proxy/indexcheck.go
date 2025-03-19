@@ -24,13 +24,11 @@ func NewIndexCheckingDatastoreProxy(d datastore.SQLDatastore) datastore.Datastor
 // WrapWithIndexCheckingDatastoreProxyIfApplicable wraps the provided datastore with an
 // index-checking proxy if the datastore is an SQLDatastore.
 func WrapWithIndexCheckingDatastoreProxyIfApplicable(ds datastore.Datastore) datastore.Datastore {
-	if unwrapped, ok := ds.(datastore.UnwrappableDatastore); ok {
-		if sqlds, ok := unwrapped.Unwrap().(datastore.SQLDatastore); ok {
-			return NewIndexCheckingDatastoreProxy(sqlds)
-		}
+	uds := datastore.UnwrapAs[datastore.SQLDatastore](ds)
+	if uds == nil {
+		return ds
 	}
-
-	return ds
+	return NewIndexCheckingDatastoreProxy(uds)
 }
 
 type indexcheckingProxy struct{ delegate datastore.SQLDatastore }
@@ -48,6 +46,10 @@ func (p *indexcheckingProxy) ReadWriteTx(
 	return p.delegate.ReadWriteTx(ctx, func(ctx context.Context, delegateRWT datastore.ReadWriteTransaction) error {
 		return f(ctx, &indexcheckingRWT{&indexcheckingReader{p.delegate, delegateRWT}, delegateRWT})
 	}, opts...)
+}
+
+func (p *indexcheckingProxy) MetricsID() (string, error) {
+	return p.delegate.MetricsID()
 }
 
 func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
@@ -156,12 +158,12 @@ func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string,
 }
 
 func (r *indexcheckingReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	opts = append(opts, options.WithSQLExplainCallback(r.mustEnsureIndexes))
+	opts = append(opts, options.WithSQLExplainCallbackForTest(r.mustEnsureIndexes))
 	return r.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
 func (r *indexcheckingReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	opts = append(opts, options.WithSQLExplainCallbackForReverse(r.mustEnsureIndexes))
+	opts = append(opts, options.WithSQLExplainCallbackForTestForReverse(r.mustEnsureIndexes))
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 

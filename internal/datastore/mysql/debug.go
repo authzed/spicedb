@@ -39,7 +39,7 @@ func (mds *Datastore) ParseExplain(explainJSON string) (datastore.ParsedExplain,
 	// Extract the index name(s) used.
 	indexesUsed := mapz.NewSet[string]()
 	for _, input := range parsed.Inputs {
-		if input.AccessType == "index" && input.IndexName != "" && input.IndexName != "PRIMARY" {
+		if input.AccessType == "index" && input.IndexName != "" {
 			indexesUsed.Add(input.IndexName)
 		}
 	}

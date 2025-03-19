@@ -1658,7 +1658,7 @@ func RepairTransactionsTest(t *testing.T, ds datastore.Datastore) {
 	err = pds.repairTransactionIDs(context.Background(), false)
 	require.NoError(t, err)
 
-	// Ensure the current transaction ID is greater than the max specified in the transactions schema.Table.
+	// Ensure the current transaction ID is greater than the max specified in the transactions table.
 	currentMaximumID := 0
 	err = pds.writePool.QueryRow(context.Background(), queryCurrentTransactionID).Scan(&currentMaximumID)
 	require.NoError(t, err)

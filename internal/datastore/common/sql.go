@@ -664,14 +664,14 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	query.queryBuilder = query.queryBuilder.From(from)
 
 	builder := RelationshipsQueryBuilder{
-		Schema:             query.schema,
-		SkipCaveats:        queryOpts.SkipCaveats,
-		SkipExpiration:     queryOpts.SkipExpiration,
-		sqlCheckAssertion:  queryOpts.SQLCheckAssertion,
-		sqlExplainCallback: queryOpts.SQLExplainCallback,
-		filteringValues:    query.filteringColumnTracker,
-		queryShape:         queryOpts.QueryShape,
-		baseQueryBuilder:   query,
+		Schema:                    query.schema,
+		SkipCaveats:               queryOpts.SkipCaveats,
+		SkipExpiration:            queryOpts.SkipExpiration,
+		SQLCheckAssertionForTest:  queryOpts.SQLCheckAssertionForTest,
+		SQLExplainCallbackForTest: queryOpts.SQLExplainCallbackForTest,
+		filteringValues:           query.filteringColumnTracker,
+		queryShape:                queryOpts.QueryShape,
+		baseQueryBuilder:          query,
 	}
 
 	return exc.Executor(ctx, builder)
@@ -684,11 +684,11 @@ type RelationshipsQueryBuilder struct {
 	SkipCaveats    bool
 	SkipExpiration bool
 
-	filteringValues    columnTrackerMap
-	baseQueryBuilder   SchemaQueryFilterer
-	sqlCheckAssertion  options.SQLCheckAssertion
-	sqlExplainCallback options.SQLExplainCallback
-	queryShape         queryshape.Shape
+	filteringValues           columnTrackerMap
+	baseQueryBuilder          SchemaQueryFilterer
+	SQLCheckAssertionForTest  options.SQLCheckAssertionForTest
+	SQLExplainCallbackForTest options.SQLExplainCallbackForTest
+	queryShape                queryshape.Shape
 }
 
 // withCaveats returns true if caveats should be included in the query.
@@ -757,8 +757,8 @@ func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 		return "", nil, err
 	}
 
-	if b.sqlCheckAssertion != nil {
-		b.sqlCheckAssertion(sql)
+	if b.SQLCheckAssertionForTest != nil {
+		b.SQLCheckAssertionForTest(sql)
 	}
 
 	return sql, args, nil

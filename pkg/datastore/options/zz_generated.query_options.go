@@ -37,8 +37,8 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 		to.After = q.After
 		to.SkipCaveats = q.SkipCaveats
 		to.SkipExpiration = q.SkipExpiration
-		to.SQLCheckAssertion = q.SQLCheckAssertion
-		to.SQLExplainCallback = q.SQLExplainCallback
+		to.SQLCheckAssertionForTest = q.SQLCheckAssertionForTest
+		to.SQLExplainCallbackForTest = q.SQLExplainCallbackForTest
 		to.QueryShape = q.QueryShape
 	}
 }
@@ -51,8 +51,8 @@ func (q QueryOptions) DebugMap() map[string]any {
 	debugMap["After"] = helpers.DebugValue(q.After, false)
 	debugMap["SkipCaveats"] = helpers.DebugValue(q.SkipCaveats, false)
 	debugMap["SkipExpiration"] = helpers.DebugValue(q.SkipExpiration, false)
-	debugMap["SQLCheckAssertion"] = helpers.DebugValue(q.SQLCheckAssertion, false)
-	debugMap["SQLExplainCallback"] = helpers.DebugValue(q.SQLExplainCallback, false)
+	debugMap["SQLCheckAssertionForTest"] = helpers.DebugValue(q.SQLCheckAssertionForTest, false)
+	debugMap["SQLExplainCallbackForTest"] = helpers.DebugValue(q.SQLExplainCallbackForTest, false)
 	debugMap["QueryShape"] = helpers.DebugValue(q.QueryShape, false)
 	return debugMap
 }
@@ -108,17 +108,17 @@ func WithSkipExpiration(skipExpiration bool) QueryOptionsOption {
 	}
 }
 
-// WithSQLCheckAssertion returns an option that can set SQLCheckAssertion on a QueryOptions
-func WithSQLCheckAssertion(sQLCheckAssertion SQLCheckAssertion) QueryOptionsOption {
+// WithSQLCheckAssertionForTest returns an option that can set SQLCheckAssertionForTest on a QueryOptions
+func WithSQLCheckAssertionForTest(sQLCheckAssertionForTest SQLCheckAssertionForTest) QueryOptionsOption {
 	return func(q *QueryOptions) {
-		q.SQLCheckAssertion = sQLCheckAssertion
+		q.SQLCheckAssertionForTest = sQLCheckAssertionForTest
 	}
 }
 
-// WithSQLExplainCallback returns an option that can set SQLExplainCallback on a QueryOptions
-func WithSQLExplainCallback(sQLExplainCallback SQLExplainCallback) QueryOptionsOption {
+// WithSQLExplainCallbackForTest returns an option that can set SQLExplainCallbackForTest on a QueryOptions
+func WithSQLExplainCallbackForTest(sQLExplainCallbackForTest SQLExplainCallbackForTest) QueryOptionsOption {
 	return func(q *QueryOptions) {
-		q.SQLExplainCallback = sQLExplainCallback
+		q.SQLExplainCallbackForTest = sQLExplainCallbackForTest
 	}
 }
 
@@ -157,7 +157,7 @@ func (r *ReverseQueryOptions) ToOption() ReverseQueryOptionsOption {
 		to.LimitForReverse = r.LimitForReverse
 		to.SortForReverse = r.SortForReverse
 		to.AfterForReverse = r.AfterForReverse
-		to.SQLExplainCallbackForReverse = r.SQLExplainCallbackForReverse
+		to.SQLExplainCallbackForTestForReverse = r.SQLExplainCallbackForTestForReverse
 		to.QueryShapeForReverse = r.QueryShapeForReverse
 	}
 }
@@ -169,7 +169,7 @@ func (r ReverseQueryOptions) DebugMap() map[string]any {
 	debugMap["LimitForReverse"] = helpers.DebugValue(r.LimitForReverse, false)
 	debugMap["SortForReverse"] = helpers.DebugValue(r.SortForReverse, false)
 	debugMap["AfterForReverse"] = helpers.DebugValue(r.AfterForReverse, false)
-	debugMap["SQLExplainCallbackForReverse"] = helpers.DebugValue(r.SQLExplainCallbackForReverse, false)
+	debugMap["SQLExplainCallbackForTestForReverse"] = helpers.DebugValue(r.SQLExplainCallbackForTestForReverse, false)
 	debugMap["QueryShapeForReverse"] = helpers.DebugValue(r.QueryShapeForReverse, false)
 	return debugMap
 }
@@ -218,10 +218,10 @@ func WithAfterForReverse(afterForReverse Cursor) ReverseQueryOptionsOption {
 	}
 }
 
-// WithSQLExplainCallbackForReverse returns an option that can set SQLExplainCallbackForReverse on a ReverseQueryOptions
-func WithSQLExplainCallbackForReverse(sQLExplainCallbackForReverse SQLExplainCallback) ReverseQueryOptionsOption {
+// WithSQLExplainCallbackForTestForReverse returns an option that can set SQLExplainCallbackForTestForReverse on a ReverseQueryOptions
+func WithSQLExplainCallbackForTestForReverse(sQLExplainCallbackForTestForReverse SQLExplainCallbackForTest) ReverseQueryOptionsOption {
 	return func(r *ReverseQueryOptions) {
-		r.SQLExplainCallbackForReverse = sQLExplainCallbackForReverse
+		r.SQLExplainCallbackForTestForReverse = sQLExplainCallbackForTestForReverse
 	}
 }
 

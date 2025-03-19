@@ -40,7 +40,7 @@ type closeRows interface {
 }
 
 func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQueryBuilder, tx Querier[R], explainable datastore.Explainable) error {
-	if builder.sqlExplainCallback == nil {
+	if builder.SQLExplainCallbackForTest == nil {
 		return nil
 	}
 
@@ -81,7 +81,7 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 			return fmt.Errorf("received empty explain")
 		}
 
-		return builder.sqlExplainCallback(ctx, sqlString, args, builder.queryShape, explainString, expectedIndexes)
+		return builder.SQLExplainCallbackForTest(ctx, sqlString, args, builder.queryShape, explainString, expectedIndexes)
 	}, explainSQL, explainArgs...)
 	if err != nil {
 		return fmt.Errorf(errUnableToQueryRels, err)

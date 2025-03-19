@@ -44,9 +44,9 @@ func ToRelationship(c Cursor) *tuple.Relationship {
 	return (*tuple.Relationship)(c)
 }
 
-// SQLCheckAssertion is a function that can be used to assert a condition on the SQL query string.
+// SQLCheckAssertionForTest is a function that can be used to assert a condition on the SQL query string.
 // Assertions will only be run during testing and only apply in datastores that support SQL.
-type SQLCheckAssertion func(sql string)
+type SQLCheckAssertionForTest func(sql string)
 
 // SQLIndexInformation holds the expected index names for a SQL query.
 type SQLIndexInformation struct {
@@ -55,8 +55,8 @@ type SQLIndexInformation struct {
 	ExpectedIndexNames []string
 }
 
-// SQLExplainCallback is a callback invoked with the explain plan of the SQL query string.
-type SQLExplainCallback func(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes SQLIndexInformation) error
+// SQLExplainCallbackForTest is a callback invoked with the explain plan of the SQL query string.
+type SQLExplainCallbackForTest func(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes SQLIndexInformation) error
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
@@ -66,13 +66,13 @@ type QueryOptions struct {
 	SkipCaveats    bool      `debugmap:"visible"`
 	SkipExpiration bool      `debugmap:"visible"`
 
-	// SQLCheckAssertion is a function that can be used to assert a condition on the SQL query string.
+	// SQLCheckAssertionForTest is a function that can be used to assert a condition on the SQL query string.
 	// For testing and validation only.
-	SQLCheckAssertion SQLCheckAssertion `debugmap:"visible"`
+	SQLCheckAssertionForTest SQLCheckAssertionForTest `debugmap:"visible"`
 
-	// SQLExplainCallback is a callback invoked with the explain plan of the SQL query string.
+	// SQLExplainCallbackForTest is a callback invoked with the explain plan of the SQL query string.
 	// For testing and validation only.
-	SQLExplainCallback SQLExplainCallback `debugmap:"visible"`
+	SQLExplainCallbackForTest SQLExplainCallbackForTest `debugmap:"visible"`
 
 	// QueryShape is the marked shape of the query.
 	// For testing and validation only.
@@ -87,9 +87,9 @@ type ReverseQueryOptions struct {
 	SortForReverse  SortOrder `debugmap:"visible"`
 	AfterForReverse Cursor    `debugmap:"visible"`
 
-	// SQLExplainCallbackForReverse is a callback invoked with the explain plan of the SQL query string.
+	// SQLExplainCallbackForTestForReverse is a callback invoked with the explain plan of the SQL query string.
 	// For testing and validation only.
-	SQLExplainCallbackForReverse SQLExplainCallback `debugmap:"visible"`
+	SQLExplainCallbackForTestForReverse SQLExplainCallbackForTest `debugmap:"visible"`
 
 	// QueryShapeForReverse is the marked shape of the reverse query.
 	// For testing and validation only.

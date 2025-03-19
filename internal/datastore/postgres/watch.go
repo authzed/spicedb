@@ -26,7 +26,7 @@ const (
 var (
 	// This query must cast an xid8 to xid, which is a safe operation as long as the
 	// xid8 is one of the last ~2 billion transaction IDs generated. We should be garbage
-	// schema.Collecting these transactions long before we get to that point.
+	// collecting these transactions long before we get to that point.
 	newRevisionsQuery = fmt.Sprintf(`
 	SELECT %[1]s, %[2]s, %[3]s, %[4]s FROM %[5]s
 	WHERE %[1]s >= pg_snapshot_xmax($1) OR (

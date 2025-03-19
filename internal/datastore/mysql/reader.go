@@ -202,7 +202,7 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),
 		options.WithQueryShape(queryOpts.QueryShapeForReverse),
-		options.WithSQLExplainCallback(queryOpts.SQLExplainCallbackForReverse),
+		options.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
 	)
 }
 

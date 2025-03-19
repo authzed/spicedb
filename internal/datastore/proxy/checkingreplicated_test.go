@@ -10,14 +10,15 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
@@ -40,8 +41,8 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 }
 
 func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
@@ -55,8 +56,8 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t
 func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 	for _, requireCheck := range []bool{true, false} {
 		t.Run(fmt.Sprintf("requireCheck=%v", requireCheck), func(t *testing.T) {
-			primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
-			replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1")}
+			primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+			replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
 
 			var ds datastore.Datastore
 			if requireCheck {
@@ -79,8 +80,9 @@ func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 }
 
 type fakeDatastore struct {
-	state    string
-	revision datastore.Revision
+	state       string
+	revision    datastore.Revision
+	indexesUsed []string
 }
 
 func (f fakeDatastore) MetricsID() (string, error) {
@@ -89,8 +91,9 @@ func (f fakeDatastore) MetricsID() (string, error) {
 
 func (f fakeDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
 	return fakeSnapshotReader{
-		revision: revision,
-		state:    f.state,
+		revision:    revision,
+		state:       f.state,
+		indexesUsed: f.indexesUsed,
 	}
 }
 
@@ -146,9 +149,25 @@ func (f fakeDatastore) IsStrictReadModeEnabled() bool {
 	return true
 }
 
+func (f fakeDatastore) BuildExplainQuery(sql string, args []any) (string, []any, error) {
+	return "EXPLAIN IS FAKE", nil, nil
+}
+
+// ParseExplain parses the output of an EXPLAIN statement.
+func (f fakeDatastore) ParseExplain(explain string) (datastore.ParsedExplain, error) {
+	return datastore.ParsedExplain{
+		IndexesUsed: []string{"testindex"},
+	}, nil
+}
+
+func (f fakeDatastore) PreExplainStatements() []string {
+	return nil
+}
+
 type fakeSnapshotReader struct {
-	revision datastore.Revision
-	state    string
+	revision    datastore.Revision
+	state       string
+	indexesUsed []string
 }
 
 func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
@@ -194,12 +213,20 @@ func (fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.Revisi
 	return nil, nil
 }
 
-func (fsr fakeSnapshotReader) QueryRelationships(context.Context, datastore.RelationshipsFilter, ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return fakeIterator(fsr), nil
+func (fsr fakeSnapshotReader) QueryRelationships(_ context.Context, _ datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
+	queryOpts := options.QueryOptions{}
+	for _, opt := range opts {
+		opt(&queryOpts)
+	}
+	return fakeIterator(fsr, queryOpts.SQLExplainCallbackForTest), nil
 }
 
-func (fsr fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.SubjectsFilter, ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return fakeIterator(fsr), nil
+func (fsr fakeSnapshotReader) ReverseQueryRelationships(_ context.Context, _ datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	queryOpts := options.ReverseQueryOptions{}
+	for _, opt := range opts {
+		opt(&queryOpts)
+	}
+	return fakeIterator(fsr, queryOpts.SQLExplainCallbackForTestForReverse), nil
 }
 
 func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string) (int, error) {
@@ -210,9 +237,18 @@ func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.Relat
 	return nil, fmt.Errorf("not implemented")
 }
 
-func fakeIterator(fsr fakeSnapshotReader) datastore.RelationshipIterator {
+func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCallbackForTest) datastore.RelationshipIterator {
 	return func(yield func(tuple.Relationship, error) bool) {
 		if fsr.state == "primary" {
+			if explainCallback != nil {
+				if err := explainCallback(context.Background(), "SOME QUERY", nil, queryshape.CheckPermissionSelectDirectSubjects, "EXPLAIN IS FAKE", options.SQLIndexInformation{
+					ExpectedIndexNames: fsr.indexesUsed,
+				}); err != nil {
+					yield(tuple.Relationship{}, err)
+					return
+				}
+			}
+
 			if !yield(tuple.MustParse("resource:123#viewer@user:tom"), nil) {
 				return
 			}

@@ -18,7 +18,7 @@ var (
 
 	// we are using "tableoid" to globally identify the row through the "ctid" in partitioned environments
 	// as it's not guaranteed 2 rows in different partitions have different "ctid" values
-	// See https://www.postgresql.org/docs/current/ddl-system-schema.Columns.html#DDL-SYSTEM-COLUMNS-TABLEOID
+	// See https://www.postgresql.org/docs/current/ddl-system-columns.html#DDL-SYSTEM-COLUMNS-TABLEOID
 	gcPKCols = []string{"tableoid", "ctid"}
 )
 
@@ -109,7 +109,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		sq.Lt{schema.ColDeletedXid: minTxAlive},
 	)
 	if err != nil {
-		return removed, fmt.Errorf("failed to GC relationships schema.Table: %w", err)
+		return removed, fmt.Errorf("failed to GC relationships table: %w", err)
 	}
 
 	// Delete all transaction rows with ID < the transaction ID.
@@ -123,7 +123,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		sq.Lt{schema.ColXID: minTxAlive},
 	)
 	if err != nil {
-		return removed, fmt.Errorf("failed to GC transactions schema.Table: %w", err)
+		return removed, fmt.Errorf("failed to GC transactions table: %w", err)
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
@@ -134,7 +134,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		sq.Lt{schema.ColDeletedXid: minTxAlive},
 	)
 	if err != nil {
-		return removed, fmt.Errorf("failed to GC namespaces schema.Table: %w", err)
+		return removed, fmt.Errorf("failed to GC namespaces table: %w", err)
 	}
 
 	return removed, err
