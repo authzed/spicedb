@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -51,17 +52,25 @@ func update(
 
 func TestWatch(t *testing.T) {
 	testCases := []struct {
-		name                string
+		name              string
+		watchKinds        []v1.WatchKind
+		expectedCode      codes.Code
+		startCursor       *v1.ZedToken
+		datastoreInitFunc testserver.DatastoreInitFunc
+		// for relationship updates
 		objectTypesFilter   []string
 		relationshipFilters []*v1.RelationshipFilter
-		startCursor         *v1.ZedToken
 		mutations           []*v1.RelationshipUpdate
-		expectedCode        codes.Code
 		expectedUpdates     []*v1.RelationshipUpdate
+		// for schema updates
+		mutatedSchema         string
+		expectedSchemaUpdates []*v1.ReflectionSchemaDiff
 	}{
 		{
-			name:         "unfiltered watch",
-			expectedCode: codes.OK,
+			name:              "unfiltered watch",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			mutations: []*v1.RelationshipUpdate{
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
@@ -75,6 +84,8 @@ func TestWatch(t *testing.T) {
 		},
 		{
 			name:              "watch with objectType filter",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			expectedCode:      codes.OK,
 			objectTypesFilter: []string{"document"},
 			mutations: []*v1.RelationshipUpdate{
@@ -88,8 +99,10 @@ func TestWatch(t *testing.T) {
 			},
 		},
 		{
-			name:         "watch with relationship filters",
-			expectedCode: codes.OK,
+			name:              "watch with relationship filters",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					ResourceType: "document",
@@ -109,8 +122,10 @@ func TestWatch(t *testing.T) {
 			},
 		},
 		{
-			name:         "watch with modified relationship filters",
-			expectedCode: codes.OK,
+			name:              "watch with modified relationship filters",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					ResourceType: "folder",
@@ -126,8 +141,10 @@ func TestWatch(t *testing.T) {
 			},
 		},
 		{
-			name:         "watch with resource ID prefix",
-			expectedCode: codes.OK,
+			name:              "watch with resource ID prefix",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					OptionalResourceIdPrefix: "document1",
@@ -143,8 +160,10 @@ func TestWatch(t *testing.T) {
 			},
 		},
 		{
-			name:         "watch with shorter resource ID prefix",
-			expectedCode: codes.OK,
+			name:              "watch with shorter resource ID prefix",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					OptionalResourceIdPrefix: "doc",
@@ -161,17 +180,23 @@ func TestWatch(t *testing.T) {
 			},
 		},
 		{
-			name:         "invalid zedtoken",
-			startCursor:  &v1.ZedToken{Token: "bad-token"},
-			expectedCode: codes.InvalidArgument,
+			name:              "invalid zedtoken",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			startCursor:       &v1.ZedToken{Token: "bad-token"},
+			expectedCode:      codes.InvalidArgument,
 		},
 		{
-			name:         "empty zedtoken fails validation",
-			startCursor:  &v1.ZedToken{Token: ""},
-			expectedCode: codes.InvalidArgument,
+			name:              "empty zedtoken fails validation",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			startCursor:       &v1.ZedToken{Token: ""},
+			expectedCode:      codes.InvalidArgument,
 		},
 		{
-			name: "watch with both kinds of filters",
+			name:              "watch with both kinds of filters",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					OptionalResourceIdPrefix: "doc",
@@ -181,7 +206,9 @@ func TestWatch(t *testing.T) {
 			expectedCode:      codes.InvalidArgument,
 		},
 		{
-			name: "watch with both fields of filter",
+			name:              "watch with both fields of filter",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					OptionalResourceIdPrefix: "doc",
@@ -191,13 +218,33 @@ func TestWatch(t *testing.T) {
 			expectedCode: codes.InvalidArgument,
 		},
 		{
-			name: "watch with invalid filter resource type",
+			name:              "watch with invalid filter resource type",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					ResourceType: "invalid",
 				},
 			},
 			expectedCode: codes.FailedPrecondition,
+		},
+		{
+			name:       "watch with schema filter returns new definition",
+			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+definition user {}
+`, nil, require.New(t))
+			},
+			mutatedSchema: `definition user {}
+definition org {}`,
+			expectedSchemaUpdates: []*v1.ReflectionSchemaDiff{
+				{Diff: &v1.ReflectionSchemaDiff_DefinitionAdded{
+					DefinitionAdded: &v1.ReflectionDefinition{
+						Name: "org",
+					},
+				}},
+			},
 		},
 	}
 
@@ -206,7 +253,7 @@ func TestWatch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, testfixtures.StandardDatastoreWithData)
+			conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tc.datastoreInitFunc)
 			t.Cleanup(cleanup)
 			client := v1.NewWatchServiceClient(conn)
 
@@ -222,14 +269,17 @@ func TestWatch(t *testing.T) {
 				OptionalObjectTypes:         tc.objectTypesFilter,
 				OptionalRelationshipFilters: tc.relationshipFilters,
 				OptionalStartCursor:         cursor,
+				OptionalUpdateKinds:         tc.watchKinds,
 			})
 			require.NoError(err)
 
 			if tc.expectedCode == codes.OK {
-				updatesChan := make(chan []*v1.RelationshipUpdate, len(tc.mutations))
+				updatesChan := make(chan []*v1.RelationshipUpdate, max(1, len(tc.mutations))) // leave enough buffer to not block the write
+				schemaUpdatesChan := make(chan []*v1.ReflectionSchemaDiff, 1)
 
 				go func() {
 					defer close(updatesChan)
+					defer close(schemaUpdatesChan)
 
 					for {
 						select {
@@ -249,15 +299,25 @@ func TestWatch(t *testing.T) {
 							}
 
 							updatesChan <- resp.Updates
+							schemaUpdatesChan <- resp.SchemaUpdates
 						}
 					}
 				}()
 
-				_, err := v1.NewPermissionsServiceClient(conn).WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-					Updates: tc.mutations,
-				})
-				require.NoError(err)
+				if len(tc.mutations) > 0 {
+					_, err := v1.NewPermissionsServiceClient(conn).WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+						Updates: tc.mutations,
+					})
+					require.NoError(err)
+				}
+				if len(tc.mutatedSchema) > 0 {
+					_, err := v1.NewSchemaServiceClient(conn).WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+						Schema: tc.mutatedSchema,
+					})
+					require.NoError(err)
+				}
 
+				// assert on relationship updates
 				var receivedUpdates []*v1.RelationshipUpdate
 
 				for len(receivedUpdates) < len(tc.expectedUpdates) {
@@ -271,6 +331,20 @@ func TestWatch(t *testing.T) {
 				}
 
 				require.Equal(sortUpdates(tc.expectedUpdates), sortUpdates(receivedUpdates))
+
+				// assert on schema updates
+				var receivedSchemaUpdates []*v1.ReflectionSchemaDiff
+
+				for len(receivedSchemaUpdates) < len(tc.expectedSchemaUpdates) {
+					select {
+					case updates := <-schemaUpdatesChan:
+						receivedSchemaUpdates = append(receivedSchemaUpdates, updates...)
+					case <-time.After(1 * time.Second):
+						require.FailNow("timed out waiting for schema updates")
+						return
+					}
+				}
+				require.Equal(tc.expectedSchemaUpdates, receivedSchemaUpdates)
 			} else {
 				_, err := stream.Recv()
 				grpcutil.RequireStatus(t, tc.expectedCode, err)
