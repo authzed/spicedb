@@ -229,12 +229,16 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 	secondaryResultChan := make(chan secondaryRespTuple[S], len(cr.secondaryDispatch))
 
 	// Run the main dispatch.
+	log.Trace().Msg("starting go routine for primary dispatch")
 	go func() {
+		log.Trace().Msg("primary dispatch started")
+
 		// Have the main dispatch wait some time before returning, to allow the secondaries to
 		// potentially return first.
 		computedWait := cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
 		time.Sleep(computedWait)
 
+		log.Trace().Msg("running primary dispatch")
 		select {
 		case <-withTimeout.Done():
 			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch timed out or was canceled")
@@ -249,11 +253,13 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 		}
 	}()
 
+	log.Trace().Object("request", req).Msg("running dispatch expression")
 	result, err := RunDispatchExpr(expr, req)
+	log.Trace().Object("request", req).Msg("dispatch expression completed")
+
 	if err != nil {
 		log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
 	}
-
 	log.Trace().Str("secondary-dispatchers", strings.Join(result, ",")).Object("request", req).Msg("running secondary dispatchers")
 
 	for _, secondaryDispatchName := range result {
@@ -263,8 +269,10 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 			continue
 		}
 
-		log.Trace().Str("secondary-dispatcher", secondary.Name).Object("request", req).Msg("running secondary dispatcher")
+		log.Trace().Str("secondary-dispatcher", secondary.Name).Object("request", req).Msg("running secondary dispatcher goroutine")
 		go func() {
+			log.Trace().Str("secondary", secondary.Name).Msg("starting secondary dispatch")
+
 			select {
 			case <-withTimeout.Done():
 				log.Trace().Str("secondary", secondary.Name).Msg("secondary dispatch timed out or was canceled")
