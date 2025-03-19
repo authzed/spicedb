@@ -37,7 +37,7 @@ var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Subsystem: "dispatch",
 	Name:      "remote_dispatch_hedge_wait_duration",
 	Help:      "distribution in seconds of calculated wait time for hedging requests to the primary dispatcher when a secondary is active.",
-	Buckets:   []float64{0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
+	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
 }, []string{"rpc"})
 
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
