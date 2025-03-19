@@ -238,13 +238,13 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 
 		select {
 		case <-withTimeout.Done():
-			log.Trace().Str("request-key", reqKey).Msg("primary dispatch timed out or was canceled")
+			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch timed out or was canceled")
 			return
 
 		default:
-			log.Trace().Str("request-key", reqKey).Msg("running primary dispatch")
+			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("running primary dispatch")
 			resp, err := handler(withTimeout, cr.clusterClient)
-			log.Trace().Str("request-key", reqKey).Msg("primary dispatch completed")
+			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch completed")
 			primaryResultChan <- respTuple[S]{resp, err}
 			hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
 		}
@@ -276,14 +276,15 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 				startTime := time.Now()
 				resp, err := handler(withTimeout, secondary.Client)
 				endTime := time.Now()
-				log.Trace().Str("secondary", secondary.Name).Msg("secondary dispatch completed")
+				handlerDuration := endTime.Sub(startTime)
+				log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Msg("secondary dispatch completed")
 				if err != nil {
 					// For secondary dispatches, ignore any errors, as only the primary will be handled in
 					// that scenario.
-					log.Trace().Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
+					log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
 					return
 				}
-				cr.secondaryInitialResponseDigests[reqKey].addResultTime(endTime.Sub(startTime))
+				cr.secondaryInitialResponseDigests[reqKey].addResultTime(handlerDuration)
 				secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
 			}
 		}()
