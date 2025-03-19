@@ -32,6 +32,14 @@ var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "which dispatcher handled a request",
 }, []string{"request_kind", "handler_name"})
 
+var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_hedge_wait_duration",
+	Help:      "distribution in seconds of calculated wait time for hedging requests to the primary dispatcher when a secondary is active.",
+	Buckets:   []float64{0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
+}, []string{"rpc"})
+
 // startingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
 const startingPrimaryHedgingDelay = 5 * time.Millisecond
@@ -50,6 +58,7 @@ var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 
 func init() {
 	prometheus.MustRegister(dispatchCounter)
+	prometheus.MustRegister(hedgeWaitHistogram)
 }
 
 type ClusterClient interface {
@@ -218,10 +227,12 @@ func dispatchRequest[Q requestMessage, S responseMessage](ctx context.Context, c
 	go func() {
 		// Have the main dispatch wait some time before returning, to allow the secondaries to
 		// potentially return first.
-		time.Sleep(cr.secondaryInitialResponseDigests[reqKey].getWaitTime())
+		computedWait := cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
+		time.Sleep(computedWait)
 
 		resp, err := handler(withTimeout, cr.clusterClient)
 		primaryResultChan <- respTuple[S]{resp, err}
+		hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
 	}()
 
 	result, err := RunDispatchExpr(expr, req)
@@ -429,7 +440,9 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 		var startTime time.Time
 		if name == primaryDispatcher {
 			// Have the primary wait a bit to ensure the secondaries have a chance to return first.
-			time.Sleep(cr.secondaryInitialResponseDigests[reqKey].getWaitTime())
+			computedWait := cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
+			time.Sleep(computedWait)
+			hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
 		} else {
 			startTime = time.Now()
 		}
