@@ -40,6 +40,14 @@ var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
 }, []string{"rpc"})
 
+var expressionDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_expression_duration",
+	Help:      "distribution in seconds of calculated time it took to run the CEL expression that determines if the secondary should be executed",
+	Buckets:   []float64{0.0005, 0.001, 0.002, 0.003, 0.004, 0.005, 0.01},
+}, []string{"rpc"})
+
 var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "dispatch",
@@ -66,6 +74,7 @@ func init() {
 	prometheus.MustRegister(dispatchCounter)
 	prometheus.MustRegister(hedgeWaitHistogram)
 	prometheus.MustRegister(primaryDispatch)
+	prometheus.MustRegister(expressionDurationHistogram)
 }
 
 type ClusterClient interface {
@@ -264,9 +273,12 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 	}()
 
 	log.Trace().Object("request", req).Msg("running dispatch expression")
+	startTime := time.Now()
 	result, err := RunDispatchExpr(expr, req)
+	endTime := time.Now()
 	log.Trace().Object("request", req).Msg("dispatch expression completed")
 
+	expressionDurationHistogram.WithLabelValues(reqKey).Observe(endTime.Sub(startTime).Seconds())
 	if err != nil {
 		log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
 	}
@@ -439,7 +451,10 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 			validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
 		}
 	} else if expr, ok := cr.secondaryDispatchExprs[reqKey]; ok {
+		exprStartTime := time.Now()
 		dispatcherNames, err := RunDispatchExpr(expr, req)
+		exprEndTime := time.Now()
+		expressionDurationHistogram.WithLabelValues(reqKey).Observe(exprEndTime.Sub(exprStartTime).Seconds())
 		if err != nil {
 			log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
 		} else {
