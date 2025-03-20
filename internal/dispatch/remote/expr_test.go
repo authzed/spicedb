@@ -55,56 +55,86 @@ func TestParseDispatchExpression(t *testing.T) {
 	}
 }
 
+type rar struct {
+	request        *dispatchv1.DispatchCheckRequest
+	expectedResult []string
+	expectedError  string
+}
+
 func TestRunCheckDispatchExpr(t *testing.T) {
 	tcs := []struct {
-		name           string
-		expr           string
-		request        *dispatchv1.DispatchCheckRequest
-		expectedResult []string
-		expectedError  string
+		name                string
+		expr                string
+		requestAndResponses []rar
 	}{
 		{
 			"static",
 			"['prewarm']",
-			nil,
-			[]string{"prewarm"},
-			"",
+			[]rar{
+				{
+					nil,
+					[]string{"prewarm"},
+					"",
+				},
+			},
 		},
 		{
 			"basic",
 			"request.resource_relation.namespace == 'somenamespace' ? ['prewarm'] : ['other']",
-			&dispatchv1.DispatchCheckRequest{
-				ResourceRelation: &corev1.RelationReference{
-					Namespace: "somenamespace",
-					Relation:  "somerelation",
+			[]rar{
+				{
+					&dispatchv1.DispatchCheckRequest{
+						ResourceRelation: &corev1.RelationReference{
+							Namespace: "somenamespace",
+							Relation:  "somerelation",
+						},
+					},
+					[]string{"prewarm"},
+					"",
+				},
+				{
+					&dispatchv1.DispatchCheckRequest{
+						ResourceRelation: &corev1.RelationReference{
+							Namespace: "anothernamespace",
+							Relation:  "somerelation",
+						},
+					},
+					[]string{"other"},
+					"",
 				},
 			},
-			[]string{"prewarm"},
-			"",
 		},
 		{
 			"basic other branch",
 			"request.resource_relation.namespace == 'somethingelse' ? ['prewarm'] : ['other']",
-			&dispatchv1.DispatchCheckRequest{
-				ResourceRelation: &corev1.RelationReference{
-					Namespace: "somenamespace",
-					Relation:  "somerelation",
+			[]rar{
+				{
+					&dispatchv1.DispatchCheckRequest{
+						ResourceRelation: &corev1.RelationReference{
+							Namespace: "somenamespace",
+							Relation:  "somerelation",
+						},
+					},
+					[]string{"other"},
+					"",
 				},
 			},
-			[]string{"other"},
-			"",
 		},
 		{
 			"invalid field",
 			"request.resource_relation.invalidfield == 'somethingelse' ? ['prewarm'] : ['other']",
-			&dispatchv1.DispatchCheckRequest{
-				ResourceRelation: &corev1.RelationReference{
-					Namespace: "somenamespace",
-					Relation:  "somerelation",
+			[]rar{
+				{
+					&dispatchv1.DispatchCheckRequest{
+						ResourceRelation: &corev1.RelationReference{
+							Namespace: "somenamespace",
+							Relation:  "somerelation",
+						},
+					},
+					nil,
+					"no such field 'invalidfield'",
 				},
 			},
-			nil,
-			"no such field 'invalidfield'",
 		},
 	}
 
@@ -114,12 +144,40 @@ func TestRunCheckDispatchExpr(t *testing.T) {
 			parsed, err := ParseDispatchExpression("check", tc.expr)
 			require.NoError(t, err)
 
-			resp, err := RunDispatchExpr(parsed, tc.request)
-			if tc.expectedError != "" {
-				require.ErrorContains(t, err, tc.expectedError)
-			} else {
-				require.Equal(t, tc.expectedResult, resp)
+			for _, rar := range tc.requestAndResponses {
+				resp, err := RunDispatchExpr(parsed, rar.request)
+				if rar.expectedError != "" {
+					require.ErrorContains(t, err, rar.expectedError)
+				} else {
+					require.Equal(t, rar.expectedResult, resp)
+				}
+
+				// Run again and ensure the same result.
+				resp, err = RunDispatchExpr(parsed, rar.request)
+				if rar.expectedError != "" {
+					require.ErrorContains(t, err, rar.expectedError)
+				} else {
+					require.Equal(t, rar.expectedResult, resp)
+				}
 			}
 		})
+	}
+}
+
+func BenchmarkRunDispatchExpression(b *testing.B) {
+	req := &dispatchv1.DispatchCheckRequest{
+		ResourceRelation: &corev1.RelationReference{
+			Namespace: "somenamespace",
+			Relation:  "somerelation",
+		},
+	}
+
+	parsed, err := ParseDispatchExpression("check", "['tiger']")
+	require.NoError(b, err)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, _ = RunDispatchExpr(parsed, req)
 	}
 }
