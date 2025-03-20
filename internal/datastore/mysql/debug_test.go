@@ -52,7 +52,9 @@ func TestParseExplain(t *testing.T) {
 					}
 				]
 			}`,
-			output: datastore.ParsedExplain{},
+			output: datastore.ParsedExplain{
+				IndexesUsed: []string{"PRIMARY"},
+			},
 		},
 		{
 			name: "index used",
