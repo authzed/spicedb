@@ -259,7 +259,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 		select {
 		case <-withTimeout.Done():
 			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch timed out or was canceled")
-			primaryDispatch.WithLabelValues("false", reqKey).Inc()
+			primaryDispatch.WithLabelValues("true", reqKey).Inc()
 			return
 
 		default:
@@ -268,7 +268,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch completed")
 			primaryResultChan <- respTuple[S]{resp, err}
 			hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
-			primaryDispatch.WithLabelValues("true", reqKey).Inc()
+			primaryDispatch.WithLabelValues("false", reqKey).Inc()
 		}
 	}()
 
@@ -521,7 +521,7 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 		case <-ctx.Done():
 			log.Trace().Str("dispatcher", name).Msg("dispatcher context canceled")
 			if isPrimary {
-				primaryDispatch.WithLabelValues("false", reqKey).Inc()
+				primaryDispatch.WithLabelValues("true", reqKey).Inc()
 			}
 			return
 
@@ -533,7 +533,7 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 		client, err := handler(ctx, clusterClient)
 		log.Trace().Str("dispatcher", name).Msg("streaming dispatcher completed initial request")
 		if isPrimary {
-			primaryDispatch.WithLabelValues("true", reqKey).Inc()
+			primaryDispatch.WithLabelValues("false", reqKey).Inc()
 		}
 		if err != nil {
 			log.Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
