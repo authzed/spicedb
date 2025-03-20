@@ -105,7 +105,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 				}
 				if len(update.ChangedDefinitions) > 0 || len(update.DeletedCaveats) > 0 || len(update.DeletedNamespaces) > 0 {
 					if err := stream.Send(&v1.WatchResponse{
-						SchemaUpdates:               convertSchemaUpdatesToDiff(update.ChangedDefinitions, update.DeletedCaveats, update.DeletedNamespaces),
+						SchemaUpdated:               true,
 						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
 						OptionalTransactionMetadata: update.Metadata,
 					}); err != nil {
@@ -187,33 +187,6 @@ func filterRelationshipUpdates(objectTypes *mapz.Set[string], filters []datastor
 	}
 
 	return filtered
-}
-
-func convertSchemaUpdatesToDiff(schemaDefs []datastore.SchemaDefinition, deletedCaveats []string, deletedNamespaces []string) []*v1.ReflectionSchemaDiff {
-	res := make([]*v1.ReflectionSchemaDiff, 0)
-	for _, sd := range schemaDefs {
-		res = append(res, &v1.ReflectionSchemaDiff{
-			Diff: &v1.ReflectionSchemaDiff_DefinitionAdded{
-				// TODO or definition changed? how can we tell?
-				DefinitionAdded: &v1.ReflectionDefinition{
-					Name: sd.GetName(),
-				},
-			},
-		})
-	}
-
-	for _, dc := range deletedCaveats {
-		res = append(res, &v1.ReflectionSchemaDiff{
-			Diff: &v1.ReflectionSchemaDiff_CaveatRemoved{CaveatRemoved: &v1.ReflectionCaveat{Name: dc}},
-		})
-	}
-
-	for _, dn := range deletedNamespaces {
-		res = append(res, &v1.ReflectionSchemaDiff{
-			Diff: &v1.ReflectionSchemaDiff_DefinitionRemoved{DefinitionRemoved: &v1.ReflectionDefinition{Name: dn}},
-		})
-	}
-	return res
 }
 
 func convertWatchKindToContent(kinds []v1.WatchKind) datastore.WatchContent {

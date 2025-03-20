@@ -1376,8 +1376,8 @@ github.com/apache/arrow/go/v12 v12.0.1/go.mod h1:weuTY7JvTG/HDPtMQxEUp7pU73vkLWM
 github.com/apache/arrow/go/v14 v14.0.2/go.mod h1:u3fgh3EdgN/YQ8cVQRguVW3R+seMybFg8QBQ5LU+eBY=
 github.com/apache/thrift v0.16.0/go.mod h1:PHK3hniurgQaNMZYaCLEqXKsYK8upmhPbmdP2FXSqgU=
 github.com/apache/thrift v0.17.0/go.mod h1:OLxhMRJxomX+1I/KUw03qoV3mMz16BwaKI+d4fPBx7Q=
-github.com/authzed/authzed-go v1.3.1-0.20250318223132-c5ac867d8ec7 h1:FHsqGQ/rMu0OH+mCD2W2RhU0RPNFYkuQFvdfDZUshRg=
-github.com/authzed/authzed-go v1.3.1-0.20250318223132-c5ac867d8ec7/go.mod h1:ReuY/1rPEqJ+3dVE1Esi2VJI2uQNLtOeQN+8Yq9uNJw=
+github.com/authzed/authzed-go v1.3.1-0.20250320210445-0cde0d8c71e2 h1:Thss/u6uu0rJULAHdvd3kMJfFZIealMZYPx21KI/3HI=
+github.com/authzed/authzed-go v1.3.1-0.20250320210445-0cde0d8c71e2/go.mod h1:ReuY/1rPEqJ+3dVE1Esi2VJI2uQNLtOeQN+8Yq9uNJw=
 github.com/authzed/cel-go v0.20.2 h1:GlmLecGry7Z8HU0k+hmaHHUV05ZHrsFxduXHtIePvck=
 github.com/authzed/cel-go v0.20.2/go.mod h1:pJHVFWbqUHV1J+klQoZubdKswlbxcsbojda3mye9kiU=
 github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b h1:wbh8IK+aMLTCey9sZasO7b6BWLAJnHHvb79fvWCXwxw=

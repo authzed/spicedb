@@ -52,23 +52,22 @@ func update(
 
 func TestWatch(t *testing.T) {
 	testCases := []struct {
-		name              string
-		watchKinds        []v1.WatchKind
-		expectedCode      codes.Code
-		startCursor       *v1.ZedToken
-		datastoreInitFunc testserver.DatastoreInitFunc
+		name                   string
+		watchKinds             []v1.WatchKind
+		datastoreInitFunc      testserver.DatastoreInitFunc
+		startCursor            *v1.ZedToken
+		expectedWatchResponses []*v1.WatchResponse
+		expectedCode           codes.Code
 		// for relationship updates
 		objectTypesFilter   []string
 		relationshipFilters []*v1.RelationshipFilter
 		mutations           []*v1.RelationshipUpdate
-		expectedUpdates     []*v1.RelationshipUpdate
 		// for schema updates
-		mutatedSchema         string
-		expectedSchemaUpdates []*v1.ReflectionSchemaDiff
+		mutatedSchema string
 	}{
 		{
 			name:              "unfiltered watch",
-			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_RELATIONSHIP_UPDATES},
 			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			expectedCode:      codes.OK,
 			mutations: []*v1.RelationshipUpdate{
@@ -76,10 +75,12 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+					update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
@@ -93,9 +94,11 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
@@ -116,9 +119,11 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
@@ -136,8 +141,10 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+				}},
 			},
 		},
 		{
@@ -155,8 +162,10 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
@@ -174,9 +183,11 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
@@ -229,7 +240,7 @@ func TestWatch(t *testing.T) {
 			expectedCode: codes.FailedPrecondition,
 		},
 		{
-			name:       "watch with schema filter returns new definition",
+			name:       "watch with schema kind returns a schema update (new definition)",
 			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
 			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
 				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
@@ -238,12 +249,94 @@ definition user {}
 			},
 			mutatedSchema: `definition user {}
 definition org {}`,
-			expectedSchemaUpdates: []*v1.ReflectionSchemaDiff{
-				{Diff: &v1.ReflectionSchemaDiff_DefinitionAdded{
-					DefinitionAdded: &v1.ReflectionDefinition{
-						Name: "org",
-					},
+			expectedWatchResponses: []*v1.WatchResponse{
+				{SchemaUpdated: true},
+			},
+		},
+		{
+			name:       "watch with schema kind returns a schema update (new caveat)",
+			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+definition user {}
+`, nil, require.New(t))
+			},
+			mutatedSchema: `
+caveat is_tuesday(today string) {
+   today == 'tuesday'
+}
+definition user {}
+`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{SchemaUpdated: true},
+			},
+		},
+		{
+			name:       "watch with schema kind returns a schema update (deleted caveat)",
+			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+caveat is_tuesday(today string) {
+   today == 'tuesday'
+}
+definition user {}
+`, nil, require.New(t))
+			},
+			mutatedSchema: `
+definition user {}
+`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{SchemaUpdated: true},
+			},
+		},
+		{
+			name:       "watch with schema kind returns a schema update (deleted namespace)",
+			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+definition user {}
+definition org {}
+`, nil, require.New(t))
+			},
+			mutatedSchema: `
+definition user {}
+`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{SchemaUpdated: true},
+			},
+		},
+		{
+			name: "watch with all kinds",
+			watchKinds: []v1.WatchKind{
+				v1.WatchKind_WATCH_KIND_INCLUDE_RELATIONSHIP_UPDATES,
+				v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES,
+				v1.WatchKind_WATCH_KIND_INCLUDE_CHECKPOINTS,
+			},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+definition user {}
+definition document {
+  relation view: user
+}
+`, nil, require.New(t))
+			},
+			mutations: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "view", "user", "user1"),
+			},
+			mutatedSchema: `
+definition new {}
+definition user {}
+definition document {
+  relation view: user
+}
+`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "view", "user", "user1"),
 				}},
+				{IsCheckpoint: true},
+				{SchemaUpdated: true},
+				{IsCheckpoint: true},
 			},
 		},
 	}
@@ -274,12 +367,10 @@ definition org {}`,
 			require.NoError(err)
 
 			if tc.expectedCode == codes.OK {
-				updatesChan := make(chan []*v1.RelationshipUpdate, max(1, len(tc.mutations))) // leave enough buffer to not block the write
-				schemaUpdatesChan := make(chan []*v1.ReflectionSchemaDiff, 1)
+				watchResponses := make(chan *v1.WatchResponse, 1)
 
 				go func() {
-					defer close(updatesChan)
-					defer close(schemaUpdatesChan)
+					defer close(watchResponses)
 
 					for {
 						select {
@@ -298,8 +389,7 @@ definition org {}`,
 								panic(fmt.Errorf("received a stream read error: %w", err))
 							}
 
-							updatesChan <- resp.Updates
-							schemaUpdatesChan <- resp.SchemaUpdates
+							watchResponses <- resp
 						}
 					}
 				}()
@@ -317,34 +407,25 @@ definition org {}`,
 					require.NoError(err)
 				}
 
-				// assert on relationship updates
-				var receivedUpdates []*v1.RelationshipUpdate
+				var received []*v1.WatchResponse
 
-				for len(receivedUpdates) < len(tc.expectedUpdates) {
+				for len(received) < len(tc.expectedWatchResponses) {
 					select {
-					case updates := <-updatesChan:
-						receivedUpdates = append(receivedUpdates, updates...)
+					case receivedWatchResponse := <-watchResponses:
+						received = append(received, receivedWatchResponse)
 					case <-time.After(1 * time.Second):
-						require.FailNow("timed out waiting for updates")
+						require.FailNow("timed out waiting for message")
 						return
 					}
 				}
 
-				require.Equal(sortUpdates(tc.expectedUpdates), sortUpdates(receivedUpdates))
+				require.Len(received, len(tc.expectedWatchResponses))
 
-				// assert on schema updates
-				var receivedSchemaUpdates []*v1.ReflectionSchemaDiff
-
-				for len(receivedSchemaUpdates) < len(tc.expectedSchemaUpdates) {
-					select {
-					case updates := <-schemaUpdatesChan:
-						receivedSchemaUpdates = append(receivedSchemaUpdates, updates...)
-					case <-time.After(1 * time.Second):
-						require.FailNow("timed out waiting for schema updates")
-						return
-					}
+				for i, expectedWatchResponse := range tc.expectedWatchResponses {
+					require.Equal(sortUpdates(expectedWatchResponse.Updates), sortUpdates(received[i].GetUpdates()))
+					require.Equal(expectedWatchResponse.SchemaUpdated, received[i].GetSchemaUpdated())
+					require.Equal(expectedWatchResponse.IsCheckpoint, received[i].GetIsCheckpoint())
 				}
-				require.Equal(tc.expectedSchemaUpdates, receivedSchemaUpdates)
 			} else {
 				_, err := stream.Recv()
 				grpcutil.RequireStatus(t, tc.expectedCode, err)
