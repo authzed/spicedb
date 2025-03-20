@@ -52,7 +52,7 @@ var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
 const defaultStartingPrimaryHedgingDelay = 5 * time.Millisecond
 
 // defaultHedgerQuantile is the default quantile used to determine the hedging delay for primary calls.
-const defaultHedgerQuantile = 0.90
+const defaultHedgerQuantile = 0.95
 
 // minimumDigestCount is the minimum number of samples required in the digest before it can be used
 // to determine the configured percentile.
