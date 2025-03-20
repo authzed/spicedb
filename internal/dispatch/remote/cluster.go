@@ -40,6 +40,13 @@ var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
 }, []string{"rpc"})
 
+var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_primary_total",
+	Help:      "indicates what was the outcome of a scheduled primary dispatch: dispatched, or cancelled",
+}, []string{"cancelled", "rpc"})
+
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
 const defaultStartingPrimaryHedgingDelay = 5 * time.Millisecond
@@ -58,6 +65,7 @@ var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 func init() {
 	prometheus.MustRegister(dispatchCounter)
 	prometheus.MustRegister(hedgeWaitHistogram)
+	prometheus.MustRegister(primaryDispatch)
 }
 
 type ClusterClient interface {
@@ -242,6 +250,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 		select {
 		case <-withTimeout.Done():
 			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch timed out or was canceled")
+			primaryDispatch.WithLabelValues("false", reqKey).Inc()
 			return
 
 		default:
@@ -250,6 +259,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch completed")
 			primaryResultChan <- respTuple[S]{resp, err}
 			hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
+			primaryDispatch.WithLabelValues("true", reqKey).Inc()
 		}
 	}()
 
@@ -482,7 +492,8 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 		defer wg.Done()
 
 		var startTime time.Time
-		if name == primaryDispatcher {
+		isPrimary := name == primaryDispatcher
+		if isPrimary {
 			// Have the primary wait a bit to ensure the secondaries have a chance to return first.
 			computedWait := cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
 			time.Sleep(computedWait)
@@ -494,6 +505,9 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 		select {
 		case <-ctx.Done():
 			log.Trace().Str("dispatcher", name).Msg("dispatcher context canceled")
+			if isPrimary {
+				primaryDispatch.WithLabelValues("false", reqKey).Inc()
+			}
 			return
 
 		default:
@@ -503,6 +517,9 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 		log.Trace().Str("dispatcher", name).Msg("running streaming dispatcher")
 		client, err := handler(ctx, clusterClient)
 		log.Trace().Str("dispatcher", name).Msg("streaming dispatcher completed initial request")
+		if isPrimary {
+			primaryDispatch.WithLabelValues("true", reqKey).Inc()
+		}
 		if err != nil {
 			log.Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
 			errorsLock.Lock()
@@ -528,7 +545,7 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 				if isResult && !hasPublishedFirstResult {
 					// If a valid result was returned by a secondary dispatcher, and it was the first
 					// result returned, record the time it took to get that result.
-					if name != primaryDispatcher {
+					if !isPrimary {
 						finishTime := time.Now()
 						duration := finishTime.Sub(startTime)
 						cr.secondaryInitialResponseDigests[reqKey].addResultTime(duration)
