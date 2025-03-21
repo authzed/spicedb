@@ -71,6 +71,13 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
       - name: "Unit tests"
         run: "go run mage.go test:unit"
+      - name: "Coverage"
+        uses: "codecov/codecov-action@v5.4.0"
+        with:
+          files: "./coverage.txt"
+          verbose: true
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   steelthread:
     name: "Steelthread"

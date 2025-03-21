@@ -53,7 +53,7 @@ func (t Test) Unit(ctx context.Context) error {
 
 func (Test) unit(ctx context.Context, coverage bool) error {
 	fmt.Println("running unit tests")
-	args := []string{"-tags", "ci,skipintegrationtests", "-race", "-timeout", "10m", "-count=1"}
+	args := []string{"-tags", "ci,skipintegrationtests", "-race", "-timeout", "10m", "-count=1", "-covermode=atomic", "-coverprofile=coverage.txt"}
 	return goTest(ctx, "./...", args...)
 }
 
