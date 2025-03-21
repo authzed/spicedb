@@ -46,8 +46,7 @@ func TestCertRotation(t *testing.T) {
 		waitFactor = 2
 	)
 
-	certDir, err := os.MkdirTemp("", "test-certs-")
-	require.NoError(t, err)
+	certDir := t.TempDir()
 
 	ca := &x509.Certificate{
 		NotBefore:             time.Now(),

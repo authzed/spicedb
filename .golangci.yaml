@@ -37,10 +37,10 @@ linters:
     - 'rowserrcheck'
     - 'staticcheck'
     - 'stylecheck'
-    - 'tenv'
     - 'typecheck'
     - 'unconvert'
     - 'unused'
+    - 'usetesting'
     - 'wastedassign'
     - 'whitespace'
 issues:
