@@ -26,8 +26,7 @@ func (l Lint) Scan() error {
 
 // Extra Lint everything that's not code
 func (l Lint) Extra() error {
-	// FIXME temporarily disabled buf format
-	mg.Deps(l.Markdown, l.Yaml)
+	mg.Deps(l.Markdown, l.Yaml, l.BufFormat)
 	return nil
 }
 
@@ -110,7 +109,7 @@ func (Lint) Vulncheck() error {
 
 // BufFormat runs buf format command
 func (l Lint) BufFormat() error {
-	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write")
+	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write", "../")
 }
 
 // Trivy Run Trivy
