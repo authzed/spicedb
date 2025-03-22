@@ -34,12 +34,14 @@ var DefaultTestServerConfig = ServerConfig{
 	MaxRelationshipContextSize: 25000,
 }
 
+type DatastoreInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision)
+
 // NewTestServer creates a new test server, using defaults for the config.
 func NewTestServer(require *require.Assertions,
 	revisionQuantization time.Duration,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
-	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	return NewTestServerWithConfig(require, revisionQuantization, gcWindow, schemaPrefixRequired,
 		DefaultTestServerConfig,
@@ -52,7 +54,7 @@ func NewTestServerWithConfig(require *require.Assertions,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
 	config ServerConfig,
-	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(err)
@@ -66,7 +68,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	schemaPrefixRequired bool,
 	config ServerConfig,
 	emptyDS datastore.Datastore,
-	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(emptyDS, require)
 	ctx, cancel := context.WithCancel(context.Background())

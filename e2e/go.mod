@@ -8,14 +8,14 @@ replace github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-contr
 replace github.com/authzed/spicedb => ../
 
 require (
-	github.com/authzed/authzed-go v1.3.1-0.20250311163602-48b654da9d3a
+	github.com/authzed/authzed-go v1.3.1-0.20250320210445-0cde0d8c71e2
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
 	github.com/authzed/spicedb v1.29.5
 	github.com/brianvoe/gofakeit/v6 v6.23.2
 	github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/tools v0.30.0
+	golang.org/x/tools v0.31.0
 	google.golang.org/grpc v1.71.0
 	mvdan.cc/gofumpt v0.7.0
 )
@@ -68,7 +68,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
-	golang.org/x/mod v0.23.0 // indirect
+	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/net v0.37.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
