@@ -65,7 +65,11 @@ func (strs strArray) MarshalZerologArray(a *zerolog.Array) {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (cs *DispatchLookupSubjectsResponse) MarshalZerologObject(e *zerolog.Event) {
-	e.Object("metadata", cs.Metadata)
+	if cs == nil {
+		e.Interface("response", nil)
+	} else {
+		e.Object("metadata", cs.Metadata)
+	}
 }
 
 // MarshalZerologObject implements zerolog object marshalling.

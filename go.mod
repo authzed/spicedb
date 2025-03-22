@@ -10,6 +10,8 @@ require github.com/authzed/cel-go v0.20.2
 // See: https://github.com/envoyproxy/go-control-plane/issues/1074
 replace github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.13.2
 
+replace github.com/influxdata/tdigest => github.com/hdrodz/tdigest v0.0.0-20230422191141-29913c04928d
+
 require (
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.5-20240802094132-5b212ab78fb7.1
 	cloud.google.com/go/spanner v1.76.1
