@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -290,7 +291,7 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]an
 		metadata = emptyMetadata
 	}
 
-	sql, args, err := createTxn.Values(metadata).Suffix("RETURNING " + colXID + ", " + colSnapshot).ToSql()
+	sql, args, err := createTxn.Values(metadata).Suffix("RETURNING " + schema.ColXID + ", " + schema.ColSnapshot).ToSql()
 	if err != nil {
 		return
 	}

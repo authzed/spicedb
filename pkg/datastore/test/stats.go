@@ -36,7 +36,7 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 
 		require.Len(stats.UniqueID, 36, "unique ID must be a valid UUID")
 
-		if stats.EstimatedRelationshipCount == uint64(0) && retryCount > 0 {
+		if (stats.EstimatedRelationshipCount == uint64(0) || len(stats.ObjectTypeStatistics) == 0) && retryCount > 0 {
 			// Sleep for a bit to get the stats table to update.
 			time.Sleep(500 * time.Millisecond)
 			continue

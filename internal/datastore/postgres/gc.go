@@ -9,6 +9,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -61,7 +62,7 @@ func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
 
 func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datastore.Revision, error) {
 	// Find the highest transaction ID before the GC window.
-	sql, args, err := getRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
+	sql, args, err := getRevision.Where(sq.Lt{schema.ColTimestamp: before}).ToSql()
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -88,9 +89,9 @@ func (pgd *pgDatastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
 
 	return pgd.batchDelete(
 		ctx,
-		tableTuple,
+		schema.TableTuple,
 		gcPKCols,
-		sq.Lt{colExpiration: now.Add(-1 * pgd.gcWindow)},
+		sq.Lt{schema.ColExpiration: now.Add(-1 * pgd.gcWindow)},
 	)
 }
 
@@ -103,9 +104,9 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	// Delete any relationship rows that were already dead when this transaction started
 	removed.Relationships, err = pgd.batchDelete(
 		ctx,
-		tableTuple,
+		schema.TableTuple,
 		gcPKCols,
-		sq.Lt{colDeletedXid: minTxAlive},
+		sq.Lt{schema.ColDeletedXid: minTxAlive},
 	)
 	if err != nil {
 		return removed, fmt.Errorf("failed to GC relationships table: %w", err)
@@ -117,9 +118,9 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	// one transaction present.
 	removed.Transactions, err = pgd.batchDelete(
 		ctx,
-		tableTransaction,
+		schema.TableTransaction,
 		gcPKCols,
-		sq.Lt{colXID: minTxAlive},
+		sq.Lt{schema.ColXID: minTxAlive},
 	)
 	if err != nil {
 		return removed, fmt.Errorf("failed to GC transactions table: %w", err)
@@ -128,9 +129,9 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
 	removed.Namespaces, err = pgd.batchDelete(
 		ctx,
-		tableNamespace,
+		schema.TableNamespace,
 		gcPKCols,
-		sq.Lt{colDeletedXid: minTxAlive},
+		sq.Lt{schema.ColDeletedXid: minTxAlive},
 	)
 	if err != nil {
 		return removed, fmt.Errorf("failed to GC namespaces table: %w", err)

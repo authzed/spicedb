@@ -10,7 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	"github.com/authzed/spicedb/pkg/schema"
+	typedschema "github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 
 	sq "github.com/Masterminds/squirrel"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -35,48 +36,48 @@ const (
 )
 
 var (
-	writeNamespace = psql.Insert(tableNamespace).Columns(
-		colNamespace,
-		colConfig,
+	writeNamespace = psql.Insert(schema.TableNamespace).Columns(
+		schema.ColNamespace,
+		schema.ColConfig,
 	)
 
-	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	deleteNamespace = psql.Update(schema.TableNamespace).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 
-	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	deleteNamespaceTuples = psql.Update(schema.TableTuple).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 
-	writeTuple = psql.Insert(tableTuple).Columns(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-		colExpiration,
+	writeTuple = psql.Insert(schema.TableTuple).Columns(
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContext,
+		schema.ColExpiration,
 	)
 
-	deleteTuple     = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	deleteTuple     = psql.Update(schema.TableTuple).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 	selectForDelete = psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCreatedXid,
-	).From(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColCreatedXid,
+	).From(schema.TableTuple).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 
-	writeRelationshipCounter = psql.Insert(tableRelationshipCounter).Columns(
-		colCounterName,
-		colCounterFilter,
-		colCounterCurrentCount,
-		colCounterSnapshot,
+	writeRelationshipCounter = psql.Insert(schema.TableRelationshipCounter).Columns(
+		schema.ColCounterName,
+		schema.ColCounterFilter,
+		schema.ColCounterCurrentCount,
+		schema.ColCounterSnapshot,
 	)
 
-	updateRelationshipCounter = psql.Update(tableRelationshipCounter).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	updateRelationshipCounter = psql.Update(schema.TableRelationshipCounter).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 
-	deleteRelationshipCounter = psql.Update(tableRelationshipCounter).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	deleteRelationshipCounter = psql.Update(schema.TableRelationshipCounter).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 )
 
 type pgReadWriteTXN struct {
@@ -101,7 +102,7 @@ func appendForInsertion(builder sq.InsertBuilder, tpl tuple.Relationship) sq.Ins
 		tpl.Subject.ObjectID,
 		tpl.Subject.Relation,
 		caveatName,
-		caveatContext, // PGX driver serializes map[string]any to JSONB type columns,
+		caveatContext, // PGX driver serializes map[string]any to JSONB columns,
 		tpl.OptionalExpiration,
 	}
 
@@ -149,7 +150,7 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 			continue
 		}
 
-		vts, err := schema.NewDefinition(schema.NewTypeSystem(schema.ResolverForDatastoreReader(rwt)), nsDef)
+		vts, err := typedschema.NewDefinition(typedschema.NewTypeSystem(typedschema.ResolverForDatastoreReader(rwt)), nsDef)
 		if err != nil {
 			return nil, handleWriteError(err)
 		}
@@ -227,12 +228,12 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 	// that the operations over existing relationships no-op.
 	if len(touchMutationsByNonCaveat) > 0 {
 		touchInserts = touchInserts.Suffix(fmt.Sprintf("ON CONFLICT DO NOTHING RETURNING %s, %s, %s, %s, %s, %s",
-			colNamespace,
-			colObjectID,
-			colRelation,
-			colUsersetNamespace,
-			colUsersetObjectID,
-			colUsersetRelation,
+			schema.ColNamespace,
+			schema.ColObjectID,
+			schema.ColRelation,
+			schema.ColUsersetNamespace,
+			schema.ColUsersetObjectID,
+			schema.ColUsersetRelation,
 		))
 
 		sql, args, err := touchInserts.ToSql()
@@ -320,16 +321,16 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 	builder := deleteTuple.
 		Where(deleteClauses).
 		Suffix(fmt.Sprintf("RETURNING %s, %s, %s, %s, %s, %s",
-			colNamespace,
-			colObjectID,
-			colRelation,
-			colUsersetNamespace,
-			colUsersetObjectID,
-			colUsersetRelation,
+			schema.ColNamespace,
+			schema.ColObjectID,
+			schema.ColRelation,
+			schema.ColUsersetNamespace,
+			schema.ColUsersetObjectID,
+			schema.ColUsersetRelation,
 		))
 
 	sql, args, err := builder.
-		Set(colDeletedXid, rwt.newXID).
+		Set(schema.ColDeletedXid, rwt.newXID).
 		ToSql()
 	if err != nil {
 		return handleWriteError(err)
@@ -440,30 +441,30 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 	query := selectForDelete
 
 	if filter.ResourceType != "" {
-		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+		query = query.Where(sq.Eq{schema.ColNamespace: filter.ResourceType})
 	}
 	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+		query = query.Where(sq.Eq{schema.ColObjectID: filter.OptionalResourceId})
 	}
 	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+		query = query.Where(sq.Eq{schema.ColRelation: filter.OptionalRelation})
 	}
 	if filter.OptionalResourceIdPrefix != "" {
 		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
 			return 0, false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
 		}
 
-		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
+		query = query.Where(sq.Like{schema.ColObjectID: filter.OptionalResourceIdPrefix + "%"})
 	}
 
 	// Add clauses for the SubjectFilter
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.SubjectType})
 		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.OptionalSubjectId})
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+			query = query.Where(sq.Eq{schema.ColUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
 		}
 	}
 
@@ -480,16 +481,16 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 	cteSQL := fmt.Sprintf(
 		"WITH found_tuples AS (%s)\nUPDATE %s SET %s = $%d WHERE (%s, %s, %s, %s, %s, %s, %s) IN (select * from found_tuples)",
 		selectSQL,
-		tableTuple,
-		colDeletedXid,
+		schema.TableTuple,
+		schema.ColDeletedXid,
 		len(args),
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCreatedXid,
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColCreatedXid,
 	)
 
 	result, err := rwt.tx.Exec(ctx, cteSQL, args...)
@@ -509,34 +510,34 @@ func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.R
 	// Add clauses for the ResourceFilter
 	query := deleteTuple
 	if filter.ResourceType != "" {
-		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+		query = query.Where(sq.Eq{schema.ColNamespace: filter.ResourceType})
 	}
 	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+		query = query.Where(sq.Eq{schema.ColObjectID: filter.OptionalResourceId})
 	}
 	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+		query = query.Where(sq.Eq{schema.ColRelation: filter.OptionalRelation})
 	}
 	if filter.OptionalResourceIdPrefix != "" {
 		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
 			return 0, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
 		}
 
-		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
+		query = query.Where(sq.Like{schema.ColObjectID: filter.OptionalResourceIdPrefix + "%"})
 	}
 
 	// Add clauses for the SubjectFilter
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.SubjectType})
 		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.OptionalSubjectId})
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+			query = query.Where(sq.Eq{schema.ColUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
 		}
 	}
 
-	sql, args, err := query.Set(colDeletedXid, rwt.newXID).ToSql()
+	sql, args, err := query.Set(schema.ColDeletedXid, rwt.newXID).ToSql()
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -564,7 +565,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}
 
-		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.Name})
+		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{schema.ColNamespace: newNamespace.Name})
 
 		valuesToWrite := []interface{}{newNamespace.Name, serialized}
 
@@ -572,7 +573,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 	}
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedXid, rwt.newXID).
+		Set(schema.ColDeletedXid, rwt.newXID).
 		Where(deletedNamespaceClause).
 		ToSql()
 	if err != nil {
@@ -598,7 +599,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 
 func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	aliveFilter := func(original sq.SelectBuilder) sq.SelectBuilder {
-		return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+		return original.Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 	}
 
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
@@ -611,8 +612,8 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 			return err
 
 		case err == nil:
-			nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName})
-			tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
+			nsClauses = append(nsClauses, sq.Eq{schema.ColNamespace: nsName})
+			tplClauses = append(tplClauses, sq.Eq{schema.ColNamespace: nsName})
 
 		default:
 			return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -620,7 +621,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 	}
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedXid, rwt.newXID).
+		Set(schema.ColDeletedXid, rwt.newXID).
 		Where(sq.Or(nsClauses)).
 		ToSql()
 	if err != nil {
@@ -633,7 +634,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 	}
 
 	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
-		Set(colDeletedXid, rwt.newXID).
+		Set(schema.ColDeletedXid, rwt.newXID).
 		Where(sq.Or(tplClauses)).
 		ToSql()
 	if err != nil {
@@ -695,10 +696,10 @@ func (rwt *pgReadWriteTXN) UnregisterCounter(ctx context.Context, name string) e
 		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
-	deleteQuery := deleteRelationshipCounter.Where(sq.Eq{colCounterName: name})
+	deleteQuery := deleteRelationshipCounter.Where(sq.Eq{schema.ColCounterName: name})
 
 	delSQL, delArgs, err := deleteQuery.
-		Set(colDeletedXid, rwt.newXID).
+		Set(schema.ColDeletedXid, rwt.newXID).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -727,11 +728,11 @@ func (rwt *pgReadWriteTXN) StoreCounterValue(ctx context.Context, name string, v
 
 	// Update the counter.
 	updateQuery := updateRelationshipCounter.
-		Set(colCounterCurrentCount, value).
-		Set(colCounterSnapshot, computedAtRevisionSnapshot)
+		Set(schema.ColCounterCurrentCount, value).
+		Set(schema.ColCounterSnapshot, computedAtRevisionSnapshot)
 
 	sql, args, err := updateQuery.
-		Where(sq.Eq{colCounterName: name}).
+		Where(sq.Eq{schema.ColCounterName: name}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToWriteRelationshipsCounter, err)
@@ -745,29 +746,29 @@ func (rwt *pgReadWriteTXN) StoreCounterValue(ctx context.Context, name string, v
 }
 
 var copyCols = []string{
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatContextName,
-	colCaveatContext,
-	colExpiration,
+	schema.ColNamespace,
+	schema.ColObjectID,
+	schema.ColRelation,
+	schema.ColUsersetNamespace,
+	schema.ColUsersetObjectID,
+	schema.ColUsersetRelation,
+	schema.ColCaveatContextName,
+	schema.ColCaveatContext,
+	schema.ColExpiration,
 }
 
 func (rwt *pgReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
-	return pgxcommon.BulkLoad(ctx, rwt.tx, tableTuple, copyCols, iter)
+	return pgxcommon.BulkLoad(ctx, rwt.tx, schema.TableTuple, copyCols, iter)
 }
 
 func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.Resource.ObjectType,
-		colObjectID:         r.Resource.ObjectID,
-		colRelation:         r.Resource.Relation,
-		colUsersetNamespace: r.Subject.ObjectType,
-		colUsersetObjectID:  r.Subject.ObjectID,
-		colUsersetRelation:  r.Subject.Relation,
+		schema.ColNamespace:        r.Resource.ObjectType,
+		schema.ColObjectID:         r.Resource.ObjectID,
+		schema.ColRelation:         r.Resource.Relation,
+		schema.ColUsersetNamespace: r.Subject.ObjectType,
+		schema.ColUsersetObjectID:  r.Subject.ObjectID,
+		schema.ColUsersetRelation:  r.Subject.Relation,
 	}
 }
 
@@ -782,18 +783,18 @@ func exactRelationshipDifferentCaveatAndExpirationClause(r tuple.Relationship) s
 	expiration := r.OptionalExpiration
 	return sq.And{
 		sq.Eq{
-			colNamespace:        r.Resource.ObjectType,
-			colObjectID:         r.Resource.ObjectID,
-			colRelation:         r.Resource.Relation,
-			colUsersetNamespace: r.Subject.ObjectType,
-			colUsersetObjectID:  r.Subject.ObjectID,
-			colUsersetRelation:  r.Subject.Relation,
+			schema.ColNamespace:        r.Resource.ObjectType,
+			schema.ColObjectID:         r.Resource.ObjectID,
+			schema.ColRelation:         r.Resource.Relation,
+			schema.ColUsersetNamespace: r.Subject.ObjectType,
+			schema.ColUsersetObjectID:  r.Subject.ObjectID,
+			schema.ColUsersetRelation:  r.Subject.Relation,
 		},
 		sq.Or{
-			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, colCaveatContextName), caveatName),
-			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, colExpiration), expiration),
+			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, schema.ColCaveatContextName), caveatName),
+			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, schema.ColExpiration), expiration),
 			sq.NotEq{
-				colCaveatContext: caveatContext,
+				schema.ColCaveatContext: caveatContext,
 			},
 		},
 	}

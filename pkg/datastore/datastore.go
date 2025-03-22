@@ -698,6 +698,30 @@ type Datastore interface {
 	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
 }
 
+// ParsedExplain represents the parsed output of an EXPLAIN statement.
+type ParsedExplain struct {
+	// IndexesUsed is the list of indexes used in the query.
+	IndexesUsed []string
+}
+
+// Explainable is an interface for datastores that support EXPLAIN statements.
+type Explainable interface {
+	// BuildExplainQuery builds an EXPLAIN statement for the given SQL and arguments.
+	BuildExplainQuery(sql string, args []any) (string, []any, error)
+
+	// ParseExplain parses the output of an EXPLAIN statement.
+	ParseExplain(explain string) (ParsedExplain, error)
+
+	// PreExplainStatements returns any statements that should be run before the EXPLAIN statement.
+	PreExplainStatements() []string
+}
+
+// SQLDatastore is an interface for datastores that support SQL-based operations.
+type SQLDatastore interface {
+	Datastore
+	Explainable
+}
+
 // StrictReadDatastore is an interface for datastores that support strict read mode.
 type StrictReadDatastore interface {
 	Datastore

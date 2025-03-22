@@ -17,6 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -126,13 +127,13 @@ func (cds *crdbDatastore) watch(
 	defer func() { _ = conn.Close(ctx) }()
 
 	tableNames := make([]string, 0, 4)
-	tableNames = append(tableNames, tableTransactionMetadata)
+	tableNames = append(tableNames, schema.TableTransactionMetadata)
 	if opts.Content&datastore.WatchRelationships == datastore.WatchRelationships {
 		tableNames = append(tableNames, cds.schema.RelationshipTableName)
 	}
 	if opts.Content&datastore.WatchSchema == datastore.WatchSchema {
-		tableNames = append(tableNames, tableNamespace)
-		tableNames = append(tableNames, tableCaveat)
+		tableNames = append(tableNames, schema.TableNamespace)
+		tableNames = append(tableNames, schema.TableCaveat)
 	}
 
 	if len(tableNames) == 0 {
@@ -515,7 +516,7 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 				}
 			}
 
-		case tableNamespace:
+		case schema.TableNamespace:
 			if len(pkValues) != 1 {
 				sendError(spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON)))
 				return
@@ -554,7 +555,7 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 				}
 			}
 
-		case tableCaveat:
+		case schema.TableCaveat:
 			if len(pkValues) != 1 {
 				sendError(spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON)))
 				return
@@ -594,7 +595,7 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 				}
 			}
 
-		case tableTransactionMetadata:
+		case schema.TableTransactionMetadata:
 			if details.After != nil {
 				rev, err := revisions.HLCRevisionFromString(details.Updated)
 				if err != nil {
