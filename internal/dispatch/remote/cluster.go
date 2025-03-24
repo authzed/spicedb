@@ -14,15 +14,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.uber.org/atomic"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -130,7 +136,16 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		secondaryDispatch:               secondaryDispatch,
 		secondaryDispatchExprs:          secondaryDispatchExprs,
 		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
+		supportedResourceSubjectTracker: newSupportedResourceSubjectTracker(),
 	}, nil
+}
+
+func newSupportedResourceSubjectTracker() *supportedResourceSubjectTracker {
+	return &supportedResourceSubjectTracker{
+		unsupportedResources: mapz.NewSet[tuple.RelationReference](),
+		unsupportedSubjects:  mapz.NewSet[tuple.RelationReference](),
+		lock:                 sync.RWMutex{},
+	}
 }
 
 type clusterDispatcher struct {
@@ -142,6 +157,7 @@ type clusterDispatcher struct {
 	secondaryDispatch               map[string]SecondaryDispatch
 	secondaryDispatchExprs          map[string]*DispatchExpr
 	secondaryInitialResponseDigests map[string]*digestAndLock
+	supportedResourceSubjectTracker *supportedResourceSubjectTracker
 }
 
 // digestAndLock is a struct that holds a TDigest and a lock to protect it.
@@ -188,15 +204,22 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 	ctx = context.WithValue(ctx, consistent.CtxKey, requestKey)
 
-	resp, err := dispatchSyncRequest(ctx, cr, "check", req, func(ctx context.Context, client ClusterClient) (*v1.DispatchCheckResponse, error) {
-		resp, err := client.DispatchCheck(ctx, req)
-		if err != nil {
-			return resp, err
-		}
+	resp, err := dispatchSyncRequest(
+		ctx,
+		cr,
+		"check",
+		req,
+		tuple.FromCoreRelationReference(req.ResourceRelation),
+		tuple.RR(req.Subject.Namespace, req.Subject.Relation),
+		func(ctx context.Context, client ClusterClient) (*v1.DispatchCheckResponse, error) {
+			resp, err := client.DispatchCheck(ctx, req)
+			if err != nil {
+				return resp, err
+			}
 
-		err = adjustMetadataForDispatch(resp.Metadata)
-		return resp, err
-	})
+			err = adjustMetadataForDispatch(resp.Metadata)
+			return resp, err
+		})
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
 	}
@@ -216,6 +239,13 @@ type responseMessage interface {
 	GetMetadata() *v1.ResponseMeta
 }
 
+type streamingRequestMessage interface {
+	requestMessage
+
+	GetResourceRelation() *corev1.RelationReference
+	GetSubjectRelation() *corev1.RelationReference
+}
+
 type respTuple[S responseMessage] struct {
 	resp S
 	err  error
@@ -226,7 +256,15 @@ type secondaryRespTuple[S responseMessage] struct {
 	resp        S
 }
 
-func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Context, cr *clusterDispatcher, reqKey string, req Q, handler func(context.Context, ClusterClient) (S, error)) (S, error) {
+func dispatchSyncRequest[Q requestMessage, S responseMessage](
+	ctx context.Context,
+	cr *clusterDispatcher,
+	reqKey string,
+	req Q,
+	resourceTypeAndRelation tuple.RelationReference,
+	subjectTypeAndRelation tuple.RelationReference,
+	handler func(context.Context, ClusterClient) (S, error),
+) (S, error) {
 	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 	defer cancelFn()
 
@@ -248,9 +286,11 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 	go func() {
 		// Have the main dispatch wait some time before returning, to allow the secondaries to
 		// potentially return first.
-		computedWait := cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
+		computedWait := cr.getPrimaryWaitTime(reqKey, resourceTypeAndRelation, subjectTypeAndRelation)
 		log.Trace().Stringer("computed-wait", computedWait).Msg("primary dispatch started; sleeping for computed wait time")
-		time.Sleep(computedWait)
+		if computedWait > 0 {
+			time.Sleep(computedWait)
+		}
 
 		log.Trace().Msg("running primary dispatch after wait")
 		select {
@@ -296,10 +336,12 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 						// For secondary dispatches, ignore any errors, as only the primary will be handled in
 						// that scenario.
 						log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
+						cr.supportedResourceSubjectTracker.updateForError(err)
 						return
 					}
 
 					log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Msg("secondary dispatch completed")
+					go cr.supportedResourceSubjectTracker.updateForSuccess(resourceTypeAndRelation, subjectTypeAndRelation)
 					cr.secondaryInitialResponseDigests[reqKey].addResultTime(handlerDuration)
 					secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
 				}
@@ -397,7 +439,7 @@ type ctxAndCancel struct {
 // secondary dispatchers. Unlike the non-streaming version, this will first attempt to dispatch
 // from the allowed secondary dispatchers before falling back to the primary, rather than running
 // them in parallel.
-func dispatchStreamingRequest[Q requestMessage, R responseMessage](
+func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 	ctx context.Context,
 	cr *clusterDispatcher,
 	reqKey string,
@@ -495,9 +537,14 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 		isPrimary := name == primaryDispatcher
 		if isPrimary {
 			// Have the primary wait a bit to ensure the secondaries have a chance to return first.
-			computedWait := cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
-			time.Sleep(computedWait)
-			hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
+			computedWait := cr.getPrimaryWaitTime(reqKey,
+				tuple.FromCoreRelationReference(req.GetResourceRelation()),
+				tuple.FromCoreRelationReference(req.GetSubjectRelation()),
+			)
+			if computedWait > 0 {
+				time.Sleep(computedWait)
+				hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
+			}
 		} else {
 			startTime = time.Now()
 		}
@@ -521,6 +568,10 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 			primaryDispatch.WithLabelValues("false", reqKey).Inc()
 		}
 		if err != nil {
+			if !isPrimary {
+				cr.supportedResourceSubjectTracker.updateForError(err)
+			}
+
 			log.Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
 			errorsLock.Lock()
 			errorsByDispatcherName[name] = err
@@ -549,6 +600,10 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 						finishTime := time.Now()
 						duration := finishTime.Sub(startTime)
 						cr.secondaryInitialResponseDigests[reqKey].addResultTime(duration)
+						go cr.supportedResourceSubjectTracker.updateForSuccess(
+							tuple.FromCoreRelationReference(req.GetResourceRelation()),
+							tuple.FromCoreRelationReference(req.GetSubjectRelation()),
+						)
 					}
 
 					// If a valid result, and we have not yet returned any results, try take a "lock" on
@@ -576,6 +631,10 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 				}
 
 				if err != nil {
+					if !isPrimary {
+						cr.supportedResourceSubjectTracker.updateForError(err)
+					}
+
 					errorsLock.Lock()
 					errorsByDispatcherName[name] = err
 					errorsLock.Unlock()
@@ -725,6 +784,118 @@ func (cr *clusterDispatcher) ReadyState() dispatch.ReadyState {
 	return dispatch.ReadyState{
 		IsReady: state == connectivity.Ready || state == connectivity.Idle,
 		Message: fmt.Sprintf("found expected state when trying to connect to cluster: %v", state),
+	}
+}
+
+// getPrimaryWaitTime returns the wait time for the primary dispatch, based on the request key and the
+// resource and subject types and relations. If the resource or subject is unsupported, the wait time
+// will be zero.
+func (cr *clusterDispatcher) getPrimaryWaitTime(
+	reqKey string,
+	resourceTypeAndRelation tuple.RelationReference,
+	subjectTypeAndRelation tuple.RelationReference,
+) time.Duration {
+	// If the resource or subject is unsupported, return zero time.
+	if cr.supportedResourceSubjectTracker.isUnsupported(
+		resourceTypeAndRelation,
+		subjectTypeAndRelation,
+	) {
+		return 0
+	}
+
+	return cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
+}
+
+// supportedResourceSubjectTracker is a struct that tracks the resources and subjects that are
+// unsupported by the secondary dispatcher(s). If a resource or subject is unsupported, the primary
+// dispatcher will not wait for the secondary dispatchers to return results, as it is extremely
+// likely that hedging will not be beneficial.
+type supportedResourceSubjectTracker struct {
+	unsupportedResources *mapz.Set[tuple.RelationReference]
+	unsupportedSubjects  *mapz.Set[tuple.RelationReference]
+
+	lock sync.RWMutex
+}
+
+// isUnsupported returns whether the resource or subject is unsupported by the secondary dispatcher(s).
+func (srst *supportedResourceSubjectTracker) isUnsupported(
+	resourceTypeAndRelation tuple.RelationReference,
+	subjectTypeAndRelation tuple.RelationReference,
+) bool {
+	if !srst.lock.TryRLock() {
+		// If we can't get a read lock, assume the resource or subject is unsupported to avoid
+		// injecting a delay. This will cause a bit more load on the primary dispatcher, but it's
+		// a tradeoff on injecting delay into every request.
+		return true
+	}
+
+	defer srst.lock.RUnlock()
+	return srst.unsupportedResources.Has(resourceTypeAndRelation) || srst.unsupportedSubjects.Has(subjectTypeAndRelation)
+}
+
+// updateForSuccess updates the tracker for a successful dispatch, removing the resource and subject
+// from the unsupported set.
+func (srst *supportedResourceSubjectTracker) updateForSuccess(
+	resourceTypeAndRelation tuple.RelationReference,
+	subjectTypeAndRelation tuple.RelationReference,
+) {
+	// Check if the resource or subject is unsupported first, to avoid taking the write lock
+	// unless necessary.
+	if !srst.isUnsupported(resourceTypeAndRelation, subjectTypeAndRelation) {
+		return
+	}
+
+	srst.lock.Lock()
+	defer srst.lock.Unlock()
+
+	srst.unsupportedResources.Delete(resourceTypeAndRelation)
+	srst.unsupportedSubjects.Delete(subjectTypeAndRelation)
+}
+
+// updateForError updates the tracker for an error, adding the resource or subject to the unsupported set
+// if the error indicates that the resource or subject is unsupported.
+func (srst *supportedResourceSubjectTracker) updateForError(err error) {
+	// Check for a FAILED_PRECONDITION with error details that indicate an unsupported
+	// resource or subject.
+	st, ok := status.FromError(err)
+	if !ok {
+		return
+	}
+
+	if st.Code() != codes.FailedPrecondition {
+		return
+	}
+
+	for _, detail := range st.Details() {
+		errDetail, ok := detail.(*errdetails.ErrorInfo)
+		if !ok {
+			continue
+		}
+
+		// If the error is an unsupported resource or subject, add it to the tracker.
+		if errDetail.Reason == "UNSUPPORTED_RESOURCE_RELATION" {
+			definitionName := errDetail.Metadata["definition_name"]
+			relationName := errDetail.Metadata["relation_name"]
+			rr := tuple.RR(definitionName, relationName)
+
+			if !srst.isUnsupported(rr, tuple.RelationReference{}) {
+				srst.lock.Lock()
+				srst.unsupportedResources.Add(rr)
+				srst.lock.Unlock()
+			}
+		}
+
+		if errDetail.Reason == "UNSUPPORTED_SUBJECT_RELATION" {
+			definitionName := errDetail.Metadata["definition_name"]
+			relationName := errDetail.Metadata["relation_name"]
+			rr := tuple.RR(definitionName, relationName)
+
+			if !srst.isUnsupported(tuple.RelationReference{}, rr) {
+				srst.lock.Lock()
+				srst.unsupportedSubjects.Add(rr)
+				srst.lock.Unlock()
+			}
+		}
 	}
 }
 

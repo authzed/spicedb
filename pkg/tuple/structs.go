@@ -179,6 +179,14 @@ func (rr RelationReference) ToCoreRR() *core.RelationReference {
 	}
 }
 
+func (rr RelationReference) RefString() string {
+	return JoinRelRef(rr.ObjectType, rr.Relation)
+}
+
+func (rr RelationReference) String() string {
+	return rr.RefString()
+}
+
 // ONR creates an ObjectAndRelation.
 func ONR(namespace, objectID, relation string) ObjectAndRelation {
 	spiceerrors.DebugAssert(func() bool {
