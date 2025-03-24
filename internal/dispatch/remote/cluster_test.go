@@ -12,6 +12,7 @@ import (
 	"github.com/ccoveille/go-safecast"
 	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,6 +24,8 @@ import (
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type fakeDispatchSvc struct {
@@ -34,6 +37,7 @@ type fakeDispatchSvc struct {
 	dispatchCount uint32
 	errorOnLR2    error
 	errorOnLS     error
+	errorOnCheck  error
 	raisePanic    bool
 }
 
@@ -52,6 +56,14 @@ func (fds *fakeDispatchSvc) DispatchCheck(ctx context.Context, _ *v1.DispatchChe
 		if fds.raisePanic {
 			panic("panic raised")
 		}
+	}
+
+	if fds.errorOnCheck != nil {
+		return &v1.DispatchCheckResponse{
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: 0,
+			},
+		}, fds.errorOnCheck
 	}
 
 	return &v1.DispatchCheckResponse{
@@ -845,6 +857,50 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 	require.GreaterOrEqual(t, cast.secondaryInitialResponseDigests["lookupsubjects"].digest.Quantile(0.99), float64(3))
 }
 
+func TestGetPrimaryWaitTime(t *testing.T) {
+	conn := connectionForDispatching(t, &fakeDispatchSvc{resultCount: 10, dispatchCount: 1, sleepTime: 3 * time.Millisecond})
+	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{resultCount: 2, dispatchCount: 2, sleepTime: 3 * time.Millisecond})
+
+	parsed, err := ParseDispatchExpression("check", "['secondary']")
+	require.NoError(t, err)
+
+	d, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, map[string]SecondaryDispatch{
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
+	}, map[string]*DispatchExpr{
+		"check": parsed,
+	}, 0*time.Second)
+	require.NoError(t, err)
+	require.True(t, d.ReadyState().IsReady)
+
+	dispatcher := d.(*clusterDispatcher)
+
+	// Add a bunch of times to the secondary.
+	for i := 0; i < 100; i++ {
+		dispatcher.secondaryInitialResponseDigests["check"].addResultTime(2 * time.Millisecond)
+	}
+
+	// Ensure the primary wait time is ~=2ms.
+	require.GreaterOrEqual(t, dispatcher.getPrimaryWaitTime("check", tuple.RR("document", "viewer"), tuple.RR("user", "...")), 2*time.Millisecond)
+
+	// Mark document#viewer as unsupported.
+	dispatcher.supportedResourceSubjectTracker.updateForError(testResourceRelationError{fmt.Errorf("foo"), "document", "viewer"})
+
+	// Ensure the primary wait time for document#viewer is now 0ms.
+	require.Equal(t, 0*time.Millisecond, dispatcher.getPrimaryWaitTime("check", tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+
+	// Ensure the primary wait time for document#editor is still ~=2ms.
+	require.GreaterOrEqual(t, dispatcher.getPrimaryWaitTime("check", tuple.RR("document", "editor"), tuple.RR("user", "...")), 2*time.Millisecond)
+
+	// Mark document#viewer as supported again.
+	dispatcher.supportedResourceSubjectTracker.updateForSuccess(tuple.RR("document", "viewer"), tuple.RR("user", "..."))
+
+	// Ensure the primary wait time for document#viewer is now ~=2ms.
+	require.GreaterOrEqual(t, dispatcher.getPrimaryWaitTime("check", tuple.RR("document", "viewer"), tuple.RR("user", "...")), 2*time.Millisecond)
+}
+
 func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.ClientConn {
 	listener := bufconn.Listen(humanize.MiByte)
 	s := grpc.NewServer()
@@ -873,6 +929,177 @@ func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.
 	})
 
 	return conn
+}
+
+func TestSupportedResourceSubjectTracker(t *testing.T) {
+	tracker := newSupportedResourceSubjectTracker()
+
+	// Ensure nothing is unsupported.
+	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+
+	// Add a random error, which should change nothing.
+	tracker.updateForError(fmt.Errorf("some random error"))
+
+	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+
+	// Add an unsupported resource, which should be marked as such.
+	unsupportedResourceError := testResourceRelationError{fmt.Errorf("foo"), "document", "viewer"}
+	tracker.updateForError(unsupportedResourceError)
+
+	require.True(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+
+	// Mark the resource as supported, which should remove the error.
+	tracker.updateForSuccess(tuple.RR("document", "viewer"), tuple.RR("user", "..."))
+
+	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+
+	// Mark a subject as unsupported, which should be marked as such.
+	unsupportedSubjectError := testSubjectRelationError{fmt.Errorf("foo"), "user", "..."}
+	tracker.updateForError(unsupportedSubjectError)
+
+	require.True(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+
+	// Mark another resource as unsupported, which should be marked as such.
+	unsupportedResourceError2 := testResourceRelationError{fmt.Errorf("foo"), "document", "editor"}
+	tracker.updateForError(unsupportedResourceError2)
+
+	require.True(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+	require.True(t, tracker.isUnsupported(tuple.RR("document", "editor"), tuple.RR("user", "...")))
+	require.True(t, tracker.isUnsupported(tuple.RR("document", "editor"), tuple.RR("user2", "...")))
+	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user2", "...")))
+
+	// Mark the subject as supported, which should remove the error.
+	tracker.updateForSuccess(tuple.RR("document", "viewer"), tuple.RR("user", "..."))
+
+	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+	require.True(t, tracker.isUnsupported(tuple.RR("document", "editor"), tuple.RR("user", "...")))
+	require.True(t, tracker.isUnsupported(tuple.RR("document", "editor"), tuple.RR("user2", "...")))
+	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user2", "...")))
+}
+
+func TestSupportedResourceSubjectTrackerParallelUpdates(t *testing.T) {
+	tracker := newSupportedResourceSubjectTracker()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 100; i++ {
+			tracker.updateForError(testResourceRelationError{fmt.Errorf("foo"), "document", "viewer"})
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 100; i++ {
+			tracker.updateForSuccess(tuple.RR("document", "editor"), tuple.RR("user", "..."))
+		}
+	}()
+
+	wg.Wait()
+
+	require.True(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
+	require.False(t, tracker.isUnsupported(tuple.RR("document", "editor"), tuple.RR("user", "...")))
+}
+
+func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
+	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 1 * time.Millisecond})
+	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 0 * time.Millisecond, errorOnCheck: testResourceRelationError{
+		fmt.Errorf("foo"), "sometype", "somerel",
+	}})
+
+	parsed, err := ParseDispatchExpression("check", "['secondary']")
+	require.NoError(t, err)
+
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, map[string]SecondaryDispatch{
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
+	}, map[string]*DispatchExpr{
+		"check": parsed,
+	}, 25*time.Millisecond) // NOTE: We use 25ms to reduce the risk of flakiness
+	require.NoError(t, err)
+	require.True(t, dispatcher.ReadyState().IsReady)
+
+	// Dispatch the check, which should (since it is the first request) add a delay of ~25ms to
+	// the primary, but fallback to the primary on the error.
+	startTime := time.Now()
+	resp, err := dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
+		ResourceIds:      []string{"foo"},
+		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
+		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+	})
+	endTime := time.Now()
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
+	require.GreaterOrEqual(t, endTime.Sub(startTime), 25*time.Millisecond)
+
+	// Ensure the resource relation was marked as unsupported.
+	cast := dispatcher.(*clusterDispatcher)
+	require.True(t, cast.supportedResourceSubjectTracker.isUnsupported(tuple.RR("sometype", "somerel"), tuple.RR("foo", "bar")))
+	require.False(t, cast.supportedResourceSubjectTracker.isUnsupported(tuple.RR("someothertype", "somerel"), tuple.RR("foo", "bar")))
+
+	// Dispatch again, which should hit the primary without any delay.
+	startTime = time.Now()
+	resp, err = dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
+		ResourceIds:      []string{"foo"},
+		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
+		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+	})
+	endTime = time.Now()
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
+	require.LessOrEqual(t, endTime.Sub(startTime), 25*time.Millisecond)
+}
+
+type testResourceRelationError struct {
+	error
+
+	definitionName string
+	relationName   string
+}
+
+func (err testResourceRelationError) GRPCStatus() *grpcstatus.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.FailedPrecondition,
+		&errdetails.ErrorInfo{
+			Reason: "UNSUPPORTED_RESOURCE_RELATION",
+			Domain: "somedomain",
+			Metadata: map[string]string{
+				"definition_name": err.definitionName,
+				"relation_name":   err.relationName,
+			},
+		},
+	)
+}
+
+type testSubjectRelationError struct {
+	error
+
+	definitionName string
+	relationName   string
+}
+
+func (err testSubjectRelationError) GRPCStatus() *grpcstatus.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.FailedPrecondition,
+		&errdetails.ErrorInfo{
+			Reason: "UNSUPPORTED_SUBJECT_RELATION",
+			Domain: "somedomain",
+			Metadata: map[string]string{
+				"definition_name": err.definitionName,
+				"relation_name":   err.relationName,
+			},
+		},
+	)
 }
 
 func TestDALCount(t *testing.T) {
