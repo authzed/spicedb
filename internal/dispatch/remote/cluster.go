@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/authzed/consistent"
-	"github.com/influxdata/tdigest"
+	"github.com/caio/go-tdigest/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.uber.org/atomic"
@@ -93,7 +93,7 @@ type SecondaryDispatch struct {
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
-func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) dispatch.Dispatcher {
+func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) (dispatch.Dispatcher, error) {
 	keyHandler := config.KeyHandler
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
@@ -110,8 +110,13 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 
 	secondaryInitialResponseDigests := make(map[string]*digestAndLock, len(supportsSecondaries))
 	for _, requestKey := range supportsSecondaries {
+		digest, err := tdigest.New(tdigest.Compression(defaultTDigestCompression))
+		if err != nil {
+			return nil, err
+		}
+
 		secondaryInitialResponseDigests[requestKey] = &digestAndLock{
-			digest:                      tdigest.NewWithCompression(defaultTDigestCompression),
+			digest:                      digest,
 			startingPrimaryHedgingDelay: startingPrimaryHedgingDelay,
 			lock:                        sync.RWMutex{},
 		}
@@ -125,7 +130,7 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		secondaryDispatch:               secondaryDispatch,
 		secondaryDispatchExprs:          secondaryDispatchExprs,
 		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
-	}
+	}, nil
 }
 
 type clusterDispatcher struct {
@@ -163,8 +168,11 @@ func (dal *digestAndLock) getWaitTime() time.Duration {
 
 func (dal *digestAndLock) addResultTime(duration time.Duration) {
 	if dal.lock.TryLock() {
-		dal.digest.Add(float64(duration.Milliseconds()), 1)
+		err := dal.digest.Add(float64(duration.Milliseconds()))
 		dal.lock.Unlock()
+		if err != nil {
+			log.Warn().Err(err).Msg("error when trying to add result time to digest")
+		}
 	}
 }
 

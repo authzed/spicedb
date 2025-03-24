@@ -1507,6 +1507,8 @@ github.com/butuzov/ireturn v0.3.1 h1:mFgbEI6m+9W8oP/oDdfA34dLisRFCj2G6o/yiI1yZrY
 github.com/butuzov/ireturn v0.3.1/go.mod h1:ZfRp+E7eJLC0NQmk1Nrm1LOrn/gQlOykv+cVPdiXH5M=
 github.com/butuzov/mirror v1.3.0 h1:HdWCXzmwlQHdVhwvsfBb2Au0r3HyINry3bDWLYXiKoc=
 github.com/butuzov/mirror v1.3.0/go.mod h1:AEij0Z8YMALaq4yQj9CPPVYOyJQyiexpQEQgihajRfI=
+github.com/caio/go-tdigest/v4 v4.0.1 h1:sx4ZxjmIEcLROUPs2j1BGe2WhOtHD6VSe6NNbBdKYh4=
+github.com/caio/go-tdigest/v4 v4.0.1/go.mod h1:Wsa+f0EZnV2gShdj1adgl0tQSoXRxtM0QioTgukFw8U=
 github.com/catenacyber/perfsprint v0.8.2 h1:+o9zVmCSVa7M4MvabsWvESEhpsMkhfE7k0sHNGL95yw=
 github.com/catenacyber/perfsprint v0.8.2/go.mod h1:q//VWC2fWbcdSLEY1R3l8n0zQCDPdE4IjZwyY1HMunM=
 github.com/ccojocar/zxcvbn-go v1.0.2 h1:na/czXU8RrhXO4EZme6eQJLR4PzcGsahsBOAwU6I3Vg=
@@ -2089,6 +2091,8 @@ github.com/ldez/tagliatelle v0.7.1 h1:bTgKjjc2sQcsgPiT902+aadvMjCeMHrY7ly2XKFORI
 github.com/ldez/tagliatelle v0.7.1/go.mod h1:3zjxUpsNB2aEZScWiZTHrAXOl1x25t3cRmzfK1mlo2I=
 github.com/ldez/usetesting v0.4.2 h1:J2WwbrFGk3wx4cZwSMiCQQ00kjGR0+tuuyW0Lqm4lwA=
 github.com/ldez/usetesting v0.4.2/go.mod h1:eEs46T3PpQ+9RgN9VjpY6qWdiw2/QmfiDeWmdZdrjIQ=
+github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353 h1:X/79QL0b4YJVO5+OsPH9rF2u428CIrGL/jLmPsoOQQ4=
+github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353/go.mod h1:N0SVk0uhy+E1PZ3C9ctsPRlvOPAFPkCNlcPBDkt0N3U=
 github.com/leodido/go-urn v1.2.0/go.mod h1:+8+nEpDfqqsY+g338gtMEUOtuK+4dEMhiQEgxpxOKII=
 github.com/leonklingele/grouper v1.1.2 h1:o1ARBDLOmmasUaNDesWqWCIFH3u7hoFlM84YrjT3mIY=
 github.com/leonklingele/grouper v1.1.2/go.mod h1:6D0M/HVkhs2yRKRFZUoGjeDy7EZTfFBE9gl4kjmIGkA=

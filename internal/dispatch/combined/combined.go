@@ -210,11 +210,14 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			secondaryExprs[name] = parsed
 		}
 
-		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
+		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
 		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
-		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
+		if err != nil {
+			return nil, err
+		}
+		redispatch = singleflight.New(re, &keys.CanonicalKeyHandler{})
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

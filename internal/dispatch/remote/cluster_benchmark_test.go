@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 )
 
 type fakeClusterClient struct {
@@ -51,7 +52,8 @@ func BenchmarkSecondaryDispatching(b *testing.B) {
 		"check": parsed,
 	}
 
-	dispatcher := NewClusterDispatcher(client, nil, config, secondaryDispatch, secondaryDispatchExprs, 0*time.Second)
+	dispatcher, err := NewClusterDispatcher(client, nil, config, secondaryDispatch, secondaryDispatchExprs, 0*time.Second)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 

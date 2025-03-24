@@ -122,7 +122,10 @@ require (
 	sigs.k8s.io/controller-runtime v0.20.2
 )
 
-require k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
+require (
+	github.com/caio/go-tdigest/v4 v4.0.1
+	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
+)
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
