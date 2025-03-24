@@ -54,7 +54,7 @@ var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
-const defaultStartingPrimaryHedgingDelay = 5 * time.Millisecond
+const defaultStartingPrimaryHedgingDelay = 3 * time.Millisecond
 
 // defaultHedgerQuantile is the default quantile used to determine the hedging delay for primary calls.
 const defaultHedgerQuantile = 0.95
