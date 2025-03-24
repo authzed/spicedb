@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caio/go-tdigest/v4"
+	"github.com/ccoveille/go-safecast"
 	"github.com/dustin/go-humanize"
-	"github.com/influxdata/tdigest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -33,10 +34,26 @@ type fakeDispatchSvc struct {
 	dispatchCount uint32
 	errorOnLR2    error
 	errorOnLS     error
+	raisePanic    bool
 }
 
-func (fds *fakeDispatchSvc) DispatchCheck(context.Context, *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (fds *fakeDispatchSvc) DispatchCheck(ctx context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	time.Sleep(fds.sleepTime)
+
+	select {
+	case <-ctx.Done():
+		return &v1.DispatchCheckResponse{
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: 0,
+			},
+		}, ctx.Err()
+
+	default:
+		if fds.raisePanic {
+			panic("panic raised")
+		}
+	}
+
 	return &v1.DispatchCheckResponse{
 		Metadata: &v1.ResponseMeta{
 			DispatchCount: fds.dispatchCount,
@@ -148,10 +165,11 @@ func TestDispatchTimeout(t *testing.T) {
 			})
 
 			// Configure a dispatcher with a very low timeout.
-			dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+			dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: tc.timeout,
-			}, nil, nil)
+			}, nil, nil, 0*time.Second)
+			require.NoError(t, err)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
 			// Invoke a dispatched "check" and ensure it times out, as the fake dispatch will wait
@@ -284,14 +302,15 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 			parsed, err := ParseDispatchExpression("check", tc.expr)
 			require.NoError(t, err)
 
-			dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+			dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: 30 * time.Second,
 			}, map[string]SecondaryDispatch{
 				"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 			}, map[string]*DispatchExpr{
 				"check": parsed,
-			})
+			}, 0*time.Second)
+			require.NoError(t, err)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
 			resp, err := dispatcher.DispatchCheck(context.Background(), tc.request)
@@ -551,7 +570,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 			parsed, err := ParseDispatchExpression("lookupresources", tc.expr)
 			require.NoError(t, err)
 
-			dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+			dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: 30 * time.Second,
 			}, map[string]SecondaryDispatch{
@@ -560,7 +579,8 @@ func TestLRSecondaryDispatch(t *testing.T) {
 				"error":     {Name: "error", Client: v1.NewDispatchServiceClient(errorConn)},
 			}, map[string]*DispatchExpr{
 				"lookupresources": parsed,
-			})
+			}, 0*time.Second)
+			require.NoError(t, err)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](context.Background())
@@ -587,14 +607,15 @@ func TestLRDispatchFallbackToPrimary(t *testing.T) {
 	parsed, err := ParseDispatchExpression("lookupresources", "['secondary']")
 	require.NoError(t, err)
 
-	dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 	}, map[string]*DispatchExpr{
 		"lookupresources": parsed,
-	})
+	}, 0*time.Second)
+	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](context.Background())
@@ -677,7 +698,7 @@ func TestLSSecondaryDispatch(t *testing.T) {
 			parsed, err := ParseDispatchExpression("lookupsubjects", tc.expr)
 			require.NoError(t, err)
 
-			dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+			dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: 30 * time.Second,
 			}, map[string]SecondaryDispatch{
@@ -686,7 +707,8 @@ func TestLSSecondaryDispatch(t *testing.T) {
 				"error":     {Name: "error", Client: v1.NewDispatchServiceClient(errorConn)},
 			}, map[string]*DispatchExpr{
 				"lookupsubjects": parsed,
-			})
+			}, 0*time.Second)
+			require.NoError(t, err)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
@@ -713,14 +735,15 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 	parsed, err := ParseDispatchExpression("lookupsubjects", "['secondary']")
 	require.NoError(t, err)
 
-	dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 	}, map[string]*DispatchExpr{
 		"lookupsubjects": parsed,
-	})
+	}, 0*time.Second)
+	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
@@ -744,20 +767,21 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 }
 
 func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
-	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 3 * time.Millisecond})
+	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 3 * time.Millisecond, raisePanic: true})
 	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 3 * time.Millisecond})
 
 	parsed, err := ParseDispatchExpression("check", "['secondary']")
 	require.NoError(t, err)
 
-	dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 	}, map[string]*DispatchExpr{
 		"check": parsed,
-	})
+	}, 0*time.Second)
+	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
 	// Dispatch the check, which should (since it is the first request) add a delay of ~5ms to
@@ -773,7 +797,7 @@ func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
 
 	// Ensure the digest for the check was updated.
 	cast := dispatcher.(*clusterDispatcher)
-	require.Equal(t, float64(1), cast.secondaryInitialResponseDigests["check"].digest.Count())
+	require.Equal(t, uint64(1), cast.secondaryInitialResponseDigests["check"].digest.Count())
 	require.GreaterOrEqual(t, cast.secondaryInitialResponseDigests["check"].digest.Quantile(0.99), float64(3))
 }
 
@@ -784,14 +808,15 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 	parsed, err := ParseDispatchExpression("lookupsubjects", "['secondary']")
 	require.NoError(t, err)
 
-	dispatcher := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn)},
 	}, map[string]*DispatchExpr{
 		"lookupsubjects": parsed,
-	})
+	}, 0*time.Second)
+	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
 	// Dispatch the lookupsubjects, which should (since it is the first request) add a delay of ~5ms to
@@ -816,7 +841,7 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 
 	// Ensure the digest for the lookupsubjects was updated.
 	cast := dispatcher.(*clusterDispatcher)
-	require.Equal(t, float64(1), cast.secondaryInitialResponseDigests["lookupsubjects"].digest.Count())
+	require.Equal(t, uint64(1), cast.secondaryInitialResponseDigests["lookupsubjects"].digest.Count())
 	require.GreaterOrEqual(t, cast.secondaryInitialResponseDigests["lookupsubjects"].digest.Quantile(0.99), float64(3))
 }
 
@@ -851,19 +876,39 @@ func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.
 }
 
 func TestDALCount(t *testing.T) {
+	digest, err := tdigest.New(tdigest.Compression(1000))
+	require.NoError(t, err)
 	dal := &digestAndLock{
-		digest: tdigest.NewWithCompression(1000),
+		digest: digest,
 		lock:   sync.RWMutex{},
 	}
 
 	for i := 0; i < minimumDigestCount-1; i++ {
+		uintValue, err := safecast.ToUint64(i + 1)
+		require.NoError(t, err)
+
 		dal.addResultTime(3 * time.Millisecond)
-		require.Equal(t, float64(i+1), dal.digest.Count())
-		require.Equal(t, startingPrimaryHedgingDelay+primaryHedgingDelayOffset, dal.getWaitTime())
+		require.Equal(t, uintValue, dal.digest.Count())
+		require.Equal(t, dal.startingPrimaryHedgingDelay, dal.getWaitTime())
 	}
 
 	// Add the next result, which pushes it over the minimum count and now uses the quantile.
 	dal.addResultTime(3 * time.Millisecond)
-	require.Equal(t, float64(minimumDigestCount), dal.digest.Count())
-	require.Equal(t, (3*time.Millisecond)+primaryHedgingDelayOffset, dal.getWaitTime())
+	require.Equal(t, uint64(minimumDigestCount), dal.digest.Count())
+	require.Equal(t, 3*time.Millisecond, dal.getWaitTime())
+}
+
+func BenchmarkDAL(b *testing.B) {
+	digest, err := tdigest.New(tdigest.Compression(1000))
+	require.NoError(b, err)
+	dal := &digestAndLock{
+		digest: digest,
+		lock:   sync.RWMutex{},
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		dal.addResultTime(time.Duration(i) * time.Millisecond)
+	}
 }

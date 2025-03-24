@@ -19,7 +19,7 @@ type DispatchExpr struct {
 	env        *cel.Env
 	registry   *types.Registry
 	methodName string
-	exprAst    *cel.Ast
+	prg        cel.Program
 }
 
 var dispatchRequestTypes = []proto.Message{
@@ -53,28 +53,27 @@ func ParseDispatchExpression(methodName string, exprString string) (*DispatchExp
 		return nil, fmt.Errorf("dispatch expression must result in a list[string] value: found `%s`", ast.OutputType().String())
 	}
 
+	runDispatchOps := make([]cel.ProgramOption, 0, 3)
+	runDispatchOps = append(runDispatchOps, cel.EvalOptions(cel.OptTrackState))
+	runDispatchOps = append(runDispatchOps, cel.EvalOptions(cel.OptPartialEval))
+	runDispatchOps = append(runDispatchOps, cel.CostLimit(50))
+
+	prg, err := celEnv.Program(ast, runDispatchOps...)
+	if err != nil {
+		return nil, err
+	}
+
 	return &DispatchExpr{
 		env:        celEnv,
 		registry:   registry,
 		methodName: methodName,
-		exprAst:    ast,
+		prg:        prg,
 	}, nil
 }
 
 // RunDispatchExpr runs a dispatch CEL expression over the given request and returns the secondary dispatchers
 // to invoke, if any.
 func RunDispatchExpr[R any](de *DispatchExpr, request R) ([]string, error) {
-	celopts := make([]cel.ProgramOption, 0, 3)
-
-	celopts = append(celopts, cel.EvalOptions(cel.OptTrackState))
-	celopts = append(celopts, cel.EvalOptions(cel.OptPartialEval))
-	celopts = append(celopts, cel.CostLimit(50))
-
-	prg, err := de.env.Program(de.exprAst, celopts...)
-	if err != nil {
-		return nil, err
-	}
-
 	// Mark any unspecified variables as unknown, to ensure that partial application
 	// will result in producing a type of Unknown.
 	activation, err := de.env.PartialVars(map[string]any{
@@ -84,7 +83,7 @@ func RunDispatchExpr[R any](de *DispatchExpr, request R) ([]string, error) {
 		return nil, err
 	}
 
-	val, _, err := prg.Eval(activation)
+	val, _, err := de.prg.Eval(activation)
 	if err != nil {
 		return nil, fmt.Errorf("unable to evaluate dispatch expression: %w", err)
 	}
