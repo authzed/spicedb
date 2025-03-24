@@ -40,14 +40,6 @@ var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
 }, []string{"rpc"})
 
-var expressionDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_expression_duration",
-	Help:      "distribution in seconds of calculated time it took to run the CEL expression that determines if the secondary should be executed",
-	Buckets:   []float64{0.0005, 0.001, 0.002, 0.003, 0.004, 0.005, 0.01},
-}, []string{"rpc"})
-
 var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "dispatch",
@@ -74,7 +66,6 @@ func init() {
 	prometheus.MustRegister(dispatchCounter)
 	prometheus.MustRegister(hedgeWaitHistogram)
 	prometheus.MustRegister(primaryDispatch)
-	prometheus.MustRegister(expressionDurationHistogram)
 }
 
 type ClusterClient interface {
@@ -246,26 +237,23 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 	secondaryResultChan := make(chan secondaryRespTuple[S], len(cr.secondaryDispatch))
 
 	// Run the main dispatch.
-	log.Trace().Msg("starting go routine for primary dispatch")
 	go func() {
-		log.Trace().Msg("primary dispatch started")
-
 		// Have the main dispatch wait some time before returning, to allow the secondaries to
 		// potentially return first.
 		computedWait := cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
+		log.Trace().Stringer("computed-wait", computedWait).Msg("primary dispatch started; sleeping for computed wait time")
 		time.Sleep(computedWait)
 
-		log.Trace().Msg("running primary dispatch")
+		log.Trace().Msg("running primary dispatch after wait")
 		select {
 		case <-withTimeout.Done():
-			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch timed out or was canceled")
+			log.Trace().Str("request-key", reqKey).Msg("primary dispatch timed out or was canceled")
 			primaryDispatch.WithLabelValues("true", reqKey).Inc()
 			return
 
 		default:
-			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("running primary dispatch")
 			resp, err := handler(withTimeout, cr.clusterClient)
-			log.Trace().Stringer("wait", computedWait).Str("request-key", reqKey).Msg("primary dispatch completed")
+			log.Trace().Str("request-key", reqKey).Msg("primary dispatch completed")
 			primaryResultChan <- respTuple[S]{resp, err}
 			hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
 			primaryDispatch.WithLabelValues("false", reqKey).Inc()
@@ -273,50 +261,42 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](ctx context.Contex
 	}()
 
 	log.Trace().Object("request", req).Msg("running dispatch expression")
-	startTime := time.Now()
 	result, err := RunDispatchExpr(expr, req)
-	endTime := time.Now()
-	log.Trace().Object("request", req).Msg("dispatch expression completed")
-
-	expressionDurationHistogram.WithLabelValues(reqKey).Observe(endTime.Sub(startTime).Seconds())
 	if err != nil {
 		log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
-	}
-	log.Trace().Str("secondary-dispatchers", strings.Join(result, ",")).Object("request", req).Msg("running secondary dispatchers")
-
-	for _, secondaryDispatchName := range result {
-		secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
-		if !ok {
-			log.Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
-			continue
-		}
-
-		log.Trace().Str("secondary-dispatcher", secondary.Name).Object("request", req).Msg("running secondary dispatcher goroutine")
-		go func() {
-			log.Trace().Str("secondary", secondary.Name).Msg("starting secondary dispatch")
-
-			select {
-			case <-withTimeout.Done():
-				log.Trace().Str("secondary", secondary.Name).Msg("secondary dispatch timed out or was canceled")
-				return
-
-			default:
-				log.Trace().Str("secondary", secondary.Name).Msg("running secondary dispatch")
-				startTime := time.Now()
-				resp, err := handler(withTimeout, secondary.Client)
-				endTime := time.Now()
-				handlerDuration := endTime.Sub(startTime)
-				log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Msg("secondary dispatch completed")
-				if err != nil {
-					// For secondary dispatches, ignore any errors, as only the primary will be handled in
-					// that scenario.
-					log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
-					return
-				}
-				cr.secondaryInitialResponseDigests[reqKey].addResultTime(handlerDuration)
-				secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
+	} else {
+		for _, secondaryDispatchName := range result {
+			secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
+			if !ok {
+				log.Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
+				continue
 			}
-		}()
+
+			go func() {
+				select {
+				case <-withTimeout.Done():
+					log.Trace().Str("secondary", secondary.Name).Msg("secondary dispatch timed out or was canceled")
+					return
+
+				default:
+					log.Trace().Str("secondary", secondary.Name).Msg("running secondary dispatch")
+					startTime := time.Now()
+					resp, err := handler(withTimeout, secondary.Client)
+					endTime := time.Now()
+					handlerDuration := endTime.Sub(startTime)
+					if err != nil {
+						// For secondary dispatches, ignore any errors, as only the primary will be handled in
+						// that scenario.
+						log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
+						return
+					}
+
+					log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Msg("secondary dispatch completed")
+					cr.secondaryInitialResponseDigests[reqKey].addResultTime(handlerDuration)
+					secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
+				}
+			}()
+		}
 	}
 
 	var foundError error
@@ -451,10 +431,7 @@ func dispatchStreamingRequest[Q requestMessage, R responseMessage](
 			validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
 		}
 	} else if expr, ok := cr.secondaryDispatchExprs[reqKey]; ok {
-		exprStartTime := time.Now()
 		dispatcherNames, err := RunDispatchExpr(expr, req)
-		exprEndTime := time.Now()
-		expressionDurationHistogram.WithLabelValues(reqKey).Observe(exprEndTime.Sub(exprStartTime).Seconds())
 		if err != nil {
 			log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
 		} else {
