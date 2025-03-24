@@ -81,7 +81,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	})
 
 	updates, errchan := ds.Watch(ctx, afterRevision, datastore.WatchOptions{
-		Content:            ConvertWatchKindToContent(req.OptionalUpdateKinds),
+		Content:            convertWatchKindToContent(req.OptionalUpdateKinds),
 		CheckpointInterval: ws.heartbeatDuration,
 	})
 	for {
@@ -187,19 +187,4 @@ func filterRelationshipUpdates(objectTypes *mapz.Set[string], filters []datastor
 	}
 
 	return filtered
-}
-
-func ConvertWatchKindToContent(kinds []v1.WatchKind) datastore.WatchContent {
-	res := datastore.WatchRelationships
-	for _, kind := range kinds {
-		switch kind {
-		case v1.WatchKind_WATCH_KIND_INCLUDE_RELATIONSHIP_UPDATES:
-			res |= datastore.WatchRelationships
-		case v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES:
-			res |= datastore.WatchSchema
-		case v1.WatchKind_WATCH_KIND_INCLUDE_CHECKPOINTS:
-			res |= datastore.WatchCheckpoints
-		}
-	}
-	return res
 }
