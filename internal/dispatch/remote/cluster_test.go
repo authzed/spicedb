@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/caio/go-tdigest/v4"
+	"github.com/ccoveille/go-safecast"
 	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -33,10 +34,26 @@ type fakeDispatchSvc struct {
 	dispatchCount uint32
 	errorOnLR2    error
 	errorOnLS     error
+	raisePanic    bool
 }
 
-func (fds *fakeDispatchSvc) DispatchCheck(context.Context, *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (fds *fakeDispatchSvc) DispatchCheck(ctx context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	time.Sleep(fds.sleepTime)
+
+	select {
+	case <-ctx.Done():
+		return &v1.DispatchCheckResponse{
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: 0,
+			},
+		}, ctx.Err()
+
+	default:
+		if fds.raisePanic {
+			panic("panic raised")
+		}
+	}
+
 	return &v1.DispatchCheckResponse{
 		Metadata: &v1.ResponseMeta{
 			DispatchCount: fds.dispatchCount,
@@ -750,7 +767,7 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 }
 
 func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
-	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 3 * time.Millisecond})
+	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 3 * time.Millisecond, raisePanic: true})
 	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 3 * time.Millisecond})
 
 	parsed, err := ParseDispatchExpression("check", "['secondary']")
@@ -867,8 +884,11 @@ func TestDALCount(t *testing.T) {
 	}
 
 	for i := 0; i < minimumDigestCount-1; i++ {
+		uintValue, err := safecast.ToUint64(i + 1)
+		require.NoError(t, err)
+
 		dal.addResultTime(3 * time.Millisecond)
-		require.Equal(t, uint64(i)+1, dal.digest.Count())
+		require.Equal(t, uintValue, dal.digest.Count())
 		require.Equal(t, dal.startingPrimaryHedgingDelay, dal.getWaitTime())
 	}
 
