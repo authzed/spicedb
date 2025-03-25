@@ -75,7 +75,7 @@ func (Test) Integration(ctx context.Context) error {
 // Steelthread Run steelthread tests
 func (Test) Steelthread(ctx context.Context) error {
 	fmt.Println("running steel thread tests")
-	return goTest(ctx, "./internal/services/steelthreadtesting/...", "-tags", "steelthread,docker,image", "-timeout", "15m", "-v")
+	return goTest(ctx, "./internal/services/steelthreadtesting/...", "-tags", "steelthread,docker,image,ci", "-timeout", "15m", "-v")
 }
 
 // RegenSteelthread Regenerate the steelthread tests
@@ -83,7 +83,7 @@ func (Test) RegenSteelthread() error {
 	fmt.Println("regenerating steel thread tests")
 	return RunSh(goCmdForTests(), WithV(), WithDir("."), WithEnv(map[string]string{
 		"REGENERATE_STEEL_RESULTS": "true",
-	}), WithArgs("test", "./internal/services/steelthreadtesting/...", "-tags", "steelthread,docker,image", "-timeout", "15m", "-v"))("go")
+	}), WithArgs("test", "./internal/services/steelthreadtesting/...", "-tags", "steelthread,docker,image,ci", "-timeout", "15m", "-v"))("go")
 }
 
 // Analyzers Run the analyzer unit tests

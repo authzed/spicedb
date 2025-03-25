@@ -44,6 +44,7 @@ func (s *SchemaInformation) ToOption() SchemaInformationOption {
 		to.ColIntegrityKeyID = s.ColIntegrityKeyID
 		to.ColIntegrityHash = s.ColIntegrityHash
 		to.ColIntegrityTimestamp = s.ColIntegrityTimestamp
+		to.Indexes = s.Indexes
 		to.PaginationFilterType = s.PaginationFilterType
 		to.PlaceholderFormat = s.PlaceholderFormat
 		to.NowFunction = s.NowFunction
@@ -69,6 +70,7 @@ func (s SchemaInformation) DebugMap() map[string]any {
 	debugMap["ColIntegrityKeyID"] = helpers.DebugValue(s.ColIntegrityKeyID, false)
 	debugMap["ColIntegrityHash"] = helpers.DebugValue(s.ColIntegrityHash, false)
 	debugMap["ColIntegrityTimestamp"] = helpers.DebugValue(s.ColIntegrityTimestamp, false)
+	debugMap["Indexes"] = helpers.DebugValue(s.Indexes, false)
 	debugMap["PaginationFilterType"] = helpers.DebugValue(s.PaginationFilterType, false)
 	debugMap["PlaceholderFormat"] = helpers.DebugValue(s.PlaceholderFormat, false)
 	debugMap["NowFunction"] = helpers.DebugValue(s.NowFunction, false)
@@ -182,6 +184,20 @@ func WithColIntegrityHash(colIntegrityHash string) SchemaInformationOption {
 func WithColIntegrityTimestamp(colIntegrityTimestamp string) SchemaInformationOption {
 	return func(s *SchemaInformation) {
 		s.ColIntegrityTimestamp = colIntegrityTimestamp
+	}
+}
+
+// WithIndexes returns an option that can append Indexess to SchemaInformation.Indexes
+func WithIndexes(indexes IndexDefinition) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.Indexes = append(s.Indexes, indexes)
+	}
+}
+
+// SetIndexes returns an option that can set Indexes on a SchemaInformation
+func SetIndexes(indexes []IndexDefinition) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.Indexes = indexes
 	}
 }
 

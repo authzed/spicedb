@@ -18,6 +18,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
@@ -57,6 +58,7 @@ func TestNonMemdbSteelThreads(t *testing.T) {
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithRequestHedgingEnabled(false)))
 
+					ds = proxy.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 					runSteelThreadTest(t, tc, ds)
 				})
 			}

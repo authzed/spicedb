@@ -12,6 +12,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -27,15 +28,15 @@ const (
 )
 
 var (
-	queryReadNamespace = psql.Select(colConfig, colTimestamp)
+	queryReadNamespace = psql.Select(schema.ColConfig, schema.ColTimestamp)
 
 	countRels = psql.Select("count(*)")
 
 	queryCounters = psql.Select(
-		colCounterName,
-		colCounterSerializedFilter,
-		colCounterCurrentCount,
-		colCounterUpdatedAt,
+		schema.ColCounterName,
+		schema.ColCounterSerializedFilter,
+		schema.ColCounterCurrentCount,
+		schema.ColCounterUpdatedAt,
 	)
 )
 
@@ -123,9 +124,9 @@ func (cr *crdbReader) LookupCounters(ctx context.Context) ([]datastore.Relations
 }
 
 func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
-	query := cr.addFromToQuery(queryCounters, tableRelationshipCounter)
+	query := cr.addFromToQuery(queryCounters, schema.TableRelationshipCounter)
 	if optionalFilterName != noFilterOnCounterName {
-		query = query.Where(sq.Eq{colCounterName: optionalFilterName})
+		query = query.Where(sq.Eq{schema.ColCounterName: optionalFilterName})
 	}
 
 	sql, args, err := query.ToSql()
@@ -226,7 +227,7 @@ func (cr *crdbReader) QueryRelationships(
 	}
 
 	if spiceerrors.DebugAssertionsEnabled {
-		opts = append(opts, options.WithSQLAssertion(cr.assertHasExpectedAsOfSystemTime))
+		opts = append(opts, options.WithSQLCheckAssertionForTest(cr.assertHasExpectedAsOfSystemTime))
 	}
 
 	return cr.executor.ExecuteQuery(ctx, qBuilder, opts...)
@@ -255,10 +256,12 @@ func (cr *crdbReader) ReverseQueryRelationships(
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),
+		options.WithQueryShape(queryOpts.QueryShapeForReverse),
+		options.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
 	}
 
 	if spiceerrors.DebugAssertionsEnabled {
-		eopts = append(eopts, options.WithSQLAssertion(cr.assertHasExpectedAsOfSystemTime))
+		eopts = append(eopts, options.WithSQLCheckAssertionForTest(cr.assertHasExpectedAsOfSystemTime))
 	}
 
 	return cr.executor.ExecuteQuery(
@@ -269,7 +272,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 }
 
 func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBFuncQuerier, nsName string) (*core.NamespaceDefinition, time.Time, error) {
-	query := cr.addFromToQuery(queryReadNamespace, tableNamespace).Where(sq.Eq{colNamespace: nsName})
+	query := cr.addFromToQuery(queryReadNamespace, schema.TableNamespace).Where(sq.Eq{schema.ColNamespace: nsName})
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, time.Time{}, err
@@ -300,10 +303,10 @@ func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBFuncQueri
 func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
-		clause = append(clause, sq.Eq{colNamespace: nsName})
+		clause = append(clause, sq.Eq{schema.ColNamespace: nsName})
 	}
 
-	query := cr.addFromToQuery(queryReadNamespace, tableNamespace).Where(clause)
+	query := cr.addFromToQuery(queryReadNamespace, schema.TableNamespace).Where(clause)
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, err
@@ -344,7 +347,7 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQu
 }
 
 func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuilder func(sq.SelectBuilder, string) sq.SelectBuilder) ([]datastore.RevisionedNamespace, string, error) {
-	query := fromBuilder(queryReadNamespace, tableNamespace)
+	query := fromBuilder(queryReadNamespace, schema.TableNamespace)
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, sql, err

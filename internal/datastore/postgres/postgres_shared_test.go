@@ -24,6 +24,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -42,7 +43,7 @@ const (
 	veryLargeGCInterval = 90000 * time.Second
 )
 
-// Implement the TestableDatastore interface
+// Implement the interface for testing datastores
 func (pgd *pgDatastore) ExampleRetryableError() error {
 	return &pgconn.PgError{
 		Code: pgSerializationFailure,
@@ -597,7 +598,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	var ts time.Time
-	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"xid": txXID}).ToSql()
+	sql, args, err := psql.Select("timestamp").From(schema.TableTransaction).Where(sq.Eq{"xid": txXID}).ToSql()
 	require.NoError(err)
 	err = pgd.readPool.QueryRow(ctx, sql, args...).Scan(&ts)
 	require.NoError(err)
@@ -878,7 +879,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 
 			if len(tc.relativeTimes) > 0 {
 				psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-				insertTxn := psql.Insert(tableTransaction).Columns(colTimestamp)
+				insertTxn := psql.Insert(schema.TableTransaction).Columns(schema.ColTimestamp)
 
 				for _, offset := range tc.relativeTimes {
 					sql, args, err := insertTxn.Values(dbNow.Add(offset)).ToSql()
@@ -951,7 +952,7 @@ func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest)
 
 			for _, rev := range tc.revisions {
 				stmt := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-				insertTxn := stmt.Insert(tableTransaction).Columns(colXID, colSnapshot, colTimestamp)
+				insertTxn := stmt.Insert(schema.TableTransaction).Columns(schema.ColXID, schema.ColSnapshot, schema.ColTimestamp)
 
 				ts := time.Unix(0, int64(rev.optionalNanosTimestamp))
 				sql, args, err := insertTxn.Values(rev.optionalTxID, rev.snapshot, ts).ToSql()
@@ -985,8 +986,8 @@ func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastor
 	snapshot = pgRev.snapshot
 
 	queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
-	numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "true")
-	numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "false")
+	numLowerQuery := fmt.Sprintf(queryFmt, schema.ColXID, schema.TableTransaction, "true")
+	numHigherQuery := fmt.Sprintf(queryFmt, schema.ColXID, schema.TableTransaction, "false")
 
 	var numLower, numHigher uint64
 	require.NoError(t, conn.QueryRow(ctx, numLowerQuery, snapshot).Scan(&numLower), "%s - %s", revision, snapshot)
@@ -1205,9 +1206,9 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	err = pgx.BeginTxFunc(ctx, pds.writePool, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, fmt.Sprintf(
 			`INSERT INTO %s ("%s", "%s") VALUES ('%d', '%d:%d:')`,
-			tableTransaction,
-			colXID,
-			colSnapshot,
+			schema.TableTransaction,
+			schema.ColXID,
+			schema.ColSnapshot,
 			nexttx,
 			nexttx,
 			nexttx,
@@ -1218,16 +1219,16 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 
 		_, err = tx.Exec(ctx, fmt.Sprintf(
 			`INSERT INTO %s ("%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s") VALUES ('somenamespace', '123', 'viewer', 'user', '456', '...', '', null, '%d'::xid8)`,
-			tableTuple,
-			colNamespace,
-			colObjectID,
-			colRelation,
-			colUsersetNamespace,
-			colUsersetObjectID,
-			colUsersetRelation,
-			colCaveatContextName,
-			colCaveatContext,
-			colCreatedXid,
+			schema.TableTuple,
+			schema.ColNamespace,
+			schema.ColObjectID,
+			schema.ColRelation,
+			schema.ColUsersetNamespace,
+			schema.ColUsersetObjectID,
+			schema.ColUsersetRelation,
+			schema.ColCaveatContextName,
+			schema.ColCaveatContext,
+			schema.ColCreatedXid,
 			nexttx,
 		))
 		if err != nil {
@@ -1236,7 +1237,7 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 
 		_, err = tx.Exec(ctx, fmt.Sprintf(
 			`INSERT INTO %s ("xid", "snapshot") VALUES ('%d', '%d:%d:')`,
-			tableTransaction,
+			schema.TableTransaction,
 			nexttx+1,
 			nexttx,
 			nexttx,
@@ -1247,16 +1248,16 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 
 		_, err = tx.Exec(ctx, fmt.Sprintf(
 			`INSERT INTO %s ("%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s") VALUES ('somenamespace', '456', 'viewer', 'user', '456', '...', '', null, '%d'::xid8)`,
-			tableTuple,
-			colNamespace,
-			colObjectID,
-			colRelation,
-			colUsersetNamespace,
-			colUsersetObjectID,
-			colUsersetRelation,
-			colCaveatContextName,
-			colCaveatContext,
-			colCreatedXid,
+			schema.TableTuple,
+			schema.ColNamespace,
+			schema.ColObjectID,
+			schema.ColRelation,
+			schema.ColUsersetNamespace,
+			schema.ColUsersetObjectID,
+			schema.ColUsersetRelation,
+			schema.ColCaveatContextName,
+			schema.ColCaveatContext,
+			schema.ColCreatedXid,
 			nexttx+1,
 		))
 
@@ -1647,7 +1648,7 @@ func RepairTransactionsTest(t *testing.T, ds datastore.Datastore) {
 
 	createLaterTxn := fmt.Sprintf(
 		"INSERT INTO %s (\"xid\") VALUES (12345::text::xid8)",
-		tableTransaction,
+		schema.TableTransaction,
 	)
 
 	_, err = pds.writePool.Exec(context.Background(), createLaterTxn)

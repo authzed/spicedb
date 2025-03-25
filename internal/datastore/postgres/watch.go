@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -30,34 +31,34 @@ var (
 	SELECT %[1]s, %[2]s, %[3]s, %[4]s FROM %[5]s
 	WHERE %[1]s >= pg_snapshot_xmax($1) OR (
 		%[1]s >= pg_snapshot_xmin($1) AND NOT pg_visible_in_snapshot(%[1]s, $1)
-	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, colMetadata, colTimestamp, tableTransaction)
+	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, schema.ColXID, schema.ColSnapshot, schema.ColMetadata, schema.ColTimestamp, schema.TableTransaction)
 
 	queryChangedTuples = psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-		colExpiration,
-		colCreatedXid,
-		colDeletedXid,
-	).From(tableTuple)
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContext,
+		schema.ColExpiration,
+		schema.ColCreatedXid,
+		schema.ColDeletedXid,
+	).From(schema.TableTuple)
 
 	queryChangedNamespaces = psql.Select(
-		colConfig,
-		colCreatedXid,
-		colDeletedXid,
-	).From(tableNamespace)
+		schema.ColConfig,
+		schema.ColCreatedXid,
+		schema.ColDeletedXid,
+	).From(schema.TableNamespace)
 
 	queryChangedCaveats = psql.Select(
-		colCaveatName,
-		colCaveatDefinition,
-		colCreatedXid,
-		colDeletedXid,
-	).From(tableCaveat)
+		schema.ColCaveatName,
+		schema.ColCaveatDefinition,
+		schema.ColCreatedXid,
+		schema.ColDeletedXid,
+	).From(schema.TableCaveat)
 )
 
 func (pgd *pgDatastore) Watch(
@@ -300,12 +301,12 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedTuples.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: xmax},
-			sq.GtOrEq{colCreatedXid: xmin},
+			sq.LtOrEq{schema.ColCreatedXid: xmax},
+			sq.GtOrEq{schema.ColCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: xmax},
-			sq.GtOrEq{colDeletedXid: xmin},
+			sq.LtOrEq{schema.ColDeletedXid: xmax},
+			sq.GtOrEq{schema.ColDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {
@@ -396,12 +397,12 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64
 func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedNamespaces.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: xmax},
-			sq.GtOrEq{colCreatedXid: xmin},
+			sq.LtOrEq{schema.ColCreatedXid: xmax},
+			sq.GtOrEq{schema.ColCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: xmax},
-			sq.GtOrEq{colDeletedXid: xmin},
+			sq.LtOrEq{schema.ColDeletedXid: xmax},
+			sq.GtOrEq{schema.ColDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {
@@ -453,12 +454,12 @@ func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, x
 func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedCaveats.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: xmax},
-			sq.GtOrEq{colCreatedXid: xmin},
+			sq.LtOrEq{schema.ColCreatedXid: xmax},
+			sq.GtOrEq{schema.ColCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: xmax},
-			sq.GtOrEq{colDeletedXid: xmin},
+			sq.LtOrEq{schema.ColDeletedXid: xmax},
+			sq.GtOrEq{schema.ColDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 )
 
 func TestStrictReplicatedReaderWithOnlyPrimary(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
 
 	replicated, err := NewStrictReplicatedDatastore(primary)
 	require.NoError(t, err)
@@ -20,8 +20,8 @@ func TestStrictReplicatedReaderWithOnlyPrimary(t *testing.T) {
 }
 
 func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewStrictReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
@@ -89,8 +89,8 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 }
 
 func TestStrictReplicatedQueryNonFallbackError(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
-	replica := fakeDatastore{"replica-with-normal-error", revisionparsing.MustParseRevisionForTest("1")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica-with-normal-error", revisionparsing.MustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewStrictReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
