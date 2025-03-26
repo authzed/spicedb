@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -39,12 +40,15 @@ func NewWatchServer(heartbeatDuration time.Duration) v1.WatchServiceServer {
 }
 
 func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchServer) error {
-	if len(req.GetOptionalObjectTypes()) > 0 && len(req.OptionalRelationshipFilters) > 0 {
-		return status.Errorf(codes.InvalidArgument, "cannot specify both object types and relationship filters")
+	if len(req.GetOptionalUpdateKinds()) == 0 ||
+		slices.Contains(req.GetOptionalUpdateKinds(), v1.WatchKind_WATCH_KIND_UNSPECIFIED) ||
+		slices.Contains(req.GetOptionalUpdateKinds(), v1.WatchKind_WATCH_KIND_INCLUDE_RELATIONSHIP_UPDATES) {
+		if len(req.GetOptionalObjectTypes()) > 0 && len(req.OptionalRelationshipFilters) > 0 {
+			return status.Errorf(codes.InvalidArgument, "cannot specify both object types and relationship filters")
+		}
 	}
 
 	objectTypes := mapz.NewSet[string](req.GetOptionalObjectTypes()...)
-	filters := make([]datastore.RelationshipsFilter, 0, len(req.OptionalRelationshipFilters))
 
 	ctx := stream.Context()
 	ds := datastoremw.MustFromContext(ctx)
@@ -67,17 +71,9 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 
 	reader := ds.SnapshotReader(afterRevision)
 
-	for _, filter := range req.OptionalRelationshipFilters {
-		if err := validateRelationshipsFilter(stream.Context(), filter, reader); err != nil {
-			return ws.rewriteError(ctx, err)
-		}
-
-		dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "failed to parse relationship filter: %s", err)
-		}
-
-		filters = append(filters, dsFilter)
+	filters, err := buildRelationshipFilters(req, stream, reader, ws, ctx)
+	if err != nil {
+		return err
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -85,22 +81,40 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	})
 
 	updates, errchan := ds.Watch(ctx, afterRevision, datastore.WatchOptions{
-		Content:            datastore.WatchRelationships,
+		Content:            convertWatchKindToContent(req.OptionalUpdateKinds),
 		CheckpointInterval: ws.heartbeatDuration,
 	})
 	for {
 		select {
 		case update, ok := <-updates:
 			if ok {
-				filtered := filterUpdates(objectTypes, filters, update.RelationshipChanges)
-				if len(filtered) > 0 {
-					converted, err := tuple.UpdatesToV1RelationshipUpdates(filtered)
+				filteredRelationshipUpdates := filterRelationshipUpdates(objectTypes, filters, update.RelationshipChanges)
+				if len(filteredRelationshipUpdates) > 0 {
+					converted, err := tuple.UpdatesToV1RelationshipUpdates(filteredRelationshipUpdates)
 					if err != nil {
 						return status.Errorf(codes.Internal, "failed to convert updates: %s", err)
 					}
 
 					if err := stream.Send(&v1.WatchResponse{
 						Updates:                     converted,
+						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
+						OptionalTransactionMetadata: update.Metadata,
+					}); err != nil {
+						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
+					}
+				}
+				if len(update.ChangedDefinitions) > 0 || len(update.DeletedCaveats) > 0 || len(update.DeletedNamespaces) > 0 {
+					if err := stream.Send(&v1.WatchResponse{
+						SchemaUpdated:               true,
+						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
+						OptionalTransactionMetadata: update.Metadata,
+					}); err != nil {
+						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
+					}
+				}
+				if update.IsCheckpoint {
+					if err := stream.Send(&v1.WatchResponse{
+						IsCheckpoint:                update.IsCheckpoint,
 						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
 						OptionalTransactionMetadata: update.Metadata,
 					}); err != nil {
@@ -121,11 +135,28 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	}
 }
 
+func buildRelationshipFilters(req *v1.WatchRequest, stream v1.WatchService_WatchServer, reader datastore.Reader, ws *watchServer, ctx context.Context) ([]datastore.RelationshipsFilter, error) {
+	filters := make([]datastore.RelationshipsFilter, 0, len(req.OptionalRelationshipFilters))
+	for _, filter := range req.OptionalRelationshipFilters {
+		if err := validateRelationshipsFilter(stream.Context(), filter, reader); err != nil {
+			return nil, ws.rewriteError(ctx, err)
+		}
+
+		dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse relationship filter: %s", err)
+		}
+
+		filters = append(filters, dsFilter)
+	}
+	return filters, nil
+}
+
 func (ws *watchServer) rewriteError(ctx context.Context, err error) error {
 	return shared.RewriteError(ctx, err, &shared.ConfigForErrors{})
 }
 
-func filterUpdates(objectTypes *mapz.Set[string], filters []datastore.RelationshipsFilter, updates []tuple.RelationshipUpdate) []tuple.RelationshipUpdate {
+func filterRelationshipUpdates(objectTypes *mapz.Set[string], filters []datastore.RelationshipsFilter, updates []tuple.RelationshipUpdate) []tuple.RelationshipUpdate {
 	if objectTypes.IsEmpty() && len(filters) == 0 {
 		return updates
 	}

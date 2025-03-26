@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -51,30 +52,41 @@ func update(
 
 func TestWatch(t *testing.T) {
 	testCases := []struct {
-		name                string
+		name                   string
+		watchKinds             []v1.WatchKind
+		datastoreInitFunc      testserver.DatastoreInitFunc
+		startCursor            *v1.ZedToken
+		expectedWatchResponses []*v1.WatchResponse
+		expectedCode           codes.Code
+		// for relationship updates
 		objectTypesFilter   []string
 		relationshipFilters []*v1.RelationshipFilter
-		startCursor         *v1.ZedToken
 		mutations           []*v1.RelationshipUpdate
-		expectedCode        codes.Code
-		expectedUpdates     []*v1.RelationshipUpdate
+		// for schema updates
+		mutatedSchema string
 	}{
 		{
-			name:         "unfiltered watch",
-			expectedCode: codes.OK,
+			name:              "unfiltered watch",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_RELATIONSHIP_UPDATES},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			mutations: []*v1.RelationshipUpdate{
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+					update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
 			name:              "watch with objectType filter",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			expectedCode:      codes.OK,
 			objectTypesFilter: []string{"document"},
 			mutations: []*v1.RelationshipUpdate{
@@ -82,14 +94,18 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
-			name:         "watch with relationship filters",
-			expectedCode: codes.OK,
+			name:              "watch with relationship filters",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					ResourceType: "document",
@@ -103,14 +119,18 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
-			name:         "watch with modified relationship filters",
-			expectedCode: codes.OK,
+			name:              "watch with modified relationship filters",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					ResourceType: "folder",
@@ -121,13 +141,17 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+				}},
 			},
 		},
 		{
-			name:         "watch with resource ID prefix",
-			expectedCode: codes.OK,
+			name:              "watch with resource ID prefix",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					OptionalResourceIdPrefix: "document1",
@@ -138,13 +162,17 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
-			name:         "watch with shorter resource ID prefix",
-			expectedCode: codes.OK,
+			name:              "watch with shorter resource ID prefix",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			expectedCode:      codes.OK,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					OptionalResourceIdPrefix: "doc",
@@ -155,23 +183,31 @@ func TestWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
 			},
-			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				}},
 			},
 		},
 		{
-			name:         "invalid zedtoken",
-			startCursor:  &v1.ZedToken{Token: "bad-token"},
-			expectedCode: codes.InvalidArgument,
+			name:              "invalid zedtoken",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			startCursor:       &v1.ZedToken{Token: "bad-token"},
+			expectedCode:      codes.InvalidArgument,
 		},
 		{
-			name:         "empty zedtoken fails validation",
-			startCursor:  &v1.ZedToken{Token: ""},
-			expectedCode: codes.InvalidArgument,
+			name:              "empty zedtoken fails validation",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
+			startCursor:       &v1.ZedToken{Token: ""},
+			expectedCode:      codes.InvalidArgument,
 		},
 		{
-			name: "watch with both kinds of filters",
+			name:              "watch with both kinds of filters",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					OptionalResourceIdPrefix: "doc",
@@ -181,7 +217,9 @@ func TestWatch(t *testing.T) {
 			expectedCode:      codes.InvalidArgument,
 		},
 		{
-			name: "watch with both fields of filter",
+			name:              "watch with both fields of filter",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					OptionalResourceIdPrefix: "doc",
@@ -191,13 +229,115 @@ func TestWatch(t *testing.T) {
 			expectedCode: codes.InvalidArgument,
 		},
 		{
-			name: "watch with invalid filter resource type",
+			name:              "watch with invalid filter resource type",
+			watchKinds:        []v1.WatchKind{v1.WatchKind_WATCH_KIND_UNSPECIFIED},
+			datastoreInitFunc: testfixtures.StandardDatastoreWithData,
 			relationshipFilters: []*v1.RelationshipFilter{
 				{
 					ResourceType: "invalid",
 				},
 			},
 			expectedCode: codes.FailedPrecondition,
+		},
+		{
+			name:       "watch with schema kind returns a schema update (new definition)",
+			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+definition user {}
+`, nil, require.New(t))
+			},
+			mutatedSchema: `definition user {}
+definition org {}`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{SchemaUpdated: true},
+			},
+		},
+		{
+			name:       "watch with schema kind returns a schema update (new caveat)",
+			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+definition user {}
+`, nil, require.New(t))
+			},
+			mutatedSchema: `
+caveat is_tuesday(today string) {
+   today == 'tuesday'
+}
+definition user {}
+`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{SchemaUpdated: true},
+			},
+		},
+		{
+			name:       "watch with schema kind returns a schema update (deleted caveat)",
+			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+caveat is_tuesday(today string) {
+   today == 'tuesday'
+}
+definition user {}
+`, nil, require.New(t))
+			},
+			mutatedSchema: `
+definition user {}
+`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{SchemaUpdated: true},
+			},
+		},
+		{
+			name:       "watch with schema kind returns a schema update (deleted namespace)",
+			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+definition user {}
+definition org {}
+`, nil, require.New(t))
+			},
+			mutatedSchema: `
+definition user {}
+`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{SchemaUpdated: true},
+			},
+		},
+		{
+			name: "watch with all kinds",
+			watchKinds: []v1.WatchKind{
+				v1.WatchKind_WATCH_KIND_INCLUDE_RELATIONSHIP_UPDATES,
+				v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES,
+				v1.WatchKind_WATCH_KIND_INCLUDE_CHECKPOINTS,
+			},
+			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+definition user {}
+definition document {
+  relation view: user
+}
+`, nil, require.New(t))
+			},
+			mutations: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "view", "user", "user1"),
+			},
+			mutatedSchema: `
+definition new {}
+definition user {}
+definition document {
+  relation view: user
+}
+`,
+			expectedWatchResponses: []*v1.WatchResponse{
+				{Updates: []*v1.RelationshipUpdate{
+					update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "view", "user", "user1"),
+				}},
+				{IsCheckpoint: true},
+				{SchemaUpdated: true},
+				{IsCheckpoint: true},
+			},
 		},
 	}
 
@@ -206,7 +346,7 @@ func TestWatch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, testfixtures.StandardDatastoreWithData)
+			conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tc.datastoreInitFunc)
 			t.Cleanup(cleanup)
 			client := v1.NewWatchServiceClient(conn)
 
@@ -222,14 +362,15 @@ func TestWatch(t *testing.T) {
 				OptionalObjectTypes:         tc.objectTypesFilter,
 				OptionalRelationshipFilters: tc.relationshipFilters,
 				OptionalStartCursor:         cursor,
+				OptionalUpdateKinds:         tc.watchKinds,
 			})
 			require.NoError(err)
 
 			if tc.expectedCode == codes.OK {
-				updatesChan := make(chan []*v1.RelationshipUpdate, len(tc.mutations))
+				watchResponses := make(chan *v1.WatchResponse, 1)
 
 				go func() {
-					defer close(updatesChan)
+					defer close(watchResponses)
 
 					for {
 						select {
@@ -248,29 +389,43 @@ func TestWatch(t *testing.T) {
 								panic(fmt.Errorf("received a stream read error: %w", err))
 							}
 
-							updatesChan <- resp.Updates
+							watchResponses <- resp
 						}
 					}
 				}()
 
-				_, err := v1.NewPermissionsServiceClient(conn).WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-					Updates: tc.mutations,
-				})
-				require.NoError(err)
+				if len(tc.mutations) > 0 {
+					_, err := v1.NewPermissionsServiceClient(conn).WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+						Updates: tc.mutations,
+					})
+					require.NoError(err)
+				}
+				if len(tc.mutatedSchema) > 0 {
+					_, err := v1.NewSchemaServiceClient(conn).WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+						Schema: tc.mutatedSchema,
+					})
+					require.NoError(err)
+				}
 
-				var receivedUpdates []*v1.RelationshipUpdate
+				var received []*v1.WatchResponse
 
-				for len(receivedUpdates) < len(tc.expectedUpdates) {
+				for len(received) < len(tc.expectedWatchResponses) {
 					select {
-					case updates := <-updatesChan:
-						receivedUpdates = append(receivedUpdates, updates...)
+					case receivedWatchResponse := <-watchResponses:
+						received = append(received, receivedWatchResponse)
 					case <-time.After(1 * time.Second):
-						require.FailNow("timed out waiting for updates")
+						require.FailNow("timed out waiting for message")
 						return
 					}
 				}
 
-				require.Equal(sortUpdates(tc.expectedUpdates), sortUpdates(receivedUpdates))
+				require.Len(received, len(tc.expectedWatchResponses))
+
+				for i, expectedWatchResponse := range tc.expectedWatchResponses {
+					require.Equal(sortUpdates(expectedWatchResponse.Updates), sortUpdates(received[i].GetUpdates()))
+					require.Equal(expectedWatchResponse.SchemaUpdated, received[i].GetSchemaUpdated())
+					require.Equal(expectedWatchResponse.IsCheckpoint, received[i].GetIsCheckpoint())
+				}
 			} else {
 				_, err := stream.Recv()
 				grpcutil.RequireStatus(t, tc.expectedCode, err)
