@@ -158,11 +158,18 @@ func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string,
 }
 
 func (r *indexcheckingReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+	if err := validateQueryShape(queryOpts.QueryShape, filter); err != nil {
+		return nil, err
+	}
+
 	opts = append(opts, options.WithSQLExplainCallbackForTest(r.mustEnsureIndexes))
 	return r.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
 func (r *indexcheckingReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	// TODO: validate the reverse filter.
+
 	opts = append(opts, options.WithSQLExplainCallbackForTestForReverse(r.mustEnsureIndexes))
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
@@ -217,3 +224,83 @@ var (
 	_ datastore.Reader               = (*indexcheckingReader)(nil)
 	_ datastore.ReadWriteTransaction = (*indexcheckingRWT)(nil)
 )
+
+func validateQueryShape(queryShape queryshape.Shape, filter datastore.RelationshipsFilter) error {
+	switch queryShape {
+	case queryshape.CheckPermissionSelectDirectSubjects:
+		if filter.OptionalCaveatName != "" {
+			return fmt.Errorf("optional caveats not supported for CheckPermissionSelectDirectSubjects")
+		}
+
+		if filter.OptionalResourceType == "" {
+			return fmt.Errorf("optional resource type required for CheckPermissionSelectDirectSubjects")
+		}
+
+		if len(filter.OptionalResourceIds) == 0 {
+			return fmt.Errorf("optional resource ids required for CheckPermissionSelectDirectSubjects")
+		}
+
+		if filter.OptionalResourceRelation == "" {
+			return fmt.Errorf("optional resource relation required for CheckPermissionSelectDirectSubjects")
+		}
+
+		if len(filter.OptionalSubjectsSelectors) == 0 {
+			return fmt.Errorf("optional subjects selectors required for CheckPermissionSelectDirectSubjects")
+		}
+
+		for _, subjectSelector := range filter.OptionalSubjectsSelectors {
+			if subjectSelector.OptionalSubjectType == "" {
+				return fmt.Errorf("optional subject type required for CheckPermissionSelectDirectSubjects")
+			}
+
+			if len(subjectSelector.OptionalSubjectIds) == 0 {
+				return fmt.Errorf("optional subject ids required for CheckPermissionSelectDirectSubjects")
+			}
+		}
+
+		return nil
+
+	case queryshape.CheckPermissionSelectIndirectSubjects:
+		if filter.OptionalCaveatName != "" {
+			return fmt.Errorf("optional caveats not supported for CheckPermissionSelectIndirectSubjects")
+		}
+
+		if filter.OptionalResourceType == "" {
+			return fmt.Errorf("optional resource type required for CheckPermissionSelectIndirectSubjects")
+		}
+
+		if len(filter.OptionalResourceIds) == 0 {
+			return fmt.Errorf("optional resource ids required for CheckPermissionSelectIndirectSubjects")
+		}
+
+		if filter.OptionalResourceRelation == "" {
+			return fmt.Errorf("optional resource relation required for CheckPermissionSelectIndirectSubjects")
+		}
+
+		if len(filter.OptionalSubjectsSelectors) == 0 {
+			return fmt.Errorf("optional subjects selectors required for CheckPermissionSelectIndirectSubjects")
+		}
+
+		for _, subjectSelector := range filter.OptionalSubjectsSelectors {
+			if subjectSelector.OptionalSubjectType == "" {
+				return fmt.Errorf("optional subject type required for CheckPermissionSelectIndirectSubjects")
+			}
+		}
+
+		return nil
+
+	case queryshape.Varying:
+		// Nothing to validate.
+		return nil
+
+	case queryshape.Unspecified:
+		fallthrough
+
+	case "":
+		// TODO: require query shape
+		return nil
+
+	default:
+		return fmt.Errorf("unsupported query shape: %s", queryShape)
+	}
+}
