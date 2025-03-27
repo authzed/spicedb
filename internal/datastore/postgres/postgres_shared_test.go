@@ -116,7 +116,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 					WithRevisionHeartbeat(false), // heartbeat revision messes with tests that assert over revisions
 				)
 				require.NoError(t, err)
-				return ds
+				return proxy.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 			})
 			return ds, nil
 		}), test.WithCategories(test.GCCategory), false)
@@ -340,6 +340,7 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID, options...)
 			require.NoError(t, err)
+
 			return ds
 		})
 		defer ds.Close()

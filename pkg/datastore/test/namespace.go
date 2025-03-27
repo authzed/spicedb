@@ -11,6 +11,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -185,7 +187,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 
 	iter, err := ds.SnapshotReader(deletedRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 	tRequire.VerifyIteratorResults(iter)
 

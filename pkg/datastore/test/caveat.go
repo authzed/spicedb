@@ -12,6 +12,8 @@ import (
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 
@@ -188,7 +190,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: rel.Resource.ObjectType,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	req.NoError(err)
 
 	for _, err := range iter {
@@ -229,7 +231,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     rel.Resource.ObjectType,
 		OptionalCaveatNameFilter: datastore.WithCaveatName(coreCaveat.Name),
-	})
+	}, options.WithQueryShape(queryshape.Varying))
 	req.NoError(err)
 	expectRel(req, iter, rel)
 
@@ -237,7 +239,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     anotherTpl.Resource.ObjectType,
 		OptionalCaveatNameFilter: datastore.WithCaveatName(anotherCoreCaveat.Name),
-	})
+	}, options.WithQueryShape(queryshape.Varying))
 	req.NoError(err)
 	expectRel(req, iter, anotherTpl)
 
@@ -378,7 +380,7 @@ func expectNoRel(req *require.Assertions, iter datastore.RelationshipIterator) {
 func assertRelCorrectlyStored(req *require.Assertions, ds datastore.Datastore, rev datastore.Revision, expected tuple.Relationship) {
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: expected.Resource.ObjectType,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	req.NoError(err)
 
 	for found, err := range iter {

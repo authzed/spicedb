@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -56,7 +57,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 
 			iter, err := ds.SnapshotReader(head).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testfixtures.DocumentNS.Name,
-			})
+			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			require.NoError(err)
 
 			tRequire.VerifyIteratorCount(iter, tc)
@@ -152,7 +153,7 @@ func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 
 	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	for found, err := range iter {
@@ -195,7 +196,7 @@ func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 
 	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	for found, err := range iter {
@@ -233,7 +234,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 
 	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	updates := make([]tuple.RelationshipUpdate, 0, tc)
@@ -258,7 +259,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 
 	iter, err = ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	foundChanged := 0

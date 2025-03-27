@@ -30,6 +30,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -441,6 +442,7 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 				dsoptions.WithLimit(&limit),
 				dsoptions.WithAfter(cur),
 				dsoptions.WithSort(dsoptions.ByResource),
+				dsoptions.WithQueryShape(queryshape.Varying),
 			)
 			if err != nil {
 				return shared.RewriteErrorWithoutConfig(ctx, err)

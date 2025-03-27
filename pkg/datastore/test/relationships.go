@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -87,14 +88,14 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				iter, err := dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					OptionalResourceType: relToFind.Resource.ObjectType,
 					OptionalResourceIds:  []string{relToFind.Resource.ObjectID},
-				})
+				}, options.WithQueryShape(queryshape.Varying))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, relToFind)
 
 				// Check without a resource type.
 				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					OptionalResourceIds: []string{relToFind.Resource.ObjectID},
-				})
+				}, options.WithQueryShape(queryshape.Varying))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, relToFind)
 
@@ -102,7 +103,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 					OptionalResourceType:     relToFind.Resource.ObjectType,
 					OptionalResourceIds:      []string{relToFind.Resource.ObjectID},
 					OptionalResourceRelation: relToFind.Resource.Relation,
-				})
+				}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, relToFind)
 
@@ -113,6 +114,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 						Namespace: relToFind.Resource.ObjectType,
 						Relation:  relToFind.Resource.Relation,
 					}),
+					options.WithQueryShapeForReverse(queryshape.Varying),
 				)
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, relToFind)
@@ -125,6 +127,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 						Relation:  relToFind.Resource.Relation,
 					}),
 					options.WithLimitForReverse(options.LimitOne),
+					options.WithQueryShapeForReverse(queryshape.Varying),
 				)
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, relToFind)
@@ -134,7 +137,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 					OptionalResourceType:     relToFind.Resource.ObjectType,
 					OptionalResourceIds:      []string{relToFind.Resource.ObjectID},
 					OptionalResourceRelation: "fake",
-				})
+				}, options.WithQueryShape(queryshape.Varying))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
@@ -147,6 +150,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 						Namespace: relToFind.Resource.ObjectType,
 						Relation:  relToFind.Resource.Relation,
 					}),
+					options.WithQueryShapeForReverse(queryshape.Varying),
 				)
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
@@ -155,7 +159,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			// Check a query that returns a number of relationships
 			iter, err := dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testResourceNamespace,
-			})
+			}, options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testRels...)
 
@@ -168,14 +172,14 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 						OptionalSubjectIds:  []string{"user0"},
 					},
 				},
-			})
+			}, options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testRels[0])
 
 			// Check for larger reverse queries.
 			iter, err = dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 				SubjectType: testUserNamespace,
-			})
+			}, options.WithQueryShapeForReverse(queryshape.FindSubjectOfType))
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testRels...)
 
@@ -184,7 +188,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				limit, _ := safecast.ToUint64(len(testRels) - 1)
 				iter, err := dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 					SubjectType: testUserNamespace,
-				}, options.WithLimitForReverse(&limit))
+				}, options.WithLimitForReverse(&limit), options.WithQueryShapeForReverse(queryshape.FindSubjectOfType))
 				require.NoError(err)
 
 				tRequire.VerifyIteratorCount(iter, len(testRels)-1)
@@ -193,14 +197,14 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			// Check that we can find the group of relationships too
 			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testRels[0].Resource.ObjectType,
-			})
+			}, options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testRels...)
 
 			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType:     testRels[0].Resource.ObjectType,
 				OptionalResourceRelation: testRels[0].Resource.Relation,
-			})
+			}, options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testRels...)
 
@@ -208,7 +212,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testRels[0].Resource.ObjectType,
 				OptionalResourceIds:  []string{"fakeobectid"},
-			})
+			}, options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter)
 
@@ -230,6 +234,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				datastore.RelationshipsFilter{
 					OptionalResourceType: testRels[0].Resource.ObjectType,
 				},
+				options.WithQueryShape(queryshape.FindResourceOfType),
 			)
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(alreadyDeletedIter, testRels[1:]...)
@@ -289,7 +294,7 @@ func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
 			iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testResourceNamespace,
 				OptionalResourceIds:  []string{tc},
-			})
+			}, options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 
 			found, err := datastore.IteratorToSlice(iter)
@@ -1016,7 +1021,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 					require.NoError(err)
 
 					reader := ds.SnapshotReader(headRev)
-					iter, err := reader.QueryRelationships(ctx, filter)
+					iter, err := reader.QueryRelationships(ctx, filter, options.WithQueryShape(queryshape.Varying))
 					require.NoError(err)
 
 					found, err := datastore.IteratorToSlice(iter)
@@ -1034,7 +1039,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 					for _, resourceType := range resourceTypes.AsSlice() {
 						iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 							OptionalResourceType: resourceType,
-						})
+						}, options.WithQueryShape(queryshape.FindResourceOfType))
 						require.NoError(err)
 
 						for rel, err := range iter {
@@ -1052,7 +1057,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 					for _, resourceType := range resourceTypes.AsSlice() {
 						iter, err := olderReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 							OptionalResourceType: resourceType,
-						})
+						}, options.WithQueryShape(queryshape.Varying))
 						require.NoError(err)
 
 						for rel, err := range iter {
@@ -1663,7 +1668,7 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			require.NoError(err)
 
 			reader := ds.SnapshotReader(headRev)
-			iter, err := reader.QueryRelationships(ctx, tc.filter, options.WithSkipCaveats(tc.withoutCaveats), options.WithSkipExpiration(tc.withoutExpiration))
+			iter, err := reader.QueryRelationships(ctx, tc.filter, options.WithSkipCaveats(tc.withoutCaveats), options.WithSkipExpiration(tc.withoutExpiration), options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 
 			var results []string
@@ -1922,7 +1927,7 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		it, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType: "document",
-		})
+		}, options.WithQueryShape(queryshape.FindResourceOfType))
 		require.NoError(err)
 
 		for range it {
@@ -1931,7 +1936,7 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 
 		it, err = rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType: "folder",
-		})
+		}, options.WithQueryShape(queryshape.FindResourceOfType))
 		require.NoError(err)
 
 		for range it {
@@ -1997,7 +2002,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testResourceNamespace,
-			})
+			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			if err != nil {
 				return err
 			}
@@ -2083,7 +2088,7 @@ func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     testResourceNamespace,
 		OptionalResourceRelation: testReaderRelation,
-	})
+	}, options.WithQueryShape(queryshape.Varying))
 	require.NoError(err)
 
 	found, err := datastore.IteratorToSlice(iter)
@@ -2126,7 +2131,7 @@ func ensureReverseRelationshipsStatus(ctx context.Context, require *require.Asse
 			SubjectType:        rel.Subject.ObjectType,
 			OptionalSubjectIds: []string{rel.Subject.ObjectID},
 			RelationFilter:     filter,
-		})
+		}, options.WithQueryShapeForReverse(queryshape.Varying))
 		require.NoError(err)
 
 		found, err := datastore.IteratorToSlice(iter)
@@ -2170,7 +2175,7 @@ func ensureRelationshipsStatus(ctx context.Context, require *require.Assertions,
 					OptionalSubjectIds:  []string{rel.Subject.ObjectID},
 				},
 			},
-		})
+		}, options.WithQueryShape(queryshape.Varying))
 		require.NoError(err)
 
 		found, err := datastore.IteratorToSlice(iter)
@@ -2229,7 +2234,7 @@ func countRels(ctx context.Context, require *require.Assertions, ds datastore.Da
 
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: resourceType,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	counter := 0

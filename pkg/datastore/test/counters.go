@@ -12,6 +12,8 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -47,7 +49,7 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 	expectedCount := 0
 	iter, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(t, err)
 
 	foundExpiringRel := false
@@ -149,7 +151,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	expectedCount := 0
 	iter, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(t, err)
 
 	for _, err := range iter {
@@ -165,7 +167,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	expectedCount = 0
 	iter, err = reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.FolderNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(t, err)
 
 	for _, err := range iter {

@@ -20,7 +20,18 @@ func TestIndexCheckingMissingIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	reader := wrapped.SnapshotReader(headRev)
-	it, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{}, options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects))
+	it, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"somedoc"},
+		OptionalResourceRelation: "viewer",
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: "user",
+				OptionalSubjectIds:  []string{"tom"},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+			},
+		},
+	}, options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects))
 	require.NoError(t, err)
 
 	for _, err := range it {
@@ -37,7 +48,18 @@ func TestIndexCheckingFoundIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	reader := wrapped.SnapshotReader(headRev)
-	it, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{}, options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects))
+	it, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"somedoc"},
+		OptionalResourceRelation: "viewer",
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: "user",
+				OptionalSubjectIds:  []string{"tom"},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+			},
+		},
+	}, options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects))
 	require.NoError(t, err)
 
 	for _, err := range it {
