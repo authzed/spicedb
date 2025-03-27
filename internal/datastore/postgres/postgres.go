@@ -16,6 +16,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgconn/ctxwatch"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/mattn/go-isatty"
@@ -25,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
@@ -102,7 +102,7 @@ func NewPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return ds, nil
 }
 
 // NewReadOnlyPostgresDatastore initializes a SpiceDB datastore that uses a PostgreSQL
@@ -119,7 +119,7 @@ func NewReadOnlyPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return ds, nil
 }
 
 func newPostgresDatastore(
@@ -127,7 +127,7 @@ func newPostgresDatastore(
 	pgURL string,
 	replicaIndex int,
 	options ...Option,
-) (datastore.Datastore, error) {
+) (datastore.StrictReadDatastore, error) {
 	isPrimary := replicaIndex == primaryInstanceID
 	config, err := generateConfig(options)
 	if err != nil {
@@ -138,6 +138,11 @@ func newPostgresDatastore(
 	parsedConfig, err := pgxpool.ParseConfig(pgURL)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
+	}
+
+	// Install the cancelation handler for contexts.
+	parsedConfig.ConnConfig.BuildContextWatcherHandler = func(pgConn *pgconn.PgConn) ctxwatch.Handler {
+		return &pgconn.CancelRequestContextWatcherHandler{Conn: pgConn}
 	}
 
 	// Setup the default custom plan setting, if applicable.
