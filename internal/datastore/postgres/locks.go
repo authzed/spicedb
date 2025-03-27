@@ -2,8 +2,7 @@ package postgres
 
 import (
 	"context"
-
-	log "github.com/authzed/spicedb/internal/logging"
+	"fmt"
 )
 
 type lockID uint32
@@ -48,8 +47,7 @@ func (pgd *pgDatastore) releaseLock(ctx context.Context, lockID lockID) error {
 	}
 
 	if !lockReleased {
-		log.Warn().Uint32("lock_id", uint32(lockID)).Msg("held lock not released; this likely indicates a bug")
-		return nil
+		return fmt.Errorf("failed to release lock %d", lockID)
 	}
 
 	return nil
