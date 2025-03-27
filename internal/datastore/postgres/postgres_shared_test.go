@@ -98,6 +98,20 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			})
 			return ds, nil
 		}), false)
+
+		t.Run("TestLocking", createMultiDatastoreTest(
+			b,
+			LockingTest,
+			RevisionQuantization(0),
+			GCWindow(1000*time.Second),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(50),
+			MigrationPhase(config.migrationPhase),
+			ReadConnsMinOpen(10),
+			ReadConnsMaxOpen(10),
+			WriteConnsMinOpen(10),
+			WriteConnsMaxOpen(10),
+		))
 	})
 
 	t.Run(fmt.Sprintf("%spostgres-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
@@ -260,15 +274,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				MigrationPhase(config.migrationPhase),
 			))
 
-			t.Run("TestLocking", createMultiDatastoreTest(
-				b,
-				LockingTest,
-				RevisionQuantization(0),
-				GCWindow(1000*time.Second),
-				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
-				MigrationPhase(config.migrationPhase),
-			))
 		}
 
 		t.Run("OTelTracing", createDatastoreTest(
@@ -443,8 +448,12 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Run GC at the transaction and ensure no relationships are removed.
 	pds := ds.(*pgDatastore)
 
+	pgg, err := pds.BuildGarbageCollector(ctx)
+	require.NoError(err)
+	defer pgg.Close()
+
 	// Nothing to GC
-	removed, err := pds.DeleteBeforeTx(ctx, firstWrite)
+	removed, err := pgg.DeleteBeforeTx(ctx, firstWrite)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Namespaces)
@@ -464,7 +473,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC to remove the old transaction
-	removed, err = pds.DeleteBeforeTx(ctx, updateTwoNamespaces)
+	removed, err = pgg.DeleteBeforeTx(ctx, updateTwoNamespaces)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Equal(int64(1), removed.Transactions) // firstWrite
@@ -477,14 +486,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
-	removed, err = pds.DeleteBeforeTx(ctx, wroteOneRelationship)
+	removed, err = pgg.DeleteBeforeTx(ctx, wroteOneRelationship)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Equal(int64(1), removed.Transactions) // updateTwoNamespaces
 	require.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = pds.DeleteBeforeTx(ctx, wroteOneRelationship)
+	removed, err = pgg.DeleteBeforeTx(ctx, wroteOneRelationship)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Transactions)
@@ -500,14 +509,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC, which won't clean anything because we're dropping the write transaction only
-	removed, err = pds.DeleteBeforeTx(ctx, relOverwrittenAt)
+	removed, err = pgg.DeleteBeforeTx(ctx, relOverwrittenAt)
 	require.NoError(err)
 	require.Equal(int64(1), removed.Relationships) // wroteOneRelationship
 	require.Equal(int64(1), removed.Transactions)  // wroteOneRelationship
 	require.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = pds.DeleteBeforeTx(ctx, relOverwrittenAt)
+	removed, err = pgg.DeleteBeforeTx(ctx, relOverwrittenAt)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Transactions)
@@ -524,14 +533,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.NoRelationshipExists(ctx, rel, relDeletedAt)
 
 	// Run GC, which will now drop the overwrite transaction only and the first rel revision
-	removed, err = pds.DeleteBeforeTx(ctx, relDeletedAt)
+	removed, err = pgg.DeleteBeforeTx(ctx, relDeletedAt)
 	require.NoError(err)
 	require.Equal(int64(1), removed.Relationships)
 	require.Equal(int64(1), removed.Transactions) // relOverwrittenAt
 	require.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = pds.DeleteBeforeTx(ctx, relDeletedAt)
+	removed, err = pgg.DeleteBeforeTx(ctx, relDeletedAt)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Transactions)
@@ -549,7 +558,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
 	// as well as the 2 older write transactions and the older delete transaction.
-	removed, err = pds.DeleteBeforeTx(ctx, relLastWriteAt)
+	removed, err = pgg.DeleteBeforeTx(ctx, relLastWriteAt)
 	require.NoError(err)
 	require.Equal(int64(2), removed.Relationships) // delete, old1
 	require.Equal(int64(3), removed.Transactions)  // removed, write1, write2
@@ -565,7 +574,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC to clean up the last write
-	removed, err = pds.DeleteBeforeTx(ctx, lastRev)
+	removed, err = pgg.DeleteBeforeTx(ctx, lastRev)
 	require.NoError(err)
 	require.Zero(removed.Relationships)           // write3
 	require.Equal(int64(1), removed.Transactions) // write3
@@ -582,11 +591,16 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 
 	// Setting db default time zone to before UTC
 	pgd := ds.(*pgDatastore)
+
+	pgg, err := pgd.BuildGarbageCollector(ctx)
+	require.NoError(err)
+	defer pgg.Close()
+
 	_, err = pgd.writePool.Exec(ctx, "SET TIME ZONE 'America/New_York';")
 	require.NoError(err)
 
 	// Get timestamp in UTC as reference
-	startTimeUTC, err := pgd.Now(ctx)
+	startTimeUTC, err := pgg.Now(ctx)
 	require.NoError(err)
 
 	// Transaction timestamp should not be stored in system time zone
@@ -628,6 +642,10 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 
 	pds := ds.(*pgDatastore)
 
+	pgg, err := pds.BuildGarbageCollector(ctx)
+	require.NoError(err)
+	defer pgg.Close()
+
 	// Sleep 1ms to ensure GC will delete the previous transaction.
 	time.Sleep(1 * time.Millisecond)
 
@@ -637,13 +655,13 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC and ensure only transactions were removed.
-	afterWrite, err := pds.Now(ctx)
+	afterWrite, err := pgg.Now(ctx)
 	require.NoError(err)
 
-	afterWriteTx, err := pds.TxIDBefore(ctx, afterWrite)
+	afterWriteTx, err := pgg.TxIDBefore(ctx, afterWrite)
 	require.NoError(err)
 
-	removed, err := pds.DeleteBeforeTx(ctx, afterWriteTx)
+	removed, err := pgg.DeleteBeforeTx(ctx, afterWriteTx)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.True(removed.Transactions > 0)
@@ -667,13 +685,13 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC and ensure the relationship is not removed.
-	afterDelete, err := pds.Now(ctx)
+	afterDelete, err := pgg.Now(ctx)
 	require.NoError(err)
 
-	afterDeleteTx, err := pds.TxIDBefore(ctx, afterDelete)
+	afterDeleteTx, err := pgg.TxIDBefore(ctx, afterDelete)
 	require.NoError(err)
 
-	removed, err = pds.DeleteBeforeTx(ctx, afterDeleteTx)
+	removed, err = pgg.DeleteBeforeTx(ctx, afterDeleteTx)
 	require.NoError(err)
 	require.Equal(int64(1), removed.Relationships)
 	require.Equal(int64(2), removed.Transactions) // relDeletedAt, injected
@@ -703,6 +721,10 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	pds := ds.(*pgDatastore)
 
+	pgg, err := pds.BuildGarbageCollector(ctx)
+	require.NoError(err)
+	defer pgg.Close()
+
 	// Prepare relationships to write.
 	var rels []tuple.Relationship
 	for i := 0; i < chunkRelationshipCount; i++ {
@@ -721,13 +743,13 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	}
 
 	// Run GC and ensure only transactions were removed.
-	afterWrite, err := pds.Now(ctx)
+	afterWrite, err := pgg.Now(ctx)
 	require.NoError(err)
 
-	afterWriteTx, err := pds.TxIDBefore(ctx, afterWrite)
+	afterWriteTx, err := pgg.TxIDBefore(ctx, afterWrite)
 	require.NoError(err)
 
-	removed, err := pds.DeleteBeforeTx(ctx, afterWriteTx)
+	removed, err := pgg.DeleteBeforeTx(ctx, afterWriteTx)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.True(removed.Transactions > 0)
@@ -755,13 +777,13 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Run GC and ensure all the stale relationships are removed.
-	afterDelete, err := pds.Now(ctx)
+	afterDelete, err := pgg.Now(ctx)
 	require.NoError(err)
 
-	afterDeleteTx, err := pds.TxIDBefore(ctx, afterDelete)
+	afterDeleteTx, err := pgg.TxIDBefore(ctx, afterDelete)
 	require.NoError(err)
 
-	removed, err = pds.DeleteBeforeTx(ctx, afterDeleteTx)
+	removed, err = pgg.DeleteBeforeTx(ctx, afterDeleteTx)
 	require.NoError(err)
 	require.Equal(int64(chunkRelationshipCount), removed.Relationships)
 	require.Equal(int64(2), removed.Transactions)
@@ -1608,10 +1630,14 @@ func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngin
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	casted := datastore.UnwrapAs[common.GarbageCollector](ds)
+	casted := datastore.UnwrapAs[*pgDatastore](ds)
 	require.NotNil(casted)
 
-	_, err = casted.DeleteBeforeTx(context.Background(), revision)
+	pgg, err := casted.BuildGarbageCollector(ctx)
+	require.NoError(err)
+	defer pgg.Close()
+
+	_, err = pgg.(*pgGarbageCollector).deleteBeforeTx(context.Background(), casted.writePool, revision)
 	require.NoError(err)
 
 	require.NotEmpty(interceptor.explanations, "expected queries to be executed")
@@ -1671,37 +1697,45 @@ func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) 
 	pds := ds.(*pgDatastore)
 	pds2 := ds2.(*pgDatastore)
 
+	conn1, err := pds.writePool.Acquire(context.Background())
+	require.NoError(t, err)
+	defer conn1.Release()
+
+	conn2, err := pds2.writePool.Acquire(context.Background())
+	require.NoError(t, err)
+	defer conn2.Release()
+
 	// Acquire a lock.
 	ctx := context.Background()
-	acquired, err := pds.tryAcquireLock(ctx, 42)
+	acquired, err := pds.tryAcquireLock(ctx, conn1, 42)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
 	// Try to acquire again. Must be on a different session, as these locks are reentrant.
-	acquired, err = pds2.tryAcquireLock(ctx, 42)
+	acquired, err = pds2.tryAcquireLock(ctx, conn2, 42)
 	require.NoError(t, err)
 	require.False(t, acquired)
 
 	// Acquire another lock.
-	acquired, err = pds.tryAcquireLock(ctx, 43)
+	acquired, err = pds.tryAcquireLock(ctx, conn1, 43)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
 	// Release the first lock.
-	err = pds.releaseLock(ctx, 42)
+	err = pds.releaseLock(ctx, conn1, 42)
 	require.NoError(t, err)
 
 	// Try to acquire the first lock again.
-	acquired, err = pds.tryAcquireLock(ctx, 42)
+	acquired, err = pds.tryAcquireLock(ctx, conn2, 42)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
 	// Release the second lock.
-	err = pds.releaseLock(ctx, 43)
+	err = pds.releaseLock(ctx, conn1, 43)
 	require.NoError(t, err)
 
 	// Release the first lock.
-	err = pds.releaseLock(ctx, 42)
+	err = pds.releaseLock(ctx, conn2, 42)
 	require.NoError(t, err)
 }
 

@@ -71,8 +71,8 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 				return fmt.Errorf("failed to create datastore: %w", err)
 			}
 
-			gc := dspkg.UnwrapAs[common.GarbageCollector](ds)
-			if gc == nil {
+			gcds := dspkg.UnwrapAs[common.GarbageCollectableDatastore](ds)
+			if gcds == nil {
 				return fmt.Errorf("datastore of type %T does not support garbage collection", ds)
 			}
 
@@ -80,10 +80,12 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 				Float64("gc_window_seconds", cfg.GCWindow.Seconds()).
 				Float64("gc_max_operation_time_seconds", cfg.GCMaxOperationTime.Seconds()).
 				Msg("Running garbage collection...")
-			err = common.RunGarbageCollection(gc, cfg.GCWindow, cfg.GCMaxOperationTime)
+
+			err = common.RunGarbageCollection(gcds, cfg.GCWindow, cfg.GCMaxOperationTime)
 			if err != nil {
 				return err
 			}
+
 			log.Ctx(ctx).Info().Msg("Garbage collection completed")
 			return nil
 		}),

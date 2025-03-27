@@ -15,7 +15,19 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-var _ common.GarbageCollector = (*Datastore)(nil)
+var (
+	_ common.GarbageCollectableDatastore = (*Datastore)(nil)
+	_ common.GarbageCollector            = (*mysqlGarbageCollector)(nil)
+)
+
+type mysqlGarbageCollector struct {
+	mds      *Datastore
+	isClosed bool
+}
+
+func (mds *Datastore) BuildGarbageCollector(ctx context.Context) (common.GarbageCollector, error) {
+	return &mysqlGarbageCollector{mds: mds, isClosed: false}, nil
+}
 
 func (mds *Datastore) HasGCRun() bool {
 	return mds.gcHasRun.Load()
@@ -29,15 +41,23 @@ func (mds *Datastore) ResetGCCompleted() {
 	mds.gcHasRun.Store(false)
 }
 
-func (mds *Datastore) LockForGCRun(ctx context.Context) (bool, error) {
-	return mds.tryAcquireLock(ctx, gcRunLock)
+func (mcc *mysqlGarbageCollector) Close() {
+	mcc.isClosed = true
 }
 
-func (mds *Datastore) UnlockAfterGCRun() error {
-	return mds.releaseLock(context.Background(), gcRunLock)
+func (mcc *mysqlGarbageCollector) LockForGCRun(ctx context.Context) (bool, error) {
+	return mcc.mds.tryAcquireLock(ctx, gcRunLock)
 }
 
-func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
+func (mcc *mysqlGarbageCollector) UnlockAfterGCRun() error {
+	return mcc.mds.releaseLock(context.Background(), gcRunLock)
+}
+
+func (mcc *mysqlGarbageCollector) Now(ctx context.Context) (time.Time, error) {
+	if mcc.isClosed {
+		return time.Time{}, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
+	}
+
 	// Retrieve the `now` time from the database.
 	nowSQL, nowArgs, err := getNow.ToSql()
 	if err != nil {
@@ -45,7 +65,7 @@ func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 	}
 
 	var now time.Time
-	err = mds.db.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
+	err = mcc.mds.db.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -56,15 +76,19 @@ func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 }
 
 // - main difference is how the PSQL driver handles null values
-func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datastore.Revision, error) {
+func (mcc *mysqlGarbageCollector) TxIDBefore(ctx context.Context, before time.Time) (datastore.Revision, error) {
+	if mcc.isClosed {
+		return datastore.NoRevision, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
+	}
+
 	// Find the highest transaction ID before the GC window.
-	query, args, err := mds.GetLastRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
+	query, args, err := mcc.mds.GetLastRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
 	if err != nil {
 		return datastore.NoRevision, err
 	}
 
 	var value sql.NullInt64
-	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&value)
+	err = mcc.mds.db.QueryRowContext(ctx, query, args...).Scan(&value)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -83,12 +107,16 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datasto
 }
 
 // - implementation misses metrics
-func (mds *Datastore) DeleteBeforeTx(
+func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 	ctx context.Context,
 	txID datastore.Revision,
 ) (removed common.DeletionCounts, err error) {
+	if mcc.isClosed {
+		return removed, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
+	}
+
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	removed.Relationships, err = mds.batchDelete(ctx, mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: txID})
+	removed.Relationships, err = mcc.batchDelete(ctx, mcc.mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {
 		return
 	}
@@ -97,36 +125,40 @@ func (mds *Datastore) DeleteBeforeTx(
 	//
 	// We don't delete the transaction itself to ensure there is always at least
 	// one transaction present.
-	removed.Transactions, err = mds.batchDelete(ctx, mds.driver.RelationTupleTransaction(), sq.Lt{colID: txID})
+	removed.Transactions, err = mcc.batchDelete(ctx, mcc.mds.driver.RelationTupleTransaction(), sq.Lt{colID: txID})
 	if err != nil {
 		return
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
-	removed.Namespaces, err = mds.batchDelete(ctx, mds.driver.Namespace(), sq.LtOrEq{colDeletedTxn: txID})
+	removed.Namespaces, err = mcc.batchDelete(ctx, mcc.mds.driver.Namespace(), sq.LtOrEq{colDeletedTxn: txID})
 	return
 }
 
-func (mds *Datastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
-	if mds.schema.ExpirationDisabled {
+func (mcc *mysqlGarbageCollector) DeleteExpiredRels(ctx context.Context) (int64, error) {
+	if mcc.mds.schema.ExpirationDisabled {
 		return 0, nil
 	}
 
-	now, err := mds.Now(ctx)
+	now, err := mcc.Now(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	return mds.batchDelete(
+	return mcc.batchDelete(
 		ctx,
-		mds.driver.RelationTuple(),
-		sq.Lt{colExpiration: now.Add(-1 * mds.gcWindow)},
+		mcc.mds.driver.RelationTuple(),
+		sq.Lt{colExpiration: now.Add(-1 * mcc.mds.gcWindow)},
 	)
 }
 
 // - query was reworked to make it compatible with Vitess
 // - API differences with PSQL driver
-func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
+func (mcc *mysqlGarbageCollector) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
+	if mcc.isClosed {
+		return -1, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
+	}
+
 	query, args, err := sb.Delete(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
@@ -134,7 +166,7 @@ func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter 
 
 	var deletedCount int64
 	for {
-		cr, err := mds.db.ExecContext(ctx, query, args...)
+		cr, err := mcc.mds.db.ExecContext(ctx, query, args...)
 		if err != nil {
 			return deletedCount, err
 		}
