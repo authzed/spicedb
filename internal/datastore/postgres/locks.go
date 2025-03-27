@@ -25,7 +25,7 @@ func (pgd *pgDatastore) tryAcquireLock(ctx context.Context, lockID lockID) (bool
 	// > even if other sessions are awaiting the lock; this statement is true regardless of whether the
 	// > existing lock hold and new request are at session level or transaction level.
 	// See: https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS
-	row := pgd.writePool.QueryRow(ctx, `
+	row := pgd.gcConn.QueryRow(ctx, `
 		SELECT pg_try_advisory_lock($1)
 	`, lockID)
 
@@ -37,7 +37,7 @@ func (pgd *pgDatastore) tryAcquireLock(ctx context.Context, lockID lockID) (bool
 }
 
 func (pgd *pgDatastore) releaseLock(ctx context.Context, lockID lockID) error {
-	row := pgd.writePool.QueryRow(ctx, `
+	row := pgd.gcConn.QueryRow(ctx, `
 		SELECT pg_advisory_unlock($1)
 	`, lockID)
 
