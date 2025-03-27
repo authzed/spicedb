@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -66,7 +67,7 @@ func TestPaginatedIterator(t *testing.T) {
 			ctx := context.Background()
 			iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{
 				OptionalResourceType: "unused",
-			}, pageSize, options.ByResource, nil)
+			}, pageSize, options.ByResource, nil, queryshape.Varying)
 			require.NoError(err)
 
 			slice, err := datastore.IteratorToSlice(iter)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
 var limitOne uint64 = 1
@@ -25,7 +26,7 @@ func checkPreconditions(
 			return fmt.Errorf("error converting filter: %w", err)
 		}
 
-		iter, err := rwt.QueryRelationships(ctx, dsFilter, options.WithLimit(&limitOne))
+		iter, err := rwt.QueryRelationships(ctx, dsFilter, options.WithLimit(&limitOne), options.WithQueryShape(queryshape.Varying))
 		if err != nil {
 			return fmt.Errorf("error reading relationships: %w", err)
 		}

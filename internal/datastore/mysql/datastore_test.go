@@ -17,6 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -56,7 +57,7 @@ func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gc
 			OverrideLockWaitTimeout(1),
 		)
 		require.NoError(dst.t, err)
-		return ds
+		return proxy.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	})
 	_, err := ds.ReadyState(context.Background())
 	require.NoError(dst.t, err)

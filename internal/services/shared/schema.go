@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	caveatdiff "github.com/authzed/spicedb/pkg/diff/caveats"
 	nsdiff "github.com/authzed/spicedb/pkg/diff/namespace"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -267,6 +268,7 @@ func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 		ctx,
 		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
 		options.WithLimit(options.LimitOne),
+		options.WithQueryShape(queryshape.FindResourceOfType),
 	)
 	if err := errorIfTupleIteratorReturnsTuples(
 		ctx,
@@ -278,9 +280,14 @@ func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 		return err
 	}
 
-	qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
-		SubjectType: namespaceName,
-	}, options.WithLimitForReverse(options.LimitOne))
+	qy, qyErr = rwt.ReverseQueryRelationships(
+		ctx,
+		datastore.SubjectsFilter{
+			SubjectType: namespaceName,
+		},
+		options.WithLimitForReverse(options.LimitOne),
+		options.WithQueryShapeForReverse(queryshape.FindSubjectOfType),
+	)
 	err := errorIfTupleIteratorReturnsTuples(
 		ctx,
 		qy,
@@ -314,46 +321,15 @@ func sanityCheckNamespaceChanges(
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case nsdiff.RemovedRelation:
-			// NOTE: We add the subject filters here to ensure the reverse relationship index is used
-			// by the datastores. As there is no index that has {namespace, relation} directly, but there
-			// *is* an index that has {subject_namespace, subject_relation, namespace, relation}, we can
-			// force the datastore to use the reverse index by adding the subject filters.
-			var previousRelation *core.Relation
-			for _, relation := range existing.Relation {
-				if relation.Name == delta.RelationName {
-					previousRelation = relation
-					break
-				}
-			}
-
-			if previousRelation == nil {
-				return nil, spiceerrors.MustBugf("relation `%s` not found in existing namespace definition", delta.RelationName)
-			}
-
-			subjectSelectors := make([]datastore.SubjectsSelector, 0, len(previousRelation.TypeInformation.AllowedDirectRelations))
-			for _, allowedType := range previousRelation.TypeInformation.AllowedDirectRelations {
-				if allowedType.GetRelation() == datastore.Ellipsis {
-					subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
-						OptionalSubjectType: allowedType.Namespace,
-						RelationFilter: datastore.SubjectRelationFilter{
-							IncludeEllipsisRelation: true,
-						},
-					})
-				} else {
-					subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
-						OptionalSubjectType: allowedType.Namespace,
-						RelationFilter: datastore.SubjectRelationFilter{
-							NonEllipsisRelation: allowedType.GetRelation(),
-						},
-					})
-				}
-			}
-
-			qy, qyErr := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				OptionalResourceType:      nsdef.Name,
-				OptionalResourceRelation:  delta.RelationName,
-				OptionalSubjectsSelectors: subjectSelectors,
-			}, options.WithLimit(options.LimitOne))
+			qy, qyErr := rwt.QueryRelationships(
+				ctx,
+				datastore.RelationshipsFilter{
+					OptionalResourceType:     nsdef.Name,
+					OptionalResourceRelation: delta.RelationName,
+				},
+				options.WithLimit(options.LimitOne),
+				options.WithQueryShape(queryshape.FindResourceOfTypeAndRelation),
+			)
 
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
@@ -365,12 +341,17 @@ func sanityCheckNamespaceChanges(
 			}
 
 			// Also check for right sides of tuples.
-			qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
-				SubjectType: nsdef.Name,
-				RelationFilter: datastore.SubjectRelationFilter{
-					NonEllipsisRelation: delta.RelationName,
+			qy, qyErr = rwt.ReverseQueryRelationships(
+				ctx,
+				datastore.SubjectsFilter{
+					SubjectType: nsdef.Name,
+					RelationFilter: datastore.SubjectRelationFilter{
+						NonEllipsisRelation: delta.RelationName,
+					},
 				},
-			}, options.WithLimitForReverse(options.LimitOne))
+				options.WithLimitForReverse(options.LimitOne),
+				options.WithQueryShapeForReverse(queryshape.FindSubjectOfTypeAndRelation),
+			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
 				qy,
@@ -420,6 +401,7 @@ func sanityCheckNamespaceChanges(
 					OptionalExpirationOption: expirationOption,
 				},
 				options.WithLimit(options.LimitOne),
+				options.WithQueryShape(queryshape.FindMatchingRelationAllowedSubjectType),
 			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,

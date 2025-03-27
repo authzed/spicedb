@@ -5,6 +5,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -17,6 +18,7 @@ func NewPaginatedIterator(
 	pageSize uint64,
 	order options.SortOrder,
 	startCursor options.Cursor,
+	queryShape queryshape.Shape,
 ) (datastore.RelationshipIterator, error) {
 	iter, err := reader.QueryRelationships(
 		ctx,
@@ -24,6 +26,7 @@ func NewPaginatedIterator(
 		options.WithSort(order),
 		options.WithLimit(&pageSize),
 		options.WithAfter(startCursor),
+		options.WithQueryShape(queryShape),
 	)
 	if err != nil {
 		return nil, err
@@ -56,6 +59,7 @@ func NewPaginatedIterator(
 				options.WithSort(order),
 				options.WithLimit(&pageSize),
 				options.WithAfter(cursor),
+				options.WithQueryShape(queryShape),
 			)
 			if err != nil {
 				yield(tuple.Relationship{}, err)

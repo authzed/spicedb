@@ -27,6 +27,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/pagination"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -225,6 +226,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		pageSize,
 		options.ByResource,
 		startCursor,
+		queryshape.Varying,
 	)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
@@ -456,7 +458,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 				return ps.rewriteError(ctx, err)
 			}
 
-			it, err := rwt.QueryRelationships(ctx, filter, options.WithLimit(&limitPlusOne))
+			it, err := rwt.QueryRelationships(ctx, filter, options.WithLimit(&limitPlusOne), options.WithQueryShape(queryshape.Varying))
 			if err != nil {
 				return ps.rewriteError(ctx, err)
 			}
