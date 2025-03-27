@@ -25,7 +25,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
@@ -109,7 +108,7 @@ func NewPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return ds, nil
 }
 
 // NewReadOnlyPostgresDatastore initializes a SpiceDB datastore that uses a PostgreSQL
@@ -126,7 +125,7 @@ func NewReadOnlyPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return ds, nil
 }
 
 func newPostgresDatastore(
@@ -134,7 +133,7 @@ func newPostgresDatastore(
 	pgURL string,
 	replicaIndex int,
 	options ...Option,
-) (datastore.Datastore, error) {
+) (datastore.StrictReadDatastore, error) {
 	isPrimary := replicaIndex == primaryInstanceID
 	config, err := generateConfig(options)
 	if err != nil {
@@ -146,6 +145,9 @@ func newPostgresDatastore(
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
+
+	// Install the cancelation handler for contexts.
+	parsedConfig.ConnConfig.BuildContextWatcherHandler = pgxcommon.CancelationContextHandler
 
 	// Setup the default custom plan setting, if applicable.
 	// Setup the default query execution mode setting, if applicable.
