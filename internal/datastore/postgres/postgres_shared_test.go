@@ -98,6 +98,20 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			})
 			return ds, nil
 		}), false)
+
+		t.Run("TestLocking", createMultiDatastoreTest(
+			b,
+			LockingTest,
+			RevisionQuantization(0),
+			GCWindow(1000*time.Second),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(50),
+			MigrationPhase(config.migrationPhase),
+			ReadConnsMinOpen(1),
+			ReadConnsMaxOpen(1),
+			WriteConnsMinOpen(1),
+			WriteConnsMaxOpen(1),
+		))
 	})
 
 	t.Run(fmt.Sprintf("%spostgres-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
@@ -260,15 +274,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				MigrationPhase(config.migrationPhase),
 			))
 
-			t.Run("TestLocking", createMultiDatastoreTest(
-				b,
-				LockingTest,
-				RevisionQuantization(0),
-				GCWindow(1000*time.Second),
-				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
-				MigrationPhase(config.migrationPhase),
-			))
 		}
 
 		t.Run("OTelTracing", createDatastoreTest(
