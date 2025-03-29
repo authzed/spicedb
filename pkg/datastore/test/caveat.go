@@ -248,7 +248,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 		OptionalResourceType:     anotherTpl.Resource.ObjectType,
 		OptionalResourceIds:      []string{anotherTpl.Resource.ObjectID},
 		OptionalCaveatNameFilter: datastore.WithNoCaveat(),
-	})
+	}, options.WithQueryShape(queryshape.Varying))
 	req.NoError(err)
 	expectNoRel(req, iter)
 }

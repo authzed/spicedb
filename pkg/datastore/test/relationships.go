@@ -2200,7 +2200,7 @@ func ensureRelationshipWithFilter(ctx context.Context, require *require.Assertio
 
 	reader := ds.SnapshotReader(headRev)
 
-	iter, err := reader.QueryRelationships(ctx, filter)
+	iter, err := reader.QueryRelationships(ctx, filter, options.WithQueryShape(queryshape.Varying))
 	require.NoError(err)
 
 	found, err := datastore.IteratorToSlice(iter)
@@ -2217,7 +2217,7 @@ func ensureNoRelationshipWithFilter(ctx context.Context, require *require.Assert
 
 	reader := ds.SnapshotReader(headRev)
 
-	iter, err := reader.QueryRelationships(ctx, filter)
+	iter, err := reader.QueryRelationships(ctx, filter, options.WithQueryShape(queryshape.Varying))
 	require.NoError(err)
 
 	found, err := datastore.IteratorToSlice(iter)

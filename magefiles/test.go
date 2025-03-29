@@ -180,7 +180,7 @@ func (tc Testcons) CrdbVer(ctx context.Context, version string) error {
 }
 
 func (Testcons) crdb(ctx context.Context, version string) error {
-	return consistencyTest(ctx, "crdb", map[string]string{
+	return consistencyTest(ctx, "cockroachdb", map[string]string{
 		"CRDB_TEST_VERSION": version,
 	})
 }

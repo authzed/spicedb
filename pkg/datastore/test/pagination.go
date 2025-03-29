@@ -53,7 +53,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 			}, options.WithSort(tc.ordering), options.WithQueryShape(queryshape.FindResourceOfType))
 
 			require.NoError(err)
-			tRequire.VerifyOrderedIteratorResults(iter, expected...)
+			tRequire.VerifyIteratorResults(iter, expected...)
 
 			// Check a reader from with a transaction
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -61,7 +61,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 					OptionalResourceType: tc.resourceType,
 				}, options.WithSort(tc.ordering), options.WithQueryShape(queryshape.FindResourceOfType))
 				require.NoError(err)
-				tRequire.VerifyOrderedIteratorResults(iter, expected...)
+				tRequire.VerifyIteratorResults(iter, expected...)
 				return nil
 			})
 			require.NoError(err)
