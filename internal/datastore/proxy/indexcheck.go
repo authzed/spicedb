@@ -232,7 +232,7 @@ var (
 func validateQueryShape(queryShape queryshape.Shape, filter datastore.RelationshipsFilter) error {
 	switch queryShape {
 	case queryshape.CheckPermissionSelectDirectSubjects:
-		if filter.OptionalCaveatName != "" {
+		if filter.OptionalCaveatNameFilter.Option != datastore.CaveatFilterOptionNone {
 			return fmt.Errorf("optional caveats not supported for CheckPermissionSelectDirectSubjects")
 		}
 
@@ -265,7 +265,7 @@ func validateQueryShape(queryShape queryshape.Shape, filter datastore.Relationsh
 		return nil
 
 	case queryshape.CheckPermissionSelectIndirectSubjects:
-		if filter.OptionalCaveatName != "" {
+		if filter.OptionalCaveatNameFilter.Option != datastore.CaveatFilterOptionNone {
 			return fmt.Errorf("optional caveats not supported for CheckPermissionSelectIndirectSubjects")
 		}
 
@@ -302,7 +302,7 @@ func validateQueryShape(queryShape queryshape.Shape, filter datastore.Relationsh
 		return nil
 
 	case queryshape.AllSubjectsForResources:
-		if filter.OptionalCaveatName != "" {
+		if filter.OptionalCaveatNameFilter.Option != datastore.CaveatFilterOptionNone {
 			return fmt.Errorf("optional caveats not supported for AllSubjectsForResources")
 		}
 

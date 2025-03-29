@@ -94,7 +94,8 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 		return 0, err
 	}
 
-	query := cr.addFromToQuery(countRels, cr.schema.RelationshipTableName)
+	index := schema.IndexForFilter(cr.schema, relFilter)
+	query := cr.addFromToQuery(countRels, cr.schema.RelationshipTableName+"@"+index.Name)
 	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(cr.schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
@@ -226,6 +227,10 @@ func (cr *crdbReader) QueryRelationships(
 		return nil, err
 	}
 
+	builtOpts := options.NewQueryOptionsWithOptions(opts...)
+	indexingHint := schema.IndexingHintForQueryShape(cr.schema, builtOpts.QueryShape)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
+
 	if spiceerrors.DebugAssertionsEnabled {
 		opts = append(opts, options.WithSQLCheckAssertionForTest(cr.assertHasExpectedAsOfSystemTime))
 	}
@@ -251,6 +256,9 @@ func (cr *crdbReader) ReverseQueryRelationships(
 			FilterToResourceType(queryOpts.ResRelation.Namespace).
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
+
+	indexingHint := schema.IndexingHintForQueryShape(cr.schema, queryOpts.QueryShapeForReverse)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
 	eopts := []options.QueryOptionsOption{
 		options.WithLimit(queryOpts.LimitForReverse),

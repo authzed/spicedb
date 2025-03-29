@@ -57,6 +57,14 @@ type SchemaInformation struct {
 
 	// ExpirationDisabled is a flag to indicate whether expiration support is disabled.
 	ExpirationDisabled bool `debugmap:"visible"`
+
+	// SortByResourceColumnOrder is the order of the resource columns in the schema to use
+	// when sorting by resource. If unspecified, the default will be used.
+	SortByResourceColumnOrder []string `debugmap:"visible"`
+
+	// SortBySubjectColumnOrder is the order of the subject columns in the schema to use
+	// when sorting by subject. If unspecified, the default will be used.
+	SortBySubjectColumnOrder []string `debugmap:"visible"`
 }
 
 // expectedIndexesForShape returns the expected index names for a given query shape.
@@ -75,6 +83,36 @@ func (si SchemaInformation) debugValidate() {
 		si.mustValidate()
 		return true
 	}, "SchemaInformation failed to validate")
+}
+
+func (si SchemaInformation) sortByResourceColumnOrderColumns() []string {
+	if len(si.SortByResourceColumnOrder) > 0 {
+		return si.SortByResourceColumnOrder
+	}
+
+	return []string{
+		si.ColNamespace,
+		si.ColObjectID,
+		si.ColRelation,
+		si.ColUsersetNamespace,
+		si.ColUsersetObjectID,
+		si.ColUsersetRelation,
+	}
+}
+
+func (si SchemaInformation) sortBySubjectColumnOrderColumns() []string {
+	if len(si.SortBySubjectColumnOrder) > 0 {
+		return si.SortBySubjectColumnOrder
+	}
+
+	return []string{
+		si.ColUsersetNamespace,
+		si.ColUsersetObjectID,
+		si.ColUsersetRelation,
+		si.ColNamespace,
+		si.ColObjectID,
+		si.ColRelation,
+	}
 }
 
 func (si SchemaInformation) mustValidate() {
