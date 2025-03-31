@@ -115,7 +115,8 @@ func (crr *CursoredLookupResources2) afterSameType(
 	req ValidatedLookupResources2Request,
 	parentStream dispatch.LookupResources2Stream,
 ) error {
-	ctx, span := tracer.Start(ctx, "lookupViaReachability")
+	reachabilityForString := req.ResourceRelation.Namespace + "#" + req.ResourceRelation.Relation
+	ctx, span := tracer.Start(ctx, "reachability: "+reachabilityForString)
 	defer span.End()
 
 	dispatched := NewSyncONRSet()
@@ -145,9 +146,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 			spiceerrors.DebugAssert(func() bool {
 				return err == nil
 			}, "Error in entrypoint.DebugString()")
-			ctx, span := tracer.Start(ctx, "entrypoint", trace.WithAttributes(
-				attribute.String("entrypoint", ds),
-			))
+			ctx, span := tracer.Start(ctx, "entrypoint: "+ds, trace.WithAttributes())
 			defer span.End()
 
 			switch entrypoint.EntrypointKind() {
