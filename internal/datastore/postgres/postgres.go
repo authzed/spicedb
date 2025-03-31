@@ -751,7 +751,7 @@ func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
 		}
 
 		jitter := time.Duration(float64(heartbeatDuration) * rand.Float64() * defaultMaxHeartbeatLeaderJitterPercent / 100) // nolint:gosec
-		time.Sleep(jitter)
+		time.Sleep(heartbeatDuration + jitter)
 	}
 
 	defer func() {
