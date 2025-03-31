@@ -2575,16 +2575,7 @@ func (m *ResolverMeta) validate(all bool) error {
 
 	var errors []error
 
-	if len(m.GetAtRevision()) > 1024 {
-		err := ResolverMetaValidationError{
-			field:  "AtRevision",
-			reason: "value length must be at most 1024 bytes",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for AtRevision
 
 	if m.GetDepthRemaining() <= 0 {
 		err := ResolverMetaValidationError{
