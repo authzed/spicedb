@@ -67,11 +67,7 @@ func (rg *DefinitionReachability) RelationsEncounteredForSubject(
 
 	// TODO(jschorr): optimize this to not require walking over all types recursively.
 	added := mapz.NewSet[string]()
-	for {
-		if len(subjectTypesToCheck) == 0 {
-			break
-		}
-
+	for len(subjectTypesToCheck) != 0 {
 		collected := &[]ReachabilityEntrypoint{}
 		for _, nsDef := range allDefinitions {
 			nts, err := rg.def.ts.GetDefinition(ctx, nsDef.Name)
