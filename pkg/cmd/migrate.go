@@ -53,7 +53,8 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	timeout := cobrautil.MustGetDuration(cmd, "migration-timeout")
 	migrationBatachSize := cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size")
 
-	if datastoreEngine == "cockroachdb" {
+	switch datastoreEngine {
+	case "cockroachdb":
 		log.Ctx(cmd.Context()).Info().Msg("migrating cockroachdb datastore")
 
 		var err error
@@ -62,7 +63,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}
 		return runMigration(cmd.Context(), migrationDriver, crdbmigrations.CRDBMigrations, args[0], timeout, migrationBatachSize)
-	} else if datastoreEngine == "postgres" {
+	case "postgres":
 		log.Ctx(cmd.Context()).Info().Msg("migrating postgres datastore")
 
 		var credentialsProvider datastore.CredentialsProvider
@@ -80,7 +81,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}
 		return runMigration(cmd.Context(), migrationDriver, migrations.DatabaseMigrations, args[0], timeout, migrationBatachSize)
-	} else if datastoreEngine == "spanner" {
+	case "spanner":
 		log.Ctx(cmd.Context()).Info().Msg("migrating spanner datastore")
 
 		credFile := cobrautil.MustGetStringExpanded(cmd, "datastore-spanner-credentials")
@@ -94,7 +95,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}
 		return runMigration(cmd.Context(), migrationDriver, spannermigrations.SpannerMigrations, args[0], timeout, migrationBatachSize)
-	} else if datastoreEngine == "mysql" {
+	case "mysql":
 		log.Ctx(cmd.Context()).Info().Msg("migrating mysql datastore")
 
 		var err error
