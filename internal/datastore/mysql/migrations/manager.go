@@ -12,7 +12,7 @@ const migrationNamePattern = `^[_a-zA-Z]*$`
 
 var (
 	noNonatomicMigration migrate.MigrationFunc[Wrapper]
-	noTxMigration        migrate.TxMigrationFunc[TxWrapper] // nolint: deadcode, unused, varcheck
+	noTxMigration        migrate.TxMigrationFunc[TxWrapper] // nolint: unused
 
 	migrationNameRe = regexp.MustCompile(migrationNamePattern)
 

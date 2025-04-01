@@ -11,7 +11,7 @@ import (
 	// optgen is used directly in go:generate directives.
 	_ "github.com/ecordell/optgen"
 	// golangci-lint always uses the current directory's go.mod.
-	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 	// vulncheck always uses the current directory's go.mod.
 	_ "golang.org/x/vuln/cmd/govulncheck"
 )

@@ -147,7 +147,7 @@ func (p *watchingCachingProxy) Start(ctx context.Context) error {
 
 func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	log.Info().Msg("starting watching cache")
-	headRev, err := p.Datastore.HeadRevision(context.Background())
+	headRev, err := p.HeadRevision(context.Background())
 	if err != nil {
 		p.namespaceCache.setFallbackMode()
 		p.caveatCache.setFallbackMode()
@@ -239,7 +239,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
 
 			log.Debug().Str("revision", headRev.String()).Dur("watch-heartbeat", p.watchHeartbeat).Msg("beginning schema watch")
-			ssc, serrc := p.Datastore.Watch(ctx, headRev, datastore.WatchOptions{
+			ssc, serrc := p.Watch(ctx, headRev, datastore.WatchOptions{
 				Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
 				CheckpointInterval: p.watchHeartbeat,
 			})

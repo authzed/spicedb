@@ -332,11 +332,8 @@ func (p *sourceParser) performLeftRecursiveParsing(subTryExprFn tryParserFn, rig
 	var currentLeftNode AstNode
 	currentLeftNode = leftNode
 
-	for {
+	for p.isToken(operatorTokens...) {
 		// Check for an operator.
-		if !p.isToken(operatorTokens...) {
-			break
-		}
 
 		// If a lookahead function is defined, check the lookahead for the matched token.
 		if rightTokenTester != nil && !rightTokenTester(p.currentToken.Lexeme) {

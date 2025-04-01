@@ -2117,7 +2117,8 @@ func TestImportBulkRelationships(t *testing.T) {
 						batch := make([]*v1.Relationship, 0, batchSize)
 
 						for i := uint64(0); i < batchSize; i++ {
-							if withTrait == "caveated_viewer" {
+							switch withTrait {
+							case "caveated_viewer":
 								batch = append(batch, mustRelWithCaveatAndContext(
 									tf.DocumentNS.Name,
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
@@ -2128,7 +2129,7 @@ func TestImportBulkRelationships(t *testing.T) {
 									"test",
 									map[string]any{"secret": strconv.FormatUint(i, 10)},
 								))
-							} else if withTrait == "expiring_viewer" {
+							case "expiring_viewer":
 								batch = append(batch, relWithExpiration(
 									tf.DocumentNS.Name,
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
@@ -2138,7 +2139,7 @@ func TestImportBulkRelationships(t *testing.T) {
 									"",
 									time.Date(2300, 1, 1, 0, 0, 0, 0, time.UTC),
 								))
-							} else {
+							default:
 								batch = append(batch, rel(
 									tf.DocumentNS.Name,
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
@@ -2181,12 +2182,13 @@ func TestImportBulkRelationships(t *testing.T) {
 							continue
 						}
 
-						if withTrait == "caveated_viewer" {
+						switch withTrait {
+						case "caveated_viewer":
 							require.NotNil(res.Relationship.OptionalCaveat)
 							require.Equal("test", res.Relationship.OptionalCaveat.CaveatName)
-						} else if withTrait == "expiring_viewer" {
+						case "expiring_viewer":
 							require.NotNil(res.Relationship.OptionalExpiresAt)
-						} else {
+						default:
 							require.Nil(res.Relationship.OptionalCaveat)
 						}
 					}
