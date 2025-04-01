@@ -13,7 +13,7 @@ on:  # yamllint disable-line rule:truthy
 jobs:
   go-license-check:
     name: "License Check"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
@@ -24,7 +24,7 @@ jobs:
 
   go-lint:
     name: "Lint Go"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04"
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
@@ -37,7 +37,7 @@ jobs:
 
   extra-lint:
     name: "Lint YAML & Markdown"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"

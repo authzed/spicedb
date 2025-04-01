@@ -15,7 +15,7 @@ on:  # yamllint disable-line rule:truthy
 jobs:
   cla:
     name: "Check Signature"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "authzed/actions/cla-check@main"
         with:

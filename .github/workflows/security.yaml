@@ -17,7 +17,7 @@ jobs:
   codeql:
     name: "CodeQL Analyze"
     if: "${{ github.event_name == 'pull_request' }}"  # workaround to https://github.com/github/codeql-action/issues/1537
-    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-8"
     timeout-minutes: "${{ (matrix.language == 'swift' && 120) || 360 }}"
     permissions:
       # required for all workflows
@@ -39,7 +39,7 @@ jobs:
 
   trivy:
     name: "Analyze Code and Docker Image with Trivvy"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "actions/checkout@v4"
         with:
