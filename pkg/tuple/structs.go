@@ -114,7 +114,7 @@ func (r Relationship) Validate() error {
 		return errors.New("object and relation must not be empty")
 	}
 
-	if r.RelationshipReference.Resource.ObjectID == PublicWildcard {
+	if r.Resource.ObjectID == PublicWildcard {
 		return errors.New("invalid resource id")
 	}
 
