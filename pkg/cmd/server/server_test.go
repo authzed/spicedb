@@ -272,3 +272,100 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 	err = streaming[1](context.Background(), nil, nil, nil)
 	require.ErrorContains(t, err, "hi")
 }
+
+func TestSupportOldAndNewReadReplicaConnectionPoolFlags(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     Config
+		expected datastore.ConnPoolConfig
+	}{
+		{
+			name: "no flags set",
+			opts: Config{
+				DatastoreConfig: datastore.Config{
+					ReadReplicaConnPool:    *datastore.DefaultReadConnPool(),
+					OldReadReplicaConnPool: *datastore.DefaultReadConnPool(),
+				},
+			},
+			expected: *datastore.DefaultReadConnPool(),
+		},
+		{
+			name: "new flags set",
+			opts: Config{
+				DatastoreConfig: datastore.Config{
+					ReadReplicaConnPool: datastore.ConnPoolConfig{
+						MaxLifetime:         1 * time.Minute,
+						MaxIdleTime:         1 * time.Minute,
+						MaxOpenConns:        1,
+						MinOpenConns:        1,
+						HealthCheckInterval: 1 * time.Second,
+					},
+					OldReadReplicaConnPool: *datastore.DefaultReadConnPool(),
+				},
+			},
+			expected: datastore.ConnPoolConfig{
+				MaxLifetime:         1 * time.Minute,
+				MaxIdleTime:         1 * time.Minute,
+				MaxOpenConns:        1,
+				MinOpenConns:        1,
+				HealthCheckInterval: 1 * time.Second,
+			},
+		},
+		{
+			name: "old flags set",
+			opts: Config{
+				DatastoreConfig: datastore.Config{
+					ReadReplicaConnPool: *datastore.DefaultReadConnPool(),
+					OldReadReplicaConnPool: datastore.ConnPoolConfig{
+						MaxLifetime:         2 * time.Minute,
+						MaxIdleTime:         2 * time.Minute,
+						MaxOpenConns:        2,
+						MinOpenConns:        2,
+						HealthCheckInterval: 2 * time.Second,
+					},
+				},
+			},
+			expected: datastore.ConnPoolConfig{
+				MaxLifetime:         2 * time.Minute,
+				MaxIdleTime:         2 * time.Minute,
+				MaxOpenConns:        2,
+				MinOpenConns:        2,
+				HealthCheckInterval: 2 * time.Second,
+			},
+		},
+		{
+			name: "prefers new flags if both are set",
+			opts: Config{
+				DatastoreConfig: datastore.Config{
+					ReadReplicaConnPool: datastore.ConnPoolConfig{
+						MaxLifetime:         1 * time.Minute,
+						MaxIdleTime:         1 * time.Minute,
+						MaxOpenConns:        1,
+						MinOpenConns:        2,
+						HealthCheckInterval: 2 * time.Second,
+					},
+					OldReadReplicaConnPool: datastore.ConnPoolConfig{
+						MaxLifetime:         2 * time.Minute,
+						MaxIdleTime:         2 * time.Minute,
+						MaxOpenConns:        2,
+						MinOpenConns:        2,
+						HealthCheckInterval: 2 * time.Second,
+					},
+				},
+			},
+			expected: datastore.ConnPoolConfig{
+				MaxLifetime:         1 * time.Minute,
+				MaxIdleTime:         1 * time.Minute,
+				MaxOpenConns:        1,
+				MinOpenConns:        2,
+				HealthCheckInterval: 2 * time.Second,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.opts.supportOldAndNewReadReplicaConnectionPoolFlags()
+			require.Equal(t, tt.expected, tt.opts.DatastoreConfig.ReadReplicaConnPool)
+		})
+	}
+}

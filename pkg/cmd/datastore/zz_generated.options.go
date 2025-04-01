@@ -46,6 +46,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DisableStats = c.DisableStats
 		to.IncludeQueryParametersInTraces = c.IncludeQueryParametersInTraces
 		to.ReadReplicaConnPool = c.ReadReplicaConnPool
+		to.OldReadReplicaConnPool = c.OldReadReplicaConnPool
 		to.ReadReplicaURIs = c.ReadReplicaURIs
 		to.ReadReplicaCredentialsProviderName = c.ReadReplicaCredentialsProviderName
 		to.BootstrapFiles = c.BootstrapFiles
@@ -259,6 +260,13 @@ func WithIncludeQueryParametersInTraces(includeQueryParametersInTraces bool) Con
 func WithReadReplicaConnPool(readReplicaConnPool ConnPoolConfig) ConfigOption {
 	return func(c *Config) {
 		c.ReadReplicaConnPool = readReplicaConnPool
+	}
+}
+
+// WithOldReadReplicaConnPool returns an option that can set OldReadReplicaConnPool on a Config
+func WithOldReadReplicaConnPool(oldReadReplicaConnPool ConnPoolConfig) ConfigOption {
+	return func(c *Config) {
+		c.OldReadReplicaConnPool = oldReadReplicaConnPool
 	}
 }
 

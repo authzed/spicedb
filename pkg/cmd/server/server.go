@@ -192,8 +192,6 @@ func (c *closeableStack) CloseIfError(err error) error {
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
-	log.Ctx(ctx).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
-
 	closeables := closeableStack{}
 	var err error
 	defer func() {
@@ -225,6 +223,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	ds := c.Datastore
 	if ds == nil {
 		var err error
+		c.supportOldAndNewReadReplicaConnectionPoolFlags()
 		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption(),
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
@@ -513,6 +512,8 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithoutError(metricsServer.Close)
 
+	log.Ctx(ctx).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
+
 	return &completedServerConfig{
 		ds:                  ds,
 		gRPCServer:          grpcServer,
@@ -526,6 +527,47 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		healthManager:       healthManager,
 		closeFunc:           closeables.Close,
 	}, nil
+}
+
+func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
+	defaultReadConnPoolCfg := *datastorecfg.DefaultReadConnPool()
+	if c.DatastoreConfig.ReadReplicaConnPool.MaxOpenConns == defaultReadConnPoolCfg.MaxOpenConns && c.DatastoreConfig.
+		OldReadReplicaConnPool.MaxOpenConns != defaultReadConnPoolCfg.MaxOpenConns {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MaxOpenConns = c.DatastoreConfig.
+			OldReadReplicaConnPool.MaxOpenConns
+	}
+	if c.DatastoreConfig.
+		ReadReplicaConnPool.MinOpenConns == defaultReadConnPoolCfg.MinOpenConns && c.DatastoreConfig.
+		OldReadReplicaConnPool.MinOpenConns != defaultReadConnPoolCfg.MinOpenConns {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MinOpenConns = c.DatastoreConfig.
+			OldReadReplicaConnPool.MinOpenConns
+	}
+	if c.DatastoreConfig.
+		ReadReplicaConnPool.MaxLifetime == defaultReadConnPoolCfg.MaxLifetime && c.DatastoreConfig.
+		OldReadReplicaConnPool.MaxLifetime != defaultReadConnPoolCfg.MaxLifetime {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MaxLifetime = c.DatastoreConfig.
+			OldReadReplicaConnPool.MaxLifetime
+	}
+	if c.DatastoreConfig.
+		ReadReplicaConnPool.MaxLifetimeJitter == defaultReadConnPoolCfg.MaxLifetimeJitter && c.DatastoreConfig.
+		OldReadReplicaConnPool.MaxLifetimeJitter != defaultReadConnPoolCfg.MaxLifetimeJitter {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MaxLifetimeJitter = c.DatastoreConfig.
+			OldReadReplicaConnPool.MaxLifetimeJitter
+	}
+	if c.DatastoreConfig.
+		ReadReplicaConnPool.MaxIdleTime == defaultReadConnPoolCfg.MaxIdleTime && c.DatastoreConfig.
+		OldReadReplicaConnPool.MaxIdleTime != defaultReadConnPoolCfg.MaxIdleTime {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MaxIdleTime = c.DatastoreConfig.OldReadReplicaConnPool.MaxIdleTime
+	}
+	if c.DatastoreConfig.ReadReplicaConnPool.HealthCheckInterval == defaultReadConnPoolCfg.HealthCheckInterval &&
+		c.DatastoreConfig.OldReadReplicaConnPool.HealthCheckInterval != defaultReadConnPoolCfg.HealthCheckInterval {
+		c.DatastoreConfig.ReadReplicaConnPool.HealthCheckInterval = c.DatastoreConfig.OldReadReplicaConnPool.HealthCheckInterval
+	}
 }
 
 func (c *Config) buildUnaryMiddleware(defaultMiddleware *MiddlewareChain[grpc.UnaryServerInterceptor]) ([]grpc.UnaryServerInterceptor, error) {
