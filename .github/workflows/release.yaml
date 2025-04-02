@@ -63,8 +63,9 @@ jobs:
                   type: "mrkdwn"
                   text: |
                     *Goreleaser Job* finished with status: ${{ job.status }}
-                    *Repository:* ${{ github.repository }}
-                    *Commit:* ${{ github.sha }}
-                    *Author:* ${{ github.actor }}
+                    *Repository:* <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>
+                    *Commit:* <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+                    *Job Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Run>
+                    *Actor:* ${{ github.actor }}
                     *Ref:* ${{ github.ref }}
                     *Workflow:* ${{ github.workflow }}
