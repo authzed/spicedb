@@ -63,7 +63,6 @@ jobs:
                   type: "mrkdwn"
                   text: |
                     *Goreleaser Job* finished with status: ${{ job.status }}
-                    *Source ring:* ${{ inputs.source }}
                     *Repository:* <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>
                     *Commit:* <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
                     *Job Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Run>
