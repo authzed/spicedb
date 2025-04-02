@@ -7,7 +7,7 @@ on:  # yamllint disable-line rule:truthy
       - "checks_requested"
 jobs:
   triage:
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "actions/labeler@v5"
         with:

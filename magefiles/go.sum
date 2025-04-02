@@ -52,8 +52,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
-github.com/agnivade/wasmbrowsertest v0.10.0 h1:kAJoj/1NraZiCOP5S8FC/8iU/3hwZyc6l9kxXjvPJiI=
-github.com/agnivade/wasmbrowsertest v0.10.0/go.mod h1:fL1DzIi4hpO6WPZaA93RJx84/eyVP7Z5fXV0kWyktz4=
+github.com/agnivade/wasmbrowsertest v0.11.0 h1:Feg5lmJzfC3j9nMgOxRZdYqzYtt93MvcFG29KeRt2VI=
+github.com/agnivade/wasmbrowsertest v0.11.0/go.mod h1:kgT4RR8m3auEg0UdL0uOj/0hCjRt5yQQNb4kjUY5GgU=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
 github.com/authzed/ctxkey v0.0.0-20250127172433-d71cd97e3833 h1:rby2719UdmcOltB30ALyPY4Lozz9nkYSpjqnBiHXBQI=

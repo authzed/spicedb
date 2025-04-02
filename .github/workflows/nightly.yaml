@@ -9,7 +9,7 @@ permissions:
   packages: "write"
 jobs:
   goreleaser:
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
     steps:
       - uses: "actions/checkout@v4"
         with:

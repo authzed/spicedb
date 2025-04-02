@@ -5,7 +5,7 @@ go 1.23.4
 toolchain go1.24.0
 
 require (
-	github.com/agnivade/wasmbrowsertest v0.10.0
+	github.com/agnivade/wasmbrowsertest v0.11.0
 	github.com/authzed/ctxkey v0.0.0-20250127172433-d71cd97e3833
 	github.com/bufbuild/buf v1.35.1
 	github.com/ecordell/optgen v0.0.9
