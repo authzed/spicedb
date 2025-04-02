@@ -118,7 +118,9 @@ type Config struct {
 	IncludeQueryParametersInTraces bool           `debugmap:"visible"`
 
 	// Read Replicas
-	ReadReplicaConnPool                ConnPoolConfig `debugmap:"visible"`
+	ReadReplicaConnPool ConnPoolConfig `debugmap:"visible"`
+	// this holds values from the old flag prefix in case they are used
+	OldReadReplicaConnPool             ConnPoolConfig `debugmap:"hidden"`
 	ReadReplicaURIs                    []string       `debugmap:"sensitive"`
 	ReadReplicaCredentialsProviderName string         `debugmap:"visible"`
 
@@ -211,7 +213,22 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	deprecateUnifiedConnFlags(flagSet)
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-read", &legacyConnPool, &opts.ReadConnPool)
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
-	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-read-replica-conn-pool-read", DefaultReadConnPool(), &opts.ReadReplicaConnPool)
+
+	// read replica prefix changed but we retain backward-compatibility
+	newReadReplicaPrefix := "datastore-read-replica-conn-pool-read"
+	oldReadReplicaPrefix := "datastore-read-replica-conn-pool"
+	RegisterConnPoolFlagsWithPrefix(flagSet, newReadReplicaPrefix, DefaultReadConnPool(), &opts.ReadReplicaConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, oldReadReplicaPrefix, DefaultReadConnPool(), &opts.OldReadReplicaConnPool)
+
+	warning := fmt.Sprintf("please use the flags with the prefix %q instead of %q", newReadReplicaPrefix, oldReadReplicaPrefix)
+	for _, flag := range []string{"max-open", "min-open", "max-lifetime", "max-lifetime-jitter", "max-idletime", "healthcheck-interval"} {
+		if err := flagSet.MarkDeprecated(oldReadReplicaPrefix+"-"+flag, warning); err != nil {
+			return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+		}
+		if err := flagSet.MarkHidden(oldReadReplicaPrefix + "-" + flag); err != nil {
+			return fmt.Errorf("failed to mark flag as hidden: %w", err)
+		}
+	}
 
 	normalizeFunc := flagSet.GetNormalizeFunc()
 	flagSet.SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
@@ -296,6 +313,7 @@ func DefaultDatastoreConfig() *Config {
 		ReadConnPool:                             *DefaultReadConnPool(),
 		WriteConnPool:                            *DefaultWriteConnPool(),
 		ReadReplicaConnPool:                      *DefaultReadConnPool(),
+		OldReadReplicaConnPool:                   *DefaultReadConnPool(),
 		ReadReplicaURIs:                          []string{},
 		ReadOnly:                                 false,
 		MaxRetries:                               10,
