@@ -133,6 +133,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(fmt.Sprintf("simple-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -253,6 +255,8 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(fmt.Sprintf("dispatch-count-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -994,6 +998,8 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			dispatcher := NewLocalOnlyDispatcher(10, 100)

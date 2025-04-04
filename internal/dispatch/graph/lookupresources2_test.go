@@ -183,6 +183,8 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.subject, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 			ctx, dispatcher, revision := newLocalDispatcher(t)
 			defer dispatcher.Close()
@@ -1340,6 +1342,8 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)

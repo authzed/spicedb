@@ -265,6 +265,8 @@ func TestBulkExportRelationships(t *testing.T) {
 }
 
 func TestBulkExportRelationshipsWithFilter(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name          string
 		filter        *v1.RelationshipFilter

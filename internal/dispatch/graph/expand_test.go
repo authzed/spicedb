@@ -167,6 +167,8 @@ func TestExpand(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(fmt.Sprintf("%s-%s", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcher(t)
@@ -900,6 +902,8 @@ func TestExpandOverSchema(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcherWithSchemaAndRels(t, tc.schema, tc.relationships)

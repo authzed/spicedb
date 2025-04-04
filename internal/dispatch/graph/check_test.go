@@ -261,6 +261,8 @@ func TestCheckMetadata(t *testing.T) {
 				userset := userset
 				expected := expected
 				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
 					require := require.New(t)
 
 					ctx, dispatch, revision := newLocalDispatcher(t)
@@ -1322,6 +1324,8 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			dispatcher := NewLocalOnlyDispatcher(10, 100)
@@ -1455,6 +1459,8 @@ func TestCheckDebugging(t *testing.T) {
 
 		tc := tc
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcher(t)
@@ -1823,6 +1829,8 @@ func TestCheckWithHints(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			dispatcher := NewLocalOnlyDispatcher(10, 100)

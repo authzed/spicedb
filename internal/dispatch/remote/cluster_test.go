@@ -222,6 +222,8 @@ func TestDispatchTimeout(t *testing.T) {
 }
 
 func TestCheckSecondaryDispatch(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name             string
 		expr             string

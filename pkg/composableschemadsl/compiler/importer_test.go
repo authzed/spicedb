@@ -49,6 +49,8 @@ func (it *importerTest) writeExpected(schema string) {
 }
 
 func TestImporter(t *testing.T) {
+	t.Parallel()
+
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
