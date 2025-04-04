@@ -73,7 +73,10 @@ func (Lint) Gofumpt() error {
 // Golangcilint Run golangci-lint
 func (Lint) Golangcilint() error {
 	fmt.Println("running golangci-lint")
-	return RunSh("go", WithV())("run", "github.com/golangci/golangci-lint/cmd/golangci-lint", "run", "--fix")
+	// NOTE: we run the binary here because the maintainers of golangci-lint strongly recommend
+	// that you don't run from source: https://golangci-lint.run/welcome/install/#install-from-sources
+	// We use the action to install in CI and you should install locally to run locally.
+	return sh.RunV("golangci-lint", "run", "--fix")
 }
 
 // Analyzers Run all analyzers
