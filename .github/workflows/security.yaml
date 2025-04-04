@@ -39,7 +39,7 @@ jobs:
 
   trivy:
     name: "Analyze Code and Docker Image with Trivvy"
-    runs-on: "depot-ubuntu-24.04-small"
+    runs-on: "depot-ubuntu-24.04"
     steps:
       - uses: "actions/checkout@v4"
         with:
