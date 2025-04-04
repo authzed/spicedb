@@ -2,7 +2,6 @@ package memdb
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
@@ -42,8 +41,8 @@ func (mdb *memdbDatastore) newRevisionID() revisions.TimestampRevision {
 func (mdb *memdbDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
-	if mdb.db == nil {
-		return nil, fmt.Errorf("datastore has been closed")
+	if err := mdb.checkNotClosed(); err != nil {
+		return nil, err
 	}
 
 	return mdb.headRevisionNoLock(), nil
@@ -65,8 +64,8 @@ func (mdb *memdbDatastore) headRevisionNoLock() revisions.TimestampRevision {
 func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
-	if mdb.db == nil {
-		return nil, fmt.Errorf("datastore has been closed")
+	if err := mdb.checkNotClosed(); err != nil {
+		return nil, err
 	}
 
 	now := nowRevision()
@@ -76,8 +75,8 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 func (mdb *memdbDatastore) CheckRevision(_ context.Context, dr datastore.Revision) error {
 	mdb.RLock()
 	defer mdb.RUnlock()
-	if mdb.db == nil {
-		return fmt.Errorf("datastore has been closed")
+	if err := mdb.checkNotClosed(); err != nil {
+		return err
 	}
 
 	return mdb.checkRevisionLocalCallerMustLock(dr)
