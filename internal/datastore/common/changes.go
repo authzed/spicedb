@@ -187,8 +187,13 @@ func (ch *Changes[R, K]) AddDeletedNamespace(
 		return err
 	}
 
-	delete(record.definitionsChanged, nsPrefix+namespaceName)
+	// if a delete happens in the same transaction as a change, we assume it was a change in the first place
+	// because that's how namespace changes are implemented in the MVCC
+	if _, ok := record.definitionsChanged[nsPrefix+namespaceName]; ok {
+		return nil
+	}
 
+	delete(record.definitionsChanged, nsPrefix+namespaceName)
 	record.namespacesDeleted[namespaceName] = struct{}{}
 	return nil
 }
@@ -208,8 +213,13 @@ func (ch *Changes[R, K]) AddDeletedCaveat(
 		return err
 	}
 
-	delete(record.definitionsChanged, caveatPrefix+caveatName)
+	// if a delete happens in the same transaction as a change, we assume it was a change in the first place
+	// because that's how namespace changes are implemented in the MVCC
+	if _, ok := record.definitionsChanged[caveatPrefix+caveatName]; ok {
+		return nil
+	}
 
+	delete(record.definitionsChanged, caveatPrefix+caveatName)
 	record.caveatsDeleted[caveatName] = struct{}{}
 	return nil
 }
