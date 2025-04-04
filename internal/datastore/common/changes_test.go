@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -195,7 +196,9 @@ func TestChanges(t *testing.T) {
 				{1, "", 0, []string{"somenamespace"}, nil, nil},
 			},
 			[]datastore.RevisionChanges{
-				{Revision: rev1, DeletedNamespaces: []string{"somenamespace"}},
+				{Revision: rev1, ChangedDefinitions: []datastore.SchemaDefinition{&core.NamespaceDefinition{
+					Name: "somenamespace",
+				}}},
 			},
 		},
 		{
@@ -207,7 +210,9 @@ func TestChanges(t *testing.T) {
 				{1, "", 0, nil, []string{"somecaveat"}, nil},
 			},
 			[]datastore.RevisionChanges{
-				{Revision: rev1, DeletedCaveats: []string{"somecaveat"}},
+				{Revision: rev1, ChangedDefinitions: []datastore.SchemaDefinition{&core.CaveatDefinition{
+					Name: "somecaveat",
+				}}},
 			},
 		},
 		{
@@ -326,6 +331,42 @@ func TestChanges(t *testing.T) {
 
 				for _, c := range step.deletedCaveats {
 					err := ch.AddDeletedCaveat(ctx, revisions.NewForTransactionID(step.revision), c)
+					require.NoError(err)
+				}
+			}
+
+			actual, err := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
+			require.NoError(err)
+
+			require.Equal(
+				canonicalize(tc.expected),
+				canonicalize(actual),
+			)
+		})
+		t.Run(fmt.Sprintf("reversed(%s)", tc.name), func(t *testing.T) {
+			require := require.New(t)
+
+			ctx := context.Background()
+			ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+			for _, step := range tc.script {
+				for _, c := range step.deletedCaveats {
+					err := ch.AddDeletedCaveat(ctx, revisions.NewForTransactionID(step.revision), c)
+					require.NoError(err)
+				}
+
+				for _, ns := range step.deletedNamespaces {
+					err := ch.AddDeletedNamespace(ctx, revisions.NewForTransactionID(step.revision), ns)
+					require.NoError(err)
+				}
+
+				for _, changed := range step.changedDefinitions {
+					err := ch.AddChangedDefinition(ctx, revisions.NewForTransactionID(step.revision), changed)
+					require.NoError(err)
+				}
+
+				if step.relationship != "" {
+					rel := tuple.MustParse(step.relationship)
+					err := ch.AddRelationshipChange(ctx, revisions.NewForTransactionID(step.revision), rel, step.op)
 					require.NoError(err)
 				}
 			}
