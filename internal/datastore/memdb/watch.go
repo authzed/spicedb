@@ -103,6 +103,10 @@ func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64, opti
 	mdb.RLock()
 	defer mdb.RUnlock()
 
+	if err := mdb.checkNotClosed(); err != nil {
+		return nil, 0, nil, err
+	}
+
 	loadNewTxn := mdb.db.Txn(false)
 	defer loadNewTxn.Abort()
 
