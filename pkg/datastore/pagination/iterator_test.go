@@ -18,6 +18,8 @@ import (
 )
 
 func TestPaginatedIterator(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		order              options.SortOrder
 		pageSize           int

@@ -43,6 +43,7 @@ linters:
     - 'usetesting'
     - 'wastedassign'
     - 'whitespace'
+    - 'tparallel'
 issues:
   exclude-rules:
     - text: 'tx.Rollback()'
