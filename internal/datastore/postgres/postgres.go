@@ -16,6 +16,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgconn/ctxwatch"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/mattn/go-isatty"
@@ -25,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
@@ -102,7 +102,7 @@ func NewPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return ds, nil
 }
 
 // NewReadOnlyPostgresDatastore initializes a SpiceDB datastore that uses a PostgreSQL
@@ -119,7 +119,7 @@ func NewReadOnlyPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return ds, nil
 }
 
 func newPostgresDatastore(
@@ -127,7 +127,7 @@ func newPostgresDatastore(
 	pgURL string,
 	replicaIndex int,
 	options ...Option,
-) (datastore.Datastore, error) {
+) (datastore.StrictReadDatastore, error) {
 	isPrimary := replicaIndex == primaryInstanceID
 	config, err := generateConfig(options)
 	if err != nil {
@@ -138,6 +138,11 @@ func newPostgresDatastore(
 	parsedConfig, err := pgxpool.ParseConfig(pgURL)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
+	}
+
+	// Install the cancelation handler for contexts.
+	parsedConfig.ConnConfig.BuildContextWatcherHandler = func(pgConn *pgconn.PgConn) ctxwatch.Handler {
+		return &pgconn.CancelRequestContextWatcherHandler{Conn: pgConn}
 	}
 
 	// Setup the default custom plan setting, if applicable.
@@ -153,7 +158,7 @@ func newPostgresDatastore(
 		}
 	}
 
-	// Setup the config for each of the read and write pools.
+	// Setup the config for each of the read, write and GC pools.
 	readPoolConfig := pgConfig.Copy()
 	includeQueryParametersInTraces := config.includeQueryParametersInTraces
 	err = config.readPoolOpts.ConfigurePgx(readPoolConfig, includeQueryParametersInTraces)
@@ -175,6 +180,25 @@ func newPostgresDatastore(
 		}
 
 		writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			RegisterTypes(conn.TypeMap())
+			return nil
+		}
+	}
+
+	var gcPoolConfig *pgxpool.Config
+	if isPrimary {
+		// Configure a pool of size 1 for the GC connection.
+		gcPoolConfig = pgConfig.Copy()
+		one := 1
+		err = pgxcommon.PoolOptions{
+			MinOpenConns: &one,
+			MaxOpenConns: &one,
+		}.ConfigurePgx(gcPoolConfig, includeQueryParametersInTraces)
+		if err != nil {
+			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
+		}
+
+		gcPoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 			RegisterTypes(conn.TypeMap())
 			return nil
 		}
@@ -208,6 +232,7 @@ func newPostgresDatastore(
 	}
 
 	var writePool *pgxpool.Pool
+	var gcConn *pgxpool.Pool
 
 	if isPrimary {
 		wp, err := pgxpool.NewWithConfig(initializationContext, writePoolConfig)
@@ -215,6 +240,12 @@ func newPostgresDatastore(
 			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 		}
 		writePool = wp
+
+		gcp, err := pgxpool.NewWithConfig(initializationContext, gcPoolConfig)
+		if err != nil {
+			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
+		}
+		gcConn = gcp
 	}
 
 	// Verify that the server supports commit timestamps
@@ -316,6 +347,7 @@ func newPostgresDatastore(
 		dburl:                   pgURL,
 		readPool:                pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
 		writePool:               nil, /* disabled by default */
+		gcConn:                  nil, /* disabled by default */
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		optimizedRevisionQuery:  revisionQuery,
@@ -344,6 +376,7 @@ func newPostgresDatastore(
 
 	if isPrimary {
 		datastore.writePool = pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor)
+		datastore.gcConn = pgxcommon.MustNewInterceptorPooler(gcConn, config.queryInterceptor)
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
@@ -380,7 +413,7 @@ type pgDatastore struct {
 	*common.MigrationValidator
 
 	dburl                          string
-	readPool, writePool            pgxcommon.ConnPooler
+	readPool, writePool, gcConn    pgxcommon.ConnPooler
 	watchBufferLength              uint16
 	watchBufferWriteTimeout        time.Duration
 	optimizedRevisionQuery         string
@@ -638,6 +671,10 @@ func (pgd *pgDatastore) Close() error {
 	}
 
 	pgd.readPool.Close()
+
+	if pgd.gcConn != nil {
+		pgd.gcConn.Close()
+	}
 
 	if pgd.writePool != nil {
 		pgd.writePool.Close()
