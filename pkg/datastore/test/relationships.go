@@ -1677,6 +1677,77 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 	}
 }
 
+// RelationshipCaveatFilteringTest tests filtering relationships by caveat.
+func RelationshipCaveatFilteringTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	// Create a relationship without a caveat.
+	rel1, err := tuple.Parse("document:foo#viewer@user:tom")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rel1)
+	require.NoError(err)
+
+	ensureRelationships(ctx, require, ds, rel1)
+	ensureReverseRelationships(ctx, require, ds, rel1)
+	ensureRelationshipWithFilter(ctx, require, ds, datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"foo"},
+		OptionalResourceRelation: "viewer",
+	}, rel1)
+	ensureRelationshipWithFilter(ctx, require, ds, datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"foo"},
+		OptionalResourceRelation: "viewer",
+		OptionalCaveatNameFilter: datastore.WithNoCaveat(),
+	}, rel1)
+	ensureNoRelationshipWithFilter(ctx, require, ds, datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"foo"},
+		OptionalResourceRelation: "viewer",
+		OptionalCaveatNameFilter: datastore.WithCaveatName("test"),
+	})
+
+	// Create a relationship with a caveat.
+	rel1, err = tuple.Parse("document:foo#viewer@user:tom[somecaveat]")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel1)
+	require.NoError(err)
+
+	ensureRelationships(ctx, require, ds, rel1)
+	ensureReverseRelationships(ctx, require, ds, rel1)
+	ensureRelationshipWithFilter(ctx, require, ds, datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"foo"},
+		OptionalResourceRelation: "viewer",
+	}, rel1)
+	ensureRelationshipWithFilter(ctx, require, ds, datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"foo"},
+		OptionalResourceRelation: "viewer",
+		OptionalCaveatNameFilter: datastore.WithCaveatName("somecaveat"),
+	}, rel1)
+	ensureNoRelationshipWithFilter(ctx, require, ds, datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"foo"},
+		OptionalResourceRelation: "viewer",
+		OptionalCaveatNameFilter: datastore.WithNoCaveat(),
+	})
+	ensureNoRelationshipWithFilter(ctx, require, ds, datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"foo"},
+		OptionalResourceRelation: "viewer",
+		OptionalCaveatNameFilter: datastore.WithCaveatName("anothercaveat"),
+	})
+}
+
 // RelationshipExpirationTest tests expiration on relationships.
 func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
@@ -2086,6 +2157,38 @@ func ensureRelationshipsStatus(ctx context.Context, require *require.Assertions,
 			require.Equal(tuple.MustString(rel), tuple.MustString(found[0]))
 		}
 	}
+}
+
+func ensureRelationshipWithFilter(ctx context.Context, require *require.Assertions, ds datastore.Datastore, filter datastore.RelationshipsFilter, rel tuple.Relationship) {
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(headRev)
+
+	iter, err := reader.QueryRelationships(ctx, filter)
+	require.NoError(err)
+
+	found, err := datastore.IteratorToSlice(iter)
+	require.NoError(err)
+
+	require.NotEmpty(found, "expected relationship %s", tuple.MustString(rel))
+	require.Equal(1, len(found))
+	require.Equal(tuple.MustString(rel), tuple.MustString(found[0]))
+}
+
+func ensureNoRelationshipWithFilter(ctx context.Context, require *require.Assertions, ds datastore.Datastore, filter datastore.RelationshipsFilter) {
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(headRev)
+
+	iter, err := reader.QueryRelationships(ctx, filter)
+	require.NoError(err)
+
+	found, err := datastore.IteratorToSlice(iter)
+	require.NoError(err)
+
+	require.Empty(found)
 }
 
 func countRels(ctx context.Context, require *require.Assertions, ds datastore.Datastore, resourceType string) int {

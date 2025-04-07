@@ -492,7 +492,7 @@ func TestRelationshipsFilterTest(t *testing.T) {
 		{
 			name: "caveat filter match",
 			filter: RelationshipsFilter{
-				OptionalCaveatName: "bar",
+				OptionalCaveatNameFilter: WithCaveatName("bar"),
 			},
 			relationshipString: "foo:something#viewer@user:fred[bar]",
 			expected:           true,
@@ -500,10 +500,32 @@ func TestRelationshipsFilterTest(t *testing.T) {
 		{
 			name: "caveat filter mismatch",
 			filter: RelationshipsFilter{
-				OptionalCaveatName: "bar",
+				OptionalCaveatNameFilter: WithCaveatName("bar"),
 			},
 			relationshipString: "foo:something#viewer@user:fred[baz]",
 			expected:           false,
+		},
+		{
+			name: "no caveat over caveated",
+			filter: RelationshipsFilter{
+				OptionalCaveatNameFilter: WithNoCaveat(),
+			},
+			relationshipString: "foo:something#viewer@user:fred[baz]",
+			expected:           false,
+		},
+		{
+			name: "no caveat over not caveated",
+			filter: RelationshipsFilter{
+				OptionalCaveatNameFilter: WithNoCaveat(),
+			},
+			relationshipString: "foo:something#viewer@user:fred",
+			expected:           true,
+		},
+		{
+			name:               "no caveat option",
+			filter:             RelationshipsFilter{},
+			relationshipString: "foo:something#viewer@user:fred",
+			expected:           true,
 		},
 		{
 			name: "non-ellipsis subject filter match",

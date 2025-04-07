@@ -126,6 +126,23 @@ const (
 	ExpirationFilterOptionNoExpiration
 )
 
+// CaveatFilterOption is the filter option for the caveat name field on relationships.
+type CaveatFilterOption int
+
+const (
+	// CaveatFilterOptionNone indicates that the caveat filter should not be used:
+	// relationships both with and without caveats will be returned.
+	CaveatFilterOptionNone CaveatFilterOption = iota
+
+	// CaveatFilterOptionHasCaveat indicates that the caveat filter should only
+	// return relationships with the matching caveat.
+	CaveatFilterOptionHasMatchingCaveat
+
+	// CaveatFilterOptionNoCaveat indicates that the caveat filter should only
+	// return relationships without a caveat.
+	CaveatFilterOptionNoCaveat
+)
+
 // RelationshipsFilter is a filter for relationships.
 type RelationshipsFilter struct {
 	// OptionalResourceType is the namespace/type for the resources to be found.
@@ -146,9 +163,9 @@ type RelationshipsFilter struct {
 	// If specified, relationships matching *any* selector will be returned.
 	OptionalSubjectsSelectors []SubjectsSelector
 
-	// OptionalCaveatName is the filter to use for caveated relationships, filtering by a specific caveat name.
-	// If nil, all caveated and non-caveated relationships are allowed
-	OptionalCaveatName string
+	// OptionalCaveatNameFilter is the filter to use for caveated relationships, filtering by a specific caveat name.
+	// By default, no caveat filtered is done (one direction or the other).
+	OptionalCaveatNameFilter CaveatNameFilter
 
 	// OptionalExpirationOption is the filter to use for relationships with or without an expiration.
 	OptionalExpirationOption ExpirationFilterOption
@@ -181,8 +198,17 @@ func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
 		return false
 	}
 
-	if rf.OptionalCaveatName != "" {
-		if relationship.OptionalCaveat == nil || relationship.OptionalCaveat.CaveatName != rf.OptionalCaveatName {
+	switch rf.OptionalCaveatNameFilter.Option {
+	case CaveatFilterOptionNone:
+		// No caveat filter, so no need to check.
+
+	case CaveatFilterOptionHasMatchingCaveat:
+		if relationship.OptionalCaveat == nil || relationship.OptionalCaveat.CaveatName != rf.OptionalCaveatNameFilter.CaveatName {
+			return false
+		}
+
+	case CaveatFilterOptionNoCaveat:
+		if relationship.OptionalCaveat != nil && relationship.OptionalCaveat.CaveatName != "" {
 			return false
 		}
 	}
@@ -196,6 +222,29 @@ func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
 	}
 
 	return true
+}
+
+// CaveatNameFilter is a filter for caveat names.
+type CaveatNameFilter struct {
+	// Option is the filter option to use for the caveat name.
+	Option CaveatFilterOption
+
+	// CaveatName is the name of the caveat to filter by. Must be specified if option is
+	// CaveatFilterOptionHasCaveat.
+	CaveatName string
+}
+
+func WithCaveatName(caveatName string) CaveatNameFilter {
+	return CaveatNameFilter{
+		Option:     CaveatFilterOptionHasMatchingCaveat,
+		CaveatName: caveatName,
+	}
+}
+
+func WithNoCaveat() CaveatNameFilter {
+	return CaveatNameFilter{
+		Option: CaveatFilterOptionNoCaveat,
+	}
 }
 
 // CoreFilterFromRelationshipFilter constructs a core RelationshipFilter from a V1 RelationshipsFilter.

@@ -221,7 +221,6 @@ func (r *observableReader) QueryRelationships(ctx context.Context, filter datast
 	ctx, closer := observe(ctx, "QueryRelationships", trace.WithAttributes(
 		attribute.String("resourceType", filter.OptionalResourceType),
 		attribute.String("resourceRelation", filter.OptionalResourceRelation),
-		attribute.String("caveatName", filter.OptionalCaveatName),
 	))
 
 	iterator, err := r.delegate.QueryRelationships(ctx, filter, options...)

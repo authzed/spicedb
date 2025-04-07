@@ -383,7 +383,7 @@ func sanityCheckNamespaceChanges(
 		case nsdiff.RelationAllowedTypeRemoved:
 			var optionalSubjectIds []string
 			var relationFilter datastore.SubjectRelationFilter
-			optionalCaveatName := ""
+			var optionalCaveatNameFilter datastore.CaveatNameFilter
 
 			if delta.AllowedType.GetPublicWildcard() != nil {
 				optionalSubjectIds = []string{tuple.PublicWildcard}
@@ -393,8 +393,10 @@ func sanityCheckNamespaceChanges(
 				}
 			}
 
-			if delta.AllowedType.GetRequiredCaveat() != nil {
-				optionalCaveatName = delta.AllowedType.GetRequiredCaveat().CaveatName
+			if delta.AllowedType.GetRequiredCaveat() != nil && delta.AllowedType.GetRequiredCaveat().CaveatName != "" {
+				optionalCaveatNameFilter = datastore.WithCaveatName(delta.AllowedType.GetRequiredCaveat().CaveatName)
+			} else {
+				optionalCaveatNameFilter = datastore.WithNoCaveat()
 			}
 
 			expirationOption := datastore.ExpirationFilterOptionNoExpiration
@@ -414,7 +416,7 @@ func sanityCheckNamespaceChanges(
 							RelationFilter:      relationFilter,
 						},
 					},
-					OptionalCaveatName:       optionalCaveatName,
+					OptionalCaveatNameFilter: optionalCaveatNameFilter,
 					OptionalExpirationOption: expirationOption,
 				},
 				options.WithLimit(options.LimitOne),
