@@ -227,21 +227,28 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 
 	// filter by first caveat
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		OptionalResourceType: rel.Resource.ObjectType,
-		OptionalCaveatName:   coreCaveat.Name,
+		OptionalResourceType:     rel.Resource.ObjectType,
+		OptionalCaveatNameFilter: datastore.WithCaveatName(coreCaveat.Name),
 	})
 	req.NoError(err)
-
 	expectRel(req, iter, rel)
 
 	// filter by second caveat
 	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		OptionalResourceType: anotherTpl.Resource.ObjectType,
-		OptionalCaveatName:   anotherCoreCaveat.Name,
+		OptionalResourceType:     anotherTpl.Resource.ObjectType,
+		OptionalCaveatNameFilter: datastore.WithCaveatName(anotherCoreCaveat.Name),
 	})
 	req.NoError(err)
-
 	expectRel(req, iter, anotherTpl)
+
+	// filter by caveat required and ensure not found.
+	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType:     anotherTpl.Resource.ObjectType,
+		OptionalResourceIds:      []string{anotherTpl.Resource.ObjectID},
+		OptionalCaveatNameFilter: datastore.WithNoCaveat(),
+	})
+	req.NoError(err)
+	expectNoRel(req, iter)
 }
 
 func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
@@ -358,6 +365,13 @@ func expectRel(req *require.Assertions, iter datastore.RelationshipIterator, rel
 	for found, err := range iter {
 		req.NoError(err)
 		req.True(tuple.Equal(found, rel))
+	}
+}
+
+func expectNoRel(req *require.Assertions, iter datastore.RelationshipIterator) {
+	for _, err := range iter {
+		req.NoError(err)
+		req.Fail("expected no relationships to be found")
 	}
 }
 

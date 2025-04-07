@@ -463,8 +463,21 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 		csqf = usqf
 	}
 
-	if filter.OptionalCaveatName != "" {
-		csqf = csqf.FilterWithCaveatName(filter.OptionalCaveatName)
+	switch filter.OptionalCaveatNameFilter.Option {
+	case datastore.CaveatFilterOptionHasMatchingCaveat:
+		spiceerrors.DebugAssert(func() bool {
+			return filter.OptionalCaveatNameFilter.CaveatName != ""
+		}, "caveat name must be set when using HasMatchingCaveat")
+		csqf = csqf.FilterWithCaveatName(filter.OptionalCaveatNameFilter.CaveatName)
+
+	case datastore.CaveatFilterOptionNoCaveat:
+		csqf = csqf.FilterWithNoCaveat()
+
+	case datastore.CaveatFilterOptionNone:
+		// No action needed, as this is the default behavior.
+
+	default:
+		return csqf, spiceerrors.MustBugf("unknown caveat filter option: %v", filter.OptionalCaveatNameFilter.Option)
 	}
 
 	if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionHasExpiration {
@@ -596,9 +609,22 @@ func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) S
 	return sqf
 }
 
+// FilterWithCaveatName returns a new SchemaQueryFilterer that is limited to resources with the
+// specified caveat name.
 func (sqf SchemaQueryFilterer) FilterWithCaveatName(caveatName string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColCaveatName: caveatName})
 	sqf.recordColumnValue(sqf.schema.ColCaveatName, caveatName)
+	return sqf
+}
+
+// FilterWithNoCaveat returns a new SchemaQueryFilterer that is limited to resources with no caveat.
+func (sqf SchemaQueryFilterer) FilterWithNoCaveat() SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(
+		sq.Or{
+			sq.Eq{sqf.schema.ColCaveatName: nil},
+			sq.Eq{sqf.schema.ColCaveatName: ""},
+		})
+	sqf.recordVaryingColumnValue(sqf.schema.ColCaveatName)
 	return sqf
 }
 

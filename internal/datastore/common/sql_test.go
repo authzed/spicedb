@@ -764,6 +764,34 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				staticCols: []string{"subject_ns"},
 			},
 		},
+		{
+			name: "relationships filter with required caveat name",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithRelationshipsFilter(datastore.RelationshipsFilter{
+					OptionalResourceType:     "sometype",
+					OptionalCaveatNameFilter: datastore.WithCaveatName("somecaveat"),
+				})
+			},
+			expectedForTuple: expected{
+				sql:        "SELECT * WHERE ns = ? AND caveat = ? AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"sometype", "somecaveat"},
+				staticCols: []string{"caveat", "ns"},
+			},
+		},
+		{
+			name: "relationships filter with required no caveat",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithRelationshipsFilter(datastore.RelationshipsFilter{
+					OptionalResourceType:     "sometype",
+					OptionalCaveatNameFilter: datastore.WithNoCaveat(),
+				})
+			},
+			expectedForTuple: expected{
+				sql:        "SELECT * WHERE ns = ? AND (caveat IS NULL OR caveat = ?) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"sometype", ""},
+				staticCols: []string{"ns"},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1271,6 +1299,28 @@ func TestExecuteQuery(t *testing.T) {
 			},
 			expectedStaticColCount: 5,
 		},
+		{
+			name: "filter by caveat name",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").
+					FilterWithCaveatName("somecaveat")
+			},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND caveat = ?",
+			expectedArgs:           []any{"sometype", "somecaveat"},
+			withExpirationDisabled: true,
+			expectedStaticColCount: 1, //  caveat name is never treated statically
+		},
+		{
+			name: "filter by no caveat caveat",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").
+					FilterWithNoCaveat()
+			},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND (caveat IS NULL OR caveat = ?)",
+			expectedArgs:           []any{"sometype", ""},
+			withExpirationDisabled: true,
+			expectedStaticColCount: 1,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1321,6 +1371,7 @@ func TestExecuteQuery(t *testing.T) {
 							// 6 standard columns for relationships:
 							// ns, object_id, relation, subject_ns, subject_object_id, subject_relation
 							expectedColCount := 6 - tc.expectedStaticColCount
+
 							if !tc.expectedSkipCaveats {
 								// caveat, caveat_context
 								expectedColCount += 2

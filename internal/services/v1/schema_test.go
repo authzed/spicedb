@@ -696,7 +696,7 @@ func TestSchemaChangeExpirationAllowed(t *testing.T) {
 	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
