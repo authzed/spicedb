@@ -288,6 +288,43 @@ func TestApplySchemaChanges(t *testing.T) {
 			`,
 			expectedError: "cannot remove allowed type `group#member` from relation `viewer` in object definition `document`, as a relationship exists with it",
 		},
+		{
+			name: "attempt to remove non-caveated type when only caveated relationship exists",
+			startingSchema: `
+				caveat only_on_tuesday(day_of_week string) {
+					day_of_week == 'tuesday'
+				}
+
+				definition user {}
+
+				definition document {
+					relation writer: user
+					relation reader: user | user with only_on_tuesday
+
+					permission edit = writer
+					permission view = reader + edit
+				}
+			`,
+			relationships: []string{"document:firstdoc#reader@user:tom[only_on_tuesday]"},
+			endingSchema: `
+				caveat only_on_tuesday(day_of_week string) {
+					day_of_week == 'tuesday'
+				}
+
+				definition user {}
+
+				definition document {
+					relation writer: user
+					relation reader: user with only_on_tuesday
+
+					permission edit = writer
+					permission view = reader + edit
+				}
+			`,
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount: 3,
+			},
+		},
 	}
 
 	for _, tc := range tcs {
