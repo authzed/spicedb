@@ -179,7 +179,7 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 
 	go func() {
 		if err := s.Serve(listener); err != nil {
-			panic(err)
+			log.Err(err).Msg("error when serving in-memory server")
 		}
 	}()
 
