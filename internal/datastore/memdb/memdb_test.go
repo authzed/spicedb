@@ -114,6 +114,42 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 	require.ErrorContains(werr, "serialization max retries exceeded")
 }
 
+func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	require.NoError(err)
+
+	lowestRevision, err := ds.HeadRevision(context.Background())
+	require.NoError(err)
+
+	err = ds.Close()
+	require.NoError(err)
+
+	_, errChan := ds.Watch(context.Background(), lowestRevision, datastore.WatchJustRelationships())
+
+	select {
+	case err := <-errChan:
+		require.ErrorIs(err, ErrMemDBIsClosed)
+	case <-time.After(time.Second):
+		require.Fail("expected an error but waited too long")
+	}
+
+	_, err = ds.Statistics(context.Background())
+	require.ErrorIs(err, ErrMemDBIsClosed)
+
+	err = ds.CheckRevision(context.Background(), lowestRevision)
+	require.ErrorIs(err, ErrMemDBIsClosed)
+
+	_, err = ds.OptimizedRevision(context.Background())
+	require.ErrorIs(err, ErrMemDBIsClosed)
+
+	reader := ds.SnapshotReader(datastore.NoRevision)
+	_, err = reader.CountRelationships(context.Background(), "blah")
+	require.ErrorIs(err, ErrMemDBIsClosed)
+}
+
 func BenchmarkQueryRelationships(b *testing.B) {
 	require := require.New(b)
 

@@ -28,7 +28,10 @@ const (
 	numAttempts              = 10
 )
 
-var ErrSerialization = errors.New("serialization error")
+var (
+	ErrMemDBIsClosed = errors.New("datastore is closed")
+	ErrSerialization = errors.New("serialization error")
+)
 
 // DisableGC is a convenient constant for setting the garbage collection
 // interval high enough that it will never run.
@@ -84,6 +87,7 @@ type memdbDatastore struct {
 	sync.RWMutex
 	revisions.CommonDecoder
 
+	// NOTE: call checkNotClosed before using
 	db             *memdb.MemDB
 	revisions      []snapshot
 	activeWriteTxn *memdb.Txn
@@ -107,6 +111,10 @@ func (mdb *memdbDatastore) MetricsID() (string, error) {
 func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()
+
+	if err := mdb.checkNotClosed(); err != nil {
+		return &memdbReader{nil, nil, err, time.Now()}
+	}
 
 	if len(mdb.revisions) == 0 {
 		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is not ready"), time.Now()}
@@ -167,8 +175,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 					return
 				}
 
-				if mdb.db == nil {
-					err = fmt.Errorf("datastore is closed")
+				if err = mdb.checkNotClosed(); err != nil {
 					return
 				}
 
@@ -304,11 +311,11 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 		mdb.activeWriteTxn = nil
 
-		// Create a snapshot and add it to the revisions slice
-		if mdb.db == nil {
-			return datastore.NoRevision, fmt.Errorf("datastore has been closed")
+		if err := mdb.checkNotClosed(); err != nil {
+			return datastore.NoRevision, err
 		}
 
+		// Create a snapshot and add it to the revisions slice
 		snap := mdb.db.Snapshot()
 		mdb.revisions = append(mdb.revisions, snapshot{newRevision, snap})
 		return newRevision, nil
@@ -365,6 +372,14 @@ func (mdb *memdbDatastore) Close() error {
 
 	mdb.db = nil
 
+	return nil
+}
+
+// This code assumes that the RWMutex has been acquired.
+func (mdb *memdbDatastore) checkNotClosed() error {
+	if mdb.db == nil {
+		return ErrMemDBIsClosed
+	}
 	return nil
 }
 
