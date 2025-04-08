@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"k8s.io/utils/strings/slices"
 
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -54,6 +55,7 @@ type config struct {
 	skipValidation   bool
 	objectTypePrefix *string
 	allowedFlags     []string
+	caveatTypeSet    *caveattypes.TypeSet
 }
 
 func SkipValidation() Option { return func(cfg *config) { cfg.skipValidation = true } }
@@ -68,6 +70,10 @@ func RequirePrefixedObjectType() ObjectPrefixOption {
 
 func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
+}
+
+func CaveatTypeSet(cts *caveattypes.TypeSet) Option {
+	return func(cfg *config) { cfg.caveatTypeSet = cts }
 }
 
 const expirationFlag = "expiration"
@@ -107,12 +113,14 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		return nil, err
 	}
 
+	cts := caveattypes.TypeSetOrDefault(cfg.caveatTypeSet)
 	compiled, err := translate(&translationContext{
 		objectTypePrefix: cfg.objectTypePrefix,
 		mapper:           mapper,
 		schemaString:     schema.SchemaString,
 		skipValidate:     cfg.skipValidation,
 		allowedFlags:     cfg.allowedFlags,
+		caveatTypeSet:    cts,
 	}, root)
 	if err != nil {
 		var withNodeError withNodeError

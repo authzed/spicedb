@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -60,7 +61,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 					ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 
 					cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
-					dispatcher := graph.NewLocalOnlyDispatcher(10, 100)
+					dispatcher := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 					accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
 
 					headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)

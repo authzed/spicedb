@@ -451,6 +451,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
 		DispatchChunkSize:               c.DispatchChunkSize,
 		ExpiringRelationshipsEnabled:    c.EnableExperimentalRelationshipExpiration,
+		CaveatTypeSet:                   c.DatastoreConfig.CaveatTypeSet,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

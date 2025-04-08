@@ -25,6 +25,7 @@ type translationContext struct {
 	skipValidate     bool
 	allowedFlags     []string
 	enabledFlags     []string
+	caveatTypeSet    *caveattypes.TypeSet
 }
 
 func (tctx *translationContext) prefixedPath(definitionName string) (string, error) {
@@ -197,7 +198,7 @@ func translateCaveatTypeReference(tctx *translationContext, typeRefNode *dslNode
 		childTypes = append(childTypes, *translated)
 	}
 
-	constructedType, err := caveattypes.BuildType(typeName, childTypes)
+	constructedType, err := tctx.caveatTypeSet.BuildType(typeName, childTypes)
 	if err != nil {
 		return nil, typeRefNode.WithSourceErrorf(typeName, "%w", err)
 	}

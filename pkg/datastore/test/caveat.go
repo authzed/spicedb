@@ -436,10 +436,10 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 
 	env := caveats.NewEnvironment()
 
-	err = env.AddVariable("foo", caveattypes.IntType)
+	err = env.AddVariable("foo", caveattypes.Default.IntType)
 	require.NoError(t, err)
 
-	err = env.AddVariable("bar", caveattypes.MustMapType(caveattypes.BytesType))
+	err = env.AddVariable("bar", caveattypes.Default.MustMapType(caveattypes.Default.BytesType))
 	require.NoError(t, err)
 
 	coreCaveat := &core.CaveatDefinition{
@@ -455,8 +455,8 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 func createCompiledCaveat(t *testing.T) *caveats.CompiledCaveat {
 	t.Helper()
 	env, err := caveats.EnvForVariables(map[string]caveattypes.VariableType{
-		"a": caveattypes.IntType,
-		"b": caveattypes.IntType,
+		"a": caveattypes.Default.IntType,
+		"b": caveattypes.Default.IntType,
 	})
 	require.NoError(t, err)
 

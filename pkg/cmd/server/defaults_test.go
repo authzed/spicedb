@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 )
 
 func TestWithDatastore(t *testing.T) {
@@ -74,7 +75,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		nil,
 	}
 
-	someMiddleware := pertoken.NewMiddleware(nil)
+	someMiddleware := pertoken.NewMiddleware(nil, caveattypes.Default.TypeSet)
 
 	withDS := opts.WithDatastoreMiddleware(someMiddleware)
 	require.NotNil(t, withDS)

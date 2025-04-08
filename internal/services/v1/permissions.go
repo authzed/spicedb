@@ -29,6 +29,7 @@ import (
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/telemetry"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
@@ -100,6 +101,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	}
 
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
+		ps.config.CaveatTypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR(req.Resource.ObjectType, req.Permission),
 			Subject:       tuple.ONR(req.Subject.Object.ObjectType, req.Subject.Object.ObjectId, normalizeSubjectRelation(req.Subject)),
@@ -116,7 +118,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	var debugTrace *v1.DebugInformation
 	if debugOption != computed.NoDebugging && metadata.DebugInfo != nil {
 		// Convert the dispatch debug information into API debug information.
-		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, metadata.DebugInfo, ds)
+		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, metadata.DebugInfo, ds)
 		if cerr != nil {
 			return nil, ps.rewriteError(ctx, cerr)
 		}
@@ -128,7 +130,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		// a dispatch error occurs and debug was requested.
 		if dispatchDebugInfo, ok := spiceerrors.GetDetails[*dispatch.DebugInformation](err); ok {
 			// Convert the dispatch debug information into API debug information.
-			converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, dispatchDebugInfo, ds)
+			converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, dispatchDebugInfo, ds)
 			if cerr != nil {
 				return nil, ps.rewriteError(ctx, cerr)
 			}
@@ -616,7 +618,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 			excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.ExcludedSubjects))
 			for _, excludedSubject := range foundSubject.ExcludedSubjects {
-				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds)
+				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds, ps.config.CaveatTypeSet)
 				if err != nil {
 					return err
 				}
@@ -628,7 +630,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				excludedSubjects = append(excludedSubjects, resolvedExcludedSubject)
 			}
 
-			subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, ds)
+			subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, ds, ps.config.CaveatTypeSet)
 			if err != nil {
 				return err
 			}
@@ -685,13 +687,13 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	return nil
 }
 
-func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.CaveatReader) (*v1.ResolvedSubject, error) {
+func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.CaveatReader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 	if foundSubject.GetCaveatExpression() != nil {
 		permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 
-		cr, err := cexpr.RunSingleCaveatExpression(ctx, foundSubject.GetCaveatExpression(), caveatContext, ds, cexpr.RunCaveatExpressionNoDebugging)
+		cr, err := cexpr.RunSingleCaveatExpression(ctx, caveatTypeSet, foundSubject.GetCaveatExpression(), caveatContext, ds, cexpr.RunCaveatExpressionNoDebugging)
 		if err != nil {
 			return nil, err
 		}
@@ -756,6 +758,7 @@ type loadBulkAdapter struct {
 	referencedCaveatMap    map[string]*core.CaveatDefinition
 	current                tuple.Relationship
 	caveat                 core.ContextualizedCaveat
+	caveatTypeSet          *caveattypes.TypeSet
 
 	awaitingNamespaces []string
 	awaitingCaveats    []string
@@ -819,6 +822,7 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
 		a.referencedCaveatMap,
+		a.caveatTypeSet,
 		a.current,
 		relationships.ValidateRelationshipForCreateOrTouch,
 	); err != nil {
@@ -842,6 +846,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			referencedNamespaceMap: loadedNamespaces,
 			referencedCaveatMap:    loadedCaveats,
 			caveat:                 core.ContextualizedCaveat{},
+			caveatTypeSet:          ps.config.CaveatTypeSet,
 		}
 		resolver := schema.ResolverForDatastoreReader(rwt)
 		ts := schema.NewTypeSystem(resolver)

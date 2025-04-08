@@ -13,7 +13,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -27,14 +29,16 @@ const (
 type MiddlewareForTesting struct {
 	datastoreByToken *sync.Map
 	configFilePaths  []string
+	caveatTypeSet    *caveattypes.TypeSet
 }
 
 // NewMiddleware returns a new per-token datastore middleware that initializes each datastore with the data in the
 // config files.
-func NewMiddleware(configFilePaths []string) *MiddlewareForTesting {
+func NewMiddleware(configFilePaths []string, caveatTypeSet *caveattypes.TypeSet) *MiddlewareForTesting {
 	return &MiddlewareForTesting{
 		datastoreByToken: &sync.Map{},
 		configFilePaths:  configFilePaths,
+		caveatTypeSet:    caveatTypeSet,
 	}
 }
 
@@ -43,6 +47,8 @@ type squashable interface {
 }
 
 func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datastore.Datastore, error) {
+	spiceerrors.DebugAssertNotNil(m.caveatTypeSet, "caveatTypeSet must be set")
+
 	tokenStr, _ := grpcauth.AuthFromMD(ctx, "bearer")
 	tokenDatastore, ok := m.datastoreByToken.Load(tokenStr)
 	if ok {
@@ -55,7 +61,7 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 		return nil, fmt.Errorf("failed to init datastore: %w", err)
 	}
 
-	_, _, err = validationfile.PopulateFromFiles(ctx, ds, m.configFilePaths)
+	_, _, err = validationfile.PopulateFromFiles(ctx, ds, m.caveatTypeSet, m.configFilePaths)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config files: %w", err)
 	}

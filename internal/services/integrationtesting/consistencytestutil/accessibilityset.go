@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -106,7 +107,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 	headRevision, err := ccd.DataStore.HeadRevision(ccd.Ctx)
 	require.NoError(t, err)
 
-	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, 100)
+	dispatcher := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, defaultConcurrencyLimit, 100)
 	permissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	uncomputedPermissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	accessibilityByRelationship := map[string]Accessibility{}
@@ -158,6 +159,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						// is fully specified on the relationship.
 						if membership == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER {
 							cr, _, err := computed.ComputeCheck(ccd.Ctx, dispatcher,
+								caveattypes.Default.TypeSet,
 								computed.CheckParameters{
 									ResourceType:  resourceRelation,
 									Subject:       subject,

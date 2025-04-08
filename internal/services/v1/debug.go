@@ -9,6 +9,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -21,6 +22,7 @@ import (
 // into DebugInformation returnable to the API.
 func ConvertCheckDispatchDebugInformation(
 	ctx context.Context,
+	caveatTypeSet *caveattypes.TypeSet,
 	caveatContext map[string]any,
 	debugInfo *dispatch.DebugInformation,
 	reader datastore.Reader,
@@ -34,7 +36,7 @@ func ConvertCheckDispatchDebugInformation(
 		return nil, err
 	}
 
-	return convertCheckDispatchDebugInformationWithSchema(ctx, caveatContext, debugInfo, reader, schema)
+	return convertCheckDispatchDebugInformationWithSchema(ctx, caveatContext, debugInfo, reader, caveatTypeSet, schema)
 }
 
 // getFullSchema returns the full schema from the reader.
@@ -70,9 +72,10 @@ func convertCheckDispatchDebugInformationWithSchema(
 	caveatContext map[string]any,
 	debugInfo *dispatch.DebugInformation,
 	reader datastore.Reader,
+	caveatTypeSet *caveattypes.TypeSet,
 	schema string,
 ) (*v1.DebugInformation, error) {
-	converted, err := convertCheckTrace(ctx, caveatContext, debugInfo.Check, reader)
+	converted, err := convertCheckTrace(ctx, caveatContext, debugInfo.Check, reader, caveatTypeSet)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +86,7 @@ func convertCheckDispatchDebugInformationWithSchema(
 	}, nil
 }
 
-func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *dispatch.CheckDebugTrace, reader datastore.Reader) (*v1.CheckDebugTrace, error) {
+func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *dispatch.CheckDebugTrace, reader datastore.Reader, caveatTypeSet *caveattypes.TypeSet) (*v1.CheckDebugTrace, error) {
 	permissionType := v1.CheckDebugTrace_PERMISSION_TYPE_UNSPECIFIED
 	if ct.ResourceRelationType == dispatch.CheckDebugTrace_PERMISSION {
 		permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_PERMISSION
@@ -120,7 +123,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 		partialCheckResult := partialResults[0]
 		spiceerrors.DebugAssertNotNil(partialCheckResult.Expression, "got nil caveat expression")
 
-		computedResult, err := cexpr.RunSingleCaveatExpression(ctx, partialCheckResult.Expression, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
+		computedResult, err := cexpr.RunSingleCaveatExpression(ctx, caveatTypeSet, partialCheckResult.Expression, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +173,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 	if len(ct.SubProblems) > 0 {
 		subProblems := make([]*v1.CheckDebugTrace, 0, len(ct.SubProblems))
 		for _, subProblem := range ct.SubProblems {
-			converted, err := convertCheckTrace(ctx, caveatContext, subProblem, reader)
+			converted, err := convertCheckTrace(ctx, caveatContext, subProblem, reader, caveatTypeSet)
 			if err != nil {
 				return nil, err
 			}

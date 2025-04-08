@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/internal/telemetry"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
@@ -34,6 +35,7 @@ type bulkChecker struct {
 	maxAPIDepth          uint32
 	maxCaveatContextSize int
 	maxConcurrency       uint16
+	caveatTypeSet        *caveattypes.TypeSet
 
 	dispatch          dispatch.Dispatcher
 	dispatchChunkSize uint16
@@ -211,7 +213,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 					}
 
 					// Convert to debug information.
-					dt, err := convertCheckDispatchDebugInformationWithSchema(ctx, params.CaveatContext, wrappedDebugInfo, ds, schemaText)
+					dt, err := convertCheckDispatchDebugInformationWithSchema(ctx, params.CaveatContext, wrappedDebugInfo, ds, bc.caveatTypeSet, schemaText)
 					if err != nil {
 						return err
 					}
@@ -263,7 +265,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 				}
 
 				// Call bulk check to compute the check result(s) for the resource ID(s).
-				rcr, metadata, debugInfos, err := computed.ComputeBulkCheck(ctx, bc.dispatch, *group.params, resourceIDs, bc.dispatchChunkSize)
+				rcr, metadata, debugInfos, err := computed.ComputeBulkCheck(ctx, bc.dispatch, bc.caveatTypeSet, *group.params, resourceIDs, bc.dispatchChunkSize)
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}

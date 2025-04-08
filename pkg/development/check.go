@@ -5,6 +5,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/graph/computed"
 	v1 "github.com/authzed/spicedb/internal/services/v1"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -26,6 +27,7 @@ type CheckResult struct {
 func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject tuple.ObjectAndRelation, caveatContext map[string]any) (CheckResult, error) {
 	ctx := devContext.Ctx
 	cr, meta, err := computed.ComputeCheck(ctx, devContext.Dispatcher,
+		caveattypes.Default.TypeSet,
 		computed.CheckParameters{
 			ResourceType:  resource.RelationReference(),
 			Subject:       subject,
@@ -42,7 +44,7 @@ func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject 
 	}
 
 	reader := devContext.Datastore.SnapshotReader(devContext.Revision)
-	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveatContext, meta.DebugInfo, reader)
+	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveattypes.Default.TypeSet, caveatContext, meta.DebugInfo, reader)
 	if err != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
 	}

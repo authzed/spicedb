@@ -25,8 +25,8 @@ var UserNS = ns.Namespace("user")
 
 var CaveatDef = ns.MustCaveatDefinition(
 	caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
-		"secret":         caveattypes.StringType,
-		"expectedSecret": caveattypes.StringType,
+		"secret":         caveattypes.Default.StringType,
+		"expectedSecret": caveattypes.Default.StringType,
 	}),
 	"test",
 	"secret == expectedSecret",
@@ -211,8 +211,8 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 
 func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
 	env, err := caveats.EnvForVariables(map[string]caveattypes.VariableType{
-		"secret":         caveattypes.StringType,
-		"expectedSecret": caveattypes.StringType,
+		"secret":         caveattypes.Default.StringType,
+		"expectedSecret": caveattypes.Default.StringType,
 	})
 	require.NoError(err)
 

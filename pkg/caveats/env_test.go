@@ -11,8 +11,8 @@ import (
 func TestAddVariable(t *testing.T) {
 	req := require.New(t)
 	env := NewEnvironment()
-	err := env.AddVariable("foobar", types.IntType)
+	err := env.AddVariable("foobar", types.Default.IntType)
 	req.NoError(err)
-	err = env.AddVariable("foobar", types.IntType)
+	err = env.AddVariable("foobar", types.Default.IntType)
 	req.Error(err)
 }

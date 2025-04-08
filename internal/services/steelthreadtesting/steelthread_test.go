@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -78,7 +79,7 @@ func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datas
 		ds,
 		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 			// Load in the data.
-			_, rev, err := validationfile.PopulateFromFiles(ctx, ds, []string{"testdata/" + tc.datafile})
+			_, rev, err := validationfile.PopulateFromFiles(ctx, ds, caveattypes.Default.TypeSet, []string{"testdata/" + tc.datafile})
 			require.NoError(err)
 
 			return ds, rev

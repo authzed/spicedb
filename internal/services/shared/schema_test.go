@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -348,11 +349,11 @@ func TestApplySchemaChanges(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			validated, err := ValidateSchemaChanges(context.Background(), compiled, false)
+			validated, err := ValidateSchemaChanges(context.Background(), compiled, caveattypes.Default.TypeSet, false)
 			require.NoError(err)
 
 			_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				applied, err := ApplySchemaChanges(context.Background(), rwt, validated)
+				applied, err := ApplySchemaChanges(context.Background(), rwt, caveattypes.Default.TypeSet, validated)
 				if tc.expectedError != "" {
 					require.EqualError(err, tc.expectedError)
 					return nil

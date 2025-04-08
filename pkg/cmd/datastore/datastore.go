@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/spanner"
 	log "github.com/authzed/spicedb/internal/logging"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -125,10 +126,11 @@ type Config struct {
 	ReadReplicaCredentialsProviderName string         `debugmap:"visible"`
 
 	// Bootstrap
-	BootstrapFiles        []string          `debugmap:"visible-format"`
-	BootstrapFileContents map[string][]byte `debugmap:"visible"`
-	BootstrapOverwrite    bool              `debugmap:"visible"`
-	BootstrapTimeout      time.Duration     `debugmap:"visible"`
+	BootstrapFiles        []string             `debugmap:"visible-format"`
+	BootstrapFileContents map[string][]byte    `debugmap:"visible"`
+	BootstrapOverwrite    bool                 `debugmap:"visible"`
+	BootstrapTimeout      time.Duration        `debugmap:"visible"`
+	CaveatTypeSet         *caveattypes.TypeSet `debugmap:"hidden"`
 
 	// Hedging
 	RequestHedgingEnabled          bool          `debugmap:"visible"`
@@ -419,14 +421,14 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("initializing datastore from bootstrap files")
 
 		if len(opts.BootstrapFiles) > 0 {
-			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
+			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.CaveatTypeSet, opts.BootstrapFiles)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
 			}
 		}
 
 		if len(opts.BootstrapFileContents) > 0 {
-			_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.BootstrapFileContents)
+			_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.CaveatTypeSet, opts.BootstrapFileContents)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
 			}
