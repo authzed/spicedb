@@ -15,6 +15,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -29,7 +30,8 @@ import (
 )
 
 // NewSchemaServer creates a SchemaServiceServer instance.
-func NewSchemaServer(additiveOnly bool, expiringRelsEnabled bool) v1.SchemaServiceServer {
+func NewSchemaServer(caveatTypeSet *caveattypes.TypeSet, additiveOnly bool, expiringRelsEnabled bool) v1.SchemaServiceServer {
+	cts := caveattypes.TypeSetOrDefault(caveatTypeSet)
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
@@ -43,6 +45,7 @@ func NewSchemaServer(additiveOnly bool, expiringRelsEnabled bool) v1.SchemaServi
 		},
 		additiveOnly:        additiveOnly,
 		expiringRelsEnabled: expiringRelsEnabled,
+		caveatTypeSet:       cts,
 	}
 }
 
@@ -50,6 +53,7 @@ type schemaServer struct {
 	v1.UnimplementedSchemaServiceServer
 	shared.WithServiceSpecificInterceptors
 
+	caveatTypeSet       *caveattypes.TypeSet
 	additiveOnly        bool
 	expiringRelsEnabled bool
 }
@@ -117,10 +121,12 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	ds := datastoremw.MustFromContext(ctx)
 
 	// Compile the schema into the namespace definitions.
-	opts := []compiler.Option{}
+	opts := make([]compiler.Option, 0, 3)
 	if !ss.expiringRelsEnabled {
 		opts = append(opts, compiler.DisallowExpirationFlag())
 	}
+
+	opts = append(opts, compiler.CaveatTypeSet(ss.caveatTypeSet))
 
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
@@ -132,14 +138,14 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
 	// Do as much validation as we can before talking to the datastore.
-	validated, err := shared.ValidateSchemaChanges(ctx, compiled, ss.additiveOnly)
+	validated, err := shared.ValidateSchemaChanges(ctx, compiled, ss.caveatTypeSet, ss.additiveOnly)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
 	// Update the schema.
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		applied, err := shared.ApplySchemaChanges(ctx, rwt, validated)
+		applied, err := shared.ApplySchemaChanges(ctx, rwt, ss.caveatTypeSet, validated)
 		if err != nil {
 			return err
 		}
@@ -192,7 +198,7 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 	caveats := make([]*v1.ReflectionCaveat, 0, len(schema.CaveatDefinitions))
 	if filters.HasCaveats() {
 		for _, cd := range schema.CaveatDefinitions {
-			caveat, err := caveatAPIRepr(cd, filters)
+			caveat, err := caveatAPIRepr(cd, filters, ss.caveatTypeSet)
 			if err != nil {
 				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 			}
@@ -216,12 +222,12 @@ func (ss *schemaServer) DiffSchema(ctx context.Context, req *v1.DiffSchemaReques
 		return nil, err
 	}
 
-	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema)
+	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema, ss.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	resp, err := convertDiff(diff, existingSchema, comparisonSchema, atRevision)
+	resp, err := convertDiff(diff, existingSchema, comparisonSchema, atRevision, ss.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

@@ -19,7 +19,7 @@ func TestValidateCaveatDefinition(t *testing.T) {
 		{
 			ns.MustCaveatDefinition(caveats.MustEnvForVariables(
 				map[string]caveattypes.VariableType{
-					"someCondition": caveattypes.IntType,
+					"someCondition": caveattypes.Default.IntType,
 				},
 			), "valid", "someCondition == 42"),
 			"",
@@ -27,7 +27,7 @@ func TestValidateCaveatDefinition(t *testing.T) {
 		{
 			ns.MustCaveatDefinition(caveats.MustEnvForVariables(
 				map[string]caveattypes.VariableType{
-					"someCondition": caveattypes.IntType,
+					"someCondition": caveattypes.Default.IntType,
 				},
 			), "test", "true"),
 			"parameter `someCondition` for caveat `test` is unused",
@@ -49,7 +49,7 @@ func TestValidateCaveatDefinition(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.caveat.Name, func(t *testing.T) {
-			err := ValidateCaveatDefinition(tc.caveat)
+			err := ValidateCaveatDefinition(caveattypes.Default.TypeSet, tc.caveat)
 			if tc.expectedError != "" {
 				require.NotNil(t, err)
 				require.Contains(t, err.Error(), tc.expectedError)

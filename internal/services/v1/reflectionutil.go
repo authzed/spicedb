@@ -4,6 +4,7 @@ import (
 	"context"
 
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/diff"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -48,7 +49,7 @@ func loadCurrentSchema(ctx context.Context) (*diff.DiffableSchema, datastore.Rev
 	}, atRevision, nil
 }
 
-func schemaDiff(ctx context.Context, comparisonSchemaString string) (*diff.SchemaDiff, *diff.DiffableSchema, *diff.DiffableSchema, error) {
+func schemaDiff(ctx context.Context, comparisonSchemaString string, caveatTypeSet *caveattypes.TypeSet) (*diff.SchemaDiff, *diff.DiffableSchema, *diff.DiffableSchema, error) {
 	existingSchema, _, err := loadCurrentSchema(ctx)
 	if err != nil {
 		return nil, nil, nil, err
@@ -58,14 +59,14 @@ func schemaDiff(ctx context.Context, comparisonSchemaString string) (*diff.Schem
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: comparisonSchemaString,
-	}, compiler.AllowUnprefixedObjectType())
+	}, compiler.AllowUnprefixedObjectType(), compiler.CaveatTypeSet(caveatTypeSet))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	comparisonSchema := diff.NewDiffableSchemaFromCompiledSchema(compiled)
 
-	diff, err := diff.DiffSchemas(*existingSchema, comparisonSchema)
+	diff, err := diff.DiffSchemas(*existingSchema, comparisonSchema, caveatTypeSet)
 	if err != nil {
 		return nil, nil, nil, err
 	}

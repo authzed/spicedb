@@ -5,6 +5,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	caveatdiff "github.com/authzed/spicedb/pkg/diff/caveats"
@@ -28,11 +29,11 @@ type ValidatedSchemaChanges struct {
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
-func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, additiveOnly bool) (*ValidatedSchemaChanges, error) {
+func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool) (*ValidatedSchemaChanges, error) {
 	// 1) Validate the caveats defined.
 	newCaveatDefNames := mapz.NewSet[string]()
 	for _, caveatDef := range compiled.CaveatDefinitions {
-		if err := namespace.ValidateCaveatDefinition(caveatDef); err != nil {
+		if err := namespace.ValidateCaveatDefinition(caveatTypeSet, caveatDef); err != nil {
 			return nil, err
 		}
 
@@ -88,7 +89,7 @@ type AppliedSchemaChanges struct {
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
-func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
+func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
 	existingCaveats, err := rwt.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
@@ -99,7 +100,7 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 		return nil, err
 	}
 
-	return ApplySchemaChangesOverExisting(ctx, rwt, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
+	return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
 }
 
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against
@@ -107,6 +108,7 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 func ApplySchemaChangesOverExisting(
 	ctx context.Context,
 	rwt datastore.ReadWriteTransaction,
+	caveatTypeSet *caveattypes.TypeSet,
 	validated *ValidatedSchemaChanges,
 	existingCaveats []*core.CaveatDefinition,
 	existingObjectDefs []*core.NamespaceDefinition,
@@ -123,7 +125,7 @@ func ApplySchemaChangesOverExisting(
 	// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
 	caveatDefsWithChanges := make([]*core.CaveatDefinition, 0, len(validated.compiled.CaveatDefinitions))
 	for _, caveatDef := range validated.compiled.CaveatDefinitions {
-		diff, err := sanityCheckCaveatChanges(ctx, rwt, caveatDef, existingCaveatDefMap)
+		diff, err := sanityCheckCaveatChanges(ctx, rwt, caveatTypeSet, caveatDef, existingCaveatDefMap)
 		if err != nil {
 			return nil, err
 		}
@@ -238,12 +240,13 @@ func ApplySchemaChangesOverExisting(
 func sanityCheckCaveatChanges(
 	_ context.Context,
 	_ datastore.ReadWriteTransaction,
+	caveatTypeSet *caveattypes.TypeSet,
 	caveatDef *core.CaveatDefinition,
 	existingDefs map[string]*core.CaveatDefinition,
 ) (*caveatdiff.Diff, error) {
 	// Ensure that the updated namespace does not break the existing tuple data.
 	existing := existingDefs[caveatDef.Name]
-	diff, err := caveatdiff.DiffCaveats(existing, caveatDef)
+	diff, err := caveatdiff.DiffCaveats(existing, caveatDef, caveatTypeSet)
 	if err != nil {
 		return nil, err
 	}

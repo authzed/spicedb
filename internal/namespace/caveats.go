@@ -13,9 +13,9 @@ import (
 
 // ValidateCaveatDefinition validates the parameters and types within the given caveat
 // definition, including usage of the parameters.
-func ValidateCaveatDefinition(caveat *core.CaveatDefinition) error {
+func ValidateCaveatDefinition(ts *caveattypes.TypeSet, caveat *core.CaveatDefinition) error {
 	// Ensure all parameters are used by the caveat expression itself.
-	parameterTypes, err := caveattypes.DecodeParameterTypes(caveat.ParameterTypes)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(ts, caveat.ParameterTypes)
 	if err != nil {
 		return schema.NewTypeWithSourceError(
 			fmt.Errorf("could not decode caveat parameters `%s`: %w", caveat.Name, err),
@@ -47,7 +47,7 @@ func ValidateCaveatDefinition(caveat *core.CaveatDefinition) error {
 	}
 
 	for paramName, paramType := range caveat.ParameterTypes {
-		_, err := caveattypes.DecodeParameterType(paramType)
+		_, err := caveattypes.DecodeParameterType(ts, paramType)
 		if err != nil {
 			return schema.NewTypeWithSourceError(
 				fmt.Errorf("type error for parameter `%s` for caveat `%s`: %w", paramName, caveat.Name, err),

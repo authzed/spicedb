@@ -29,8 +29,11 @@ type translationContext struct {
 	allowedFlags     []string
 	enabledFlags     []string
 	existingNames    *mapz.Set[string]
+	caveatTypeSet    *caveattypes.TypeSet
+
 	// The mapping of partial name -> relations represented by the partial
 	compiledPartials map[string][]*core.Relation
+
 	// A mapping of partial name -> partial DSL nodes whose resolution depends on
 	// the resolution of the named partial
 	unresolvedPartials *mapz.MultiMap[string, *dslNode]
@@ -230,7 +233,7 @@ func translateCaveatTypeReference(tctx *translationContext, typeRefNode *dslNode
 		childTypes = append(childTypes, *translated)
 	}
 
-	constructedType, err := caveattypes.BuildType(typeName, childTypes)
+	constructedType, err := tctx.caveatTypeSet.BuildType(typeName, childTypes)
 	if err != nil {
 		return nil, typeRefNode.WithSourceErrorf(typeName, "%w", err)
 	}

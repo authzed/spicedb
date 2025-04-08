@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -326,7 +327,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			}
 
 			// Validate update.
-			err = ValidateRelationshipUpdates(context.Background(), reader, []tuple.RelationshipUpdate{
+			err = ValidateRelationshipUpdates(context.Background(), reader, caveattypes.Default.TypeSet, []tuple.RelationshipUpdate{
 				op(tuple.MustParse(tc.relationship)),
 			})
 			if tc.expectedError != "" {
@@ -337,7 +338,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 
 			// Validate create/touch.
 			if tc.operation != core.RelationTupleUpdate_DELETE {
-				err = ValidateRelationshipsForCreateOrTouch(context.Background(), reader, tuple.MustParse(tc.relationship))
+				err = ValidateRelationshipsForCreateOrTouch(context.Background(), reader, caveattypes.Default.TypeSet, tuple.MustParse(tc.relationship))
 				if tc.expectedError != "" {
 					req.ErrorContains(err, tc.expectedError)
 				} else {

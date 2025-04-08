@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"k8s.io/utils/strings/slices"
 
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/parser"
@@ -55,6 +56,8 @@ type config struct {
 	skipValidation   bool
 	objectTypePrefix *string
 	allowedFlags     []string
+	caveatTypeSet    *caveattypes.TypeSet
+
 	// In an import context, this is the folder containing
 	// the importing schema (as opposed to imported schemas)
 	sourceFolder string
@@ -76,6 +79,11 @@ func RequirePrefixedObjectType() ObjectPrefixOption {
 // Config that allows for no prefix. This is the "normal" default.
 func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
+}
+
+// WithCaveatTypeSet sets the caveat type set to use for the compilation.
+func WithCaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
+	return func(cfg *config) { cfg.caveatTypeSet = caveatTypeSet }
 }
 
 const expirationFlag = "expiration"
@@ -131,7 +139,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	}
 
 	initialCompiledPartials := make(map[string][]*core.Relation)
-
+	caveatTypeSet := caveattypes.TypeSetOrDefault(cfg.caveatTypeSet)
 	compiled, err := translate(&translationContext{
 		objectTypePrefix:   cfg.objectTypePrefix,
 		mapper:             mapper,
@@ -141,6 +149,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		existingNames:      mapz.NewSet[string](),
 		compiledPartials:   initialCompiledPartials,
 		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
+		caveatTypeSet:      caveatTypeSet,
 	}, root)
 	if err != nil {
 		var withNodeError withNodeError

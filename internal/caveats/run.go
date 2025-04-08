@@ -35,24 +35,27 @@ const (
 // This instantiates its own CaveatRunner, and should therefore only be used in one-off situations.
 func RunSingleCaveatExpression(
 	ctx context.Context,
+	ts *caveattypes.TypeSet,
 	expr *core.CaveatExpression,
 	context map[string]any,
 	reader datastore.CaveatReader,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
-	runner := NewCaveatRunner()
+	runner := NewCaveatRunner(ts)
 	return runner.RunCaveatExpression(ctx, expr, context, reader, debugOption)
 }
 
 // CaveatRunner is a helper for running caveats, providing a cache for deserialized caveats.
 type CaveatRunner struct {
+	caveatTypeSet       *caveattypes.TypeSet
 	caveatDefs          map[string]*core.CaveatDefinition
 	deserializedCaveats map[string]*caveats.CompiledCaveat
 }
 
 // NewCaveatRunner creates a new CaveatRunner.
-func NewCaveatRunner() *CaveatRunner {
+func NewCaveatRunner(ts *caveattypes.TypeSet) *CaveatRunner {
 	return &CaveatRunner{
+		caveatTypeSet:       ts,
 		caveatDefs:          map[string]*core.CaveatDefinition{},
 		deserializedCaveats: map[string]*caveats.CompiledCaveat{},
 	}
@@ -130,7 +133,7 @@ func (cr *CaveatRunner) get(caveatDefName string) (*core.CaveatDefinition, *cave
 		return caveat, deserialized, nil
 	}
 
-	parameterTypes, err := caveattypes.DecodeParameterTypes(caveat.ParameterTypes)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(cr.caveatTypeSet, caveat.ParameterTypes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -185,6 +188,7 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 
 		// Perform type checking and conversion on the context map.
 		typedParameters, err := caveats.ConvertContextToParameters(
+			cr.caveatTypeSet,
 			untypedFullContext,
 			caveat.ParameterTypes,
 			caveats.SkipUnknownParameters,

@@ -28,7 +28,7 @@ func TestGenerateCaveat(t *testing.T) {
 			"basic",
 			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
 				map[string]caveattypes.VariableType{
-					"someParam": caveattypes.IntType,
+					"someParam": caveattypes.Default.IntType,
 				},
 			), "somecaveat", "someParam == 42"),
 			`
@@ -41,8 +41,8 @@ caveat somecaveat(someParam int) {
 			"multiparameter",
 			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
 				map[string]caveattypes.VariableType{
-					"someParam":    caveattypes.IntType,
-					"anotherParam": caveattypes.MustMapType(caveattypes.UIntType),
+					"someParam":    caveattypes.Default.IntType,
+					"anotherParam": caveattypes.Default.MustMapType(caveattypes.Default.UIntType),
 				},
 			), "somecaveat", "someParam == 42"),
 			`
@@ -55,7 +55,7 @@ caveat somecaveat(anotherParam map<uint>, someParam int) {
 			"long",
 			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
 				map[string]caveattypes.VariableType{
-					"someParam": caveattypes.IntType,
+					"someParam": caveattypes.Default.IntType,
 				},
 			), "somecaveat", "someParam == 42 && someParam == 43 && someParam == 44 && someParam == 45"),
 			`
@@ -70,7 +70,7 @@ caveat somecaveat(someParam int) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			source, ok, err := GenerateCaveatSource(test.input)
+			source, ok, err := GenerateCaveatSource(test.input, caveattypes.Default.TypeSet)
 			require.NoError(err)
 			require.Equal(strings.TrimSpace(test.expected), source)
 			require.Equal(test.okay, ok)
@@ -217,7 +217,7 @@ definition foos/document {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			source, ok, err := GenerateSource(test.input)
+			source, ok, err := GenerateSource(test.input, caveattypes.Default.TypeSet)
 			require.NoError(err)
 			require.Equal(test.expected, source)
 			require.Equal(test.okay, ok)

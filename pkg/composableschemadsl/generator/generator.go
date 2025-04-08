@@ -26,6 +26,10 @@ const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
 // GenerateSchema generates a DSL view of the given schema.
 func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
+	return GenerateSchemaWithCaveatTypeSet(definitions, caveattypes.Default.TypeSet)
+}
+
+func GenerateSchemaWithCaveatTypeSet(definitions []compiler.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
 	generated := make([]string, 0, len(definitions))
 	flags := mapz.NewSet[string]()
 
@@ -33,7 +37,7 @@ func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, erro
 	for _, definition := range definitions {
 		switch def := definition.(type) {
 		case *core.CaveatDefinition:
-			generatedCaveat, ok, err := GenerateCaveatSource(def)
+			generatedCaveat, ok, err := GenerateCaveatSource(def, caveatTypeSet)
 			if err != nil {
 				return "", false, err
 			}
@@ -42,7 +46,7 @@ func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, erro
 			generated = append(generated, generatedCaveat)
 
 		case *core.NamespaceDefinition:
-			generatedSchema, defFlags, ok, err := generateDefinitionSource(def)
+			generatedSchema, defFlags, ok, err := generateDefinitionSource(def, caveatTypeSet)
 			if err != nil {
 				return "", false, err
 			}
@@ -69,12 +73,13 @@ func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, erro
 }
 
 // GenerateCaveatSource generates a DSL view of the given caveat definition.
-func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool, error) {
+func GenerateCaveatSource(caveat *core.CaveatDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 		hasBlankline:     true,
 		hasNewScope:      true,
+		caveatTypeSet:    caveatTypeSet,
 	}
 
 	err := generator.emitCaveat(caveat)
@@ -86,18 +91,19 @@ func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool, error) {
 }
 
 // GenerateSource generates a DSL view of the given namespace definition.
-func GenerateSource(namespace *core.NamespaceDefinition) (string, bool, error) {
-	source, _, ok, err := generateDefinitionSource(namespace)
+func GenerateSource(namespace *core.NamespaceDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
+	source, _, ok, err := generateDefinitionSource(namespace, caveatTypeSet)
 	return source, ok, err
 }
 
-func generateDefinitionSource(namespace *core.NamespaceDefinition) (string, []string, bool, error) {
+func generateDefinitionSource(namespace *core.NamespaceDefinition, caveatTypeSet *caveattypes.TypeSet) (string, []string, bool, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 		hasBlankline:     true,
 		hasNewScope:      true,
 		flags:            mapz.NewSet[string](),
+		caveatTypeSet:    caveatTypeSet,
 	}
 
 	err := generator.emitNamespace(namespace)
@@ -109,12 +115,13 @@ func generateDefinitionSource(namespace *core.NamespaceDefinition) (string, []st
 }
 
 // GenerateRelationSource generates a DSL view of the given relation definition.
-func GenerateRelationSource(relation *core.Relation) (string, error) {
+func GenerateRelationSource(relation *core.Relation, caveatTypeSet *caveattypes.TypeSet) (string, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 		hasBlankline:     true,
 		hasNewScope:      true,
+		caveatTypeSet:    caveatTypeSet,
 	}
 
 	err := generator.emitRelation(relation)
@@ -139,7 +146,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 			sg.append(", ")
 		}
 
-		decoded, err := caveattypes.DecodeParameterType(caveat.ParameterTypes[paramName])
+		decoded, err := caveattypes.DecodeParameterType(sg.caveatTypeSet, caveat.ParameterTypes[paramName])
 		if err != nil {
 			return fmt.Errorf("invalid parameter type on caveat: %w", err)
 		}
@@ -156,7 +163,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.indent()
 	sg.markNewScope()
 
-	parameterTypes, err := caveattypes.DecodeParameterTypes(caveat.ParameterTypes)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(sg.caveatTypeSet, caveat.ParameterTypes)
 	if err != nil {
 		return fmt.Errorf("invalid caveat parameters: %w", err)
 	}
