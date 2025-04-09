@@ -98,6 +98,9 @@ type PermissionsServerConfig struct {
 
 	// ExpiringRelationshipsEnabled defines whether or not expiring relationships are enabled.
 	ExpiringRelationshipsEnabled bool
+
+	// ObjectStorageEnabled defines whether or not object storage is enabled.
+	ObjectStorageEnabled bool
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -120,6 +123,7 @@ func NewPermissionsServer(
 		DispatchChunkSize:               defaultIfZero(config.DispatchChunkSize, 100),
 		MaxCheckBulkConcurrency:         defaultIfZero(config.MaxCheckBulkConcurrency, 50),
 		ExpiringRelationshipsEnabled:    true,
+		ObjectStorageEnabled:            config.ObjectStorageEnabled,
 	}
 
 	return &permissionServer{
@@ -225,6 +229,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		pageSize,
 		options.ByResource,
 		startCursor,
+		ps.config.ObjectStorageEnabled && req.IncludeObjectData,
 	)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
@@ -320,6 +325,15 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				ctx,
 				fmt.Errorf("support for expiring relationships is not enabled"),
 			)
+		}
+		// TODO: Add size limits for JSON data using proto.Size()
+		if !ps.config.ObjectStorageEnabled {
+			if update.Relationship.Resource.ObjectData != nil || update.Relationship.Subject.Object.ObjectData != nil {
+				return nil, ps.rewriteError(
+					ctx,
+					fmt.Errorf("support for object storage is not enabled"),
+				)
+			}
 		}
 	}
 

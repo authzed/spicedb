@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -104,9 +105,11 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 
 	var resourceObjectType string
 	var resourceObjectID string
+	var resourceObjectData map[string]any
 	var resourceRelation string
 	var subjectObjectType string
 	var subjectObjectID string
+	var subjectObjectData map[string]any
 	var subjectRelation string
 	var caveatName sql.NullString
 	var caveatCtx C
@@ -117,7 +120,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 	var timestamp time.Time
 
 	span.AddEvent("Selecting columns")
-	colsToSelect, err := ColumnsToSelect(builder, &resourceObjectType, &resourceObjectID, &resourceRelation, &subjectObjectType, &subjectObjectID, &subjectRelation, &caveatName, &caveatCtx, &expiration, &integrityKeyID, &integrityHash, &timestamp)
+	colsToSelect, err := ColumnsToSelect(builder, &resourceObjectType, &resourceObjectID, &resourceObjectData, &resourceRelation, &subjectObjectType, &subjectObjectID, &subjectObjectData, &subjectRelation, &caveatName, &caveatCtx, &expiration, &integrityKeyID, &integrityHash, &timestamp)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryRels, err)
 	}
@@ -176,17 +179,28 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 					expiration = &t
 				}
 
+				structSubjectObjectData, err := structpb.NewStruct(subjectObjectData)
+				if err != nil {
+					return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("failed to serialize subject object data: %w", err))
+				}
+				structResourceObjectData, err := structpb.NewStruct(resourceObjectData)
+				if err != nil {
+					return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("failed to serialize resource object data: %w", err))
+				}
+
 				relCount++
 				if !yield(tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{
 							ObjectType: resourceObjectType,
 							ObjectID:   resourceObjectID,
+							ObjectData: structResourceObjectData,
 							Relation:   resourceRelation,
 						},
 						Subject: tuple.ObjectAndRelation{
 							ObjectType: subjectObjectType,
 							ObjectID:   subjectObjectID,
+							ObjectData: structSubjectObjectData,
 							Relation:   subjectRelation,
 						},
 					},

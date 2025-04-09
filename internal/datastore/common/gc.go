@@ -56,6 +56,14 @@ var (
 		Name:      "gc_failure_total",
 		Help:      "The number of failed runs of the datastore garbage collection.",
 	}
+
+	gcObjectsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "gc_objects_total",
+		Help:      "The number of stale objects deleted by the datastore garbage collection.",
+	})
+
 	gcFailureCounter = prometheus.NewCounter(gcFailureCounterConfig)
 )
 
@@ -67,6 +75,7 @@ func RegisterGCMetrics() error {
 		gcRelationshipsCounter,
 		gcTransactionsCounter,
 		gcNamespacesCounter,
+		gcObjectsCounter,
 		gcFailureCounter,
 	} {
 		if err := prometheus.Register(metric); err != nil {
@@ -121,13 +130,15 @@ type DeletionCounts struct {
 	Relationships int64
 	Transactions  int64
 	Namespaces    int64
+	Objects       int64
 }
 
 func (g DeletionCounts) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Int64("relationships", g.Relationships).
 		Int64("transactions", g.Transactions).
-		Int64("namespaces", g.Namespaces)
+		Int64("namespaces", g.Namespaces).
+		Int64("objects", g.Objects)
 }
 
 var MaxGCInterval = 60 * time.Minute
@@ -245,6 +256,7 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	gcTransactionsCounter.Add(float64(collected.Transactions))
 	gcNamespacesCounter.Add(float64(collected.Namespaces))
 	gcExpiredRelationshipsCounter.Add(float64(expiredRelationshipsCount))
+	gcObjectsCounter.Add(float64(collected.Objects))
 	collectionDuration := time.Since(startTime)
 	gcDurationHistogram.Observe(collectionDuration.Seconds())
 

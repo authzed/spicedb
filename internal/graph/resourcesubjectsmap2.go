@@ -4,6 +4,8 @@ import (
 	"sort"
 	"sync"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -35,8 +37,9 @@ func NewSyncONRSet() *syncONRSet {
 // to the subject IDs (may be more than one) for each, as well as whether the mapping
 // is conditional due to the use of a caveat on the relationship which formed the mapping.
 type resourcesSubjectMap2 struct {
-	resourceType         *core.RelationReference
-	resourcesAndSubjects *mapz.MultiMap[string, subjectInfo2]
+	resourceType           *core.RelationReference
+	resourcesAndSubjects   *mapz.MultiMap[string, subjectInfo2]
+	resourcesAndObjectData map[string]*structpb.Struct
 }
 
 // subjectInfo2 is the information about a subject contained in a resourcesSubjectMap2.
@@ -45,17 +48,34 @@ type subjectInfo2 struct {
 	missingContextParameters []string
 }
 
+func (rsm resourcesSubjectMap2) GetObjectData(resourceID string) *structpb.Struct {
+	objectData, ok := rsm.resourcesAndObjectData[resourceID]
+	if !ok {
+		return nil
+	}
+	return objectData
+}
+
+func (rsm resourcesSubjectMap2) AddObjectData(resourceID string, resourceData *structpb.Struct) {
+	if resourceData == nil {
+		return
+	}
+	rsm.resourcesAndObjectData[resourceID] = resourceData
+}
+
 func newResourcesSubjectMap2(resourceType *core.RelationReference) resourcesSubjectMap2 {
 	return resourcesSubjectMap2{
-		resourceType:         resourceType,
-		resourcesAndSubjects: mapz.NewMultiMap[string, subjectInfo2](),
+		resourceType:           resourceType,
+		resourcesAndSubjects:   mapz.NewMultiMap[string, subjectInfo2](),
+		resourcesAndObjectData: make(map[string]*structpb.Struct),
 	}
 }
 
 func newResourcesSubjectMap2WithCapacity(resourceType *core.RelationReference, capacity uint32) resourcesSubjectMap2 {
 	return resourcesSubjectMap2{
-		resourceType:         resourceType,
-		resourcesAndSubjects: mapz.NewMultiMapWithCap[string, subjectInfo2](capacity),
+		resourceType:           resourceType,
+		resourcesAndSubjects:   mapz.NewMultiMapWithCap[string, subjectInfo2](capacity),
+		resourcesAndObjectData: make(map[string]*structpb.Struct),
 	}
 }
 
@@ -78,6 +98,7 @@ func (rsm resourcesSubjectMap2) addRelationship(rel tuple.Relationship, missingC
 		return len(missingContextParameters) == 0 || rel.OptionalCaveat != nil
 	}, "missing context parameters must be empty if there is no caveat")
 
+	rsm.AddObjectData(rel.Resource.ObjectID, rel.Resource.ObjectData)
 	rsm.resourcesAndSubjects.Add(rel.Resource.ObjectID, subjectInfo2{rel.Subject.ObjectID, missingContextParameters})
 	return nil
 }
@@ -143,9 +164,10 @@ func (rsm dispatchableResourcesSubjectMap2) filterSubjectIDsToDispatch(dispatche
 	filtered := make([]string, 0, len(resourceIDs))
 	for _, resourceID := range resourceIDs {
 		if dispatched.Add(&core.ObjectAndRelation{
-			Namespace: dispatchSubjectType.Namespace,
-			ObjectId:  resourceID,
-			Relation:  dispatchSubjectType.Relation,
+			Namespace:  dispatchSubjectType.Namespace,
+			ObjectId:   resourceID,
+			ObjectData: rsm.GetObjectData(resourceID),
+			Relation:   dispatchSubjectType.Relation,
 		}) {
 			filtered = append(filtered, resourceID)
 		}
@@ -157,8 +179,9 @@ func (rsm dispatchableResourcesSubjectMap2) filterSubjectIDsToDispatch(dispatche
 // cloneAsMutable returns a mutable clone of this dispatchableResourcesSubjectMap2.
 func (rsm dispatchableResourcesSubjectMap2) cloneAsMutable() resourcesSubjectMap2 {
 	return resourcesSubjectMap2{
-		resourceType:         rsm.resourceType,
-		resourcesAndSubjects: rsm.resourcesAndSubjects.Clone(),
+		resourceType:           rsm.resourceType,
+		resourcesAndSubjects:   rsm.resourcesAndSubjects.Clone(),
+		resourcesAndObjectData: rsm.resourcesAndObjectData,
 	}
 }
 
@@ -195,12 +218,14 @@ func (rsm dispatchableResourcesSubjectMap2) asPossibleResources() []*v1.Possible
 		if allCaveated {
 			resources = append(resources, &v1.PossibleResource{
 				ResourceId:           resourceID,
+				ResourceData:         rsm.GetObjectData(resourceID),
 				ForSubjectIds:        subjectIDs,
 				MissingContextParams: missingContextParameters.AsSlice(),
 			})
 		} else {
 			resources = append(resources, &v1.PossibleResource{
 				ResourceId:    resourceID,
+				ResourceData:  rsm.GetObjectData(resourceID),
 				ForSubjectIds: nonCaveatedSubjectIDs,
 			})
 		}
@@ -234,6 +259,7 @@ func (rsm dispatchableResourcesSubjectMap2) mapPossibleResource(foundResource *v
 	if nonCaveatedSubjectIDs.Len() > 0 {
 		return &v1.PossibleResource{
 			ResourceId:    foundResource.ResourceId,
+			ResourceData:  foundResource.ResourceData,
 			ForSubjectIds: nonCaveatedSubjectIDs.AsSlice(),
 		}, nil
 	}
@@ -242,6 +268,7 @@ func (rsm dispatchableResourcesSubjectMap2) mapPossibleResource(foundResource *v
 	// as a check is required.
 	return &v1.PossibleResource{
 		ResourceId:           foundResource.ResourceId,
+		ResourceData:         foundResource.ResourceData,
 		ForSubjectIds:        forSubjectIDs.AsSlice(),
 		MissingContextParams: missingContextParameters.AsSlice(),
 	}, nil

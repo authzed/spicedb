@@ -607,7 +607,7 @@ func TestMaximumSize(t *testing.T) {
 func TestMaximumSizeReplacement(t *testing.T) {
 	ctx := context.Background()
 
-	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 243)
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 275)
 	require.True(t, ch.IsEmpty())
 
 	rev0, err := revisions.HLCRevisionFromString("1")
@@ -615,11 +615,11 @@ func TestMaximumSizeReplacement(t *testing.T) {
 
 	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), tuple.UpdateOperationTouch)
 	require.NoError(t, err)
-	require.Equal(t, int64(243), ch.currentByteSize)
+	require.Equal(t, int64(275), ch.currentByteSize)
 
 	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), tuple.UpdateOperationDelete)
 	require.NoError(t, err)
-	require.Equal(t, int64(243), ch.currentByteSize)
+	require.Equal(t, int64(275), ch.currentByteSize)
 }
 
 func TestCanonicalize(t *testing.T) {

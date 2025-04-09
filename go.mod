@@ -7,6 +7,9 @@ go 1.23.1
 // upgrade Kubernetes to a version that uses a newer version of `cel-go`.
 require github.com/authzed/cel-go v0.20.2
 
+// Use andriyko:authzed-go for development
+replace github.com/authzed/authzed-go => github.com/andriyko/authzed-go v1.3.1-0.20250405161549-926ca3c1f971
+
 // See: https://github.com/envoyproxy/go-control-plane/issues/1074
 replace github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.13.2
 

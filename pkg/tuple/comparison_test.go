@@ -15,26 +15,26 @@ func TestONREqual(t *testing.T) {
 	}{
 		{
 			name: "equal",
-			lhs:  ObjectAndRelation{"testns", "testobj", "testrel"},
-			rhs:  ObjectAndRelation{"testns", "testobj", "testrel"},
+			lhs:  ObjectAndRelation{"testns", "testobj", nil, "testrel"},
+			rhs:  ObjectAndRelation{"testns", "testobj", nil, "testrel"},
 			want: true,
 		},
 		{
 			name: "different object type",
-			lhs:  ObjectAndRelation{"testns1", "testobj", "testrel"},
-			rhs:  ObjectAndRelation{"testns2", "testobj", "testrel"},
+			lhs:  ObjectAndRelation{"testns1", "testobj", nil, "testrel"},
+			rhs:  ObjectAndRelation{"testns2", "testobj", nil, "testrel"},
 			want: false,
 		},
 		{
 			name: "different object id",
-			lhs:  ObjectAndRelation{"testns", "testobj1", "testrel"},
-			rhs:  ObjectAndRelation{"testns", "testobj2", "testrel"},
+			lhs:  ObjectAndRelation{"testns", "testobj1", nil, "testrel"},
+			rhs:  ObjectAndRelation{"testns", "testobj2", nil, "testrel"},
 			want: false,
 		},
 		{
 			name: "different relation",
-			lhs:  ObjectAndRelation{"testns", "testobj", "testrel1"},
-			rhs:  ObjectAndRelation{"testns", "testobj", "testrel2"},
+			lhs:  ObjectAndRelation{"testns", "testobj", nil, "testrel1"},
+			rhs:  ObjectAndRelation{"testns", "testobj", nil, "testrel2"},
 			want: false,
 		},
 	}

@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -124,6 +125,16 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 		t.Run("TransactionTimestamps", createDatastoreTest(
 			b,
 			TransactionTimestampsTest,
+			RevisionQuantization(0),
+			GCWindow(1*time.Millisecond),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(1),
+			MigrationPhase(config.migrationPhase),
+		))
+
+		t.Run("ObjectData", createDatastoreTest(
+			b,
+			ObjectDataTest,
 			RevisionQuantization(0),
 			GCWindow(1*time.Millisecond),
 			GCInterval(veryLargeGCInterval),
@@ -1992,6 +2003,232 @@ func ContinuousCheckpointTest(t *testing.T, ds datastore.Datastore) {
 			require.Fail("timed out waiting for checkpoint for out of band change")
 		}
 	}
+}
+
+func ObjectDataTest(t *testing.T, ds datastore.Datastore) {
+	ctx := context.Background()
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(
+			ctx,
+			namespace.Namespace(
+				"user",
+				namespace.MustRelation("", nil),
+			),
+			namespace.Namespace(
+				"document",
+				namespace.MustRelation("viewer", nil),
+			),
+		)
+	})
+	require.NoError(t, err)
+
+	// Test 1: Basic write and read
+	t.Run("BasicWriteRead", func(t *testing.T) {
+		resourceObjectDataStruct, err := structpb.NewStruct(map[string]interface{}{
+			"title": "Document 1",
+			"tags":  []interface{}{"tag1", "tag2"},
+			"metadata": map[string]interface{}{
+				"created_at": time.Now().UTC().Format(time.RFC3339),
+				"updated_at": time.Now().UTC().Format(time.RFC3339),
+				"version":    1,
+				"size":       1024,
+			},
+		})
+		require.NoError(t, err)
+
+		subjectObjectDataStruct, err := structpb.NewStruct(map[string]interface{}{
+			"name":  "Bob",
+			"email": "bob@test.com",
+		})
+		require.NoError(t, err)
+
+		// Write relationship with object data
+		rel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ObjectAndRelation{
+					ObjectType: "document",
+					ObjectID:   "doc1",
+					Relation:   "viewer",
+					ObjectData: resourceObjectDataStruct,
+				},
+				Subject: tuple.ObjectAndRelation{
+					ObjectType: "user",
+					ObjectID:   "bob",
+					ObjectData: subjectObjectDataStruct,
+				},
+			},
+		}
+
+		mutations := []tuple.RelationshipUpdate{{
+			Operation:    tuple.UpdateOperationCreate,
+			Relationship: rel,
+		}}
+
+		revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, mutations)
+		})
+
+		require.NoError(t, err)
+
+		// Read and verify
+		filter := datastore.RelationshipsFilter{
+			OptionalResourceType:     "document",
+			OptionalResourceIds:      []string{"doc1"},
+			OptionalResourceRelation: "viewer",
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+				{
+					OptionalSubjectType: "user",
+					OptionalSubjectIds:  []string{"bob"},
+				},
+			},
+		}
+
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(ctx, filter, options.WithIncludeObjectData(true))
+		require.NoError(t, err)
+
+		found := false
+		for rel := range iter {
+			found = true
+			require.Equal(t, resourceObjectDataStruct, rel.Resource.ObjectData)
+			require.Equal(t, subjectObjectDataStruct, rel.Subject.ObjectData)
+		}
+		require.True(t, found)
+	})
+
+	// Test 2: Deduplication
+	t.Run("Deduplication", func(t *testing.T) {
+		userObjectDataStruct, err := structpb.NewStruct(map[string]any{
+			"name":  "Bob",
+			"email": "bob@test.com",
+		})
+		require.NoError(t, err)
+
+		// Create two relationships with same subject
+		rel1 := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ObjectAndRelation{
+					ObjectType: "document",
+					ObjectID:   "doc2",
+					Relation:   "viewer",
+				},
+				Subject: tuple.ObjectAndRelation{
+					ObjectType: "user",
+					ObjectID:   "bob",
+					ObjectData: userObjectDataStruct,
+				},
+			},
+		}
+
+		rel2 := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ObjectAndRelation{
+					ObjectType: "document",
+					ObjectID:   "doc3",
+					Relation:   "viewer",
+				},
+				Subject: tuple.ObjectAndRelation{
+					ObjectType: "user",
+					ObjectID:   "bob",
+					ObjectData: userObjectDataStruct,
+				},
+			},
+		}
+
+		mutations := []tuple.RelationshipUpdate{
+			{
+				Operation:    tuple.UpdateOperationCreate,
+				Relationship: rel1,
+			},
+			{
+				Operation:    tuple.UpdateOperationCreate,
+				Relationship: rel2,
+			},
+		}
+
+		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, mutations)
+		})
+		require.NoError(t, err)
+
+		// Verify object data was stored only once by checking database directly
+		var count int
+		err = ds.(*pgDatastore).readPool.QueryRow(ctx, `
+			SELECT COUNT(*) FROM object_data 
+			WHERE od_type = 'user' AND od_id = 'bob' AND od_deleted_xid = '9223372036854775807'::xid8
+		`).Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
+	})
+
+	// Test 3: Edge cases
+	t.Run("EdgeCases", func(t *testing.T) {
+		cases := []struct {
+			name       string
+			data       map[string]interface{}
+			dataStruct *structpb.Struct
+		}{
+			{
+				name:       "NilData",
+				data:       nil,
+				dataStruct: nil,
+			},
+			{
+				name:       "EmptyData",
+				data:       map[string]interface{}{},
+				dataStruct: &structpb.Struct{Fields: map[string]*structpb.Value{}},
+			},
+			{
+				name: "NestedData",
+				data: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"preferences": map[string]interface{}{
+							"theme": "dark",
+						},
+					},
+				},
+			},
+			{
+				name: "ArrayData",
+				data: map[string]interface{}{
+					"tags": []interface{}{"tag1", "tag2"},
+				},
+			},
+		}
+
+		for _, tc := range cases {
+			var err error
+			if tc.data != nil {
+				tc.dataStruct, err = structpb.NewStruct(tc.data)
+				require.NoError(t, err)
+			}
+			t.Run(tc.name, func(t *testing.T) {
+				rel := tuple.Relationship{
+					RelationshipReference: tuple.RelationshipReference{
+						Resource: tuple.ObjectAndRelation{
+							ObjectType: "document",
+							ObjectID:   fmt.Sprintf("doc-%s", tc.name),
+							Relation:   "viewer",
+							ObjectData: tc.dataStruct,
+						},
+						Subject: tuple.ObjectAndRelation{
+							ObjectType: "user",
+							ObjectID:   "bob",
+						},
+					},
+				}
+
+				mutations := []tuple.RelationshipUpdate{{
+					Operation:    tuple.UpdateOperationCreate,
+					Relationship: rel,
+				}}
+
+				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+					return rwt.WriteRelationships(ctx, mutations)
+				})
+				require.NoError(t, err)
+			})
+		}
+	})
 }
 
 const waitForChangesTimeout = 10 * time.Second

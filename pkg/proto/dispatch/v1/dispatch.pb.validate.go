@@ -1479,6 +1479,8 @@ func (m *DispatchLookupResources2Request) validate(all bool) error {
 
 	// no validation rules for OptionalLimit
 
+	// no validation rules for IncludeObjectData
+
 	if len(errors) > 0 {
 		return DispatchLookupResources2RequestMultiError(errors)
 	}
@@ -1583,6 +1585,35 @@ func (m *PossibleResource) validate(all bool) error {
 	var errors []error
 
 	// no validation rules for ResourceId
+
+	if all {
+		switch v := interface{}(m.GetResourceData()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PossibleResourceValidationError{
+					field:  "ResourceData",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PossibleResourceValidationError{
+					field:  "ResourceData",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetResourceData()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PossibleResourceValidationError{
+				field:  "ResourceData",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return PossibleResourceMultiError(errors)
@@ -1996,6 +2027,8 @@ func (m *DispatchLookupSubjectsRequest) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for IncludeObjectData
+
 	if len(errors) > 0 {
 		return DispatchLookupSubjectsRequestMultiError(errors)
 	}
@@ -2162,6 +2195,35 @@ func (m *FoundSubject) validate(all bool) error {
 			}
 		}
 
+	}
+
+	if all {
+		switch v := interface{}(m.GetSubjectData()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, FoundSubjectValidationError{
+					field:  "SubjectData",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, FoundSubjectValidationError{
+					field:  "SubjectData",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSubjectData()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return FoundSubjectValidationError{
+				field:  "SubjectData",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
 	}
 
 	if len(errors) > 0 {

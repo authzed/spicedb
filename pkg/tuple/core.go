@@ -68,6 +68,7 @@ func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 			Resource: ObjectAndRelation{
 				ObjectType: rt.ResourceAndRelation.Namespace,
 				ObjectID:   rt.ResourceAndRelation.ObjectId,
+				ObjectData: rt.ResourceAndRelation.ObjectData,
 				Relation:   rt.ResourceAndRelation.Relation,
 			},
 			Subject: ObjectAndRelation{
@@ -90,6 +91,7 @@ func FromCoreObjectAndRelation(oar *core.ObjectAndRelation) ObjectAndRelation {
 	return ObjectAndRelation{
 		ObjectType: oar.Namespace,
 		ObjectID:   oar.ObjectId,
+		ObjectData: oar.ObjectData,
 		Relation:   oar.Relation,
 	}
 }

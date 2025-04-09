@@ -195,11 +195,13 @@ func FromV1Relationship(rel *v1.Relationship) Relationship {
 			Resource: ObjectAndRelation{
 				ObjectID:   rel.Resource.ObjectId,
 				ObjectType: rel.Resource.ObjectType,
+				ObjectData: rel.Resource.ObjectData,
 				Relation:   rel.Relation,
 			},
 			Subject: ObjectAndRelation{
 				ObjectID:   rel.Subject.Object.ObjectId,
 				ObjectType: rel.Subject.Object.ObjectType,
+				ObjectData: rel.Subject.Object.ObjectData,
 				Relation:   stringz.Default(rel.Subject.OptionalRelation, Ellipsis, ""),
 			},
 		},
@@ -227,12 +229,14 @@ func ToV1Relationship(rel Relationship) *v1.Relationship {
 		Resource: &v1.ObjectReference{
 			ObjectType: rel.Resource.ObjectType,
 			ObjectId:   rel.Resource.ObjectID,
+			ObjectData: rel.Resource.ObjectData,
 		},
 		Relation: rel.Resource.Relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
 				ObjectType: rel.Subject.ObjectType,
 				ObjectId:   rel.Subject.ObjectID,
+				ObjectData: rel.Subject.ObjectData,
 			},
 			OptionalRelation: stringz.Default(rel.Subject.Relation, "", Ellipsis),
 		},
@@ -245,9 +249,11 @@ func ToV1Relationship(rel Relationship) *v1.Relationship {
 func CopyToV1Relationship(rel Relationship, v1rel *v1.Relationship) {
 	v1rel.Resource.ObjectType = rel.Resource.ObjectType
 	v1rel.Resource.ObjectId = rel.Resource.ObjectID
+	v1rel.Resource.ObjectData = rel.Resource.ObjectData
 	v1rel.Relation = rel.Resource.Relation
 	v1rel.Subject.Object.ObjectType = rel.Subject.ObjectType
 	v1rel.Subject.Object.ObjectId = rel.Subject.ObjectID
+	v1rel.Subject.Object.ObjectData = rel.Subject.ObjectData
 	v1rel.Subject.OptionalRelation = stringz.Default(rel.Subject.Relation, "", Ellipsis)
 
 	if rel.OptionalCaveat != nil {

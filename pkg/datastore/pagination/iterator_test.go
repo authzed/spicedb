@@ -66,7 +66,7 @@ func TestPaginatedIterator(t *testing.T) {
 			ctx := context.Background()
 			iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{
 				OptionalResourceType: "unused",
-			}, pageSize, options.ByResource, nil)
+			}, pageSize, options.ByResource, nil, false)
 			require.NoError(err)
 
 			slice, err := datastore.IteratorToSlice(iter)

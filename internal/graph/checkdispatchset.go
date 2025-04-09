@@ -71,7 +71,8 @@ func (s *checkDispatchSet) addForRelationship(rel tuple.Relationship) {
 		resourceID: rel.Resource.ObjectID,
 		caveat:     rel.OptionalCaveat,
 	}
-	s.bySubject.Add(rel.Subject, riac)
+	subjectWithoutObjectData := tuple.ONR(rel.Subject.ObjectType, rel.Subject.ObjectID, rel.Subject.Relation)
+	s.bySubject.Add(subjectWithoutObjectData, riac)
 
 	// Add the subject ID to the map of subjects for the type of subject.
 	siac := subjectIDAndHasCaveat{

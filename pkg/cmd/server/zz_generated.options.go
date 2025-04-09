@@ -91,6 +91,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
+		to.EnableObjectStorage = c.EnableObjectStorage
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -161,6 +162,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
 	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
 	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
+	debugMap["EnableObjectStorage"] = helpers.DebugValue(c.EnableObjectStorage, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -584,6 +586,13 @@ func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationship
 func WithEnableRevisionHeartbeat(enableRevisionHeartbeat bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableRevisionHeartbeat = enableRevisionHeartbeat
+	}
+}
+
+// WithEnableObjectStorage returns an option that can set EnableObjectStorage on a Config
+func WithEnableObjectStorage(enableObjectStorage bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableObjectStorage = enableObjectStorage
 	}
 }
 

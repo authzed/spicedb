@@ -37,6 +37,7 @@ func (ssr SubjectSetByResourceID) add(resourceID string, subject *v1.FoundSubjec
 func (ssr SubjectSetByResourceID) AddFromRelationship(relationship tuple.Relationship) error {
 	return ssr.add(relationship.Resource.ObjectID, &v1.FoundSubject{
 		SubjectId:        relationship.Subject.ObjectID,
+		SubjectData:      relationship.Subject.ObjectData,
 		CaveatExpression: wrapCaveat(relationship.OptionalCaveat),
 	})
 }
