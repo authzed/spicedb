@@ -81,13 +81,10 @@ var IndexSortedRelationTupleTransaction = common.IndexDefinition{
 }
 
 // IndexRelationTupleTransactionTimestamp adds an index to relation_tuple_transaction table
-// to support garbage collection.
-// DEPRECATED: Superceded by IndexSortedRelationTupleTransaction and should be removed in
-// the future.
+// to support optimized revision lookup.
 var IndexRelationTupleTransactionTimestamp = common.IndexDefinition{
-	Name:         `ix_relation_tuple_transaction_by_timestamp`,
-	ColumnsSQL:   `relation_tuple_transaction(timestamp)`,
-	IsDeprecated: true,
+	Name:       `ix_relation_tuple_transaction_by_timestamp`,
+	ColumnsSQL: `relation_tuple_transaction(timestamp)`,
 }
 
 // IndexGCDeadRelationships is an index for the GC process to quickly find dead relationships
