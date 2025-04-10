@@ -71,11 +71,11 @@ func init() {
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	getRevision = psql.
-			Select(schema.ColXID, schema.ColSnapshot).
-			From(schema.TableTransaction).
-			OrderByClause(fmt.Sprintf("%s DESC", schema.ColXID)).
-			Limit(1)
+	getRevisionForGC = psql.
+				Select(schema.ColXID, schema.ColSnapshot).
+				From(schema.TableTransaction).
+				OrderByClause(fmt.Sprintf("%s DESC", schema.ColXID)).
+				Limit(1)
 
 	createTxn = psql.Insert(schema.TableTransaction).Columns(schema.ColMetadata)
 

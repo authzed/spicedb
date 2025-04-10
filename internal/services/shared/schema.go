@@ -437,7 +437,7 @@ func sanityCheckNamespaceChanges(
 					OptionalExpirationOption: expirationOption,
 				},
 				options.WithLimit(options.LimitOne),
-				options.WithQueryShape(queryshape.FindMatchingRelationAllowedSubjectType),
+				options.WithQueryShape(queryshape.FindResourceRelationForSubjectRelation),
 			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,

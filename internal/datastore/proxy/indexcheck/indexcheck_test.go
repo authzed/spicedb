@@ -1,4 +1,4 @@
-package proxy
+package indexcheck
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestIndexCheckingMissingIndex(t *testing.T) {
-	ds := fakeDatastore{state: "primary", indexesUsed: []string{"anotherindex"}}
+	ds := fakeDatastore{indexesUsed: []string{"anotherindex"}}
 	wrapped := WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	require.NotNil(t, wrapped.(*indexcheckingProxy).delegate)
 
@@ -40,7 +40,7 @@ func TestIndexCheckingMissingIndex(t *testing.T) {
 }
 
 func TestIndexCheckingFoundIndex(t *testing.T) {
-	ds := fakeDatastore{state: "primary", indexesUsed: []string{"testindex"}}
+	ds := fakeDatastore{indexesUsed: []string{"testindex"}}
 	wrapped := WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	require.NotNil(t, wrapped.(*indexcheckingProxy).delegate)
 

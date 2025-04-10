@@ -1,0 +1,168 @@
+package indexcheck
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
+)
+
+type fakeDatastore struct {
+	revision    datastore.Revision
+	indexesUsed []string
+}
+
+func (f fakeDatastore) MetricsID() (string, error) {
+	return "fake", nil
+}
+
+func (f fakeDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+	return fakeSnapshotReader{
+		revision:    revision,
+		indexesUsed: f.indexesUsed,
+	}
+}
+
+func (f fakeDatastore) ReadWriteTx(_ context.Context, _ datastore.TxUserFunc, _ ...options.RWTOptionsOption) (datastore.Revision, error) {
+	return nil, nil
+}
+
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
+	return nil, nil
+}
+
+func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
+	return nil, nil
+}
+
+func (f fakeDatastore) CheckRevision(_ context.Context, rev datastore.Revision) error {
+	if rev.GreaterThan(f.revision) {
+		return datastore.NewInvalidRevisionErr(rev, datastore.CouldNotDetermineRevision)
+	}
+
+	return nil
+}
+
+func (f fakeDatastore) RevisionFromString(_ string) (datastore.Revision, error) {
+	return nil, nil
+}
+
+func (f fakeDatastore) Watch(_ context.Context, _ datastore.Revision, _ datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	return nil, nil
+}
+
+func (f fakeDatastore) ReadyState(_ context.Context) (datastore.ReadyState, error) {
+	return datastore.ReadyState{}, nil
+}
+
+func (f fakeDatastore) Features(_ context.Context) (*datastore.Features, error) {
+	return nil, nil
+}
+
+func (f fakeDatastore) OfflineFeatures() (*datastore.Features, error) {
+	return nil, nil
+}
+
+func (f fakeDatastore) Statistics(_ context.Context) (datastore.Stats, error) {
+	return datastore.Stats{}, nil
+}
+
+func (f fakeDatastore) Close() error {
+	return nil
+}
+
+func (f fakeDatastore) IsStrictReadModeEnabled() bool {
+	return true
+}
+
+func (f fakeDatastore) BuildExplainQuery(sql string, args []any) (string, []any, error) {
+	return "EXPLAIN IS FAKE", nil, nil
+}
+
+// ParseExplain parses the output of an EXPLAIN statement.
+func (f fakeDatastore) ParseExplain(explain string) (datastore.ParsedExplain, error) {
+	return datastore.ParsedExplain{
+		IndexesUsed: []string{"testindex"},
+	}, nil
+}
+
+func (f fakeDatastore) PreExplainStatements() []string {
+	return nil
+}
+
+type fakeSnapshotReader struct {
+	revision    datastore.Revision
+	indexesUsed []string
+}
+
+func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) ReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+	return nil, nil, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) LookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) ReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
+	return nil, nil, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) ListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+	return nil, nil
+}
+
+func (fsr fakeSnapshotReader) QueryRelationships(_ context.Context, _ datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
+	queryOpts := options.QueryOptions{}
+	for _, opt := range opts {
+		opt(&queryOpts)
+	}
+	return fakeIterator(fsr, queryOpts.SQLExplainCallbackForTest), nil
+}
+
+func (fsr fakeSnapshotReader) ReverseQueryRelationships(_ context.Context, _ datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	queryOpts := options.ReverseQueryOptions{}
+	for _, opt := range opts {
+		opt(&queryOpts)
+	}
+	return fakeIterator(fsr, queryOpts.SQLExplainCallbackForTestForReverse), nil
+}
+
+func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string) (int, error) {
+	return -1, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCallbackForTest) datastore.RelationshipIterator {
+	return func(yield func(tuple.Relationship, error) bool) {
+		if explainCallback != nil {
+			if err := explainCallback(context.Background(), "SOME QUERY", nil, queryshape.CheckPermissionSelectDirectSubjects, "EXPLAIN IS FAKE", options.SQLIndexInformation{
+				ExpectedIndexNames: fsr.indexesUsed,
+			}); err != nil {
+				yield(tuple.Relationship{}, err)
+				return
+			}
+		}
+
+		if !yield(tuple.MustParse("resource:123#viewer@user:tom"), nil) {
+			return
+		}
+		if !yield(tuple.MustParse("resource:456#viewer@user:tom"), nil) {
+			return
+		}
+	}
+}
