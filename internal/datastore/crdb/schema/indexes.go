@@ -53,11 +53,13 @@ var crdbIndexes = []common.IndexDefinition{
 	IndexRelationshipWithIntegrity,
 }
 
+var NoIndexingHint common.IndexingHint = nil
+
 // IndexingHintForQueryShape returns an indexing hint for the given query shape, if any.
 func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Shape) common.IndexingHint {
 	if schema.IntegrityEnabled {
 		// Don't force anything since we don't have the other indexes.
-		return nil
+		return NoIndexingHint
 	}
 
 	switch qs {

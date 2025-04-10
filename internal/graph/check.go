@@ -722,13 +722,12 @@ func TraitsForArrowRelation(ctx context.Context, reader datastore.Reader, namesp
 }
 
 func queryOptionsForArrowRelation(ctx context.Context, ds datastore.Reader, namespaceName string, relationName string) ([]options.QueryOptionsOption, error) {
-	opts := []options.QueryOptionsOption{
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
-	}
+	opts := make([]options.QueryOptionsOption, 0, 3)
+	opts = append(opts, options.WithQueryShape(queryshape.AllSubjectsForResources))
 
 	traits, err := TraitsForArrowRelation(ctx, ds, namespaceName, relationName)
 	if err != nil {
-		return opts, err
+		return nil, err
 	}
 
 	if !traits.HasCaveats {

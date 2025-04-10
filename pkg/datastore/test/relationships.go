@@ -1967,7 +1967,7 @@ func WriteAndReadInRWT(t *testing.T, tester DatastoreTester) {
 		it, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType: testResourceNamespace,
 			OptionalResourceIds:  []string{"foo"},
-		})
+		}, options.WithQueryShape(queryshape.Varying))
 		require.NoError(err)
 
 		found, err := datastore.IteratorToSlice(it)

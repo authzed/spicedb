@@ -1455,3 +1455,67 @@ func TestNewSchemaQueryFiltererWithStartingQuery(t *testing.T) {
 	require.Equal(t, expectedSQL, sqlQuery)
 	require.Equal(t, expectedArgs, args)
 }
+
+type fakeIndexingHint struct{}
+
+func (f *fakeIndexingHint) FromSQLSuffix() (string, error) {
+	return "WITH somesuffix", nil
+}
+
+// FromTable implements IndexingHint.
+func (f *fakeIndexingHint) FromTable(existingTableName string) (string, error) {
+	return existingTableName + "@someindex", nil
+}
+
+// SQLPrefix implements IndexingHint.
+func (f *fakeIndexingHint) SQLPrefix() (string, error) {
+	return "/*+ IndexHint */", nil
+}
+
+var _ IndexingHint = &fakeIndexingHint{}
+
+func TestIndexHint(t *testing.T) {
+	schema := NewSchemaInformationWithOptions(
+		WithRelationshipTableName("relationtuples"),
+		WithColNamespace("ns"),
+		WithColObjectID("object_id"),
+		WithColRelation("relation"),
+		WithColUsersetNamespace("subject_ns"),
+		WithColUsersetObjectID("subject_object_id"),
+		WithColUsersetRelation("subject_relation"),
+		WithColCaveatName("caveat"),
+		WithColCaveatContext("caveat_context"),
+		WithColExpiration("expiration"),
+		WithPlaceholderFormat(sq.Question),
+		WithPaginationFilterType(TupleComparison),
+		WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+		WithNowFunction("NOW"),
+		WithExpirationDisabled(true),
+	)
+
+	filterer := NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100)
+	filterer = filterer.WithIndexingHint(&fakeIndexingHint{})
+	filterer = filterer.FilterToResourceType("sometype")
+	filterer = filterer.MustFilterToResourceIDs([]string{"someid"})
+
+	expectedSQL := "/*+ IndexHint */ SELECT relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples@someindex WITH somesuffix WHERE ns = ? AND object_id IN (?)"
+	expectedArgs := []any{"sometype", "someid"}
+
+	var wasRun bool
+	fake := QueryRelationshipsExecutor{
+		Executor: func(ctx context.Context, builder RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
+			sql, args, err := builder.SelectSQL()
+			require.NoError(t, err)
+
+			require.Equal(t, expectedSQL, sql)
+			require.Equal(t, expectedArgs, args)
+
+			wasRun = true
+			return nil, nil
+		},
+	}
+
+	_, err := fake.ExecuteQuery(context.Background(), filterer)
+	require.NoError(t, err)
+	require.True(t, wasRun)
+}

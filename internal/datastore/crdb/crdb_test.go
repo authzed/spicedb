@@ -33,6 +33,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	"github.com/authzed/spicedb/internal/datastore/crdb/version"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -83,7 +84,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 				DebugAnalyzeBeforeStatistics(),
 			)
 			require.NoError(t, err)
-			return proxy.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
+			return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 		})
 
 		return ds, nil
