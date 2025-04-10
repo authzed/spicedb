@@ -865,7 +865,7 @@ func ColumnsToSelect[CN any, CC any, EC any](
 	}
 
 	if len(colsToSelect) == 0 {
-		var unused int
+		var unused int64
 		colsToSelect = append(colsToSelect, &unused)
 	}
 

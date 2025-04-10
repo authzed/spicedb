@@ -19,6 +19,10 @@ var IndexUniqueLivingRelationships = common.IndexDefinition{
 var IndexUniqueRelationships = common.IndexDefinition{
 	Name:       `uq_relation_tuple_namespace`,
 	ColumnsSQL: `UNIQUE (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation, created_transaction, deleted_transaction)`,
+	Shapes: []queryshape.Shape{
+		queryshape.CheckPermissionSelectDirectSubjects,
+		queryshape.CheckPermissionSelectIndirectSubjects,
+	},
 }
 
 // IndexRelationshipBySubject is the index on the relationship table for
