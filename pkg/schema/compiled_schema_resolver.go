@@ -8,7 +8,7 @@ import (
 )
 
 // FullSchemaResolver is a superset of a resolver that knows how to retrieve all definitions
-// from it's source by name (by having a complete list of names).
+// from its source by name (by having a complete list of names).
 type FullSchemaResolver interface {
 	Resolver
 	AllDefinitionNames() []string

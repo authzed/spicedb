@@ -158,7 +158,7 @@ func StringCaveatContext(context *structpb.Struct) (string, error) {
 	return string(contextBytes), nil
 }
 
-// JoinObject joins the namespace and the objectId together into the standard
+// JoinObjectRef joins the namespace and the objectId together into the standard
 // format.
 //
 // This function assumes that the provided values have already been validated.

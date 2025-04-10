@@ -1145,7 +1145,7 @@ func all[T any](
 	return checkResultsForMembership(membershipSet, responseMetadata)
 }
 
-// difference returns whether the first lazy check passes and none of the supsequent checks pass.
+// difference returns whether the first lazy check passes and none of the subsequent checks pass.
 func difference[T any](
 	ctx context.Context,
 	crc currentRequestContext,

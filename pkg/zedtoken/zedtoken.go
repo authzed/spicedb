@@ -1,4 +1,3 @@
-// Package zedtoken converts decimal.Decimal to zedtoken and vice versa
 package zedtoken
 
 import (
