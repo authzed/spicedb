@@ -170,9 +170,9 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.True(errors.As(err, &datastore.NamespaceNotFoundError{}))
 
 	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
+	require.NoError(err)
 	require.NotNil(found)
 	require.True(nsCreatedRev.LessThan(deletedRev))
-	require.NoError(err)
 
 	allNamespaces, err := ds.SnapshotReader(deletedRev).ListAllNamespaces(ctx)
 	require.NoError(err)
