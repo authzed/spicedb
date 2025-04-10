@@ -14,7 +14,7 @@ type WithSourcePosition interface {
 }
 
 // userDefinedMetadataTypeUrls are the type URLs of any user-defined metadata found
-//  in the namespace proto. If placed here, FilterUserDefinedMetadataInPlace will remove the
+// in the namespace proto. If placed here, FilterUserDefinedMetadataInPlace will remove the
 // metadata when called on the namespace.
 var userDefinedMetadataTypeUrls = map[string]struct{}{
 	"type.googleapis.com/impl.v1.DocComment": {},

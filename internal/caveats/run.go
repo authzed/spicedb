@@ -361,6 +361,7 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 }
 
 // ExpressionResult is the result of a caveat expression being run.
+// See also caveats.CaveatResult
 type ExpressionResult interface {
 	// Value is the resolved value for the expression. For partially applied expressions, this value will be false.
 	Value() bool

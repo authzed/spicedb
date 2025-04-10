@@ -134,7 +134,7 @@ const (
 	// relationships both with and without caveats will be returned.
 	CaveatFilterOptionNone CaveatFilterOption = iota
 
-	// CaveatFilterOptionHasCaveat indicates that the caveat filter should only
+	// CaveatFilterOptionHasMatchingCaveat indicates that the caveat filter should only
 	// return relationships with the matching caveat.
 	CaveatFilterOptionHasMatchingCaveat
 
