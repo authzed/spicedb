@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb/tools/analyzers
 
-go 1.23.1
+go 1.23.8
 
 require (
 	github.com/samber/lo v1.47.0
