@@ -6,6 +6,7 @@ import (
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -54,11 +55,12 @@ type CheckParameters struct {
 func ComputeCheck(
 	ctx context.Context,
 	d dispatch.Check,
+	ts *caveattypes.TypeSet,
 	params CheckParameters,
 	resourceID string,
 	dispatchChunkSize uint16,
 ) (*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
-	resultsMap, meta, di, err := computeCheck(ctx, d, params, []string{resourceID}, dispatchChunkSize)
+	resultsMap, meta, di, err := computeCheck(ctx, d, ts, params, []string{resourceID}, dispatchChunkSize)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -75,15 +77,17 @@ func ComputeCheck(
 func ComputeBulkCheck(
 	ctx context.Context,
 	d dispatch.Check,
+	ts *caveattypes.TypeSet,
 	params CheckParameters,
 	resourceIDs []string,
 	dispatchChunkSize uint16,
 ) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, []*v1.DebugInformation, error) {
-	return computeCheck(ctx, d, params, resourceIDs, dispatchChunkSize)
+	return computeCheck(ctx, d, ts, params, resourceIDs, dispatchChunkSize)
 }
 
 func computeCheck(ctx context.Context,
 	d dispatch.Check,
+	ts *caveattypes.TypeSet,
 	params CheckParameters,
 	resourceIDs []string,
 	dispatchChunkSize uint16,
@@ -109,7 +113,7 @@ func computeCheck(ctx context.Context,
 		return nil, nil, nil, spiceerrors.MustBugf("failed to create new traversal bloom filter")
 	}
 
-	caveatRunner := cexpr.NewCaveatRunner()
+	caveatRunner := cexpr.NewCaveatRunner(ts)
 
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
 	debugInfo := make([]*v1.DebugInformation, 0)

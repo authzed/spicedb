@@ -27,6 +27,7 @@ import (
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/services/v1/options"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
@@ -105,13 +106,15 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
 			),
 		},
-		maxBatchSize: uint64(config.MaxExportBatchSize),
+		maxBatchSize:  uint64(config.MaxExportBatchSize),
+		caveatTypeSet: caveattypes.TypeSetOrDefault(permServerConfig.CaveatTypeSet),
 		bulkChecker: &bulkChecker{
 			maxAPIDepth:          permServerConfig.MaximumAPIDepth,
 			maxCaveatContextSize: permServerConfig.MaxCaveatContextSize,
 			maxConcurrency:       config.BulkCheckMaxConcurrency,
 			dispatch:             dispatch,
 			dispatchChunkSize:    chunkSize,
+			caveatTypeSet:        caveattypes.TypeSetOrDefault(permServerConfig.CaveatTypeSet),
 		},
 	}
 }
@@ -122,7 +125,8 @@ type experimentalServer struct {
 
 	maxBatchSize uint64
 
-	bulkChecker *bulkChecker
+	bulkChecker   *bulkChecker
+	caveatTypeSet *caveattypes.TypeSet
 }
 
 type bulkLoadAdapter struct {
@@ -131,6 +135,7 @@ type bulkLoadAdapter struct {
 	referencedCaveatMap    map[string]*core.CaveatDefinition
 	current                tuple.Relationship
 	caveat                 core.ContextualizedCaveat
+	caveatTypeSet          *caveattypes.TypeSet
 
 	awaitingNamespaces []string
 	awaitingCaveats    []string
@@ -194,6 +199,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
 		a.referencedCaveatMap,
+		a.caveatTypeSet,
 		a.current,
 		relationships.ValidateRelationshipForCreateOrTouch,
 	); err != nil {
@@ -243,6 +249,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			referencedCaveatMap:    loadedCaveats,
 			current:                tuple.Relationship{},
 			caveat:                 core.ContextualizedCaveat{},
+			caveatTypeSet:          es.caveatTypeSet,
 		}
 		resolver := schema.ResolverForDatastoreReader(rwt)
 		ts := schema.NewTypeSystem(resolver)
@@ -515,7 +522,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	caveats := make([]*v1.ExpCaveat, 0, len(schema.CaveatDefinitions))
 	if filters.HasCaveats() {
 		for _, cd := range schema.CaveatDefinitions {
-			caveat, err := expCaveatAPIRepr(cd, filters)
+			caveat, err := expCaveatAPIRepr(cd, filters, es.caveatTypeSet)
 			if err != nil {
 				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 			}
@@ -539,12 +546,12 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 		return nil, err
 	}
 
-	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema)
+	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema, es.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	resp, err := expConvertDiff(diff, existingSchema, comparisonSchema, atRevision)
+	resp, err := expConvertDiff(diff, existingSchema, comparisonSchema, atRevision, es.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

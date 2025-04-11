@@ -27,6 +27,7 @@ import (
 	"github.com/authzed/spicedb/internal/relationships"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -144,7 +145,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		Datastore:      ds,
 		CompiledSchema: compiled,
 		Revision:       currentRevision,
-		Dispatcher:     graph.NewLocalOnlyDispatcher(10, 100),
+		Dispatcher:     graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100),
 	}, nil, nil
 }
 
@@ -171,8 +172,9 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		MaximumAPIDepth:              50,
 		MaxCaveatContextSize:         0,
 		ExpiringRelationshipsEnabled: true,
+		CaveatTypeSet:                caveattypes.Default.TypeSet,
 	})
-	ss := v1svc.NewSchemaServer(false, true)
+	ss := v1svc.NewSchemaServer(caveattypes.Default.TypeSet, false, true)
 
 	v1.RegisterPermissionsServiceServer(s, ps)
 	v1.RegisterSchemaServiceServer(s, ss)
@@ -220,7 +222,7 @@ func loadsRels(ctx context.Context, rels []tuple.Relationship, rwt datastore.Rea
 	devErrors := make([]*devinterface.DeveloperError, 0, len(rels))
 	updates := make([]tuple.RelationshipUpdate, 0, len(rels))
 	for _, rel := range rels {
-		if err := relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, rel); err != nil {
+		if err := relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, caveattypes.Default.TypeSet, rel); err != nil {
 			relString, serr := tuple.String(rel)
 			if serr != nil {
 				return nil, serr
@@ -252,7 +254,7 @@ func loadCompiled(
 	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(*compiled))
 
 	for _, caveatDef := range compiled.CaveatDefinitions {
-		cverr := namespace.ValidateCaveatDefinition(caveatDef)
+		cverr := namespace.ValidateCaveatDefinition(caveattypes.Default.TypeSet, caveatDef)
 		if cverr == nil {
 			if err := rwt.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef}); err != nil {
 				return errors, err

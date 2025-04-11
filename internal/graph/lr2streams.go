@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	"github.com/authzed/spicedb/internal/taskrunner"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -34,6 +35,7 @@ func runCheckerAndDispatch(
 	entrypoint schema.ReachabilityEntrypoint,
 	lrDispatcher dispatch.LookupResources2,
 	checkDispatcher dispatch.Check,
+	caveatTypeSet *caveattypes.TypeSet,
 	concurrencyLimit uint16,
 	dispatchChunkSize uint16,
 ) error {
@@ -59,6 +61,7 @@ func runCheckerAndDispatch(
 		taskrunner:         taskrunner.NewTaskRunner(ctx, concurrencyLimit),
 		lock:               &sync.Mutex{},
 		dispatchChunkSize:  dispatchChunkSize,
+		caveatTypeSet:      caveatTypeSet,
 	}
 
 	return rdc.runAndWait()
@@ -74,6 +77,7 @@ type checkAndDispatchRunner struct {
 	lrDispatcher      dispatch.LookupResources2
 	checkDispatcher   dispatch.Check
 	dispatchChunkSize uint16
+	caveatTypeSet     *caveattypes.TypeSet
 
 	filteredSubjectIDs []string
 	currentCheckIndex  int
@@ -128,7 +132,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 
 	// NOTE: we are checking the containing permission here, *not* the target relation, as
 	// the goal is to shear for the containing permission.
-	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, computed.CheckParameters{
+	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, rdc.caveatTypeSet, computed.CheckParameters{
 		ResourceType:  tuple.FromCoreRelationReference(rdc.newSubjectType),
 		Subject:       tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 		CaveatContext: rdc.parentRequest.Context.AsMap(),

@@ -1,6 +1,7 @@
 package diff
 
 import (
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/diff/caveats"
 	"github.com/authzed/spicedb/pkg/diff/namespace"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -82,7 +83,7 @@ type SchemaDiff struct {
 }
 
 // DiffSchemas compares two schemas and returns the diff.
-func DiffSchemas(existing DiffableSchema, comparison DiffableSchema) (*SchemaDiff, error) {
+func DiffSchemas(existing DiffableSchema, comparison DiffableSchema, caveatTypeSet *caveattypes.TypeSet) (*SchemaDiff, error) {
 	existingNamespacesByName := make(map[string]*core.NamespaceDefinition, len(existing.ObjectDefinitions))
 	existingNamespaceNames := mapz.NewSet[string]()
 	for _, nsDef := range existing.ObjectDefinitions {
@@ -137,7 +138,7 @@ func DiffSchemas(existing DiffableSchema, comparison DiffableSchema) (*SchemaDif
 		existingCaveat := existingCaveatsByName[name]
 		comparisonCaveat := comparisonCaveatsByName[name]
 
-		diff, err := caveats.DiffCaveats(existingCaveat, comparisonCaveat)
+		diff, err := caveats.DiffCaveats(existingCaveat, comparisonCaveat, caveatTypeSet)
 		if err != nil {
 			return err
 		}

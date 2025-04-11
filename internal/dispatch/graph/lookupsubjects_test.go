@@ -17,6 +17,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	itestutil "github.com/authzed/spicedb/internal/testutil"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -209,7 +210,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
 	require.NoError(err)
 
-	dis := NewLocalOnlyDispatcher(10, 100)
+	dis := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 	err = dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
@@ -1002,7 +1003,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10, 100)
+			dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)

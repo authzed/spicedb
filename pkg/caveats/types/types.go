@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/authzed/cel-go/cel"
-	"golang.org/x/exp/maps"
 )
 
 // VariableType defines the supported types of variables in caveats.
@@ -42,19 +41,4 @@ func (vt VariableType) ConvertValue(value any) (any, error) {
 	}
 
 	return converted, nil
-}
-
-// TypeKeywords returns all keywords associated with types.
-func TypeKeywords() []string {
-	return maps.Keys(definitions)
-}
-
-// BuildType builds a variable type from its name and child types.
-func BuildType(name string, childTypes []VariableType) (*VariableType, error) {
-	typeDef, ok := definitions[name]
-	if !ok {
-		return nil, fmt.Errorf("unknown type `%s`", name)
-	}
-
-	return typeDef.asVariableType(childTypes)
 }

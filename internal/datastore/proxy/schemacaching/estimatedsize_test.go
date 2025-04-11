@@ -16,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -50,7 +51,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, memdb.DisableGC)
 			require.NoError(err)
 
-			fullyResolved, _, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{filePath})
+			fullyResolved, _, err := validationfile.PopulateFromFiles(context.Background(), ds, caveattypes.Default.TypeSet, []string{filePath})
 			require.NoError(err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {

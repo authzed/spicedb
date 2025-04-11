@@ -15,6 +15,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats/types"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -809,7 +810,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			dispatch := graph.NewLocalOnlyDispatcher(10, 100)
+			dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -822,6 +823,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 					rel := tuple.MustParse(r.check)
 
 					result, _, err := computed.ComputeCheck(ctx, dispatch,
+						caveattypes.Default.TypeSet,
 						computed.CheckParameters{
 							ResourceType:  rel.Resource.RelationReference(),
 							Subject:       rel.Subject,
@@ -859,11 +861,12 @@ func TestComputeCheckError(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
+	dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	_, _, err = computed.ComputeCheck(ctx, dispatch,
+		caveattypes.Default.TypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR("a", "b"),
 			Subject:       tuple.ONR("c", "d", "..."),
@@ -882,7 +885,7 @@ func TestComputeBulkCheck(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
+	dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -910,6 +913,7 @@ func TestComputeBulkCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	resp, _, _, err := computed.ComputeBulkCheck(ctx, dispatch,
+		caveattypes.Default.TypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR("document", "view"),
 			Subject:       tuple.ONR("user", "tom", "..."),

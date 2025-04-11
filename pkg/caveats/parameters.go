@@ -23,6 +23,7 @@ const (
 // ConvertContextToParameters converts the given context into parameters of the types specified.
 // Returns a type error if type conversion failed.
 func ConvertContextToParameters(
+	ts *types.TypeSet,
 	contextMap map[string]any,
 	parameterTypes map[string]*core.CaveatTypeReference,
 	unknownParametersOption UnknownParameterOption,
@@ -47,7 +48,7 @@ func ConvertContextToParameters(
 			continue
 		}
 
-		varType, err := types.DecodeParameterType(paramType)
+		varType, err := types.DecodeParameterType(ts, paramType)
 		if err != nil {
 			return nil, err
 		}

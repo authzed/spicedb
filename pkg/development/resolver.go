@@ -9,6 +9,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema"
@@ -100,7 +101,7 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			ColumnPosition: columnPosition,
 		}
 
-		targetSourceCode, err := generator.GenerateRelationSource(relation)
+		targetSourceCode, err := generator.GenerateRelationSource(relation, caveattypes.Default.TypeSet)
 		if err != nil {
 			return nil, err
 		}

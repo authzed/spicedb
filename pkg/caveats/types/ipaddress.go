@@ -70,43 +70,45 @@ func (ipa IPAddress) Value() interface{} {
 	return ipa
 }
 
-var IPAddressType = registerCustomType[IPAddress](
-	"ipaddress",
-	cel.ObjectType("IPAddress"),
-	func(value any) (any, error) {
-		ipvalue, ok := value.(IPAddress)
-		if ok {
-			return ipvalue, nil
-		}
+func RegisterIPAddressType(ts *TypeSet) (VariableType, error) {
+	return RegisterCustomType[IPAddress](ts,
+		"ipaddress",
+		cel.ObjectType("IPAddress"),
+		func(value any) (any, error) {
+			ipvalue, ok := value.(IPAddress)
+			if ok {
+				return ipvalue, nil
+			}
 
-		vle, ok := value.(string)
-		if !ok {
-			return nil, fmt.Errorf("ipaddress requires an ipaddress string, found: %T `%v`", value, value)
-		}
+			vle, ok := value.(string)
+			if !ok {
+				return nil, fmt.Errorf("ipaddress requires an ipaddress string, found: %T `%v`", value, value)
+			}
 
-		d, err := ParseIPAddress(vle)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse ip address string `%s`: %w", vle, err)
-		}
+			d, err := ParseIPAddress(vle)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse ip address string `%s`: %w", vle, err)
+			}
 
-		return d, nil
-	},
-	cel.Function("in_cidr",
-		cel.MemberOverload("ipaddress_in_cidr_string",
-			[]*cel.Type{cel.ObjectType("IPAddress"), cel.StringType},
-			cel.BoolType,
-			cel.BinaryBinding(func(lhs, rhs ref.Val) ref.Val {
-				cidr, ok := rhs.Value().(string)
-				if !ok {
-					return types.NewErr("expected CIDR string")
-				}
+			return d, nil
+		},
+		cel.Function("in_cidr",
+			cel.MemberOverload("ipaddress_in_cidr_string",
+				[]*cel.Type{cel.ObjectType("IPAddress"), cel.StringType},
+				cel.BoolType,
+				cel.BinaryBinding(func(lhs, rhs ref.Val) ref.Val {
+					cidr, ok := rhs.Value().(string)
+					if !ok {
+						return types.NewErr("expected CIDR string")
+					}
 
-				network, err := netip.ParsePrefix(cidr)
-				if err != nil {
-					return types.NewErr("invalid CIDR string: `%s`", cidr)
-				}
+					network, err := netip.ParsePrefix(cidr)
+					if err != nil {
+						return types.NewErr("invalid CIDR string: `%s`", cidr)
+					}
 
-				return types.Bool(network.Contains(lhs.(IPAddress).ip))
-			}),
-		),
-	))
+					return types.Bool(network.Contains(lhs.(IPAddress).ip))
+				}),
+			),
+		))
+}

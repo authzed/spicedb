@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -478,7 +479,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 				t.Run(fmt.Sprintf("%v", debugOption), func(t *testing.T) {
 					req := require.New(t)
 
-					result, err := caveats.RunSingleCaveatExpression(context.Background(), tc.expression, tc.context, reader, debugOption)
+					result, err := caveats.RunSingleCaveatExpression(context.Background(), types.Default.TypeSet, tc.expression, tc.context, reader, debugOption)
 					req.NoError(err)
 					req.Equal(tc.expectedValue, result.Value())
 
@@ -524,6 +525,7 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 
 	result, err := caveats.RunSingleCaveatExpression(
 		context.Background(),
+		types.Default.TypeSet,
 		caveatexpr("some_caveat"),
 		map[string]any{},
 		reader,
@@ -553,6 +555,7 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 
 	_, err = caveats.RunSingleCaveatExpression(
 		context.Background(),
+		types.Default.TypeSet,
 		caveatexpr("some_caveat"),
 		map[string]any{
 			"themap": map[string]any{},
@@ -584,8 +587,7 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
-
-	runner := caveats.NewCaveatRunner()
+	runner := caveats.NewCaveatRunner(types.Default.TypeSet)
 
 	// Run the first caveat.
 	result, err := runner.RunCaveatExpression(context.Background(), caveatexpr("some_caveat"), map[string]any{

@@ -9,17 +9,6 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil"
 )
 
-var definitions = map[string]typeDefinition{}
-
-// CustomTypes holds the set of custom types defined and exported by this package. This is exported
-// so that the CEL environment construction can apply the necessary env options for the custom
-// types.
-var CustomTypes = map[string][]cel.EnvOption{}
-
-// CustomMethodsOnTypes holds a set of new methods applied over defined types. This is exported
-// so that the CEL environment construction can apply the necessary env options to support these methods
-var CustomMethodsOnTypes []cel.EnvOption
-
 type (
 	typedValueConverter func(value any) (any, error)
 )
@@ -35,8 +24,12 @@ type typeDefinition struct {
 	asVariableType func(childTypes []VariableType) (*VariableType, error)
 }
 
-// registerBasicType registers a basic type with the given keyword, CEL type, and converter.
-func registerBasicType(keyword string, celType *cel.Type, converter typedValueConverter) VariableType {
+// RegisterBasicType registers a basic type with the given keyword, CEL type, and converter.
+func RegisterBasicType(ts *TypeSet, keyword string, celType *cel.Type, converter typedValueConverter) (VariableType, error) {
+	if ts.isFrozen {
+		return VariableType{}, fmt.Errorf("cannot register new types after the TypeSet is frozen")
+	}
+
 	varType := VariableType{
 		localName:  keyword,
 		celType:    celType,
@@ -44,23 +37,38 @@ func registerBasicType(keyword string, celType *cel.Type, converter typedValueCo
 		converter:  converter,
 	}
 
-	definitions[keyword] = typeDefinition{
+	ts.definitions[keyword] = typeDefinition{
 		localName:      keyword,
 		childTypeCount: 0,
 		asVariableType: func(childTypes []VariableType) (*VariableType, error) {
 			return &varType, nil
 		},
 	}
+	return varType, nil
+}
+
+func MustRegisterBasicType(ts *TypeSet, keyword string, celType *cel.Type, converter typedValueConverter) VariableType {
+	varType, err := RegisterBasicType(ts, keyword, celType, converter)
+	if err != nil {
+		panic(fmt.Sprintf("failed to register basic type %s: %v", keyword, err))
+	}
 	return varType
 }
 
-// registerGenericType registers a type with at least one generic.
-func registerGenericType(
+type GenericTypeBuilder func(childTypes ...VariableType) (VariableType, error)
+
+// RegisterGenericType registers a type with at least one generic.
+func RegisterGenericType(
+	ts *TypeSet,
 	keyword string,
 	childTypeCount uint8,
 	asVariableType func(childTypes []VariableType) VariableType,
-) func(childTypes ...VariableType) (VariableType, error) {
-	definitions[keyword] = typeDefinition{
+) (GenericTypeBuilder, error) {
+	if ts.isFrozen {
+		return nil, fmt.Errorf("cannot register new types after the TypeSet is frozen")
+	}
+
+	ts.definitions[keyword] = typeDefinition{
 		localName:      keyword,
 		childTypeCount: childTypeCount,
 		asVariableType: func(childTypes []VariableType) (*VariableType, error) {
@@ -88,19 +96,41 @@ func registerGenericType(
 		}
 
 		return asVariableType(childTypes), nil
+	}, nil
+}
+
+func MustRegisterGenericType(
+	ts *TypeSet,
+	keyword string,
+	childTypeCount uint8,
+	asVariableType func(childTypes []VariableType) VariableType,
+) GenericTypeBuilder {
+	genericTypeBuilder, err := RegisterGenericType(ts, keyword, childTypeCount, asVariableType)
+	if err != nil {
+		panic(fmt.Sprintf("failed to register generic type %s: %v", keyword, err))
 	}
+	return genericTypeBuilder
 }
 
-// registerCustomType registers a custom type that wraps a base CEL type.
-func registerCustomType[T CustomType](keyword string, baseCelType *cel.Type, converter typedValueConverter, opts ...cel.EnvOption) VariableType {
-	CustomTypes[keyword] = opts
-	return registerBasicType(keyword, baseCelType, converter)
+// RegisterCustomType registers a custom type that wraps a base CEL type.
+func RegisterCustomType[T CustomType](ts *TypeSet, keyword string, baseCelType *cel.Type, converter typedValueConverter, opts ...cel.EnvOption) (VariableType, error) {
+	if ts.isFrozen {
+		return VariableType{}, fmt.Errorf("cannot register new types after the TypeSet is frozen")
+	}
+	ts.customTypes[keyword] = opts
+	return RegisterBasicType(ts, keyword, baseCelType, converter)
 }
 
-func registerMethodOnDefinedType(baseType *cel.Type, name string, args []*cel.Type, returnType *cel.Type, binding func(arg ...ref.Val) ref.Val) {
+// RegisterCustomTypeWithName registers a custom type with a specific name.
+func RegisterMethodOnDefinedType(ts *TypeSet, baseType *cel.Type, name string, args []*cel.Type, returnType *cel.Type, binding func(arg ...ref.Val) ref.Val) error {
+	if ts.isFrozen {
+		return fmt.Errorf("cannot register new types after the TypeSet is frozen")
+	}
+
 	finalArgs := make([]*cel.Type, 0, len(args)+1)
 	finalArgs = append(finalArgs, baseType)
 	finalArgs = append(finalArgs, args...)
 	method := cel.Function(name, cel.MemberOverload(name, finalArgs, returnType, cel.FunctionBinding(binding)))
-	CustomMethodsOnTypes = append(CustomMethodsOnTypes, method)
+	ts.customMethodsOnTypes = append(ts.customMethodsOnTypes, method)
+	return nil
 }

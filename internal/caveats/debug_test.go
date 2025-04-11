@@ -251,7 +251,7 @@ func eval(expr string, context map[string]any) func(t *testing.T) ExpressionResu
 		env := caveats.NewEnvironment()
 
 		for name := range context {
-			require.NoError(t, env.AddVariable(name, types.AnyType))
+			require.NoError(t, env.AddVariable(name, types.Default.AnyType))
 		}
 
 		caveat, err := caveats.CompileCaveatWithName(env, expr, "test")
