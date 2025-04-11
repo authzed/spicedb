@@ -466,7 +466,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				return err
 			}
 
-			queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
+			queryFuncs := pgxcommon.QuerierFuncsFor(tx)
 			executor := common.QueryRelationshipsExecutor{
 				Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs, pgd),
 			}

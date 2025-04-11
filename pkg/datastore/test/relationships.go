@@ -1943,6 +1943,36 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
+func WriteAndReadInRWT(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// Write a relationship.
+		rel := makeTestRel("foo", "bar")
+		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{tuple.Touch(rel)})
+		require.NoError(err)
+
+		// Read the relationship.
+		it, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			OptionalResourceType: testResourceNamespace,
+			OptionalResourceIds:  []string{"foo"},
+		})
+		require.NoError(err)
+
+		found, err := datastore.IteratorToSlice(it)
+		require.NoError(err)
+		require.Equal(1, len(found))
+		return nil
+	})
+	require.NoError(err)
+}
+
 // ConcurrentWriteSerializationTest uses goroutines and channels to intentionally set up a
 // deadlocking dependency between transactions.
 func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
