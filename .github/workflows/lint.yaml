@@ -28,6 +28,10 @@ jobs:
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
+      # NOTE: this installs golangci-lint. It also runs golangci-lint,
+      # which is also run by lint:go. This is a little duplication of work,
+      # but shouldn't be a huge cost because the results are cached.
+      - uses: "authzed/actions/golangci-lint@golangci-lint-v2"
       - name: "Lint Go"
         run: "go run mage.go lint:go"
       - uses: "chainguard-dev/actions/nodiff@main"
