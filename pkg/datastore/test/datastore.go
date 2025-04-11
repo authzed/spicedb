@@ -56,6 +56,11 @@ func (c Categories) Watch() bool {
 	return ok
 }
 
+func (c Categories) Transaction() bool {
+	_, ok := c[TransactionCategory]
+	return ok
+}
+
 func (c Categories) WatchSchema() bool {
 	_, ok := c[WatchSchemaCategory]
 	return ok
@@ -74,6 +79,7 @@ const (
 	WatchSchemaCategory      = "WatchSchema"
 	WatchCheckpointsCategory = "WatchCheckpoints"
 	StatsCategory            = "Stats"
+	TransactionCategory      = "Transaction"
 )
 
 func WithCategories(cats ...string) Categories {
@@ -198,6 +204,10 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 
 	if !except.Watch() && !except.WatchCheckpoints() {
 		t.Run("TestWatchCheckpoints", runner(tester, WatchCheckpointsTest))
+	}
+
+	if !except.Transaction() {
+		t.Run("TestWriteAndReadInRWT", runner(tester, WriteAndReadInRWT))
 	}
 
 	t.Run("TestRelationshipCounters", runner(tester, RelationshipCountersTest))
