@@ -12,6 +12,7 @@ const (
 	TableTuple               = "relation_tuple"
 	TableCaveat              = "caveat"
 	TableRelationshipCounter = "relationship_counter"
+	TableObjectData          = "object_data"
 
 	ColXID               = "xid"
 	ColTimestamp         = "timestamp"
@@ -36,6 +37,14 @@ const (
 	ColCounterFilter       = "serialized_filter"
 	ColCounterCurrentCount = "current_count"
 	ColCounterSnapshot     = "updated_revision_snapshot"
+
+	ColOdType       = "od_type"
+	ColOdData       = "od_data"
+	ColOdID         = "od_id"
+	ColOdCreatedXid = "od_created_xid"
+	ColOdDeletedXid = "od_deleted_xid"
+
+	ConstrOdLiving = "uq_object_data_living"
 )
 
 func Schema(colOptimizationOpt common.ColumnOptimizationOption, expirationDisabled bool) *common.SchemaInformation {

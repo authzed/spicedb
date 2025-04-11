@@ -10,7 +10,9 @@ import (
 
 // ONREqual checks if two ObjectAndRelation instances are equal.
 func ONREqual(lhs, rhs ObjectAndRelation) bool {
-	return lhs == rhs
+	return lhs.ObjectType == rhs.ObjectType &&
+		lhs.ObjectID == rhs.ObjectID &&
+		lhs.Relation == rhs.Relation
 }
 
 // ONREqualOrWildcard checks if an ObjectAndRelation matches another ObjectAndRelation or is a wildcard.

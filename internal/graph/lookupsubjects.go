@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -115,7 +116,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 		OptionalResourceType:     req.ResourceRelation.Namespace,
 		OptionalResourceRelation: req.ResourceRelation.Relation,
 		OptionalResourceIds:      req.ResourceIds,
-	})
+	}, dsoptions.WithIncludeObjectData(req.IncludeObjectData))
 	if err != nil {
 		return err
 	}
@@ -190,7 +191,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     parentRequest.Revision.String(),
 			DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-		},
+		}, IncludeObjectData: parentRequest.IncludeObjectData,
 	}, stream)
 }
 
@@ -220,7 +221,7 @@ func lookupViaIntersectionTupleToUserset(
 		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 		OptionalResourceIds:      parentRequest.ResourceIds,
-	})
+	}, dsoptions.WithIncludeObjectData(parentRequest.IncludeObjectData))
 	if err != nil {
 		return err
 	}
@@ -290,7 +291,7 @@ func lookupViaIntersectionTupleToUserset(
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     parentRequest.Revision.String(),
 					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-				},
+				}, IncludeObjectData: parentRequest.IncludeObjectData,
 			}, collectingStream)
 			if err != nil {
 				// Check if the dispatches for the resource were canceled, and if so, return nil to stop the task.
@@ -389,7 +390,7 @@ func lookupViaTupleToUserset[T relation](
 		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 		OptionalResourceIds:      parentRequest.ResourceIds,
-	})
+	}, dsoptions.WithIncludeObjectData(parentRequest.IncludeObjectData))
 	if err != nil {
 		return err
 	}
@@ -619,7 +620,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-					},
+					}, IncludeObjectData: parentRequest.IncludeObjectData,
 				}, stream)
 			})
 		})

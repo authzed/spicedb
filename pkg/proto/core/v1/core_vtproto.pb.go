@@ -150,6 +150,7 @@ func (m *ObjectAndRelation) CloneVT() *ObjectAndRelation {
 	r.Namespace = m.Namespace
 	r.ObjectId = m.ObjectId
 	r.Relation = m.Relation
+	r.ObjectData = (*structpb.Struct)((*structpb1.Struct)(m.ObjectData).CloneVT())
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -1173,6 +1174,9 @@ func (this *ObjectAndRelation) EqualVT(that *ObjectAndRelation) bool {
 		return false
 	}
 	if this.Relation != that.Relation {
+		return false
+	}
+	if !(*structpb1.Struct)(this.ObjectData).EqualVT((*structpb1.Struct)(that.ObjectData)) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -2875,6 +2879,16 @@ func (m *ObjectAndRelation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.ObjectData != nil {
+		size, err := (*structpb1.Struct)(m.ObjectData).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x22
 	}
 	if len(m.Relation) > 0 {
 		i -= len(m.Relation)
@@ -5179,6 +5193,10 @@ func (m *ObjectAndRelation) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.ObjectData != nil {
+		l = (*structpb1.Struct)(m.ObjectData).SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -7110,6 +7128,42 @@ func (m *ObjectAndRelation) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Relation = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ObjectData", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ObjectData == nil {
+				m.ObjectData = &structpb.Struct{}
+			}
+			if err := (*structpb1.Struct)(m.ObjectData).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

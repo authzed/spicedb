@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	relationshipStandardColumnCount   = 6 // ColNamespace, ColObjectID, ColRelation, ColUsersetNamespace, ColUsersetObjectID, ColUsersetRelation
+	relationshipStandardColumnCount   = 8 // ColNamespace, ColObjectID, ColRelation, ColUsersetNamespace, ColUsersetObjectID, ColUsersetRelation, ResourceObjectData, SubjectObjectData
 	relationshipCaveatColumnCount     = 2 // ColCaveatName, ColCaveatContext
 	relationshipExpirationColumnCount = 1 // ColExpiration
 	relationshipIntegrityColumnCount  = 3 // ColIntegrityKeyID, ColIntegrityHash, ColIntegrityTimestamp

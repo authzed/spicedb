@@ -37,6 +37,7 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 		to.After = q.After
 		to.SkipCaveats = q.SkipCaveats
 		to.SkipExpiration = q.SkipExpiration
+		to.IncludeObjectData = q.IncludeObjectData
 		to.SQLCheckAssertionForTest = q.SQLCheckAssertionForTest
 		to.SQLExplainCallbackForTest = q.SQLExplainCallbackForTest
 		to.QueryShape = q.QueryShape
@@ -51,6 +52,7 @@ func (q QueryOptions) DebugMap() map[string]any {
 	debugMap["After"] = helpers.DebugValue(q.After, false)
 	debugMap["SkipCaveats"] = helpers.DebugValue(q.SkipCaveats, false)
 	debugMap["SkipExpiration"] = helpers.DebugValue(q.SkipExpiration, false)
+	debugMap["IncludeObjectData"] = helpers.DebugValue(q.IncludeObjectData, false)
 	debugMap["SQLCheckAssertionForTest"] = helpers.DebugValue(q.SQLCheckAssertionForTest, false)
 	debugMap["SQLExplainCallbackForTest"] = helpers.DebugValue(q.SQLExplainCallbackForTest, false)
 	debugMap["QueryShape"] = helpers.DebugValue(q.QueryShape, false)
@@ -108,6 +110,13 @@ func WithSkipExpiration(skipExpiration bool) QueryOptionsOption {
 	}
 }
 
+// WithIncludeObjectData returns an option that can set IncludeObjectData on a QueryOptions
+func WithIncludeObjectData(includeObjectData bool) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.IncludeObjectData = includeObjectData
+	}
+}
+
 // WithSQLCheckAssertionForTest returns an option that can set SQLCheckAssertionForTest on a QueryOptions
 func WithSQLCheckAssertionForTest(sQLCheckAssertionForTest SQLCheckAssertionForTest) QueryOptionsOption {
 	return func(q *QueryOptions) {
@@ -157,6 +166,7 @@ func (r *ReverseQueryOptions) ToOption() ReverseQueryOptionsOption {
 		to.LimitForReverse = r.LimitForReverse
 		to.SortForReverse = r.SortForReverse
 		to.AfterForReverse = r.AfterForReverse
+		to.IncludeObjectDataForReverse = r.IncludeObjectDataForReverse
 		to.SQLExplainCallbackForTestForReverse = r.SQLExplainCallbackForTestForReverse
 		to.QueryShapeForReverse = r.QueryShapeForReverse
 	}
@@ -169,6 +179,7 @@ func (r ReverseQueryOptions) DebugMap() map[string]any {
 	debugMap["LimitForReverse"] = helpers.DebugValue(r.LimitForReverse, false)
 	debugMap["SortForReverse"] = helpers.DebugValue(r.SortForReverse, false)
 	debugMap["AfterForReverse"] = helpers.DebugValue(r.AfterForReverse, false)
+	debugMap["IncludeObjectDataForReverse"] = helpers.DebugValue(r.IncludeObjectDataForReverse, false)
 	debugMap["SQLExplainCallbackForTestForReverse"] = helpers.DebugValue(r.SQLExplainCallbackForTestForReverse, false)
 	debugMap["QueryShapeForReverse"] = helpers.DebugValue(r.QueryShapeForReverse, false)
 	return debugMap
@@ -215,6 +226,13 @@ func WithSortForReverse(sortForReverse SortOrder) ReverseQueryOptionsOption {
 func WithAfterForReverse(afterForReverse Cursor) ReverseQueryOptionsOption {
 	return func(r *ReverseQueryOptions) {
 		r.AfterForReverse = afterForReverse
+	}
+}
+
+// WithIncludeObjectDataForReverse returns an option that can set IncludeObjectDataForReverse on a ReverseQueryOptions
+func WithIncludeObjectDataForReverse(includeObjectDataForReverse bool) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.IncludeObjectDataForReverse = includeObjectDataForReverse
 	}
 }
 

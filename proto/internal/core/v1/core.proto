@@ -103,6 +103,8 @@ message ObjectAndRelation {
     pattern: "^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$"
     max_bytes: 64
   }];
+  /** object_data contains additional metadata about the object */
+  google.protobuf.Struct object_data = 4 [ (validate.rules).message.required = false ];
 }
 
 message RelationReference {

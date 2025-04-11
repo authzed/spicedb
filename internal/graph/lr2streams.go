@@ -239,9 +239,10 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 			AtRevision:     rdc.parentRequest.Revision.String(),
 			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
 		},
-		OptionalCursor: updatedCi.currentCursor,
-		OptionalLimit:  rdc.ci.limits.currentLimit,
-		Context:        rdc.parentRequest.Context,
+		OptionalCursor:    updatedCi.currentCursor,
+		OptionalLimit:     rdc.ci.limits.currentLimit,
+		Context:           rdc.parentRequest.Context,
+		IncludeObjectData: rdc.parentRequest.IncludeObjectData,
 	}, wrappedStream)
 }
 
@@ -263,7 +264,8 @@ func unfilteredLookupResourcesDispatchStreamForEntrypoint(
 
 		default:
 		}
-
+		resourceData := foundResources.GetObjectData(result.Resource.ResourceId)
+		result.Resource.ResourceData = resourceData
 		if err := publishResultToParentStream(ctx, result, ci, ci.responsePartialCursor(), foundResources, nil, isFirstPublishCall, emptyMetadata, parentStream); err != nil {
 			return err
 		}

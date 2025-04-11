@@ -492,11 +492,12 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		}
 
 		err = resp.Send(&v1.LookupResourcesResponse{
-			LookedUpAt:        revisionReadAt,
-			ResourceObjectId:  found.ResourceId,
-			Permissionship:    permissionship,
-			PartialCaveatInfo: partial,
-			AfterResultCursor: encodedCursor,
+			LookedUpAt:         revisionReadAt,
+			ResourceObjectId:   found.ResourceId,
+			ResourceObjectData: found.ResourceData,
+			Permissionship:     permissionship,
+			PartialCaveatInfo:  partial,
+			AfterResultCursor:  encodedCursor,
 		})
 		if err != nil {
 			return err
@@ -530,9 +531,10 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			Context:        req.Context,
-			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			Context:           req.Context,
+			OptionalCursor:    currentCursor,
+			OptionalLimit:     req.OptionalLimit,
+			IncludeObjectData: req.IncludeObjectData,
 		},
 		stream)
 	if err != nil {
@@ -658,6 +660,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				Namespace: req.SubjectObjectType,
 				Relation:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
 			},
+			IncludeObjectData: req.IncludeObjectData,
 		},
 		stream)
 	if err != nil {
@@ -693,6 +696,7 @@ func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.F
 
 	return &v1.ResolvedSubject{
 		SubjectObjectId:   foundSubject.SubjectId,
+		SubjectObjectData: foundSubject.SubjectData,
 		Permissionship:    permissionship,
 		PartialCaveatInfo: partialCaveat,
 	}, nil
@@ -741,6 +745,8 @@ type loadBulkAdapter struct {
 
 	awaitingNamespaces []string
 	awaitingCaveats    []string
+
+	includeObjectData bool
 
 	currentBatch []*v1.Relationship
 	numSent      int
@@ -807,6 +813,11 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, err
 	}
 
+	if a.includeObjectData {
+		a.current.RelationshipReference.Resource.ObjectData = a.currentBatch[a.numSent].Resource.ObjectData
+		a.current.Subject.ObjectData = a.currentBatch[a.numSent].Subject.Object.ObjectData
+	}
+
 	a.numSent++
 	return &a.current, nil
 }
@@ -824,6 +835,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			referencedNamespaceMap: loadedNamespaces,
 			referencedCaveatMap:    loadedCaveats,
 			caveat:                 core.ContextualizedCaveat{},
+			includeObjectData:      ps.config.ObjectStorageEnabled,
 		}
 		resolver := schema.ResolverForDatastoreReader(rwt)
 		ts := schema.NewTypeSystem(resolver)
@@ -889,6 +901,7 @@ func (ps *permissionServer) ExportBulkRelationships(
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
+	req.IncludeObjectData = req.IncludeObjectData && ps.config.ObjectStorageEnabled
 
 	return ExportBulk(ctx, datastoremw.MustFromContext(ctx), uint64(ps.config.MaxBulkExportRelationshipsLimit), req, atRevision, resp.Send)
 }
@@ -1000,6 +1013,9 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 				v1Rel.Subject.Object.ObjectId = rel.RelationshipReference.Subject.ObjectID
 				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.RelationshipReference.Subject.Relation)
 
+				v1Rel.Resource.ObjectData = rel.RelationshipReference.Resource.ObjectData
+				v1Rel.Subject.Object.ObjectData = rel.RelationshipReference.Subject.ObjectData
+
 				if rel.OptionalCaveat != nil {
 					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
 					caveatArray[offset].Context = rel.OptionalCaveat.Context
@@ -1025,6 +1041,7 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 				dsoptions.WithLimit(&limit),
 				dsoptions.WithAfter(cur),
 				dsoptions.WithSort(dsoptions.ByResource),
+				dsoptions.WithIncludeObjectData(req.IncludeObjectData),
 			)
 			if err != nil {
 				return shared.RewriteErrorWithoutConfig(ctx, err)

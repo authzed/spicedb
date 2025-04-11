@@ -1404,7 +1404,7 @@ func TestExecuteQuery(t *testing.T) {
 							var integrityHash []byte
 							var timestamp time.Time
 
-							colsToSelect, err := ColumnsToSelect(builder, &resourceObjectType, &resourceObjectID, &resourceRelation, &subjectObjectType, &subjectObjectID, &subjectRelation, &caveatName, &caveatCtx, &expiration, &integrityKeyID, &integrityHash, &timestamp)
+							colsToSelect, err := ColumnsToSelect(builder, &resourceObjectType, &resourceObjectID, nil, &resourceRelation, &subjectObjectType, &subjectObjectID, nil, &subjectRelation, &caveatName, &caveatCtx, &expiration, &integrityKeyID, &integrityHash, &timestamp)
 							require.NoError(t, err)
 							require.Equal(t, expectedColCount, len(colsToSelect))
 

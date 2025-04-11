@@ -136,7 +136,66 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	if err != nil {
 		return removed, fmt.Errorf("failed to GC namespaces table: %w", err)
 	}
+	// Delete objects that are no longer referenced by any active relationships
+	// We only delete objects where:
+	// 1. The object itself was marked as deleted (deleted_xid < minTxAlive)
+	// 2. There are no active relationships (deleted_xid = liveDeletedTxnID) referencing this object
+	//    either as a resource or as a subject
+	deleteUnreferencedObjects := fmt.Sprintf(
+		`WITH rows AS (
+			SELECT tableoid, ctid 
+			FROM %s op
+			WHERE NOT EXISTS (
+				SELECT 1 
+				FROM %s rt
+				WHERE rt.%s = '%d'::xid8
+				AND (
+					(rt.%s = op.%s AND rt.%s = op.%s) 
+					OR 
+					(rt.%s = op.%s AND rt.%s = op.%s)
+				)
+			)
+			LIMIT %d
+		)
+		DELETE FROM %s
+		WHERE (tableoid, ctid) IN (SELECT tableoid, ctid FROM rows)
+		RETURNING 1`,
+		schema.TableObjectData,
+		schema.TableTuple,
+		schema.ColDeletedXid,
+		liveDeletedTxnID,
+		schema.ColNamespace,
+		schema.ColOdType,
+		schema.ColObjectID,
+		schema.ColOdID,
+		schema.ColUsersetNamespace,
+		schema.ColOdType,
+		schema.ColUsersetObjectID,
+		schema.ColOdID,
+		gcBatchDeleteSize,
+		schema.TableObjectData,
+	)
 
+	var objectsRemoved int64
+	for {
+		rows, err := pgd.writePool.Query(ctx, deleteUnreferencedObjects)
+		if err != nil {
+			return removed, fmt.Errorf("failed to GC %s table: %w", schema.TableObjectData, err)
+		}
+		defer rows.Close()
+
+		var rowsDeleted int64
+		for rows.Next() {
+			rowsDeleted++
+		}
+		objectsRemoved += rowsDeleted
+
+		if rowsDeleted < gcBatchDeleteSize {
+			break
+		}
+	}
+
+	removed.Objects = objectsRemoved
 	return removed, err
 }
 

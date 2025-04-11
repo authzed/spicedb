@@ -60,11 +60,12 @@ type SQLExplainCallbackForTest func(ctx context.Context, sql string, args []any,
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
-	Limit          *uint64   `debugmap:"visible"`
-	Sort           SortOrder `debugmap:"visible"`
-	After          Cursor    `debugmap:"visible"`
-	SkipCaveats    bool      `debugmap:"visible"`
-	SkipExpiration bool      `debugmap:"visible"`
+	Limit             *uint64   `debugmap:"visible"`
+	Sort              SortOrder `debugmap:"visible"`
+	After             Cursor    `debugmap:"visible"`
+	SkipCaveats       bool      `debugmap:"visible"`
+	SkipExpiration    bool      `debugmap:"visible"`
+	IncludeObjectData bool      `debugmap:"visible"`
 
 	// SQLCheckAssertionForTest is a function that can be used to assert a condition on the SQL query string.
 	// For testing and validation only.
@@ -83,9 +84,10 @@ type QueryOptions struct {
 type ReverseQueryOptions struct {
 	ResRelation *ResourceRelation `debugmap:"visible"`
 
-	LimitForReverse *uint64   `debugmap:"visible"`
-	SortForReverse  SortOrder `debugmap:"visible"`
-	AfterForReverse Cursor    `debugmap:"visible"`
+	LimitForReverse             *uint64   `debugmap:"visible"`
+	SortForReverse              SortOrder `debugmap:"visible"`
+	AfterForReverse             Cursor    `debugmap:"visible"`
+	IncludeObjectDataForReverse bool      `debugmap:"visible"`
 
 	// SQLExplainCallbackForTestForReverse is a callback invoked with the explain plan of the SQL query string.
 	// For testing and validation only.

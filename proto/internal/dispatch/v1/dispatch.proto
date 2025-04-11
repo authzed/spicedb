@@ -109,12 +109,15 @@ message DispatchLookupResources2Request {
 
   Cursor optional_cursor = 7;
   uint32 optional_limit = 8;
+  bool include_object_data = 9;
 }
 
 message PossibleResource {
   string resource_id = 1;
   repeated string for_subject_ids = 2;
   repeated string missing_context_params = 3;
+  // resource_data contains additional metadata about the resource
+  google.protobuf.Struct resource_data = 4 [(validate.rules).message.required = false];
 }
 
 message DispatchLookupResources2Response {
@@ -130,12 +133,15 @@ message DispatchLookupSubjectsRequest {
   repeated string resource_ids = 3;
 
   core.v1.RelationReference subject_relation = 4 [(validate.rules).message.required = true];
+  bool include_object_data = 5;
 }
 
 message FoundSubject {
   string subject_id = 1;
   core.v1.CaveatExpression caveat_expression = 2;
   repeated FoundSubject excluded_subjects = 3;
+  // subject_data contains additional metadata about the subject
+  google.protobuf.Struct subject_data = 4 [(validate.rules).message.required = false];
 }
 
 message FoundSubjects {

@@ -145,16 +145,46 @@ func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]d
 	return counters, nil
 }
 
+func getObjectDataFields() []string {
+	return []string{
+		fmt.Sprintf("COALESCE(res_data.%s, '{}'::jsonb) AS resource_object_data", schema.ColOdData),
+		fmt.Sprintf("COALESCE(sub_data.%s, '{}'::jsonb) AS subject_object_data", schema.ColOdData),
+	}
+}
+
+func (r *pgReader) addObjectDataJoins(original sq.SelectBuilder) sq.SelectBuilder {
+	// Use the same visibility rules as the main relationship query
+	query := original.
+		LeftJoin(fmt.Sprintf("%s AS res_data ON res_data.%s = %s AND res_data.%s = %s",
+			schema.TableObjectData, schema.ColOdType, schema.ColNamespace, schema.ColOdID, schema.ColObjectID)).
+		LeftJoin(fmt.Sprintf("%s AS sub_data ON sub_data.%s = %s AND sub_data.%s = %s",
+			schema.TableObjectData, schema.ColOdType, schema.ColUsersetNamespace, schema.ColOdID, schema.ColUsersetObjectID))
+	// Apply the same visibility filter to object data as used for relationships
+	query = r.aliveFilter(query)
+	return query
+}
+
 func (r *pgReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount).
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+	// Initialize extra fields for object data if requested
+	var extraFields []string
+	if queryOpts.IncludeObjectData {
+		extraFields = getObjectDataFields()
+	}
+
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount, extraFields...).
 		WithAdditionalFilter(r.aliveFilter).
 		FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
+	}
+	// Add object data joins if requested
+	if queryOpts.IncludeObjectData {
+		qBuilder = qBuilder.WithAdditionalFilter(r.addObjectDataJoins)
 	}
 
 	return r.executor.ExecuteQuery(ctx, qBuilder, opts...)
@@ -165,19 +195,29 @@ func (r *pgReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount).
+	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+	// Initialize extra fields for object data if requested
+	var extraFields []string
+	if queryOpts.IncludeObjectDataForReverse {
+		extraFields = getObjectDataFields()
+	}
+
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount, extraFields...).
 		WithAdditionalFilter(r.aliveFilter).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
 	}
 
-	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
-
 	if queryOpts.ResRelation != nil {
 		qBuilder = qBuilder.
 			FilterToResourceType(queryOpts.ResRelation.Namespace).
 			FilterToRelation(queryOpts.ResRelation.Relation)
+	}
+
+	// Add object data joins if requested
+	if queryOpts.IncludeObjectDataForReverse {
+		qBuilder = qBuilder.WithAdditionalFilter(r.addObjectDataJoins)
 	}
 
 	return r.executor.ExecuteQuery(ctx,

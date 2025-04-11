@@ -236,6 +236,7 @@ func (m *DispatchLookupResources2Request) CloneVT() *DispatchLookupResources2Req
 	r.Context = (*structpb.Struct)((*structpb1.Struct)(m.Context).CloneVT())
 	r.OptionalCursor = m.OptionalCursor.CloneVT()
 	r.OptionalLimit = m.OptionalLimit
+	r.IncludeObjectData = m.IncludeObjectData
 	if rhs := m.ResourceRelation; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.RelationReference }); ok {
 			r.ResourceRelation = vtpb.CloneVT()
@@ -279,6 +280,7 @@ func (m *PossibleResource) CloneVT() *PossibleResource {
 	}
 	r := new(PossibleResource)
 	r.ResourceId = m.ResourceId
+	r.ResourceData = (*structpb.Struct)((*structpb1.Struct)(m.ResourceData).CloneVT())
 	if rhs := m.ForSubjectIds; rhs != nil {
 		tmpContainer := make([]string, len(rhs))
 		copy(tmpContainer, rhs)
@@ -325,6 +327,7 @@ func (m *DispatchLookupSubjectsRequest) CloneVT() *DispatchLookupSubjectsRequest
 	}
 	r := new(DispatchLookupSubjectsRequest)
 	r.Metadata = m.Metadata.CloneVT()
+	r.IncludeObjectData = m.IncludeObjectData
 	if rhs := m.ResourceRelation; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.RelationReference }); ok {
 			r.ResourceRelation = vtpb.CloneVT()
@@ -361,6 +364,7 @@ func (m *FoundSubject) CloneVT() *FoundSubject {
 	}
 	r := new(FoundSubject)
 	r.SubjectId = m.SubjectId
+	r.SubjectData = (*structpb.Struct)((*structpb1.Struct)(m.SubjectData).CloneVT())
 	if rhs := m.CaveatExpression; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.CaveatExpression }); ok {
 			r.CaveatExpression = vtpb.CloneVT()
@@ -856,6 +860,9 @@ func (this *DispatchLookupResources2Request) EqualVT(that *DispatchLookupResourc
 	if this.OptionalLimit != that.OptionalLimit {
 		return false
 	}
+	if this.IncludeObjectData != that.IncludeObjectData {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -892,6 +899,9 @@ func (this *PossibleResource) EqualVT(that *PossibleResource) bool {
 		if vx != vy {
 			return false
 		}
+	}
+	if !(*structpb1.Struct)(this.ResourceData).EqualVT((*structpb1.Struct)(that.ResourceData)) {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -964,6 +974,9 @@ func (this *DispatchLookupSubjectsRequest) EqualVT(that *DispatchLookupSubjectsR
 	} else if !proto.Equal(this.SubjectRelation, that.SubjectRelation) {
 		return false
 	}
+	if this.IncludeObjectData != that.IncludeObjectData {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -1008,6 +1021,9 @@ func (this *FoundSubject) EqualVT(that *FoundSubject) bool {
 				return false
 			}
 		}
+	}
+	if !(*structpb1.Struct)(this.SubjectData).EqualVT((*structpb1.Struct)(that.SubjectData)) {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -1795,6 +1811,16 @@ func (m *DispatchLookupResources2Request) MarshalToSizedBufferVT(dAtA []byte) (i
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.IncludeObjectData {
+		i--
+		if m.IncludeObjectData {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x48
+	}
 	if m.OptionalLimit != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.OptionalLimit))
 		i--
@@ -1938,6 +1964,16 @@ func (m *PossibleResource) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.ResourceData != nil {
+		size, err := (*structpb1.Struct)(m.ResourceData).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x22
+	}
 	if len(m.MissingContextParams) > 0 {
 		for iNdEx := len(m.MissingContextParams) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.MissingContextParams[iNdEx])
@@ -2059,6 +2095,16 @@ func (m *DispatchLookupSubjectsRequest) MarshalToSizedBufferVT(dAtA []byte) (int
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.IncludeObjectData {
+		i--
+		if m.IncludeObjectData {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x28
+	}
 	if m.SubjectRelation != nil {
 		if vtmsg, ok := interface{}(m.SubjectRelation).(interface {
 			MarshalToSizedBufferVT([]byte) (int, error)
@@ -2154,6 +2200,16 @@ func (m *FoundSubject) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.SubjectData != nil {
+		size, err := (*structpb1.Struct)(m.SubjectData).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x22
 	}
 	if len(m.ExcludedSubjects) > 0 {
 		for iNdEx := len(m.ExcludedSubjects) - 1; iNdEx >= 0; iNdEx-- {
@@ -2858,6 +2914,9 @@ func (m *DispatchLookupResources2Request) SizeVT() (n int) {
 	if m.OptionalLimit != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.OptionalLimit))
 	}
+	if m.IncludeObjectData {
+		n += 2
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2883,6 +2942,10 @@ func (m *PossibleResource) SizeVT() (n int) {
 			l = len(s)
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
+	}
+	if m.ResourceData != nil {
+		l = (*structpb1.Struct)(m.ResourceData).SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2946,6 +3009,9 @@ func (m *DispatchLookupSubjectsRequest) SizeVT() (n int) {
 		}
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.IncludeObjectData {
+		n += 2
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2975,6 +3041,10 @@ func (m *FoundSubject) SizeVT() (n int) {
 			l = e.SizeVT()
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
+	}
+	if m.SubjectData != nil {
+		l = (*structpb1.Struct)(m.SubjectData).SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -4687,6 +4757,26 @@ func (m *DispatchLookupResources2Request) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IncludeObjectData", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.IncludeObjectData = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -4833,6 +4923,42 @@ func (m *PossibleResource) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.MissingContextParams = append(m.MissingContextParams, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceData", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ResourceData == nil {
+				m.ResourceData = &structpb.Struct{}
+			}
+			if err := (*structpb1.Struct)(m.ResourceData).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -5200,6 +5326,26 @@ func (m *DispatchLookupSubjectsRequest) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IncludeObjectData", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.IncludeObjectData = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -5358,6 +5504,42 @@ func (m *FoundSubject) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ExcludedSubjects = append(m.ExcludedSubjects, &FoundSubject{})
 			if err := m.ExcludedSubjects[len(m.ExcludedSubjects)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SubjectData", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.SubjectData == nil {
+				m.SubjectData = &structpb.Struct{}
+			}
+			if err := (*structpb1.Struct)(m.SubjectData).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

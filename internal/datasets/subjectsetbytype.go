@@ -37,6 +37,7 @@ func (s *SubjectByTypeSet) AddSubject(subject tuple.ObjectAndRelation, caveat *c
 
 	return s.byType[key].Add(&v1.FoundSubject{
 		SubjectId:        subject.ObjectID,
+		SubjectData:      subject.ObjectData,
 		CaveatExpression: wrapCaveat(caveat),
 	})
 }
