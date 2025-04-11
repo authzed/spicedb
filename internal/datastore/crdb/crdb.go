@@ -13,6 +13,7 @@ import (
 	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgconn/ctxwatch"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -20,7 +21,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"resenje.org/singleflight"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
@@ -79,6 +79,11 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
+	// Install the cancelation handler for contexts.
+	readPoolConfig.ConnConfig.BuildContextWatcherHandler = func(pgConn *pgconn.PgConn) ctxwatch.Handler {
+		return &pgconn.CancelRequestContextWatcherHandler{Conn: pgConn}
+	}
+
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
@@ -86,6 +91,11 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	err = config.writePoolOpts.ConfigurePgx(writePoolConfig, includeQueryParametersInTraces)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+	}
+
+	// Install the cancelation handler for contexts.
+	writePoolConfig.ConnConfig.BuildContextWatcherHandler = func(pgConn *pgconn.PgConn) ctxwatch.Handler {
+		return &pgconn.CancelRequestContextWatcherHandler{Conn: pgConn}
 	}
 
 	initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -255,7 +265,7 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	if err != nil {
 		return nil, err
 	}
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return ds, nil
 }
 
 type crdbDatastore struct {
