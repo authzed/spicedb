@@ -1975,8 +1975,8 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 	dispatch := NewLocalOnlyDispatcher(concurrencyLimit, 100)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
-	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(t, err)
+	cachingDispatcher.SetDelegate(dispatch)
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
@@ -1997,8 +1997,8 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 	dispatch := NewLocalOnlyDispatcher(10, 100)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
-	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(t, err)
+	cachingDispatcher.SetDelegate(dispatch)
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))

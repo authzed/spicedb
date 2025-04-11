@@ -42,6 +42,7 @@ type Check interface {
 // Expand interface describes just the methods required to dispatch expand requests.
 type Expand interface {
 	// DispatchExpand submits a single expand request and returns its result.
+	// If an error is returned, DispatchExpandResponse will still contain Metadata.
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error)
 }
 
