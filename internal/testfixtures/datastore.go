@@ -11,6 +11,7 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -298,7 +299,7 @@ func (tc RelationshipChecker) ExactRelationshipIterator(ctx context.Context, rel
 	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
 	tc.Require.NoError(err)
 
-	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, dsFilter)
+	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, dsFilter, options.WithQueryShape(queryshape.Varying))
 	tc.Require.NoError(err)
 	return iter
 }

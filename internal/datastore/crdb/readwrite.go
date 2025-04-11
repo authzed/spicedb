@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jzelinskie/stringz"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
@@ -127,8 +128,8 @@ func (rwt *crdbReadWriteTXN) insertQuery() sq.InsertBuilder {
 	return psql.Insert(rwt.schema.RelationshipTableName)
 }
 
-func (rwt *crdbReadWriteTXN) queryDeleteTuples() sq.DeleteBuilder {
-	return psql.Delete(rwt.schema.RelationshipTableName)
+func (rwt *crdbReadWriteTXN) queryDeleteTuples(index common.IndexDefinition) sq.DeleteBuilder {
+	return psql.Delete(rwt.schema.RelationshipTableName + "@" + index.Name)
 }
 
 func (rwt *crdbReadWriteTXN) queryWriteTuple() sq.InsertBuilder {
@@ -272,7 +273,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	bulkTouch := rwt.queryTouchTuple()
 	var bulkTouchCount int64
 
-	bulkDelete := rwt.queryDeleteTuples()
+	bulkDelete := rwt.queryDeleteTuples(schema.IndexPrimaryKey)
 	bulkDeleteOr := sq.Or{}
 	var bulkDeleteCount int64
 
@@ -389,7 +390,12 @@ func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 
 func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
 	// Add clauses for the ResourceFilter
-	query := rwt.queryDeleteTuples()
+	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
+	if err != nil {
+		return 0, false, fmt.Errorf("unable to translate relationship filter: %w", err)
+	}
+
+	query := rwt.queryDeleteTuples(schema.IndexForFilter(rwt.schema, dsFilter))
 
 	if filter.ResourceType != "" {
 		query = query.Where(sq.Eq{schema.ColNamespace: filter.ResourceType})
@@ -511,7 +517,7 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := rwt.queryDeleteTuples().Where(sq.Or(tplClauses)).ToSql()
+	deleteTupleSQL, deleteTupleArgs, err := rwt.queryDeleteTuples(schema.IndexPrimaryKey).Where(sq.Or(tplClauses)).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}

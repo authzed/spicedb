@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	caveatdiff "github.com/authzed/spicedb/pkg/diff/caveats"
 	nsdiff "github.com/authzed/spicedb/pkg/diff/namespace"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -267,6 +268,7 @@ func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 		ctx,
 		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
 		options.WithLimit(options.LimitOne),
+		options.WithQueryShape(queryshape.FindResourceOfType),
 	)
 	if err := errorIfTupleIteratorReturnsTuples(
 		ctx,
@@ -278,9 +280,14 @@ func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 		return err
 	}
 
-	qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
-		SubjectType: namespaceName,
-	}, options.WithLimitForReverse(options.LimitOne))
+	qy, qyErr = rwt.ReverseQueryRelationships(
+		ctx,
+		datastore.SubjectsFilter{
+			SubjectType: namespaceName,
+		},
+		options.WithLimitForReverse(options.LimitOne),
+		options.WithQueryShapeForReverse(queryshape.FindSubjectOfType),
+	)
 	err := errorIfTupleIteratorReturnsTuples(
 		ctx,
 		qy,
@@ -349,11 +356,16 @@ func sanityCheckNamespaceChanges(
 				}
 			}
 
-			qy, qyErr := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				OptionalResourceType:      nsdef.Name,
-				OptionalResourceRelation:  delta.RelationName,
-				OptionalSubjectsSelectors: subjectSelectors,
-			}, options.WithLimit(options.LimitOne))
+			qy, qyErr := rwt.QueryRelationships(
+				ctx,
+				datastore.RelationshipsFilter{
+					OptionalResourceType:      nsdef.Name,
+					OptionalResourceRelation:  delta.RelationName,
+					OptionalSubjectsSelectors: subjectSelectors,
+				},
+				options.WithLimit(options.LimitOne),
+				options.WithQueryShape(queryshape.FindResourceOfTypeAndRelation),
+			)
 
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
@@ -365,12 +377,17 @@ func sanityCheckNamespaceChanges(
 			}
 
 			// Also check for right sides of tuples.
-			qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
-				SubjectType: nsdef.Name,
-				RelationFilter: datastore.SubjectRelationFilter{
-					NonEllipsisRelation: delta.RelationName,
+			qy, qyErr = rwt.ReverseQueryRelationships(
+				ctx,
+				datastore.SubjectsFilter{
+					SubjectType: nsdef.Name,
+					RelationFilter: datastore.SubjectRelationFilter{
+						NonEllipsisRelation: delta.RelationName,
+					},
 				},
-			}, options.WithLimitForReverse(options.LimitOne))
+				options.WithLimitForReverse(options.LimitOne),
+				options.WithQueryShapeForReverse(queryshape.FindSubjectOfTypeAndRelation),
+			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
 				qy,
@@ -420,6 +437,7 @@ func sanityCheckNamespaceChanges(
 					OptionalExpirationOption: expirationOption,
 				},
 				options.WithLimit(options.LimitOne),
+				options.WithQueryShape(queryshape.FindResourceRelationForSubjectRelation),
 			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,

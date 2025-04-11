@@ -33,10 +33,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	"github.com/authzed/spicedb/internal/datastore/crdb/version"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/migrate"
@@ -81,7 +84,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 				DebugAnalyzeBeforeStatistics(),
 			)
 			require.NoError(t, err)
-			return ds
+			return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 		})
 
 		return ds, nil
@@ -499,7 +502,7 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"foo"},
 		OptionalResourceRelation: "viewer",
-	})
+	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 	require.NoError(err)
 
 	slice, err := datastore.IteratorToSlice(iter)
@@ -562,7 +565,7 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"foo"},
 		OptionalResourceRelation: "viewer",
-	})
+	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 	require.NoError(err)
 
 	slice, err := datastore.IteratorToSlice(iter)

@@ -51,9 +51,16 @@ type crdbReader struct {
 	atSpecificRevision   string
 }
 
-const asOfSystemTime = "AS OF SYSTEM TIME"
+const (
+	asOfSystemTime = "AS OF SYSTEM TIME"
+	noIndexHint    = ""
+)
 
-func (cr *crdbReader) addFromToQuery(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
+func (cr *crdbReader) addFromToQuery(query sq.SelectBuilder, tableName string, indexHint string) sq.SelectBuilder {
+	if indexHint != noIndexHint {
+		tableName = tableName + "@" + indexHint
+	}
+
 	if cr.atSpecificRevision == "" {
 		return query.From(tableName)
 	}
@@ -94,7 +101,8 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 		return 0, err
 	}
 
-	query := cr.addFromToQuery(countRels, cr.schema.RelationshipTableName)
+	index := schema.IndexForFilter(cr.schema, relFilter)
+	query := cr.addFromToQuery(countRels, cr.schema.RelationshipTableName, index.Name)
 	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(cr.schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
@@ -124,7 +132,7 @@ func (cr *crdbReader) LookupCounters(ctx context.Context) ([]datastore.Relations
 }
 
 func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
-	query := cr.addFromToQuery(queryCounters, schema.TableRelationshipCounter)
+	query := cr.addFromToQuery(queryCounters, schema.TableRelationshipCounter, noIndexHint)
 	if optionalFilterName != noFilterOnCounterName {
 		query = query.Where(sq.Eq{schema.ColCounterName: optionalFilterName})
 	}
@@ -197,7 +205,11 @@ func (cr *crdbReader) ReadNamespaceByName(
 }
 
 func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	nsDefs, sql, err := loadAllNamespaces(ctx, cr.query, cr.addFromToQuery)
+	addFromToQuery := func(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
+		return cr.addFromToQuery(query, tableName, noIndexHint)
+	}
+
+	nsDefs, sql, err := loadAllNamespaces(ctx, cr.query, addFromToQuery)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -226,6 +238,10 @@ func (cr *crdbReader) QueryRelationships(
 		return nil, err
 	}
 
+	builtOpts := options.NewQueryOptionsWithOptions(opts...)
+	indexingHint := schema.IndexingHintForQueryShape(cr.schema, builtOpts.QueryShape)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
+
 	if spiceerrors.DebugAssertionsEnabled {
 		opts = append(opts, options.WithSQLCheckAssertionForTest(cr.assertHasExpectedAsOfSystemTime))
 	}
@@ -252,6 +268,9 @@ func (cr *crdbReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
+	indexingHint := schema.IndexingHintForQueryShape(cr.schema, queryOpts.QueryShapeForReverse)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
+
 	eopts := []options.QueryOptionsOption{
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
@@ -272,7 +291,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 }
 
 func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBFuncQuerier, nsName string) (*core.NamespaceDefinition, time.Time, error) {
-	query := cr.addFromToQuery(queryReadNamespace, schema.TableNamespace).Where(sq.Eq{schema.ColNamespace: nsName})
+	query := cr.addFromToQuery(queryReadNamespace, schema.TableNamespace, noIndexHint).Where(sq.Eq{schema.ColNamespace: nsName})
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, time.Time{}, err
@@ -306,7 +325,7 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQu
 		clause = append(clause, sq.Eq{schema.ColNamespace: nsName})
 	}
 
-	query := cr.addFromToQuery(queryReadNamespace, schema.TableNamespace).Where(clause)
+	query := cr.addFromToQuery(queryReadNamespace, schema.TableNamespace, noIndexHint).Where(clause)
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, err

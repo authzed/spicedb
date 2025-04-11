@@ -61,8 +61,8 @@ func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
 }
 
 func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datastore.Revision, error) {
-	// Find the highest transaction ID before the GC window.
-	sql, args, err := getRevision.Where(sq.Lt{schema.ColTimestamp: before}).ToSql()
+	// Find any transaction ID before the GC window.
+	sql, args, err := getRevisionForGC.Where(sq.Lt{schema.ColTimestamp: before}).ToSql()
 	if err != nil {
 		return datastore.NoRevision, err
 	}

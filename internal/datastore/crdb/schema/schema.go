@@ -71,5 +71,17 @@ func Schema(colOptimizationOpt common.ColumnOptimizationOption, withIntegrity bo
 		common.WithIntegrityEnabled(withIntegrity),
 		common.WithExpirationDisabled(expirationDisabled),
 		common.SetIndexes(crdbIndexes),
+
+		// NOTE: this order differs from the default because the index
+		// used for sorting by subject (ix_relation_tuple_by_subject) is
+		// defined with the userset object ID first.
+		common.SetSortBySubjectColumnOrder([]string{
+			ColUsersetObjectID,
+			ColUsersetNamespace,
+			ColUsersetRelation,
+			ColNamespace,
+			ColObjectID,
+			ColRelation,
+		}),
 	)
 }

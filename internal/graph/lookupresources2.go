@@ -15,6 +15,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -312,6 +313,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 				}),
 				options.WithSortForReverse(options.BySubject),
 				options.WithAfterForReverse(queryCursor),
+				options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
 			)
 			if err != nil {
 				return nil, err
