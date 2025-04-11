@@ -10,7 +10,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-// dispatchCacheKeyHash computres a DispatchCheckKey for the given prefix and any hashable values.
+// dispatchCacheKeyHash computes a DispatchCheckKey for the given prefix and any hashable values.
 func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, computeOption dispatchCacheKeyHashComputeOption, args ...hashableValue) DispatchCacheKey {
 	hasher := newDispatchCacheKeyHasher(prefix, computeOption)
 

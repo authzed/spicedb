@@ -36,8 +36,8 @@ func CaveatExprForTesting(name string) *core.CaveatExpression {
 	}
 }
 
-// CaveatExprForTesting returns a CaveatExpression referencing a caveat with the given name and
-// empty context.
+// MustCaveatExprForTestingWithContext returns a CaveatExpression referencing a caveat with the given name and
+// given context.
 func MustCaveatExprForTestingWithContext(name string, context map[string]any) *core.CaveatExpression {
 	contextStruct, err := structpb.NewStruct(context)
 	if err != nil {

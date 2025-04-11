@@ -25,7 +25,7 @@ type DefinitionReachability struct {
 	hasOptimizedEntrypointCache sync.Map
 }
 
-// ReachabilityGraphFor returns a reachability graph for the given namespace.
+// Reachability returns a reachability graph for the given namespace.
 func (def *Definition) Reachability() *DefinitionReachability {
 	return &DefinitionReachability{def, sync.Map{}, sync.Map{}}
 }

@@ -44,7 +44,7 @@ func (ss SubjectSet) UnionWithSet(other SubjectSet) error {
 	return ss.BaseSubjectSet.UnionWithSet(other.BaseSubjectSet)
 }
 
-// WithParentCaveatExpression returns a copy of the subject set with the parent caveat expression applied
+// WithParentCaveatExpression returns a copy of the subject set with the parent caveat expression applied
 // to all members of this set.
 func (ss SubjectSet) WithParentCaveatExpression(parentCaveatExpr *core.CaveatExpression) SubjectSet {
 	return SubjectSet{ss.BaseSubjectSet.WithParentCaveatExpression(parentCaveatExpr)}
