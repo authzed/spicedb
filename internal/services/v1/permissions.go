@@ -28,6 +28,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
@@ -55,6 +56,8 @@ func (ps *permissionServer) rewriteErrorWithOptionalDebugTrace(ctx context.Conte
 }
 
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
+	telemetry.RecordLogicalChecks(1)
+
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -208,6 +211,8 @@ func requestItemFromResourceAndParameters(params *computed.CheckParameters, reso
 }
 
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
+	telemetry.RecordLogicalChecks(1)
+
 	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -461,6 +466,10 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	}
 
 	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
+	var totalCountPublished uint64
+	defer func() {
+		telemetry.RecordLogicalChecks(totalCountPublished)
+	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources2Response) error {
 		found := result.Resource
@@ -502,6 +511,8 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		if err != nil {
 			return err
 		}
+
+		totalCountPublished++
 		return nil
 	})
 
@@ -586,6 +597,11 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
+	var totalCountPublished uint64
+	defer func() {
+		telemetry.RecordLogicalChecks(totalCountPublished)
+	}()
+
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
 		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
 		if !ok {
@@ -634,6 +650,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 			}
 		}
 
+		totalCountPublished++
 		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
 		return nil
 	})

@@ -113,6 +113,15 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 				"node_id":    nodeID,
 			},
 		),
+		logicalChecksDec: prometheus.NewDesc(
+			prometheus.BuildFQName("spicedb", "telemetry", "logical_checks_total"),
+			"Count of the number of logical checks made.",
+			usagemetrics.DispatchedCountLabels,
+			prometheus.Labels{
+				"cluster_id": clusterID,
+				"node_id":    nodeID,
+			},
+		),
 	}); err != nil {
 		return nil, fmt.Errorf("unable to register telemetry collector: %w", err)
 	}
@@ -125,6 +134,7 @@ type collector struct {
 	objectDefsDesc    *prometheus.Desc
 	relationshipsDesc *prometheus.Desc
 	dispatchedDesc    *prometheus.Desc
+	logicalChecksDec  *prometheus.Desc
 }
 
 var _ prometheus.Collector = &collector{}
@@ -133,6 +143,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.objectDefsDesc
 	ch <- c.relationshipsDesc
 	ch <- c.dispatchedDesc
+	ch <- c.logicalChecksDec
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
@@ -144,8 +155,11 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		log.Warn().Err(err).Msg("unable to collect datastore statistics")
 	}
 
+	logicalChecksCount := loadLogicalChecksCount()
+
 	ch <- prometheus.MustNewConstMetric(c.objectDefsDesc, prometheus.GaugeValue, float64(len(dsStats.ObjectTypeStatistics)))
 	ch <- prometheus.MustNewConstMetric(c.relationshipsDesc, prometheus.GaugeValue, float64(dsStats.EstimatedRelationshipCount))
+	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.GaugeValue, float64(logicalChecksCount))
 
 	dispatchedCountMetrics := make(chan prometheus.Metric)
 	g := errgroup.Group{}
