@@ -32,6 +32,7 @@ type crdbOptions struct {
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
 	expirationDisabled             bool
+	watchDisabled                  bool
 }
 
 const (
@@ -62,6 +63,7 @@ const (
 	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionNone
 	defaultIncludeQueryParametersInTraces = false
 	defaultExpirationDisabled             = false
+	defaultWatchDisabled                  = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -88,6 +90,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		expirationDisabled:             defaultExpirationDisabled,
+		watchDisabled:                  defaultWatchDisabled,
 	}
 
 	for _, option := range options {
@@ -375,4 +378,9 @@ func WithColumnOptimization(isEnabled bool) Option {
 // WithExpirationDisabled configures the datastore to disable relationship expiration.
 func WithExpirationDisabled(isDisabled bool) Option {
 	return func(po *crdbOptions) { po.expirationDisabled = isDisabled }
+}
+
+// WithWatchDisabled configures the datastore to disable watch functionality.
+func WithWatchDisabled(isDisabled bool) Option {
+	return func(po *crdbOptions) { po.watchDisabled = isDisabled }
 }

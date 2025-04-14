@@ -187,6 +187,8 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		supportsIntegrity:       config.withIntegrity,
 		gcWindow:                config.gcWindow,
+		expirationEnabled:       !config.expirationDisabled,
+		watchEnabled:            !config.watchDisabled,
 		schema:                  *schema.Schema(config.columnOptimizationOption, config.withIntegrity, config.expirationDisabled),
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
@@ -284,6 +286,8 @@ type crdbDatastore struct {
 	cancel               context.CancelFunc
 	filterMaximumIDCount uint16
 	supportsIntegrity    bool
+	expirationEnabled    bool
+	watchEnabled         bool
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -324,25 +328,30 @@ func (cds *crdbDatastore) ReadWriteTx(
 			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier, cds),
 		}
 
+		// Metadata flag is required if expiration and watch are both enabled,
+		// to allow expired deletions to be filtered from the watch stream.
+		requiresMetadataFlag := cds.expirationEnabled && cds.watchEnabled
+
 		// Write metadata onto the transaction.
 		metadata := config.Metadata.AsMap()
+		if len(metadata) > 0 || requiresMetadataFlag {
+			// Mark the transaction as coming from SpiceDB. See the comment in watch.go
+			// for why this is necessary.
+			metadata[spicedbTransactionKey] = true
 
-		// Mark the transaction as coming from SpiceDB. See the comment in watch.go
-		// for why this is necessary.
-		metadata[spicedbTransactionKey] = true
+			expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
+			insertTransactionMetadata := psql.Insert(schema.TableTransactionMetadata).
+				Columns(schema.ColExpiresAt, schema.ColMetadata).
+				Values(expiresAt, metadata)
 
-		expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
-		insertTransactionMetadata := psql.Insert(schema.TableTransactionMetadata).
-			Columns(schema.ColExpiresAt, schema.ColMetadata).
-			Values(expiresAt, metadata)
+			sql, args, err := insertTransactionMetadata.ToSql()
+			if err != nil {
+				return fmt.Errorf("error building metadata insert: %w", err)
+			}
 
-		sql, args, err := insertTransactionMetadata.ToSql()
-		if err != nil {
-			return fmt.Errorf("error building metadata insert: %w", err)
-		}
-
-		if _, err := tx.Exec(ctx, sql, args...); err != nil {
-			return fmt.Errorf("error writing metadata: %w", err)
+			if _, err := tx.Exec(ctx, sql, args...); err != nil {
+				return fmt.Errorf("error writing metadata: %w", err)
+			}
 		}
 
 		reader := &crdbReader{
@@ -520,26 +529,30 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 		return nil, err
 	}
 
-	// Start a changefeed with an invalid value. If we get back an invalid value error (SQLSTATE 22023)
-	// then we know that the datastore supports watch. If we get back any other error, then we know that
-	// the datastore does not support watch emits or there is a permissions issue.
-	_ = cds.writePool.ExecFunc(ctx, func(ctx context.Context, tag pgconn.CommandTag, err error) error {
-		if err == nil {
-			return spiceerrors.MustBugf("expected an error, but got none")
-		}
-
-		var pgerr *pgconn.PgError
-		if errors.As(err, &pgerr) {
-			if pgerr.Code == "22023" {
-				features.Watch.Status = datastore.FeatureSupported
-				return nil
+	if cds.watchEnabled {
+		// Start a changefeed with an invalid value. If we get back an invalid value error (SQLSTATE 22023)
+		// then we know that the datastore supports watch. If we get back any other error, then we know that
+		// the datastore does not support watch emits or there is a permissions issue.
+		_ = cds.writePool.ExecFunc(ctx, func(ctx context.Context, tag pgconn.CommandTag, err error) error {
+			if err == nil {
+				return spiceerrors.MustBugf("expected an error, but got none")
 			}
-		}
 
+			var pgerr *pgconn.PgError
+			if errors.As(err, &pgerr) {
+				if pgerr.Code == "22023" {
+					features.Watch.Status = datastore.FeatureSupported
+					return nil
+				}
+			}
+
+			features.Watch.Status = datastore.FeatureUnsupported
+			features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
+			return nil
+		}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "-1s"))
+	} else {
 		features.Watch.Status = datastore.FeatureUnsupported
-		features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
-		return nil
-	}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "-1s"))
+	}
 
 	return &features, nil
 }

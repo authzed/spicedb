@@ -78,6 +78,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.WatchBufferLength = c.WatchBufferLength
 		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
 		to.WatchConnectTimeout = c.WatchConnectTimeout
+		to.DisableWatchSupport = c.DisableWatchSupport
 		to.MigrationPhase = c.MigrationPhase
 		to.AllowedMigrations = c.AllowedMigrations
 		to.ExperimentalColumnOptimization = c.ExperimentalColumnOptimization
@@ -519,6 +520,13 @@ func WithWatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) ConfigOp
 func WithWatchConnectTimeout(watchConnectTimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.WatchConnectTimeout = watchConnectTimeout
+	}
+}
+
+// WithDisableWatchSupport returns an option that can set DisableWatchSupport on a Config
+func WithDisableWatchSupport(disableWatchSupport bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableWatchSupport = disableWatchSupport
 	}
 }
 

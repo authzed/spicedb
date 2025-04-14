@@ -28,6 +28,7 @@ const (
 	defaultFilterMaximumIDCount              = 100
 	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
 	defaultExpirationDisabled                = false
+	defaultWatchDisabled                     = false
 	// no follower delay by default, it should only be set if using read replicas
 	defaultFollowerReadDelay = 0
 )
@@ -55,6 +56,7 @@ type mysqlOptions struct {
 	allowedMigrations           []string
 	columnOptimizationOption    common.ColumnOptimizationOption
 	expirationDisabled          bool
+	watchDisabled               bool
 }
 
 // Option provides the facility to configure how clients within the
@@ -81,6 +83,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		columnOptimizationOption:    defaultColumnOptimizationOption,
 		expirationDisabled:          defaultExpirationDisabled,
 		followerReadDelay:           defaultFollowerReadDelay,
+		watchDisabled:               defaultWatchDisabled,
 	}
 
 	for _, option := range options {
@@ -304,5 +307,12 @@ func WithColumnOptimization(isEnabled bool) Option {
 func WithExpirationDisabled(isDisabled bool) Option {
 	return func(mo *mysqlOptions) {
 		mo.expirationDisabled = isDisabled
+	}
+}
+
+// WithWatchDisabled disables the watch functionality in the MySQL datastore.
+func WithWatchDisabled(isDisabled bool) Option {
+	return func(mo *mysqlOptions) {
+		mo.watchDisabled = isDisabled
 	}
 }

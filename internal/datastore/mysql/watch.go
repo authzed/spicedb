@@ -29,6 +29,12 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
+	if !mds.watchEnabled {
+		close(updates)
+		errs <- datastore.NewWatchDisabledErr("watch is disabled")
+		return updates, errs
+	}
+
 	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
 		close(updates)
 		errs <- errors.New("schema watch unsupported in MySQL")
