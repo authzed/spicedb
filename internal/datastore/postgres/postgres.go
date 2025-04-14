@@ -69,15 +69,6 @@ const (
 	repairBatchSize = 1_000_000
 )
 
-// queryLoopXactID performs pg_current_xact_id() in a server-side loop in the
-// database in order to increment the xact_id.
-var queryLoopXactID = fmt.Sprintf(`DO $$
-BEGIN
-  FOR i IN 1..%d LOOP
-    PERFORM pg_current_xact_id(); ROLLBACK;
-  END LOOP;
-END $$;`, repairBatchSize)
-
 var livingTupleConstraints = []string{"uq_relation_tuple_living_xid", "pk_relation_tuple"}
 
 func init() {
@@ -573,8 +564,7 @@ func (pgd *pgDatastore) repairTransactionIDs(ctx context.Context, outputProgress
 
 	for i := 0; i < counterDelta; i++ {
 		batchCount := min(repairBatchSize, counterDelta-i)
-
-		if _, err := conn.Exec(ctx, queryLoopXactID); err != nil {
+		if _, err := conn.Exec(ctx, queryLoopXactID(batchCount)); err != nil {
 			return err
 		}
 
@@ -594,6 +584,17 @@ func (pgd *pgDatastore) repairTransactionIDs(ctx context.Context, outputProgress
 
 	log.Ctx(ctx).Info().Msg("completed revisions repair")
 	return nil
+}
+
+// queryLoopXactID performs pg_current_xact_id() in a server-side loop in the
+// database in order to increment the xact_id.
+func queryLoopXactID(batchSize int) string {
+	return fmt.Sprintf(`DO $$
+BEGIN
+  FOR i IN 1..%d LOOP
+    PERFORM pg_current_xact_id(); ROLLBACK;
+  END LOOP;
+END $$;`, batchSize)
 }
 
 // RepairOperations returns the available repair operations for the datastore.
