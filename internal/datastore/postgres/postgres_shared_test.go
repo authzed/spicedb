@@ -27,6 +27,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -116,7 +117,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 					WithRevisionHeartbeat(false), // heartbeat revision messes with tests that assert over revisions
 				)
 				require.NoError(t, err)
-				return ds
+				return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 			})
 			return ds, nil
 		}), test.WithCategories(test.GCCategory), false)
@@ -340,6 +341,7 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID, options...)
 			require.NoError(t, err)
+
 			return ds
 		})
 		defer ds.Close()

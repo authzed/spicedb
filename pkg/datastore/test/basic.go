@@ -8,6 +8,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
 func UseAfterCloseTest(t *testing.T, tester DatastoreTester) {
@@ -41,7 +43,11 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 
 	foundRels := false
 	for _, nsDef := range nsDefs {
-		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name})
+		iter, err := reader.QueryRelationships(
+			ctx,
+			datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name},
+			options.WithQueryShape(queryshape.FindResourceOfType),
+		)
 		require.NoError(t, err)
 
 		for range iter {
@@ -65,7 +71,11 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	require.Empty(t, afterNSDefs, "namespace definitions still exist")
 
 	for _, nsDef := range nsDefs {
-		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name})
+		iter, err := reader.QueryRelationships(
+			ctx,
+			datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name},
+			options.WithQueryShape(queryshape.FindResourceOfType),
+		)
 		require.NoError(t, err)
 
 		for range iter {

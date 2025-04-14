@@ -36,3 +36,43 @@ func TestExpectedIndexesForShape(t *testing.T) {
 	expectedIndexes = schema.expectedIndexesForShape(queryshape.CheckPermissionSelectIndirectSubjects)
 	require.Equal(t, []string{"idx2"}, expectedIndexes.ExpectedIndexNames)
 }
+
+func TestSortByResourceColumnOrderColumns(t *testing.T) {
+	schema := SchemaInformation{
+		SortByResourceColumnOrder: []string{"custom1", "custom2"},
+	}
+
+	expectedColumns := schema.sortByResourceColumnOrderColumns()
+	require.Equal(t, []string{"custom1", "custom2"}, expectedColumns)
+
+	schema.SortByResourceColumnOrder = nil
+	expectedColumns = schema.sortByResourceColumnOrderColumns()
+	require.Equal(t, []string{
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+	}, expectedColumns)
+}
+
+func TestSortBySubjectColumnOrderColumns(t *testing.T) {
+	schema := SchemaInformation{
+		SortBySubjectColumnOrder: []string{"custom1", "custom2"},
+	}
+
+	expectedColumns := schema.sortBySubjectColumnOrderColumns()
+	require.Equal(t, []string{"custom1", "custom2"}, expectedColumns)
+
+	schema.SortBySubjectColumnOrder = nil
+	expectedColumns = schema.sortBySubjectColumnOrderColumns()
+	require.Equal(t, []string{
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+	}, expectedColumns)
+}

@@ -1,4 +1,4 @@
-package proxy
+package indexcheck
 
 import (
 	"context"
@@ -158,11 +158,21 @@ func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string,
 }
 
 func (r *indexcheckingReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+	if err := validateQueryShape(queryOpts.QueryShape, filter); err != nil {
+		return nil, err
+	}
+
 	opts = append(opts, options.WithSQLExplainCallbackForTest(r.mustEnsureIndexes))
 	return r.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
 func (r *indexcheckingReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+	if err := validateReverseQueryShape(queryOpts.QueryShapeForReverse, subjectsFilter, queryOpts); err != nil {
+		return nil, err
+	}
+
 	opts = append(opts, options.WithSQLExplainCallbackForTestForReverse(r.mustEnsureIndexes))
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }

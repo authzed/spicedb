@@ -11,6 +11,8 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -62,7 +64,7 @@ func (ce *ConcurrentExpander) expandDirect(
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: req.ResourceAndRelation.Relation,
-		})
+		}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return
@@ -278,7 +280,7 @@ func expandTupleToUserset[T relation](
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
-		})
+		}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return

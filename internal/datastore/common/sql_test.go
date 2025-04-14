@@ -501,7 +501,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					datastore.RelationshipsFilter{
 						OptionalResourceType: "someresourcetype",
 					},
-				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE ns = ? AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -521,7 +521,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					datastore.RelationshipsFilter{
 						OptionalResourceRelation: "somerelation",
 					},
-				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE relation = ? AND (ns,object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -542,7 +542,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 						OptionalResourceType: "someresourcetype",
 						OptionalResourceIds:  []string{"one"},
 					},
-				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE ns = ? AND object_id IN (?) AND (relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -562,7 +562,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					datastore.RelationshipsFilter{
 						OptionalResourceIds: []string{"one"},
 					},
-				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE object_id IN (?) AND (ns,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -583,7 +583,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 						OptionalResourceType: "someresourcetype",
 						OptionalResourceIds:  []string{"one", "two"},
 					},
-				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE ns = ? AND object_id IN (?,?) AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -604,7 +604,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 						OptionalResourceType:     "someresourcetype",
 						OptionalResourceRelation: "somerelation",
 					},
-				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE ns = ? AND relation = ? AND (object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -622,7 +622,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
-				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				}).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE ((subject_ns = ?)) AND (ns,object_id,relation,subject_object_id,subject_relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -644,7 +644,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectType: "somesubjectype",
 				}).MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "anothersubjectype",
-				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				}).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE ((subject_ns = ?)) AND ((subject_ns = ?)) AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -660,7 +660,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			name: "after with resource ID prefix",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithResourceIDPrefix("someprefix").After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				return filterer.MustFilterWithResourceIDPrefix("someprefix").MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE object_id LIKE ? AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -693,16 +693,16 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
-				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.BySubject)
+				}).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.BySubject)
 			},
 			expectedForTuple: expected{
-				sql:        "SELECT * WHERE ((subject_ns = ?)) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
-				args:       []any{"somesubjectype", "bar", "someresourcetype", "foo", "viewer", "..."},
+				sql:        "SELECT * WHERE ((subject_ns = ?)) AND (subject_object_id,subject_relation,ns,object_id,relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"somesubjectype", "bar", "...", "someresourcetype", "foo", "viewer"},
 				staticCols: []string{"subject_ns"},
 			},
 			expectedForExpanded: expected{
-				sql:        "SELECT * WHERE ((subject_ns = ?)) AND ((subject_object_id > ?) OR (subject_object_id = ? AND ns > ?) OR (subject_object_id = ? AND ns = ? AND object_id > ?) OR (subject_object_id = ? AND ns = ? AND object_id = ? AND relation > ?) OR (subject_object_id = ? AND ns = ? AND object_id = ? AND relation = ? AND subject_relation > ?)) AND (expiration IS NULL OR expiration > NOW())",
-				args:       []any{"somesubjectype", "bar", "bar", "someresourcetype", "bar", "someresourcetype", "foo", "bar", "someresourcetype", "foo", "viewer", "bar", "someresourcetype", "foo", "viewer", "..."},
+				sql:        "SELECT * WHERE ((subject_ns = ?)) AND ((subject_object_id > ?) OR (subject_object_id = ? AND subject_relation > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns = ? AND object_id > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns = ? AND object_id = ? AND relation > ?)) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"somesubjectype", "bar", "bar", "...", "bar", "...", "someresourcetype", "bar", "...", "someresourcetype", "foo", "bar", "...", "someresourcetype", "foo", "viewer"},
 				staticCols: []string{"subject_ns"},
 			},
 		},
@@ -712,16 +712,16 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
 					OptionalSubjectIds:  []string{"foo"},
-				}).After(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:bar")), options.BySubject)
+				}).MustAfter(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:bar")), options.BySubject)
 			},
 			expectedForTuple: expected{
-				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND (ns,object_id,relation,subject_relation) > (?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
-				args:       []any{"somesubjectype", "foo", "someresourcetype", "someresource", "viewer", "..."},
+				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND (subject_relation,ns,object_id,relation) > (?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"somesubjectype", "foo", "...", "someresourcetype", "someresource", "viewer"},
 				staticCols: []string{"subject_ns", "subject_object_id"},
 			},
 			expectedForExpanded: expected{
-				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND ((ns > ?) OR (ns = ? AND object_id > ?) OR (ns = ? AND object_id = ? AND relation > ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_relation > ?)) AND (expiration IS NULL OR expiration > NOW())",
-				args:       []any{"somesubjectype", "foo", "someresourcetype", "someresourcetype", "someresource", "someresourcetype", "someresource", "viewer", "someresourcetype", "someresource", "viewer", "..."},
+				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND ((subject_relation > ?) OR (subject_relation = ? AND ns > ?) OR (subject_relation = ? AND ns = ? AND object_id > ?) OR (subject_relation = ? AND ns = ? AND object_id = ? AND relation > ?)) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"somesubjectype", "foo", "...", "...", "someresourcetype", "...", "someresourcetype", "someresource", "...", "someresourcetype", "someresource", "viewer"},
 				staticCols: []string{"subject_ns", "subject_object_id"},
 			},
 		},
@@ -731,16 +731,16 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
 					OptionalSubjectIds:  []string{"foo", "bar"},
-				}).After(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:next")), options.BySubject)
+				}).MustAfter(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:next")), options.BySubject)
 			},
 			expectedForTuple: expected{
-				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
-				args:       []any{"somesubjectype", "foo", "bar", "next", "someresourcetype", "someresource", "viewer", "..."},
+				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,subject_relation,ns,object_id,relation) > (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"somesubjectype", "foo", "bar", "next", "...", "someresourcetype", "someresource", "viewer"},
 				staticCols: []string{"subject_ns"},
 			},
 			expectedForExpanded: expected{
-				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND ((subject_object_id > ?) OR (subject_object_id = ? AND ns > ?) OR (subject_object_id = ? AND ns = ? AND object_id > ?) OR (subject_object_id = ? AND ns = ? AND object_id = ? AND relation > ?) OR (subject_object_id = ? AND ns = ? AND object_id = ? AND relation = ? AND subject_relation > ?)) AND (expiration IS NULL OR expiration > NOW())",
-				args:       []any{"somesubjectype", "foo", "bar", "next", "next", "someresourcetype", "next", "someresourcetype", "someresource", "next", "someresourcetype", "someresource", "viewer", "next", "someresourcetype", "someresource", "viewer", "..."},
+				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND ((subject_object_id > ?) OR (subject_object_id = ? AND subject_relation > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns = ? AND object_id > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns = ? AND object_id = ? AND relation > ?)) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"somesubjectype", "foo", "bar", "next", "next", "...", "next", "...", "someresourcetype", "next", "...", "someresourcetype", "someresource", "next", "...", "someresourcetype", "someresource", "viewer"},
 				staticCols: []string{"subject_ns"},
 			},
 		},
@@ -750,17 +750,17 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
 					OptionalSubjectIds:  []string{"foo", "bar"},
-				}).After(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:next")), options.BySubject)
+				}).MustAfter(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:next")), options.BySubject)
 			},
 			withExpirationDisabled: true,
 			expectedForTuple: expected{
-				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
-				args:       []any{"somesubjectype", "foo", "bar", "next", "someresourcetype", "someresource", "viewer", "..."},
+				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,subject_relation,ns,object_id,relation) > (?,?,?,?,?)",
+				args:       []any{"somesubjectype", "foo", "bar", "next", "...", "someresourcetype", "someresource", "viewer"},
 				staticCols: []string{"subject_ns"},
 			},
 			expectedForExpanded: expected{
-				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND ((subject_object_id > ?) OR (subject_object_id = ? AND ns > ?) OR (subject_object_id = ? AND ns = ? AND object_id > ?) OR (subject_object_id = ? AND ns = ? AND object_id = ? AND relation > ?) OR (subject_object_id = ? AND ns = ? AND object_id = ? AND relation = ? AND subject_relation > ?))",
-				args:       []any{"somesubjectype", "foo", "bar", "next", "next", "someresourcetype", "next", "someresourcetype", "someresource", "next", "someresourcetype", "someresource", "viewer", "next", "someresourcetype", "someresource", "viewer", "..."},
+				sql:        "SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND ((subject_object_id > ?) OR (subject_object_id = ? AND subject_relation > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns = ? AND object_id > ?) OR (subject_object_id = ? AND subject_relation = ? AND ns = ? AND object_id = ? AND relation > ?))",
+				args:       []any{"somesubjectype", "foo", "bar", "next", "next", "...", "next", "...", "someresourcetype", "next", "...", "someresourcetype", "someresource", "next", "...", "someresourcetype", "someresource", "viewer"},
 				staticCols: []string{"subject_ns"},
 			},
 		},
@@ -1454,4 +1454,68 @@ func TestNewSchemaQueryFiltererWithStartingQuery(t *testing.T) {
 	expectedArgs := []any{"someid"}
 	require.Equal(t, expectedSQL, sqlQuery)
 	require.Equal(t, expectedArgs, args)
+}
+
+type fakeIndexingHint struct{}
+
+func (f *fakeIndexingHint) FromSQLSuffix() (string, error) {
+	return "WITH somesuffix", nil
+}
+
+// FromTable implements IndexingHint.
+func (f *fakeIndexingHint) FromTable(existingTableName string) (string, error) {
+	return existingTableName + "@someindex", nil
+}
+
+// SQLPrefix implements IndexingHint.
+func (f *fakeIndexingHint) SQLPrefix() (string, error) {
+	return "/*+ IndexHint */", nil
+}
+
+var _ IndexingHint = &fakeIndexingHint{}
+
+func TestIndexHint(t *testing.T) {
+	schema := NewSchemaInformationWithOptions(
+		WithRelationshipTableName("relationtuples"),
+		WithColNamespace("ns"),
+		WithColObjectID("object_id"),
+		WithColRelation("relation"),
+		WithColUsersetNamespace("subject_ns"),
+		WithColUsersetObjectID("subject_object_id"),
+		WithColUsersetRelation("subject_relation"),
+		WithColCaveatName("caveat"),
+		WithColCaveatContext("caveat_context"),
+		WithColExpiration("expiration"),
+		WithPlaceholderFormat(sq.Question),
+		WithPaginationFilterType(TupleComparison),
+		WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+		WithNowFunction("NOW"),
+		WithExpirationDisabled(true),
+	)
+
+	filterer := NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100)
+	filterer = filterer.WithIndexingHint(&fakeIndexingHint{})
+	filterer = filterer.FilterToResourceType("sometype")
+	filterer = filterer.MustFilterToResourceIDs([]string{"someid"})
+
+	expectedSQL := "/*+ IndexHint */ SELECT relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples@someindex WITH somesuffix WHERE ns = ? AND object_id IN (?)"
+	expectedArgs := []any{"sometype", "someid"}
+
+	var wasRun bool
+	fake := QueryRelationshipsExecutor{
+		Executor: func(ctx context.Context, builder RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
+			sql, args, err := builder.SelectSQL()
+			require.NoError(t, err)
+
+			require.Equal(t, expectedSQL, sql)
+			require.Equal(t, expectedArgs, args)
+
+			wasRun = true
+			return nil, nil
+		},
+	}
+
+	_, err := fake.ExecuteQuery(context.Background(), filterer)
+	require.NoError(t, err)
+	require.True(t, wasRun)
 }
