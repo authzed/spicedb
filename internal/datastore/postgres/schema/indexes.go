@@ -104,3 +104,39 @@ var pgIndexes = []common.IndexDefinition{
 	IndexSortedRelationTupleTransaction,
 	IndexGCDeadRelationships,
 }
+
+var NoIndexingHint common.IndexingHint = nil
+
+// IndexingHintForQueryShape returns an indexing hint for the given query shape, if any.
+func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Shape) common.IndexingHint {
+	switch qs {
+	case queryshape.MatchingResourcesForSubject:
+		return forcedIndex{schema.RelationshipTableName, IndexRelationshipBySubject}
+
+	case queryshape.FindSubjectOfType:
+		return forcedIndex{schema.RelationshipTableName, IndexRelationshipBySubject}
+
+	default:
+		return nil
+	}
+}
+
+// forcedIndex is an index hint that forces the use of a specific index.
+type forcedIndex struct {
+	tableName string
+	index     common.IndexDefinition
+}
+
+func (f forcedIndex) FromSQLSuffix() (string, error) {
+	return "", nil
+}
+
+func (f forcedIndex) FromTable(existingTableName string) (string, error) {
+	return existingTableName, nil
+}
+
+func (f forcedIndex) SQLPrefix() (string, error) {
+	return "/*+ IndexOnlyScan(" + f.tableName + " " + f.index.Name + ") */", nil
+}
+
+var _ common.IndexingHint = forcedIndex{}
