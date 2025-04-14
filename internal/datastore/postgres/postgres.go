@@ -312,6 +312,11 @@ func newPostgresDatastore(
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
+	isolationLevel := pgx.Serializable
+	if config.relaxedIsolationLevel {
+		isolationLevel = pgx.RepeatableRead
+	}
+
 	datastore := &pgDatastore{
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
@@ -340,6 +345,7 @@ func newPostgresDatastore(
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		schema:                  *schema.Schema(config.columnOptimizationOption, config.expirationDisabled),
 		quantizationPeriodNanos: quantizationPeriodNanos,
+		isolationLevel:          isolationLevel,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -410,6 +416,7 @@ type pgDatastore struct {
 	gcHasRun                atomic.Bool
 	filterMaximumIDCount    uint16
 	quantizationPeriodNanos int64
+	isolationLevel          pgx.TxIsoLevel
 }
 
 func (pgd *pgDatastore) MetricsID() (string, error) {
@@ -458,7 +465,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
 		var newXID xid8
 		var newSnapshot pgSnapshot
-		err = wrapError(pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
+		err = wrapError(pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgd.isolationLevel}, func(tx pgx.Tx) error {
 			var err error
 			var metadata map[string]any
 			if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {

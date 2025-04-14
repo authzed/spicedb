@@ -65,6 +65,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.ConnectRate = c.ConnectRate
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
+		to.RelaxedIsolationLevel = c.RelaxedIsolationLevel
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
 		to.SpannerCredentialsJSON = c.SpannerCredentialsJSON
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
@@ -122,6 +123,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["ConnectRate"] = helpers.DebugValue(c.ConnectRate, false)
 	debugMap["GCInterval"] = helpers.DebugValue(c.GCInterval, false)
 	debugMap["GCMaxOperationTime"] = helpers.DebugValue(c.GCMaxOperationTime, false)
+	debugMap["RelaxedIsolationLevel"] = helpers.DebugValue(c.RelaxedIsolationLevel, false)
 	debugMap["SpannerCredentialsFile"] = helpers.DebugValue(c.SpannerCredentialsFile, false)
 	debugMap["SpannerCredentialsJSON"] = helpers.SensitiveDebugValue(c.SpannerCredentialsJSON)
 	debugMap["SpannerEmulatorHost"] = helpers.DebugValue(c.SpannerEmulatorHost, false)
@@ -415,6 +417,13 @@ func WithGCInterval(gCInterval time.Duration) ConfigOption {
 func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.GCMaxOperationTime = gCMaxOperationTime
+	}
+}
+
+// WithRelaxedIsolationLevel returns an option that can set RelaxedIsolationLevel on a Config
+func WithRelaxedIsolationLevel(relaxedIsolationLevel bool) ConfigOption {
+	return func(c *Config) {
+		c.RelaxedIsolationLevel = relaxedIsolationLevel
 	}
 }
 
