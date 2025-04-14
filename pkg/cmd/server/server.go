@@ -430,8 +430,15 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("error building streaming middlewares: %w", err)
 	}
 
+	// NOTE: Preconditions are disabled if the isolation level is relaxed, as we cannot
+	// ensure the transactional guarantees of preconditions in that case.
+	maxPreconditionCount := c.MaximumPreconditionCount
+	if c.DatastoreConfig.RelaxedIsolationLevel {
+		maxPreconditionCount = 0
+	}
+
 	permSysConfig := v1svc.PermissionsServerConfig{
-		MaxPreconditionsCount:           c.MaximumPreconditionCount,
+		MaxPreconditionsCount:           maxPreconditionCount,
 		MaxUpdatesPerWrite:              c.MaximumUpdatesPerWrite,
 		MaximumAPIDepth:                 c.DispatchMaxDepth,
 		MaxCaveatContextSize:            c.MaxCaveatContextSize,
