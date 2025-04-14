@@ -56,6 +56,7 @@ type spannerOptions struct {
 	filterMaximumIDCount        uint16
 	columnOptimizationOption    common.ColumnOptimizationOption
 	expirationDisabled          bool
+	watchDisabled               bool
 	datastoreMetricsOption      DatastoreMetricsOption
 }
 
@@ -82,6 +83,7 @@ const (
 	defaultFilterMaximumIDCount        = 100
 	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionNone
 	defaultExpirationDisabled          = false
+	defaultWatchDisabled               = false
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -107,6 +109,7 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 		columnOptimizationOption:    defaultColumnOptimizationOption,
 		expirationDisabled:          defaultExpirationDisabled,
+		watchDisabled:               defaultWatchDisabled,
 	}
 
 	for _, option := range options {
@@ -283,5 +286,12 @@ func WithColumnOptimization(isEnabled bool) Option {
 func WithExpirationDisabled(isDisabled bool) Option {
 	return func(po *spannerOptions) {
 		po.expirationDisabled = isDisabled
+	}
+}
+
+// WithWatchDisabled disables watch support in the Spanner.
+func WithWatchDisabled(isDisabled bool) Option {
+	return func(po *spannerOptions) {
+		po.watchDisabled = isDisabled
 	}
 }

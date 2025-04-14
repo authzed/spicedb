@@ -82,6 +82,12 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
+	if !cds.watchEnabled {
+		close(updates)
+		errs <- datastore.NewWatchDisabledErr("watch API has been explicitly disabled for this datastore")
+		return updates, errs
+	}
+
 	if features.Watch.Status != datastore.FeatureSupported {
 		close(updates)
 		errs <- datastore.NewWatchDisabledErr(fmt.Sprintf("%s. See https://spicedb.dev/d/enable-watch-api-crdb", features.Watch.Reason))

@@ -225,9 +225,13 @@ func newPostgresDatastore(
 		return nil, err
 	}
 
-	watchEnabled := trackTSOn == "on"
+	watchEnabled := trackTSOn == "on" && !config.watchDisabled
 	if !watchEnabled {
-		log.Warn().Msg("watch API disabled, postgres must be run with track_commit_timestamp=on")
+		if config.watchDisabled {
+			log.Warn().Msg("watch API disabled via configuration")
+		} else {
+			log.Warn().Msg("watch API disabled, postgres must be run with track_commit_timestamp=on")
+		}
 	}
 
 	if config.enablePrometheusStats {

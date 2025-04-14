@@ -31,6 +31,7 @@ type postgresOptions struct {
 	gcEnabled                      bool
 	readStrictMode                 bool
 	expirationDisabled             bool
+	watchDisabled                  bool
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
 	revisionHeartbeatEnabled       bool
@@ -76,6 +77,7 @@ const (
 	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
 	defaultIncludeQueryParametersInTraces    = false
 	defaultExpirationDisabled                = false
+	defaultWatchDisabled                     = false
 	// no follower delay by default, it should only be set if using read replicas
 	defaultFollowerReadDelay = 0
 	defaultRevisionHeartbeat = true
@@ -104,6 +106,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		expirationDisabled:             defaultExpirationDisabled,
+		watchDisabled:                  defaultWatchDisabled,
 		followerReadDelay:              defaultFollowerReadDelay,
 		revisionHeartbeatEnabled:       defaultRevisionHeartbeat,
 	}
@@ -427,4 +430,9 @@ func WithExpirationDisabled(isDisabled bool) Option {
 // WithRevisionHeartbeat enables the revision heartbeat.
 func WithRevisionHeartbeat(isEnabled bool) Option {
 	return func(po *postgresOptions) { po.revisionHeartbeatEnabled = isEnabled }
+}
+
+// WithWatchDisabled disables the watch functionality.
+func WithWatchDisabled(isDisabled bool) Option {
+	return func(po *postgresOptions) { po.watchDisabled = isDisabled }
 }

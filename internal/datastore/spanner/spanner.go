@@ -86,6 +86,7 @@ type spannerDatastore struct {
 
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
+	watchEnabled            bool
 
 	client   *spanner.Client
 	config   spannerOptions
@@ -224,6 +225,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		database:                                database,
 		watchBufferWriteTimeout:                 config.watchBufferWriteTimeout,
 		watchBufferLength:                       config.watchBufferLength,
+		watchEnabled:                            !config.watchDisabled,
 		cachedEstimatedBytesPerRelationship:     0,
 		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
 		tableSizesStatsTable:                    tableSizesStatsTable,
@@ -373,9 +375,14 @@ func (sd *spannerDatastore) Features(ctx context.Context) (*datastore.Features, 
 }
 
 func (sd *spannerDatastore) OfflineFeatures() (*datastore.Features, error) {
+	watchSupported := datastore.FeatureUnsupported
+	if sd.watchEnabled {
+		watchSupported = datastore.FeatureSupported
+	}
+
 	return &datastore.Features{
 		Watch: datastore.Feature{
-			Status: datastore.FeatureSupported,
+			Status: watchSupported,
 		},
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureUnsupported,

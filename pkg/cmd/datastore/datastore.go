@@ -168,6 +168,7 @@ type Config struct {
 	WatchBufferLength       uint16        `debugmap:"visible"`
 	WatchBufferWriteTimeout time.Duration `debugmap:"visible"`
 	WatchConnectTimeout     time.Duration `debugmap:"visible"`
+	DisableWatchSupport     bool          `debugmap:"hidden"`
 
 	// Migrations
 	MigrationPhase    string   `debugmap:"visible"`
@@ -275,6 +276,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
 	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (cockroachdb driver only)")
+	flagSet.BoolVar(&opts.DisableWatchSupport, flagName("datastore-disable-watch-support"), false, "disable watch support (only enable if you absolutely do not need watch)")
 	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (postgres and CRDB drivers only)")
 
 	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. only supported on CRDB")
@@ -326,6 +328,7 @@ func DefaultDatastoreConfig() *Config {
 		WatchBufferLength:                        1024,
 		WatchBufferWriteTimeout:                  1 * time.Second,
 		WatchConnectTimeout:                      1 * time.Second,
+		DisableWatchSupport:                      false,
 		EnableDatastoreMetrics:                   true,
 		DisableStats:                             false,
 		BootstrapFiles:                           []string{},
@@ -554,6 +557,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		crdb.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 		crdb.WithExpirationDisabled(!opts.EnableExperimentalRelationshipExpiration),
+		crdb.WithWatchDisabled(opts.DisableWatchSupport),
 	)
 }
 
@@ -644,6 +648,7 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
 		postgres.WatchBufferLength(opts.WatchBufferLength),
 		postgres.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
+		postgres.WithWatchDisabled(opts.DisableWatchSupport),
 		postgres.MigrationPhase(opts.MigrationPhase),
 		postgres.AllowedMigrations(opts.AllowedMigrations),
 		postgres.WithRevisionHeartbeat(opts.EnableRevisionHeartbeat),
@@ -689,6 +694,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		spanner.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		spanner.WithExpirationDisabled(!opts.EnableExperimentalRelationshipExpiration),
+		spanner.WithWatchDisabled(opts.DisableWatchSupport),
 	)
 }
 
@@ -768,6 +774,7 @@ func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datas
 		mysql.ConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
 		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
+		mysql.WithWatchDisabled(opts.DisableWatchSupport),
 		mysql.CredentialsProviderName(opts.CredentialsProviderName),
 		mysql.FollowerReadDelay(opts.FollowerReadDelay),
 	}

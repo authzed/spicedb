@@ -107,6 +107,11 @@ func (sd *spannerDatastore) watch(
 		errs <- err
 	}
 
+	if !sd.watchEnabled {
+		sendError(datastore.NewWatchDisabledErr("watch disabled in this datastore"))
+		return
+	}
+
 	watchBufferWriteTimeout := opts.WatchBufferWriteTimeout
 	if watchBufferWriteTimeout <= 0 {
 		watchBufferWriteTimeout = sd.watchBufferWriteTimeout
