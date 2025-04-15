@@ -119,7 +119,7 @@ func CoreRR(namespace, relation string) *core.RelationReference {
 	}
 }
 
-// FromCoreRelationshipReference creates a RelationshipReference from a core.RelationshipReference.
+// FromCoreRelationReference creates a RelationReference from a core.RelationReference.
 func FromCoreRelationReference(rr *core.RelationReference) RelationReference {
 	spiceerrors.DebugAssert(func() bool {
 		return rr.Validate() == nil

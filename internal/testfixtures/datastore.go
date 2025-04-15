@@ -230,7 +230,7 @@ func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
 }
 
 // DatastoreFromSchemaAndTestRelationships returns a validating datastore wrapping that specified,
-// loaded with the given scehma and relationships.
+// loaded with the given schema and relationships.
 func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema string, relationships []tuple.Relationship, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ctx := context.Background()
 	validating := NewValidatingDatastore(ds)

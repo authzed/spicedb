@@ -18,7 +18,7 @@ import (
 
 var (
 	// DispatchedCountLabels are the labels that DispatchedCountHistogram will
-	// have have by default.
+	// have by default.
 	DispatchedCountLabels = []string{"method", "cached"}
 
 	// DispatchedCountHistogram is the metric that SpiceDB uses to keep track
