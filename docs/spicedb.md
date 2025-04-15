@@ -99,7 +99,7 @@ spicedb datastore gc [flags]
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                          set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration           maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -118,7 +118,7 @@ spicedb datastore gc [flags]
       --datastore-spanner-credentials string                                  path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)
       --datastore-spanner-emulator-host string                                URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
       --datastore-spanner-max-sessions uint                                   maximum number of sessions across all Spanner gRPC connections the client can have at a given time (default 400)
-      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus") (default "otel")
+      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-spanner-min-sessions uint                                   minimum number of sessions across all Spanner gRPC connections the client can have at a given time (default 100)
       --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
@@ -265,7 +265,7 @@ spicedb datastore repair [flags]
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                          set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration           maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -284,7 +284,7 @@ spicedb datastore repair [flags]
       --datastore-spanner-credentials string                                  path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)
       --datastore-spanner-emulator-host string                                URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
       --datastore-spanner-max-sessions uint                                   maximum number of sessions across all Spanner gRPC connections the client can have at a given time (default 400)
-      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus") (default "otel")
+      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-spanner-min-sessions uint                                   minimum number of sessions across all Spanner gRPC connections the client can have at a given time (default 100)
       --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
@@ -452,7 +452,7 @@ spicedb serve [flags]
       --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                                    set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics                                                    set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration             amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration                     maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration                     maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -472,7 +472,7 @@ spicedb serve [flags]
       --datastore-spanner-credentials string                                            path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)
       --datastore-spanner-emulator-host string                                          URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
       --datastore-spanner-max-sessions uint                                             maximum number of sessions across all Spanner gRPC connections the client can have at a given time (default 400)
-      --datastore-spanner-metrics string                                                configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus") (default "otel")
+      --datastore-spanner-metrics string                                                configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-spanner-min-sessions uint                                             minimum number of sessions across all Spanner gRPC connections the client can have at a given time (default 100)
       --datastore-tx-overlap-key string                                                 static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                            strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
