@@ -328,13 +328,40 @@ func (cds *crdbDatastore) ReadWriteTx(
 			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier, cds),
 		}
 
-		// Metadata flag is required if expiration and watch are both enabled,
-		// to allow expired deletions to be filtered from the watch stream.
-		requiresMetadataFlag := cds.expirationEnabled && cds.watchEnabled
+		reader := &crdbReader{
+			schema:               cds.schema,
+			query:                querier,
+			executor:             executor,
+			keyer:                cds.writeOverlapKeyer,
+			overlapKeySet:        cds.overlapKeyInit(ctx),
+			filterMaximumIDCount: cds.filterMaximumIDCount,
+			withIntegrity:        cds.supportsIntegrity,
+			atSpecificRevision:   "", // No AS OF SYSTEM TIME for writes
+		}
 
-		// Write metadata onto the transaction.
+		rwt := &crdbReadWriteTXN{
+			reader,
+			tx,
+			0,
+			false,
+		}
+
+		if err := f(ctx, rwt); err != nil {
+			return err
+		}
+
+		// A transaction metadata entry is required if either:
+		// 1) len(metadata) > 0, which requires writing the metadata provided
+		// 2) metadata is required to mark the transaction as not matching
+		//    a deletion of expired relationships.
+		//
+		//    A transaction is marked as such IF and only IF the operations in the transaction
+		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watc
+		//    changefeed that the transaction is not a deletion of expired relationships performed
+		//    by CRDB itself. This is also only necessary if both expiration and watch are enabled.
 		metadata := config.Metadata.AsMap()
-		if len(metadata) > 0 || requiresMetadataFlag {
+		requiresMetadata := len(metadata) > 0 || (cds.expirationEnabled && cds.watchEnabled && !rwt.hasNonExpiredDeletionChange)
+		if requiresMetadata {
 			// Mark the transaction as coming from SpiceDB. See the comment in watch.go
 			// for why this is necessary.
 			metadata[spicedbTransactionKey] = true
@@ -352,27 +379,6 @@ func (cds *crdbDatastore) ReadWriteTx(
 			if _, err := tx.Exec(ctx, sql, args...); err != nil {
 				return fmt.Errorf("error writing metadata: %w", err)
 			}
-		}
-
-		reader := &crdbReader{
-			schema:               cds.schema,
-			query:                querier,
-			executor:             executor,
-			keyer:                cds.writeOverlapKeyer,
-			overlapKeySet:        cds.overlapKeyInit(ctx),
-			filterMaximumIDCount: cds.filterMaximumIDCount,
-			withIntegrity:        cds.supportsIntegrity,
-			atSpecificRevision:   "", // No AS OF SYSTEM TIME for writes
-		}
-
-		rwt := &crdbReadWriteTXN{
-			reader,
-			tx,
-			0,
-		}
-
-		if err := f(ctx, rwt); err != nil {
-			return err
 		}
 
 		// Touching the transaction key happens last so that the "write intent" for
