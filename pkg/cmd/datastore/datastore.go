@@ -145,8 +145,9 @@ type Config struct {
 	ConnectRate               time.Duration `debugmap:"visible"`
 
 	// Postgres
-	GCInterval         time.Duration `debugmap:"visible"`
-	GCMaxOperationTime time.Duration `debugmap:"visible"`
+	GCInterval            time.Duration `debugmap:"visible"`
+	GCMaxOperationTime    time.Duration `debugmap:"visible"`
+	RelaxedIsolationLevel bool          `debugmap:"visible"`
 
 	// Spanner
 	SpannerCredentialsFile        string `debugmap:"visible"`
@@ -287,6 +288,11 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	// disabling stats is only for tests
 	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
 	if err := flagSet.MarkHidden(flagName("datastore-disable-stats")); err != nil {
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
+	}
+
+	flagSet.BoolVar(&opts.RelaxedIsolationLevel, flagName("datastore-relaxed-isolation-level"), false, "used to relax the isolation level used in transactions (postgres driver only)")
+	if err := flagSet.MarkHidden(flagName("datastore-relaxed-isolation-level")); err != nil {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
@@ -652,6 +658,7 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.MigrationPhase(opts.MigrationPhase),
 		postgres.AllowedMigrations(opts.AllowedMigrations),
 		postgres.WithRevisionHeartbeat(opts.EnableRevisionHeartbeat),
+		postgres.WithRelaxedIsolationLevel(opts.RelaxedIsolationLevel),
 	}
 
 	commonOptions, err := commonPostgresDatastoreOptions(opts)
