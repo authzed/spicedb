@@ -67,6 +67,9 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
+	// Force the proper index for the GC operation.
+	sql = "/*+ IndexOnlyScan(" + schema.TableTransaction + " " + schema.IndexSortedRelationTupleTransaction.Name + ") */" + sql
+
 	var value xid8
 	var snapshot pgSnapshot
 	err = pgd.readPool.QueryRow(ctx, sql, args...).Scan(&value, &snapshot)
@@ -92,6 +95,7 @@ func (pgd *pgDatastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
 		schema.TableTuple,
 		gcPKCols,
 		sq.Lt{schema.ColExpiration: now.Add(-1 * pgd.gcWindow)},
+		&schema.IndexExpiringRelationships,
 	)
 }
 
@@ -107,6 +111,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		schema.TableTuple,
 		gcPKCols,
 		sq.Lt{schema.ColDeletedXid: minTxAlive},
+		&schema.IndexGCDeadRelationships,
 	)
 	if err != nil {
 		return removed, fmt.Errorf("failed to GC relationships table: %w", err)
@@ -121,6 +126,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		schema.TableTransaction,
 		gcPKCols,
 		sq.Lt{schema.ColXID: minTxAlive},
+		nil,
 	)
 	if err != nil {
 		return removed, fmt.Errorf("failed to GC transactions table: %w", err)
@@ -132,6 +138,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		schema.TableNamespace,
 		gcPKCols,
 		sq.Lt{schema.ColDeletedXid: minTxAlive},
+		nil,
 	)
 	if err != nil {
 		return removed, fmt.Errorf("failed to GC namespaces table: %w", err)
@@ -145,10 +152,15 @@ func (pgd *pgDatastore) batchDelete(
 	tableName string,
 	pkCols []string,
 	filter sqlFilter,
+	index *common.IndexDefinition,
 ) (int64, error) {
 	sql, args, err := psql.Select(pkCols...).From(tableName).Where(filter).Limit(gcBatchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
+	}
+	if index != nil {
+		// Force the proper index for the GC operation.
+		sql = "/*+ IndexOnlyScan(" + tableName + " " + index.Name + ") */" + sql
 	}
 
 	pkColsExpression := strings.Join(pkCols, ", ")

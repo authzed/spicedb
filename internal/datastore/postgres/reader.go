@@ -157,6 +157,10 @@ func (r *pgReader) QueryRelationships(
 		return nil, err
 	}
 
+	builtOpts := options.NewQueryOptionsWithOptions(opts...)
+	indexingHint := schema.IndexingHintForQueryShape(r.schema, builtOpts.QueryShape)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
+
 	return r.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
@@ -179,6 +183,9 @@ func (r *pgReader) ReverseQueryRelationships(
 			FilterToResourceType(queryOpts.ResRelation.Namespace).
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
+
+	indexingHint := schema.IndexingHintForQueryShape(r.schema, queryOpts.QueryShapeForReverse)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
 	return r.executor.ExecuteQuery(ctx,
 		qBuilder,
