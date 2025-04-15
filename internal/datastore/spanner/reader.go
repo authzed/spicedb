@@ -140,6 +140,10 @@ func (sr spannerReader) QueryRelationships(
 		return nil, err
 	}
 
+	builtOpts := options.NewQueryOptionsWithOptions(opts...)
+	indexingHint := IndexingHintForQueryShape(sr.schema, builtOpts.QueryShape)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
+
 	return sr.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
@@ -161,6 +165,9 @@ func (sr spannerReader) ReverseQueryRelationships(
 			FilterToResourceType(queryOpts.ResRelation.Namespace).
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
+
+	indexingHint := IndexingHintForQueryShape(sr.schema, queryOpts.QueryShapeForReverse)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
 	return sr.executor.ExecuteQuery(ctx,
 		qBuilder,

@@ -207,6 +207,18 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		common.WithPlaceholderFormat(sq.AtP),
 		common.WithNowFunction("CURRENT_TIMESTAMP"),
 		common.WithColumnOptimization(config.columnOptimizationOption),
+
+		// NOTE: this order differs from the default because the index
+		// used for sorting by subject (ix_relation_tuple_by_subject) is
+		// defined with the userset object ID first.
+		common.SetSortBySubjectColumnOrder([]string{
+			colUsersetObjectID,
+			colUsersetNamespace,
+			colUsersetRelation,
+			colNamespace,
+			colRelation,
+			colObjectID,
+		}),
 	)
 
 	ds := &spannerDatastore{
