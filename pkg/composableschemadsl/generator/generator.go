@@ -168,7 +168,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 		return fmt.Errorf("invalid caveat parameters: %w", err)
 	}
 
-	deserializedExpression, err := caveats.DeserializeCaveat(caveat.SerializedExpression, parameterTypes)
+	deserializedExpression, err := caveats.DeserializeCaveatWithTypeSet(sg.caveatTypeSet, caveat.SerializedExpression, parameterTypes)
 	if err != nil {
 		return fmt.Errorf("invalid caveat expression bytes: %w", err)
 	}

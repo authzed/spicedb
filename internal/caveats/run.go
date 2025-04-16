@@ -138,7 +138,7 @@ func (cr *CaveatRunner) get(caveatDefName string) (*core.CaveatDefinition, *cave
 		return nil, nil, err
 	}
 
-	justDeserialized, err := caveats.DeserializeCaveat(caveat.SerializedExpression, parameterTypes)
+	justDeserialized, err := caveats.DeserializeCaveatWithTypeSet(cr.caveatTypeSet, caveat.SerializedExpression, parameterTypes)
 	if err != nil {
 		return caveat, nil, err
 	}

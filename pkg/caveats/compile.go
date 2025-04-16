@@ -184,17 +184,34 @@ func compileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 
 // DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.
 func DeserializeCaveat(serialized []byte, parameterTypes map[string]types.VariableType) (*CompiledCaveat, error) {
+	env, err := EnvForVariables(parameterTypes)
+	if err != nil {
+		return nil, err
+	}
+
+	return DeserializeCaveatWithEnviroment(env, serialized)
+}
+
+// DeserializeCaveatWithTypeSet deserializes a byte-serialized caveat back into a CompiledCaveat.
+func DeserializeCaveatWithTypeSet(ts *types.TypeSet, serialized []byte, parameterTypes map[string]types.VariableType) (*CompiledCaveat, error) {
+	env, err := EnvForVariablesWithTypeSet(ts, parameterTypes)
+	if err != nil {
+		return nil, err
+	}
+
+	return DeserializeCaveatWithEnviroment(env, serialized)
+}
+
+// DeserializeCaveatWithEnviroment deserializes a byte-serialized caveat back into a CompiledCaveat,
+// using the provided environment. It is the responsibility of the caller to ensure that the environment
+// has the parameters defined as variables.
+func DeserializeCaveatWithEnviroment(env *Environment, serialized []byte) (*CompiledCaveat, error) {
 	if len(serialized) == 0 {
 		return nil, fmt.Errorf("given empty serialized")
 	}
 
 	caveat := &impl.DecodedCaveat{}
 	err := caveat.UnmarshalVT(serialized)
-	if err != nil {
-		return nil, err
-	}
-
-	env, err := EnvForVariables(parameterTypes)
 	if err != nil {
 		return nil, err
 	}
