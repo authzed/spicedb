@@ -117,20 +117,29 @@ func RegisterCustomType[T CustomType](ts *TypeSet, keyword string, baseCelType *
 	if ts.isFrozen {
 		return VariableType{}, fmt.Errorf("cannot register new types after the TypeSet is frozen")
 	}
-	ts.customTypes[keyword] = opts
+
+	if err := RegisterCustomCELOptions(ts, opts...); err != nil {
+		return VariableType{}, err
+	}
+
 	return RegisterBasicType(ts, keyword, baseCelType, converter)
 }
 
 // RegisterCustomTypeWithName registers a custom type with a specific name.
 func RegisterMethodOnDefinedType(ts *TypeSet, baseType *cel.Type, name string, args []*cel.Type, returnType *cel.Type, binding func(arg ...ref.Val) ref.Val) error {
-	if ts.isFrozen {
-		return fmt.Errorf("cannot register new types after the TypeSet is frozen")
-	}
-
 	finalArgs := make([]*cel.Type, 0, len(args)+1)
 	finalArgs = append(finalArgs, baseType)
 	finalArgs = append(finalArgs, args...)
 	method := cel.Function(name, cel.MemberOverload(name, finalArgs, returnType, cel.FunctionBinding(binding)))
-	ts.customMethodsOnTypes = append(ts.customMethodsOnTypes, method)
+
+	return RegisterCustomCELOptions(ts, method)
+}
+
+// RegisterCustomOptions registers custom CEL environment options for the TypeSet.
+func RegisterCustomCELOptions(ts *TypeSet, opts ...cel.EnvOption) error {
+	if ts.isFrozen {
+		return fmt.Errorf("cannot register new options after the TypeSet is frozen")
+	}
+	ts.customOptions = append(ts.customOptions, opts...)
 	return nil
 }
