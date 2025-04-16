@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -38,6 +39,7 @@ type optionState struct {
 	secondaryUpstreamExprs      map[string]string
 	dispatchChunkSize           uint16
 	startingPrimaryHedgingDelay time.Duration
+	caveatTypeSet               *caveattypes.TypeSet
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -140,6 +142,14 @@ func StartingPrimaryHedgingDelay(startingPrimaryHedgingDelay time.Duration) Opti
 	}
 }
 
+// CaveatTypeSet sets the type set to use for caveats. If not specified, the default
+// type set is used.
+func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
+	return func(state *optionState) {
+		state.caveatTypeSet = caveatTypeSet
+	}
+}
+
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
 func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
@@ -163,7 +173,9 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		chunkSize = 100
 		log.Warn().Msgf("CombinedDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
 	}
-	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits, chunkSize)
+
+	cts := caveattypes.TypeSetOrDefault(opts.caveatTypeSet)
+	redispatch := graph.NewDispatcher(cachingRedispatch, cts, opts.concurrencyLimits, chunkSize)
 	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 
 	// If an upstream is specified, create a cluster dispatcher.

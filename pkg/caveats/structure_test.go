@@ -18,7 +18,7 @@ func TestReferencedParameters(t *testing.T) {
 	}{
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"hi": types.BooleanType,
+				"hi": types.Default.BooleanType,
 			}),
 			"hi",
 			[]string{
@@ -27,8 +27,8 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"a": types.IntType,
-				"b": types.IntType,
+				"a": types.Default.IntType,
+				"b": types.Default.IntType,
 			}),
 			"a == 42",
 			[]string{
@@ -37,8 +37,8 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"a": types.MustMapType(types.StringType),
-				"b": types.StringType,
+				"a": types.Default.MustMapType(types.Default.StringType),
+				"b": types.Default.StringType,
 			}),
 			"a[b] == 'hi'",
 			[]string{
@@ -47,8 +47,8 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"name":  types.StringType,
-				"group": types.StringType,
+				"name":  types.Default.StringType,
+				"group": types.Default.StringType,
 			}),
 			`name.startsWith("/groups/" + group)`,
 			[]string{
@@ -57,7 +57,7 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"somemap": types.MustMapType(types.StringType),
+				"somemap": types.Default.MustMapType(types.Default.StringType),
 			}),
 			`somemap.foo == 'hi'`,
 			[]string{
@@ -66,8 +66,8 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"tweets":    types.MustListType(types.MustMapType(types.IntType)),
-				"something": types.IntType,
+				"tweets":    types.Default.MustListType(types.Default.MustMapType(types.Default.IntType)),
+				"something": types.Default.IntType,
 			}),
 			`tweets.all(t, t.size <= 140 && something > 42)`,
 			[]string{
@@ -77,8 +77,8 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"tweets":    types.MustListType(types.MustMapType(types.IntType)),
-				"something": types.IntType,
+				"tweets":    types.Default.MustListType(types.Default.MustMapType(types.Default.IntType)),
+				"something": types.Default.IntType,
 			}),
 			`tweets.all(t, t.size <= 140)`,
 			[]string{

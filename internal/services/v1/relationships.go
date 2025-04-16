@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -99,6 +100,10 @@ type PermissionsServerConfig struct {
 
 	// ExpiringRelationshipsEnabled defines whether or not expiring relationships are enabled.
 	ExpiringRelationshipsEnabled bool
+
+	// CaveatTypeSet is the set of caveat types to use for caveats. If not specified,
+	// the default type set is used.
+	CaveatTypeSet *caveattypes.TypeSet
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -120,6 +125,7 @@ func NewPermissionsServer(
 		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
 		DispatchChunkSize:               defaultIfZero(config.DispatchChunkSize, 100),
 		MaxCheckBulkConcurrency:         defaultIfZero(config.MaxCheckBulkConcurrency, 50),
+		CaveatTypeSet:                   caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
 		ExpiringRelationshipsEnabled:    true,
 	}
 
@@ -145,6 +151,7 @@ func NewPermissionsServer(
 			maxConcurrency:       configWithDefaults.MaxCheckBulkConcurrency,
 			dispatch:             dispatch,
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
+			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
 	}
 }
@@ -344,7 +351,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 		// Validate the updates.
 		span.AddEvent("validate updates")
-		err := relationships.ValidateRelationshipUpdates(ctx, rwt, relUpdates)
+		err := relationships.ValidateRelationshipUpdates(ctx, rwt, ps.config.CaveatTypeSet, relUpdates)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}

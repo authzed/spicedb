@@ -15,26 +15,26 @@ type testCase struct {
 func TestEncodeDecodeTypes(t *testing.T) {
 	tcs := []testCase{
 		{
-			vtype: IntType,
+			vtype: Default.IntType,
 		},
 		{
-			vtype: MustListType(IntType),
+			vtype: Default.MustListType(Default.IntType),
 		},
 		{
-			vtype: MustListType(StringType),
+			vtype: Default.MustListType(Default.StringType),
 		},
 		{
-			vtype: MustMapType(AnyType),
+			vtype: Default.MustMapType(Default.AnyType),
 		},
 		{
-			vtype: MustMapType(UIntType),
+			vtype: Default.MustMapType(Default.UIntType),
 		},
 		{
-			vtype: IPAddressType,
+			vtype: Default.IPAddressType,
 		},
 	}
 
-	for _, def := range definitions {
+	for _, def := range Default.definitions {
 		if def.childTypeCount == 0 {
 			v, err := def.asVariableType(nil)
 			require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestEncodeDecodeTypes(t *testing.T) {
 		tc := tc
 		t.Run(tc.vtype.String(), func(t *testing.T) {
 			encoded := EncodeParameterType(tc.vtype)
-			decoded, err := DecodeParameterType(encoded)
+			decoded, err := DecodeParameterType(Default.TypeSet, encoded)
 			require.NoError(t, err)
 			require.Equal(t, tc.vtype.String(), decoded.String())
 		})
@@ -56,7 +56,7 @@ func TestEncodeDecodeTypes(t *testing.T) {
 }
 
 func TestDecodeUnknownType(t *testing.T) {
-	_, err := DecodeParameterType(&core.CaveatTypeReference{
+	_, err := DecodeParameterType(Default.TypeSet, &core.CaveatTypeReference{
 		TypeName: "unknown",
 	})
 	require.NotNil(t, err)
@@ -64,7 +64,7 @@ func TestDecodeUnknownType(t *testing.T) {
 }
 
 func TestDecodeWrongChildTypeCount(t *testing.T) {
-	_, err := DecodeParameterType(&core.CaveatTypeReference{
+	_, err := DecodeParameterType(Default.TypeSet, &core.CaveatTypeReference{
 		TypeName: "list",
 	})
 	require.NotNil(t, err)

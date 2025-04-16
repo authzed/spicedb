@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -185,7 +186,7 @@ func BenchmarkServices(b *testing.B) {
 					contents, err := testFiles.ReadFile(bt.fileName)
 					require.NoError(b, err)
 
-					_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), ds, map[string][]byte{
+					_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), ds, caveattypes.Default.TypeSet, map[string][]byte{
 						"testfile": contents,
 					})
 					brequire.NoError(err)

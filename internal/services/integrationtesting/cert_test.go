@@ -28,6 +28,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -120,7 +121,7 @@ func TestCertRotation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1, 100)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 1, 100)),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(1000),
 		server.WithMaximumUpdatesPerWrite(1000),

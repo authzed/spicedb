@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -44,6 +45,7 @@ type Config struct {
 	MaxDeleteRelationshipsLimit     uint32                `debugmap:"visible"`
 	MaxLookupResourcesLimit         uint32                `debugmap:"visible"`
 	MaxBulkExportRelationshipsLimit uint32                `debugmap:"visible"`
+	CaveatTypeSet                   *caveattypes.TypeSet  `debugmap:"hidden"`
 }
 
 type RunnableTestServer interface {
@@ -61,10 +63,10 @@ func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, er
 func (c *Config) Complete() (RunnableTestServer, error) {
 	log.Ctx(context.Background()).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
 
-	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, defaultMaxChunkSize)
+	cts := caveattypes.TypeSetOrDefault(c.CaveatTypeSet)
 
-	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs)
-
+	dispatcher := graph.NewLocalOnlyDispatcher(cts, defaultConcurrencyLimit, defaultMaxChunkSize)
+	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs, cts)
 	healthManager := health.NewHealthManager(dispatcher, &datastoreReady{})
 
 	registerServices := func(srv *grpc.Server) {
@@ -85,6 +87,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 				MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
 				DispatchChunkSize:               defaultMaxChunkSize,
 				ExpiringRelationshipsEnabled:    true,
+				CaveatTypeSet:                   cts,
 			},
 			1*time.Second,
 		)

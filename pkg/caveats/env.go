@@ -11,12 +11,23 @@ import (
 
 // Environment defines the evaluation environment for a caveat.
 type Environment struct {
+	ts        *types.TypeSet
 	variables map[string]types.VariableType
 }
 
 // NewEnvironment creates and returns a new environment for compiling a caveat.
 func NewEnvironment() *Environment {
 	return &Environment{
+		ts:        types.Default.TypeSet,
+		variables: map[string]types.VariableType{},
+	}
+}
+
+// NewEnvironmentWithTypeSet creates and returns a new environment for compiling a caveat
+// with the given TypeSet.
+func NewEnvironmentWithTypeSet(ts *types.TypeSet) *Environment {
+	return &Environment{
+		ts:        ts,
 		variables: map[string]types.VariableType{},
 	}
 }
@@ -59,14 +70,15 @@ func (e *Environment) EncodedParametersTypes() map[string]*core.CaveatTypeRefere
 }
 
 // asCelEnvironment converts the exported Environment into an internal CEL environment.
-func (e *Environment) asCelEnvironment() (*cel.Env, error) {
-	opts := make([]cel.EnvOption, 0, len(e.variables)+len(types.CustomTypes)+2)
-
-	// Add the custom types and functions.
-	for _, customTypeOpts := range types.CustomTypes {
-		opts = append(opts, customTypeOpts...)
+func (e *Environment) asCelEnvironment(extraOptions ...cel.EnvOption) (*cel.Env, error) {
+	tsOptions, err := e.ts.EnvOptions()
+	if err != nil {
+		return nil, err
 	}
-	opts = append(opts, types.CustomMethodsOnTypes...)
+
+	opts := make([]cel.EnvOption, 0, len(extraOptions)+len(e.variables)+len(tsOptions)+2)
+	opts = append(opts, extraOptions...)
+	opts = append(opts, tsOptions...)
 
 	// Set options.
 	// DefaultUTCTimeZone: ensure all timestamps are evaluated at UTC

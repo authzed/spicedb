@@ -357,7 +357,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 			"document",
 			ns.MustCaveatDefinition(caveats.MustEnvForVariables(
 				map[string]caveattypes.VariableType{
-					"somevar": caveattypes.IntType,
+					"somevar": caveattypes.Default.IntType,
 				},
 			), "somecaveat", "somevar < 42"),
 			"somecaveat",

@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/diff/caveats"
 	"github.com/authzed/spicedb/pkg/diff/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -100,7 +101,7 @@ func TestDiffSchemas(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			diff, err := DiffSchemas(NewDiffableSchemaFromCompiledSchema(existingSchema), NewDiffableSchemaFromCompiledSchema(comparisonSchema))
+			diff, err := DiffSchemas(NewDiffableSchemaFromCompiledSchema(existingSchema), NewDiffableSchemaFromCompiledSchema(comparisonSchema), caveattypes.Default.TypeSet)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedDiff, *diff)
 		})
@@ -120,7 +121,7 @@ func TestDiffSchemasWithChangedNamespace(t *testing.T) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(t, err)
 
-	diff, err := DiffSchemas(NewDiffableSchemaFromCompiledSchema(existingSchema), NewDiffableSchemaFromCompiledSchema(comparisonSchema))
+	diff, err := DiffSchemas(NewDiffableSchemaFromCompiledSchema(existingSchema), NewDiffableSchemaFromCompiledSchema(comparisonSchema), caveattypes.Default.TypeSet)
 	require.NoError(t, err)
 
 	require.Len(t, diff.ChangedNamespaces, 1)
@@ -143,7 +144,7 @@ func TestDiffSchemasWithChangedCaveat(t *testing.T) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(t, err)
 
-	diff, err := DiffSchemas(NewDiffableSchemaFromCompiledSchema(existingSchema), NewDiffableSchemaFromCompiledSchema(comparisonSchema))
+	diff, err := DiffSchemas(NewDiffableSchemaFromCompiledSchema(existingSchema), NewDiffableSchemaFromCompiledSchema(comparisonSchema), caveattypes.Default.TypeSet)
 	require.NoError(t, err)
 
 	require.Len(t, diff.ChangedCaveats, 1)
@@ -167,7 +168,7 @@ func TestDiffSchemasWithChangedCaveatComment(t *testing.T) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(t, err)
 
-	diff, err := DiffSchemas(NewDiffableSchemaFromCompiledSchema(existingSchema), NewDiffableSchemaFromCompiledSchema(comparisonSchema))
+	diff, err := DiffSchemas(NewDiffableSchemaFromCompiledSchema(existingSchema), NewDiffableSchemaFromCompiledSchema(comparisonSchema), caveattypes.Default.TypeSet)
 	require.NoError(t, err)
 
 	require.Len(t, diff.ChangedCaveats, 1)

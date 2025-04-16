@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -79,13 +80,13 @@ func SharedConcurrencyLimits(concurrencyLimit uint16) ConcurrencyLimits {
 }
 
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
-func NewLocalOnlyDispatcher(concurrencyLimit uint16, dispatchChunkSize uint16) dispatch.Dispatcher {
-	return NewLocalOnlyDispatcherWithLimits(SharedConcurrencyLimits(concurrencyLimit), dispatchChunkSize)
+func NewLocalOnlyDispatcher(typeSet *caveattypes.TypeSet, concurrencyLimit uint16, dispatchChunkSize uint16) dispatch.Dispatcher {
+	return NewLocalOnlyDispatcherWithLimits(typeSet, SharedConcurrencyLimits(concurrencyLimit), dispatchChunkSize)
 }
 
 // NewLocalOnlyDispatcherWithLimits creates a dispatcher thatg consults with the graph to formulate a response
 // and has the defined concurrency limits per dispatch type.
-func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
+func NewLocalOnlyDispatcherWithLimits(typeSet *caveattypes.TypeSet, concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
 	d := &localDispatcher{}
 
 	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
@@ -98,14 +99,14 @@ func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits, dispa
 	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check, chunkSize)
 	d.expander = graph.NewConcurrentExpander(d)
 	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects, chunkSize)
-	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, concurrencyLimits.LookupResources, chunkSize)
+	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, typeSet, concurrencyLimits.LookupResources, chunkSize)
 
 	return d
 }
 
 // NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
 // the provided redispatcher.
-func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
+func NewDispatcher(redispatcher dispatch.Dispatcher, typeSet *caveattypes.TypeSet, concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
 	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
 	chunkSize := dispatchChunkSize
 	if chunkSize == 0 {
@@ -116,7 +117,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check, chunkSize)
 	expander := graph.NewConcurrentExpander(redispatcher)
 	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects, chunkSize)
-	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, concurrencyLimits.LookupResources, chunkSize)
+	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, typeSet, concurrencyLimits.LookupResources, chunkSize)
 
 	return &localDispatcher{
 		checker:                 checker,

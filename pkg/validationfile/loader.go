@@ -9,6 +9,7 @@ import (
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -39,7 +40,7 @@ type PopulatedValidationFile struct {
 
 // PopulateFromFiles populates the given datastore with the namespaces and tuples found in
 // the validation file(s) specified.
-func PopulateFromFiles(ctx context.Context, ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, datastore.Revision, error) {
+func PopulateFromFiles(ctx context.Context, ds datastore.Datastore, caveatTypeSet *caveattypes.TypeSet, filePaths []string) (*PopulatedValidationFile, datastore.Revision, error) {
 	contents := map[string][]byte{}
 
 	for _, filePath := range filePaths {
@@ -51,12 +52,12 @@ func PopulateFromFiles(ctx context.Context, ds datastore.Datastore, filePaths []
 		contents[filePath] = fileContents
 	}
 
-	return PopulateFromFilesContents(ctx, ds, contents)
+	return PopulateFromFilesContents(ctx, ds, caveatTypeSet, contents)
 }
 
 // PopulateFromFilesContents populates the given datastore with the namespaces and tuples found in
 // the validation file(s) contents specified.
-func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
+func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, caveatTypeSet *caveattypes.TypeSet, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
 	var schemaStr string
 	var objectDefs []*core.NamespaceDefinition
 	var caveatDefs []*core.CaveatDefinition
@@ -154,7 +155,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 			chunkedRels = append(chunkedRels, update.Relationship)
 		}
 		revision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, chunkedRels...)
+			err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, caveatTypeSet, chunkedRels...)
 			if err != nil {
 				return err
 			}

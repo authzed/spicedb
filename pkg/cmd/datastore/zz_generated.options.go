@@ -2,6 +2,7 @@
 package datastore
 
 import (
+	types "github.com/authzed/spicedb/pkg/caveats/types"
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
 	"time"
@@ -53,6 +54,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.BootstrapFileContents = c.BootstrapFileContents
 		to.BootstrapOverwrite = c.BootstrapOverwrite
 		to.BootstrapTimeout = c.BootstrapTimeout
+		to.CaveatTypeSet = c.CaveatTypeSet
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
 		to.RequestHedgingInitialSlowValue = c.RequestHedgingInitialSlowValue
 		to.RequestHedgingMaxRequests = c.RequestHedgingMaxRequests
@@ -333,6 +335,13 @@ func WithBootstrapOverwrite(bootstrapOverwrite bool) ConfigOption {
 func WithBootstrapTimeout(bootstrapTimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.BootstrapTimeout = bootstrapTimeout
+	}
+}
+
+// WithCaveatTypeSet returns an option that can set CaveatTypeSet on a Config
+func WithCaveatTypeSet(caveatTypeSet *types.TypeSet) ConfigOption {
+	return func(c *Config) {
+		c.CaveatTypeSet = caveatTypeSet
 	}
 }
 

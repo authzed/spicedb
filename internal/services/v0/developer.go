@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 )
@@ -123,7 +124,7 @@ func upgradeSchema(configs []string) (string, error) {
 			return "", fmt.Errorf("could not upgrade schema due to parse error: %w", nerr)
 		}
 
-		generated, _, err := generator.GenerateSource(&nsDef)
+		generated, _, err := generator.GenerateSource(&nsDef, caveattypes.Default.TypeSet)
 		if err != nil {
 			return "", err
 		}
