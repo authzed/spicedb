@@ -34,7 +34,12 @@ func NewEnvironmentWithTypeSet(ts *types.TypeSet) *Environment {
 
 // EnvForVariables returns a new environment constructed for the given variables.
 func EnvForVariables(vars map[string]types.VariableType) (*Environment, error) {
-	e := NewEnvironment()
+	return EnvForVariablesWithTypeSet(types.Default.TypeSet, vars)
+}
+
+// EnvForVariablesWithTypeSet returns a new environment constructed for the given variables.
+func EnvForVariablesWithTypeSet(ts *types.TypeSet, vars map[string]types.VariableType) (*Environment, error) {
+	e := NewEnvironmentWithTypeSet(ts)
 	for varName, varType := range vars {
 		err := e.AddVariable(varName, varType)
 		if err != nil {
