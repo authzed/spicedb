@@ -13,14 +13,9 @@ type TypeSet struct {
 	// definitions holds the set of all types defined and exported by this package, by name.
 	definitions map[string]typeDefinition
 
-	// customTypes holds the set of custom types defined and exported by this package. This is exported
-	// so that the CEL environment construction can apply the necessary env options for the custom
-	// types.
-	customTypes map[string][]cel.EnvOption
-
-	// customMethodsOnTypes holds a set of new methods applied over defined types. This is exported
-	// so that the CEL environment construction can apply the necessary env options to support these methods
-	customMethodsOnTypes []cel.EnvOption
+	// customOptions holds a set of custom options that can be used to create a CEL environment
+	// for the caveat.
+	customOptions []cel.EnvOption
 
 	// isFrozen indicates whether the TypeSet is frozen. A frozen TypeSet cannot be modified.
 	isFrozen bool
@@ -37,13 +32,7 @@ func (ts *TypeSet) EnvOptions() ([]cel.EnvOption, error) {
 	if !ts.isFrozen {
 		return nil, fmt.Errorf("cannot get env options from a non-frozen TypeSet")
 	}
-
-	envOptions := []cel.EnvOption{}
-	for _, options := range ts.customTypes {
-		envOptions = append(envOptions, options...)
-	}
-	envOptions = append(envOptions, ts.customMethodsOnTypes...)
-	return envOptions, nil
+	return ts.customOptions, nil
 }
 
 // BuildType builds a variable type from its name and child types.
@@ -63,9 +52,8 @@ func (ts *TypeSet) BuildType(name string, childTypes []VariableType) (*VariableT
 // NewTypeSet creates a new TypeSet. The TypeSet is not frozen and can be modified.
 func NewTypeSet() *TypeSet {
 	return &TypeSet{
-		definitions:          map[string]typeDefinition{},
-		customTypes:          map[string][]cel.EnvOption{},
-		customMethodsOnTypes: []cel.EnvOption{},
-		isFrozen:             false,
+		definitions:   map[string]typeDefinition{},
+		customOptions: []cel.EnvOption{},
+		isFrozen:      false,
 	}
 }
