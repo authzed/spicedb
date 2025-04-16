@@ -24,7 +24,7 @@ func ValidateCaveatDefinition(ts *caveattypes.TypeSet, caveat *core.CaveatDefini
 		)
 	}
 
-	deserialized, err := caveats.DeserializeCaveat(caveat.SerializedExpression, parameterTypes)
+	deserialized, err := caveats.DeserializeCaveatWithTypeSet(ts, caveat.SerializedExpression, parameterTypes)
 	if err != nil {
 		return schema.NewTypeWithSourceError(
 			fmt.Errorf("could not decode caveat `%s`: %w", caveat.Name, err),

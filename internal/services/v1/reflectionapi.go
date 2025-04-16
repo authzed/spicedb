@@ -676,7 +676,7 @@ func caveatAPIRepr(caveatDef *core.CaveatDefinition, schemaFilters *schemaFilter
 		return nil, spiceerrors.MustBugf("invalid caveat parameters: %v", err)
 	}
 
-	deserializedReflectionression, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression, parameterTypes)
+	deserializedReflectionression, err := caveats.DeserializeCaveatWithTypeSet(caveatTypeSet, caveatDef.SerializedExpression, parameterTypes)
 	if err != nil {
 		return nil, spiceerrors.MustBugf("invalid caveat expression bytes: %v", err)
 	}
