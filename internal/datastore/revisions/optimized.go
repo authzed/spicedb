@@ -105,9 +105,8 @@ type CachedOptimizedRevisions struct {
 	optimizedFunc        OptimizedRevisionFunction
 	clockFn              clock.Clock
 
-	// these values are read and set by multiple consumers, they're protected
-	// by a mutex
-	candidates []validRevision
+	// these values are read and set by multiple consumers
+	candidates []validRevision // GUARDED_BY(RWMutex)
 
 	// the updategroup consolidates concurrent requests to the database into 1
 	updateGroup singleflight.Group

@@ -201,11 +201,11 @@ type resourceDispatchTracker struct {
 	cancelDispatch context.CancelFunc
 	resourceID     string
 
-	subjectsSet datasets.SubjectSet
-	metadata    *v1.ResponseMeta
+	subjectsSet datasets.SubjectSet // GUARDED_BY(lock)
+	metadata    *v1.ResponseMeta    // GUARDED_BY(lock)
 
-	isFirstUpdate bool
-	wasCanceled   bool
+	isFirstUpdate bool // GUARDED_BY(lock)
+	wasCanceled   bool // GUARDED_BY(lock)
 
 	lock sync.Mutex
 }

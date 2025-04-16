@@ -94,7 +94,7 @@ type spannerDatastore struct {
 	schema   common.SchemaInformation
 
 	cachedEstimatedBytesPerRelationshipLock sync.RWMutex
-	cachedEstimatedBytesPerRelationship     uint64
+	cachedEstimatedBytesPerRelationship     uint64 // GUARDED_BY(cachedEstimatedBytesPerRelationshipLock)
 
 	tableSizesStatsTable string
 	filterMaximumIDCount uint16

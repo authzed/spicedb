@@ -319,18 +319,17 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 }
 
 type fakeDatastore struct {
-	headRevision datastore.Revision
+	lock sync.RWMutex
 
-	namespaces map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]
-	caveats    map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]
+	readsDisabled bool                                                                               // GUARDED_BY(lock)
+	headRevision  datastore.Revision                                                                 // GUARDED_BY(lock)
+	namespaces    map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition] // GUARDED_BY(lock)
+	caveats       map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]       // GUARDED_BY(lock)
 
 	schemaChan chan datastore.RevisionChanges
 	errChan    chan error
 
-	readsDisabled      bool
 	existingNamespaces []datastore.RevisionedNamespace
-
-	lock sync.RWMutex
 }
 
 func (fds *fakeDatastore) MetricsID() (string, error) {

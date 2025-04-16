@@ -12,7 +12,7 @@ import (
 // revision-based time intervals.
 type intervalTracker[T any] struct {
 	// sortedEntries are the entries in the interval tracker, sorted with the *latest* being *first*.
-	sortedEntries []intervalTrackerEntry[T]
+	sortedEntries []intervalTrackerEntry[T] // GUARDED_BY(lock)
 
 	// lock is the sync lock for the tracker.
 	lock sync.RWMutex

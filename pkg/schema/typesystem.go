@@ -18,7 +18,7 @@ type (
 // It also provides accessors to build reachability graphs for the underlying types.
 type TypeSystem struct {
 	sync.Mutex
-	validatedDefinitions map[string]*ValidatedDefinition
+	validatedDefinitions map[string]*ValidatedDefinition // GUARDED_BY(Mutex)
 	resolver             Resolver
 	wildcardCheckCache   map[string]*WildcardTypeReference
 }

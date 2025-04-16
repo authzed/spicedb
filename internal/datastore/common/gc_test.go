@@ -19,12 +19,12 @@ import (
 // Fake garbage collector that returns a new incremented revision each time
 // TxIDBefore is called.
 type fakeGC struct {
-	lastRevision uint64
-	deleter      gcDeleter
-	metrics      gcMetrics
 	lock         sync.RWMutex
-	wasLocked    bool
-	wasUnlocked  bool
+	deleter      gcDeleter // GUARDED_BY(lock)
+	metrics      gcMetrics // GUARDED_BY(lock)
+	lastRevision uint64    // GUARDED_BY(lock)
+	wasLocked    bool      // GUARDED_BY(lock)
+	wasUnlocked  bool      // GUARDED_BY(lock)
 }
 
 type gcMetrics struct {

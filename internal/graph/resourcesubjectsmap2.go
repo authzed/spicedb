@@ -13,7 +13,7 @@ import (
 
 type syncONRSet struct {
 	sync.Mutex
-	items map[string]struct{}
+	items map[string]struct{} // GUARDED_BY(Mutex)
 }
 
 func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {

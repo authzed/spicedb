@@ -18,10 +18,11 @@ type PreloadedTaskRunner struct {
 	// not exceed the concurrencyLimit with spawned goroutines.
 	sem chan struct{}
 
-	wg    sync.WaitGroup
-	err   error
+	wg sync.WaitGroup
+
 	lock  sync.Mutex
-	tasks []TaskFunc
+	err   error      // GUARDED_BY(lock)
+	tasks []TaskFunc // GUARDED_BY(lock)
 }
 
 func NewPreloadedTaskRunner(ctx context.Context, concurrencyLimit uint16, initialCapacity int) *PreloadedTaskRunner {
