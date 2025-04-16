@@ -135,7 +135,7 @@ jobs:
 
   datastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
     strategy:
       fail-fast: false
