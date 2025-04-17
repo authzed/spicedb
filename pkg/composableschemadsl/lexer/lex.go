@@ -86,8 +86,8 @@ type stateFn func(*Lexer) stateFn
 type Lexer struct {
 	sync.RWMutex
 	source              input.Source       // the name of the input; used only for error reports
-	input               string             // the string being scanned
-	state               stateFn            // the next lexing function to enter
+	input               string             // the string being scanned.
+	state               stateFn            // the next lexing function to enter. GUARDED_BY(RWMutex)
 	pos                 input.BytePosition // current position in the input
 	start               input.BytePosition // start position of this token
 	width               input.BytePosition // width of last rune read from input

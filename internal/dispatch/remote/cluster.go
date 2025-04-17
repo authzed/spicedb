@@ -153,7 +153,7 @@ type clusterDispatcher struct {
 
 // digestAndLock is a struct that holds a TDigest and a lock to protect it.
 type digestAndLock struct {
-	digest                      *tdigest.TDigest
+	digest                      *tdigest.TDigest // GUARDED_BY(lock)
 	startingPrimaryHedgingDelay time.Duration
 	lock                        sync.RWMutex
 }

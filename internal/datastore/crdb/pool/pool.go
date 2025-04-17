@@ -40,8 +40,8 @@ type RetryPool struct {
 
 	sync.RWMutex
 	maxRetries  uint8
-	nodeForConn map[*pgx.Conn]uint32
-	gc          map[*pgx.Conn]struct{}
+	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
+	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
 }
 
 func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {

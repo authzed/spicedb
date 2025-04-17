@@ -17,13 +17,14 @@ type TaskRunner struct {
 	// not exceed the concurrencyLimit with spawned goroutines.
 	sem chan struct{}
 
+	wg sync.WaitGroup
+
+	lock  sync.Mutex
+	tasks []TaskFunc // GUARDED_BY(lock)
+
 	// err holds the error returned by any task, if any. If the context is canceled,
 	// this err will hold the cancelation error.
-	err error
-
-	wg    sync.WaitGroup
-	lock  sync.Mutex
-	tasks []TaskFunc
+	err error // GUARDED_BY(lock)
 }
 
 // TaskFunc defines functions representing tasks.

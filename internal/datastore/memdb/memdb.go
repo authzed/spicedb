@@ -88,9 +88,9 @@ type memdbDatastore struct {
 	revisions.CommonDecoder
 
 	// NOTE: call checkNotClosed before using
-	db             *memdb.MemDB
-	revisions      []snapshot
-	activeWriteTxn *memdb.Txn
+	db             *memdb.MemDB // GUARDED_BY(RWMutex)
+	revisions      []snapshot   // GUARDED_BY(RWMutex)
+	activeWriteTxn *memdb.Txn   // GUARDED_BY(RWMutex)
 
 	negativeGCWindow        int64
 	quantizationPeriod      int64

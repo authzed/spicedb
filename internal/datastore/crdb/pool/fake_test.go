@@ -38,8 +38,8 @@ type FakePool struct {
 	sync.Mutex
 	id          string
 	maxConns    uint32
-	gc          map[*FakeConn]uint32
-	nodeForConn map[*FakeConn]uint32
+	gc          map[*FakeConn]uint32 // GUARDED_BY(Mutex)
+	nodeForConn map[*FakeConn]uint32 // GUARDED_BY(Mutex)
 }
 
 func NewFakePool(maxConns uint32) *FakePool {

@@ -4,6 +4,7 @@ import (
 	"github.com/authzed/spicedb/tools/analyzers/closeafterusagecheck"
 	"github.com/authzed/spicedb/tools/analyzers/exprstatementcheck"
 	"github.com/authzed/spicedb/tools/analyzers/lendowncastcheck"
+	"github.com/authzed/spicedb/tools/analyzers/mutexcheck"
 	"github.com/authzed/spicedb/tools/analyzers/nilvaluecheck"
 	"github.com/authzed/spicedb/tools/analyzers/paniccheck"
 	"github.com/authzed/spicedb/tools/analyzers/protomarshalcheck"
@@ -13,6 +14,7 @@ import (
 
 func main() {
 	multichecker.Main(
+		mutexcheck.Analyzer(),
 		nilvaluecheck.Analyzer(),
 		exprstatementcheck.Analyzer(),
 		closeafterusagecheck.Analyzer(),
