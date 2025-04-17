@@ -3,13 +3,16 @@ package logging
 import (
 	"context"
 
+	"github.com/go-logr/zerologr"
 	"github.com/rs/zerolog"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var Logger zerolog.Logger
 
 func init() {
 	SetGlobalLogger(zerolog.Nop())
+	logf.SetLogger(zerologr.New(&Logger))
 }
 
 func SetGlobalLogger(logger zerolog.Logger) {
