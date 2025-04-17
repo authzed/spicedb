@@ -1,6 +1,9 @@
 package _goodmutexes
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type MyGoodStruct struct {
 	mu    sync.Mutex
@@ -33,4 +36,22 @@ type MyGoodStruct6 struct {
 
 	// GUARDED_BY(mu)
 	field int
+}
+
+type MyGoodStruct7 struct {
+	a     fmt.Formatter // GUARDED_BY(mutex)
+	b     fmt.Formatter // GUARDED_BY(mutex)
+	mutex sync.Mutex
+}
+
+type MyGoodStruct8 struct {
+	a     map[string]int // GUARDED_BY(mutex)
+	b     map[string]int // GUARDED_BY(mutex)
+	mutex sync.Mutex
+}
+
+type MyGoodStruct9 struct {
+	a     sync.Pool // GUARDED_BY(mutex)
+	b     sync.Pool // GUARDED_BY(mutex)
+	mutex sync.Mutex
 }

@@ -171,14 +171,16 @@ func isMutexType(field *ast.Field) ([]string, bool) {
 		return nil, false
 	}
 
-	if ident.Name == "sync" && (se.Sel.Name == "Mutex" || se.Sel.Name == "RWMutex") {
-		if len(field.Names) == 0 {
-			// it's an anonymous field
-			fieldNames = append(fieldNames, se.Sel.Name)
-		}
-		for _, m := range field.Names {
-			fieldNames = append(fieldNames, m.Name)
-		}
+	if ident.Name != "sync" || (se.Sel.Name != "Mutex" && se.Sel.Name != "RWMutex") {
+		return nil, false
+	}
+
+	if len(field.Names) == 0 {
+		// it's an anonymous field
+		fieldNames = append(fieldNames, se.Sel.Name)
+	}
+	for _, m := range field.Names {
+		fieldNames = append(fieldNames, m.Name)
 	}
 
 	return fieldNames, true
