@@ -21,6 +21,10 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/sdk/metric"
+	otelres "go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
@@ -98,6 +102,7 @@ type spannerDatastore struct {
 
 	tableSizesStatsTable string
 	filterMaximumIDCount uint16
+	meterProvider        *metric.MeterProvider
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -122,9 +127,23 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
 
+	var meterProvider *metric.MeterProvider
 	if config.datastoreMetricsOption == DatastoreMetricsOptionOpenTelemetry {
 		log.Info().Msg("enabling OpenTelemetry metrics for Spanner datastore")
 		spanner.EnableOpenTelemetryMetrics()
+
+		res, err := otelres.Merge(otelres.Default(),
+			otelres.NewWithAttributes(semconv.SchemaURL,
+				semconv.ServiceName("spicedb"),
+			))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create otel metrics resource: %w", err)
+		}
+
+		meterProvider, err = getMeterProviderWithPromExporter(res)
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable Spanner prometheus metrics: %w", err)
+		}
 	}
 
 	if config.datastoreMetricsOption == DatastoreMetricsOptionLegacyPrometheus {
@@ -133,23 +152,21 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		if err != nil {
 			return nil, fmt.Errorf("failed to enable spanner session metrics: %w", err)
 		}
+
 		err = spanner.EnableGfeLatencyAndHeaderMissingCountViews() // nolint: staticcheck
 		if err != nil {
 			return nil, fmt.Errorf("failed to enable spanner GFE metrics: %w", err)
 		}
-	}
 
-	// Register Spanner client gRPC metrics (include round-trip latency, received/sent bytes...)
-	if err := view.Register(ocgrpc.DefaultClientViews...); err != nil {
-		return nil, fmt.Errorf("failed to enable gRPC metrics for Spanner client: %w", err)
-	}
+		// Register Spanner client gRPC metrics (include round-trip latency, received/sent bytes...)
+		if err := view.Register(ocgrpc.DefaultClientViews...); err != nil {
+			return nil, fmt.Errorf("failed to enable gRPC metrics for Spanner client: %w", err)
+		}
 
-	_, err = ocprom.NewExporter(ocprom.Options{
-		Namespace:  "spicedb",
-		Registerer: prometheus.DefaultRegisterer,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable spanner GFE latency stats: %w", err)
+		_, err = ocprom.NewExporter(ocprom.Options{
+			Namespace:  "spicedb",
+			Registerer: prometheus.DefaultRegisterer,
+		})
 	}
 
 	cfg := spanner.DefaultSessionPoolConfig
@@ -175,8 +192,9 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		context.Background(),
 		database,
 		spanner.ClientConfig{
-			SessionPoolConfig:    cfg,
-			DisableNativeMetrics: config.datastoreMetricsOption != DatastoreMetricsOptionNative,
+			SessionPoolConfig:          cfg,
+			DisableNativeMetrics:       config.datastoreMetricsOption != DatastoreMetricsOptionNative,
+			OpenTelemetryMeterProvider: meterProvider,
 		},
 		spannerOpts...,
 	)
@@ -243,6 +261,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		tableSizesStatsTable:                    tableSizesStatsTable,
 		filterMaximumIDCount:                    config.filterMaximumIDCount,
 		schema:                                  *schema,
+		meterProvider:                           meterProvider,
 	}
 	// Optimized revision and revision checking use a stale read for the
 	// current timestamp.
@@ -251,6 +270,20 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	ds.RemoteClockRevisions.SetNowFunc(ds.staleHeadRevision)
 
 	return ds, nil
+}
+
+func getMeterProviderWithPromExporter(res *otelres.Resource) (*metric.MeterProvider, error) {
+	exporter, err := otelprom.New()
+	if err != nil {
+		return nil, err
+	}
+
+	meterProvider := metric.NewMeterProvider(
+		metric.WithResource(res),
+		metric.WithReader(exporter),
+	)
+
+	return meterProvider, nil
 }
 
 type traceableRTX struct {
@@ -410,6 +443,11 @@ func (sd *spannerDatastore) OfflineFeatures() (*datastore.Features, error) {
 
 func (sd *spannerDatastore) Close() error {
 	sd.client.Close()
+
+	if sd.meterProvider != nil {
+		return sd.meterProvider.ForceFlush(context.TODO())
+	}
+
 	return nil
 }
 
