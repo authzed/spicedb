@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -41,11 +42,11 @@ func TestTestServer(t *testing.T) {
 				"serve-testing",
 				"--log-level", "debug",
 				"--http-addr", ":8443",
-				////"--readonly-http-addr", ":8444",
-				//"--http-enabled",
-				//"--readonly-http-enabled",
+				"--readonly-http-addr", ":8444",
+				"--http-enabled",
+				"--readonly-http-enabled",
 			},
-			ExposedPorts: []string{"50051/tcp", "50052/tcp" /*, "8443/tcp", "8444/tcp"*/},
+			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
 		},
 		key,
 		false,
@@ -184,14 +185,12 @@ type spicedbHandle struct {
 const retryCount = 8
 
 func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string, withExistingSchema bool) (*spicedbHandle, error) {
+	pool, err := dockertest.NewPool("")
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to docker: %w", err)
+	}
+
 	for i := 0; i < retryCount; i++ {
-		pool, err := dockertest.NewPool("")
-		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker: %w", err)
-		}
-
-		pool.MaxWait = 60 * time.Second
-
 		resource, err := pool.RunWithOptions(containerOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not start resource: %w", err)
@@ -271,17 +270,27 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			continue
 		}
 
+		if slices.Contains(containerOpts.ExposedPorts, "8443/tcp") {
+			port := resource.GetPort("50051/tcp")
+			readonlyPort := resource.GetPort("50052/tcp")
+			httpPort := resource.GetPort("8443/tcp")
+			readonlyHttpPort := resource.GetPort("8444/tcp")
+
+			return &spicedbHandle{
+				port:             port,
+				readonlyPort:     readonlyPort,
+				httpPort:         httpPort,
+				readonlyHttpPort: readonlyHttpPort,
+				cleanup:          cleanup,
+			}, nil
+		}
+
 		port := resource.GetPort("50051/tcp")
 		readonlyPort := resource.GetPort("50052/tcp")
-		//httpPort := resource.GetPort("8443/tcp")
-		//readonlyHttpPort := resource.GetPort("8444/tcp")
-
 		return &spicedbHandle{
 			port:         port,
 			readonlyPort: readonlyPort,
-			//httpPort:         httpPort,
-			//readonlyHttpPort: readonlyHttpPort,
-			cleanup: cleanup,
+			cleanup:      cleanup,
 		}, nil
 	}
 
