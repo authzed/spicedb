@@ -55,3 +55,18 @@ type MyGoodStruct9 struct {
 	b     sync.Pool // GUARDED_BY(mutex)
 	mutex sync.Mutex
 }
+
+type MyGoodStruct10 struct {
+	a        sync.Pool // GUARDED_BY(mutexPtr)
+	mutexPtr *sync.Mutex
+}
+
+type MyGoodStruct11 struct {
+	a sync.Pool // GUARDED_BY(Mutex)
+	*sync.Mutex
+}
+
+type MyGoodStruct12 struct {
+	a *int // GUARDED_BY(Mutex)
+	*sync.Mutex
+}

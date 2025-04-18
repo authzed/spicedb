@@ -160,25 +160,36 @@ func getCommentsToAnalyze(field *ast.Field) []comment {
 // returns a list of the variable names.
 // For example if the field is "mu1, mu2 sync.RWMutex" it returns "mu1" and "mu2"
 func isMutexType(field *ast.Field) ([]string, bool) {
-	var fieldNames []string
-	se, ok := field.Type.(*ast.SelectorExpr)
-	if !ok {
+	var se *ast.SelectorExpr
+
+	switch t := field.Type.(type) {
+	case *ast.StarExpr:
+		// it's a pointer
+		innerSelector, ok := t.X.(*ast.SelectorExpr)
+		if !ok {
+			return nil, false
+		}
+		se = innerSelector
+	case *ast.SelectorExpr:
+		se = t
+	default:
 		return nil, false
 	}
 
 	ident, ok := se.X.(*ast.Ident)
-	if !ok {
+	if !ok || ident.Name != "sync" {
+		return nil, false
+	}
+	if se.Sel.Name != "Mutex" && se.Sel.Name != "RWMutex" {
 		return nil, false
 	}
 
-	if ident.Name != "sync" || (se.Sel.Name != "Mutex" && se.Sel.Name != "RWMutex") {
-		return nil, false
-	}
-
+	var fieldNames []string
 	if len(field.Names) == 0 {
 		// it's an anonymous field
 		fieldNames = append(fieldNames, se.Sel.Name)
 	}
+
 	for _, m := range field.Names {
 		fieldNames = append(fieldNames, m.Name)
 	}

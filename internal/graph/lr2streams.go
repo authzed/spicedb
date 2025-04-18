@@ -68,23 +68,22 @@ func runCheckerAndDispatch(
 }
 
 type checkAndDispatchRunner struct {
-	parentRequest     ValidatedLookupResources2Request
-	foundResources    dispatchableResourcesSubjectMap2
-	ci                cursorInformation
-	parentStream      dispatch.LookupResources2Stream
-	newSubjectType    *core.RelationReference
-	entrypoint        schema.ReachabilityEntrypoint
-	lrDispatcher      dispatch.LookupResources2
-	checkDispatcher   dispatch.Check
-	dispatchChunkSize uint16
-	caveatTypeSet     *caveattypes.TypeSet
-
+	parentRequest      ValidatedLookupResources2Request
+	foundResources     dispatchableResourcesSubjectMap2
+	parentStream       dispatch.LookupResources2Stream
+	newSubjectType     *core.RelationReference
+	entrypoint         schema.ReachabilityEntrypoint
+	lrDispatcher       dispatch.LookupResources2
+	checkDispatcher    dispatch.Check
+	dispatchChunkSize  uint16
+	caveatTypeSet      *caveattypes.TypeSet
 	filteredSubjectIDs []string
-	currentCheckIndex  int
 
-	taskrunner *taskrunner.TaskRunner
+	currentCheckIndex int
+	taskrunner        *taskrunner.TaskRunner
 
 	lock *sync.Mutex
+	ci   cursorInformation // GUARDED_BY(lock)
 }
 
 func (rdc *checkAndDispatchRunner) runAndWait() error {
