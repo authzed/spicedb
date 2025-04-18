@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Querier holds common methods for connections and pools, equivalent to
@@ -21,6 +22,7 @@ type ConnPooler interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
+	Acquire(ctx context.Context) (c *pgxpool.Conn, err error)
 	Close()
 }
 
@@ -178,6 +180,10 @@ func (i InterceptorPooler) BeginTx(ctx context.Context, txOptions pgx.TxOptions)
 
 func (i InterceptorPooler) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
 	return i.delegate.CopyFrom(ctx, tableName, columnNames, rowSrc)
+}
+
+func (i InterceptorPooler) Acquire(ctx context.Context) (*pgxpool.Conn, error) {
+	return i.delegate.Acquire(ctx)
 }
 
 func (i InterceptorPooler) Close() {

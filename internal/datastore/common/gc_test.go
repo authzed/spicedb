@@ -19,9 +19,10 @@ import (
 // Fake garbage collector that returns a new incremented revision each time
 // TxIDBefore is called.
 type fakeGC struct {
-	lock         sync.RWMutex
-	deleter      gcDeleter // GUARDED_BY(lock)
+	lock sync.RWMutex
+
 	metrics      gcMetrics // GUARDED_BY(lock)
+	deleter      gcDeleter // GUARDED_BY(lock)
 	lastRevision uint64    // GUARDED_BY(lock)
 	wasLocked    bool      // GUARDED_BY(lock)
 	wasUnlocked  bool      // GUARDED_BY(lock)
@@ -29,15 +30,58 @@ type fakeGC struct {
 
 type gcMetrics struct {
 	deleteBeforeTxCount    int
-	markedCompleteCount    int
-	resetGCCompletedCount  int
 	deleteExpiredRelsCount int
 }
 
-func newFakeGC(deleter gcDeleter) fakeGC {
-	return fakeGC{
-		lastRevision: 0,
-		deleter:      deleter,
+type fakeGCStore struct {
+	lock sync.RWMutex
+
+	markedCompleteCount   int // GUARDED_BY(lock)
+	resetGCCompletedCount int // GUARDED_BY(lock)
+
+	fakeGC *fakeGC
+}
+
+func (f *fakeGCStore) BuildGarbageCollector(ctx context.Context) (GarbageCollector, error) {
+	return f.fakeGC, nil
+}
+
+func (f *fakeGCStore) ReadyState(context.Context) (datastore.ReadyState, error) {
+	return datastore.ReadyState{
+		IsReady: true,
+	}, nil
+}
+
+func (f *fakeGCStore) HasGCRun() bool {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.markedCompleteCount > 0
+}
+
+func (f *fakeGCStore) MarkGCCompleted() {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.markedCompleteCount++
+}
+
+func (f *fakeGCStore) ResetGCCompleted() {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.resetGCCompletedCount++
+}
+
+func newFakeGCStore(deleter gcDeleter) *fakeGCStore {
+	return &fakeGCStore{
+		sync.RWMutex{},
+		0,
+		0,
+		&fakeGC{
+			lastRevision: 0,
+			deleter:      deleter,
+		},
 	}
 }
 
@@ -55,13 +99,6 @@ func (gc *fakeGC) UnlockAfterGCRun() error {
 
 	gc.wasUnlocked = true
 	return nil
-}
-
-func (*fakeGC) ReadyState(_ context.Context) (datastore.ReadyState, error) {
-	return datastore.ReadyState{
-		Message: "Ready",
-		IsReady: true,
-	}, nil
 }
 
 func (*fakeGC) Now(_ context.Context) (time.Time, error) {
@@ -99,33 +136,16 @@ func (gc *fakeGC) DeleteExpiredRels(_ context.Context) (int64, error) {
 	return gc.deleter.DeleteExpiredRels()
 }
 
-func (gc *fakeGC) HasGCRun() bool {
-	gc.lock.Lock()
-	defer gc.lock.Unlock()
-
-	return gc.metrics.markedCompleteCount > 0
-}
-
-func (gc *fakeGC) MarkGCCompleted() {
-	gc.lock.Lock()
-	defer gc.lock.Unlock()
-
-	gc.metrics.markedCompleteCount++
-}
-
-func (gc *fakeGC) ResetGCCompleted() {
-	gc.lock.Lock()
-	defer gc.lock.Unlock()
-
-	gc.metrics.resetGCCompletedCount++
-}
-
 func (gc *fakeGC) GetMetrics() gcMetrics {
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
 
 	return gc.metrics
 }
+
+func (gc *fakeGC) Close() {}
+
+var _ GarbageCollector = &fakeGC{}
 
 // Allows specifying different deletion behaviors for tests
 type gcDeleter interface {
@@ -169,8 +189,8 @@ func TestGCFailureBackoff(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		gc := newFakeGC(alwaysErrorDeleter{})
-		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, &gc, 100*time.Millisecond, 1*time.Second, 1*time.Nanosecond, 1*time.Minute, localCounter))
+		gc := newFakeGCStore(alwaysErrorDeleter{})
+		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, gc, 100*time.Millisecond, 1*time.Second, 1*time.Nanosecond, 1*time.Minute, localCounter))
 	}()
 	time.Sleep(200 * time.Millisecond)
 	cancel()
@@ -191,8 +211,8 @@ func TestGCFailureBackoff(t *testing.T) {
 	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		gc := newFakeGC(alwaysErrorDeleter{})
-		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, &gc, 100*time.Millisecond, 0, 1*time.Second, 1*time.Minute, localCounter))
+		gc := newFakeGCStore(alwaysErrorDeleter{})
+		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, gc, 100*time.Millisecond, 0, 1*time.Second, 1*time.Minute, localCounter))
 	}()
 	time.Sleep(200 * time.Millisecond)
 	cancel()
@@ -211,7 +231,7 @@ func TestGCFailureBackoff(t *testing.T) {
 // error. The garbage collector should not continue to use the exponential
 // backoff interval that is activated on error.
 func TestGCFailureBackoffReset(t *testing.T) {
-	gc := newFakeGC(revisionErrorDeleter{
+	gc := newFakeGCStore(revisionErrorDeleter{
 		// Error on revisions 1 - 5, giving the exponential
 		// backoff enough time to fail the test if the interval
 		// is not reset properly.
@@ -226,7 +246,7 @@ func TestGCFailureBackoffReset(t *testing.T) {
 		window := 10 * time.Second
 		timeout := 1 * time.Minute
 
-		require.Error(t, StartGarbageCollector(ctx, &gc, interval, window, timeout))
+		require.Error(t, StartGarbageCollector(ctx, gc, interval, window, timeout))
 	}()
 
 	time.Sleep(500 * time.Millisecond)
@@ -235,11 +255,14 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	// The next interval should have been reset after recovering from the error.
 	// If it is not reset, the last exponential backoff interval will not give
 	// the GC enough time to run.
-	require.Greater(t, gc.GetMetrics().markedCompleteCount, 20, "Next interval was not reset with backoff")
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	require.Greater(t, gc.markedCompleteCount, 20, "Next interval was not reset with backoff")
 }
 
 func TestGCUnlockOnTimeout(t *testing.T) {
-	gc := newFakeGC(alwaysErrorDeleter{})
+	gc := newFakeGCStore(alwaysErrorDeleter{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -249,15 +272,15 @@ func TestGCUnlockOnTimeout(t *testing.T) {
 		window := 10 * time.Second
 		timeout := 1 * time.Millisecond
 
-		require.Error(t, StartGarbageCollector(ctx, &gc, interval, window, timeout))
+		require.Error(t, StartGarbageCollector(ctx, gc, interval, window, timeout))
 	}()
 
 	time.Sleep(30 * time.Millisecond)
 	require.False(t, gc.HasGCRun(), "GC should not have run")
 
-	gc.lock.Lock()
-	defer gc.lock.Unlock()
+	gc.fakeGC.lock.Lock()
+	defer gc.fakeGC.lock.Unlock()
 
-	require.True(t, gc.wasLocked, "GC should have been locked")
-	require.True(t, gc.wasUnlocked, "GC should have been unlocked")
+	require.True(t, gc.fakeGC.wasLocked, "GC should have been locked")
+	require.True(t, gc.fakeGC.wasUnlocked, "GC should have been unlocked")
 }

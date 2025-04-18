@@ -121,7 +121,7 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	gcable, ok := ds.(common.GarbageCollector)
+	gcable, ok := ds.(common.GarbageCollectableDatastore)
 	if !ok {
 		return
 	}
@@ -174,7 +174,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	// Sleep to ensure we're past the GC window.
 	time.Sleep(gcWindow)
 
-	gcable, ok := ds.(common.GarbageCollector)
+	gcable, ok := ds.(common.GarbageCollectableDatastore)
 	if ok {
 		// Run garbage collection.
 		gcable.ResetGCCompleted()
