@@ -63,7 +63,7 @@ func (Test) unit(ctx context.Context, coverage bool) error {
 // Image Run tests that run the built image
 func (Test) Image(ctx context.Context) error {
 	mg.Deps(Build{}.Testimage)
-	return goDirTest(ctx, "./cmd/spicedb", "./...", "-tags", "docker,image")
+	return goDirTest(ctx, "./cmd/spicedb", "./...", "-tags", "docker,image", "-count", "5")
 }
 
 // Integration Run integration tests
