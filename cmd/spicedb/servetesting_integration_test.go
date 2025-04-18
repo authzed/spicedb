@@ -188,17 +188,12 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			return nil, fmt.Errorf("could not connect to docker: %w", err)
 		}
 
-		pool.MaxWait = 60 * time.Second
+		pool.MaxWait = 120 * time.Second
 
 		resource, err := pool.RunWithOptions(containerOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not start resource: %w", err)
 		}
-
-		port := resource.GetPort("50051/tcp")
-		readonlyPort := resource.GetPort("50052/tcp")
-		httpPort := resource.GetPort("8443/tcp")
-		readonlyHttpPort := resource.GetPort("8444/tcp")
 
 		cleanup := func() {
 			// When you're done, kill and remove the container
@@ -209,20 +204,27 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 
 		// Give the service time to boot.
 		err = pool.Retry(func() error {
+			port := resource.GetPort("50051/tcp")
+
+			log.Printf("[log] %v: waiting for service to start on port %s\n", time.Now(), port)
 			conn, err := grpc.Dial(
 				fmt.Sprintf("localhost:%s", port),
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpcutil.WithInsecureBearerToken(token),
 			)
 			if err != nil {
-				return err
+				log.Printf("[log] %v: got error on connect: %v\n", time.Now(), err)
+				return fmt.Errorf("could not connect to service: %w", err)
 			}
 
 			client := v1.NewSchemaServiceClient(conn)
-
 			if withExistingSchema {
 				_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
-				return err
+				if err != nil {
+					log.Printf("[log] %v: got error on schema read with existing client: %v\n", time.Now(), err)
+					return fmt.Errorf("could not read schema with existing client: %w", err)
+				}
+				return nil
 			}
 
 			// Write a basic schema.
@@ -238,8 +240,13 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			}
 			`,
 			})
+			if err != nil {
+				log.Printf("[log] %v: got error on schema write: %v\n", time.Now(), err)
+				return fmt.Errorf("could not write schema: %w", err)
+			}
 
-			return err
+			log.Printf("[log] %v: got schema write success\n", time.Now())
+			return nil
 		})
 		if err != nil {
 			stream := new(bytes.Buffer)
@@ -257,10 +264,15 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			})
 			require.NoError(t, lerr)
 
-			fmt.Printf("got error on startup: %v\ncontainer logs: %s\n", err, stream.String())
+			fmt.Printf("[log] %v: got final error on startup: %v\ncontainer logs: %s\n", time.Now(), err, stream.String())
 			cleanup()
 			continue
 		}
+
+		port := resource.GetPort("50051/tcp")
+		readonlyPort := resource.GetPort("50052/tcp")
+		httpPort := resource.GetPort("8443/tcp")
+		readonlyHttpPort := resource.GetPort("8444/tcp")
 
 		return &spicedbHandle{
 			port:             port,
