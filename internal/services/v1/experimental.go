@@ -173,9 +173,9 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
-	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
-	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
-	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
+	a.current.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
+	a.current.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
+	a.current.Resource.Relation = a.currentBatch[a.numSent].Relation
 	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
 	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
 	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
@@ -419,12 +419,12 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 				rels = append(rels, &relsArray[offset]) // nozero
 
 				v1Rel := &relsArray[offset]
-				v1Rel.Resource.ObjectType = rel.RelationshipReference.Resource.ObjectType
-				v1Rel.Resource.ObjectId = rel.RelationshipReference.Resource.ObjectID
-				v1Rel.Relation = rel.RelationshipReference.Resource.Relation
-				v1Rel.Subject.Object.ObjectType = rel.RelationshipReference.Subject.ObjectType
-				v1Rel.Subject.Object.ObjectId = rel.RelationshipReference.Subject.ObjectID
-				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.RelationshipReference.Subject.Relation)
+				v1Rel.Resource.ObjectType = rel.Resource.ObjectType
+				v1Rel.Resource.ObjectId = rel.Resource.ObjectID
+				v1Rel.Relation = rel.Resource.Relation
+				v1Rel.Subject.Object.ObjectType = rel.Subject.ObjectType
+				v1Rel.Subject.Object.ObjectId = rel.Subject.ObjectID
+				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.Subject.Relation)
 
 				if rel.OptionalCaveat != nil {
 					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName

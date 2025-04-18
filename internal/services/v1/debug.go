@@ -88,9 +88,10 @@ func convertCheckDispatchDebugInformationWithSchema(
 
 func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *dispatch.CheckDebugTrace, reader datastore.Reader, caveatTypeSet *caveattypes.TypeSet) (*v1.CheckDebugTrace, error) {
 	permissionType := v1.CheckDebugTrace_PERMISSION_TYPE_UNSPECIFIED
-	if ct.ResourceRelationType == dispatch.CheckDebugTrace_PERMISSION {
+	switch ct.ResourceRelationType {
+	case dispatch.CheckDebugTrace_PERMISSION:
 		permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_PERMISSION
-	} else if ct.ResourceRelationType == dispatch.CheckDebugTrace_RELATION {
+	case dispatch.CheckDebugTrace_RELATION:
 		permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_RELATION
 	}
 

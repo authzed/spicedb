@@ -77,7 +77,7 @@ type hashableCursor struct{ *v1.Cursor }
 
 func (hc hashableCursor) AppendToHash(hasher hasherInterface) {
 	if hc.Cursor != nil {
-		for _, section := range hc.Cursor.Sections {
+		for _, section := range hc.Sections {
 			hasher.WriteString(section)
 			hasher.WriteString(",")
 		}

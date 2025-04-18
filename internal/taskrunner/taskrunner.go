@@ -147,11 +147,7 @@ func (tr *TaskRunner) emptyForCancel() {
 		tr.err = tr.ctx.Err()
 	}
 
-	for {
-		if len(tr.tasks) == 0 {
-			break
-		}
-
+	for len(tr.tasks) != 0 {
 		tr.tasks = tr.tasks[1:]
 		tr.wg.Done()
 	}

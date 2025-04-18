@@ -37,7 +37,7 @@ func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.Devel
 			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
 		return nil, &devinterface.DeveloperError{
-			Message: contextError.BaseCompilerError.BaseMessage,
+			Message: contextError.BaseMessage,
 			Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 			Source:  devinterface.DeveloperError_SCHEMA,
 			Line:    uintLine + 1,   // 0-indexed in parser.

@@ -226,13 +226,14 @@ func (ce *ConcurrentExpander) dispatch(req ValidatedExpandRequest) ReduceableExp
 func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req ValidatedExpandRequest, cu *core.ComputedUserset, rel *tuple.Relationship) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Str("relation", cu.Relation).Msg("computed userset")
 	var start tuple.ObjectAndRelation
-	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
+	switch cu.Object {
+	case core.ComputedUserset_TUPLE_USERSET_OBJECT:
 		if rel == nil {
 			return expandError(spiceerrors.MustBugf("computed userset for tupleset without tuple"))
 		}
 
 		start = rel.Subject
-	} else if cu.Object == core.ComputedUserset_TUPLE_OBJECT {
+	case core.ComputedUserset_TUPLE_OBJECT:
 		if rel != nil {
 			start = rel.Resource
 		} else {

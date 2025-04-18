@@ -71,11 +71,11 @@ func writeCanonicalContextValue(sb *bytes.Buffer, value *structpb.Value) error {
 	case *structpb.Value_NullValue:
 		sb.WriteString("null")
 	case *structpb.Value_NumberValue:
-		sb.WriteString(fmt.Sprintf("%f", value.GetNumberValue()))
+		fmt.Fprintf(sb, "%f", value.GetNumberValue())
 	case *structpb.Value_StringValue:
 		sb.WriteString(value.GetStringValue())
 	case *structpb.Value_BoolValue:
-		sb.WriteString(fmt.Sprintf("%t", value.GetBoolValue()))
+		fmt.Fprintf(sb, "%t", value.GetBoolValue())
 	case *structpb.Value_StructValue:
 		if err := writeCanonicalContext(sb, value.GetStructValue()); err != nil {
 			return err
