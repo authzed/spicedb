@@ -2,8 +2,11 @@ package validationfile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+
+	"github.com/ccoveille/go-safecast"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -14,7 +17,11 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
 // PopulatedValidationFile contains the fully parsed information from a validation file.
@@ -87,21 +94,27 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 			return nil, revision, fmt.Errorf("relationships must be specified in `relationships`")
 		}
 
+		// Compile the schema
+		compiled, err := CompileSchema(parsed.Schema, caveattypes.Default.TypeSet)
+		if err != nil {
+			return nil, revision, err
+		}
+
 		// Add schema definitions.
-		if parsed.Schema.CompiledSchema != nil {
-			defs := parsed.Schema.CompiledSchema.ObjectDefinitions
+		if compiled != nil {
+			defs := compiled.ObjectDefinitions
 			if len(defs) > 0 {
 				schemaStr += parsed.Schema.Schema + "\n\n"
 			}
 
 			log.Ctx(ctx).Info().Str("filePath", filePath).
 				Int("definitionCount", len(defs)).
-				Int("caveatDefinitionCount", len(parsed.Schema.CompiledSchema.CaveatDefinitions)).
-				Int("schemaDefinitionCount", len(parsed.Schema.CompiledSchema.OrderedDefinitions)).
+				Int("caveatDefinitionCount", len(compiled.CaveatDefinitions)).
+				Int("schemaDefinitionCount", len(compiled.OrderedDefinitions)).
 				Msg("adding schema definitions")
 
 			objectDefs = append(objectDefs, defs...)
-			caveatDefs = append(caveatDefs, parsed.Schema.CompiledSchema.CaveatDefinitions...)
+			caveatDefs = append(caveatDefs, compiled.CaveatDefinitions...)
 		}
 
 		// Parse relationships for updates.
@@ -169,4 +182,43 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 	}
 
 	return &PopulatedValidationFile{schemaStr, objectDefs, caveatDefs, rels, files}, revision, err
+}
+
+// CompileSchema takes a SchemaWithPosition and returns the compiled schema, or else an error.
+// TODO: this is probably the wrong place for this, in part because it's coupling to the compiler
+// implementation.
+func CompileSchema(schemaWithPosition blocks.SchemaWithPosition, cts *caveattypes.TypeSet) (*compiler.CompiledSchema, error) {
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schemaWithPosition.Schema,
+	}, compiler.AllowUnprefixedObjectType(), compiler.CaveatTypeSet(cts))
+	if err != nil {
+		var errWithContext compiler.WithContextError
+		if errors.As(err, &errWithContext) {
+			line, col, lerr := errWithContext.SourceRange.Start().LineAndColumn()
+			if lerr != nil {
+				return nil, lerr
+			}
+
+			uintLine, err := safecast.ToUint64(line)
+			if err != nil {
+				return nil, err
+			}
+			uintCol, err := safecast.ToUint64(col)
+			if err != nil {
+				return nil, err
+			}
+
+			return nil, spiceerrors.NewWithSourceError(
+				fmt.Errorf("error when parsing schema: %s", errWithContext.BaseMessage),
+				errWithContext.ErrorSourceCode,
+				uintLine+1, // source line is 0-indexed
+				uintCol+1,  // source col is 0-indexed
+			)
+		}
+
+		return nil, fmt.Errorf("error when parsing schema: %w", err)
+	}
+
+	return compiled, nil
 }
