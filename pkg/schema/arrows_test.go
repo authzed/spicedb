@@ -85,11 +85,11 @@ func TestLookupTuplesetArrows(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			arrowSet, err := buildArrowSet(context.Background(), res)
 			require.NoError(t, err)
 
-			for _, resource := range schema.ObjectDefinitions {
+			for _, resource := range schema.GetObjectDefinitions() {
 				for _, relation := range resource.Relation {
 					arrows := arrowSet.LookupTuplesetArrows(resource.Name, relation.Name)
 					require.NotNil(t, arrows)
@@ -177,7 +177,7 @@ func TestAllReachableRelations(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			arrows, err := buildArrowSet(context.Background(), res)
 			require.NoError(t, err)
 

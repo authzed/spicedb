@@ -14,6 +14,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/commonschemadsl"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -59,7 +60,7 @@ func (tctx *translationContext) prefixedPath(definitionName string) (string, err
 const Ellipsis = "..."
 
 func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error) {
-	orderedDefinitions := make([]SchemaDefinition, 0, len(root.GetChildren()))
+	orderedDefinitions := make([]commonschemadsl.SchemaDefinition, 0, len(root.GetChildren()))
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
 
