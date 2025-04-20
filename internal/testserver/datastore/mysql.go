@@ -115,14 +115,8 @@ func (mb *mysqlTester) NewDatabase(t testing.TB) string {
 
 	dbName := testDBPrefix + uniquePortion
 
-	tx, err := mb.db.Begin()
-	require.NoError(t, err, "Could being transaction: %s", err)
-
-	_, err = tx.Exec(fmt.Sprintf("CREATE DATABASE %s;", dbName))
+	_, err = mb.db.Exec(fmt.Sprintf("CREATE DATABASE %s;", dbName))
 	require.NoError(t, err, "failed to create database %s: %s", dbName, err)
-
-	err = tx.Commit()
-	require.NoError(t, err, "failed to commit: %s", err)
 
 	return fmt.Sprintf("%s@(%s:%s)/%s?parseTime=true", mb.creds, mb.hostname, mb.port, dbName)
 }
