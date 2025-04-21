@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -14,7 +15,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/ecordell/optgen/helpers"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
-	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
@@ -175,7 +175,7 @@ func (c *closeableStack) Close() error {
 	// closer in reverse order how it's expected in deferred funcs
 	for i := len(c.closers) - 1; i >= 0; i-- {
 		if closerErr := c.closers[i](); closerErr != nil {
-			err = multierror.Append(err, closerErr)
+			err = errors.Join(err, closerErr)
 		}
 	}
 	return err
