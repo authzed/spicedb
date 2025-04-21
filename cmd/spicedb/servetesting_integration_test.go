@@ -208,7 +208,7 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 		log.Printf("[log] %v: container started\n", time.Now())
 
 		logs, lerr := getLogs()
-		require.NoError(lerr)
+		require.NoError(t, lerr)
 		log.Printf("[log] %v: startup container logs:\n%s\n", time.Now(), logs)
 
 		cleanup := func() {
@@ -281,7 +281,7 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 		})
 		if err != nil {
 			logs, lerr := getLogs()
-			require.NoError(lerr)
+			require.NoError(t, lerr)
 
 			fmt.Printf("[log] %v: got final error on startup: %v\ncontainer logs: %s\n", time.Now(), err, logs)
 			cleanup()
