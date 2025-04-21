@@ -95,7 +95,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 		}
 
 		// Compile the schema
-		compiled, err := CompileSchema(parsed.Schema, caveattypes.Default.TypeSet)
+		compiled, err := CompileSchema(parsed.Schema, caveatTypeSet)
 		if err != nil {
 			return nil, revision, err
 		}
