@@ -20,7 +20,7 @@ func DecodeValidationFile(contents []byte) (*ValidationFile, error) {
 // ValidationFile is a structural representation of the validation file format.
 type ValidationFile struct {
 	// Schema is the schema.
-	Schema blocks.ParsedSchema `yaml:"schema"`
+	Schema blocks.SchemaWithPosition `yaml:"schema"`
 
 	// Relationships are the relationships specified in the validation file.
 	Relationships blocks.ParsedRelationships `yaml:"relationships"`
