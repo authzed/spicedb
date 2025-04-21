@@ -177,16 +177,47 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 	}
 
 	for i := 0; i < retryCount; i++ {
+		log.Printf("[log] %v: starting container (retry: %d)\n", time.Now(), i)
 		resource, err := pool.RunWithOptions(containerOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not start resource: %w", err)
 		}
 
+		getLogs := func() (string, error) {
+			stream := new(bytes.Buffer)
+
+			waitCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			lerr := pool.Client.Logs(docker.LogsOptions{
+				Context:      waitCtx,
+				OutputStream: stream,
+				ErrorStream:  stream,
+				Stdout:       true,
+				Stderr:       true,
+				Container:    resource.Container.ID,
+			})
+			if lerr != nil {
+				return "", fmt.Errorf("could not get logs: %w", lerr)
+			}
+			return stream.String(), nil
+		}
+
+		// Wait 30s for the container to be ready.
+		time.Sleep(30 * time.Second)
+		log.Printf("[log] %v: container started\n", time.Now())
+
+		logs, lerr := getLogs()
+		require.NoError(lerr)
+		log.Printf("[log] %v: startup container logs:\n%s\n", time.Now(), logs)
+
 		cleanup := func() {
 			// When you're done, kill and remove the container
+			log.Printf("[log] %v: cleaning up container\n", time.Now())
 			if err = pool.Purge(resource); err != nil {
 				log.Fatalf("Could not purge resource: %s", err)
 			}
+			log.Printf("[log] %v: cleaned up container\n", time.Now())
 		}
 
 		// Give the service time to boot.
@@ -249,23 +280,12 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			return nil
 		})
 		if err != nil {
-			stream := new(bytes.Buffer)
+			logs, lerr := getLogs()
+			require.NoError(lerr)
 
-			waitCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-
-			lerr := pool.Client.Logs(docker.LogsOptions{
-				Context:      waitCtx,
-				OutputStream: stream,
-				ErrorStream:  stream,
-				Stdout:       true,
-				Stderr:       true,
-				Container:    resource.Container.ID,
-			})
-			require.NoError(t, lerr)
-
-			fmt.Printf("[log] %v: got final error on startup: %v\ncontainer logs: %s\n", time.Now(), err, stream.String())
+			fmt.Printf("[log] %v: got final error on startup: %v\ncontainer logs: %s\n", time.Now(), err, logs)
 			cleanup()
+
 			continue
 		}
 
