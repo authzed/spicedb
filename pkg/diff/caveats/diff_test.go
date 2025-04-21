@@ -22,7 +22,7 @@ func TestCaveatDiff(t *testing.T) {
 			"added caveat",
 			nil,
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -35,7 +35,7 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"removed caveat",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -49,14 +49,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"no changes",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"true",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -67,14 +67,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"changed comments",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"true",
 			),
 			ns.MustCaveatDefinitionWithComment(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -88,14 +88,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"added parameter",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"true",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam":    caveattypes.Default.IntType,
 					"anotherparam": caveattypes.Default.BooleanType,
 				}),
@@ -109,14 +109,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"removed parameter",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"true",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{}),
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{}),
 				"somecaveat",
 				"true",
 			),
@@ -127,14 +127,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"changed parameter type",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"true",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.BooleanType,
 				}),
 				"somecaveat",
@@ -152,14 +152,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"rename parameter",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"true",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"anotherparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -173,14 +173,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"changed expression",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"true",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -193,14 +193,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"another changed expression",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"someparam == 1",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -213,14 +213,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"third changed expression",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"someparam == 1",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -233,14 +233,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"unchanged expression",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"someparam == 1",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
@@ -251,14 +251,14 @@ func TestCaveatDiff(t *testing.T) {
 		{
 			"unchanged slightly more complex expression",
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",
 				"someparam == {\"a\": 42}.a",
 			),
 			ns.MustCaveatDefinition(
-				caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+				caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 					"someparam": caveattypes.Default.IntType,
 				}),
 				"somecaveat",

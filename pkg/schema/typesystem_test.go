@@ -13,7 +13,7 @@ import (
 )
 
 func TestTypeSystemConcurrency(t *testing.T) {
-	emptyEnv := caveats.NewEnvironment()
+	emptyEnv := caveats.NewEnvironmentWithDefaultTypeSet()
 	setup := &PredefinedElements{
 		Definitions: []*core.NamespaceDefinition{
 			ns.Namespace(

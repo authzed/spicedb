@@ -19,37 +19,37 @@ func TestCompile(t *testing.T) {
 	}{
 		{
 			"missing var",
-			NewEnvironment(),
+			NewEnvironmentWithDefaultTypeSet(),
 			"hiya",
 			[]string{"undeclared reference to 'hiya'"},
 		},
 		{
 			"empty expression",
-			NewEnvironment(),
+			NewEnvironmentWithDefaultTypeSet(),
 			"",
 			[]string{"mismatched input"},
 		},
 		{
 			"invalid expression",
-			NewEnvironment(),
+			NewEnvironmentWithDefaultTypeSet(),
 			"a +",
 			[]string{"mismatched input"},
 		},
 		{
 			"missing variable",
-			NewEnvironment(),
+			NewEnvironmentWithDefaultTypeSet(),
 			"a + 2",
 			[]string{"undeclared reference to 'a'"},
 		},
 		{
 			"missing variables",
-			NewEnvironment(),
+			NewEnvironmentWithDefaultTypeSet(),
 			"a + b",
 			[]string{"undeclared reference to 'a'", "undeclared reference to 'b'"},
 		},
 		{
 			"type mismatch",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.UIntType,
 				"b": types.Default.BooleanType,
 			}),
@@ -58,7 +58,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.IntType,
 				"b": types.Default.IntType,
 			}),
@@ -67,7 +67,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over an int",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.UIntType,
 			}),
 			"a[0]",
@@ -75,7 +75,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a list",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.MustListType(types.Default.IntType),
 			}),
 			"a[0] == 1",
@@ -83,7 +83,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a list",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.MustListType(types.Default.UIntType),
 			}),
 			"a['hi']",
@@ -91,7 +91,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a map",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.MustMapType(types.Default.IntType),
 			}),
 			"a['hi'] == 1",
@@ -99,7 +99,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a map",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.MustMapType(types.Default.UIntType),
 			}),
 			"a[42]",
@@ -107,7 +107,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"non-boolean valid expression",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.IntType,
 				"b": types.Default.IntType,
 			}),
@@ -116,7 +116,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a byte sequence",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.BytesType,
 			}),
 			"a == b\"abc\"",
@@ -124,7 +124,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a byte sequence",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.BytesType,
 			}),
 			"a == \"abc\"",
@@ -132,7 +132,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a double",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.DoubleType,
 			}),
 			"a == 7.23",
@@ -140,7 +140,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a double",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.DoubleType,
 			}),
 			"a == true",
@@ -148,7 +148,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a duration",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.DurationType,
 			}),
 			"a > duration(\"1h3m\")",
@@ -156,7 +156,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a duration",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.DurationType,
 			}),
 			"a > \"1h3m\"",
@@ -164,7 +164,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a timestamp",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.TimestampType,
 			}),
 			"a == timestamp(\"1972-01-01T10:00:20.021-05:00\")",
@@ -172,7 +172,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a timestamp",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.TimestampType,
 			}),
 			"a == \"1972-01-01T10:00:20.021-05:00\"",
@@ -180,7 +180,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over any type",
-			MustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
 				"a": types.Default.AnyType,
 			}),
 			"a == true",
@@ -211,7 +211,7 @@ func TestCompile(t *testing.T) {
 }
 
 func TestDeserializeEmpty(t *testing.T) {
-	_, err := DeserializeCaveat([]byte{}, nil)
+	_, err := DeserializeCaveatWithDefaultTypeSet([]byte{}, nil)
 	require.NotNil(t, err)
 }
 
@@ -227,14 +227,14 @@ func TestSerialization(t *testing.T) {
 				"l": types.Default.MustListType(types.Default.IntType),
 			}
 
-			env := MustEnvForVariables(vars)
+			env := MustEnvForVariablesWithDefaultTypeSet(vars)
 			compiled, err := compileCaveat(env, expr)
 			require.NoError(t, err)
 
 			serialized, err := compiled.Serialize()
 			require.NoError(t, err)
 
-			deserialized, err := DeserializeCaveat(serialized, vars)
+			deserialized, err := DeserializeCaveatWithDefaultTypeSet(serialized, vars)
 			require.NoError(t, err)
 
 			astExpr, err := deserialized.ExprString()
@@ -250,14 +250,14 @@ func TestSerializeName(t *testing.T) {
 		"b": types.Default.IntType,
 	}
 
-	env := MustEnvForVariables(vars)
+	env := MustEnvForVariablesWithDefaultTypeSet(vars)
 	compiled, err := CompileCaveatWithName(env, "a == 1", "hi")
 	require.NoError(t, err)
 
 	serialized, err := compiled.Serialize()
 	require.NoError(t, err)
 
-	deserialized, err := DeserializeCaveat(serialized, vars)
+	deserialized, err := DeserializeCaveatWithDefaultTypeSet(serialized, vars)
 	require.NoError(t, err)
 
 	require.Equal(t, "hi", deserialized.name)
@@ -370,7 +370,7 @@ func TestRewriteVariable(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(fmt.Sprintf("%s::%s->%s", tc.expr, tc.oldVarName, tc.newVarName), func(t *testing.T) {
-			env := MustEnvForVariables(tc.vars)
+			env := MustEnvForVariablesWithDefaultTypeSet(tc.vars)
 
 			compiled, err := compileCaveat(env, tc.expr)
 			require.NoError(t, err)

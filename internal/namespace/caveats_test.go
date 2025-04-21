@@ -17,7 +17,7 @@ func TestValidateCaveatDefinition(t *testing.T) {
 		expectedError string
 	}{
 		{
-			ns.MustCaveatDefinition(caveats.MustEnvForVariables(
+			ns.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 				map[string]caveattypes.VariableType{
 					"someCondition": caveattypes.Default.IntType,
 				},
@@ -25,7 +25,7 @@ func TestValidateCaveatDefinition(t *testing.T) {
 			"",
 		},
 		{
-			ns.MustCaveatDefinition(caveats.MustEnvForVariables(
+			ns.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 				map[string]caveattypes.VariableType{
 					"someCondition": caveattypes.Default.IntType,
 				},
@@ -33,7 +33,7 @@ func TestValidateCaveatDefinition(t *testing.T) {
 			"parameter `someCondition` for caveat `test` is unused",
 		},
 		{
-			ns.MustCaveatDefinition(caveats.MustEnvForVariables(
+			ns.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 				map[string]caveattypes.VariableType{},
 			), "test", "true"),
 			"caveat `test` must have at least one parameter defined",

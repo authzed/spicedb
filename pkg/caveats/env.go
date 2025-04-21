@@ -15,8 +15,9 @@ type Environment struct {
 	variables map[string]types.VariableType
 }
 
-// NewEnvironment creates and returns a new environment for compiling a caveat.
-func NewEnvironment() *Environment {
+// NewEnvironmentWithDefaultTypeSet creates and returns a new environment for compiling a caveat,
+// with the default type set.
+func NewEnvironmentWithDefaultTypeSet() *Environment {
 	return &Environment{
 		ts:        types.Default.TypeSet,
 		variables: map[string]types.VariableType{},
@@ -32,8 +33,8 @@ func NewEnvironmentWithTypeSet(ts *types.TypeSet) *Environment {
 	}
 }
 
-// EnvForVariables returns a new environment constructed for the given variables.
-func EnvForVariables(vars map[string]types.VariableType) (*Environment, error) {
+// EnvForVariablesWithDefaultTypeSet returns a new environment constructed for the given variables.
+func EnvForVariablesWithDefaultTypeSet(vars map[string]types.VariableType) (*Environment, error) {
 	return EnvForVariablesWithTypeSet(types.Default.TypeSet, vars)
 }
 
@@ -49,10 +50,10 @@ func EnvForVariablesWithTypeSet(ts *types.TypeSet, vars map[string]types.Variabl
 	return e, nil
 }
 
-// MustEnvForVariables returns a new environment constructed for the given variables
+// MustEnvForVariablesWithDefaultTypeSet returns a new environment constructed for the given variables
 // or panics.
-func MustEnvForVariables(vars map[string]types.VariableType) *Environment {
-	env, err := EnvForVariables(vars)
+func MustEnvForVariablesWithDefaultTypeSet(vars map[string]types.VariableType) *Environment {
+	env, err := EnvForVariablesWithDefaultTypeSet(vars)
 	if err != nil {
 		panic(err)
 	}

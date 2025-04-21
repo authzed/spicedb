@@ -434,7 +434,7 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 	cBytes, err := c.Serialize()
 	require.NoError(t, err)
 
-	env := caveats.NewEnvironment()
+	env := caveats.NewEnvironmentWithDefaultTypeSet()
 
 	err = env.AddVariable("foo", caveattypes.Default.IntType)
 	require.NoError(t, err)
@@ -454,7 +454,7 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 
 func createCompiledCaveat(t *testing.T) *caveats.CompiledCaveat {
 	t.Helper()
-	env, err := caveats.EnvForVariables(map[string]caveattypes.VariableType{
+	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 		"a": caveattypes.Default.IntType,
 		"b": caveattypes.Default.IntType,
 	})
