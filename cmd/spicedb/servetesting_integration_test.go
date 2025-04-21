@@ -203,8 +203,8 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			return stream.String(), nil
 		}
 
-		// Wait 30s for the container to be ready.
-		time.Sleep(30 * time.Second)
+		// Wait 1s for the container to be ready.
+		time.Sleep(1 * time.Second)
 		log.Printf("[log] %v: container started\n", time.Now())
 
 		logs, lerr := getLogs()
