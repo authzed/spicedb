@@ -248,7 +248,7 @@ func not(opFuncs ...func(t *testing.T) ExpressionResult) func(t *testing.T) Expr
 
 func eval(expr string, context map[string]any) func(t *testing.T) ExpressionResult {
 	return func(t *testing.T) ExpressionResult {
-		env := caveats.NewEnvironment()
+		env := caveats.NewEnvironmentWithDefaultTypeSet()
 
 		for name := range context {
 			require.NoError(t, env.AddVariable(name, types.Default.AnyType))

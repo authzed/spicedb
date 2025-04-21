@@ -182,9 +182,9 @@ func compileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 	return CompileCaveatWithSource(env, "caveat", s, nil)
 }
 
-// DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.
-func DeserializeCaveat(serialized []byte, parameterTypes map[string]types.VariableType) (*CompiledCaveat, error) {
-	env, err := EnvForVariables(parameterTypes)
+// DeserializeCaveatWithDefaultTypeSet deserializes a byte-serialized caveat back into a CompiledCaveat.
+func DeserializeCaveatWithDefaultTypeSet(serialized []byte, parameterTypes map[string]types.VariableType) (*CompiledCaveat, error) {
+	env, err := EnvForVariablesWithDefaultTypeSet(parameterTypes)
 	if err != nil {
 		return nil, err
 	}

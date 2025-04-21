@@ -10,7 +10,7 @@ import (
 
 func TestAddVariable(t *testing.T) {
 	req := require.New(t)
-	env := NewEnvironment()
+	env := NewEnvironmentWithDefaultTypeSet()
 	err := env.AddVariable("foobar", types.Default.IntType)
 	req.NoError(err)
 	err = env.AddVariable("foobar", types.Default.IntType)

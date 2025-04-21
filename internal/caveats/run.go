@@ -76,7 +76,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 		return nil, err
 	}
 
-	env := caveats.NewEnvironment()
+	env := caveats.NewEnvironmentWithTypeSet(cr.caveatTypeSet)
 	return cr.runExpressionWithCaveats(ctx, env, expr, context, debugOption)
 }
 

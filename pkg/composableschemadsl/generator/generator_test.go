@@ -26,7 +26,7 @@ func TestGenerateCaveat(t *testing.T) {
 	tests := []generatorTest{
 		{
 			"basic",
-			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 				map[string]caveattypes.VariableType{
 					"someParam": caveattypes.Default.IntType,
 				},
@@ -39,7 +39,7 @@ caveat somecaveat(someParam int) {
 		},
 		{
 			"multiparameter",
-			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 				map[string]caveattypes.VariableType{
 					"someParam":    caveattypes.Default.IntType,
 					"anotherParam": caveattypes.Default.MustMapType(caveattypes.Default.UIntType),
@@ -53,7 +53,7 @@ caveat somecaveat(anotherParam map<uint>, someParam int) {
 		},
 		{
 			"long",
-			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 				map[string]caveattypes.VariableType{
 					"someParam": caveattypes.Default.IntType,
 				},

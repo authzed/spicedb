@@ -425,7 +425,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			"",
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someparam": caveattypes.Default.IntType,
 					},
@@ -932,7 +932,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someParam": caveattypes.Default.IntType,
 					},
@@ -948,7 +948,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someParam":    caveattypes.Default.IntType,
 						"anotherParam": caveattypes.Default.StringType,
@@ -967,7 +967,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"user_ip": caveattypes.Default.IPAddressType,
 					},
@@ -983,7 +983,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someMap":    caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
 						"anotherMap": caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
@@ -1329,10 +1329,10 @@ func TestCompile(t *testing.T) {
 						parameterTypes, err := caveattypes.DecodeParameterTypes(caveattypes.Default.TypeSet, caveatDef.ParameterTypes)
 						require.NoError(err)
 
-						expectedDecoded, err := caveats.DeserializeCaveat(expectedCaveatDef.SerializedExpression, parameterTypes)
+						expectedDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(expectedCaveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
-						foundDecoded, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression, parameterTypes)
+						foundDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(caveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
 						expectedExprString, err := expectedDecoded.ExprString()

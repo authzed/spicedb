@@ -22,7 +22,7 @@ import (
 )
 
 func TestDefinition(t *testing.T) {
-	emptyEnv := caveats.NewEnvironment()
+	emptyEnv := caveats.NewEnvironmentWithDefaultTypeSet()
 
 	testCases := []struct {
 		name            string

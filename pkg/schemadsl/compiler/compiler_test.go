@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/authzed/cel-go/cel"
+
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -163,7 +165,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			"",
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someparam": caveattypes.Default.IntType,
 					},
@@ -670,7 +672,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someParam": caveattypes.Default.IntType,
 					},
@@ -686,7 +688,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someParam":    caveattypes.Default.IntType,
 						"anotherParam": caveattypes.Default.StringType,
@@ -705,7 +707,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"user_ip": caveattypes.Default.IPAddressType,
 					},
@@ -721,7 +723,7 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
 						"someMap":    caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
 						"anotherMap": caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
@@ -1072,10 +1074,10 @@ func TestCompile(t *testing.T) {
 						parameterTypes, err := caveattypes.DecodeParameterTypes(caveattypes.Default.TypeSet, caveatDef.ParameterTypes)
 						require.NoError(err)
 
-						expectedDecoded, err := caveats.DeserializeCaveat(expectedCaveatDef.SerializedExpression, parameterTypes)
+						expectedDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(expectedCaveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
-						foundDecoded, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression, parameterTypes)
+						foundDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(caveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
 						expectedExprString, err := expectedDecoded.ExprString()
@@ -1144,4 +1146,35 @@ func TestSuperLargeCaveatCompile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 29, len(compiled.ObjectDefinitions))
 	require.Equal(t, 1, len(compiled.CaveatDefinitions))
+}
+
+func TestCompileWithCustomCaveatTypeSet(t *testing.T) {
+	t.Parallel()
+
+	schema := `
+		caveat somecaveat(someparam int, somevar somecustomtype) {
+			someparam.isEven()
+		}
+	`
+
+	sts, err := caveattypes.NewStandardTypeSet()
+	require.NoError(t, err)
+
+	err = caveattypes.RegisterMethodOnDefinedType(sts.TypeSet, cel.IntType,
+		"isEven",
+		[]*cel.Type{},
+		cel.BoolType,
+		nil,
+	)
+	require.NoError(t, err)
+
+	_, err = caveattypes.RegisterBasicType(sts.TypeSet, "somecustomtype", cel.StringType, nil)
+	require.NoError(t, err)
+
+	sts.TypeSet.Freeze()
+
+	_, err = Compile(InputSchema{
+		input.Source("sometest"), schema,
+	}, AllowUnprefixedObjectType(), CaveatTypeSet(sts.TypeSet))
+	require.NoError(t, err)
 }

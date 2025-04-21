@@ -147,7 +147,7 @@ func translateCaveatDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		return nil, defNode.WithSourceErrorf(definitionName, "caveat `%s` must have at least one parameter defined", definitionName)
 	}
 
-	env := caveats.NewEnvironment()
+	env := caveats.NewEnvironmentWithTypeSet(tctx.caveatTypeSet)
 	parameters := make(map[string]caveattypes.VariableType, len(paramNodes))
 	for _, paramNode := range paramNodes {
 		paramName, err := paramNode.GetString(dslshape.NodeCaveatParameterPredicateName)
