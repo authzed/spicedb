@@ -26,7 +26,7 @@ const (
 	defaultGCEnabled                         = true
 	defaultCredentialsProviderName           = ""
 	defaultFilterMaximumIDCount              = 100
-	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
+	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionStaticValues
 	defaultExpirationDisabled                = false
 	defaultWatchDisabled                     = false
 	// no follower delay by default, it should only be set if using read replicas

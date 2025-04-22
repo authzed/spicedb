@@ -60,7 +60,7 @@ const (
 	defaultConnectRate                    = 100 * time.Millisecond
 	defaultFilterMaximumIDCount           = 100
 	defaultWithIntegrity                  = false
-	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionNone
+	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces = false
 	defaultExpirationDisabled             = false
 	defaultWatchDisabled                  = false

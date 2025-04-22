@@ -75,7 +75,7 @@ const (
 	defaultCredentialsProviderName           = ""
 	defaultReadStrictMode                    = false
 	defaultFilterMaximumIDCount              = 100
-	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
+	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces    = false
 	defaultExpirationDisabled                = false
 	defaultWatchDisabled                     = false
