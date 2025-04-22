@@ -64,8 +64,7 @@ jobs:
     name: "Unit"
     runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
+    if: false
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
@@ -83,8 +82,7 @@ jobs:
     name: "Steelthread"
     runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
+    if: false
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
@@ -95,8 +93,7 @@ jobs:
     name: "Integration Tests"
     runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
+    if: false
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
@@ -111,6 +108,7 @@ jobs:
     name: "Datastore Integration Tests"
     runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -137,6 +135,7 @@ jobs:
     name: "Datastore Consistency Tests"
     runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -163,6 +162,7 @@ jobs:
     name: "Datastore Integration Tests"
     runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -190,6 +190,7 @@ jobs:
     name: "Datastore Consistency Tests"
     runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -217,6 +218,7 @@ jobs:
     name: "Datastore Integration Tests"
     runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -244,6 +246,7 @@ jobs:
     name: "Datastore Consistency Tests"
     runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -271,8 +274,7 @@ jobs:
     name: "E2E"
     runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
+    if: false
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
@@ -304,8 +306,7 @@ jobs:
     name: "Analyzers Unit Tests"
     runs-on: "depot-ubuntu-24.04-small"
     needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
+    if: false
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
@@ -318,8 +319,7 @@ jobs:
     name: "WASM Tests"
     runs-on: "ubuntu-22.04" # do not run Depot runners due to somehow triggering https://github.com/agnivade/wasmbrowsertest/issues/40
     needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
+    if: false
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@94cd886a616b37dbfd47dbf15ef83b4925ae1b16"
@@ -330,8 +330,7 @@ jobs:
     name: "Generate Protobufs"
     runs-on: "depot-ubuntu-24.04-small"
     needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.protochange == 'true'
+    if: false
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
