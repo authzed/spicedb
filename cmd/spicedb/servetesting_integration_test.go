@@ -42,9 +42,9 @@ func TestTestServer(t *testing.T) {
 				"serve-testing",
 				"--log-level", "debug",
 				"--http-addr", ":8443",
-				//"--readonly-http-addr", ":8444",
+				"--readonly-http-addr", ":8444",
 				"--http-enabled",
-				//"--readonly-http-enabled",
+				"--readonly-http-enabled",
 			},
 			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
 		},
@@ -146,8 +146,6 @@ func TestTestServer(t *testing.T) {
 	require.Equal(200, hresp.StatusCode)
 	require.Contains(string(body), "schemaText")
 	require.Contains(string(body), "definition resource")
-
-	return
 
 	// Attempt to write to the read only HTTP and ensure it fails.
 	writeUrl := fmt.Sprintf("http://localhost:%s/v1/schema/write", tester.readonlyHttpPort)
