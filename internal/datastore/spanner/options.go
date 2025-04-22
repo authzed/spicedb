@@ -81,7 +81,7 @@ const (
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
 	defaultFilterMaximumIDCount        = 100
-	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionNone
+	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionStaticValues
 	defaultExpirationDisabled          = false
 	defaultWatchDisabled               = false
 )

@@ -308,7 +308,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
-	flagSet.BoolVar(&opts.ExperimentalColumnOptimization, flagName("datastore-experimental-column-optimization"), false, "enable experimental column optimization")
+	flagSet.BoolVar(&opts.ExperimentalColumnOptimization, flagName("datastore-experimental-column-optimization"), true, "enable experimental column optimization")
 
 	return nil
 }
@@ -359,7 +359,7 @@ func DefaultDatastoreConfig() *Config {
 		RelationshipIntegrityCurrentKey:          RelIntegrityKey{},
 		RelationshipIntegrityExpiredKeys:         []string{},
 		AllowedMigrations:                        []string{},
-		ExperimentalColumnOptimization:           false,
+		ExperimentalColumnOptimization:           true,
 		IncludeQueryParametersInTraces:           false,
 		EnableExperimentalRelationshipExpiration: false,
 	}
