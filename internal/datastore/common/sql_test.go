@@ -6,15 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/datastore/options"
-
-	"github.com/authzed/spicedb/pkg/tuple"
-
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var toCursor = options.ToCursor

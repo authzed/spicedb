@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
+
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/authzed/grpcutil"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"

@@ -3,10 +3,10 @@ package v1
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReadRelationshipsHashStability(t *testing.T) {

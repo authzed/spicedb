@@ -3,8 +3,9 @@ package caveats
 import (
 	"strconv"
 
-	"github.com/authzed/cel-go/cel"
 	"github.com/rs/zerolog"
+
+	"github.com/authzed/cel-go/cel"
 )
 
 // EvaluationError is an error in evaluation of a caveat expression.

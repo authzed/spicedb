@@ -4,12 +4,12 @@ import (
 	"context"
 	"strings"
 
-	log "github.com/authzed/spicedb/internal/logging"
-
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 // FieldSpec provides a mapping between a metadata context field and a logging field.

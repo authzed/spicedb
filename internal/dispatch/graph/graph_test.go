@@ -4,12 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/authzed/spicedb/internal/graph"
-
-	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/authzed/grpcutil"
+
+	"github.com/authzed/spicedb/internal/graph"
 )
 
 func TestUnwrapStatusError(t *testing.T) {

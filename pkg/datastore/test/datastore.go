@@ -7,10 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/tuple"
-
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // veryLargeGCWindow is a very large time duration, which when passed to a constructor should

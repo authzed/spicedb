@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"

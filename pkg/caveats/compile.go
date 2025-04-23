@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/pkg/caveats/replacer"
 	"github.com/authzed/spicedb/pkg/caveats/types"

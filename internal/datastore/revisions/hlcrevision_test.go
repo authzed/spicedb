@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/datastore"
-
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestNewForHLC(t *testing.T) {

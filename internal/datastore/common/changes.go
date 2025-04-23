@@ -4,10 +4,9 @@ import (
 	"context"
 	"sort"
 
+	"github.com/ccoveille/go-safecast"
 	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/structpb"
-
-	"github.com/ccoveille/go-safecast"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"

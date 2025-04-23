@@ -4,7 +4,6 @@ import (
 	"context"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 

@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/authzed/grpcutil"
 	metautils "github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/authzed/grpcutil"
 )
 
 func TestPresharedKeys(t *testing.T) {

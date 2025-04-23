@@ -7,11 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/testutil"
-
 	"github.com/stretchr/testify/require"
-
 	"go.uber.org/goleak"
+
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 // done so we can do t.Parallel() and still use goleak

@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/authzed/grpcutil"
 	"github.com/cenkalti/backoff/v4"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"

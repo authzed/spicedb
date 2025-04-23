@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/dustin/go-humanize"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/stretchr/testify/require"
@@ -16,6 +15,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
+
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
 )

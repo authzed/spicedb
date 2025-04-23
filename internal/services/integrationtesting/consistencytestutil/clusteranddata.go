@@ -5,13 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/dispatch"
-
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"

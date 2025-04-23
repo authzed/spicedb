@@ -7,15 +7,12 @@ import (
 	"fmt"
 	"strings"
 
-	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
-
-	"github.com/authzed/spicedb/pkg/datastore"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
-
 	sq "github.com/Masterminds/squirrel"
 	sqlDriver "github.com/go-sql-driver/mysql"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
+	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
