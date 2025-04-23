@@ -1171,7 +1171,7 @@ func TestCompileWithCustomCaveatTypeSet(t *testing.T) {
 	_, err = caveattypes.RegisterBasicType(sts.TypeSet, "somecustomtype", cel.StringType, nil)
 	require.NoError(t, err)
 
-	sts.TypeSet.Freeze()
+	sts.Freeze()
 
 	_, err = Compile(InputSchema{
 		input.Source("sometest"), schema,

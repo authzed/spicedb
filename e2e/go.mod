@@ -15,9 +15,9 @@ require (
 	github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/tools v0.31.0
+	golang.org/x/tools v0.32.0
 	google.golang.org/grpc v1.71.1
-	mvdan.cc/gofumpt v0.7.0
+	mvdan.cc/gofumpt v0.8.0
 )
 
 require (
@@ -41,7 +41,7 @@ require (
 	github.com/ccoveille/go-safecast v1.6.1 // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
 	github.com/creasty/defaults v1.8.0 // indirect
-	github.com/dave/jennifer v1.6.1 // indirect
+	github.com/dave/jennifer v1.7.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect

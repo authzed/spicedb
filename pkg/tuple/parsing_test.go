@@ -583,7 +583,7 @@ func TestSerialize(t *testing.T) {
 				return
 			}
 
-			serialized := strings.Replace(MustString(tc.relFormat), " ", "", -1)
+			serialized := strings.ReplaceAll(MustString(tc.relFormat), " ", "")
 			require.Equal(t, tc.expectedOutput, serialized)
 
 			withoutCaveat := StringWithoutCaveatOrExpiration(tc.relFormat)
@@ -604,7 +604,7 @@ func TestSerialize(t *testing.T) {
 				expectedOutput = tc.expectedOutput
 			}
 
-			serialized := strings.Replace(MustV1RelString(tc.v1Format), " ", "", -1)
+			serialized := strings.ReplaceAll(MustV1RelString(tc.v1Format), " ", "")
 			require.Equal(t, expectedOutput, serialized)
 
 			withoutCaveat := V1StringRelationshipWithoutCaveatOrExpiration(tc.v1Format)
@@ -660,7 +660,7 @@ func TestConvert(t *testing.T) {
 			require.True(Equal(tc.relFormat, parsed), "found difference in parsed relationship: %v vs %v", tc.relFormat, parsed)
 
 			relationship := ToV1Relationship(parsed)
-			relString := strings.Replace(MustV1RelString(relationship), " ", "", -1)
+			relString := strings.ReplaceAll(MustV1RelString(relationship), " ", "")
 			expectedOutput := tc.expectedV1Output
 			if expectedOutput == "" {
 				expectedOutput = tc.expectedOutput

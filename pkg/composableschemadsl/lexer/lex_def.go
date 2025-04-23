@@ -330,11 +330,7 @@ func lexMultilineComment(l *Lexer) stateFn {
 
 // lexIdentifierOrKeyword searches for a keyword or literal identifier.
 func lexIdentifierOrKeyword(l *Lexer) stateFn {
-	for {
-		if !isAlphaNumeric(l.peek()) {
-			break
-		}
-
+	for isAlphaNumeric(l.peek()) {
 		l.next()
 	}
 

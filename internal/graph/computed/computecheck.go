@@ -93,9 +93,10 @@ func computeCheck(ctx context.Context,
 	dispatchChunkSize uint16,
 ) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, []*v1.DebugInformation, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
-	if params.DebugOption == BasicDebuggingEnabled {
+	switch params.DebugOption {
+	case BasicDebuggingEnabled:
 		debugging = v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING
-	} else if params.DebugOption == TraceDebuggingEnabled {
+	case TraceDebuggingEnabled:
 		debugging = v1.DispatchCheckRequest_ENABLE_TRACE_DEBUGGING
 	}
 

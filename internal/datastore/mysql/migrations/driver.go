@@ -149,7 +149,7 @@ func BeginTxFunc(ctx context.Context, db *sql.DB, txOptions *sql.TxOptions, f fu
 // of the database schema.
 func (driver *MySQLDriver) WriteVersion(ctx context.Context, txWrapper TxWrapper, version, replaced string) error {
 	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
-		driver.tables.migrationVersion(),
+		driver.migrationVersion(),
 		revisionToColumnName(replaced),
 		revisionToColumnName(version),
 	)

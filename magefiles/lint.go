@@ -73,7 +73,7 @@ func (Lint) Gofumpt() error {
 // Golangcilint Run golangci-lint
 func (Lint) Golangcilint() error {
 	fmt.Println("running golangci-lint")
-	return RunSh("go", WithV())("run", "github.com/golangci/golangci-lint/cmd/golangci-lint", "run", "--fix")
+	return RunSh("go", WithV())("run", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", "run", "--fix")
 }
 
 // Analyzers Run all analyzers

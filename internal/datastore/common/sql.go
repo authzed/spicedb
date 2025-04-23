@@ -530,10 +530,11 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 		return csqf, spiceerrors.MustBugf("unknown caveat filter option: %v", filter.OptionalCaveatNameFilter.Option)
 	}
 
-	if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionHasExpiration {
+	switch filter.OptionalExpirationOption {
+	case datastore.ExpirationFilterOptionHasExpiration:
 		csqf.queryBuilder = csqf.queryBuilder.Where(sq.NotEq{csqf.schema.ColExpiration: nil})
 		spiceerrors.DebugAssert(func() bool { return !sqf.schema.ExpirationDisabled }, "expiration filter requested but schema does not support expiration")
-	} else if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionNoExpiration {
+	case datastore.ExpirationFilterOptionNoExpiration:
 		csqf.queryBuilder = csqf.queryBuilder.Where(sq.Eq{csqf.schema.ColExpiration: nil})
 	}
 

@@ -829,10 +829,7 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 	features, err := ds.Features(ctx)
 	require.NoError(err)
 
-	expectsWatchError := false
-	if !(features.WatchEmitsImmediately.Status == datastore.FeatureSupported) {
-		expectsWatchError = true
-	}
+	expectsWatchError := (features.WatchEmitsImmediately.Status != datastore.FeatureSupported)
 
 	lowestRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)

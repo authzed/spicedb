@@ -56,7 +56,7 @@ func (hm *healthManager) HealthSvc() *grpcutil.AuthlessHealthServer {
 
 func (hm *healthManager) RegisterReportedService(serviceName string) {
 	hm.serviceNames[serviceName] = struct{}{}
-	hm.healthSvc.Server.SetServingStatus(serviceName, healthpb.HealthCheckResponse_NOT_SERVING)
+	hm.healthSvc.SetServingStatus(serviceName, healthpb.HealthCheckResponse_NOT_SERVING)
 }
 
 func (hm *healthManager) Checker(ctx context.Context) func() error {
@@ -83,7 +83,7 @@ func (hm *healthManager) Checker(ctx context.Context) func() error {
 			isReady := hm.checkIsReady(ctx)
 			if isReady {
 				for serviceName := range hm.serviceNames {
-					hm.healthSvc.Server.SetServingStatus(serviceName, healthpb.HealthCheckResponse_SERVING)
+					hm.healthSvc.SetServingStatus(serviceName, healthpb.HealthCheckResponse_SERVING)
 				}
 				return nil
 			}

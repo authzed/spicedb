@@ -94,7 +94,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
-	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy && !(options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints) {
+	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy && (options.Content&datastore.WatchCheckpoints != datastore.WatchCheckpoints) {
 		close(updates)
 		errs <- errors.New("EmitImmediatelyStrategy requires WatchCheckpoints to be set")
 		return updates, errs

@@ -154,7 +154,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	if err != nil {
 		var withNodeError withNodeError
 		if errors.As(err, &withNodeError) {
-			err = toContextError(withNodeError.error.Error(), withNodeError.errorSourceCode, withNodeError.node, mapper)
+			err = toContextError(withNodeError.Error(), withNodeError.errorSourceCode, withNodeError.node, mapper)
 		}
 
 		return nil, err

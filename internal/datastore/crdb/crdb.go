@@ -196,7 +196,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		watchEnabled:            !config.watchDisabled,
 		schema:                  *schema.Schema(config.columnOptimizationOption, config.withIntegrity, config.expirationDisabled),
 	}
-	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
+	ds.SetNowFunc(ds.headRevisionInternal)
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
@@ -429,7 +429,7 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		return datastore.ReadyState{}, err
 	}
 
-	if state := cds.MigrationValidator.MigrationReadyState(version); !state.IsReady {
+	if state := cds.MigrationReadyState(version); !state.IsReady {
 		return state, nil
 	}
 
