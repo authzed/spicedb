@@ -4,11 +4,13 @@ on:  # yamllint disable-line rule:truthy
   release:
     types: ["created"]
 permissions:
-  contents: "write"
+  contents: "read"
 jobs:
   build:
     name: "Build WASM"
     runs-on: "depot-ubuntu-24.04-small"
+    permissions:
+      contents: "write"
     steps:
       - uses: "actions/checkout@v4"
         with:

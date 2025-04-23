@@ -10,6 +10,8 @@ on:  # yamllint disable-line rule:truthy
   merge_group:
     types:
       - "checks_requested"
+permissions:
+  contents: "read"
 jobs:
   go-license-check:
     name: "License Check"

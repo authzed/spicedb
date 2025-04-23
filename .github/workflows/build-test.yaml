@@ -10,6 +10,8 @@ on:  # yamllint disable-line rule:truthy
   merge_group:
     types:
       - "checks_requested"
+permissions:
+  contents: "read"
 env:
   DOCKERHUB_PUBLIC_ACCESS_TOKEN: "dckr_pat_8AEETZWxu8f7FvJUk9NrpyX_ZEQ"
   DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
