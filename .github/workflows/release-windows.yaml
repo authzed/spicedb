@@ -5,11 +5,13 @@ on:  # yamllint disable-line rule:truthy
     tags:
       - "*"
 permissions:
-  contents: "write"
-  packages: "write"
+  contents: "read"
 jobs:
   release-windows:
     runs-on: "windows-latest"
+    permissions:
+      contents: "write"
+      packages: "write" # publish to GHCR
     steps:
       - uses: "actions/checkout@v4"
         with:

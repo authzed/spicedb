@@ -5,6 +5,8 @@ on:  # yamllint disable-line rule:truthy
   merge_group:
     types:
       - "checks_requested"
+permissions:
+  contents: "read"
 jobs:
   triage:
     runs-on: "depot-ubuntu-24.04-small"

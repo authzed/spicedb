@@ -5,11 +5,13 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - "main"
 permissions:
-  contents: "write"
-  packages: "write"
+  contents: "read"
 jobs:
   goreleaser:
     runs-on: "depot-ubuntu-24.04-4"
+    permissions:
+      contents: "write"
+      packages: "write" # publish to GHCR
     steps:
       - uses: "actions/checkout@v4"
         with:
