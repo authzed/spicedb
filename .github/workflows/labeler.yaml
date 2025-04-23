@@ -10,6 +10,8 @@ permissions:
 jobs:
   triage:
     runs-on: "depot-ubuntu-24.04-small"
+    permissions:
+      pull-requests: "write"
     steps:
       - uses: "actions/labeler@v5"
         with:
