@@ -22,6 +22,8 @@
   &nbsp;
   <a href="https://www.bestpractices.dev/en/projects/6348" target="_blank"><img alt="cii badge" src="https://img.shields.io/cii/percentage/6348?style=flat-square&label=cii%20best%20practices&color=F8D44B"></a>
   &nbsp;
+  <a href="https://securityscorecards.dev/viewer/?uri=github.com/authzed/spicedb" target="_blank"><img alt="ssf badge" src="https://api.securityscorecards.dev/projects/github.com/authzed/spicedb/badge"></a>
+  &nbsp;
 </p>
 
 <p align="center">
