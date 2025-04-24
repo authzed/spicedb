@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/authzed/consistent"
-	"github.com/authzed/grpcutil"
 	"github.com/cespare/xxhash/v2"
 	"github.com/ecordell/optgen/helpers"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
@@ -23,6 +21,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
+
+	"github.com/authzed/consistent"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore/proxy"

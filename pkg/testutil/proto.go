@@ -7,10 +7,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/stretchr/testify/require"
 )
 
 // AreProtoEqual returns whether the expected and required protocol buffer messages are equal, via proto.Equal.

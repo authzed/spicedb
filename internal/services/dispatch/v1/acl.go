@@ -5,10 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
-
-	"github.com/authzed/spicedb/internal/middleware"
-
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,6 +12,8 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware"
+	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/services/shared"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )

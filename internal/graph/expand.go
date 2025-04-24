@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/authzed/spicedb/internal/caveats"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"

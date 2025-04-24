@@ -7,7 +7,6 @@ import (
 	yamlv3 "gopkg.in/yaml.v3"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 

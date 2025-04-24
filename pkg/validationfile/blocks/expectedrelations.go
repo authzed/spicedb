@@ -6,9 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	yamlv3 "gopkg.in/yaml.v3"
-
 	"github.com/ccoveille/go-safecast"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"

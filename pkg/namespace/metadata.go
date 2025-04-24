@@ -4,7 +4,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 

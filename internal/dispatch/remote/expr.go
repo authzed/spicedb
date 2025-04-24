@@ -3,11 +3,12 @@ package remote
 import (
 	"fmt"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common"
 	"github.com/authzed/cel-go/common/types"
 	"github.com/authzed/cel-go/common/types/ref"
-	"google.golang.org/protobuf/proto"
 
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"

@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 )

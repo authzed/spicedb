@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	sqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
-
-	sqlDriver "github.com/go-sql-driver/mysql"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	mysqlmigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"

@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 	humanize "github.com/dustin/go-humanize"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -15,6 +14,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"

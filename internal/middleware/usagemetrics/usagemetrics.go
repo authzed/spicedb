@@ -5,12 +5,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/authzed/authzed-go/pkg/responsemeta"
-	"github.com/authzed/grpcutil"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
+
+	"github.com/authzed/authzed-go/pkg/responsemeta"
+	"github.com/authzed/grpcutil"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"

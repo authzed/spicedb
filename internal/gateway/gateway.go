@@ -6,9 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/authzed/authzed-go/proto"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -21,6 +18,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/authzed/authzed-go/proto"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
 )

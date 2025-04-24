@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	"cloud.google.com/go/spanner"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/ccoveille/go-safecast"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"

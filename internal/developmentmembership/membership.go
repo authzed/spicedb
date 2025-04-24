@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )

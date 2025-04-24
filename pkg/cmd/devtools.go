@@ -8,8 +8,6 @@ import (
 	"os/signal"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/authzed/grpcutil"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/go-logr/zerologr"
@@ -23,6 +21,9 @@ import (
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
+
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/authzed/grpcutil"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"

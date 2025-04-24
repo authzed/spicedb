@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 func TestPublishError(t *testing.T) {

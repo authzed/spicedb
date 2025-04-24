@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	log "github.com/authzed/spicedb/internal/logging"
-
 	"gopkg.in/yaml.v3"
+
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 const downloadPath = "/download/"

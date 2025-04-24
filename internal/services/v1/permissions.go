@@ -8,8 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/authzed/authzed-go/pkg/requestmeta"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -18,6 +16,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/authzed/authzed-go/pkg/requestmeta"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"

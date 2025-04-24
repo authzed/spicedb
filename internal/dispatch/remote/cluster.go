@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/authzed/consistent"
 	"github.com/caio/go-tdigest/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
@@ -20,6 +19,8 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/authzed/consistent"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"

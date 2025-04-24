@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/consistent"
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/resolver"
+
+	"github.com/authzed/consistent"
 
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/pkg/cmd/server"

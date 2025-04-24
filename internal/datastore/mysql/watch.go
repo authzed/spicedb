@@ -5,12 +5,12 @@ import (
 	"errors"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
-
-	sq "github.com/Masterminds/squirrel"
 )
 
 const (

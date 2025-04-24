@@ -66,9 +66,16 @@ linters:
       - "examples$"
 formatters:
   enable:
+    - "gci"
     - "gofumpt"
     - "goimports"
   settings:
+    gci:
+      sections:
+        - "standard"
+        - "default"
+        - "prefix(github.com/authzed)"
+        - "localmodule"
     goimports:
       local-prefixes:
         - "github.com/authzed/spicedb"

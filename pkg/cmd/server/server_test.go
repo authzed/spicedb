@@ -7,19 +7,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	"github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/cmd/datastore"
-	"github.com/authzed/spicedb/pkg/cmd/util"
-	"github.com/authzed/spicedb/pkg/testutil"
-
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	"github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 func TestServerGracefulTermination(t *testing.T) {

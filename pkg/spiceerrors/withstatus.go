@@ -3,14 +3,14 @@ package spiceerrors
 import (
 	"errors"
 
-	log "github.com/authzed/spicedb/internal/logging"
-
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/runtime/protoiface"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 // Domain is the domain used for all errors.

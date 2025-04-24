@@ -13,11 +13,12 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/stringz"
 	"golang.org/x/exp/maps"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"

@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"

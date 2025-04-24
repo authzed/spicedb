@@ -3,11 +3,11 @@ package dispatchv1
 import (
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	"github.com/bits-and-blooms/bloom/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 func (x *ResolverMeta) RecordTraversal(key string) (possiblyLoop bool, err error) {

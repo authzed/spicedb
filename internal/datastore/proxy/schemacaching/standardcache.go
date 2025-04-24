@@ -6,14 +6,13 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/genutil/mapz"
-
 	"golang.org/x/sync/singleflight"
 
 	internaldatastore "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 

@@ -11,7 +11,6 @@ import (
 	"github.com/sercand/kuberesolver/v5"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/balancer"
-
 	_ "google.golang.org/grpc/xds"
 
 	log "github.com/authzed/spicedb/internal/logging"

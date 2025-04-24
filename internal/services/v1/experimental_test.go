@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
 	"github.com/ccoveille/go-safecast"
 	"github.com/jzelinskie/stringz"
 	"github.com/scylladb/go-set"
@@ -21,6 +19,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
