@@ -1,6 +1,7 @@
 package version
 
 // MinimumSupportedCockroachDBVersion is the minimum version of CockroachDB supported for this driver.
+// If you update this, please also update the E2E step in the Github workflow.
 //
 // NOTE: must match a tag on DockerHub for the `cockroachdb/cockroach` image, without the `v` prefix.
 const MinimumSupportedCockroachDBVersion = "23.1.30"

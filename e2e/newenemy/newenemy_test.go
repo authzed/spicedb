@@ -105,7 +105,7 @@ func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Clus
 
 	t.Log("initializing crdb...")
 
-	crdbCluster.Init(ctx, tlog, tlog)
+	require.NoError(crdbCluster.Init(ctx, tlog, tlog))
 	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
 		"SET CLUSTER SETTING kv.range.backpressure_range_size_multiplier=0;",
 	))
@@ -648,9 +648,11 @@ func leaderFromRangeRow(row pgx.Row) int {
 		leaseHoldeLocality sql.NullString
 		replicas           []pgtype.Int8
 		replicaLocalities  []pgtype.Text
+		votingReplicas     []pgtype.Int8
+		nonVotingReplicas  []pgtype.Int8
 	)
 
-	if err := row.Scan(&startKey, &endKey, &rangeID, &leaseHolder, &leaseHoldeLocality, &replicas, &replicaLocalities); err != nil {
+	if err := row.Scan(&startKey, &endKey, &rangeID, &leaseHolder, &leaseHoldeLocality, &replicas, &replicaLocalities, &votingReplicas, &nonVotingReplicas); err != nil {
 		log.Fatal(fmt.Errorf("failed to load leader id: %w", err))
 	}
 
