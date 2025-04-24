@@ -35,15 +35,15 @@ jobs:
         language: ["go"]
 
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
-      - uses: "authzed/actions/codeql@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/codeql@9013d08e1002d122cc87f21d9ed43063555642d0" # main"
 
   trivy:
     name: "Analyze Code and Docker Image with Trivvy"
     runs-on: "depot-ubuntu-24.04"
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         with:
           # Only a single commit is fetched by default, for the ref/SHA that triggered the workflow. Set fetch-depth: 0
           # to fetch all history for all branches and tags. Refer here to learn which commit $GITHUB_SHA
@@ -52,8 +52,8 @@ jobs:
           # this is used so goreleaser generates the right version out of the tags, which we need so that
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v3"
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -62,7 +62,7 @@ jobs:
           sudo snap install snapcraft --channel=8.x/stable --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages
-      - uses: "aquasecurity/trivy-action@master"
+      - uses: "aquasecurity/trivy-action@99baf0d8b4e787c3cfd7b602664c8ce60a43cd38" # master
         with:
           scan-type: "fs"
           ignore-unfixed: true
@@ -72,7 +72,7 @@ jobs:
         env:
           TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db"
           TRIVY_JAVA_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-java-db"
-      - uses: "goreleaser/goreleaser-action@v6"
+      - uses: "goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552" # v6.3.0
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"

@@ -19,7 +19,7 @@ jobs:
     name: "Check Signature"
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "authzed/actions/cla-check@main"
+      - uses: "authzed/actions/cla-check@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         with:
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           cla_assistant_token: "${{ secrets.CLA_ASSISTANT_ACCESS_TOKEN }}"
