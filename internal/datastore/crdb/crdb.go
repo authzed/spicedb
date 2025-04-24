@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/IBM/pgxpoolprometheus"
@@ -293,6 +294,8 @@ type crdbDatastore struct {
 	supportsIntegrity    bool
 	expirationEnabled    bool
 	watchEnabled         bool
+
+	uniqueID atomic.Pointer[string]
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {

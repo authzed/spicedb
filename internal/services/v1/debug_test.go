@@ -508,7 +508,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 							},
 						},
 						Resource:   stc.checkRequest.resource,
@@ -906,7 +906,7 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 			checkResp, err := client.CheckBulkPermissions(ctx, &v1.CheckBulkPermissionsRequest{
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_AtLeastAsFresh{
-						AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+						AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 					},
 				},
 				WithTracing: true,
