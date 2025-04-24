@@ -39,7 +39,7 @@ func Analyzer() *analysis.Analyzer {
 			// Check for a skipped file.
 			skipFilePatterns := make([]string, 0)
 			if len(*skipFiles) > 0 {
-				skipFilePatterns = lo.Map(strings.Split(*skipPkg, ","), func(skipped string, _ int) string { return strings.TrimSpace(skipped) })
+				skipFilePatterns = lo.Map(strings.Split(*skipFiles, ","), func(skipped string, _ int) string { return strings.TrimSpace(skipped) })
 			}
 			for _, pattern := range skipFilePatterns {
 				_, err := regexp.Compile(pattern)

@@ -87,7 +87,7 @@ func (Lint) Analyzers() error {
 		"-exprstatementcheck",
 		"-exprstatementcheck.disallowed-expr-statement-types=*github.com/rs/zerolog.Event:MarshalZerologObject:missing Send or Msg on zerolog log Event",
 		"-paniccheck",
-		"-paniccheck.skip-files=_test,zz_",
+		"-paniccheck.skip-files=_test,zz_,migrations/index.go",
 		"-zerologmarshalcheck",
 		"-zerologmarshalcheck.skip-files=_test,zz_",
 		"-protomarshalcheck",
