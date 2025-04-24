@@ -13,20 +13,20 @@ jobs:
       contents: "write"
       packages: "write" # publish to GHCR
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         with:
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@main"
-      - uses: "nowsprinting/check-version-format-action@v4"
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "nowsprinting/check-version-format-action@c7180d5aa53d69af70c364c047482fc71e133f55" # v4.0.6
         id: "version"
         with:
           prefix: "v"
-      - uses: "authzed/actions/docker-login@main"
+      - uses: "authzed/actions/docker-login@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
-      - uses: "goreleaser/goreleaser-action@v6"
+      - uses: "goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552" # v6.3.0
         with:
           distribution: "goreleaser-pro"
           # NOTE: keep in sync with goreleaser version in other job.

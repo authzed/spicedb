@@ -17,10 +17,10 @@ jobs:
     name: "License Check"
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Check Licenses"
-        uses: "authzed/actions/go-license-check@main"
+        uses: "authzed/actions/go-license-check@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         with:
           ignore: "buf.build"  # Has no license information
 
@@ -28,11 +28,11 @@ jobs:
     name: "Lint Go"
     runs-on: "depot-ubuntu-24.04"
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Lint Go"
         run: "go run mage.go lint:go"
-      - uses: "chainguard-dev/actions/nodiff@main"
+      - uses: "chainguard-dev/actions/nodiff@93d7e48486a0ec24d253345d8b5378a5551b7be9" # main
         with:
           path: ""
           fixup-command: "go run mage.go lint:go"
@@ -41,11 +41,11 @@ jobs:
     name: "Lint YAML & Markdown"
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Lint Everything Else"
         run: "go run mage.go lint:extra"
-      - uses: "chainguard-dev/actions/nodiff@main"
+      - uses: "chainguard-dev/actions/nodiff@93d7e48486a0ec24d253345d8b5378a5551b7be9" # main
         with:
           path: ""
           fixup-command: "go run mage.go lint:extra"

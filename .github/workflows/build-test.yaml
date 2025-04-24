@@ -22,8 +22,8 @@ jobs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "dorny/paths-filter@v3"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36" # v3.0.2
         id: "code-filter"
         with:
           filters: |
@@ -36,7 +36,7 @@ jobs:
               - "pkg/**"
               - "e2e/**"
               - "internal/**"
-      - uses: "dorny/paths-filter@v3"
+      - uses: "dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36" # v3.0.2
         id: "proto-filter"
         with:
           filters: |
@@ -52,9 +52,9 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v3"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -69,12 +69,12 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Unit tests"
         run: "go run mage.go test:unit"
       - name: "Coverage"
-        uses: "codecov/codecov-action@v5.4.0"
+        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
         with:
           files: "./coverage.txt"
           verbose: true
@@ -88,8 +88,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Steelthread tests"
         run: "go run mage.go test:steelthread"
 
@@ -100,9 +100,9 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v3"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -118,13 +118,13 @@ jobs:
       matrix:
         datastore: ["mysql", "spanner"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -144,13 +144,13 @@ jobs:
       matrix:
         datastore: ["mysql", "spanner"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -171,13 +171,13 @@ jobs:
         datastore: ["postgres", "pgbouncer"]
         pgversion: ["13.8", "14", "15", "16", "17"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -198,13 +198,13 @@ jobs:
         datastore: ["postgres"]
         pgversion: ["13.8", "14", "15", "16", "17"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -225,13 +225,13 @@ jobs:
         datastore: ["crdb"]
         crdbversion: ["24.3.6", "25.1.0"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -252,13 +252,13 @@ jobs:
         datastore: ["crdb"]
         crdbversion: ["24.3.6", "25.1.0"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -276,8 +276,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         with:
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
@@ -295,7 +295,7 @@ jobs:
         working-directory: "e2e/newenemy"
         run: |
           go test -v -timeout 11m ./...
-      - uses: "actions/upload-artifact@v4"
+      - uses: "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" # v4.6.2
         if: "always()"
         # this upload step is really flaky, don't fail the job if it fails
         continue-on-error: true
@@ -309,8 +309,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
         with:
           go-version-file: "tools/analyzers/go.mod"
           cache-dependency-path: "tools/analyzers/go.sum"
@@ -323,8 +323,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@94cd886a616b37dbfd47dbf15ef83b4925ae1b16"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "WASM tests"
         run: "go run mage.go test:wasm"
 
@@ -335,16 +335,16 @@ jobs:
     if: |
       needs.paths-filter.outputs.protochange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
-      - uses: "chainguard-dev/actions/nodiff@main"
+      - uses: "chainguard-dev/actions/nodiff@93d7e48486a0ec24d253345d8b5378a5551b7be9" # main
         with:
           path: ""
           fixup-command: "go run mage.go gen:proto"
-      - uses: "bufbuild/buf-setup-action@v1"
-      - uses: "bufbuild/buf-breaking-action@v1.1.4"
+      - uses: "bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99" # v1.5.0
+      - uses: "bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba" # v1.1.4 TODO(miparnisari) deprecated, use buf-action
         if: "github.event_name == 'pull_request'"
         env:
           BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"
