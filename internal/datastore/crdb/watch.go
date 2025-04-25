@@ -75,23 +75,27 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
-	features, err := cds.Features(ctx)
-	if err != nil {
-		close(updates)
-		errs <- err
-		return updates, errs
-	}
+	// If checkpoints + schema is requested, this is likely used by the schema watching cache,
+	// so its allowed even if the watch API is disabled otherwise.
+	if options.Content != datastore.WatchSchema|datastore.WatchCheckpoints {
+		features, err := cds.Features(ctx)
+		if err != nil {
+			close(updates)
+			errs <- err
+			return updates, errs
+		}
 
-	if !cds.watchEnabled {
-		close(updates)
-		errs <- datastore.NewWatchDisabledErr("watch API has been explicitly disabled for this datastore")
-		return updates, errs
-	}
+		if !cds.watchEnabled {
+			close(updates)
+			errs <- datastore.NewWatchDisabledErr("watch API has been explicitly disabled for this datastore")
+			return updates, errs
+		}
 
-	if features.Watch.Status != datastore.FeatureSupported {
-		close(updates)
-		errs <- datastore.NewWatchDisabledErr(fmt.Sprintf("%s. See https://spicedb.dev/d/enable-watch-api-crdb", features.Watch.Reason))
-		return updates, errs
+		if features.Watch.Status != datastore.FeatureSupported {
+			close(updates)
+			errs <- datastore.NewWatchDisabledErr(fmt.Sprintf("%s. See https://spicedb.dev/d/enable-watch-api-crdb", features.Watch.Reason))
+			return updates, errs
+		}
 	}
 
 	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy && (options.Content&datastore.WatchCheckpoints != datastore.WatchCheckpoints) {
