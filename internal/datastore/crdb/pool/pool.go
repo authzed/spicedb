@@ -310,8 +310,12 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 			continue
 		}
 		conn.Release()
+
 		// error is not resettable or retryable
-		log.Ctx(ctx).Warn().Err(err).Uint8("retries", retries).Msg("error is not resettable or retryable")
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			log.Ctx(ctx).Warn().Err(err).Uint8("retries", retries).Msg("error is not resettable or retryable")
+		}
+
 		return err
 	}
 	return &MaxRetryError{MaxRetries: maxRetries, LastErr: err}

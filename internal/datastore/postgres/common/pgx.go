@@ -76,7 +76,7 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 			// log revision not available errors at debug level
 			if errArg, ok := data["err"]; ok {
 				err, ok := errArg.(error)
-				if ok && (common.IsCancellationError(err) || IsSerializationError(err) || IsReplicationLagError(err)) {
+				if ok && (common.IsCancellationError(err) || IsQueryCanceledError(err) || IsSerializationError(err) || IsReplicationLagError(err)) {
 					logger.Log(ctx, tracelog.LogLevelDebug, msg, data)
 					return
 				}
