@@ -113,11 +113,10 @@ func TestTypechecking(t *testing.T) {
 			require.NoError(t, err)
 
 			res := ResolverForCompiledSchema(*schema)
-			graph, err := BuildGraph(context.Background(), res)
-			require.NoError(t, err)
+			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
-					set, err := graph.GetTypesForRelation(context.Background(), resource.Name, relation.Name)
+					set, err := ts.GetTypesForRelation(context.Background(), resource.Name, relation.Name)
 					require.NoError(t, err)
 					types := set.AsSlice()
 
