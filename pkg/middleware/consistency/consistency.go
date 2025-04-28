@@ -37,7 +37,7 @@ type ctxKeyType struct{}
 
 var revisionKey ctxKeyType = struct{}{}
 
-var errInvalidZedToken = errors.New("invalid revision requested")
+var errInvalidZedToken = status.Error(codes.InvalidArgument, "invalid revision requested")
 
 type revisionHandle struct {
 	revision datastore.Revision

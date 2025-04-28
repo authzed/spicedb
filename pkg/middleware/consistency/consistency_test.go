@@ -2,16 +2,18 @@ package consistency
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/cursor"
+	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -138,7 +140,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("CheckRevision", zero).Return(errors.New("bad revision")).Times(1)
+	ds.On("CheckRevision", zero).Return(datastore.NewInvalidRevisionErr(zero, datastore.RevisionStale)).Times(1)
 	ds.On("RevisionFromString", zero.String()).Return(zero, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
@@ -150,6 +152,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 		},
 	}, ds, "somelabel")
 	require.Error(err)
+	grpcutil.RequireStatus(t, codes.OutOfRange, err)
 	ds.AssertExpectations(t)
 }
 
@@ -191,4 +194,31 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 
 	require.True(optimized.Equal(rev))
 	ds.AssertExpectations(t)
+}
+
+func TestAddRevisionToContextAtMalformedExactSnapshot(t *testing.T) {
+	err := AddRevisionToContext(ContextWithHandle(context.Background()), &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtExactSnapshot{
+				AtExactSnapshot: &v1.ZedToken{Token: "blah"},
+			},
+		},
+	}, nil, "")
+	require.Error(t, err)
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+}
+
+func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+
+	err := AddRevisionToContext(ContextWithHandle(context.Background()), &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: &v1.ZedToken{Token: "blah"},
+			},
+		},
+	}, ds, "")
+	require.Error(t, err)
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 }
