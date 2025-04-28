@@ -246,17 +246,21 @@ func (r *observableReader) QueryRelationships(ctx context.Context, filter datast
 	}, nil
 }
 
-func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	ctx, closer := observe(ctx, "ReverseQueryRelationships", "", trace.WithAttributes(
+func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+	ctx, closer := observe(ctx, "ReverseQueryRelationships", string(queryOpts.QueryShapeForReverse), trace.WithAttributes(
 		attribute.String("subjectType", subjectsFilter.SubjectType),
-	))
+		attribute.String("queryShape", string(queryOpts.QueryShapeForReverse))))
 
-	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, options...)
+	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 	if err != nil {
+		closer()
 		return iterator, err
 	}
 
 	return func(yield func(tuple.Relationship, error) bool) {
+		defer closer()
+
 		var count uint64
 		for rel, err := range iterator {
 			count++
@@ -265,7 +269,6 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 			}
 		}
 		loadedRelationshipCount.Observe(float64(count))
-		closer()
 	}, nil
 }
 
