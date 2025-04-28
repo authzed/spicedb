@@ -57,7 +57,7 @@ func setFullConsistencyRevisionToContext(ctx context.Context, req interface{}, d
 
 		databaseRev, err := ds.HeadRevision(ctx)
 		if err != nil {
-			return rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(err)
 		}
 		handle.(*revisionHandle).revision = databaseRev
 	}

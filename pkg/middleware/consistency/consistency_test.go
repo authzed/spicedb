@@ -2,6 +2,7 @@ package consistency
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -221,4 +222,29 @@ func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 	}, ds, "")
 	require.Error(t, err)
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+}
+
+func TestRevisionFromContextMissingConsistency(t *testing.T) {
+	updated := ContextWithHandle(context.Background())
+	_, _, err := RevisionFromContext(updated)
+	require.Error(t, err)
+	grpcutil.RequireStatus(t, codes.Internal, err)
+	require.ErrorContains(t, err, "consistency middleware did not inject revision")
+}
+
+func TestRewriteDatastoreError(t *testing.T) {
+	err := rewriteDatastoreError(errors.New("foobar"))
+	require.Error(t, err)
+	grpcutil.RequireStatus(t, codes.Internal, err)
+	require.ErrorContains(t, err, "foobar")
+
+	err = rewriteDatastoreError(datastore.NewInvalidRevisionErr(zero, datastore.RevisionStale))
+	require.Error(t, err)
+	grpcutil.RequireStatus(t, codes.OutOfRange, err)
+	require.ErrorContains(t, err, "invalid revision")
+
+	err = rewriteDatastoreError(datastore.NewReadonlyErr())
+	require.Error(t, err)
+	grpcutil.RequireStatus(t, codes.Unavailable, err)
+	require.ErrorContains(t, err, "service read-only")
 }
