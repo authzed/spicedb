@@ -43,7 +43,7 @@ func (ts *TypeSystem) getTypesForInfo(ctx context.Context, defName string, rel *
 		if dr.GetRelation() == ellipsesRelation {
 			out.Add(dr.GetNamespace())
 		} else if dr.GetRelation() != "" {
-			rest, err := ts.getTypesForRelationInternal(ctx, defName, dr.GetRelation(), seen)
+			rest, err := ts.getTypesForRelationInternal(ctx, dr.GetNamespace(), dr.GetRelation(), seen)
 			if err != nil {
 				return nil, err
 			}
