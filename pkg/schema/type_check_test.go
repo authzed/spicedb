@@ -100,6 +100,64 @@ func TestTypechecking(t *testing.T) {
 				"resource#viewer":     {"user", "organization"},
 			},
 		},
+		{
+			name: "subrel",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation viewer: organization#member
+			}
+		`,
+			expected: map[string][]string{
+				"organization#member": {"user"},
+				"resource#viewer":     {"user"},
+			},
+		},
+		{
+			name: "wildcard",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user:*
+			}
+
+			definition resource {
+				relation viewer: organization#member
+			}
+		`,
+			expected: map[string][]string{
+				"organization#member": {"user"},
+				"resource#viewer":     {"user"},
+			},
+		},
+		{
+			name: "banned",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation viewer: organization#member
+				relation banned: user
+				permission view = viewer - banned
+			}
+		`,
+			expected: map[string][]string{
+				"organization#member": {"user"},
+				"resource#viewer":     {"user"},
+				"resource#banned":     {"user"},
+				"resource#view":       {"user"},
+			},
+		},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
