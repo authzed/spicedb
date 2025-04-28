@@ -12,7 +12,7 @@ import (
 func CancelationContextHandler(pgConn *pgconn.PgConn) ctxwatch.Handler {
 	return &pgconn.CancelRequestContextWatcherHandler{
 		Conn:               pgConn,
-		CancelRequestDelay: 0 * time.Millisecond, // Cancel immediately.
-		DeadlineDelay:      1 * time.Second,      // If not acknowledged, close the connection after a second.
+		CancelRequestDelay: 50 * time.Millisecond, // Cancel immediately.
+		DeadlineDelay:      1 * time.Second,       // If not acknowledged, close the connection after a second.
 	}
 }
