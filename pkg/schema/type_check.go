@@ -52,7 +52,6 @@ func (ts *TypeSystem) getTypesForInfo(ctx context.Context, defName string, rel *
 			// It's a wildcard, so all things of that type count
 			out.Add(dr.GetNamespace())
 		}
-
 	}
 	return out, nil
 }
