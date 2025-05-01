@@ -175,9 +175,8 @@ func TestTypechecking(t *testing.T) {
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
-					set, err := ts.GetTypesForRelation(context.Background(), resource.Name, relation.Name)
+					types, err := ts.GetRecursiveSubtypesForRelation(context.Background(), resource.Name, relation.Name)
 					require.NoError(t, err)
-					types := set.AsSlice()
 
 					rel := resource.Name + "#" + relation.Name
 					expected, ok := tc.expected[rel]

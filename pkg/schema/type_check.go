@@ -10,9 +10,15 @@ import (
 
 const ellipsesRelation = "..."
 
-func (ts *TypeSystem) GetTypesForRelation(ctx context.Context, defName string, relationName string) (*mapz.Set[string], error) {
+// GetRecursiveSubtypesForRelation returns, for a given definition and relation, are the potential
+// subject definition names of that relation.
+func (ts *TypeSystem) GetRecursiveSubtypesForRelation(ctx context.Context, defName string, relationName string) ([]string, error) {
 	seen := mapz.NewSet[string]()
-	return ts.getTypesForRelationInternal(ctx, defName, relationName, seen)
+	set, err := ts.getTypesForRelationInternal(ctx, defName, relationName, seen)
+	if err != nil {
+		return nil, err
+	}
+	return set.AsSlice(), nil
 }
 
 func (ts *TypeSystem) getTypesForRelationInternal(ctx context.Context, defName string, relationName string, seen *mapz.Set[string]) (*mapz.Set[string], error) {
