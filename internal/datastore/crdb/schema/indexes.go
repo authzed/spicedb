@@ -86,20 +86,52 @@ func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Sh
 	}
 }
 
-// IndexForFilter returns the index to use for a given relationships filter.
-func IndexForFilter(schema common.SchemaInformation, filter datastore.RelationshipsFilter) common.IndexDefinition {
-	if schema.IntegrityEnabled {
-		// Don't force anything since we don't have the other indexes.
-		return IndexPrimaryKey
+// IndexForFilter returns the index to use for a given relationships filter or nil if no index is forced.
+func IndexForFilter(schema common.SchemaInformation, filter datastore.RelationshipsFilter) *common.IndexDefinition {
+	resourceFieldDepth := 0
+	if filter.OptionalResourceType != "" {
+		resourceFieldDepth = 1
+		if len(filter.OptionalResourceIds) > 0 || filter.OptionalResourceIDPrefix != "" {
+			resourceFieldDepth = 2
+			if filter.OptionalResourceRelation != "" {
+				resourceFieldDepth = 3
+			}
+		}
 	}
 
-	// If there is no resource type specified, but there is a subject filter, use the
-	// inverse index.
-	if filter.OptionalResourceType == "" && len(filter.OptionalSubjectsSelectors) > 0 {
-		return IndexRelationshipBySubject
+	subjectFieldDepth := 0
+	for _, subjectSelector := range filter.OptionalSubjectsSelectors {
+		sfd := 0
+		if len(subjectSelector.OptionalSubjectIds) > 0 {
+			sfd = 1
+			if subjectSelector.OptionalSubjectType != "" {
+				sfd = 2
+				if subjectSelector.RelationFilter.NonEllipsisRelation != "" {
+					sfd = 3
+				}
+			}
+		}
+		subjectFieldDepth = max(subjectFieldDepth, sfd)
 	}
 
-	return IndexPrimaryKey
+	if resourceFieldDepth == 0 && subjectFieldDepth == 0 {
+		return nil
+	}
+
+	if resourceFieldDepth > subjectFieldDepth {
+		return &IndexPrimaryKey
+	}
+
+	if resourceFieldDepth < subjectFieldDepth {
+		if schema.IntegrityEnabled {
+			// Don't force this index since it doesn't exist for integrity-enabled schemas.
+			return nil
+		}
+
+		return &IndexRelationshipBySubject
+	}
+
+	return nil
 }
 
 // forcedIndex is an index hint that forces the use of a specific index.

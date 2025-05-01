@@ -130,7 +130,10 @@ func (rwt *crdbReadWriteTXN) insertQuery() sq.InsertBuilder {
 	return psql.Insert(rwt.schema.RelationshipTableName)
 }
 
-func (rwt *crdbReadWriteTXN) queryDeleteTuples(index common.IndexDefinition) sq.DeleteBuilder {
+func (rwt *crdbReadWriteTXN) queryDeleteTuples(index *common.IndexDefinition) sq.DeleteBuilder {
+	if index == nil {
+		return psql.Delete(rwt.schema.RelationshipTableName)
+	}
 	return psql.Delete(rwt.schema.RelationshipTableName + "@" + index.Name)
 }
 
@@ -281,7 +284,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	bulkTouch := rwt.queryTouchTuple()
 	var bulkTouchCount int64
 
-	bulkDelete := rwt.queryDeleteTuples(schema.IndexPrimaryKey)
+	bulkDelete := rwt.queryDeleteTuples(nil)
 	bulkDeleteOr := sq.Or{}
 	var bulkDeleteCount int64
 
@@ -533,7 +536,7 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := rwt.queryDeleteTuples(schema.IndexPrimaryKey).Where(sq.Or(tplClauses)).ToSql()
+	deleteTupleSQL, deleteTupleArgs, err := rwt.queryDeleteTuples(nil).Where(sq.Or(tplClauses)).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
