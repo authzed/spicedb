@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/IBM/pgxpoolprometheus"
@@ -284,7 +285,9 @@ type crdbDatastore struct {
 	beginChangefeedQuery string
 	transactionNowQuery  string
 
-	featureGroup singleflight.Group[string, *datastore.Features]
+	featuresGroup  singleflight.Group[string, *datastore.Features]
+	cachedFeatures *datastore.Features // GUARDED_BY(featuresLock)
+	featuresLock   sync.Mutex
 
 	pruneGroup           *errgroup.Group
 	ctx                  context.Context
@@ -516,9 +519,25 @@ func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
 }
 
 func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
-	features, _, err := cds.featureGroup.Do(ctx, "", func(ictx context.Context) (*datastore.Features, error) {
+	cds.featuresLock.Lock()
+	cached := cds.cachedFeatures
+	cds.featuresLock.Unlock()
+
+	if cached != nil {
+		return cached, nil
+	}
+
+	features, _, err := cds.featuresGroup.Do(ctx, "", func(ictx context.Context) (*datastore.Features, error) {
 		return cds.features(ictx)
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	cds.featuresLock.Lock()
+	cds.cachedFeatures = features
+	cds.featuresLock.Unlock()
+
 	return features, err
 }
 

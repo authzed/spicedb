@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/ccoveille/go-safecast"
@@ -74,10 +75,17 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 
 			// log cancellation and serialization errors at debug level
 			// log revision not available errors at debug level
+			// expected logs don't get logged at all
 			if errArg, ok := data["err"]; ok {
 				err, ok := errArg.(error)
 				if ok && (common.IsCancellationError(err) || IsQueryCanceledError(err) || IsSerializationError(err) || IsReplicationLagError(err)) {
 					logger.Log(ctx, tracelog.LogLevelDebug, msg, data)
+					return
+				}
+
+				// NOTE: this error is raised *on purpose* by the CRDB datastore when checking if watch
+				// is enabled. It is not a real error, and therefore should not be logged.
+				if strings.Contains(err.Error(), "negative durations are not accepted") {
 					return
 				}
 			}
