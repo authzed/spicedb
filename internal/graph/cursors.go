@@ -457,7 +457,7 @@ func (ls *parallelLimitedIndexedStream[Q]) forTaskIndex(ctx context.Context, ind
 	// Create a new cursor with cloned limits, because each child task which executes (in parallel) will need its own
 	// limit tracking. The overall limit on the original cursor is managed in completedTaskIndex.
 	childCI := currentCursor.withClonedLimits()
-	childContext, cancelDispatch := branchContext(ctx)
+	childContext, cancelDispatch := context.WithCancelCause(ctx)
 
 	ls.childContextCancels[index] = cancelDispatch
 
