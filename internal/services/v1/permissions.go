@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
@@ -58,6 +59,15 @@ func (ps *permissionServer) rewriteErrorWithOptionalDebugTrace(ctx context.Conte
 }
 
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
+			perfinsights.ResourceRelationLabel: req.Permission,
+			perfinsights.SubjectTypeLabel:      req.Subject.Object.ObjectType,
+			perfinsights.SubjectRelationLabel:  req.Subject.OptionalRelation,
+		}
+	})
+
 	telemetry.RecordLogicalChecks(1)
 
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
@@ -170,6 +180,9 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 }
 
 func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
+	// NOTE: perfinsights are added for the individual check results as well, so there is no shape here.
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	res, err := ps.bulkChecker.checkBulkPermissions(ctx, req)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -215,6 +228,13 @@ func requestItemFromResourceAndParameters(params *computed.CheckParameters, reso
 }
 
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
+			perfinsights.ResourceRelationLabel: req.Permission,
+		}
+	})
+
 	telemetry.RecordLogicalChecks(1)
 
 	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
@@ -408,6 +428,15 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 const lrv2CursorFlag = "lrv2"
 
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.ResourceObjectType,
+			perfinsights.ResourceRelationLabel: req.Permission,
+			perfinsights.SubjectTypeLabel:      req.Subject.Object.ObjectType,
+			perfinsights.SubjectRelationLabel:  req.Subject.OptionalRelation,
+		}
+	})
+
 	// NOTE: LRv2 is the only valid option, and we'll expect that all cursors include that flag.
 	// This is to preserve backward-compatibility in the meantime.
 	if req.OptionalCursor != nil {
@@ -559,6 +588,15 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 }
 
 func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
+	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
+			perfinsights.ResourceRelationLabel: req.Permission,
+			perfinsights.SubjectTypeLabel:      req.SubjectObjectType,
+			perfinsights.SubjectRelationLabel:  req.OptionalSubjectRelation,
+		}
+	})
+
 	ctx := resp.Context()
 
 	if req.OptionalConcreteLimit != 0 {
@@ -836,6 +874,8 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 }
 
 func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]) error {
+	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
+
 	ds := datastoremw.MustFromContext(stream.Context())
 
 	var numWritten uint64
@@ -910,6 +950,10 @@ func (ps *permissionServer) ExportBulkRelationships(
 	resp grpc.ServerStreamingServer[v1.ExportBulkRelationshipsResponse],
 ) error {
 	ctx := resp.Context()
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return labelsForFilter(req.OptionalRelationshipFilter)
+	})
+
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)

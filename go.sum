@@ -1447,6 +1447,8 @@ github.com/authzed/cel-go v0.20.2 h1:GlmLecGry7Z8HU0k+hmaHHUV05ZHrsFxduXHtIePvck
 github.com/authzed/cel-go v0.20.2/go.mod h1:pJHVFWbqUHV1J+klQoZubdKswlbxcsbojda3mye9kiU=
 github.com/authzed/consistent v0.1.0 h1:tlh1wvKoRbjRhMm2P+X5WQQyR54SRoS4MyjLOg17Mp8=
 github.com/authzed/consistent v0.1.0/go.mod h1:plwHlrN/EJUCwQ+Bca0MhM1KnisPs7HEkZI5giCXrcc=
+github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584 h1:mP7EpcUL90EKcf/F+gYiU2pz3cGFEuKPHPfe7MntEXk=
+github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584/go.mod h1:wnimjr5RPPouIhZQ3ztDBLMUKKuUroj3U9Jy0PxeaEE=
 github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b h1:wbh8IK+aMLTCey9sZasO7b6BWLAJnHHvb79fvWCXwxw=
 github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b/go.mod h1:s3qC7V7XIbiNWERv7Lfljy/Lx25/V1Qlexb0WJuA8uQ=
 github.com/aws/aws-sdk-go v1.44.256 h1:O8VH+bJqgLDguqkH/xQBFz5o/YheeZqgcOYIgsTVWY4=

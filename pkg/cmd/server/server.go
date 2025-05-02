@@ -124,6 +124,7 @@ type Config struct {
 	EnableExperimentalLookupResources        bool          `debugmap:"visible"`
 	EnableExperimentalRelationshipExpiration bool          `debugmap:"visible"`
 	EnableRevisionHeartbeat                  bool          `debugmap:"visible"`
+	EnablePerformanceInsightMetrics          bool          `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -439,20 +440,21 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 
 	permSysConfig := v1svc.PermissionsServerConfig{
-		MaxPreconditionsCount:           maxPreconditionCount,
-		MaxUpdatesPerWrite:              c.MaximumUpdatesPerWrite,
-		MaximumAPIDepth:                 c.DispatchMaxDepth,
-		MaxCaveatContextSize:            c.MaxCaveatContextSize,
-		MaxRelationshipContextSize:      c.MaxRelationshipContextSize,
-		MaxDatastoreReadPageSize:        c.MaxDatastoreReadPageSize,
-		StreamingAPITimeout:             c.StreamingAPITimeout,
-		MaxReadRelationshipsLimit:       c.MaxReadRelationshipsLimit,
-		MaxDeleteRelationshipsLimit:     c.MaxDeleteRelationshipsLimit,
-		MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
-		MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
-		DispatchChunkSize:               c.DispatchChunkSize,
-		ExpiringRelationshipsEnabled:    c.EnableExperimentalRelationshipExpiration,
-		CaveatTypeSet:                   c.DatastoreConfig.CaveatTypeSet,
+		MaxPreconditionsCount:            maxPreconditionCount,
+		MaxUpdatesPerWrite:               c.MaximumUpdatesPerWrite,
+		MaximumAPIDepth:                  c.DispatchMaxDepth,
+		MaxCaveatContextSize:             c.MaxCaveatContextSize,
+		MaxRelationshipContextSize:       c.MaxRelationshipContextSize,
+		MaxDatastoreReadPageSize:         c.MaxDatastoreReadPageSize,
+		StreamingAPITimeout:              c.StreamingAPITimeout,
+		MaxReadRelationshipsLimit:        c.MaxReadRelationshipsLimit,
+		MaxDeleteRelationshipsLimit:      c.MaxDeleteRelationshipsLimit,
+		MaxLookupResourcesLimit:          c.MaxLookupResourcesLimit,
+		MaxBulkExportRelationshipsLimit:  c.MaxBulkExportRelationshipsLimit,
+		DispatchChunkSize:                c.DispatchChunkSize,
+		ExpiringRelationshipsEnabled:     c.EnableExperimentalRelationshipExpiration,
+		CaveatTypeSet:                    c.DatastoreConfig.CaveatTypeSet,
+		PerformanceInsightMetricsEnabled: c.EnablePerformanceInsightMetrics,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

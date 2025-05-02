@@ -168,14 +168,20 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		),
 	)
 	ps := v1svc.NewPermissionsServer(dc.Dispatcher, v1svc.PermissionsServerConfig{
-		MaxUpdatesPerWrite:           50,
-		MaxPreconditionsCount:        50,
-		MaximumAPIDepth:              50,
-		MaxCaveatContextSize:         0,
-		ExpiringRelationshipsEnabled: true,
-		CaveatTypeSet:                caveattypes.Default.TypeSet,
+		MaxUpdatesPerWrite:               50,
+		MaxPreconditionsCount:            50,
+		MaximumAPIDepth:                  50,
+		MaxCaveatContextSize:             0,
+		ExpiringRelationshipsEnabled:     true,
+		CaveatTypeSet:                    caveattypes.Default.TypeSet,
+		PerformanceInsightMetricsEnabled: false,
 	})
-	ss := v1svc.NewSchemaServer(caveattypes.Default.TypeSet, false, true)
+	ss := v1svc.NewSchemaServer(v1svc.SchemaServerConfig{
+		CaveatTypeSet:                    caveattypes.Default.TypeSet,
+		AdditiveOnly:                     false,
+		ExpiringRelsEnabled:              true,
+		PerformanceInsightMetricsEnabled: false,
+	})
 
 	v1.RegisterPermissionsServiceServer(s, ps)
 	v1.RegisterSchemaServiceServer(s, ss)

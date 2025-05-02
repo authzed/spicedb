@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/relationships"
@@ -98,12 +99,14 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 				grpcvalidate.UnaryServerInterceptor(),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
+				perfinsights.UnaryServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
 				grpcvalidate.StreamServerInterceptor(),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
+				perfinsights.StreamServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 		},
 		maxBatchSize:  uint64(config.MaxExportBatchSize),
@@ -236,6 +239,8 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 
 // TODO: this is now duplicate code with ImportBulkRelationships
 func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalService_BulkImportRelationshipsServer) error {
+	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
+
 	ds := datastoremw.MustFromContext(stream.Context())
 
 	var numWritten uint64
@@ -312,6 +317,8 @@ func (es *experimentalServer) BulkExportRelationships(
 	resp grpc.ServerStreamingServer[v1.BulkExportRelationshipsResponse],
 ) error {
 	ctx := resp.Context()
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
@@ -485,6 +492,8 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 }
 
 func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.BulkCheckPermissionRequest) (*v1.BulkCheckPermissionResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	convertedReq := toCheckBulkPermissionsRequest(req)
 	res, err := es.bulkChecker.checkBulkPermissions(ctx, convertedReq)
 	if err != nil {
@@ -495,6 +504,8 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 }
 
 func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req *v1.ExperimentalReflectSchemaRequest) (*v1.ExperimentalReflectSchemaResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	// Get the current schema.
 	schema, atRevision, err := loadCurrentSchema(ctx)
 	if err != nil {
@@ -542,6 +553,8 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 }
 
 func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v1.ExperimentalDiffSchemaRequest) (*v1.ExperimentalDiffSchemaResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -561,6 +574,14 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 }
 
 func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Context, req *v1.ExperimentalComputablePermissionsRequest) (*v1.ExperimentalComputablePermissionsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.DefinitionName,
+			perfinsights.ResourceRelationLabel: req.RelationName,
+			perfinsights.FilterLabel:           req.OptionalDefinitionNameFilter,
+		}
+	})
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -637,6 +658,13 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 }
 
 func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context, req *v1.ExperimentalDependentRelationsRequest) (*v1.ExperimentalDependentRelationsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.DefinitionName,
+			perfinsights.ResourceRelationLabel: req.PermissionName,
+		}
+	})
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -700,6 +728,12 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 }
 
 func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalRegisterRelationshipCounterRequest) (*v1.ExperimentalRegisterRelationshipCounterResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.NameLabel: req.Name,
+		}
+	})
+
 	ds := datastoremw.MustFromContext(ctx)
 
 	if req.Name == "" {
@@ -722,6 +756,12 @@ func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx contex
 }
 
 func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalUnregisterRelationshipCounterRequest) (*v1.ExperimentalUnregisterRelationshipCounterResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.NameLabel: req.Name,
+		}
+	})
+
 	ds := datastoremw.MustFromContext(ctx)
 
 	if req.Name == "" {
@@ -739,6 +779,12 @@ func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx cont
 }
 
 func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context, req *v1.ExperimentalCountRelationshipsRequest) (*v1.ExperimentalCountRelationshipsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.NameLabel: req.Name,
+		}
+	})
+
 	if req.Name == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}
