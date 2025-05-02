@@ -1,0 +1,29 @@
+{
+    "build": {
+      "dockerfile": "Dockerfile",
+      // Update 'VARIANT' to pick an Ubuntu version: jammy / ubuntu-22.04, focal / ubuntu-20.04, bionic /ubuntu-18.04
+      // Use ubuntu-22.04 or ubuntu-18.04 on local arm64/Apple Silicon.
+      "args": {
+        "VARIANT": "ubuntu-22.04"
+      }
+    },
+    "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
+    "postCreateCommand": "bash .devcontainer/post-create-command.sh",
+    "features": {
+      "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+      "ghcr.io/devcontainers/features/git-lfs:1": {},
+      "ghcr.io/devcontainers/features/github-cli:1": {},
+      "ghcr.io/devcontainers/features/go:1": {},
+      "ghcr.io/katallaxie/devcontainer-features/buf-cli:1": {},
+      "ghcr.io/guiyomh/features/mage:0": {}
+    },
+    "customizations": {
+      "vscode": {
+        "extensions": [
+          "authzed.spicedb-vscode",
+          "golang.go",
+          "ms-azuretools.vscode-docker"
+        ]
+      }
+    }
+  }
