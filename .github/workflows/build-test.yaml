@@ -58,7 +58,7 @@ jobs:
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
-      - uses: "authzed/actions/go-build@main"
+      - uses: "authzed/actions/go-build@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Image tests"
         run: "go run mage.go test:image"
 

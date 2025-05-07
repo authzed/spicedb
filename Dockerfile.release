@@ -1,6 +1,4 @@
 # vim: syntax=dockerfile
-ARG BASE=cgr.dev/chainguard/static@sha256:1ff7590cbc50eaaa917c34b092de0720d307f67d6d795e4f749a0b80a2e95a2c
-
 FROM golang:1.24.2-alpine3.20@sha256:00f149d5963f415a8a91943531b9092fde06b596b276281039604292d8b2b9c8 AS health-probe-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
@@ -9,8 +7,7 @@ WORKDIR /go/src/app/grpc-health-probe
 RUN git checkout master
 RUN CGO_ENABLED=0 go install -a -tags netgo -ldflags=-w
 
-FROM $BASE
-
+FROM cgr.dev/chainguard/static@sha256:1ff7590cbc50eaaa917c34b092de0720d307f67d6d795e4f749a0b80a2e95a2c
 COPY --from=health-probe-builder /go/bin/grpc-health-probe /usr/local/bin/grpc_health_probe
 COPY spicedb /usr/local/bin/spicedb
 ENV PATH="$PATH:/usr/local/bin"
