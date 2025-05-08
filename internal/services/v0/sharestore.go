@@ -11,10 +11,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 const (
@@ -106,20 +105,14 @@ func (ims *inMemoryShareStore) StoreShared(shared SharedDataV2) (string, error) 
 type s3ShareStore struct {
 	bucket   string
 	salt     string
-	s3Client *s3.S3
+	s3Client *s3.Client
 }
 
 // NewS3ShareStore creates a new S3 share store, reading and writing the shared data to the given
 // bucket, with the given salt for hash computation and the given config for connecting to S3 or
 // and S3-compatible API.
-func NewS3ShareStore(bucket string, salt string, config *aws.Config) (ShareStore, error) {
-	sess, err := session.NewSession(config)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create S3 service client
-	s3Client := s3.New(sess)
+func NewS3ShareStore(bucket string, salt string, config aws.Config, optFns ...func(options *s3.Options)) (ShareStore, error) {
+	s3Client := s3.NewFromConfig(config, optFns...)
 	return &s3ShareStore{
 		salt:     salt,
 		s3Client: s3Client,
@@ -127,12 +120,12 @@ func NewS3ShareStore(bucket string, salt string, config *aws.Config) (ShareStore
 	}, nil
 }
 
-func (s3s *s3ShareStore) createBucketForTesting() error {
+func (s3s *s3ShareStore) createBucketForTesting(ctx context.Context) error {
 	cparams := &s3.CreateBucketInput{
 		Bucket: aws.String(s3s.bucket),
 	}
 
-	_, err := s3s.s3Client.CreateBucket(cparams)
+	_, err := s3s.s3Client.CreateBucket(ctx, cparams)
 	return err
 }
 
@@ -158,16 +151,16 @@ func (s3s *s3ShareStore) LookupSharedByReference(reference string) (SharedDataV2
 
 	ctx := context.Background()
 
-	result, err := s3s.s3Client.GetObjectWithContext(ctx, &s3.GetObjectInput{
+	result, err := s3s.s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s3s.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		var aerr awserr.Error
-		if errors.As(err, &aerr) && aerr.Code() == s3.ErrCodeNoSuchKey {
+		var nsk *types.NoSuchKey
+		if errors.As(err, &nsk) {
 			return SharedDataV2{}, LookupNotFound, nil
 		}
-		return SharedDataV2{}, LookupError, aerr
+		return SharedDataV2{}, LookupError, err
 	}
 	defer result.Body.Close()
 
@@ -192,7 +185,7 @@ func (s3s *s3ShareStore) StoreShared(shared SharedDataV2) (string, error) {
 
 	ctx := context.Background()
 
-	_, err = s3s.s3Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
+	_, err = s3s.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s3s.bucket),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(data),
