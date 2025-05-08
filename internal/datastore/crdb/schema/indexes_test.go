@@ -118,6 +118,82 @@ func TestIndexForFilter(t *testing.T) {
 			},
 			expected: "",
 		},
+		{
+			name: "filter by resource type, relation and subject type and relation",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "foo",
+				OptionalResourceRelation: "bar",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: "baz",
+						},
+					},
+				},
+			},
+			expected: "ix_relation_tuple_by_subject_relation",
+		},
+		{
+			name: "filter by resource type, relation and subject type",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "foo",
+				OptionalResourceRelation: "bar",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+					},
+				},
+			},
+			expected: "pk_relation_tuple",
+		},
+		{
+			name: "filter by resource type, relation and subject relation",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "foo",
+				OptionalResourceRelation: "bar",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: "baz",
+						},
+					},
+				},
+			},
+			expected: "pk_relation_tuple",
+		},
+		{
+			name: "filter by resource relation and subject type and relation",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceRelation: "bar",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: "baz",
+						},
+					},
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "filter by resource type, relation and subject type and relation, include ellipsis",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "foo",
+				OptionalResourceRelation: "bar",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+						RelationFilter: datastore.SubjectRelationFilter{
+							IncludeEllipsisRelation: true,
+							NonEllipsisRelation:     "baz",
+						},
+					},
+				},
+			},
+			expected: "pk_relation_tuple",
+		},
 	}
 
 	schema := Schema(common.ColumnOptimizationOptionNone, false, false)
