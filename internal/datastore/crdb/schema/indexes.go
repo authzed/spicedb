@@ -88,6 +88,19 @@ func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Sh
 
 // IndexForFilter returns the index to use for a given relationships filter or nil if no index is forced.
 func IndexForFilter(schema common.SchemaInformation, filter datastore.RelationshipsFilter) *common.IndexDefinition {
+	// Special case: if the filter specifies the resource type and relation and the subject type and relation, then
+	// the schema diff index can be used.
+	if filter.OptionalResourceType != "" &&
+		filter.OptionalResourceRelation != "" &&
+		len(filter.OptionalSubjectsSelectors) == 1 &&
+		filter.OptionalSubjectsSelectors[0].OptionalSubjectType != "" &&
+		filter.OptionalSubjectsSelectors[0].RelationFilter.NonEllipsisRelation != "" &&
+		!filter.OptionalSubjectsSelectors[0].RelationFilter.IncludeEllipsisRelation &&
+		!filter.OptionalSubjectsSelectors[0].RelationFilter.OnlyNonEllipsisRelations {
+		return &IndexRelationshipBySubjectRelation
+	}
+
+	// Otherwise, determine an index based on whether the filter has a larger match on the resources or subject.
 	resourceFieldDepth := 0
 	if filter.OptionalResourceType != "" {
 		resourceFieldDepth = 1
