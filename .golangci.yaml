@@ -1,27 +1,40 @@
 ---
 version: "2"
+run:
+  allow-parallel-runners: true
 linters:
   enable:
     - "bidichk"
     - "bodyclose"
+    - "errcheck"
     - "errname"
     - "errorlint"
+#    - "gocritic" TODO: fix issues
     - "goprintffuncname"
     - "gosec"
+#    - "govet" TODO: fix issues
     - "importas"
+    - "ineffassign"
     - "makezero"
     - "prealloc"
     - "predeclared"
     - "promlinter"
     - "revive"
     - "rowserrcheck"
+    - "spancheck"
     - "staticcheck"
+    - "tagalign"
+#    - "testifylint" TODO: fix issues
     - "tparallel"
     - "unconvert"
     - "usetesting"
     - "wastedassign"
     - "whitespace"
+    - "unused"
   settings:
+    staticcheck:
+      checks:
+        - "all"
     revive:
       rules:
         - name: "unused-parameter"
