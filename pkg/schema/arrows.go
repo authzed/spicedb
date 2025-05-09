@@ -142,6 +142,36 @@ func (as *ArrowSet) collectArrowInformationForSetOperation(ctx context.Context, 
 				}
 			}
 
+		case *core.SetOperation_Child_FunctionedTupleToUserset:
+			// Create a "proxy" TupleToUserset for tracking in our maps
+			ttu := &core.TupleToUserset{
+				Tupleset: &core.TupleToUserset_Tupleset{
+					Relation: child.FunctionedTupleToUserset.Tupleset.Relation,
+				},
+				ComputedUserset: &core.ComputedUserset{
+					Relation: child.FunctionedTupleToUserset.ComputedUserset.Relation,
+					Object:   child.FunctionedTupleToUserset.ComputedUserset.Object,
+				},
+			}
+			as.add(ttu, updatedPath, def.Namespace().Name, relation.Name)
+
+			allowedSubjectTypes, err := def.AllowedSubjectRelations(child.FunctionedTupleToUserset.Tupleset.Relation)
+			if err != nil {
+				return err
+			}
+
+			for _, ast := range allowedSubjectTypes {
+				def, err := as.ts.GetValidatedDefinition(ctx, ast.Namespace)
+				if err != nil {
+					return err
+				}
+
+				as.arrowsByComputedUsersetNamespaceAndRelation.Add(ast.Namespace+"#"+child.FunctionedTupleToUserset.ComputedUserset.Relation, ArrowInformation{Path: path, Arrow: ttu, ParentRelationName: relation.Name})
+				if def.HasRelation(child.FunctionedTupleToUserset.ComputedUserset.Relation) {
+					as.reachableComputedUsersetRelationsByTuplesetRelation.Add(ast.Namespace+"#"+child.FunctionedTupleToUserset.Tupleset.Relation, ast.Namespace+"#"+child.FunctionedTupleToUserset.ComputedUserset.Relation)
+				}
+			}
+
 		case *core.SetOperation_Child_XThis:
 			// Nothing to do
 
