@@ -355,7 +355,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 
 	case r := <-primaryResultChan:
 		if r.err == nil {
-			dispatchCounter.WithLabelValues(reqKey, "(primary)").Add(1)
+			dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
 			return r.resp, nil
 		}
 
@@ -368,7 +368,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 		return r.resp, nil
 	}
 
-	dispatchCounter.WithLabelValues(reqKey, "(primary)").Add(1)
+	dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
 	return *new(S), foundError
 }
 
@@ -392,7 +392,8 @@ const (
 	primaryDispatcher     = "$primary"
 )
 
-func publishClient[R responseMessage](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
+func publishClient[R responseMessage](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
+	isFirstResult := true
 	for {
 		select {
 		case <-ctx.Done():
@@ -401,10 +402,18 @@ func publishClient[R responseMessage](ctx context.Context, client receiver[R], s
 		default:
 			result, err := client.Recv()
 			if errors.Is(err, io.EOF) {
+				if isFirstResult {
+					dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+				}
 				return nil
 			} else if err != nil {
 				return err
 			}
+
+			if isFirstResult {
+				dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+			}
+			isFirstResult = false
 
 			merr := adjustMetadataForDispatch(result.GetMetadata())
 			if merr != nil {
@@ -455,7 +464,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 		if err != nil {
 			return err
 		}
-		return publishClient(withTimeout, client, stream, primaryDispatcher)
+		return publishClient(withTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
 	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
@@ -502,7 +511,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 		if err != nil {
 			return err
 		}
-		return publishClient(withTimeout, client, stream, primaryDispatcher)
+		return publishClient(withTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
 	contexts := make(map[string]ctxAndCancel, len(validSecondaryDispatchers)+1)
@@ -613,6 +622,8 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 						log.Trace().Str("dispatcher", name).Msg("another dispatcher has already returned results")
 						return
 					}
+
+					dispatchCounter.WithLabelValues(reqKey, name).Add(1)
 
 					// Cancel all other contexts to prevent them from running, or stop them
 					// from running if started.
