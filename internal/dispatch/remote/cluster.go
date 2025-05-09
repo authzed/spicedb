@@ -41,7 +41,7 @@ var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "dispatch",
-	Name:      "remote_dispatch_hedge_wait_duration",
+	Name:      "remote_dispatch_hedge_wait_duration_seconds",
 	Help:      "distribution in seconds of calculated wait time for hedging requests to the primary dispatcher when a secondary is active.",
 	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
 }, []string{"rpc"})
@@ -55,10 +55,13 @@ var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
-const defaultStartingPrimaryHedgingDelay = 5 * time.Millisecond
+const defaultStartingPrimaryHedgingDelay = 1 * time.Millisecond
+
+// maximumHedgingDelay is the maximum delay used for hedging requests to the primary dispatcher.
+const maximumHedgingDelay = 5 * time.Millisecond
 
 // defaultHedgerQuantile is the default quantile used to determine the hedging delay for primary calls.
-const defaultHedgerQuantile = 0.95
+const defaultHedgerQuantile = 0.9
 
 // minimumDigestCount is the minimum number of samples required in the digest before it can be used
 // to determine the configured percentile.
@@ -171,7 +174,11 @@ func (dal *digestAndLock) getWaitTime() time.Duration {
 		return dal.startingPrimaryHedgingDelay
 	}
 
-	return time.Duration(milliseconds) * time.Millisecond
+	waitTime := time.Duration(milliseconds) * time.Millisecond
+	if waitTime > maximumHedgingDelay {
+		waitTime = maximumHedgingDelay
+	}
+	return waitTime
 }
 
 func (dal *digestAndLock) addResultTime(duration time.Duration) {
