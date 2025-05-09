@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -105,6 +106,9 @@ type PermissionsServerConfig struct {
 	// CaveatTypeSet is the set of caveat types to use for caveats. If not specified,
 	// the default type set is used.
 	CaveatTypeSet *caveattypes.TypeSet
+
+	// PerformanceInsightMetricsEnabled defines whether or not performance insight metrics are enabled.
+	PerformanceInsightMetricsEnabled bool
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -113,21 +117,22 @@ func NewPermissionsServer(
 	config PermissionsServerConfig,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
-		MaxPreconditionsCount:           defaultIfZero(config.MaxPreconditionsCount, 1000),
-		MaxUpdatesPerWrite:              defaultIfZero(config.MaxUpdatesPerWrite, 1000),
-		MaximumAPIDepth:                 defaultIfZero(config.MaximumAPIDepth, 50),
-		StreamingAPITimeout:             defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:            defaultIfZero(config.MaxCaveatContextSize, 4096),
-		MaxRelationshipContextSize:      defaultIfZero(config.MaxRelationshipContextSize, 25_000),
-		MaxDatastoreReadPageSize:        defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
-		MaxReadRelationshipsLimit:       defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
-		MaxDeleteRelationshipsLimit:     defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
-		MaxLookupResourcesLimit:         defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
-		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
-		DispatchChunkSize:               defaultIfZero(config.DispatchChunkSize, 100),
-		MaxCheckBulkConcurrency:         defaultIfZero(config.MaxCheckBulkConcurrency, 50),
-		CaveatTypeSet:                   caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
-		ExpiringRelationshipsEnabled:    true,
+		MaxPreconditionsCount:            defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:               defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:                  defaultIfZero(config.MaximumAPIDepth, 50),
+		StreamingAPITimeout:              defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:             defaultIfZero(config.MaxCaveatContextSize, 4096),
+		MaxRelationshipContextSize:       defaultIfZero(config.MaxRelationshipContextSize, 25_000),
+		MaxDatastoreReadPageSize:         defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
+		MaxReadRelationshipsLimit:        defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
+		MaxDeleteRelationshipsLimit:      defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
+		MaxLookupResourcesLimit:          defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
+		MaxBulkExportRelationshipsLimit:  defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
+		DispatchChunkSize:                defaultIfZero(config.DispatchChunkSize, 100),
+		MaxCheckBulkConcurrency:          defaultIfZero(config.MaxCheckBulkConcurrency, 50),
+		CaveatTypeSet:                    caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
+		ExpiringRelationshipsEnabled:     config.ExpiringRelationshipsEnabled,
+		PerformanceInsightMetricsEnabled: config.PerformanceInsightMetricsEnabled,
 	}
 
 	return &permissionServer{
@@ -138,12 +143,14 @@ func NewPermissionsServer(
 				grpcvalidate.UnaryServerInterceptor(),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
+				perfinsights.UnaryServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
 				grpcvalidate.StreamServerInterceptor(),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),
+				perfinsights.StreamServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),
 			),
 		},
 		bulkChecker: &bulkChecker{
@@ -168,6 +175,10 @@ type permissionServer struct {
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
+	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
+		return labelsForFilter(req.RelationshipFilter)
+	})
+
 	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxReadRelationshipsLimit {
 		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxReadRelationshipsLimit)))
 	}
@@ -284,6 +295,8 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 }
 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	if err := ps.validateTransactionMetadata(req.OptionalTransactionMetadata); err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -412,6 +425,10 @@ func (ps *permissionServer) validateTransactionMetadata(metadata *structpb.Struc
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return labelsForFilter(req.RelationshipFilter)
+	})
+
 	if err := ps.validateTransactionMetadata(req.OptionalTransactionMetadata); err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -574,4 +591,32 @@ func checkIfFilterIsEmpty(filter *v1.RelationshipFilter) error {
 	}
 
 	return nil
+}
+
+func labelsForFilter(filter *v1.RelationshipFilter) perfinsights.APIShapeLabels {
+	if filter == nil {
+		return perfinsights.NoLabels()
+	}
+
+	if filter.OptionalSubjectFilter == nil {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     filter.ResourceType,
+			perfinsights.ResourceRelationLabel: filter.OptionalRelation,
+		}
+	}
+
+	if filter.OptionalSubjectFilter.OptionalRelation == nil {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     filter.ResourceType,
+			perfinsights.ResourceRelationLabel: filter.OptionalRelation,
+			perfinsights.SubjectTypeLabel:      filter.OptionalSubjectFilter.SubjectType,
+		}
+	}
+
+	return perfinsights.APIShapeLabels{
+		perfinsights.ResourceTypeLabel:     filter.ResourceType,
+		perfinsights.ResourceRelationLabel: filter.OptionalRelation,
+		perfinsights.SubjectTypeLabel:      filter.OptionalSubjectFilter.SubjectType,
+		perfinsights.SubjectRelationLabel:  filter.OptionalSubjectFilter.OptionalRelation.Relation,
+	}
 }

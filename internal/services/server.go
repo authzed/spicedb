@@ -69,7 +69,13 @@ func RegisterGrpcServices(
 	}
 
 	if schemaServiceOption == V1SchemaServiceEnabled || schemaServiceOption == V1SchemaServiceAdditiveOnly {
-		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(permSysConfig.CaveatTypeSet, schemaServiceOption == V1SchemaServiceAdditiveOnly, permSysConfig.ExpiringRelationshipsEnabled))
+		schemaConfig := v1svc.SchemaServerConfig{
+			CaveatTypeSet:                    permSysConfig.CaveatTypeSet,
+			AdditiveOnly:                     schemaServiceOption == V1SchemaServiceAdditiveOnly,
+			ExpiringRelsEnabled:              permSysConfig.ExpiringRelationshipsEnabled,
+			PerformanceInsightMetricsEnabled: permSysConfig.PerformanceInsightMetricsEnabled,
+		}
+		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaConfig))
 		healthManager.RegisterReportedService(v1.SchemaService_ServiceDesc.ServiceName)
 	}
 

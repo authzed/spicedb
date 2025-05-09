@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
@@ -245,6 +246,8 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 
 		slicez.ForEachChunk(group.resourceIDs, bc.dispatchChunkSize, func(resourceIDs []string) {
 			tr.Add(func(ctx context.Context) error {
+				startTime := time.Now()
+
 				ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 				// Ensure the check namespaces and relations are valid.
@@ -270,6 +273,14 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}
+
+				// If successful, add the perf insight metric.
+				perfinsights.ObserveShapeLatency(ctx, "CheckBulkPermissions::Check", perfinsights.APIShapeLabels{
+					perfinsights.ResourceTypeLabel:     group.params.ResourceType.ObjectType,
+					perfinsights.ResourceRelationLabel: group.params.ResourceType.Relation,
+					perfinsights.SubjectTypeLabel:      group.params.Subject.ObjectType,
+					perfinsights.SubjectRelationLabel:  group.params.Subject.Relation,
+				}, time.Since(startTime))
 
 				return appendResultsForCheck(group.params, resourceIDs, metadata, debugInfos, rcr)
 			})

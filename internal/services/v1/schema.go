@@ -14,6 +14,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -30,22 +31,38 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
+type SchemaServerConfig struct {
+	// CaveatTypeSet is the set of caveat types that are allowed in the schema.
+	CaveatTypeSet *caveattypes.TypeSet
+
+	// AdditiveOnly indicates whether the schema is additive only.
+	AdditiveOnly bool
+
+	// ExpiringRelsEnabled indicates whether expiring relationships are enabled.
+	ExpiringRelsEnabled bool
+
+	// PerformanceInsightMetricsEnabled indicates whether performance insight metrics are enabled.
+	PerformanceInsightMetricsEnabled bool
+}
+
 // NewSchemaServer creates a SchemaServiceServer instance.
-func NewSchemaServer(caveatTypeSet *caveattypes.TypeSet, additiveOnly bool, expiringRelsEnabled bool) v1.SchemaServiceServer {
-	cts := caveattypes.TypeSetOrDefault(caveatTypeSet)
+func NewSchemaServer(config SchemaServerConfig) v1.SchemaServiceServer {
+	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
 				grpcvalidate.UnaryServerInterceptor(),
 				usagemetrics.UnaryServerInterceptor(),
+				perfinsights.UnaryServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
 				grpcvalidate.StreamServerInterceptor(),
 				usagemetrics.StreamServerInterceptor(),
+				perfinsights.StreamServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),
 		},
-		additiveOnly:        additiveOnly,
-		expiringRelsEnabled: expiringRelsEnabled,
+		additiveOnly:        config.AdditiveOnly,
+		expiringRelsEnabled: config.ExpiringRelsEnabled,
 		caveatTypeSet:       cts,
 	}
 }
@@ -64,6 +81,8 @@ func (ss *schemaServer) rewriteError(ctx context.Context, err error) error {
 }
 
 func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	// Schema is always read from the head revision.
 	ds := datastoremw.MustFromContext(ctx)
 	headRevision, err := ds.HeadRevision(ctx)
@@ -117,6 +136,8 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 }
 
 func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaRequest) (*v1.WriteSchemaResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 
 	ds := datastoremw.MustFromContext(ctx)
@@ -171,6 +192,8 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 }
 
 func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchemaRequest) (*v1.ReflectSchemaResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	// Get the current schema.
 	schema, atRevision, err := loadCurrentSchema(ctx)
 	if err != nil {
@@ -218,6 +241,8 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 }
 
 func (ss *schemaServer) DiffSchema(ctx context.Context, req *v1.DiffSchemaRequest) (*v1.DiffSchemaResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -237,6 +262,14 @@ func (ss *schemaServer) DiffSchema(ctx context.Context, req *v1.DiffSchemaReques
 }
 
 func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.ComputablePermissionsRequest) (*v1.ComputablePermissionsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.DefinitionName,
+			perfinsights.ResourceRelationLabel: req.RelationName,
+			perfinsights.FilterLabel:           req.OptionalDefinitionNameFilter,
+		}
+	})
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -313,6 +346,13 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 }
 
 func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.DependentRelationsRequest) (*v1.DependentRelationsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.DefinitionName,
+			perfinsights.ResourceRelationLabel: req.PermissionName,
+		}
+	})
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
