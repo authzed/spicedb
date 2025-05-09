@@ -41,7 +41,7 @@ var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "dispatch",
-	Name:      "remote_dispatch_hedge_wait_duration",
+	Name:      "remote_dispatch_hedge_wait_duration_seconds",
 	Help:      "distribution in seconds of calculated wait time for hedging requests to the primary dispatcher when a secondary is active.",
 	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
 }, []string{"rpc"})
@@ -55,10 +55,13 @@ var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
-const defaultStartingPrimaryHedgingDelay = 5 * time.Millisecond
+const defaultStartingPrimaryHedgingDelay = 1 * time.Millisecond
+
+// maximumHedgingDelay is the maximum delay used for hedging requests to the primary dispatcher.
+const maximumHedgingDelay = 5 * time.Millisecond
 
 // defaultHedgerQuantile is the default quantile used to determine the hedging delay for primary calls.
-const defaultHedgerQuantile = 0.95
+const defaultHedgerQuantile = 0.9
 
 // minimumDigestCount is the minimum number of samples required in the digest before it can be used
 // to determine the configured percentile.
@@ -171,7 +174,11 @@ func (dal *digestAndLock) getWaitTime() time.Duration {
 		return dal.startingPrimaryHedgingDelay
 	}
 
-	return time.Duration(milliseconds) * time.Millisecond
+	waitTime := time.Duration(milliseconds) * time.Millisecond
+	if waitTime > maximumHedgingDelay {
+		waitTime = maximumHedgingDelay
+	}
+	return waitTime
 }
 
 func (dal *digestAndLock) addResultTime(duration time.Duration) {
@@ -348,7 +355,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 
 	case r := <-primaryResultChan:
 		if r.err == nil {
-			dispatchCounter.WithLabelValues(reqKey, "(primary)").Add(1)
+			dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
 			return r.resp, nil
 		}
 
@@ -361,7 +368,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 		return r.resp, nil
 	}
 
-	dispatchCounter.WithLabelValues(reqKey, "(primary)").Add(1)
+	dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
 	return *new(S), foundError
 }
 
@@ -385,7 +392,8 @@ const (
 	primaryDispatcher     = "$primary"
 )
 
-func publishClient[R responseMessage](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
+func publishClient[R responseMessage](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
+	isFirstResult := true
 	for {
 		select {
 		case <-ctx.Done():
@@ -394,10 +402,18 @@ func publishClient[R responseMessage](ctx context.Context, client receiver[R], s
 		default:
 			result, err := client.Recv()
 			if errors.Is(err, io.EOF) {
+				if isFirstResult {
+					dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+				}
 				return nil
 			} else if err != nil {
 				return err
 			}
+
+			if isFirstResult {
+				dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+			}
+			isFirstResult = false
 
 			merr := adjustMetadataForDispatch(result.GetMetadata())
 			if merr != nil {
@@ -448,7 +464,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 		if err != nil {
 			return err
 		}
-		return publishClient(withTimeout, client, stream, primaryDispatcher)
+		return publishClient(withTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
 	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
@@ -495,7 +511,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 		if err != nil {
 			return err
 		}
-		return publishClient(withTimeout, client, stream, primaryDispatcher)
+		return publishClient(withTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
 	contexts := make(map[string]ctxAndCancel, len(validSecondaryDispatchers)+1)
@@ -606,6 +622,8 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 						log.Trace().Str("dispatcher", name).Msg("another dispatcher has already returned results")
 						return
 					}
+
+					dispatchCounter.WithLabelValues(reqKey, name).Add(1)
 
 					// Cancel all other contexts to prevent them from running, or stop them
 					// from running if started.
