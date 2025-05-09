@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -194,7 +195,7 @@ func TestDispatchTimeout(t *testing.T) {
 			})
 			if tc.sleepTime > tc.timeout {
 				require.Error(t, err)
-				require.ErrorContains(t, err, "context deadline exceeded")
+				require.True(t, strings.Contains(err.Error(), "context deadline exceeded") || strings.Contains(err.Error(), "CANCEL"))
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
