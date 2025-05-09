@@ -377,6 +377,7 @@ func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWrite
 	return rwt.delegate.BulkLoad(ctx, iter)
 }
 
+// nolint:spancheck
 func observe(ctx context.Context, name string, queryShape string, opts ...trace.SpanStartOption) (context.Context, func()) {
 	if queryShape == "" {
 		queryShape = "(none)"

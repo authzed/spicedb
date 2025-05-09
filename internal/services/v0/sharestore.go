@@ -36,11 +36,11 @@ type SharedDataV1 struct {
 
 // SharedDataV2 represents the data stored in a shared playground file.
 type SharedDataV2 struct {
-	Version           string `json:"version" yaml:"-"`
-	Schema            string `json:"schema" yaml:"schema"`
+	Version           string `json:"version"            yaml:"-"`
+	Schema            string `json:"schema"             yaml:"schema"`
 	RelationshipsYaml string `json:"relationships_yaml" yaml:"relationships"`
-	ValidationYaml    string `json:"validation_yaml" yaml:"validation"`
-	AssertionsYaml    string `json:"assertions_yaml" yaml:"assertions"`
+	ValidationYaml    string `json:"validation_yaml"    yaml:"validation"`
+	AssertionsYaml    string `json:"assertions_yaml"    yaml:"assertions"`
 }
 
 // LookupStatus is an enum for the possible ShareStore lookup outcomes.

@@ -108,7 +108,7 @@ type Config struct {
 	RevisionQuantization        time.Duration `debugmap:"visible"`
 	MaxRevisionStalenessPercent float64       `debugmap:"visible"`
 	CredentialsProviderName     string        `debugmap:"visible"`
-	FilterMaximumIDCount        uint16        `debugmap:"hidden" default:"100"`
+	FilterMaximumIDCount        uint16        `debugmap:"hidden"    default:"100"`
 
 	// Options
 	ReadConnPool                   ConnPoolConfig `debugmap:"visible"`
