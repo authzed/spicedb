@@ -91,6 +91,18 @@ var steelThreadTestCases = []steelThreadTestCase{
 				resultsFileName: "basic-lookup-resources-cursored-lookup-resources-for-fred-page-size-5-results.yaml",
 			},
 			{
+				name:          "cursored lookup resources for fred, page size 1",
+				operationName: "cursoredLookupResources",
+				arguments: map[string]any{
+					"resource_type":     "document",
+					"permission":        "view",
+					"subject_type":      "user",
+					"subject_object_id": "fred",
+					"page_size":         1,
+				},
+				resultsFileName: "basic-lookup-resources-cursored-lookup-resources-for-fred-page-size-1-results.yaml",
+			},
+			{
 				name:          "cursored lookup resources for fred, page size 16",
 				operationName: "cursoredLookupResources",
 				arguments: map[string]any{
