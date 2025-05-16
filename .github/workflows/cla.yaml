@@ -13,7 +13,10 @@ on:  # yamllint disable-line rule:truthy
     types:
       - "checks_requested"
 permissions:
-  contents: "read"
+  actions: "write"
+  contents: "read" # CLA signatures are stored in https://github.com/authzed/cla
+  pull-requests: "write"
+  statuses: "write"
 jobs:
   cla:
     name: "Check Signature"
