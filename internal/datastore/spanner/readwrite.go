@@ -3,7 +3,6 @@ package spanner
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
@@ -12,6 +11,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -297,11 +297,11 @@ func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) (T
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
 	}
 	if filter.OptionalResourceIdPrefix != "" {
-		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
-			return query, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		likeClause, err := common.BuildLikePrefixClause(colObjectID, filter.OptionalResourceIdPrefix)
+		if err != nil {
+			return query, fmt.Errorf(errUnableToDeleteRelationships, err)
 		}
-
-		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
+		query = query.Where(likeClause)
 	}
 
 	// Add clauses for the SubjectFilter

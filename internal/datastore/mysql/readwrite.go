@@ -353,11 +353,11 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
 	}
 	if filter.OptionalResourceIdPrefix != "" {
-		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
-			return 0, false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		likeClause, err := common.BuildLikePrefixClause(colObjectID, filter.OptionalResourceIdPrefix)
+		if err != nil {
+			return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 		}
-
-		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
+		query = query.Where(likeClause)
 	}
 
 	// Add clauses for the SubjectFilter

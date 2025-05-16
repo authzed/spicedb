@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast"
@@ -422,11 +421,12 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 		query = query.Where(sq.Eq{schema.ColRelation: filter.OptionalRelation})
 	}
 	if filter.OptionalResourceIdPrefix != "" {
-		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
-			return 0, false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.OptionalResourceIdPrefix)
+		if err != nil {
+			return 0, false, fmt.Errorf("unable to build like clause: %w", err)
 		}
 
-		query = query.Where(sq.Like{schema.ColObjectID: filter.OptionalResourceIdPrefix + "%"})
+		query = query.Where(likeClause)
 	}
 
 	rwt.addOverlapKey(filter.ResourceType)

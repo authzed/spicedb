@@ -712,6 +712,117 @@ func DeleteWithInvalidPrefixTest(t *testing.T, tester DatastoreTester) {
 	require.ErrorContains(err, "value does not match regex")
 }
 
+// DeleteWithPrefixTest tests deleting relationships with a prefix.
+func DeleteWithPrefixTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ctx := context.Background()
+
+	// Write some relationships.
+	rels := make([]tuple.Relationship, 0, 100)
+	for i := range 100 {
+		rels = append(rels, tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc"+strconv.Itoa(i), "viewer"),
+				Subject:  tuple.ONR("user", "tom", tuple.Ellipsis),
+			},
+		})
+	}
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, rels...)
+
+	// Write some other relationships.
+	otherRels := make([]tuple.Relationship, 0, 100)
+	for i := range 100 {
+		otherRels = append(otherRels, tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "otherdoc"+strconv.Itoa(i), "viewer"),
+				Subject:  tuple.ONR("user", "tom", tuple.Ellipsis),
+			},
+		})
+	}
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, otherRels...)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, otherRels...)
+
+	// Delete with a valid prefix.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			OptionalResourceIdPrefix: "doc",
+		})
+		return err
+	})
+	require.NoError(err)
+	ensureNotRelationships(ctx, require, ds, rels...)
+	ensureRelationships(ctx, require, ds, otherRels...)
+
+	// Write some more relationships, including those with an underscore in the prefix.
+	prefixRels := make([][]tuple.Relationship, 0, 4)
+	for i := range 4 {
+		prefixRels = append(prefixRels, make([]tuple.Relationship, 0, 25))
+		for j := range 25 {
+			prefixRels[i] = append(prefixRels[i], tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "pdoc0"+strconv.Itoa(i)+"_"+strconv.Itoa(j), "viewer"),
+					Subject:  tuple.ONR("user", "tom", tuple.Ellipsis),
+				},
+			})
+		}
+	}
+
+	for _, rels := range prefixRels {
+		_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
+		require.NoError(err)
+		ensureRelationships(ctx, require, ds, rels...)
+	}
+
+	// Delete with a prefix that does not exist but includes an underscore.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			OptionalResourceIdPrefix: "pdoc0_",
+		})
+		return err
+	})
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, prefixRels[0]...)
+	ensureRelationships(ctx, require, ds, prefixRels[1]...)
+	ensureRelationships(ctx, require, ds, prefixRels[2]...)
+	ensureRelationships(ctx, require, ds, prefixRels[3]...)
+
+	// Delete with a prefix that includes an underscore.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			OptionalResourceIdPrefix: "pdoc00_",
+		})
+		return err
+	})
+	require.NoError(err)
+	ensureNotRelationships(ctx, require, ds, prefixRels[0]...)
+	ensureRelationships(ctx, require, ds, prefixRels[1]...)
+	ensureRelationships(ctx, require, ds, prefixRels[2]...)
+	ensureRelationships(ctx, require, ds, prefixRels[3]...)
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			OptionalResourceIdPrefix: "pdoc01_",
+		})
+		return err
+	})
+	require.NoError(err)
+
+	ensureNotRelationships(ctx, require, ds, prefixRels[0]...)
+	ensureNotRelationships(ctx, require, ds, prefixRels[1]...)
+	ensureRelationships(ctx, require, ds, prefixRels[2]...)
+	ensureRelationships(ctx, require, ds, prefixRels[3]...)
+}
+
 // MixedWriteOperationsTest tests a WriteRelationships call with mixed operations.
 func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
