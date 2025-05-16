@@ -13,10 +13,10 @@ on:  # yamllint disable-line rule:truthy
     types:
       - "checks_requested"
 permissions:
-  actions: write
-  contents: read
-  pull-requests: write
-  statuses: write
+  actions: "write"
+  contents: "write"
+  pull-requests: "write"
+  statuses: "write"
 jobs:
   cla:
     name: "Check Signature"
