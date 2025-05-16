@@ -1518,3 +1518,42 @@ func TestIndexHint(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, wasRun)
 }
+
+func TestBuildLikeCla(t *testing.T) {
+	tcs := []struct {
+		prefix         string
+		expectedError  string
+		expectedClause sq.Like
+	}{
+		{
+			prefix:         "foo",
+			expectedClause: sq.Like{"testcol": "foo%"},
+		},
+		{
+			prefix:        "foo%",
+			expectedError: "prefix cannot contain the percent sign",
+		},
+		{
+			prefix:         "foo_",
+			expectedClause: sq.Like{"testcol": `foo\_%`},
+		},
+
+		{
+			prefix:         `\foo`,
+			expectedClause: sq.Like{"testcol": `\\foo%`},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.prefix, func(t *testing.T) {
+			clause, err := BuildLikePrefixClause("testcol", tc.prefix)
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedClause, clause)
+			}
+		})
+	}
+}

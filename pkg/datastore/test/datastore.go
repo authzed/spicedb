@@ -137,6 +137,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestDeleteCaveatedTuple", runner(tester, DeleteCaveatedTupleTest))
 	t.Run("TestDeleteWithLimit", runner(tester, DeleteWithLimitTest))
 	t.Run("TestDeleteWithInvalidPrefix", runner(tester, DeleteWithInvalidPrefixTest))
+	t.Run("TestDeleteWithPrefix", runner(tester, DeleteWithPrefixTest))
 	t.Run("TestQueryRelationshipsWithVariousFilters", runner(tester, QueryRelationshipsWithVariousFiltersTest))
 	t.Run("TestDeleteRelationshipsWithVariousFilters", runner(tester, DeleteRelationshipsWithVariousFiltersTest))
 	t.Run("TestTouchTypedAlreadyExistingWithoutCaveat", runner(tester, TypedTouchAlreadyExistingTest))

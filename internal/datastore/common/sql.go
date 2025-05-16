@@ -401,17 +401,12 @@ func (sqf SchemaQueryFilterer) MustFilterToResourceIDs(resourceIds []string) Sch
 // FilterWithResourceIDPrefix returns new SchemaQueryFilterer that is limited to resources whose ID
 // starts with the specified prefix.
 func (sqf SchemaQueryFilterer) FilterWithResourceIDPrefix(prefix string) (SchemaQueryFilterer, error) {
-	if strings.Contains(prefix, "%") {
-		return sqf, spiceerrors.MustBugf("prefix cannot contain the percent sign")
-	}
-	if prefix == "" {
-		return sqf, spiceerrors.MustBugf("prefix cannot be empty")
+	likeClause, err := BuildLikePrefixClause(sqf.schema.ColObjectID, prefix)
+	if err != nil {
+		return sqf, err
 	}
 
-	prefix = strings.ReplaceAll(prefix, `\`, `\\`)
-	prefix = strings.ReplaceAll(prefix, "_", `\_`)
-
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Like{sqf.schema.ColObjectID: prefix + "%"})
+	sqf.queryBuilder = sqf.queryBuilder.Where(likeClause)
 
 	// NOTE: we do *not* record the use of the resource ID column here, because it is not used
 	// statically and thus is necessary for sorting operations.
@@ -960,4 +955,19 @@ func ColumnsToSelect[CN any, CC any, EC any](
 	}
 
 	return colsToSelect, nil
+}
+
+// BuildLikePrefixClause builds a LIKE clause for the given column name and prefix.
+func BuildLikePrefixClause(columnName string, prefix string) (sq.Like, error) {
+	if prefix == "" {
+		return sq.Like{}, spiceerrors.MustBugf("prefix cannot be empty")
+	}
+
+	if strings.Contains(prefix, "%") {
+		return sq.Like{}, fmt.Errorf("prefix cannot contain the percent sign. found: %q", prefix)
+	}
+
+	prefix = strings.ReplaceAll(prefix, `\`, `\\`)
+	prefix = strings.ReplaceAll(prefix, "_", `\_`)
+	return sq.Like{columnName: prefix + "%"}, nil
 }
