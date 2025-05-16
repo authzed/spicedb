@@ -1,8 +1,12 @@
 package slicez
 
 import (
+	"slices"
+
 	"github.com/authzed/spicedb/internal/logging"
 )
+
+const DefaultChunkSize = 100
 
 // ForEachChunk executes the given handler for each chunk of items in the slice.
 func ForEachChunk[T any](data []T, chunkSize uint16, handler func(items []T)) {
@@ -12,33 +16,18 @@ func ForEachChunk[T any](data []T, chunkSize uint16, handler func(items []T)) {
 	})
 }
 
-func ForEachChunkUntil[T any](data []T, chunkSize uint16, handler func(items []T) (bool, error)) (bool, error) {
+func ForEachChunkUntil[T any](data []T, chunkSize uint16, f func([]T) (bool, error)) (bool, error) {
 	if chunkSize == 0 {
-		logging.Warn().Int("invalid-chunk-size", int(chunkSize)).Msg("ForEachChunk got an invalid chunk size; defaulting to 100")
-		chunkSize = 100
+		logging.Warn().Int("invalid-chunk-size", int(chunkSize)).
+			Int("default-chunk-size", DefaultChunkSize).
+			Msg("Received zero chunk size - falling back to default")
+		chunkSize = DefaultChunkSize
 	}
 
-	dataLength := uint64(len(data))
-	chunkSize64 := uint64(chunkSize)
-	chunkCount := (dataLength / chunkSize64) + 1
-	for chunkIndex := uint64(0); chunkIndex < chunkCount; chunkIndex++ {
-		chunkStart := chunkIndex * chunkSize64
-		chunkEnd := (chunkIndex + 1) * chunkSize64
-		if chunkEnd > dataLength {
-			chunkEnd = dataLength
-		}
-
-		chunk := data[chunkStart:chunkEnd]
-		if len(chunk) > 0 {
-			ok, err := handler(chunk)
-			if err != nil {
-				return false, err
-			}
-			if !ok {
-				return ok, nil
-			}
+	for items := range slices.Chunk(data, int(chunkSize)) {
+		if ok, err := f(items); err != nil || !ok {
+			return ok, err
 		}
 	}
-
 	return true, nil
 }
