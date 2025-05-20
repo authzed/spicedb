@@ -24,14 +24,12 @@ require (
 	github.com/authzed/authzed-go v1.4.0
 	github.com/authzed/consistent v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
+	github.com/aws/aws-sdk-go v1.55.7
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.67
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.11
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bits-and-blooms/bloom/v3 v3.7.0
-	github.com/caio/go-tdigest/v4 v4.0.1
 	github.com/ccoveille/go-safecast v1.6.1
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -51,7 +49,6 @@ require (
 	github.com/go-sql-driver/mysql v1.9.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v1.0.0
-	github.com/golangci/golangci-lint/v2 v2.1.5
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v43 v43.0.0
 	github.com/google/uuid v1.6.0
@@ -119,9 +116,14 @@ require (
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	resenje.org/singleflight v0.4.3
 	sigs.k8s.io/controller-runtime v0.20.4
+)
+
+require (
+	github.com/caio/go-tdigest/v4 v4.0.1
+	github.com/golangci/golangci-lint/v2 v2.1.5
+	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 )
 
 require (
@@ -163,17 +165,13 @@ require (
 	github.com/ashanbrown/forbidigo v1.6.0 // indirect
 	github.com/ashanbrown/makezero v1.2.0 // indirect
 	github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584
-	github.com/aws/aws-sdk-go v1.44.256 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.10 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.67 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.30 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19 // indirect
@@ -281,6 +279,7 @@ require (
 	github.com/jgautheron/goconst v1.8.1 // indirect
 	github.com/jingyugao/rowserrcheck v1.1.1 // indirect
 	github.com/jjti/go-spancheck v0.6.4 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
