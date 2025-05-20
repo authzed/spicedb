@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/go-logr/zerologr"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/jzelinskie/cobrautil/v2"
@@ -165,14 +165,14 @@ func shareStoreFromCmd(cmd *cobra.Command) (v0svc.ShareStore, error) {
 			return nil, fmt.Errorf("missing required field: %s", optsNames[i])
 		}
 
-		config := aws.Config{
-			Credentials: credentials.NewStaticCredentialsProvider(
+		config := &aws.Config{
+			Credentials: credentials.NewStaticCredentials(
 				accessKey,
 				secretKey,
 				"",
 			),
-			BaseEndpoint: aws.String(endpoint),
-			Region:       region,
+			Endpoint: aws.String(endpoint),
+			Region:   aws.String(region),
 		}
 
 		var err error
