@@ -175,21 +175,6 @@ func validateReverseQueryShape(queryShape queryshape.Shape, subjectFilter datast
 
 		return nil
 
-	case queryshape.FindSubjectOfType:
-		if subjectFilter.SubjectType == "" {
-			return fmt.Errorf("subject type required for FindSubjectOfType")
-		}
-
-		if len(subjectFilter.OptionalSubjectIds) != 0 {
-			return fmt.Errorf("no optional subject ids allowed for FindSubjectOfType")
-		}
-
-		if queryOpts.ResRelation != nil {
-			return fmt.Errorf("no resource relation allowed for FindSubjectOfType")
-		}
-
-		return nil
-
 	case queryshape.Varying:
 		// Nothing to validate.
 		return nil

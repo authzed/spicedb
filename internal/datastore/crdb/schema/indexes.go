@@ -25,7 +25,6 @@ var IndexRelationshipBySubject = common.IndexDefinition{
 	ColumnsSQL: `relation_tuple (userset_object_id, userset_namespace, userset_relation, namespace, relation)`,
 	Shapes: []queryshape.Shape{
 		queryshape.MatchingResourcesForSubject,
-		queryshape.FindSubjectOfType,
 	},
 }
 
@@ -77,9 +76,6 @@ func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Sh
 
 	case queryshape.FindResourceOfType:
 		return forcedIndex{IndexPrimaryKey}
-
-	case queryshape.FindSubjectOfType:
-		return forcedIndex{IndexRelationshipBySubject}
 
 	default:
 		return nil

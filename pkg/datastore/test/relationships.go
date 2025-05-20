@@ -179,7 +179,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			// Check for larger reverse queries.
 			iter, err = dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 				SubjectType: testUserNamespace,
-			}, options.WithQueryShapeForReverse(queryshape.FindSubjectOfType))
+			}, options.WithQueryShapeForReverse(queryshape.Varying))
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testRels...)
 
@@ -188,7 +188,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				limit, _ := safecast.ToUint64(len(testRels) - 1)
 				iter, err := dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 					SubjectType: testUserNamespace,
-				}, options.WithLimitForReverse(&limit), options.WithQueryShapeForReverse(queryshape.FindSubjectOfType))
+				}, options.WithLimitForReverse(&limit), options.WithQueryShapeForReverse(queryshape.Varying))
 				require.NoError(err)
 
 				tRequire.VerifyIteratorCount(iter, len(testRels)-1)

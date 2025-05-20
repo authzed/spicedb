@@ -367,7 +367,7 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 					options.WithSortForReverse(sortBy),
 					options.WithLimitForReverse(&limit),
 					options.WithAfterForReverse(cursor),
-					options.WithQueryShapeForReverse(queryshape.FindSubjectOfType),
+					options.WithQueryShapeForReverse(queryshape.Varying),
 				)
 				require.NoError(t, err)
 

@@ -178,11 +178,12 @@ func ApplySchemaChangesOverExisting(
 		Msg("validated namespace definitions")
 
 	// Ensure that deleting namespaces will not result in any relationships left without associated
-	// schema.
+	// schema. We only check the resource type as the subject type is handled by the schema validator,
+	// which will allow the deletion of the subject type if it is not used in any relation anyway.
 	removedObjectDefNames := existingObjectDefNames.Subtract(validated.newObjectDefNames)
 	if !validated.additiveOnly {
 		if err := removedObjectDefNames.ForEach(func(nsdefName string) error {
-			return ensureNoRelationshipsExist(ctx, rwt, nsdefName)
+			return ensureNoRelationshipsExistWithResourceType(ctx, rwt, nsdefName)
 		}); err != nil {
 			return nil, err
 		}
@@ -265,44 +266,22 @@ func sanityCheckCaveatChanges(
 	return diff, nil
 }
 
-// ensureNoRelationshipsExist ensures that no relationships exist within the namespace with the given name.
-func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTransaction, namespaceName string) error {
+// ensureNoRelationshipsExistWithResourceType ensures that no relationships exist within the namespace with the given name as a resource type.
+// NOTE: this does *not* check for use of the namespace as a subject type, as that should be handled by the caller.
+func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datastore.ReadWriteTransaction, namespaceName string) error {
 	qy, qyErr := rwt.QueryRelationships(
 		ctx,
 		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
 		options.WithLimit(options.LimitOne),
 		options.WithQueryShape(queryshape.FindResourceOfType),
 	)
-	if err := errorIfTupleIteratorReturnsTuples(
+	return errorIfTupleIteratorReturnsTuples(
 		ctx,
 		qy,
 		qyErr,
 		"cannot delete object definition `%s`, as a relationship exists under it",
 		namespaceName,
-	); err != nil {
-		return err
-	}
-
-	qy, qyErr = rwt.ReverseQueryRelationships(
-		ctx,
-		datastore.SubjectsFilter{
-			SubjectType: namespaceName,
-		},
-		options.WithLimitForReverse(options.LimitOne),
-		options.WithQueryShapeForReverse(queryshape.FindSubjectOfType),
 	)
-	err := errorIfTupleIteratorReturnsTuples(
-		ctx,
-		qy,
-		qyErr,
-		"cannot delete object definition `%s`, as a relationship references it",
-		namespaceName,
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // sanityCheckNamespaceChanges ensures that a namespace definition being written does not result
