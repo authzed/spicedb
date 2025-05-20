@@ -326,6 +326,110 @@ func TestApplySchemaChanges(t *testing.T) {
 				TotalOperationCount: 3,
 			},
 		},
+		{
+			name: "attempt to delete a subject type",
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation reader: user
+					permission view = reader
+				}
+			`,
+			relationships: []string{"document:firstdoc#reader@user:tom"},
+			endingSchema: `
+				definition document {
+					relation reader: user
+					permission view = reader
+				}
+			`,
+			expectedError: "could not lookup definition `user` for relation `reader`: object definition `user` not found",
+		},
+		{
+			name: "attempt to delete a subject type with a relation",
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation reader: user
+					permission view = reader
+				}
+			`,
+			relationships: []string{"document:firstdoc#reader@user:tom"},
+			endingSchema: `
+				definition document {
+					permission view = nil
+				}
+			`,
+			expectedError: "cannot delete relation `reader` in object definition `document`, as a relationship exists under it",
+		},
+		{
+			name: "delete a subject type with relation but no data",
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation reader: user
+					permission view = reader
+				}
+			`,
+			relationships: nil,
+			endingSchema: `
+				definition document {
+					permission view = nil
+				}
+			`,
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount:   2,
+				RemovedObjectDefNames: []string{"user"},
+			},
+		},
+		{
+			name: "attempt to delete a subject type while adding a replacement",
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation reader: user
+					permission view = reader
+				}
+			`,
+			relationships: []string{"document:firstdoc#reader@user:tom"},
+			endingSchema: `
+				definition user2 {}
+
+				definition document {
+					relation reader: user2
+					permission view = reader
+				}
+			`,
+			expectedError: "cannot remove allowed type `user` from relation `reader` in object definition `document`, as a relationship exists with it",
+		},
+		{
+			name: "delete a subject type while adding a replacement",
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation reader: user
+					permission view = reader
+				}
+			`,
+			relationships: nil,
+			endingSchema: `
+				definition user2 {}
+
+				definition document {
+					relation reader: user2
+					permission view = reader
+				}
+			`,
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount:   3,
+				RemovedObjectDefNames: []string{"user"},
+				NewObjectDefNames:     []string{"user2"},
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -350,6 +454,10 @@ func TestApplySchemaChanges(t *testing.T) {
 			require.NoError(err)
 
 			validated, err := ValidateSchemaChanges(context.Background(), compiled, caveattypes.Default.TypeSet, false)
+			if tc.expectedError != "" && err != nil && tc.expectedError == err.Error() {
+				return
+			}
+
 			require.NoError(err)
 
 			_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

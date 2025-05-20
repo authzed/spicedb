@@ -23,9 +23,6 @@ func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Sh
 	case queryshape.MatchingResourcesForSubject:
 		return forcedIndex{IndexRelationshipBySubject}
 
-	case queryshape.FindSubjectOfType:
-		return forcedIndex{IndexRelationshipBySubject}
-
 	default:
 		return NoIndexingHint
 	}

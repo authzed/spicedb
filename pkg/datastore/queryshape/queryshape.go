@@ -67,15 +67,6 @@ const (
 	// ✅ resource_type, *️⃣ resource_id, *️⃣ resource_relation, *️⃣ subject_type, *️⃣ subject_id, *️⃣ subject_relation, *️⃣ caveat, *️⃣ expiration
 	FindResourceOfType = "find-resource-of-type"
 
-	// FindSubjectOfType indicates that the query is selecting a subject of
-	// a given type.
-	//
-	// The query shape selects a subject of a given type, which is specified by
-	// providing the subject type. The other fields are never specified.
-	//
-	// *️⃣ resource_type, *️⃣ resource_id, *️⃣ resource_relation, ✅ subject_type, *️⃣ subject_id, *️⃣ subject_relation, *️⃣ caveat, *️⃣ expiration
-	FindSubjectOfType = "find-subject-of-type"
-
 	// FindResourceOfTypeAndRelation indicates that the query is selecting a single
 	// resource of a given type and relation.
 	//
