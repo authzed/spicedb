@@ -36,6 +36,8 @@ const (
 	NodeTypeNilExpression // A nil keyword
 
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
+	NodeTypePartial
+	NodeTypePartialReference // A location where a partial is referenced
 )
 
 const (
@@ -206,4 +208,14 @@ const (
 	//
 	NodeExpressionPredicateLeftExpr  = "left-expr"
 	NodeExpressionPredicateRightExpr = "right-expr"
+
+	//
+	// NodeTypePartial
+	//
+	NodePartialPredicateName = "partial-name"
+
+	//
+	// NodeTypePartialReference
+	//
+	NodePartialReferencePredicateName = "partial-reference-name"
 )

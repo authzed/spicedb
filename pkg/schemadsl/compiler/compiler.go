@@ -8,6 +8,7 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -115,12 +116,14 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 
 	cts := caveattypes.TypeSetOrDefault(cfg.caveatTypeSet)
 	compiled, err := translate(&translationContext{
-		objectTypePrefix: cfg.objectTypePrefix,
-		mapper:           mapper,
-		schemaString:     schema.SchemaString,
-		skipValidate:     cfg.skipValidation,
-		allowedFlags:     cfg.allowedFlags,
-		caveatTypeSet:    cts,
+		objectTypePrefix:   cfg.objectTypePrefix,
+		mapper:             mapper,
+		schemaString:       schema.SchemaString,
+		skipValidate:       cfg.skipValidation,
+		allowedFlags:       cfg.allowedFlags,
+		caveatTypeSet:      cts,
+		compiledPartials:   make(map[string][]*core.Relation),
+		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
 	}, root)
 	if err != nil {
 		var withNodeError withNodeError
