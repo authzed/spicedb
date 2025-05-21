@@ -3,30 +3,11 @@ package datastore
 import (
 	"context"
 
-	"go.opentelemetry.io/otel/trace"
-
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
-
-// SeparateContextWithTracing is a utility method which allows for severing the
-// context between grpc and the datastore to prevent context cancellation from
-// killing database connections that should otherwise go back to the connection
-// pool.
-func SeparateContextWithTracing(ctx context.Context) context.Context {
-	span := trace.SpanFromContext(ctx)
-	ctxWithObservability := trace.ContextWithSpan(context.Background(), span)
-
-	loggerFromContext := log.Ctx(ctx)
-	if loggerFromContext != nil {
-		ctxWithObservability = loggerFromContext.WithContext(ctxWithObservability)
-	}
-
-	return ctxWithObservability
-}
 
 // NewSeparatingContextDatastoreProxy severs any timeouts in the context being
 // passed to the datastore and only retains tracing metadata.
@@ -66,15 +47,15 @@ func (p *ctxProxy) IsStrictReadModeEnabled() bool {
 }
 
 func (p *ctxProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
-	return p.delegate.OptimizedRevision(SeparateContextWithTracing(ctx))
+	return p.delegate.OptimizedRevision(context.WithoutCancel(ctx))
 }
 
 func (p *ctxProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	return p.delegate.CheckRevision(SeparateContextWithTracing(ctx), revision)
+	return p.delegate.CheckRevision(context.WithoutCancel(ctx), revision)
 }
 
 func (p *ctxProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	return p.delegate.HeadRevision(SeparateContextWithTracing(ctx))
+	return p.delegate.HeadRevision(context.WithoutCancel(ctx))
 }
 
 func (p *ctxProxy) RevisionFromString(serialized string) (datastore.Revision, error) {
@@ -86,7 +67,7 @@ func (p *ctxProxy) Watch(ctx context.Context, afterRevision datastore.Revision, 
 }
 
 func (p *ctxProxy) Features(ctx context.Context) (*datastore.Features, error) {
-	return p.delegate.Features(SeparateContextWithTracing(ctx))
+	return p.delegate.Features(context.WithoutCancel(ctx))
 }
 
 func (p *ctxProxy) OfflineFeatures() (*datastore.Features, error) {
@@ -94,11 +75,11 @@ func (p *ctxProxy) OfflineFeatures() (*datastore.Features, error) {
 }
 
 func (p *ctxProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
-	return p.delegate.Statistics(SeparateContextWithTracing(ctx))
+	return p.delegate.Statistics(context.WithoutCancel(ctx))
 }
 
 func (p *ctxProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
-	return p.delegate.ReadyState(SeparateContextWithTracing(ctx))
+	return p.delegate.ReadyState(context.WithoutCancel(ctx))
 }
 
 func (p *ctxProxy) Close() error { return p.delegate.Close() }
@@ -120,43 +101,43 @@ func (p *ctxProxy) ExampleRetryableError() error {
 type ctxReader struct{ delegate datastore.Reader }
 
 func (r *ctxReader) CountRelationships(ctx context.Context, name string) (int, error) {
-	return r.delegate.CountRelationships(SeparateContextWithTracing(ctx), name)
+	return r.delegate.CountRelationships(context.WithoutCancel(ctx), name)
 }
 
 func (r *ctxReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	return r.delegate.LookupCounters(SeparateContextWithTracing(ctx))
+	return r.delegate.LookupCounters(context.WithoutCancel(ctx))
 }
 
 func (r *ctxReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	return r.delegate.ReadCaveatByName(SeparateContextWithTracing(ctx), name)
+	return r.delegate.ReadCaveatByName(context.WithoutCancel(ctx), name)
 }
 
 func (r *ctxReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	return r.delegate.ListAllCaveats(SeparateContextWithTracing(ctx))
+	return r.delegate.ListAllCaveats(context.WithoutCancel(ctx))
 }
 
 func (r *ctxReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	return r.delegate.LookupCaveatsWithNames(SeparateContextWithTracing(ctx), caveatNames)
+	return r.delegate.LookupCaveatsWithNames(context.WithoutCancel(ctx), caveatNames)
 }
 
 func (r *ctxReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	return r.delegate.ListAllNamespaces(SeparateContextWithTracing(ctx))
+	return r.delegate.ListAllNamespaces(context.WithoutCancel(ctx))
 }
 
 func (r *ctxReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	return r.delegate.LookupNamespacesWithNames(SeparateContextWithTracing(ctx), nsNames)
+	return r.delegate.LookupNamespacesWithNames(context.WithoutCancel(ctx), nsNames)
 }
 
 func (r *ctxReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	return r.delegate.ReadNamespaceByName(SeparateContextWithTracing(ctx), nsName)
+	return r.delegate.ReadNamespaceByName(context.WithoutCancel(ctx), nsName)
 }
 
 func (r *ctxReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return r.delegate.QueryRelationships(SeparateContextWithTracing(ctx), filter, options...)
+	return r.delegate.QueryRelationships(context.WithoutCancel(ctx), filter, options...)
 }
 
 func (r *ctxReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return r.delegate.ReverseQueryRelationships(SeparateContextWithTracing(ctx), subjectsFilter, options...)
+	return r.delegate.ReverseQueryRelationships(context.WithoutCancel(ctx), subjectsFilter, options...)
 }
 
 var (
