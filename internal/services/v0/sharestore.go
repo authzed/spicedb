@@ -11,10 +11,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 const (
@@ -106,20 +108,21 @@ func (ims *inMemoryShareStore) StoreShared(shared SharedDataV2) (string, error) 
 type s3ShareStore struct {
 	bucket   string
 	salt     string
-	s3Client *s3.S3
+	s3Client *s3.Client
 }
 
 // NewS3ShareStore creates a new S3 share store, reading and writing the shared data to the given
 // bucket, with the given salt for hash computation and the given config for connecting to S3 or
 // and S3-compatible API.
-func NewS3ShareStore(bucket string, salt string, config *aws.Config) (ShareStore, error) {
-	sess, err := session.NewSession(config)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create S3 service client
-	s3Client := s3.New(sess)
+func NewS3ShareStore(bucket string, salt string, config aws.Config, optFns ...func(options *s3.Options)) (ShareStore, error) {
+	optFns = append(optFns, func(o *s3.Options) {
+		// Google Cloud Storage alters the Accept-Encoding header, which breaks the v2 request signature
+		// (https://github.com/aws/aws-sdk-go-v2/issues/1816)
+		if strings.Contains(aws.ToString(config.BaseEndpoint), "storage.googleapis.com") {
+			ignoreSigningHeaders(o, []string{"Accept-Encoding"})
+		}
+	})
+	s3Client := s3.NewFromConfig(config, optFns...)
 	return &s3ShareStore{
 		salt:     salt,
 		s3Client: s3Client,
@@ -127,12 +130,12 @@ func NewS3ShareStore(bucket string, salt string, config *aws.Config) (ShareStore
 	}, nil
 }
 
-func (s3s *s3ShareStore) createBucketForTesting() error {
+func (s3s *s3ShareStore) createBucketForTesting(ctx context.Context) error {
 	cparams := &s3.CreateBucketInput{
 		Bucket: aws.String(s3s.bucket),
 	}
 
-	_, err := s3s.s3Client.CreateBucket(cparams)
+	_, err := s3s.s3Client.CreateBucket(ctx, cparams)
 	return err
 }
 
@@ -158,16 +161,16 @@ func (s3s *s3ShareStore) LookupSharedByReference(reference string) (SharedDataV2
 
 	ctx := context.Background()
 
-	result, err := s3s.s3Client.GetObjectWithContext(ctx, &s3.GetObjectInput{
+	result, err := s3s.s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s3s.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		var aerr awserr.Error
-		if errors.As(err, &aerr) && aerr.Code() == s3.ErrCodeNoSuchKey {
+		var nsk *types.NoSuchKey
+		if errors.As(err, &nsk) {
 			return SharedDataV2{}, LookupNotFound, nil
 		}
-		return SharedDataV2{}, LookupError, aerr
+		return SharedDataV2{}, LookupError, err
 	}
 	defer result.Body.Close()
 
@@ -192,7 +195,7 @@ func (s3s *s3ShareStore) StoreShared(shared SharedDataV2) (string, error) {
 
 	ctx := context.Background()
 
-	_, err = s3s.s3Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
+	_, err = s3s.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s3s.bucket),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(data),
@@ -269,4 +272,67 @@ func unmarshalShared(data []byte) (SharedDataV2, LookupStatus, error) {
 	default:
 		return SharedDataV2{}, LookupError, fmt.Errorf("unsupported share version %s", v.Version)
 	}
+}
+
+// https://github.com/aws/aws-sdk-go-v2/issues/1816#issuecomment-1927281540
+
+// ignoreSigningHeaders excludes the listed headers
+// from the request signature because some providers may alter them.
+//
+// See https://github.com/aws/aws-sdk-go-v2/issues/1816.
+func ignoreSigningHeaders(o *s3.Options, headers []string) {
+	o.APIOptions = append(o.APIOptions, func(stack *middleware.Stack) error {
+		if err := stack.Finalize.Insert(ignoreHeaders(headers), "Signing", middleware.Before); err != nil {
+			return err
+		}
+
+		if err := stack.Finalize.Insert(restoreIgnored(), "Signing", middleware.After); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+type ignoredHeadersKey struct{}
+
+func ignoreHeaders(headers []string) middleware.FinalizeMiddleware {
+	return middleware.FinalizeMiddlewareFunc(
+		"IgnoreHeaders",
+		func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (out middleware.FinalizeOutput, metadata middleware.Metadata, err error) {
+			req, ok := in.Request.(*smithyhttp.Request)
+			if !ok {
+				return out, metadata, &v4.SigningError{Err: fmt.Errorf("(ignoreHeaders) unexpected request middleware type %T", in.Request)}
+			}
+
+			ignored := make(map[string]string, len(headers))
+			for _, h := range headers {
+				ignored[h] = req.Header.Get(h)
+				req.Header.Del(h)
+			}
+
+			ctx = middleware.WithStackValue(ctx, ignoredHeadersKey{}, ignored)
+
+			return next.HandleFinalize(ctx, in)
+		},
+	)
+}
+
+func restoreIgnored() middleware.FinalizeMiddleware {
+	return middleware.FinalizeMiddlewareFunc(
+		"RestoreIgnored",
+		func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (out middleware.FinalizeOutput, metadata middleware.Metadata, err error) {
+			req, ok := in.Request.(*smithyhttp.Request)
+			if !ok {
+				return out, metadata, &v4.SigningError{Err: fmt.Errorf("(restoreIgnored) unexpected request middleware type %T", in.Request)}
+			}
+
+			ignored, _ := middleware.GetStackValue(ctx, ignoredHeadersKey{}).(map[string]string)
+			for k, v := range ignored {
+				req.Header.Set(k, v)
+			}
+
+			return next.HandleFinalize(ctx, in)
+		},
+	)
 }
