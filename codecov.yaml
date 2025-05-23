@@ -1,0 +1,4 @@
+ignore:
+  - "**/zz_generated*.go"
+  - "**/*.pb.go"
+  - "**/*.pb.validate.go"

@@ -77,7 +77,6 @@ jobs:
         uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
         with:
           files: "./coverage.txt"
-          verbose: true
           token: "${{ secrets.CODECOV_TOKEN }}"
           fail_ci_if_error: false
 
@@ -106,8 +105,14 @@ jobs:
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
-      - name: "Integration tests"
-        run: "go run mage.go test:integration"
+      - name: "Integration tests with coverage"
+        run: "go run mage.go test:integrationCover"
+      - name: "Coverage"
+        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   datastoreinttest:
     name: "Datastore Integration Tests"
@@ -134,6 +139,14 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testds:${{ matrix.datastore }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   datastoreconstest:
     name: "Datastore Consistency Tests"
@@ -160,6 +173,14 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testcons:${{ matrix.datastore }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   pgdatastoreinttest:
     name: "Datastore Integration Tests"
@@ -187,6 +208,14 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testds:${{ matrix.datastore }}ver ${{ matrix.pgversion }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   pgdatastoreconstest:
     name: "Datastore Consistency Tests"
@@ -214,6 +243,14 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testcons:postgresver ${{ matrix.pgversion }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   crdbdatastoreinttest:
     name: "Datastore Integration Tests"
@@ -241,6 +278,14 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testds:${{ matrix.datastore }}ver ${{ matrix.crdbversion }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   crdbdatastoreconstest:
     name: "Datastore Consistency Tests"
@@ -268,6 +313,14 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testcons:crdbver ${{ matrix.crdbversion }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   e2e:
     name: "E2E"
