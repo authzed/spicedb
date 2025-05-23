@@ -71,8 +71,8 @@ jobs:
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
       - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
-      - name: "Unit tests"
-        run: "go run mage.go test:unit"
+      - name: "Unit tests with coverage"
+        run: "go run mage.go test:unitCover"
       - name: "Coverage"
         uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
         with:
