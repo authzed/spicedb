@@ -8,33 +8,21 @@ import (
 	"os"
 	"strings"
 
-	"github.com/authzed/ctxkey"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
 
 type Test mg.Namespace
 
-var (
-	emptyEnv map[string]string
-	ctxMyKey = ctxkey.New[bool]()
-)
+var emptyEnv map[string]string
 
 // All Runs all test suites
-func (t Test) All(ctx context.Context) error {
+func (t Test) All(ctx context.Context) {
 	ds := Testds{}
 	c := Testcons{}
-	cover := parseCommandLineFlags()
-	ctx = ctxMyKey.WithValue(ctx, cover)
 	mg.CtxDeps(ctx, t.Unit, t.Integration, t.Steelthread, t.Image, t.Analyzers,
 		ds.Crdb, ds.Postgres, ds.Spanner, ds.Mysql,
 		c.Crdb, c.Spanner, c.Postgres, c.Mysql)
-
-	if !cover {
-		return nil
-	}
-
-	return combineCoverage()
 }
 
 // UnitCover Runs the unit tests and generates a coverage report
@@ -55,7 +43,7 @@ func (Test) unit(ctx context.Context, coverage bool) error {
 	args := []string{"-tags", "ci,skipintegrationtests", "-race", "-timeout", "10m", "-count=1"}
 	if coverage {
 		fmt.Println("running unit tests with coverage")
-		args = append(args, "-coverpkg=./...", "-covermode=atomic", "-coverprofile=coverage.txt")
+		args = append(args, coverageFlags...)
 	} else {
 		fmt.Println("running unit tests")
 	}
@@ -72,6 +60,14 @@ func (Test) Image(ctx context.Context) error {
 func (Test) Integration(ctx context.Context) error {
 	mg.Deps(checkDocker)
 	return goTest(ctx, "./internal/services/integrationtesting/...", "-tags", "ci,docker", "-timeout", "15m")
+}
+
+// Integration Run integration tests with cover
+func (Test) IntegrationCover(ctx context.Context) error {
+	mg.Deps(checkDocker)
+	args := []string{"-tags", "ci,docker", "-timeout", "15m", "-count=1"}
+	args = append(args, coverageFlags...)
+	return goTest(ctx, "./internal/services/integrationtesting/...", args...)
 }
 
 // Steelthread Run steelthread tests
@@ -167,7 +163,9 @@ func datastoreTest(ctx context.Context, datastore string, env map[string]string,
 	mergedTags := append([]string{"ci", "docker"}, tags...)
 	tagString := strings.Join(mergedTags, ",")
 	mg.Deps(checkDocker)
-	return goDirTestWithEnv(ctx, ".", fmt.Sprintf("./internal/datastore/%s/...", datastore), env, "-tags", tagString, "-timeout", "15m")
+	args := []string{"-tags", tagString, "-timeout", "15m"}
+	args = append(args, coverageFlags...)
+	return goDirTestWithEnv(ctx, ".", fmt.Sprintf("./internal/datastore/%s/...", datastore), env, args...)
 }
 
 type Testcons mg.Namespace
@@ -225,9 +223,13 @@ func (Testcons) Mysql(ctx context.Context) error {
 
 func consistencyTest(ctx context.Context, datastore string, env map[string]string) error {
 	mg.Deps(checkDocker)
-	return goDirTestWithEnv(ctx, ".", "./internal/services/integrationtesting/...",
-		env,
+	args := []string{
 		"-tags", "ci,docker,datastoreconsistency",
 		"-timeout", "10m",
-		"-run", fmt.Sprintf("TestConsistencyPerDatastore/%s", datastore))
+		"-run", fmt.Sprintf("TestConsistencyPerDatastore/%s", datastore),
+	}
+	args = append(args, coverageFlags...)
+	return goDirTestWithEnv(ctx, ".", "./internal/services/integrationtesting/...",
+		env,
+		args...)
 }

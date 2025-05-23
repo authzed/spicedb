@@ -56,8 +56,6 @@ github.com/agnivade/wasmbrowsertest v0.11.0 h1:Feg5lmJzfC3j9nMgOxRZdYqzYtt93MvcF
 github.com/agnivade/wasmbrowsertest v0.11.0/go.mod h1:kgT4RR8m3auEg0UdL0uOj/0hCjRt5yQQNb4kjUY5GgU=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
-github.com/authzed/ctxkey v0.0.0-20250127172433-d71cd97e3833 h1:rby2719UdmcOltB30ALyPY4Lozz9nkYSpjqnBiHXBQI=
-github.com/authzed/ctxkey v0.0.0-20250127172433-d71cd97e3833/go.mod h1:wnimjr5RPPouIhZQ3ztDBLMUKKuUroj3U9Jy0PxeaEE=
 github.com/bufbuild/buf v1.35.1 h1:aiCi/YFOg7eXKZeveWb2ZhnmLFwUMM/FnDCM0roFp+M=
 github.com/bufbuild/buf v1.35.1/go.mod h1:SM7b5QW3FkQPNkkqIa/9UWzLOoe51la+GGZpEgH9b68=
 github.com/bufbuild/protocompile v0.14.0 h1:z3DW4IvXE5G/uTOnSQn+qwQQxvhckkTWLS/0No/o7KU=
@@ -226,7 +224,6 @@ github.com/google/pprof v0.0.0-20240227163752-401108e1b7e7/go.mod h1:czg5+yv1E0Z
 github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 h1:FKHo8hFI3A+7w0aUQuYXQ+6EN5stWmeY/AZqtM8xk9k=
 github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8/go.mod h1:K1liHPHnj73Fdn/EKuT8nrFqBihUSKXoLYU0BuatOYo=
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
-github.com/google/uuid v1.1.2 h1:EVhdT+1Kseyi1/pUmXKaFxYsDNy9RQYkMWRH68J/W7Y=
 github.com/google/uuid v1.1.2/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
