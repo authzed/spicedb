@@ -46,7 +46,7 @@ func BenchmarkSecondaryDispatching(b *testing.B) {
 	require.NoError(b, err)
 
 	secondaryDispatch := map[string]SecondaryDispatch{
-		"secondary": {Name: "secondary", Client: fakeClusterClient{true}},
+		"secondary": {Name: "secondary", Client: fakeClusterClient{true}, MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
 	}
 	secondaryDispatchExprs := map[string]*DispatchExpr{
 		"check": parsed,
