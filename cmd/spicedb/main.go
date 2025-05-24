@@ -23,17 +23,8 @@ import (
 
 var errParsing = errors.New("parsing error")
 
-func main() {
-	// Set up root logger
-	// This will typically be overwritten by the logging setup for a given command.
-	log.SetGlobalLogger(zerolog.New(os.Stderr).Level(zerolog.InfoLevel))
-
-	// Enable Kubernetes gRPC resolver
-	kuberesolver.RegisterInCluster()
-
-	// Enable consistent hashring gRPC load balancer
-	balancer.Register(cmdutil.ConsistentHashringBuilder)
-
+// buildRootCommand creates and configures the complete SpiceDB CLI command structure
+func buildRootCommand() (*cobra.Command, error) {
 	// Create a root command
 	rootCmd := cmd.NewRootCommand("spicedb")
 	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
@@ -42,7 +33,7 @@ func main() {
 		return errParsing
 	})
 	if err := cmd.RegisterRootFlags(rootCmd); err != nil {
-		log.Fatal().Err(err).Msg("failed to register root flags")
+		return nil, fmt.Errorf("failed to register root flags: %w", err)
 	}
 
 	// Add a version command
@@ -53,7 +44,7 @@ func main() {
 	// Add datastore commands
 	datastoreCmd, err := cmd.NewDatastoreCommand(rootCmd.Use)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to register datastore command")
+		return nil, fmt.Errorf("failed to register datastore command: %w", err)
 	}
 
 	cmd.RegisterDatastoreRootFlags(datastoreCmd)
@@ -77,7 +68,7 @@ func main() {
 	serverConfig := cmdutil.NewConfigWithOptionsAndDefaults()
 	serveCmd := cmd.NewServeCommand(rootCmd.Use, serverConfig)
 	if err := cmd.RegisterServeFlags(serveCmd, serverConfig); err != nil {
-		log.Fatal().Err(err).Msg("failed to register server flags")
+		return nil, fmt.Errorf("failed to register server flags: %w", err)
 	}
 	rootCmd.AddCommand(serveCmd)
 
@@ -88,7 +79,7 @@ func main() {
 	lspConfig := new(cmd.LSPConfig)
 	lspCmd := cmd.NewLSPCommand(rootCmd.Use, lspConfig)
 	if err := cmd.RegisterLSPFlags(lspCmd, lspConfig); err != nil {
-		log.Fatal().Err(err).Msg("failed to register lsp flags")
+		return nil, fmt.Errorf("failed to register lsp flags: %w", err)
 	}
 	rootCmd.AddCommand(lspCmd)
 
@@ -114,6 +105,26 @@ func main() {
 			return err
 		},
 	})
+
+	return rootCmd, nil
+}
+
+func main() {
+	// Set up root logger
+	// This will typically be overwritten by the logging setup for a given command.
+	log.SetGlobalLogger(zerolog.New(os.Stderr).Level(zerolog.InfoLevel))
+
+	// Enable Kubernetes gRPC resolver
+	kuberesolver.RegisterInCluster()
+
+	// Enable consistent hashring gRPC load balancer
+	balancer.Register(cmdutil.ConsistentHashringBuilder)
+
+	// Build the complete command structure
+	rootCmd, err := buildRootCommand()
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to build root command")
+	}
 
 	if err := rootCmd.Execute(); err != nil {
 		if !errors.Is(err, errParsing) {
