@@ -14,6 +14,7 @@ service DispatchService {
 
   rpc DispatchLookupSubjects(DispatchLookupSubjectsRequest) returns (stream DispatchLookupSubjectsResponse) {}
   rpc DispatchLookupResources2(DispatchLookupResources2Request) returns (stream DispatchLookupResources2Response) {}
+  rpc DispatchLookupResources3(DispatchLookupResources3Request) returns (stream DispatchLookupResources3Response) {}
 }
 
 message DispatchCheckRequest {
@@ -123,6 +124,26 @@ message DispatchLookupResources2Response {
   Cursor after_response_cursor = 3;
 }
 
+message DispatchLookupResources3Request {
+  ResolverMeta metadata = 1 [(validate.rules).message.required = true];
+
+  core.v1.RelationReference resource_relation = 2 [(validate.rules).message.required = true];
+  core.v1.RelationReference subject_relation = 3 [(validate.rules).message.required = true];
+  repeated string subject_ids = 4;
+
+  core.v1.ObjectAndRelation terminal_subject = 5 [(validate.rules).message.required = true];
+  google.protobuf.Struct context = 6;
+
+  Cursor optional_cursor = 7;
+  uint32 optional_limit = 8;
+}
+
+message DispatchLookupResources3Response {
+  PossibleResource resource = 1;
+  ResponseMeta metadata = 2;
+  Cursor after_response_cursor = 3;
+}
+
 message DispatchLookupSubjectsRequest {
   ResolverMeta metadata = 1 [(validate.rules).message.required = true];
 
@@ -183,4 +204,19 @@ message CheckDebugTrace {
   google.protobuf.Duration duration = 6;
   string trace_id = 7;
   string source_id = 8;
+}
+
+message ResourceAndMissingContext {
+  string resource_id = 1;
+  map<string, SubjectAndMissingContext> missing_context_by_subject_id = 2;
+}
+
+message SubjectAndMissingContext {
+  string subject_id = 1;
+  repeated string missing_context_params = 2;
+}
+
+message DatastoreCursor {
+  repeated core.v1.RelationTuple ordered_relationships = 1;
+  map<string, ResourceAndMissingContext> resources = 2;
 }
