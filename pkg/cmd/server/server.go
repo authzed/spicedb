@@ -442,21 +442,22 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 
 	permSysConfig := v1svc.PermissionsServerConfig{
-		MaxPreconditionsCount:            maxPreconditionCount,
-		MaxUpdatesPerWrite:               c.MaximumUpdatesPerWrite,
-		MaximumAPIDepth:                  c.DispatchMaxDepth,
-		MaxCaveatContextSize:             c.MaxCaveatContextSize,
-		MaxRelationshipContextSize:       c.MaxRelationshipContextSize,
-		MaxDatastoreReadPageSize:         c.MaxDatastoreReadPageSize,
-		StreamingAPITimeout:              c.StreamingAPITimeout,
-		MaxReadRelationshipsLimit:        c.MaxReadRelationshipsLimit,
-		MaxDeleteRelationshipsLimit:      c.MaxDeleteRelationshipsLimit,
-		MaxLookupResourcesLimit:          c.MaxLookupResourcesLimit,
-		MaxBulkExportRelationshipsLimit:  c.MaxBulkExportRelationshipsLimit,
-		DispatchChunkSize:                c.DispatchChunkSize,
-		ExpiringRelationshipsEnabled:     c.EnableExperimentalRelationshipExpiration,
-		CaveatTypeSet:                    c.DatastoreConfig.CaveatTypeSet,
-		PerformanceInsightMetricsEnabled: c.EnablePerformanceInsightMetrics,
+		MaxPreconditionsCount:              maxPreconditionCount,
+		MaxUpdatesPerWrite:                 c.MaximumUpdatesPerWrite,
+		MaximumAPIDepth:                    c.DispatchMaxDepth,
+		MaxCaveatContextSize:               c.MaxCaveatContextSize,
+		MaxRelationshipContextSize:         c.MaxRelationshipContextSize,
+		MaxDatastoreReadPageSize:           c.MaxDatastoreReadPageSize,
+		StreamingAPITimeout:                c.StreamingAPITimeout,
+		MaxReadRelationshipsLimit:          c.MaxReadRelationshipsLimit,
+		MaxDeleteRelationshipsLimit:        c.MaxDeleteRelationshipsLimit,
+		MaxLookupResourcesLimit:            c.MaxLookupResourcesLimit,
+		MaxBulkExportRelationshipsLimit:    c.MaxBulkExportRelationshipsLimit,
+		DispatchChunkSize:                  c.DispatchChunkSize,
+		ExpiringRelationshipsEnabled:       c.EnableExperimentalRelationshipExpiration,
+		CaveatTypeSet:                      c.DatastoreConfig.CaveatTypeSet,
+		PerformanceInsightMetricsEnabled:   c.EnablePerformanceInsightMetrics,
+		EnableExperimentalLookupResources3: c.EnableExperimentalLookupResources,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

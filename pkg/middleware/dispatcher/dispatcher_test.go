@@ -27,30 +27,34 @@ func setupBuffconn() (*bufconn.Listener, func(context.Context, string) (net.Conn
 	return lis, dialer
 }
 
-// mockDispatcher implements the dispatch.Dispatcher interface for testing
-type mockDispatcher struct{}
+// fakeDispatcher implements the dispatch.Dispatcher interface for testing
+type fakeDispatcher struct{}
 
-func (m *mockDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (m *fakeDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	return &v1.DispatchCheckResponse{}, nil
 }
 
-func (m *mockDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+func (m *fakeDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	return &v1.DispatchExpandResponse{}, nil
 }
 
-func (m *mockDispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2Request, stream dispatch.LookupResources2Stream) error {
+func (m *fakeDispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2Request, stream dispatch.LookupResources2Stream) error {
 	return nil
 }
 
-func (m *mockDispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
+func (m *fakeDispatcher) DispatchLookupResources3(req *v1.DispatchLookupResources3Request, stream dispatch.LookupResources3Stream) error {
 	return nil
 }
 
-func (m *mockDispatcher) Close() error {
+func (m *fakeDispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
 	return nil
 }
 
-func (m *mockDispatcher) ReadyState() dispatch.ReadyState {
+func (m *fakeDispatcher) Close() error {
+	return nil
+}
+
+func (m *fakeDispatcher) ReadyState() dispatch.ReadyState {
 	return dispatch.ReadyState{}
 }
 
@@ -112,16 +116,16 @@ func (s *mustStreamTestService) StreamingInputCall(stream grpc_testing.TestServi
 }
 
 func TestFromContext(t *testing.T) {
-	mockDisp := &mockDispatcher{}
+	fakeDisp := &fakeDispatcher{}
 
 	// Test with dispatcher in context
 	t.Run("with dispatcher", func(t *testing.T) {
 		ctx := dispatchermw.ContextWithHandle(t.Context())
-		require.NoError(t, dispatchermw.SetInContext(ctx, mockDisp))
+		require.NoError(t, dispatchermw.SetInContext(ctx, fakeDisp))
 
 		result := FromContext(ctx)
 		require.NotNil(t, result)
-		require.Equal(t, mockDisp, result)
+		require.Equal(t, fakeDisp, result)
 	})
 
 	// Test without dispatcher in context
@@ -133,16 +137,16 @@ func TestFromContext(t *testing.T) {
 }
 
 func TestMustFromContext(t *testing.T) {
-	mockDisp := &mockDispatcher{}
+	fakeDisp := &fakeDispatcher{}
 
 	// Test with dispatcher in context
 	t.Run("with dispatcher", func(t *testing.T) {
 		ctx := dispatchermw.ContextWithHandle(t.Context())
-		require.NoError(t, dispatchermw.SetInContext(ctx, mockDisp))
+		require.NoError(t, dispatchermw.SetInContext(ctx, fakeDisp))
 
 		result := MustFromContext(ctx)
 		require.NotNil(t, result)
-		require.Equal(t, mockDisp, result)
+		require.Equal(t, fakeDisp, result)
 	})
 
 	// Test without dispatcher in context (should panic)
@@ -155,15 +159,15 @@ func TestMustFromContext(t *testing.T) {
 }
 
 func TestFromContextInUnaryGRPC(t *testing.T) {
-	// Create a mock dispatcher
-	mockDisp := &mockDispatcher{}
+	// Create a fake dispatcher
+	fakeDisp := &fakeDispatcher{}
 
 	// Set up buffered connection and gRPC server
 	lis, dialer := setupBuffconn()
 	defer lis.Close()
 
 	server := grpc.NewServer(
-		grpc.UnaryInterceptor(dispatchermw.UnaryServerInterceptor(mockDisp)),
+		grpc.UnaryInterceptor(dispatchermw.UnaryServerInterceptor(fakeDisp)),
 	)
 
 	testSvc := &testService{}
@@ -187,19 +191,19 @@ func TestFromContextInUnaryGRPC(t *testing.T) {
 
 	// Verify dispatcher was available in the service method
 	require.NotNil(t, testSvc.unaryDispatcher)
-	require.Equal(t, mockDisp, testSvc.unaryDispatcher)
+	require.Equal(t, fakeDisp, testSvc.unaryDispatcher)
 }
 
 func TestMustFromContextInUnaryGRPC(t *testing.T) {
-	// Create a mock dispatcher
-	mockDisp := &mockDispatcher{}
+	// Create a fake dispatcher
+	fakeDisp := &fakeDispatcher{}
 
 	// Set up buffered connection and gRPC server
 	lis, dialer := setupBuffconn()
 	defer lis.Close()
 
 	server := grpc.NewServer(
-		grpc.UnaryInterceptor(dispatchermw.UnaryServerInterceptor(mockDisp)),
+		grpc.UnaryInterceptor(dispatchermw.UnaryServerInterceptor(fakeDisp)),
 	)
 
 	// Test service that uses MustFromContext
@@ -225,19 +229,19 @@ func TestMustFromContextInUnaryGRPC(t *testing.T) {
 
 	// Verify dispatcher was available via MustFromContext
 	require.NotNil(t, testSvc.dispatcher)
-	require.Equal(t, mockDisp, testSvc.dispatcher)
+	require.Equal(t, fakeDisp, testSvc.dispatcher)
 }
 
 func TestFromContextInStreamingGRPC(t *testing.T) {
-	// Create a mock dispatcher
-	mockDisp := &mockDispatcher{}
+	// Create a fake dispatcher
+	fakeDisp := &fakeDispatcher{}
 
 	// Set up buffered connection and gRPC server with stream middleware
 	lis, dialer := setupBuffconn()
 	defer lis.Close()
 
 	server := grpc.NewServer(
-		grpc.StreamInterceptor(dispatchermw.StreamServerInterceptor(mockDisp)),
+		grpc.StreamInterceptor(dispatchermw.StreamServerInterceptor(fakeDisp)),
 	)
 
 	testSvc := &testService{}
@@ -271,19 +275,19 @@ func TestFromContextInStreamingGRPC(t *testing.T) {
 
 	// Verify dispatcher was available in the streaming service method
 	require.NotNil(t, testSvc.streamingDispatcher)
-	require.Equal(t, mockDisp, testSvc.streamingDispatcher)
+	require.Equal(t, fakeDisp, testSvc.streamingDispatcher)
 }
 
 func TestMustFromContextInStreamingGRPC(t *testing.T) {
-	// Create a mock dispatcher
-	mockDisp := &mockDispatcher{}
+	// Create a fake dispatcher
+	fakeDisp := &fakeDispatcher{}
 
 	// Set up buffered connection and gRPC server with stream middleware
 	lis, dialer := setupBuffconn()
 	defer lis.Close()
 
 	server := grpc.NewServer(
-		grpc.StreamInterceptor(dispatchermw.StreamServerInterceptor(mockDisp)),
+		grpc.StreamInterceptor(dispatchermw.StreamServerInterceptor(fakeDisp)),
 	)
 
 	// Test service that uses MustFromContext in streaming
@@ -319,5 +323,5 @@ func TestMustFromContextInStreamingGRPC(t *testing.T) {
 
 	// Verify dispatcher was available via MustFromContext in streaming
 	require.NotNil(t, testSvc.dispatcher)
-	require.Equal(t, mockDisp, testSvc.dispatcher)
+	require.Equal(t, fakeDisp, testSvc.dispatcher)
 }

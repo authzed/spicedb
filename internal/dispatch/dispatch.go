@@ -25,6 +25,7 @@ type Dispatcher interface {
 	Expand
 	LookupSubjects
 	LookupResources2
+	LookupResources3
 
 	// Close closes the dispatcher.
 	Close() error
@@ -52,6 +53,15 @@ type LookupResources2 interface {
 	DispatchLookupResources2(
 		req *v1.DispatchLookupResources2Request,
 		stream LookupResources2Stream,
+	) error
+}
+
+type LookupResources3Stream = Stream[*v1.DispatchLookupResources3Response]
+
+type LookupResources3 interface {
+	DispatchLookupResources3(
+		req *v1.DispatchLookupResources3Request,
+		stream LookupResources3Stream,
 	) error
 }
 

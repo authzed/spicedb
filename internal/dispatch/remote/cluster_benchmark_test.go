@@ -31,6 +31,10 @@ func (fakeClusterClient) DispatchLookupResources2(ctx context.Context, in *v1.Di
 	return nil, nil
 }
 
+func (fakeClusterClient) DispatchLookupResources3(ctx context.Context, in *v1.DispatchLookupResources3Request, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResources3Client, error) {
+	return nil, nil
+}
+
 func (fakeClusterClient) DispatchLookupSubjects(ctx context.Context, in *v1.DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupSubjectsClient, error) {
 	return nil, nil
 }

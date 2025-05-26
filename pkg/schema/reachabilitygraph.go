@@ -432,6 +432,14 @@ func (re ReachabilityEntrypoint) MustDebugString() string {
 	return ds
 }
 
+func (re ReachabilityEntrypoint) DebugStringOrEmpty() string {
+	ds, err := re.DebugString()
+	if err != nil {
+		return ""
+	}
+	return ds
+}
+
 func (re ReachabilityEntrypoint) DebugString() (string, error) {
 	switch re.EntrypointKind() {
 	case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
