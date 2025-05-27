@@ -10,18 +10,29 @@ import (
 
 const ellipsesRelation = "..."
 
-// GetRecursiveSubtypesForRelation returns, for a given definition and relation, are the potential
+// GetRecursiveTypesForRelation returns, for a given definition and relation, are the potential
 // subject definition names of that relation.
-func (ts *TypeSystem) GetRecursiveSubtypesForRelation(ctx context.Context, defName string, relationName string) ([]string, error) {
+func (ts *TypeSystem) GetRecursiveTypesForRelation(ctx context.Context, defName string, relationName string) ([]string, error) {
 	seen := mapz.NewSet[string]()
-	set, err := ts.getTypesForRelationInternal(ctx, defName, relationName, seen)
+	set, err := ts.getTypesForRelationInternal(ctx, defName, relationName, seen, false)
 	if err != nil {
 		return nil, err
 	}
 	return set.AsSlice(), nil
 }
 
-func (ts *TypeSystem) getTypesForRelationInternal(ctx context.Context, defName string, relationName string, seen *mapz.Set[string]) (*mapz.Set[string], error) {
+// GetRecursiveSubtypesForRelation returns, for a given definition and relation, are the potential
+// subject definition names of that relation, as well as any relation subtypes (eg, `group#member`) that may occur.
+func (ts *TypeSystem) GetRecursiveSubtypesForRelation(ctx context.Context, defName string, relationName string) ([]string, error) {
+	seen := mapz.NewSet[string]()
+	set, err := ts.getTypesForRelationInternal(ctx, defName, relationName, seen, true)
+	if err != nil {
+		return nil, err
+	}
+	return set.AsSlice(), nil
+}
+
+func (ts *TypeSystem) getTypesForRelationInternal(ctx context.Context, defName string, relationName string, seen *mapz.Set[string], addRelations bool) (*mapz.Set[string], error) {
 	id := fmt.Sprint(defName, "#", relationName)
 	if seen.Has(id) {
 		return nil, nil
@@ -36,20 +47,23 @@ func (ts *TypeSystem) getTypesForRelationInternal(ctx context.Context, defName s
 		return nil, asTypeError(NewRelationNotFoundErr(defName, relationName))
 	}
 	if rel.TypeInformation != nil {
-		return ts.getTypesForInfo(ctx, defName, rel.TypeInformation, seen)
+		return ts.getTypesForInfo(ctx, defName, rel.TypeInformation, seen, addRelations)
 	} else if rel.UsersetRewrite != nil {
-		return ts.getTypesForRewrite(ctx, defName, rel.UsersetRewrite, seen)
+		return ts.getTypesForRewrite(ctx, defName, rel.UsersetRewrite, seen, addRelations)
 	}
 	return nil, asTypeError(NewMissingAllowedRelationsErr(defName, relationName))
 }
 
-func (ts *TypeSystem) getTypesForInfo(ctx context.Context, defName string, rel *corev1.TypeInformation, seen *mapz.Set[string]) (*mapz.Set[string], error) {
+func (ts *TypeSystem) getTypesForInfo(ctx context.Context, defName string, rel *corev1.TypeInformation, seen *mapz.Set[string], addRelations bool) (*mapz.Set[string], error) {
 	out := mapz.NewSet[string]()
 	for _, dr := range rel.GetAllowedDirectRelations() {
 		if dr.GetRelation() == ellipsesRelation {
 			out.Add(dr.GetNamespace())
 		} else if dr.GetRelation() != "" {
-			rest, err := ts.getTypesForRelationInternal(ctx, dr.GetNamespace(), dr.GetRelation(), seen)
+			if addRelations {
+				out.Add(fmt.Sprintf("%s#%s", dr.GetNamespace(), dr.GetRelation()))
+			}
+			rest, err := ts.getTypesForRelationInternal(ctx, dr.GetNamespace(), dr.GetRelation(), seen, addRelations)
 			if err != nil {
 				return nil, err
 			}
@@ -62,7 +76,7 @@ func (ts *TypeSystem) getTypesForInfo(ctx context.Context, defName string, rel *
 	return out, nil
 }
 
-func (ts *TypeSystem) getTypesForRewrite(ctx context.Context, defName string, rel *corev1.UsersetRewrite, seen *mapz.Set[string]) (*mapz.Set[string], error) {
+func (ts *TypeSystem) getTypesForRewrite(ctx context.Context, defName string, rel *corev1.UsersetRewrite, seen *mapz.Set[string], addRelations bool) (*mapz.Set[string], error) {
 	out := mapz.NewSet[string]()
 
 	// We're finding the union of all the things touched, regardless.
@@ -74,26 +88,26 @@ func (ts *TypeSystem) getTypesForRewrite(ctx context.Context, defName string, re
 		}
 		for _, child := range op.GetChild() {
 			if computed := child.GetComputedUserset(); computed != nil {
-				set, err := ts.getTypesForRelationInternal(ctx, defName, computed.GetRelation(), seen)
+				set, err := ts.getTypesForRelationInternal(ctx, defName, computed.GetRelation(), seen, addRelations)
 				if err != nil {
 					return nil, err
 				}
 				out.Merge(set)
 			}
 			if rewrite := child.GetUsersetRewrite(); rewrite != nil {
-				sub, err := ts.getTypesForRewrite(ctx, defName, rewrite, seen)
+				sub, err := ts.getTypesForRewrite(ctx, defName, rewrite, seen, addRelations)
 				if err != nil {
 					return nil, err
 				}
 				out.Merge(sub)
 			}
 			if userset := child.GetTupleToUserset(); userset != nil {
-				set, err := ts.getTypesForRelationInternal(ctx, defName, userset.GetTupleset().GetRelation(), seen)
+				set, err := ts.getTypesForRelationInternal(ctx, defName, userset.GetTupleset().GetRelation(), seen, addRelations)
 				if err != nil {
 					return nil, err
 				}
 				for _, s := range set.AsSlice() {
-					targets, err := ts.getTypesForRelationInternal(ctx, s, userset.GetComputedUserset().GetRelation(), seen)
+					targets, err := ts.getTypesForRelationInternal(ctx, s, userset.GetComputedUserset().GetRelation(), seen, addRelations)
 					if err != nil {
 						return nil, err
 					}
@@ -101,12 +115,12 @@ func (ts *TypeSystem) getTypesForRewrite(ctx context.Context, defName string, re
 				}
 			}
 			if functioned := child.GetFunctionedTupleToUserset(); functioned != nil {
-				set, err := ts.getTypesForRelationInternal(ctx, defName, functioned.GetTupleset().GetRelation(), seen)
+				set, err := ts.getTypesForRelationInternal(ctx, defName, functioned.GetTupleset().GetRelation(), seen, addRelations)
 				if err != nil {
 					return nil, err
 				}
 				for _, s := range set.AsSlice() {
-					targets, err := ts.getTypesForRelationInternal(ctx, s, functioned.GetComputedUserset().GetRelation(), seen)
+					targets, err := ts.getTypesForRelationInternal(ctx, s, functioned.GetComputedUserset().GetRelation(), seen, addRelations)
 					if err != nil {
 						return nil, err
 					}
