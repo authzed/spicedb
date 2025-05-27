@@ -1,4 +1,4 @@
-package caveats_test
+package caveats
 
 import (
 	"context"
@@ -8,20 +8,21 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	pkgcaveats "github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var (
-	caveatexpr   = caveats.CaveatExprForTesting
-	caveatAnd    = caveats.And
-	caveatOr     = caveats.Or
-	caveatInvert = caveats.Invert
+	caveatexpr   = CaveatExprForTesting
+	caveatAnd    = And
+	caveatOr     = Or
+	caveatInvert = Invert
 )
 
 func TestRunCaveatExpressions(t *testing.T) {
@@ -471,15 +472,15 @@ func TestRunCaveatExpressions(t *testing.T) {
 
 			reader := ds.SnapshotReader(headRevision)
 
-			for _, debugOption := range []caveats.RunCaveatExpressionDebugOption{
-				caveats.RunCaveatExpressionNoDebugging,
-				caveats.RunCaveatExpressionWithDebugInformation,
+			for _, debugOption := range []RunCaveatExpressionDebugOption{
+				RunCaveatExpressionNoDebugging,
+				RunCaveatExpressionWithDebugInformation,
 			} {
 				debugOption := debugOption
 				t.Run(fmt.Sprintf("%v", debugOption), func(t *testing.T) {
 					req := require.New(t)
 
-					result, err := caveats.RunSingleCaveatExpression(context.Background(), types.Default.TypeSet, tc.expression, tc.context, reader, debugOption)
+					result, err := RunSingleCaveatExpression(context.Background(), types.Default.TypeSet, tc.expression, tc.context, reader, debugOption)
 					req.NoError(err)
 					req.Equal(tc.expectedValue, result.Value())
 
@@ -494,8 +495,8 @@ func TestRunCaveatExpressions(t *testing.T) {
 						require.False(t, result.IsPartial())
 					}
 
-					if debugOption == caveats.RunCaveatExpressionWithDebugInformation {
-						exprString, _, err := caveats.BuildDebugInformation(result)
+					if debugOption == RunCaveatExpressionWithDebugInformation {
+						exprString, _, err := BuildDebugInformation(result)
 						require.NoError(t, err)
 						require.NotEmpty(t, exprString)
 						require.Equal(t, tc.expectedExprString, exprString)
@@ -523,13 +524,13 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 
 	reader := ds.SnapshotReader(headRevision)
 
-	result, err := caveats.RunSingleCaveatExpression(
+	result, err := RunSingleCaveatExpression(
 		context.Background(),
 		types.Default.TypeSet,
 		caveatexpr("some_caveat"),
 		map[string]any{},
 		reader,
-		caveats.RunCaveatExpressionNoDebugging,
+		RunCaveatExpressionNoDebugging,
 	)
 	req.NoError(err)
 	req.True(result.IsPartial())
@@ -553,7 +554,7 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 
 	reader := ds.SnapshotReader(headRevision)
 
-	_, err = caveats.RunSingleCaveatExpression(
+	_, err = RunSingleCaveatExpression(
 		context.Background(),
 		types.Default.TypeSet,
 		caveatexpr("some_caveat"),
@@ -561,10 +562,11 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 			"themap": map[string]any{},
 		},
 		reader,
-		caveats.RunCaveatExpressionNoDebugging,
+		RunCaveatExpressionNoDebugging,
 	)
 	req.Error(err)
-	req.True(errors.As(err, &caveats.EvaluationError{}))
+	var evalErr EvaluationError
+	req.True(errors.As(err, &evalErr))
 }
 
 func TestRunCaveatMultipleTimes(t *testing.T) {
@@ -587,14 +589,14 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
-	runner := caveats.NewCaveatRunner(types.Default.TypeSet)
+	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Run the first caveat.
 	result, err := runner.RunCaveatExpression(context.Background(), caveatexpr("some_caveat"), map[string]any{
 		"themap": map[string]any{
 			"first": 42,
 		},
-	}, reader, caveats.RunCaveatExpressionNoDebugging)
+	}, reader, RunCaveatExpressionNoDebugging)
 	req.NoError(err)
 	req.True(result.Value())
 
@@ -604,14 +606,14 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 		"themap": map[string]any{
 			"first": 41,
 		},
-	}, noCaveatsReader{reader}, caveats.RunCaveatExpressionNoDebugging)
+	}, noCaveatsReader{reader}, RunCaveatExpressionNoDebugging)
 	req.NoError(err)
 	req.False(result.Value())
 
 	// Run the second caveat.
 	result, err = runner.RunCaveatExpression(context.Background(), caveatexpr("another_caveat"), map[string]any{
 		"somecondition": int64(42),
-	}, reader, caveats.RunCaveatExpressionNoDebugging)
+	}, reader, RunCaveatExpressionNoDebugging)
 	req.NoError(err)
 	req.True(result.Value())
 }
@@ -630,4 +632,199 @@ func (f noCaveatsReader) LookupCaveatsWithNames(ctx context.Context, names []str
 
 func (f noCaveatsReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return nil, errors.New("should not be called")
+}
+
+func TestRunCaveatWithMissingDefinition(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	req.NoError(err)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+		caveat existing_caveat(param int) {
+			param == 42
+		}
+		`, nil, req)
+
+	headRevision, err := ds.HeadRevision(context.Background())
+	req.NoError(err)
+
+	reader := ds.SnapshotReader(headRevision)
+
+	// Try to run a caveat that doesn't exist
+	_, err = RunSingleCaveatExpression(
+		context.Background(),
+		types.Default.TypeSet,
+		caveatexpr("nonexistent_caveat"),
+		map[string]any{},
+		reader,
+		RunCaveatExpressionNoDebugging,
+	)
+	req.Error(err)
+	req.Contains(err.Error(), "caveat with name `nonexistent_caveat` not found")
+}
+
+func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	req.NoError(err)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+		caveat first_caveat(firstparam int) {
+			firstparam == 42
+		}
+		caveat second_caveat(secondparam string) {
+			secondparam == "hello"
+		}
+		`, nil, req)
+
+	headRevision, err := ds.HeadRevision(context.Background())
+	req.NoError(err)
+
+	reader := ds.SnapshotReader(headRevision)
+	runner := NewCaveatRunner(types.Default.TypeSet)
+
+	// Test populating definitions for complex expression
+	expr := caveatAnd(
+		caveatexpr("first_caveat"),
+		caveatexpr("second_caveat"),
+	)
+
+	err = runner.PopulateCaveatDefinitionsForExpr(context.Background(), expr, reader)
+	req.NoError(err)
+
+	// Should be able to run the expression now without additional lookups
+	result, err := runner.RunCaveatExpression(
+		context.Background(),
+		expr,
+		map[string]any{
+			"firstparam": int64(42),
+		},
+		noCaveatsReader{reader},
+		RunCaveatExpressionNoDebugging,
+	)
+	req.NoError(err)
+	req.False(result.Value()) // Should be false because second_caveat is missing context
+	req.True(result.IsPartial())
+}
+
+func TestCaveatRunnerEmptyExpression(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	req.NoError(err)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+		caveat test_caveat(param int) {
+			param == 42
+		}
+		`, nil, req)
+
+	headRevision, err := ds.HeadRevision(context.Background())
+	req.NoError(err)
+
+	reader := ds.SnapshotReader(headRevision)
+	runner := NewCaveatRunner(types.Default.TypeSet)
+
+	// Test with an expression that has no caveats (empty operation)
+	expr := &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op:       core.CaveatOperation_AND,
+				Children: []*core.CaveatExpression{},
+			},
+		},
+	}
+
+	err = runner.PopulateCaveatDefinitionsForExpr(context.Background(), expr, reader)
+	req.Error(err)
+	req.Contains(err.Error(), "received empty caveat expression")
+}
+
+func TestSyntheticResultMissingVarNames(t *testing.T) {
+	// Test MissingVarNames on a non-partial result
+	sr := syntheticResult{
+		value:           true,
+		isPartialResult: false,
+	}
+
+	_, err := sr.MissingVarNames()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not a partial value")
+
+	// Test MissingVarNames on a partial result with no missing variables tracked
+	sr2 := syntheticResult{
+		value:           false,
+		isPartialResult: true,
+		missingVarNames: mapz.NewSet[string](),
+	}
+
+	missingVars, err := sr2.MissingVarNames()
+	require.NoError(t, err)
+	require.Empty(t, missingVars)
+
+	// Test MissingVarNames on a partial result with debug results
+	env := pkgcaveats.NewEnvironmentWithDefaultTypeSet()
+	require.NoError(t, env.AddVariable("param", types.Default.AnyType))
+
+	caveat, err := pkgcaveats.CompileCaveatWithName(env, "param == 5", "test")
+	require.NoError(t, err)
+
+	// Create a partial result by not providing the parameter
+	partialResult, err := pkgcaveats.EvaluateCaveat(caveat, map[string]any{})
+	require.NoError(t, err)
+	require.True(t, partialResult.IsPartial())
+
+	sr3 := syntheticResult{
+		value:               false,
+		isPartialResult:     true,
+		exprResultsForDebug: []ExpressionResult{partialResult},
+	}
+
+	missingVars, err = sr3.MissingVarNames()
+	require.NoError(t, err)
+	require.Contains(t, missingVars, "param")
+}
+
+func TestUnknownCaveatOperation(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	req.NoError(err)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+		caveat test_caveat(param int) {
+			param == 42
+		}
+		`, nil, req)
+
+	headRevision, err := ds.HeadRevision(context.Background())
+	req.NoError(err)
+
+	reader := ds.SnapshotReader(headRevision)
+	runner := NewCaveatRunner(types.Default.TypeSet)
+
+	// Create an expression with an unknown operation
+	expr := &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op:       999, // Invalid operation
+				Children: []*core.CaveatExpression{caveatexpr("test_caveat")},
+			},
+		},
+	}
+
+	err = runner.PopulateCaveatDefinitionsForExpr(context.Background(), expr, reader)
+	req.NoError(err)
+
+	require.Panics(t, func() {
+		_, err = runner.RunCaveatExpression(
+			context.Background(),
+			expr,
+			map[string]any{"param": int64(42)},
+			reader,
+			RunCaveatExpressionNoDebugging,
+		)
+	})
 }
