@@ -2,6 +2,7 @@ package releases
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,4 +43,36 @@ func TestCheckIsLatestVersion(t *testing.T) {
 			require.Equal(t, tc.expectReleaseNil, release == nil)
 		})
 	}
+}
+
+func TestCurrentVersion(t *testing.T) {
+	version, err := CurrentVersion()
+	require.NoError(t, err)
+	require.NotEmpty(t, version)
+}
+
+func TestCheckIsLatestVersionErrors(t *testing.T) {
+	t.Run("getCurrentVersion error", func(t *testing.T) {
+		state, version, release, err := CheckIsLatestVersion(context.Background(), func() (string, error) {
+			return "", errors.New("version error")
+		}, func(ctx context.Context) (*Release, error) {
+			return &Release{Version: "v1.0.0"}, nil
+		})
+		require.Error(t, err)
+		require.Equal(t, Unknown, state)
+		require.Empty(t, version)
+		require.Nil(t, release)
+	})
+
+	t.Run("getLatestRelease error", func(t *testing.T) {
+		state, version, release, err := CheckIsLatestVersion(context.Background(), func() (string, error) {
+			return "v1.0.0", nil
+		}, func(ctx context.Context) (*Release, error) {
+			return nil, errors.New("release error")
+		})
+		require.Error(t, err)
+		require.Equal(t, Unknown, state)
+		require.Equal(t, "v1.0.0", version)
+		require.Nil(t, release)
+	})
 }
