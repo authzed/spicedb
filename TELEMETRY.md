@@ -49,7 +49,7 @@ Histogram of cluster dispatches performed by the instance.
 - Cluster ID: unique identifier for a cluster's datastore
 - NodeID: unique identifier for the node, usually the hostname
 
-### spicedb_combined_logical_checks_total (Counter)
+### spicedb_logical_checks_total (Counter)
 
 Counter of the number of "logical" checks performed by this instance.
 A "logical" check is defined as the number of checks used for an operation,
