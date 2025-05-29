@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
@@ -157,6 +158,28 @@ func TestTypecheckingJustTypes(t *testing.T) {
 				"resource#viewer":     {"user"},
 				"resource#banned":     {"user"},
 				"resource#view":       {"user"},
+			},
+		},
+		{
+			name: "sub_rewrites",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation org: organization
+				relation viewer: user
+				permission view = org + (org->member & viewer)
+			}
+		`,
+			expected: map[string][]string{
+				"organization#member": {"user"},
+				"resource#viewer":     {"user"},
+				"resource#org":        {"organization"},
+				"resource#view":       {"organization", "user"},
 			},
 		},
 	}
@@ -370,6 +393,76 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 					}
 				}
 			}
+		})
+	}
+}
+
+func TestIncompleteSchema(t *testing.T) {
+	// This test is a little redundant, as doing this type checking requires one to have the full schema, but it _may_ be pulled dynamically and fail.
+	// So until we operate in complete schema caching, there are fail points that can bubble up.
+	t.Parallel()
+	type testcase struct {
+		name       string
+		schemaText string
+	}
+	tcs := []testcase{
+		{
+			name: "basic arrow",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation org: organization
+				relation viewer: user
+				permission view = org->member + viewer
+			}
+		`,
+		},
+		{
+			name: "multi-type rel",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation viewer: user | organization
+			}
+		`,
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tc := tc
+			t.Parallel()
+
+			schema, err := compiler.Compile(compiler.InputSchema{
+				Source:       "",
+				SchemaString: tc.schemaText,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			// Inject the failure
+			var missingDefs []*corev1.NamespaceDefinition
+			for _, v := range schema.ObjectDefinitions {
+				if v.GetName() == "resource" {
+					missingDefs = append(missingDefs, v)
+				}
+			}
+			schema.ObjectDefinitions = missingDefs
+
+			res := ResolverForCompiledSchema(*schema)
+			ts := NewTypeSystem(res)
+			_, err = ts.GetRecursiveTypesForRelation(context.Background(), "resource", "view")
+			require.Error(t, err)
+			_, err = ts.GetRecursiveSubtypesForRelation(context.Background(), "resource", "view")
+			require.Error(t, err)
 		})
 	}
 }
