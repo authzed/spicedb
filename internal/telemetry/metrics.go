@@ -119,8 +119,8 @@ func registerTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 			},
 		),
 		logicalChecksDec: prometheus.NewDesc(
-			prometheus.BuildFQName("spicedb", "telemetry", "logical_checks_total"),
-			"Count of the number of logical checks made.",
+			prometheus.BuildFQName("spicedb", "telemetry", "combined_logical_checks_total"),
+			"Count of the number of logical checks made, across all APIs.",
 			nil,
 			prometheus.Labels{
 				"cluster_id": clusterID,
@@ -165,7 +165,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- prometheus.MustNewConstMetric(c.objectDefsDesc, prometheus.GaugeValue, float64(len(dsStats.ObjectTypeStatistics)))
 	ch <- prometheus.MustNewConstMetric(c.relationshipsDesc, prometheus.GaugeValue, float64(dsStats.EstimatedRelationshipCount))
-	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.GaugeValue, float64(logicalChecksCount))
+	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.CounterValue, float64(logicalChecksCount))
 
 	dispatchedCountMetrics := make(chan prometheus.Metric)
 	g := errgroup.Group{}
