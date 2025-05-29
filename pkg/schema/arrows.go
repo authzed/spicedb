@@ -142,11 +142,6 @@ func (as *ArrowSet) collectArrowInformationForSetOperation(ctx context.Context, 
 				}
 			}
 
-		case *core.SetOperation_Child_FunctionedTupleToUserset:
-			// TODO(barakmich): I came across this but didn't want to poke the bear in the unrelated PR.
-			// I at least improved the error. It's implementation should be similar to TupleToUserset, above.
-			return fmt.Errorf("unimplemented set operation child `%T` in addArrowRelationsInSetOperation", child)
-
 		case *core.SetOperation_Child_XThis:
 			// Nothing to do
 
