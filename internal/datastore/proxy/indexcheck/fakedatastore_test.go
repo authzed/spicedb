@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -27,8 +29,10 @@ func (f fakeDatastore) SnapshotReader(revision datastore.Revision) datastore.Rea
 	}
 }
 
-func (f fakeDatastore) ReadWriteTx(_ context.Context, _ datastore.TxUserFunc, _ ...options.RWTOptionsOption) (datastore.Revision, error) {
-	return nil, nil
+func (f fakeDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, _ ...options.RWTOptionsOption) (datastore.Revision, error) {
+	return nil, fn(ctx, &fakeRWT{
+		fakeSnapshotReader: fakeSnapshotReader(f),
+	})
 }
 
 func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
@@ -40,7 +44,7 @@ func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.Revision, erro
 }
 
 func (f fakeDatastore) CheckRevision(_ context.Context, rev datastore.Revision) error {
-	if rev.GreaterThan(f.revision) {
+	if rev != nil && f.revision != nil && rev.GreaterThan(f.revision) {
 		return datastore.NewInvalidRevisionErr(rev, datastore.CouldNotDetermineRevision)
 	}
 
@@ -165,4 +169,48 @@ func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCall
 			return
 		}
 	}
+}
+
+type fakeRWT struct {
+	fakeSnapshotReader
+}
+
+func (f *fakeRWT) RegisterCounter(ctx context.Context, name string, filter *corev1.RelationshipFilter) error {
+	return nil
+}
+
+func (f *fakeRWT) UnregisterCounter(ctx context.Context, name string) error {
+	return nil
+}
+
+func (f *fakeRWT) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	return nil
+}
+
+func (f *fakeRWT) WriteCaveats(ctx context.Context, caveats []*corev1.CaveatDefinition) error {
+	return nil
+}
+
+func (f *fakeRWT) DeleteCaveats(ctx context.Context, names []string) error {
+	return nil
+}
+
+func (f *fakeRWT) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
+	return nil
+}
+
+func (f *fakeRWT) WriteNamespaces(ctx context.Context, newConfigs ...*corev1.NamespaceDefinition) error {
+	return nil
+}
+
+func (f *fakeRWT) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	return nil
+}
+
+func (f *fakeRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
+	return 0, false, nil
+}
+
+func (f *fakeRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	return 0, nil
 }
