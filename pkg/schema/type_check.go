@@ -106,6 +106,10 @@ func (ts *TypeSystem) getTypesForRewrite(ctx context.Context, defName string, re
 				if err != nil {
 					return nil, err
 				}
+				if set == nil {
+					// We've already seen it.
+					continue
+				}
 				for _, s := range set.AsSlice() {
 					targets, err := ts.getTypesForRelationInternal(ctx, s, userset.GetComputedUserset().GetRelation(), seen, addRelations)
 					if err != nil {
@@ -119,8 +123,15 @@ func (ts *TypeSystem) getTypesForRewrite(ctx context.Context, defName string, re
 				if err != nil {
 					return nil, err
 				}
+				if set == nil {
+					// We've already seen it.
+					continue
+				}
 				for _, s := range set.AsSlice() {
 					targets, err := ts.getTypesForRelationInternal(ctx, s, functioned.GetComputedUserset().GetRelation(), seen, addRelations)
+					if targets == nil {
+						continue
+					}
 					if err != nil {
 						return nil, err
 					}
