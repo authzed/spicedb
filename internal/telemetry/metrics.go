@@ -119,7 +119,7 @@ func registerTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 			},
 		),
 		logicalChecksDec: prometheus.NewDesc(
-			prometheus.BuildFQName("spicedb", "telemetry", "combined_logical_checks_total"),
+			prometheus.BuildFQName("spicedb", "telemetry", "logical_checks_total"),
 			"Count of the number of logical checks made, across all APIs.",
 			nil,
 			prometheus.Labels{
