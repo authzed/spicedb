@@ -211,9 +211,6 @@ func setOperationReferencesRelation(ctx context.Context, so *core.SetOperation, 
 		case *core.SetOperation_Child_TupleToUserset:
 			// Nothing to do, handled above via arrow set
 
-		case *core.SetOperation_Child_FunctionedTupleToUserset:
-			// Nothing to do, handled above via arrow set
-
 		case *core.SetOperation_Child_XThis:
 			// Nothing to do
 
