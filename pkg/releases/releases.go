@@ -3,6 +3,7 @@ package releases
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/google/go-github/v43/github"
@@ -32,7 +33,11 @@ type Release struct {
 
 // GetLatestRelease returns the latest release of SpiceDB, as reported by the GitHub API.
 func GetLatestRelease(ctx context.Context) (*Release, error) {
-	client := github.NewClient(nil)
+	return getLatestReleaseWithClient(ctx, nil /* use default */)
+}
+
+func getLatestReleaseWithClient(ctx context.Context, httpClient *http.Client) (*Release, error) {
+	client := github.NewClient(httpClient)
 	release, _, err := client.Repositories.GetLatestRelease(ctx, githubNamespace, githubRepository)
 	if err != nil {
 		return nil, err
