@@ -217,7 +217,6 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 				continue
 			}
 
-			if req.OriginalRelationName != "" {
 				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.OriginalRelationName, subject)
 				if ok {
 					filteredResourcesIdsSet.Delete(resourceID)
