@@ -74,7 +74,7 @@ jobs:
       - name: "Unit tests with coverage"
         run: "go run mage.go test:unitCover"
       - name: "Coverage"
-        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -108,7 +108,7 @@ jobs:
       - name: "Integration tests with coverage"
         run: "go run mage.go test:integrationCover"
       - name: "Coverage"
-        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -142,7 +142,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -176,7 +176,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -211,7 +211,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -246,7 +246,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -281,7 +281,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -316,7 +316,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d" # v5.4.2
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -392,7 +392,7 @@ jobs:
       - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
-      - uses: "chainguard-dev/actions/nodiff@d9b7e22c19086f609cfeaea6d3b3e34f7ecc7266" # main
+      - uses: "chainguard-dev/actions/nodiff@ce51233d303aed2394a9976e7f5642fd2158f693" # main
         with:
           path: ""
           fixup-command: "go run mage.go gen:proto"
