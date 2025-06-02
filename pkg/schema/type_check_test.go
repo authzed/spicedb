@@ -182,6 +182,26 @@ func TestTypecheckingJustTypes(t *testing.T) {
 				"resource#view":       {"organization", "user"},
 			},
 		},
+		{
+			name: "change_name",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation change_name: user
+			}
+
+			definition team {
+				relation parent: organization | team
+				permission change_name = parent->change_name
+			}
+			`,
+			expected: map[string][]string{
+				"organization#change_name": {"user"},
+				"team#parent":              {"organization", "team"},
+				"team#change_name":         {"user"},
+			},
+		},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
