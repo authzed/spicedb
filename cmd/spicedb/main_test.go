@@ -65,19 +65,6 @@ func TestMainCommandFlagErrorFunc(t *testing.T) {
 	require.Contains(t, output, "Usage:")
 }
 
-func TestManCommand(t *testing.T) {
-	rootCmd, err := buildRootCommand()
-	require.NoError(t, err)
-
-	// Verify man command exists and is configured correctly
-	manCmd, _, err := rootCmd.Find([]string{"man"})
-	require.NoError(t, err)
-	require.Equal(t, "man", manCmd.Name())
-	require.True(t, manCmd.Hidden)
-	require.True(t, manCmd.SilenceUsage)
-	require.True(t, manCmd.DisableFlagsInUseLine)
-}
-
 func TestBuildRootCommand(t *testing.T) {
 	rootCmd, err := buildRootCommand()
 	require.NoError(t, err)
@@ -133,4 +120,33 @@ func TestMainIntegration(t *testing.T) {
 	rootCmd.SetArgs([]string{"--help"})
 	err = rootCmd.Execute()
 	require.NoError(t, err)
+}
+
+func TestManCommandExecution(t *testing.T) {
+	rootCmd, err := buildRootCommand()
+	require.NoError(t, err)
+
+	manCmd, _, err := rootCmd.Find([]string{"man"})
+	require.NoError(t, err)
+
+	// Capture stdout using os.Stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	// Execute man command
+	err = manCmd.RunE(manCmd, []string{})
+	require.NoError(t, err)
+
+	// Close writer and read output
+	w.Close()
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(r)
+	require.NoError(t, err)
+
+	// Verify output contains manpage content
+	output := buf.String()
+	require.Contains(t, output, "spicedb")
+	require.Contains(t, output, "serve")
 }
