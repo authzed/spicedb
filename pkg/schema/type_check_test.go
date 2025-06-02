@@ -198,7 +198,7 @@ func TestTypecheckingJustTypes(t *testing.T) {
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
-					types, err := ts.GetRecursiveTypesForRelation(context.Background(), resource.Name, relation.Name)
+					types, err := ts.GetRecursiveTerminalTypesForRelation(context.Background(), resource.Name, relation.Name)
 					require.NoError(t, err)
 
 					rel := resource.Name + "#" + relation.Name
@@ -215,6 +215,7 @@ func TestTypecheckingJustTypes(t *testing.T) {
 	}
 }
 
+// TODO(jschorr): Add to the consistency tests as well, to validate the full set of types within the consistency tests.
 func TestTypecheckingWithSubrelations(t *testing.T) {
 	t.Parallel()
 	type testcase struct {
@@ -380,7 +381,7 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
-					types, err := ts.GetRecursiveSubtypesForRelation(context.Background(), resource.Name, relation.Name)
+					types, err := ts.GetFullRecursiveSubjectTypesForRelation(context.Background(), resource.Name, relation.Name)
 					require.NoError(t, err)
 
 					rel := resource.Name + "#" + relation.Name
@@ -459,9 +460,9 @@ func TestIncompleteSchema(t *testing.T) {
 
 			res := ResolverForCompiledSchema(*schema)
 			ts := NewTypeSystem(res)
-			_, err = ts.GetRecursiveTypesForRelation(context.Background(), "resource", "view")
+			_, err = ts.GetRecursiveTerminalTypesForRelation(context.Background(), "resource", "view")
 			require.Error(t, err)
-			_, err = ts.GetRecursiveSubtypesForRelation(context.Background(), "resource", "view")
+			_, err = ts.GetFullRecursiveSubjectTypesForRelation(context.Background(), "resource", "view")
 			require.Error(t, err)
 		})
 	}
