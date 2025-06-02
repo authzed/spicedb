@@ -72,10 +72,6 @@ func buildRootCommand() (*cobra.Command, error) {
 	}
 	rootCmd.AddCommand(serveCmd)
 
-	devtoolsCmd := cmd.NewDevtoolsCommand(rootCmd.Use)
-	cmd.RegisterDevtoolsFlags(devtoolsCmd)
-	rootCmd.AddCommand(devtoolsCmd)
-
 	lspConfig := new(cmd.LSPConfig)
 	lspCmd := cmd.NewLSPCommand(rootCmd.Use, lspConfig)
 	if err := cmd.RegisterLSPFlags(lspCmd, lspConfig); err != nil {

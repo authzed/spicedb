@@ -1,7 +1,4 @@
 ---
-"area/api devtools":
-  - changed-files:
-      - any-glob-to-any-file: "cmd/spicedb/developer.go"
 "area/api http":
   - changed-files:
       - any-glob-to-any-file: "internal/gateway/**/*"
