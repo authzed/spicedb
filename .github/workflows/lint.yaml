@@ -32,7 +32,7 @@ jobs:
       - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Lint Go"
         run: "go run mage.go lint:go"
-      - uses: "chainguard-dev/actions/nodiff@d9b7e22c19086f609cfeaea6d3b3e34f7ecc7266" # main
+      - uses: "chainguard-dev/actions/nodiff@ce51233d303aed2394a9976e7f5642fd2158f693" # main
         with:
           path: ""
           fixup-command: "go run mage.go lint:go"
@@ -45,7 +45,7 @@ jobs:
       - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
       - name: "Lint Everything Else"
         run: "go run mage.go lint:extra"
-      - uses: "chainguard-dev/actions/nodiff@d9b7e22c19086f609cfeaea6d3b3e34f7ecc7266" # main
+      - uses: "chainguard-dev/actions/nodiff@ce51233d303aed2394a9976e7f5642fd2158f693" # main
         with:
           path: ""
           fixup-command: "go run mage.go lint:extra"
