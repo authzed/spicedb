@@ -28,7 +28,7 @@ func TestMainCommandStructure(t *testing.T) {
 		subcommands[cmd.Name()] = true
 	}
 
-	expectedCommands := []string{"version", "datastore", "head", "migrate", "serve", "serve-devtools", "lsp", "serve-testing", "man"}
+	expectedCommands := []string{"version", "datastore", "head", "migrate", "serve", "lsp", "serve-testing", "man"}
 	for _, expected := range expectedCommands {
 		require.True(t, subcommands[expected], "expected command %q to exist", expected)
 	}
