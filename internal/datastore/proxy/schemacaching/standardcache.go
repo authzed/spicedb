@@ -8,7 +8,6 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	internaldatastore "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -181,7 +180,7 @@ func readAndCache[T schemaDefinition](
 		loadedRaw, err, _ := r.p.readGroup.Do(cacheRevisionKey, func() (any, error) {
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted read
-			loaded, updatedRev, err := reader(internaldatastore.SeparateContextWithTracing(ctx), name)
+			loaded, updatedRev, err := reader(context.WithoutCancel(ctx), name)
 			if err != nil && !errors.As(err, &datastore.NamespaceNotFoundError{}) && !errors.As(err, &datastore.CaveatNameNotFoundError{}) {
 				// Propagate this error to the caller
 				return nil, err
