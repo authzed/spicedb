@@ -153,6 +153,9 @@ func runConsistencyTestsWithServiceTester(
 
 	// Run the development system over the full set of context and ensure they also return the expected information.
 	validateDevelopment(t, vctx)
+
+	// Ensure that the set of reachable subject types matches the actual reachable subjects.
+	validateReachableSubjectTypes(t, vctx)
 }
 
 // testForEachRelationship runs a subtest for each relationship defined.
@@ -913,4 +916,35 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 			}
 		}
 	}
+}
+
+// validateReachableSubjectTypes validates that the reachable subject types are those expected.
+func validateReachableSubjectTypes(t *testing.T, vctx validationContext) {
+	testForEachResource(t, vctx, "validate_reachable_subject_types", func(t *testing.T, resource tuple.ObjectAndRelation) {
+		headRev, err := vctx.clusterAndData.DataStore.HeadRevision(context.Background())
+		require.NoError(t, err)
+
+		reader := vctx.clusterAndData.DataStore.SnapshotReader(headRev)
+		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+
+		reachableSubjectTypes, err := ts.GetFullRecursiveSubjectTypesForRelation(context.Background(), resource.ObjectType, resource.Relation)
+		require.NoError(t, err)
+
+		reachableSubjectTypesSet := mapz.NewSet(reachableSubjectTypes...)
+
+		for _, member := range vctx.accessibilitySet.DirectlyAccessibleDefinedSubjects(resource) {
+			subjectTypeRef := member.ObjectType
+			if member.Relation != tuple.Ellipsis {
+				subjectTypeRef = subjectTypeRef + "#" + member.Relation
+			}
+
+			require.True(t, reachableSubjectTypesSet.Has(subjectTypeRef),
+				"Found unexpected subject type %s#%s in lookup subjects for resource %s; expected one of %s",
+				member.ObjectType,
+				member.Relation,
+				tuple.StringONR(resource),
+				reachableSubjectTypesSet.AsSlice(),
+			)
+		}
+	})
 }
