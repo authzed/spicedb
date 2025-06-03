@@ -1058,19 +1058,16 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
-	// Dispatch the check, which should (since it is the first request) add a delay of ~25ms to
+	// Dispatch the check, which should (since it is the first request) add a delay of at most ~25ms to
 	// the primary, but fallback to the primary on the error.
-	startTime := time.Now()
 	resp, err := dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
 		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
 		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
-	endTime := time.Now()
 	require.NoError(t, err)
 	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
-	require.GreaterOrEqual(t, endTime.Sub(startTime), 25*time.Millisecond)
 
 	// Ensure the resource relation was marked as unsupported.
 	cast := dispatcher.(*clusterDispatcher)
@@ -1078,14 +1075,14 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 	require.False(t, cast.supportedResourceSubjectTracker.isUnsupported(tuple.RR("someothertype", "somerel"), tuple.RR("foo", "bar")))
 
 	// Dispatch again, which should hit the primary without any delay.
-	startTime = time.Now()
+	startTime := time.Now()
 	resp, err = dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
 		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
 		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
-	endTime = time.Now()
+	endTime := time.Now()
 	require.NoError(t, err)
 	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
 	require.LessOrEqual(t, endTime.Sub(startTime), 25*time.Millisecond)
