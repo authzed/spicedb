@@ -27,20 +27,21 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	metricsEnabled              bool
-	prometheusSubsystem         string
-	upstreamAddr                string
-	upstreamCAPath              string
-	grpcPresharedKey            string
-	grpcDialOpts                []grpc.DialOption
-	cache                       cache.Cache[keys.DispatchCacheKey, any]
-	concurrencyLimits           graph.ConcurrencyLimits
-	remoteDispatchTimeout       time.Duration
-	secondaryUpstreamAddrs      map[string]string
-	secondaryUpstreamExprs      map[string]string
-	dispatchChunkSize           uint16
-	startingPrimaryHedgingDelay time.Duration
-	caveatTypeSet               *caveattypes.TypeSet
+	metricsEnabled                               bool
+	prometheusSubsystem                          string
+	upstreamAddr                                 string
+	upstreamCAPath                               string
+	grpcPresharedKey                             string
+	grpcDialOpts                                 []grpc.DialOption
+	cache                                        cache.Cache[keys.DispatchCacheKey, any]
+	concurrencyLimits                            graph.ConcurrencyLimits
+	remoteDispatchTimeout                        time.Duration
+	secondaryUpstreamAddrs                       map[string]string
+	secondaryUpstreamExprs                       map[string]string
+	secondaryUpstreamMaximumPrimaryHedgingDelays map[string]string
+	dispatchChunkSize                            uint16
+	startingPrimaryHedgingDelay                  time.Duration
+	caveatTypeSet                                *caveattypes.TypeSet
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -86,6 +87,16 @@ func SecondaryUpstreamAddrs(addrs map[string]string) Option {
 func SecondaryUpstreamExprs(addrs map[string]string) Option {
 	return func(state *optionState) {
 		state.secondaryUpstreamExprs = addrs
+	}
+}
+
+// SecondaryMaximumPrimaryHedgingDelays sets a named map from dispatch type to the
+// maximum primary hedging delay to use for that dispatch type. This is used to
+// determine how long to delay a primary dispatch when invoking the secondary dispatch.
+// The default is 5ms.
+func SecondaryMaximumPrimaryHedgingDelays(delays map[string]string) Option {
+	return func(state *optionState) {
+		state.secondaryUpstreamMaximumPrimaryHedgingDelays = delays
 	}
 }
 
@@ -206,9 +217,23 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			maximumHedgingDelay := 5 * time.Millisecond
+			if maximumHedgingDelayStr, ok := opts.secondaryUpstreamMaximumPrimaryHedgingDelays[name]; ok {
+				mgd, err := time.ParseDuration(maximumHedgingDelayStr)
+				if err != nil {
+					return nil, fmt.Errorf("error parsing maximum primary hedging delay for secondary dispatch `%s`: %w", name, err)
+				}
+				if mgd <= 0 {
+					return nil, fmt.Errorf("maximum primary hedging delay for secondary dispatch `%s` must be greater than 0", name)
+				}
+				maximumHedgingDelay = mgd
+			}
+
 			secondaryClients[name] = remote.SecondaryDispatch{
-				Name:   name,
-				Client: v1.NewDispatchServiceClient(secondaryConn),
+				Name:                       name,
+				Client:                     v1.NewDispatchServiceClient(secondaryConn),
+				MaximumPrimaryHedgingDelay: maximumHedgingDelay,
 			}
 		}
 

@@ -74,6 +74,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchChunkSize = c.DispatchChunkSize
 		to.DispatchSecondaryUpstreamAddrs = c.DispatchSecondaryUpstreamAddrs
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
+		to.DispatchSecondaryMaximumPrimaryHedgingDelays = c.DispatchSecondaryMaximumPrimaryHedgingDelays
 		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
@@ -146,6 +147,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["DispatchChunkSize"] = helpers.DebugValue(c.DispatchChunkSize, false)
 	debugMap["DispatchSecondaryUpstreamAddrs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamAddrs, false)
 	debugMap["DispatchSecondaryUpstreamExprs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamExprs, false)
+	debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = helpers.DebugValue(c.DispatchSecondaryMaximumPrimaryHedgingDelays, false)
 	debugMap["DispatchCacheConfig"] = helpers.DebugValue(c.DispatchCacheConfig, false)
 	debugMap["ClusterDispatchCacheConfig"] = helpers.DebugValue(c.ClusterDispatchCacheConfig, false)
 	debugMap["DisableV1SchemaAPI"] = helpers.DebugValue(c.DisableV1SchemaAPI, false)
@@ -467,6 +469,20 @@ func WithDispatchSecondaryUpstreamExprs(key string, value string) ConfigOption {
 func SetDispatchSecondaryUpstreamExprs(dispatchSecondaryUpstreamExprs map[string]string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchSecondaryUpstreamExprs = dispatchSecondaryUpstreamExprs
+	}
+}
+
+// WithDispatchSecondaryMaximumPrimaryHedgingDelays returns an option that can append DispatchSecondaryMaximumPrimaryHedgingDelayss to Config.DispatchSecondaryMaximumPrimaryHedgingDelays
+func WithDispatchSecondaryMaximumPrimaryHedgingDelays(key string, value string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryMaximumPrimaryHedgingDelays[key] = value
+	}
+}
+
+// SetDispatchSecondaryMaximumPrimaryHedgingDelays returns an option that can set DispatchSecondaryMaximumPrimaryHedgingDelays on a Config
+func SetDispatchSecondaryMaximumPrimaryHedgingDelays(dispatchSecondaryMaximumPrimaryHedgingDelays map[string]string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryMaximumPrimaryHedgingDelays = dispatchSecondaryMaximumPrimaryHedgingDelays
 	}
 }
 

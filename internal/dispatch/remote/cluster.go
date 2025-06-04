@@ -41,8 +41,16 @@ var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "dispatch",
-	Name:      "remote_dispatch_hedge_wait_duration",
+	Name:      "remote_dispatch_hedge_wait_duration_seconds",
 	Help:      "distribution in seconds of calculated wait time for hedging requests to the primary dispatcher when a secondary is active.",
+	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
+}, []string{"rpc"})
+
+var hedgeActualWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_hedge_actual_wait_duration_seconds",
+	Help:      "distribution in seconds of actual wait time for hedging requests to the primary dispatcher when a secondary is active.",
 	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
 }, []string{"rpc"})
 
@@ -55,10 +63,10 @@ var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
-const defaultStartingPrimaryHedgingDelay = 5 * time.Millisecond
+const defaultStartingPrimaryHedgingDelay = 1 * time.Millisecond
 
 // defaultHedgerQuantile is the default quantile used to determine the hedging delay for primary calls.
-const defaultHedgerQuantile = 0.95
+const defaultHedgerQuantile = 0.9
 
 // minimumDigestCount is the minimum number of samples required in the digest before it can be used
 // to determine the configured percentile.
@@ -71,6 +79,7 @@ var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 func init() {
 	prometheus.MustRegister(dispatchCounter)
 	prometheus.MustRegister(hedgeWaitHistogram)
+	prometheus.MustRegister(hedgeActualWaitHistogram)
 	prometheus.MustRegister(primaryDispatch)
 }
 
@@ -93,8 +102,15 @@ type ClusterDispatcherConfig struct {
 // SecondaryDispatch defines a struct holding a client and its name for secondary
 // dispatching.
 type SecondaryDispatch struct {
-	Name   string
+	// Name is the name of the secondary dispatcher.
+	Name string
+
+	// Client is the client to use for dispatching to the secondary.
 	Client ClusterClient
+
+	// MaximumHedgingDelay is the maximum delay that the primary will wait before dispatching
+	// when this secondary is active.
+	MaximumPrimaryHedgingDelay time.Duration
 }
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
@@ -161,7 +177,7 @@ type digestAndLock struct {
 
 // getWaitTime returns the configured percentile of the digest, or a default value if the digest is empty.
 // In
-func (dal *digestAndLock) getWaitTime() time.Duration {
+func (dal *digestAndLock) getWaitTime(maximumHedgingDelay time.Duration) time.Duration {
 	dal.lock.RLock()
 	milliseconds := dal.digest.Quantile(defaultHedgerQuantile)
 	count := dal.digest.Count()
@@ -171,7 +187,11 @@ func (dal *digestAndLock) getWaitTime() time.Duration {
 		return dal.startingPrimaryHedgingDelay
 	}
 
-	return time.Duration(milliseconds) * time.Millisecond
+	waitTime := time.Duration(milliseconds) * time.Millisecond
+	if waitTime > maximumHedgingDelay {
+		waitTime = maximumHedgingDelay
+	}
+	return waitTime
 }
 
 func (dal *digestAndLock) addResultTime(duration time.Duration) {
@@ -270,19 +290,43 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 		return handler(withTimeout, cr.clusterClient)
 	}
 
+	// Run the dispatch expression to find the name(s) of the secondary dispatchers to use, if any.
+	log.Trace().Object("request", req).Msg("running dispatch expression")
+	secondaryDispatcherNames, err := RunDispatchExpr(expr, req)
+	if err != nil {
+		log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
+		return handler(withTimeout, cr.clusterClient)
+	}
+
+	if len(secondaryDispatcherNames) == 0 {
+		// If no secondary dispatches are defined, just invoke directly.
+		log.Trace().Str("request-key", reqKey).Msg("no secondary dispatches defined, running primary dispatch")
+		primaryDispatch.WithLabelValues("false", reqKey).Inc()
+		return handler(withTimeout, cr.clusterClient)
+	}
+
+	var maximumHedgingDelay time.Duration
+	for _, secondaryDispatchName := range secondaryDispatcherNames {
+		secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
+		if !ok {
+			log.Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
+			continue
+		}
+
+		maximumHedgingDelay = max(maximumHedgingDelay, secondary.MaximumPrimaryHedgingDelay)
+	}
+
 	// Otherwise invoke in parallel with any secondary matches.
 	primaryResultChan := make(chan respTuple[S], 1)
 	secondaryResultChan := make(chan secondaryRespTuple[S], len(cr.secondaryDispatch))
+
+	primarySleeper := cr.newPrimarySleeper(reqKey, resourceTypeAndRelation, subjectTypeAndRelation, maximumHedgingDelay)
 
 	// Run the main dispatch.
 	go func() {
 		// Have the main dispatch wait some time before returning, to allow the secondaries to
 		// potentially return first.
-		computedWait := cr.getPrimaryWaitTime(reqKey, resourceTypeAndRelation, subjectTypeAndRelation)
-		log.Trace().Stringer("computed-wait", computedWait).Msg("primary dispatch started; sleeping for computed wait time")
-		if computedWait > 0 {
-			time.Sleep(computedWait)
-		}
+		primarySleeper.sleep(withTimeout)
 
 		log.Trace().Msg("running primary dispatch after wait")
 		select {
@@ -295,50 +339,47 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 			resp, err := handler(withTimeout, cr.clusterClient)
 			log.Trace().Str("request-key", reqKey).Msg("primary dispatch completed")
 			primaryResultChan <- respTuple[S]{resp, err}
-			hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
 			primaryDispatch.WithLabelValues("false", reqKey).Inc()
 		}
 	}()
 
-	log.Trace().Object("request", req).Msg("running dispatch expression")
-	result, err := RunDispatchExpr(expr, req)
-	if err != nil {
-		log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
-	} else {
-		for _, secondaryDispatchName := range result {
-			secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
-			if !ok {
-				log.Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
-				continue
-			}
-
-			go func() {
-				select {
-				case <-withTimeout.Done():
-					log.Trace().Str("secondary", secondary.Name).Msg("secondary dispatch timed out or was canceled")
-					return
-
-				default:
-					log.Trace().Str("secondary", secondary.Name).Msg("running secondary dispatch")
-					startTime := time.Now()
-					resp, err := handler(withTimeout, secondary.Client)
-					endTime := time.Now()
-					handlerDuration := endTime.Sub(startTime)
-					if err != nil {
-						// For secondary dispatches, ignore any errors, as only the primary will be handled in
-						// that scenario.
-						log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
-						cr.supportedResourceSubjectTracker.updateForError(err)
-						return
-					}
-
-					log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Msg("secondary dispatch completed")
-					go cr.supportedResourceSubjectTracker.updateForSuccess(resourceTypeAndRelation, subjectTypeAndRelation)
-					cr.secondaryInitialResponseDigests[reqKey].addResultTime(handlerDuration)
-					secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
-				}
-			}()
+	for _, secondaryDispatchName := range secondaryDispatcherNames {
+		secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
+		if !ok {
+			log.Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
+			continue
 		}
+
+		go func() {
+			select {
+			case <-withTimeout.Done():
+				log.Trace().Str("secondary", secondary.Name).Msg("secondary dispatch timed out or was canceled")
+				return
+
+			default:
+				log.Trace().Str("secondary", secondary.Name).Msg("running secondary dispatch")
+				startTime := time.Now()
+				resp, err := handler(withTimeout, secondary.Client)
+				endTime := time.Now()
+
+				handlerDuration := endTime.Sub(startTime)
+				if err != nil {
+					// For secondary dispatches, ignore any errors, as only the primary will be handled in
+					// that scenario.
+					log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
+					cr.supportedResourceSubjectTracker.updateForError(err)
+
+					// Cancel the primary's sleep if it is still sleeping, so it can immediately being its own work.
+					primarySleeper.cancelSleep()
+					return
+				}
+
+				log.Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Msg("secondary dispatch completed")
+				go cr.supportedResourceSubjectTracker.updateForSuccess(resourceTypeAndRelation, subjectTypeAndRelation)
+				cr.secondaryInitialResponseDigests[reqKey].addResultTime(handlerDuration)
+				secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
+			}
+		}()
 	}
 
 	var foundError error
@@ -348,7 +389,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 
 	case r := <-primaryResultChan:
 		if r.err == nil {
-			dispatchCounter.WithLabelValues(reqKey, "(primary)").Add(1)
+			dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
 			return r.resp, nil
 		}
 
@@ -361,7 +402,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 		return r.resp, nil
 	}
 
-	dispatchCounter.WithLabelValues(reqKey, "(primary)").Add(1)
+	dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
 	return *new(S), foundError
 }
 
@@ -385,7 +426,8 @@ const (
 	primaryDispatcher     = "$primary"
 )
 
-func publishClient[R responseMessage](ctx context.Context, client receiver[R], stream dispatch.Stream[R], secondaryDispatchName string) error {
+func publishClient[R responseMessage](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
+	isFirstResult := true
 	for {
 		select {
 		case <-ctx.Done():
@@ -394,10 +436,18 @@ func publishClient[R responseMessage](ctx context.Context, client receiver[R], s
 		default:
 			result, err := client.Recv()
 			if errors.Is(err, io.EOF) {
+				if isFirstResult {
+					dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+				}
 				return nil
 			} else if err != nil {
 				return err
 			}
+
+			if isFirstResult {
+				dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+			}
+			isFirstResult = false
 
 			merr := adjustMetadataForDispatch(result.GetMetadata())
 			if merr != nil {
@@ -448,7 +498,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 		if err != nil {
 			return err
 		}
-		return publishClient(withTimeout, client, stream, primaryDispatcher)
+		return publishClient(withTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
 	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
@@ -495,7 +545,12 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 		if err != nil {
 			return err
 		}
-		return publishClient(withTimeout, client, stream, primaryDispatcher)
+		return publishClient(withTimeout, client, reqKey, stream, primaryDispatcher)
+	}
+
+	var maximumHedgingDelay time.Duration
+	for _, secondary := range validSecondaryDispatchers {
+		maximumHedgingDelay = max(maximumHedgingDelay, secondary.MaximumPrimaryHedgingDelay)
 	}
 
 	contexts := make(map[string]ctxAndCancel, len(validSecondaryDispatchers)+1)
@@ -520,6 +575,13 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 	wg.Add(len(validSecondaryDispatchers))
 
 	returnedResultsDispatcherName := atomic.NewString("")
+
+	primarySleeper := cr.newPrimarySleeper(reqKey,
+		tuple.FromCoreRelationReference(req.GetResourceRelation()),
+		tuple.FromCoreRelationReference(req.GetSubjectRelation()),
+		maximumHedgingDelay,
+	)
+
 	runHandler := func(name string, clusterClient ClusterClient) {
 		ctx := contexts[name].ctx
 		log.Debug().Str("dispatcher", name).Msg("running secondary dispatcher")
@@ -529,14 +591,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 		isPrimary := name == primaryDispatcher
 		if isPrimary {
 			// Have the primary wait a bit to ensure the secondaries have a chance to return first.
-			computedWait := cr.getPrimaryWaitTime(reqKey,
-				tuple.FromCoreRelationReference(req.GetResourceRelation()),
-				tuple.FromCoreRelationReference(req.GetSubjectRelation()),
-			)
-			if computedWait > 0 {
-				time.Sleep(computedWait)
-				hedgeWaitHistogram.WithLabelValues(reqKey).Observe(computedWait.Seconds())
-			}
+			primarySleeper.sleep(ctx)
 		} else {
 			startTime = time.Now()
 		}
@@ -607,6 +662,8 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 						return
 					}
 
+					dispatchCounter.WithLabelValues(reqKey, name).Add(1)
+
 					// Cancel all other contexts to prevent them from running, or stop them
 					// from running if started.
 					log.Trace().Str("dispatcher", name).Msg("canceling other dispatchers")
@@ -625,6 +682,10 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 				if err != nil {
 					if !isPrimary {
 						cr.supportedResourceSubjectTracker.updateForError(err)
+
+						// If this is a secondary dispatcher and we received an error, cancel the primary's sleep
+						// so it can begin execution immediately.
+						primarySleeper.cancelSleep()
 					}
 
 					errorsLock.Lock()
@@ -779,6 +840,28 @@ func (cr *clusterDispatcher) ReadyState() dispatch.ReadyState {
 	}
 }
 
+// newPrimarySleeper creates a new primarySleeper instance that will wait for the
+// specified wait time before allowing the primary dispatch to run. The wait time is
+// determined based on the request key and the resource and subject types and relations.
+// If the resource or subject is unsupported, the wait time will be zero.
+//
+// The primarySleeper can be used to cancel the sleep if the delay is no longer needed,
+// such as when a secondary dispatcher returns results first.
+func (cr *clusterDispatcher) newPrimarySleeper(
+	reqKey string,
+	resourceTypeAndRelation tuple.RelationReference,
+	subjectTypeAndRelation tuple.RelationReference,
+	maximumHedgingDelay time.Duration,
+) *primarySleeper {
+	waitTime := cr.getPrimaryWaitTime(reqKey, resourceTypeAndRelation, subjectTypeAndRelation, maximumHedgingDelay)
+	return &primarySleeper{
+		reqKey:     reqKey,
+		waitTime:   waitTime,
+		cancelFunc: func() {}, // No-op by default, will be set when sleep is called.
+		lock:       sync.Mutex{},
+	}
+}
+
 // getPrimaryWaitTime returns the wait time for the primary dispatch, based on the request key and the
 // resource and subject types and relations. If the resource or subject is unsupported, the wait time
 // will be zero.
@@ -786,6 +869,7 @@ func (cr *clusterDispatcher) getPrimaryWaitTime(
 	reqKey string,
 	resourceTypeAndRelation tuple.RelationReference,
 	subjectTypeAndRelation tuple.RelationReference,
+	maximumHedgingDelay time.Duration,
 ) time.Duration {
 	// If the resource or subject is unsupported, return zero time.
 	if cr.supportedResourceSubjectTracker.isUnsupported(
@@ -795,7 +879,7 @@ func (cr *clusterDispatcher) getPrimaryWaitTime(
 		return 0
 	}
 
-	return cr.secondaryInitialResponseDigests[reqKey].getWaitTime()
+	return cr.secondaryInitialResponseDigests[reqKey].getWaitTime(maximumHedgingDelay)
 }
 
 // supportedResourceSubjectTracker is a struct that tracks the resources and subjects that are
@@ -879,6 +963,54 @@ func (srst *supportedResourceSubjectTracker) updateForError(err error) {
 			}
 		}
 	}
+}
+
+type primarySleeper struct {
+	reqKey     string
+	waitTime   time.Duration
+	cancelFunc context.CancelFunc // GUARDED_BY(lock)
+	lock       sync.Mutex
+}
+
+func (s *primarySleeper) sleep(parentCtx context.Context) {
+	if s.waitTime <= 0 {
+		return
+	}
+
+	sleepCtx, cf := context.WithCancel(context.Background())
+
+	s.lock.Lock()
+	s.cancelFunc = cf
+	s.lock.Unlock()
+
+	hedgeWaitHistogram.WithLabelValues(s.reqKey).Observe(s.waitTime.Seconds())
+	log.Trace().Str("request-key", s.reqKey).Dur("wait-time", s.waitTime).Msg("primary dispatch waiting before running")
+
+	startTime := time.Now()
+	timer := time.NewTimer(s.waitTime)
+	defer timer.Stop()
+
+	select {
+	case <-parentCtx.Done():
+		log.Trace().Str("request-key", s.reqKey).Msg("primary dispatch canceled before waiting completed")
+		return
+
+	case <-sleepCtx.Done():
+		log.Trace().Str("request-key", s.reqKey).Msg("primary dispatch early terminated waiting")
+		hedgeActualWaitHistogram.WithLabelValues(s.reqKey).Observe(time.Since(startTime).Seconds())
+		return
+
+	case <-timer.C:
+		log.Trace().Str("request-key", s.reqKey).Msg("primary dispatch finished waiting")
+		hedgeActualWaitHistogram.WithLabelValues(s.reqKey).Observe(s.waitTime.Seconds())
+		return
+	}
+}
+
+func (s *primarySleeper) cancelSleep() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.cancelFunc()
 }
 
 // Always verify that we implement the interface
