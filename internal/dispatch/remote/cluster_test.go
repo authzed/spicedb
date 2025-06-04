@@ -827,14 +827,14 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
 	}, map[string]SecondaryDispatch{
-		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 15 * time.Millisecond},
 	}, map[string]*DispatchExpr{
 		"lookupsubjects": parsed,
-	}, 0*time.Second)
+	}, 10*time.Second)
 	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
-	// Dispatch the lookupsubjects, which should (since it is the first request) add a delay of ~5ms to
+	// Dispatch the lookupsubjects, which should (since it is the first request) add a delay of ~10ms to
 	// the primary, thus ensuring the secondary is used without any timeout for either,.
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
 	err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
