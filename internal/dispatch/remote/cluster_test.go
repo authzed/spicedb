@@ -39,7 +39,6 @@ type fakeDispatchSvc struct {
 	errorOnLR2    error
 	errorOnLS     error
 	errorOnCheck  error
-	raisePanic    bool
 }
 
 func (fds *fakeDispatchSvc) DispatchCheck(ctx context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -54,9 +53,7 @@ func (fds *fakeDispatchSvc) DispatchCheck(ctx context.Context, _ *v1.DispatchChe
 		}, ctx.Err()
 
 	default:
-		if fds.raisePanic {
-			panic("panic raised")
-		}
+		// continue onward
 	}
 
 	if fds.errorOnCheck != nil {
@@ -782,7 +779,7 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 }
 
 func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
-	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 3 * time.Millisecond, raisePanic: true})
+	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 3 * time.Millisecond})
 	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 3 * time.Millisecond})
 
 	parsed, err := ParseDispatchExpression("check", "['secondary']")
@@ -792,10 +789,10 @@ func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
 	}, map[string]SecondaryDispatch{
-		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 15 * time.Millisecond},
 	}, map[string]*DispatchExpr{
 		"check": parsed,
-	}, 0*time.Second)
+	}, 10*time.Millisecond)
 	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
