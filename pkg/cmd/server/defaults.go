@@ -76,10 +76,9 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 		).RunE(),
 		// NOTE: These need to be declared after the logger to access
 		// the logging context.
-		// NOTE: The default memlimit is 0.9. Our assumption is that SpiceDB
-		// will be the only thing consuming memory in its context, and if
-		// this needs to be configurable we can do that as a future step.
-		cobraproclimits.SetMemLimitRunE(memlimit.WithRatio(1.0)),
+		// NOTE: We've observed OOMKill when setting to 1.0 under heavy-load,
+		// and zero under the same load and 0.9
+		cobraproclimits.SetMemLimitRunE(memlimit.WithRatio(0.9)),
 		cobraproclimits.SetProcLimitRunE(),
 		cobraotel.New("spicedb",
 			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
