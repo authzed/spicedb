@@ -274,10 +274,10 @@ func TestRemoteReporterErrorHandling(t *testing.T) {
 	gauge.Set(42)
 	registry.MustRegister(gauge)
 
-	reporter, err := RemoteReporter(registry, server.URL, "", 1*time.Minute)
+	reporter, err := RemoteReporter(registry, server.URL, "", 100*time.Millisecond) // Short interval for testing
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Run reporter in background
