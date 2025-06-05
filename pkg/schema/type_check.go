@@ -115,6 +115,10 @@ func (ts *TypeSystem) getTypesForRewrite(ctx context.Context, defName string, re
 					if err != nil {
 						return nil, err
 					}
+					if targets == nil {
+						// Already added
+						continue
+					}
 					out.Merge(targets)
 				}
 			}
