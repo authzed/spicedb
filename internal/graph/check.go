@@ -988,6 +988,9 @@ func checkTupleToUserset[T relation](
 		toDispatch,
 		func(ctx context.Context, crc currentRequestContext, dd checkDispatchChunk) CheckResult {
 			resourceType := dd.resourceType
+			if dd.hasIncomingCaveats {
+				crc.resultsSetting = v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS
+			}
 			childResult := cc.checkComputedUserset(ctx, crc, ttu.GetComputedUserset(), &resourceType, dd.resourceIds)
 			if childResult.Err != nil {
 				return childResult
