@@ -1320,6 +1320,96 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(40)}),
 			),
 		},
+		{
+			name: "caveated_with_arrows",
+			schema: `
+			 definition user {}
+  
+			  definition office {
+				relation parent: office
+				relation manager: user
+				permission read = manager + parent->read
+			  }
+				  
+			  definition group {
+				relation parent: office
+				permission read = parent->read
+			  }
+				  
+			  definition document {
+				relation owner: group with equals
+				permission read = owner->read
+			  }
+				  
+			  caveat equals(actual string, required string) {
+				actual == required
+			  }
+			`,
+			relationships: []tuple.Relationship{
+				tuple.MustParse(`office:headoffice#manager@user:maria`),
+				tuple.MustParse(`office:branch1#parent@office:headoffice`),
+				tuple.MustParse(`group:admins#parent@office:branch1`),
+				tuple.MustParse(`group:managers#parent@office:headoffice`),
+				tuple.MustParse(`document:budget#owner@group:admins[equals:{"required":"admin"}]`),
+				tuple.MustParse(`document:budget#owner@group:managers[equals:{"required":"manager"}]`),
+			},
+			resource:               ONR("document", "budget", "read"),
+			subject:                ONR("user", "maria", "..."),
+			expectedPermissionship: v1.ResourceCheckResult_CAVEATED_MEMBER,
+			expectedCaveat: caveatOr(
+				caveatAndCtx("equals", map[string]any{"required": "admin"}),
+				caveatAndCtx("equals", map[string]any{"required": "manager"}),
+			),
+			alternativeExpectedCaveat: caveatOr(
+				caveatAndCtx("equals", map[string]any{"required": "manager"}),
+				caveatAndCtx("equals", map[string]any{"required": "admin"}),
+			),
+		},
+		{
+			name: "caveated_nested_with_intersection_arrows",
+			schema: `
+			 definition user {}
+  
+			  definition office {
+				relation parent: office
+				relation manager: user
+				permission read = manager + parent.all(read)
+			  }
+				  
+			  definition group {
+				relation parent: office
+				permission read = parent.all(read)
+			  }
+				  
+			  definition document {
+				relation owner: group with equals
+				permission read = owner.all(read)
+			  }
+				  
+			  caveat equals(actual string, required string) {
+				actual == required
+			  }
+			`,
+			relationships: []tuple.Relationship{
+				tuple.MustParse(`office:headoffice#manager@user:maria`),
+				tuple.MustParse(`office:branch1#parent@office:headoffice`),
+				tuple.MustParse(`group:admins#parent@office:branch1`),
+				tuple.MustParse(`group:managers#parent@office:headoffice`),
+				tuple.MustParse(`document:budget#owner@group:admins[equals:{"required":"admin"}]`),
+				tuple.MustParse(`document:budget#owner@group:managers[equals:{"required":"manager"}]`),
+			},
+			resource:               ONR("document", "budget", "read"),
+			subject:                ONR("user", "maria", "..."),
+			expectedPermissionship: v1.ResourceCheckResult_CAVEATED_MEMBER,
+			expectedCaveat: caveatAnd(
+				caveatAndCtx("equals", map[string]any{"required": "admin"}),
+				caveatAndCtx("equals", map[string]any{"required": "manager"}),
+			),
+			alternativeExpectedCaveat: caveatAnd(
+				caveatAndCtx("equals", map[string]any{"required": "manager"}),
+				caveatAndCtx("equals", map[string]any{"required": "admin"}),
+			),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1356,7 +1446,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				membership = r.Membership
 			}
 
-			require.Equal(tc.expectedPermissionship, membership)
+			require.Equal(tc.expectedPermissionship, membership, fmt.Sprintf("expected permissionship %s, got %s", tc.expectedPermissionship, membership))
 
 			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat == nil {
 				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectID].Expression)
