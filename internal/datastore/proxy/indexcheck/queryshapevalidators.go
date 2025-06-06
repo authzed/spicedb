@@ -9,130 +9,193 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
+func validateCaveatFilter(filter datastore.RelationshipsFilter, queryShapeName string) error {
+	if filter.OptionalCaveatNameFilter.Option != datastore.CaveatFilterOptionNone {
+		return fmt.Errorf("optional caveats not supported for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateResourceType(resourceType, queryShapeName string) error {
+	if resourceType == "" {
+		return fmt.Errorf("optional resource type required for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateResourceIDs(resourceIds []string, queryShapeName string, required bool) error {
+	if required && len(resourceIds) == 0 {
+		return fmt.Errorf("optional resource ids required for %s", queryShapeName)
+	}
+	if !required && len(resourceIds) != 0 {
+		return fmt.Errorf("no optional resource ids allowed for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateResourceIDPrefix(resourceIDPrefix string, queryShapeName string) error {
+	if len(resourceIDPrefix) != 0 {
+		return fmt.Errorf("no optional resource id prefixes allowed for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateResourceRelation(resourceRelation, queryShapeName string, required bool) error {
+	if required && resourceRelation == "" {
+		return fmt.Errorf("optional resource relation required for %s", queryShapeName)
+	}
+	if !required && resourceRelation != "" {
+		return fmt.Errorf("no optional resource relation allowed for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateSubjectsSelectors(selectors []datastore.SubjectsSelector, queryShapeName string, required bool) error {
+	if required && len(selectors) == 0 {
+		return fmt.Errorf("optional subjects selectors required for %s", queryShapeName)
+	}
+	if !required && len(selectors) != 0 {
+		return fmt.Errorf("no optional subjects selectors allowed for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateDirectSubjectsSelectors(selectors []datastore.SubjectsSelector, queryShapeName string) error {
+	for _, subjectSelector := range selectors {
+		if subjectSelector.OptionalSubjectType == "" {
+			return fmt.Errorf("optional subject type required for %s", queryShapeName)
+		}
+		if len(subjectSelector.OptionalSubjectIds) == 0 {
+			return fmt.Errorf("optional subject ids required for %s", queryShapeName)
+		}
+	}
+	return nil
+}
+
+func validateIndirectSubjectsSelectors(selectors []datastore.SubjectsSelector, queryShapeName string) error {
+	for _, subjectSelector := range selectors {
+		if subjectSelector.OptionalSubjectType != "" {
+			return fmt.Errorf("optional subject type required for %s", queryShapeName)
+		}
+		if len(subjectSelector.OptionalSubjectIds) != 0 {
+			return fmt.Errorf("no optional subject ids allowed for %s", queryShapeName)
+		}
+		if subjectSelector.RelationFilter.IsEmpty() {
+			return fmt.Errorf("relation filter required for %s", queryShapeName)
+		}
+		if !subjectSelector.RelationFilter.OnlyNonEllipsisRelations {
+			return fmt.Errorf("only non-ellipsis relations allowed for %s", queryShapeName)
+		}
+	}
+	return nil
+}
+
+func validateSubjectType(subjectType, queryShapeName string) error {
+	if subjectType == "" {
+		return fmt.Errorf("subject type required for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateSubjectIDs(subjectIds []string, queryShapeName string) error {
+	if len(subjectIds) == 0 {
+		return fmt.Errorf("subject ids required for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateResRelation(resRelation *options.ResourceRelation, queryShapeName string) error {
+	if resRelation == nil {
+		return fmt.Errorf("resource relation required for %s", queryShapeName)
+	}
+	if resRelation.Namespace == "" {
+		return fmt.Errorf("resource relation namespace required for %s", queryShapeName)
+	}
+	if resRelation.Relation == "" {
+		return fmt.Errorf("resource relation required for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateCheckPermissionSelectCommon(filter datastore.RelationshipsFilter, queryShapeName string) error {
+	if err := validateCaveatFilter(filter, queryShapeName); err != nil {
+		return err
+	}
+	if err := validateResourceType(filter.OptionalResourceType, queryShapeName); err != nil {
+		return err
+	}
+	if err := validateResourceIDs(filter.OptionalResourceIds, queryShapeName, true); err != nil {
+		return err
+	}
+	if err := validateResourceIDPrefix(filter.OptionalResourceIDPrefix, queryShapeName); err != nil {
+		return err
+	}
+	if err := validateResourceRelation(filter.OptionalResourceRelation, queryShapeName, true); err != nil {
+		return err
+	}
+	if err := validateSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShapeName, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateResourceTypeAndSubjectsCommon(filter datastore.RelationshipsFilter, queryShapeName string) error {
+	if err := validateResourceType(filter.OptionalResourceType, queryShapeName); err != nil {
+		return err
+	}
+	if err := validateSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShapeName, false); err != nil {
+		return err
+	}
+	return nil
+}
+
 func validateQueryShape(queryShape queryshape.Shape, filter datastore.RelationshipsFilter) error {
+	queryShapeName := string(queryShape)
+
 	switch queryShape {
 	case queryshape.CheckPermissionSelectDirectSubjects:
-		if filter.OptionalCaveatNameFilter.Option != datastore.CaveatFilterOptionNone {
-			return fmt.Errorf("optional caveats not supported for CheckPermissionSelectDirectSubjects")
+		if err := validateCheckPermissionSelectCommon(filter, queryShapeName); err != nil {
+			return err
 		}
-
-		if filter.OptionalResourceType == "" {
-			return fmt.Errorf("optional resource type required for CheckPermissionSelectDirectSubjects")
+		if err := validateDirectSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShapeName); err != nil {
+			return err
 		}
-
-		if len(filter.OptionalResourceIds) == 0 {
-			return fmt.Errorf("optional resource ids required for CheckPermissionSelectDirectSubjects")
-		}
-
-		if len(filter.OptionalResourceIDPrefix) != 0 {
-			return fmt.Errorf("no optional resource id prefixes allowed for CheckPermissionSelectDirectSubjects")
-		}
-
-		if filter.OptionalResourceRelation == "" {
-			return fmt.Errorf("optional resource relation required for CheckPermissionSelectDirectSubjects")
-		}
-
-		if len(filter.OptionalSubjectsSelectors) == 0 {
-			return fmt.Errorf("optional subjects selectors required for CheckPermissionSelectDirectSubjects")
-		}
-
-		for _, subjectSelector := range filter.OptionalSubjectsSelectors {
-			if subjectSelector.OptionalSubjectType == "" {
-				return fmt.Errorf("optional subject type required for CheckPermissionSelectDirectSubjects")
-			}
-
-			if len(subjectSelector.OptionalSubjectIds) == 0 {
-				return fmt.Errorf("optional subject ids required for CheckPermissionSelectDirectSubjects")
-			}
-		}
-
 		return nil
 
 	case queryshape.CheckPermissionSelectIndirectSubjects:
-		if filter.OptionalCaveatNameFilter.Option != datastore.CaveatFilterOptionNone {
-			return fmt.Errorf("optional caveats not supported for CheckPermissionSelectIndirectSubjects")
+		if err := validateCheckPermissionSelectCommon(filter, queryShapeName); err != nil {
+			return err
 		}
-
-		if filter.OptionalResourceType == "" {
-			return fmt.Errorf("optional resource type required for CheckPermissionSelectIndirectSubjects")
+		if err := validateIndirectSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShapeName); err != nil {
+			return err
 		}
-
-		if len(filter.OptionalResourceIDPrefix) != 0 {
-			return fmt.Errorf("no optional resource id prefixes allowed for CheckPermissionSelectDirectSubjects")
-		}
-
-		if len(filter.OptionalResourceIds) == 0 {
-			return fmt.Errorf("optional resource ids required for CheckPermissionSelectIndirectSubjects")
-		}
-
-		if filter.OptionalResourceRelation == "" {
-			return fmt.Errorf("optional resource relation required for CheckPermissionSelectIndirectSubjects")
-		}
-
-		if len(filter.OptionalSubjectsSelectors) == 0 {
-			return fmt.Errorf("optional subjects selectors required for CheckPermissionSelectIndirectSubjects")
-		}
-
-		for _, subjectSelector := range filter.OptionalSubjectsSelectors {
-			if subjectSelector.OptionalSubjectType != "" {
-				return fmt.Errorf("optional subject type required for CheckPermissionSelectIndirectSubjects")
-			}
-
-			if len(subjectSelector.OptionalSubjectIds) != 0 {
-				return fmt.Errorf("no optional subject ids allowed for CheckPermissionSelectIndirectSubjects")
-			}
-
-			if subjectSelector.RelationFilter.IsEmpty() {
-				return fmt.Errorf("relation filter required for CheckPermissionSelectIndirectSubjects")
-			}
-
-			if !subjectSelector.RelationFilter.OnlyNonEllipsisRelations {
-				return fmt.Errorf("only non-ellipsis relations allowed for CheckPermissionSelectIndirectSubjects")
-			}
-		}
-
 		return nil
 
 	case queryshape.AllSubjectsForResources:
-		if filter.OptionalCaveatNameFilter.Option != datastore.CaveatFilterOptionNone {
-			return fmt.Errorf("optional caveats not supported for AllSubjectsForResources")
+		if err := validateCaveatFilter(filter, queryShapeName); err != nil {
+			return err
 		}
-
-		if filter.OptionalResourceType == "" {
-			return fmt.Errorf("optional resource type required for AllSubjectsForResources")
+		if err := validateResourceIDs(filter.OptionalResourceIds, queryShapeName, true); err != nil {
+			return err
 		}
-
-		if len(filter.OptionalResourceIds) == 0 {
-			return fmt.Errorf("optional resource ids required for AllSubjectsForResources")
+		if err := validateResourceRelation(filter.OptionalResourceRelation, queryShapeName, true); err != nil {
+			return err
 		}
-
-		if filter.OptionalResourceRelation == "" {
-			return fmt.Errorf("optional resource relation required for AllSubjectsForResources")
+		if err := validateResourceTypeAndSubjectsCommon(filter, queryShapeName); err != nil {
+			return err
 		}
-
-		if len(filter.OptionalSubjectsSelectors) != 0 {
-			return fmt.Errorf("no optional subjects selectors allowed for AllSubjectsForResources")
-		}
-
 		return nil
 
 	case queryshape.FindResourceOfType:
-		if filter.OptionalResourceType == "" {
-			return fmt.Errorf("optional resource type required for FindResourceOfType")
+		if err := validateResourceIDs(filter.OptionalResourceIds, queryShapeName, false); err != nil {
+			return err
 		}
-
-		if len(filter.OptionalResourceIds) != 0 {
-			return fmt.Errorf("no optional resource ids allowed for FindResourceOfType")
+		if err := validateResourceRelation(filter.OptionalResourceRelation, queryShapeName, false); err != nil {
+			return err
 		}
-
-		if filter.OptionalResourceRelation != "" {
-			return fmt.Errorf("no optional resource relation allowed for FindResourceOfType")
+		if err := validateResourceTypeAndSubjectsCommon(filter, queryShapeName); err != nil {
+			return err
 		}
-
-		if len(filter.OptionalSubjectsSelectors) != 0 {
-			return fmt.Errorf("no optional subjects selectors allowed for FindResourceOfType")
-		}
-
 		return nil
 
 	case queryshape.Varying:
@@ -151,28 +214,19 @@ func validateQueryShape(queryShape queryshape.Shape, filter datastore.Relationsh
 }
 
 func validateReverseQueryShape(queryShape queryshape.Shape, subjectFilter datastore.SubjectsFilter, queryOpts *options.ReverseQueryOptions) error {
+	queryShapeName := string(queryShape)
+
 	switch queryShape {
 	case queryshape.MatchingResourcesForSubject:
-		if subjectFilter.SubjectType == "" {
-			return fmt.Errorf("subject type required for MatchingResourcesForSubject")
+		if err := validateSubjectType(subjectFilter.SubjectType, queryShapeName); err != nil {
+			return err
 		}
-
-		if len(subjectFilter.OptionalSubjectIds) == 0 {
-			return fmt.Errorf("subject ids required for MatchingResourcesForSubject")
+		if err := validateSubjectIDs(subjectFilter.OptionalSubjectIds, queryShapeName); err != nil {
+			return err
 		}
-
-		if queryOpts.ResRelation == nil {
-			return fmt.Errorf("resource relation required for MatchingResourcesForSubject")
+		if err := validateResRelation(queryOpts.ResRelation, queryShapeName); err != nil {
+			return err
 		}
-
-		if queryOpts.ResRelation.Namespace == "" {
-			return fmt.Errorf("resource relation namespace required for MatchingResourcesForSubject")
-		}
-
-		if queryOpts.ResRelation.Relation == "" {
-			return fmt.Errorf("resource relation required for MatchingResourcesForSubject")
-		}
-
 		return nil
 
 	case queryshape.Varying:

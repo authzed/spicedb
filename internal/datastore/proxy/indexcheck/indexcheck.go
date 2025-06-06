@@ -14,10 +14,10 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// NewIndexCheckingDatastoreProxy returns a datastore proxy that runs EXPLAIN ANALYZE on all
+// newIndexCheckingDatastoreProxy returns a datastore proxy that runs EXPLAIN ANALYZE on all
 // relationships queries and ensures that the index(es) used within match those defined in the
 // schema for the datastore.
-func NewIndexCheckingDatastoreProxy(d datastore.SQLDatastore) datastore.Datastore {
+func newIndexCheckingDatastoreProxy(d datastore.SQLDatastore) datastore.Datastore {
 	return &indexcheckingProxy{delegate: d}
 }
 
@@ -28,7 +28,7 @@ func WrapWithIndexCheckingDatastoreProxyIfApplicable(ds datastore.Datastore) dat
 	if uds == nil {
 		return ds
 	}
-	return NewIndexCheckingDatastoreProxy(uds)
+	return newIndexCheckingDatastoreProxy(uds)
 }
 
 type indexcheckingProxy struct{ delegate datastore.SQLDatastore }
