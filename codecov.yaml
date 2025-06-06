@@ -1,5 +1,5 @@
 ignore:
-  - "**/zz_generated*.go"
+  - "**/zz_*.go"
   - "**/*.pb.go"
   - "**/*.pb.validate.go"
 coverage:
