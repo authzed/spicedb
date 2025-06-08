@@ -37,6 +37,7 @@ const (
 	CockroachEngine = "cockroachdb"
 	SpannerEngine   = "spanner"
 	MySQLEngine     = "mysql"
+	TiDBEngine      = "tidb"
 )
 
 var BuilderForEngine = map[string]engineBuilderFunc{
@@ -45,6 +46,7 @@ var BuilderForEngine = map[string]engineBuilderFunc{
 	MemoryEngine:    newMemoryDatstore,
 	SpannerEngine:   newSpannerDatastore,
 	MySQLEngine:     newMySQLDatastore,
+	TiDBEngine:      newTiDBDatastore,
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.connpool.options.go . ConnPoolConfig
@@ -159,7 +161,7 @@ type Config struct {
 	SpannerMaxSessions            uint64 `debugmap:"visible"`
 	SpannerDatastoreMetricsOption string `debugmap:"visible"`
 
-	// MySQL
+	// MySQL & TiDB
 	TablePrefix string `debugmap:"visible"`
 
 	// Relationship Integrity
@@ -205,11 +207,11 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	}
 	defaults := DefaultDatastoreConfig()
 
-	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
+	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, strings.Join(datastore.EngineOptions(), ", ")))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
-	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\"). Only supported for postgres and mysql.")
+	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\"). Only supported for postgres, mysql, and tidb.")
 	flagSet.StringVar(&opts.ReadReplicaCredentialsProviderName, flagName("datastore-read-replica-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
 	var legacyConnPool ConnPoolConfig
@@ -273,7 +275,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.Uint64Var(&opts.SpannerMinSessions, flagName("datastore-spanner-min-sessions"), 100, "minimum number of sessions across all Spanner gRPC connections the client can have at a given time")
 	flagSet.Uint64Var(&opts.SpannerMaxSessions, flagName("datastore-spanner-max-sessions"), 400, "maximum number of sessions across all Spanner gRPC connections the client can have at a given time")
 	flagSet.StringVar(&opts.SpannerDatastoreMetricsOption, flagName("datastore-spanner-metrics"), "otel", `configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus")`)
-	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
+	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables (MySQL and TiDB only)")
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
@@ -803,4 +805,19 @@ func newMemoryDatstore(_ context.Context, opts Config) (datastore.Datastore, err
 
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
 	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow)
+}
+
+// newTiDBDatastore is a placeholder and currently reuses MySQL logic.
+// TODO: Customize for TiDB specifics if necessary beyond what the TiDB driver handles.
+func newTiDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	// For now, TiDB uses the same datastore implementation logic as MySQL.
+	// The differentiation is handled by the driver and the registered "tidb" engine name.
+	// If TiDB-specific options or setup were needed beyond what the MySQL driver provides
+	// when connecting to TiDB, this function would be the place to implement them.
+
+	// NOTE: This reuses the existing newMySQLDatastore constructor logic.
+	// Ensure that internal/datastore/tidb/tidb.go (which is a copy of mysql.go)
+	// correctly handles TiDB specifics, particularly if its NewTiDBDatastore
+	// (formerly NewMySQLDatastore) has been properly adapted.
+	return newMySQLDatastore(ctx, opts)
 }
