@@ -18,6 +18,9 @@ func (ts *TypeSystem) GetRecursiveTerminalTypesForRelation(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
+	if set == nil {
+		return nil, nil
+	}
 	return set.AsSlice(), nil
 }
 
