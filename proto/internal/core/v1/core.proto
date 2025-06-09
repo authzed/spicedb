@@ -207,6 +207,15 @@ message NamespaceDefinition {
 }
 
 /**
+ * DeprecationType is the type of deprecation for a relation.
+ */
+enum DeprecationType {
+  DEPRECATED_TYPE_UNSPECIFIED = 0;
+  DEPRECATED_TYPE_WARNING = 1;
+  DEPRECATED_TYPE_ERROR = 2;
+}
+
+/**
  * Relation represents the definition of a relation or permission under a namespace.
  */
 message Relation {
@@ -233,6 +242,9 @@ message Relation {
 
   string aliasing_relation = 6;
   string canonical_cache_key = 7;
+
+  /** deprecation_type is the type of deprecation for the relation */
+  DeprecationType deprecation_type = 8;
 }
 
 /**
@@ -420,6 +432,11 @@ message AllowedRelation {
    * required_expiration defines the required expiration on this relation.
    */
   ExpirationTrait required_expiration = 7;
+
+  /**
+   * deprecation_type defines the type of deprecation for this relation.
+   */
+  DeprecationType deprecation_type = 8;
 }
 
 /**
