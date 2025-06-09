@@ -46,7 +46,8 @@ func (ts *TypeSystem) getTypesForRelationInternal(ctx context.Context, defName s
 	}
 	rel, ok := def.GetRelation(relationName)
 	if !ok {
-		return nil, asTypeError(NewRelationNotFoundErr(defName, relationName))
+		// Supress the error that it couldn't find the relation, as if a relation is missing in a definition, it's already a noop in dispatch.
+		return nil, nil
 	}
 	if rel.TypeInformation != nil {
 		return ts.getTypesForInfo(ctx, rel.TypeInformation, seen, nonTerminals)
