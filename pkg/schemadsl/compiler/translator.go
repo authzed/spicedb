@@ -19,13 +19,15 @@ import (
 )
 
 type translationContext struct {
-	objectTypePrefix *string
-	mapper           input.PositionMapper
-	schemaString     string
-	skipValidate     bool
-	allowedFlags     []string
-	enabledFlags     []string
-	caveatTypeSet    *caveattypes.TypeSet
+	objectTypePrefix   *string
+	mapper             input.PositionMapper
+	schemaString       string
+	skipValidate       bool
+	allowedFlags       []string
+	enabledFlags       []string
+	caveatTypeSet      *caveattypes.TypeSet
+	deprecatedRelation bool
+	deprecatedType     string
 }
 
 func (tctx *translationContext) prefixedPath(definitionName string) (string, error) {
@@ -218,6 +220,15 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 			continue
 		}
 
+		if relationOrPermissionNode.GetType() == dslshape.NodeTypeDeprecated {
+			tctx.deprecatedRelation = true
+			tctx.deprecatedType, err = relationOrPermissionNode.GetString(dslshape.NodeDeprecatedPredicateName)
+			if err != nil {
+				return nil, relationOrPermissionNode.WithSourceErrorf(tctx.deprecatedType, "invalid deprecation type: %w", err)
+			}
+			continue
+		}
+
 		relationOrPermission, err := translateRelationOrPermission(tctx, relationOrPermissionNode)
 		if err != nil {
 			return nil, err
@@ -305,6 +316,17 @@ func normalizeComment(value string) string {
 	return strings.Join(lines, "\n")
 }
 
+func deprecationTypeFromString(s string) core.DeprecationType {
+	switch strings.ToLower(s) {
+	case "warn":
+		return core.DeprecationType_DEPRECATED_TYPE_WARNING
+	case "error":
+		return core.DeprecationType_DEPRECATED_TYPE_ERROR
+	default:
+		return core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED
+	}
+}
+
 func translateRelationOrPermission(tctx *translationContext, relOrPermNode *dslNode) (*core.Relation, error) {
 	switch relOrPermNode.GetType() {
 	case dslshape.NodeTypeRelation:
@@ -314,6 +336,10 @@ func translateRelationOrPermission(tctx *translationContext, relOrPermNode *dslN
 		}
 		rel.Metadata = addComments(rel.Metadata, relOrPermNode)
 		rel.SourcePosition = getSourcePosition(relOrPermNode, tctx.mapper)
+		if tctx.deprecatedRelation {
+			rel.DeprecationType = deprecationTypeFromString(tctx.deprecatedType)
+			tctx.deprecatedRelation = false
+		}
 		return rel, err
 
 	case dslshape.NodeTypePermission:

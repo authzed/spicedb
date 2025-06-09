@@ -21,6 +21,7 @@ const (
 	NodeTypeRelation   // A relation
 	NodeTypePermission // A permission
 
+	NodeTypeDeprecated            // A deprecated relation.
 	NodeTypeTypeReference         // A type reference
 	NodeTypeSpecificTypeReference // A reference to a specific type.
 	NodeTypeCaveatReference       // A caveat reference under a type.
@@ -206,4 +207,9 @@ const (
 	//
 	NodeExpressionPredicateLeftExpr  = "left-expr"
 	NodeExpressionPredicateRightExpr = "right-expr"
+
+	//
+	// NodeTypeDeprecated
+	//
+	NodeDeprecatedPredicateName = "deprecated-relation"
 )

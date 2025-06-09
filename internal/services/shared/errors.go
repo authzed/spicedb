@@ -52,6 +52,16 @@ type SchemaWriteDataValidationError struct {
 	error
 }
 
+type DeprecationError struct {
+	error
+}
+
+func NewDeprecationError(namespace string, relation string) DeprecationError {
+	return DeprecationError{
+		error: fmt.Errorf("relation %s#%s is deprecated", namespace, relation),
+	}
+}
+
 // MarshalZerologObject implements zerolog object marshalling.
 func (err SchemaWriteDataValidationError) MarshalZerologObject(e *zerolog.Event) {
 	e.Err(err.error)
@@ -201,6 +211,9 @@ func rewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 		}
 
 		return status.Errorf(codes.Canceled, "%s", err)
+	case errors.As(err, &DeprecationError{}):
+		log.Ctx(ctx).Err(err).Msg("using deprecated relation")
+		return status.Errorf(codes.Aborted, "%s", err)
 	default:
 		log.Ctx(ctx).Err(err).Msg("received unexpected error")
 		return err

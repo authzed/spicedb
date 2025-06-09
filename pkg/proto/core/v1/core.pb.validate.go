@@ -2782,6 +2782,8 @@ func (m *Relation) validate(all bool) error {
 
 	// no validation rules for CanonicalCacheKey
 
+	// no validation rules for DeprecationType
+
 	if len(errors) > 0 {
 		return RelationMultiError(errors)
 	}
@@ -3625,6 +3627,8 @@ func (m *AllowedRelation) validate(all bool) error {
 			}
 		}
 	}
+
+	// no validation rules for DeprecationType
 
 	switch v := m.RelationOrWildcard.(type) {
 	case *AllowedRelation_Relation:

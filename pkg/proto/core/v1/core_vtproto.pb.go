@@ -381,6 +381,7 @@ func (m *Relation) CloneVT() *Relation {
 	r.SourcePosition = m.SourcePosition.CloneVT()
 	r.AliasingRelation = m.AliasingRelation
 	r.CanonicalCacheKey = m.CanonicalCacheKey
+	r.DeprecationType = m.DeprecationType
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -516,6 +517,7 @@ func (m *AllowedRelation) CloneVT() *AllowedRelation {
 	r.SourcePosition = m.SourcePosition.CloneVT()
 	r.RequiredCaveat = m.RequiredCaveat.CloneVT()
 	r.RequiredExpiration = m.RequiredExpiration.CloneVT()
+	r.DeprecationType = m.DeprecationType
 	if m.RelationOrWildcard != nil {
 		r.RelationOrWildcard = m.RelationOrWildcard.(interface {
 			CloneVT() isAllowedRelation_RelationOrWildcard
@@ -1525,6 +1527,9 @@ func (this *Relation) EqualVT(that *Relation) bool {
 	if this.CanonicalCacheKey != that.CanonicalCacheKey {
 		return false
 	}
+	if this.DeprecationType != that.DeprecationType {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -1738,6 +1743,9 @@ func (this *AllowedRelation) EqualVT(that *AllowedRelation) bool {
 		return false
 	}
 	if !this.RequiredExpiration.EqualVT(that.RequiredExpiration) {
+		return false
+	}
+	if this.DeprecationType != that.DeprecationType {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -3438,6 +3446,11 @@ func (m *Relation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.DeprecationType != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DeprecationType))
+		i--
+		dAtA[i] = 0x40
+	}
 	if len(m.CanonicalCacheKey) > 0 {
 		i -= len(m.CanonicalCacheKey)
 		copy(dAtA[i:], m.CanonicalCacheKey)
@@ -3824,6 +3837,11 @@ func (m *AllowedRelation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
+	}
+	if m.DeprecationType != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DeprecationType))
+		i--
+		dAtA[i] = 0x40
 	}
 	if m.RequiredExpiration != nil {
 		size, err := m.RequiredExpiration.MarshalToSizedBufferVT(dAtA[:i])
@@ -5412,6 +5430,9 @@ func (m *Relation) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.DeprecationType != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.DeprecationType))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -5554,6 +5575,9 @@ func (m *AllowedRelation) SizeVT() (n int) {
 	if m.RequiredExpiration != nil {
 		l = m.RequiredExpiration.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.DeprecationType != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.DeprecationType))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -8497,6 +8521,25 @@ func (m *Relation) UnmarshalVT(dAtA []byte) error {
 			}
 			m.CanonicalCacheKey = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeprecationType", wireType)
+			}
+			m.DeprecationType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DeprecationType |= DeprecationType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -9548,6 +9591,25 @@ func (m *AllowedRelation) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeprecationType", wireType)
+			}
+			m.DeprecationType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DeprecationType |= DeprecationType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
