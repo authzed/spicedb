@@ -46,6 +46,10 @@ func Relation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations 
 		TypeInformation: typeInfo,
 	}
 
+	if err := setRelationDeprecationType(rel, allowedDirectRelations...); err != nil {
+		return nil, spiceerrors.MustBugf("failed to set deprecation type: %s", err.Error())
+	}
+
 	switch {
 	case rewrite != nil && len(allowedDirectRelations) == 0:
 		if err := SetRelationKind(rel, iv1.RelationMetadata_PERMISSION); err != nil {
@@ -91,6 +95,17 @@ func AllowedRelationWithCaveat(namespaceName string, relationName string, withCa
 			Relation: relationName,
 		},
 		RequiredCaveat: withCaveat,
+	}
+}
+
+// AllowedDeprecatedRelation creates a relation reference to an allowed relation that is deprecated.
+func AllowedDeprecatedRelation(namespaceName string, relationName string, deprecationType core.DeprecationType) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_Relation{
+			Relation: relationName,
+		},
+		DeprecationType: deprecationType,
 	}
 }
 
@@ -241,6 +256,18 @@ func setOperation(firstChild *core.SetOperation_Child, rest []*core.SetOperation
 	return &core.SetOperation{
 		Child: children,
 	}
+}
+
+// setRelationDeprecationType sets the deprecation type of a relation based on all of the deprecations of allowed direct relations.
+func setRelationDeprecationType(relation *core.Relation, allowedDirectRelations ...*core.AllowedRelation) error {
+	if len(allowedDirectRelations) > 0 {
+		for _, allowedRelation := range allowedDirectRelations {
+			if allowedRelation.DeprecationType != core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+				relation.DeprecationType = allowedRelation.DeprecationType
+			}
+		}
+	}
+	return nil
 }
 
 // Nil creates a child for a set operation that references the empty set.

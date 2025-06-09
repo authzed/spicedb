@@ -1,0 +1,58 @@
+NodeTypeFile
+  end-rune = 152
+  input-source = deprecated relation test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = deprecated_relation
+      end-rune = 132
+      input-source = deprecated relation test
+      start-rune = 0
+      child-node =>
+        NodeTypeDeprecated
+          deprecated-relation = warn
+          end-rune = 54
+          input-source = deprecated relation test
+          start-rune = 38
+        NodeTypeRelation
+          end-rune = 80
+          input-source = deprecated relation test
+          relation-name = writer
+          start-rune = 60
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 80
+              input-source = deprecated relation test
+              start-rune = 77
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 80
+                  input-source = deprecated relation test
+                  start-rune = 77
+                  type-name = user
+        NodeTypeDeprecated
+          deprecated-relation = error
+          end-rune = 104
+          input-source = deprecated relation test
+          start-rune = 87
+        NodeTypeRelation
+          end-rune = 130
+          input-source = deprecated relation test
+          relation-name = reader
+          start-rune = 110
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 130
+              input-source = deprecated relation test
+              start-rune = 127
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 130
+                  input-source = deprecated relation test
+                  start-rune = 127
+                  type-name = user
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 152
+      input-source = deprecated relation test
+      start-rune = 135
