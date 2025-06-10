@@ -80,8 +80,8 @@ func Schema(colOptimizationOpt common.ColumnOptimizationOption, withIntegrity bo
 			ColUsersetNamespace,
 			ColUsersetRelation,
 			ColNamespace,
-			ColObjectID,
 			ColRelation,
+			ColObjectID,
 		}),
 	)
 }
