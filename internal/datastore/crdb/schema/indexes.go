@@ -4,6 +4,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -103,12 +104,16 @@ func IndexForFilter(schema common.SchemaInformation, filter datastore.Relationsh
 		if len(filter.OptionalResourceIds) > 0 || filter.OptionalResourceIDPrefix != "" {
 			resourceFieldDepth = 2
 			if filter.OptionalResourceRelation != "" {
+				if filter.OptionalResourceIDPrefix != "" {
+					return nil // Cannot use an index with a prefix and a relation.
+				}
+
 				resourceFieldDepth = 3
 			}
 		}
 	}
 
-	subjectFieldDepth := 0
+	subjectFieldDepths := mapz.NewSet[int]()
 	for _, subjectSelector := range filter.OptionalSubjectsSelectors {
 		sfd := 0
 		if len(subjectSelector.OptionalSubjectIds) > 0 {
@@ -120,7 +125,16 @@ func IndexForFilter(schema common.SchemaInformation, filter datastore.Relationsh
 				}
 			}
 		}
-		subjectFieldDepth = max(subjectFieldDepth, sfd)
+		subjectFieldDepths.Add(sfd)
+	}
+
+	if subjectFieldDepths.Len() > 1 {
+		return nil
+	}
+
+	subjectFieldDepth := 0
+	if !subjectFieldDepths.IsEmpty() {
+		subjectFieldDepth = subjectFieldDepths.AsSlice()[0]
 	}
 
 	if resourceFieldDepth == 0 && subjectFieldDepth == 0 {
