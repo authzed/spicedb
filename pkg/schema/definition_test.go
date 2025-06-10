@@ -608,6 +608,24 @@ func TestTypeSystemAccessors(t *testing.T) {
 						_, err := vts.AllowedSubjectRelations("unknown")
 						require.Error(t, err)
 					})
+
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForSubject("unknown", "user")
+						require.Error(t, err)
+
+						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
+						require.Error(t, err)
+					})
 				},
 			},
 		},
@@ -684,6 +702,24 @@ func TestTypeSystemAccessors(t *testing.T) {
 						allowed := noError(vts.AllowedSubjectRelations("viewer"))
 						requireSameSubjectRelations(t, allowed, userDirect)
 					})
+
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForSubject("unknown", "user")
+						require.Error(t, err)
+
+						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
+						require.Error(t, err)
+					})
 				},
 			},
 		},
@@ -758,6 +794,39 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 						allowed := noError(vts.AllowedSubjectRelations("member"))
 						requireSameSubjectRelations(t, allowed, userDirect, groupMember)
+					})
+
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("member", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("member", "group")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("other", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("three", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("three", "group")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForSubject("unknown", "user")
+						require.Error(t, err)
+
+						_, err = vts.PossibleTraitsForSubject("member", "thirdtype")
+						require.Error(t, err)
 					})
 				},
 			},
@@ -852,6 +921,29 @@ func TestTypeSystemAccessors(t *testing.T) {
 						allowed = noError(vts.AllowedSubjectRelations("onlycaveated"))
 						requireSameSubjectRelations(t, allowed, userDirect)
 					})
+
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("onlycaveated", "user")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForSubject("unknown", "user")
+						require.Error(t, err)
+
+						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
+						require.Error(t, err)
+					})
 				},
 			},
 		},
@@ -933,6 +1025,24 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 						allowed = noError(vts.AllowedSubjectRelations("viewer"))
 						requireSameSubjectRelations(t, allowed, userDirect)
+					})
+
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForSubject("unknown", "user")
+						require.Error(t, err)
+
+						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
+						require.Error(t, err)
 					})
 				},
 			},

@@ -83,9 +83,11 @@ type QueryOptions struct {
 type ReverseQueryOptions struct {
 	ResRelation *ResourceRelation `debugmap:"visible"`
 
-	LimitForReverse *uint64   `debugmap:"visible"`
-	SortForReverse  SortOrder `debugmap:"visible"`
-	AfterForReverse Cursor    `debugmap:"visible"`
+	LimitForReverse          *uint64   `debugmap:"visible"`
+	SortForReverse           SortOrder `debugmap:"visible"`
+	AfterForReverse          Cursor    `debugmap:"visible"`
+	SkipCaveatsForReverse    bool      `debugmap:"visible"`
+	SkipExpirationForReverse bool      `debugmap:"visible"`
 
 	// SQLExplainCallbackForTestForReverse is a callback invoked with the explain plan of the SQL query string.
 	// For testing and validation only.
