@@ -214,11 +214,11 @@ func (r *memdbReader) ReverseQueryRelationships(
 		fallthrough
 
 	case options.ByResource:
-		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.LimitForReverse, false, false)
+		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.LimitForReverse, queryOpts.SkipCaveatsForReverse, queryOpts.SkipExpirationForReverse)
 		return iter, nil
 
 	case options.BySubject:
-		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.LimitForReverse, false, false)
+		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.LimitForReverse, queryOpts.SkipCaveatsForReverse, queryOpts.SkipExpirationForReverse)
 
 	default:
 		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.SortForReverse)

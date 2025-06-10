@@ -157,6 +157,8 @@ func (r *ReverseQueryOptions) ToOption() ReverseQueryOptionsOption {
 		to.LimitForReverse = r.LimitForReverse
 		to.SortForReverse = r.SortForReverse
 		to.AfterForReverse = r.AfterForReverse
+		to.SkipCaveatsForReverse = r.SkipCaveatsForReverse
+		to.SkipExpirationForReverse = r.SkipExpirationForReverse
 		to.SQLExplainCallbackForTestForReverse = r.SQLExplainCallbackForTestForReverse
 		to.QueryShapeForReverse = r.QueryShapeForReverse
 	}
@@ -169,6 +171,8 @@ func (r ReverseQueryOptions) DebugMap() map[string]any {
 	debugMap["LimitForReverse"] = helpers.DebugValue(r.LimitForReverse, false)
 	debugMap["SortForReverse"] = helpers.DebugValue(r.SortForReverse, false)
 	debugMap["AfterForReverse"] = helpers.DebugValue(r.AfterForReverse, false)
+	debugMap["SkipCaveatsForReverse"] = helpers.DebugValue(r.SkipCaveatsForReverse, false)
+	debugMap["SkipExpirationForReverse"] = helpers.DebugValue(r.SkipExpirationForReverse, false)
 	debugMap["SQLExplainCallbackForTestForReverse"] = helpers.DebugValue(r.SQLExplainCallbackForTestForReverse, false)
 	debugMap["QueryShapeForReverse"] = helpers.DebugValue(r.QueryShapeForReverse, false)
 	return debugMap
@@ -215,6 +219,20 @@ func WithSortForReverse(sortForReverse SortOrder) ReverseQueryOptionsOption {
 func WithAfterForReverse(afterForReverse Cursor) ReverseQueryOptionsOption {
 	return func(r *ReverseQueryOptions) {
 		r.AfterForReverse = afterForReverse
+	}
+}
+
+// WithSkipCaveatsForReverse returns an option that can set SkipCaveatsForReverse on a ReverseQueryOptions
+func WithSkipCaveatsForReverse(skipCaveatsForReverse bool) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.SkipCaveatsForReverse = skipCaveatsForReverse
+	}
+}
+
+// WithSkipExpirationForReverse returns an option that can set SkipExpirationForReverse on a ReverseQueryOptions
+func WithSkipExpirationForReverse(skipExpirationForReverse bool) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.SkipExpirationForReverse = skipExpirationForReverse
 	}
 }
 

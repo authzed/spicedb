@@ -349,38 +349,58 @@ func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 // the given subject type does not accept any caveats or traits on the given relation. If the relation does not have type information,
 // returns an error.
 func (def *Definition) RelationDoesNotAllowCaveatsOrTraitsForSubject(relationName string, subjectTypeName string) (bool, error) {
+	possibleTraits, err := def.PossibleTraitsForSubject(relationName, subjectTypeName)
+	if err != nil {
+		return false, err
+	}
+
+	return !possibleTraits.AllowsCaveats && !possibleTraits.AllowsExpiration, nil
+}
+
+// Traits represents the traits that a relation allows for a subject type.
+type Traits struct {
+	// AllowsCaveats indicates whether the relation allows caveats on the subject type.
+	AllowsCaveats bool
+
+	// AllowsExpiration indicates whether the relation allows expiration on the subject type.
+	AllowsExpiration bool
+}
+
+// PossibleTraitsForSubject returns the traits that are possible for the given subject type on the specified relation.
+func (def *Definition) PossibleTraitsForSubject(relationName string, subjectTypeName string) (Traits, error) {
 	relation, ok := def.relationMap[relationName]
 	if !ok {
-		return false, NewRelationNotFoundErr(def.nsDef.Name, relationName)
+		return Traits{}, NewRelationNotFoundErr(def.nsDef.Name, relationName)
 	}
 
 	typeInfo := relation.GetTypeInformation()
 	if typeInfo == nil {
-		return false, NewTypeWithSourceError(
+		return Traits{}, NewTypeWithSourceError(
 			fmt.Errorf("relation `%s` does not have type information", relationName),
 			relation, relationName,
 		)
 	}
 
 	foundSubjectType := false
+	foundTraits := Traits{}
 	for _, allowedRelation := range typeInfo.GetAllowedDirectRelations() {
 		if allowedRelation.GetNamespace() == subjectTypeName {
 			foundSubjectType = true
 			if allowedRelation.GetRequiredCaveat() != nil && allowedRelation.GetRequiredCaveat().CaveatName != "" {
-				return false, nil
+				foundTraits.AllowsCaveats = true
 			}
 			if allowedRelation.GetRequiredExpiration() != nil {
-				return false, nil
+				foundTraits.AllowsExpiration = true
 			}
 		}
 	}
 
 	if !foundSubjectType {
-		return false, NewTypeWithSourceError(
+		return Traits{}, NewTypeWithSourceError(
 			fmt.Errorf("relation `%s` does not allow subject type `%s`", relationName, subjectTypeName),
 			relation, relationName,
 		)
 	}
 
-	return true, nil
+	return foundTraits, nil
 }

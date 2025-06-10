@@ -303,6 +303,19 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 	))
 	defer span.End()
 
+	vts, err := config.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
+	if err != nil {
+		return err
+	}
+
+	possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.Relation, config.subjectsFilter.SubjectType)
+	if err != nil {
+		return err
+	}
+
+	skipCaveats := !possibleTraits.AllowsCaveats
+	skipExpiration := !possibleTraits.AllowsExpiration
+
 	return withDatastoreCursorInCursor(ctx, config.ci, config.parentStream, config.concurrencyLimit,
 		// Find the target resources for the subject.
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[dispatchableResourcesSubjectMap2], error) {
@@ -316,6 +329,8 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 				options.WithSortForReverse(options.BySubject),
 				options.WithAfterForReverse(queryCursor),
 				options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
+				options.WithSkipCaveatsForReverse(skipCaveats),
+				options.WithSkipExpirationForReverse(skipExpiration),
 			)
 			if err != nil {
 				return nil, err

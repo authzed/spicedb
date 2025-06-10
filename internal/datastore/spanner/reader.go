@@ -174,6 +174,8 @@ func (sr spannerReader) ReverseQueryRelationships(
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),
+		options.WithSkipCaveats(queryOpts.SkipCaveatsForReverse),
+		options.WithSkipExpiration(queryOpts.SkipExpirationForReverse),
 		options.WithQueryShape(queryOpts.QueryShapeForReverse),
 		options.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
 	)
