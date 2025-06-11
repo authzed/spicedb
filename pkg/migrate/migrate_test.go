@@ -46,7 +46,7 @@ type fakeTx struct{}
 
 func TestContextError(t *testing.T) {
 	req := require.New(t)
-	ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(1*time.Millisecond))
+	ctx, cancelFunc := context.WithDeadline(t.Context(), time.Now().Add(1*time.Millisecond))
 	m := NewManager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]()
 
 	err := m.Register("1", "", func(ctx context.Context, conn fakeConnPool) error {
@@ -185,10 +185,10 @@ func TestManagerEnsureVersionIsWritten(t *testing.T) {
 	err := m.Register("0", "", noNonatomicMigration, noTxMigration)
 	req.NoError(err)
 	drv := &fakeDriver{}
-	err = m.Run(context.Background(), drv, "0", LiveRun)
+	err = m.Run(t.Context(), drv, "0", LiveRun)
 	req.Error(err)
 
-	writtenVer, err := drv.Version(context.Background())
+	writtenVer, err := drv.Version(t.Context())
 	req.NoError(err)
 	req.Equal("", writtenVer)
 }

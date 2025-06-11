@@ -419,7 +419,7 @@ func TestDefinition(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				err := rwt.WriteNamespaces(ctx, tc.toCheck)
@@ -1057,7 +1057,7 @@ func TestTypeSystemAccessors(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+			ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
 
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -1065,7 +1065,7 @@ func TestTypeSystemAccessors(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			reader := ds.SnapshotReader(lastRevision)

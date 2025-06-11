@@ -118,7 +118,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				mock.On("optimizedRevisionFunc").Return(callSpec.rev, callSpec.validFor, nil).Once()
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 			defer cancel()
 
 			for _, expectedRevSet := range tc.expectedRevisions {
@@ -160,7 +160,7 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 		After(50 * time.Millisecond).
 		Once()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	g := errgroup.Group{}
@@ -198,7 +198,7 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 		return rev, time.Duration(validForNS) * time.Nanosecond, nil
 	})
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			if _, err := or.OptimizedRevision(ctx); err != nil {
@@ -220,7 +220,7 @@ func TestSingleFlightError(t *testing.T) {
 		Return(one, time.Duration(0), errors.New("fail")).
 		Once()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	_, err := or.OptimizedRevision(ctx)

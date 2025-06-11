@@ -216,7 +216,7 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 		}
 		serverOptions = append(serverOptions, additionalServerOptions...)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		srv, err := server.NewConfigWithOptionsAndDefaults(serverOptions...).Complete(ctx)
 		require.NoError(t, err)
 

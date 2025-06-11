@@ -1,7 +1,6 @@
 package releases
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +35,7 @@ func TestGetLatestRelease(t *testing.T) {
 			},
 		}
 
-		release, err := getLatestReleaseWithClient(context.Background(), httpClient)
+		release, err := getLatestReleaseWithClient(t.Context(), httpClient)
 		require.NoError(t, err)
 		require.NotNil(t, release)
 		require.Equal(t, "v1.5.6", release.Version)
@@ -56,7 +55,7 @@ func TestGetLatestRelease(t *testing.T) {
 			},
 		}
 
-		release, err := getLatestReleaseWithClient(context.Background(), httpClient)
+		release, err := getLatestReleaseWithClient(t.Context(), httpClient)
 		require.Error(t, err)
 		require.Nil(t, release)
 	})
@@ -74,7 +73,7 @@ func TestGetLatestRelease(t *testing.T) {
 			},
 		}
 
-		release, err := getLatestReleaseWithClient(context.Background(), httpClient)
+		release, err := getLatestReleaseWithClient(t.Context(), httpClient)
 		require.Error(t, err)
 		require.Nil(t, release)
 	})

@@ -1,7 +1,6 @@
 package namespace
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -428,9 +427,9 @@ func TestCanonicalization(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
@@ -557,7 +556,7 @@ func TestCanonicalizationComparison(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			schemaText := fmt.Sprintf(comparisonSchemaTemplate, tc.first, tc.second)
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -566,7 +565,7 @@ func TestCanonicalizationComparison(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))

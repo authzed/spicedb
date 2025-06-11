@@ -1,7 +1,6 @@
 package test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ func UseAfterCloseTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// Attempt to use and ensure an error is returned.
-	_, err = ds.HeadRevision(context.Background())
+	_, err = ds.HeadRevision(t.Context())
 	require.Error(err)
 }
 
@@ -33,7 +32,7 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	ds, revision := testfixtures.StandardDatastoreWithCaveatedData(rawDS, require.New(t))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Ensure at least a few relationships and namespaces exist.
 	reader := ds.SnapshotReader(revision)

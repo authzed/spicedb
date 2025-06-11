@@ -65,10 +65,10 @@ func TestWriteWithPredefinedIntegrity(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Panics(t, func() {
-		_, _ = pds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		_, _ = pds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 			rel := tuple.MustParse("resource:foo#viewer@user:tom")
 			rel.OptionalIntegrity = &core.RelationshipIntegrity{}
-			return tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+			return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
 				tuple.Create(rel),
 			})
 		})
@@ -80,9 +80,9 @@ func TestReadWithMissingIntegrity(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship to the underlying datastore without integrity information.
-	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		rel := tuple.MustParse("resource:foo#viewer@user:tom")
-		return tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+		return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
 			tuple.Create(rel),
 		})
 	})
@@ -92,12 +92,12 @@ func TestReadWithMissingIntegrity(t *testing.T) {
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
 	require.NoError(t, err)
 
-	headRev, err := pds.HeadRevision(context.Background())
+	headRev, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	reader := pds.SnapshotReader(headRev)
 	iter, err := reader.QueryRelationships(
-		context.Background(),
+		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
 	)
 	require.NoError(t, err)
@@ -115,8 +115,8 @@ func TestBasicIntegrityFailureDueToInvalidHashVersion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some relationships.
-	_, err = pds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+	_, err = pds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("resource:foo#viewer@user:tom")),
 			tuple.Create(tuple.MustParse("resource:foo#viewer@user:fred")),
 			tuple.Touch(tuple.MustParse("resource:bar#viewer@user:sarah")),
@@ -126,7 +126,7 @@ func TestBasicIntegrityFailureDueToInvalidHashVersion(t *testing.T) {
 
 	// Insert an invalid integrity hash for one of the relationships to be invalid by bypassing
 	// the proxy.
-	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		invalidTpl := tuple.MustParse("resource:foo#viewer@user:jimmy")
 		invalidTpl.OptionalIntegrity = &core.RelationshipIntegrity{
 			KeyId:    "defaultfortest",
@@ -134,19 +134,19 @@ func TestBasicIntegrityFailureDueToInvalidHashVersion(t *testing.T) {
 			HashedAt: timestamppb.Now(),
 		}
 
-		return tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+		return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
 			tuple.Create(invalidTpl),
 		})
 	})
 	require.NoError(t, err)
 
 	// Read them back and ensure the read fails.
-	headRev, err := pds.HeadRevision(context.Background())
+	headRev, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	reader := pds.SnapshotReader(headRev)
 	iter, err := reader.QueryRelationships(
-		context.Background(),
+		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
 	)
 	require.NoError(t, err)
@@ -164,8 +164,8 @@ func TestBasicIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some relationships.
-	_, err = pds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+	_, err = pds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("resource:foo#viewer@user:tom")),
 			tuple.Create(tuple.MustParse("resource:foo#viewer@user:fred")),
 			tuple.Touch(tuple.MustParse("resource:bar#viewer@user:sarah")),
@@ -175,7 +175,7 @@ func TestBasicIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 
 	// Insert an invalid integrity hash for one of the relationships to be invalid by bypassing
 	// the
-	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		invalidTpl := tuple.MustParse("resource:foo#viewer@user:jimmy")
 		invalidTpl.OptionalIntegrity = &core.RelationshipIntegrity{
 			KeyId:    "defaultfortest",
@@ -183,19 +183,19 @@ func TestBasicIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 			HashedAt: timestamppb.Now(),
 		}
 
-		return tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+		return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
 			tuple.Create(invalidTpl),
 		})
 	})
 	require.NoError(t, err)
 
 	// Read them back and ensure the read fails.
-	headRev, err := pds.HeadRevision(context.Background())
+	headRev, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	reader := pds.SnapshotReader(headRev)
 	iter, err := reader.QueryRelationships(
-		context.Background(),
+		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
 	)
 	require.NoError(t, err)
@@ -214,8 +214,8 @@ func TestBasicIntegrityFailureDueToWriteWithExpiredKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some relationships.
-	_, err = epds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+	_, err = epds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("resource:foo#viewer@user:tom")),
 			tuple.Create(tuple.MustParse("resource:foo#viewer@user:fred")),
 			tuple.Touch(tuple.MustParse("resource:bar#viewer@user:sarah")),
@@ -229,12 +229,12 @@ func TestBasicIntegrityFailureDueToWriteWithExpiredKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read them back and ensure the read fails.
-	headRev, err := pds.HeadRevision(context.Background())
+	headRev, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	reader := pds.SnapshotReader(headRev)
 	iter, err := reader.QueryRelationships(
-		context.Background(),
+		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
 	)
 	require.NoError(t, err)
@@ -248,17 +248,17 @@ func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
-	headRev, err := ds.HeadRevision(context.Background())
+	headRev, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
 	require.NoError(t, err)
 
-	watchEvents, errChan := pds.Watch(context.Background(), headRev, datastore.WatchJustRelationships())
+	watchEvents, errChan := pds.Watch(t.Context(), headRev, datastore.WatchJustRelationships())
 
 	// Insert an invalid integrity hash for one of the relationships to be invalid by bypassing
 	// the proxy.
-	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		invalidTpl := tuple.MustParse("resource:foo#viewer@user:jimmy")
 		invalidTpl.OptionalIntegrity = &core.RelationshipIntegrity{
 			KeyId:    "defaultfortest",
@@ -266,7 +266,7 @@ func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 			HashedAt: timestamppb.Now(),
 		}
 
-		return tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+		return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
 			tuple.Create(invalidTpl),
 		})
 	})
@@ -295,10 +295,10 @@ func BenchmarkQueryRelsWithIntegrity(b *testing.B) {
 			pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
 			require.NoError(b, err)
 
-			_, err = pds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			_, err = pds.ReadWriteTx(b.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				for i := 0; i < 1000; i++ {
 					rel := tuple.MustParse(fmt.Sprintf("resource:foo#viewer@user:user-%d", i))
-					if err := tx.WriteRelationships(context.Background(), []tuple.RelationshipUpdate{
+					if err := tx.WriteRelationships(b.Context(), []tuple.RelationshipUpdate{
 						tuple.Create(rel),
 					}); err != nil {
 						return err
@@ -309,7 +309,7 @@ func BenchmarkQueryRelsWithIntegrity(b *testing.B) {
 			})
 			require.NoError(b, err)
 
-			headRev, err := pds.HeadRevision(context.Background())
+			headRev, err := pds.HeadRevision(b.Context())
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -321,7 +321,7 @@ func BenchmarkQueryRelsWithIntegrity(b *testing.B) {
 					reader = ds.SnapshotReader(headRev)
 				}
 				iter, err := reader.QueryRelationships(
-					context.Background(),
+					b.Context(),
 					datastore.RelationshipsFilter{OptionalResourceType: "resource"},
 				)
 				require.NoError(b, err)

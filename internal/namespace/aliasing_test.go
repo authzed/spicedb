@@ -1,7 +1,6 @@
 package namespace
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -198,7 +197,7 @@ func TestAliasing(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
@@ -206,7 +205,7 @@ func TestAliasing(t *testing.T) {
 			def, err := schema.NewDefinition(ts, tc.toCheck)
 			require.NoError(err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			vdef, terr := def.Validate(ctx)
 			require.NoError(terr)
 

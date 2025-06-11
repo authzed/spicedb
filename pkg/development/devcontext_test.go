@@ -17,7 +17,7 @@ import (
 )
 
 func TestNewDevContextWithInvalidSchema(t *testing.T) {
-	_, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	_, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `invalid schema syntax`,
 	})
 
@@ -28,7 +28,7 @@ func TestNewDevContextWithInvalidSchema(t *testing.T) {
 }
 
 func TestNewDevContextWithInvalidRelationship(t *testing.T) {
-	_, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	_, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 definition document {
 	relation viewer: user
@@ -56,7 +56,7 @@ definition document {
 }
 
 func TestDevContextDispose(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}`,
 	})
 
@@ -78,7 +78,7 @@ func TestDevContextDisposeNilFields(t *testing.T) {
 }
 
 func TestDistinguishGraphError(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}`,
 	})
 
@@ -123,7 +123,7 @@ func TestDistinguishGraphError(t *testing.T) {
 }
 
 func TestRewriteACLError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test with namespace not found error
 	nsErr := namespace.NewNamespaceNotFoundErr("unknown")
@@ -159,7 +159,7 @@ func TestRewriteACLError(t *testing.T) {
 }
 
 func TestNewDevContextWithCaveatError(t *testing.T) {
-	_, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	_, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 caveat invalid_caveat(param unknown_type) {
@@ -178,7 +178,7 @@ definition document {
 }
 
 func TestNewDevContextWithRelationshipValidationError(t *testing.T) {
-	_, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	_, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {

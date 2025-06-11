@@ -82,7 +82,7 @@ func TestWriteTimeSeries(t *testing.T) {
 			}
 
 			client := &http.Client{}
-			err := writeTimeSeries(context.Background(), client, server.URL, ts)
+			err := writeTimeSeries(t.Context(), client, server.URL, ts)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -145,7 +145,7 @@ func TestDiscoverAndWriteMetrics(t *testing.T) {
 	registry.MustRegister(gauge)
 
 	client := &http.Client{}
-	err := discoverAndWriteMetrics(context.Background(), registry, client, server.URL)
+	err := discoverAndWriteMetrics(t.Context(), registry, client, server.URL)
 	require.NoError(t, err)
 
 	select {
@@ -232,7 +232,7 @@ func TestRemoteReporterWithServer(t *testing.T) {
 	reporter, err := RemoteReporter(registry, server.URL, "", 1*time.Minute)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Second)
 	defer cancel()
 
 	// Run reporter in background
@@ -277,7 +277,7 @@ func TestRemoteReporterErrorHandling(t *testing.T) {
 	reporter, err := RemoteReporter(registry, server.URL, "", 100*time.Millisecond) // Short interval for testing
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	// Run reporter in background
@@ -301,12 +301,12 @@ func TestRemoteReporterErrorHandling(t *testing.T) {
 }
 
 func TestDisabledReporter(t *testing.T) {
-	err := DisabledReporter(context.Background())
+	err := DisabledReporter(t.Context())
 	require.NoError(t, err)
 }
 
 func TestSilentlyDisabledReporter(t *testing.T) {
-	err := SilentlyDisabledReporter(context.Background())
+	err := SilentlyDisabledReporter(t.Context())
 	require.NoError(t, err)
 }
 
@@ -397,7 +397,7 @@ func TestRemoteReporterContextCancellation(t *testing.T) {
 	reporter, err := RemoteReporter(registry, server.URL, "", 1*time.Minute)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel immediately
 
 	err = reporter(ctx)
@@ -425,7 +425,7 @@ func TestWriteTimeSeriesRequestFormat(t *testing.T) {
 	}
 
 	client := &http.Client{}
-	err := writeTimeSeries(context.Background(), client, server.URL, ts)
+	err := writeTimeSeries(t.Context(), client, server.URL, ts)
 	require.NoError(t, err)
 
 	require.NotNil(t, capturedRequest)

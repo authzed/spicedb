@@ -1,7 +1,6 @@
 package datastore
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -19,7 +18,7 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestLoadDatastoreFromFileContents(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ds, err := NewDatastore(ctx,
 		SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition user{}")}),
 		WithEngine(MemoryEngine))
@@ -40,7 +39,7 @@ func TestLoadDatastoreFromFile(t *testing.T) {
 	_, err = file.Write([]byte("schema: definition user{}"))
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ds, err := NewDatastore(ctx,
 		SetBootstrapFiles([]string{file.Name()}),
 		WithEngine(MemoryEngine))
@@ -61,7 +60,7 @@ func TestLoadDatastoreFromFileAndContents(t *testing.T) {
 	_, err = file.Write([]byte("schema: definition repository{}"))
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ds, err := NewDatastore(ctx,
 		SetBootstrapFiles([]string{file.Name()}),
 		SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition user{}")}),

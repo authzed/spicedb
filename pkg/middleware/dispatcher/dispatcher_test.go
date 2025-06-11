@@ -116,7 +116,7 @@ func TestFromContext(t *testing.T) {
 
 	// Test with dispatcher in context
 	t.Run("with dispatcher", func(t *testing.T) {
-		ctx := dispatchermw.ContextWithHandle(context.Background())
+		ctx := dispatchermw.ContextWithHandle(t.Context())
 		require.NoError(t, dispatchermw.SetInContext(ctx, mockDisp))
 
 		result := FromContext(ctx)
@@ -126,7 +126,7 @@ func TestFromContext(t *testing.T) {
 
 	// Test without dispatcher in context
 	t.Run("without dispatcher", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		result := FromContext(ctx)
 		require.Nil(t, result)
 	})
@@ -137,7 +137,7 @@ func TestMustFromContext(t *testing.T) {
 
 	// Test with dispatcher in context
 	t.Run("with dispatcher", func(t *testing.T) {
-		ctx := dispatchermw.ContextWithHandle(context.Background())
+		ctx := dispatchermw.ContextWithHandle(t.Context())
 		require.NoError(t, dispatchermw.SetInContext(ctx, mockDisp))
 
 		result := MustFromContext(ctx)
@@ -147,7 +147,7 @@ func TestMustFromContext(t *testing.T) {
 
 	// Test without dispatcher in context (should panic)
 	t.Run("without dispatcher panics", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		require.Panics(t, func() {
 			MustFromContext(ctx)
 		})
@@ -182,7 +182,7 @@ func TestFromContextInUnaryGRPC(t *testing.T) {
 	client := grpc_testing.NewTestServiceClient(conn)
 
 	// Make unary call
-	_, err = client.UnaryCall(context.Background(), &grpc_testing.SimpleRequest{})
+	_, err = client.UnaryCall(t.Context(), &grpc_testing.SimpleRequest{})
 	require.NoError(t, err)
 
 	// Verify dispatcher was available in the service method
@@ -220,7 +220,7 @@ func TestMustFromContextInUnaryGRPC(t *testing.T) {
 	client := grpc_testing.NewTestServiceClient(conn)
 
 	// Make unary call
-	_, err = client.UnaryCall(context.Background(), &grpc_testing.SimpleRequest{})
+	_, err = client.UnaryCall(t.Context(), &grpc_testing.SimpleRequest{})
 	require.NoError(t, err)
 
 	// Verify dispatcher was available via MustFromContext
@@ -256,7 +256,7 @@ func TestFromContextInStreamingGRPC(t *testing.T) {
 	client := grpc_testing.NewTestServiceClient(conn)
 
 	// Make streaming call
-	stream, err := client.StreamingInputCall(context.Background())
+	stream, err := client.StreamingInputCall(t.Context())
 	require.NoError(t, err)
 
 	// Send at least one request before closing
@@ -304,7 +304,7 @@ func TestMustFromContextInStreamingGRPC(t *testing.T) {
 	client := grpc_testing.NewTestServiceClient(conn)
 
 	// Make streaming call
-	stream, err := client.StreamingInputCall(context.Background())
+	stream, err := client.StreamingInputCall(t.Context())
 	require.NoError(t, err)
 
 	// Send at least one request before closing

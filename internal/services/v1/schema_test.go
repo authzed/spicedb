@@ -1,7 +1,6 @@
 package v1_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
-	resp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	resp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}`,
 	})
 	require.NoError(t, err)
@@ -37,12 +36,12 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `invalid example/user {}`,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
-	_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	_, err = client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 }
 
@@ -51,7 +50,7 @@ func TestSchemaWriteInvalidNamespace(t *testing.T) {
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}
 		
 		definition document {
@@ -67,19 +66,19 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
-	_, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	_, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 
 	userSchema := "caveat someCaveat(somecondition int) {\n\tsomecondition == 42\n}\n\ndefinition example/document {\n\trelation viewer: example/user | example/user with someCaveat\n}\n\ndefinition example/user {}"
 
-	writeResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	writeResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: userSchema,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, writeResp.WrittenAt)
 	require.NotEmpty(t, writeResp.WrittenAt.Token)
 
-	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
 	require.Equal(t, userSchema, readback.SchemaText)
 	require.NotNil(t, readback.ReadAt)
@@ -93,7 +92,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	writeResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	writeResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -106,7 +105,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.NotEmpty(t, writeResp.WrittenAt.Token)
 
 	// Write a relationship for one of the relations.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
@@ -114,7 +113,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to delete the `somerelation` relation, which should fail.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -124,7 +123,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
 	// Attempt to delete the `anotherrelation` relation, which should succeed.
-	updateResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	updateResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -136,7 +135,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.NotEmpty(t, updateResp.WrittenAt.Token)
 
 	// Delete the relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
@@ -144,7 +143,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to delete the `somerelation` relation, which should succeed.
-	deleteRelResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	deleteRelResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 		
 			definition example/document {}`,
@@ -161,7 +160,7 @@ func TestSchemaDeletePermission(t *testing.T) {
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -173,7 +172,7 @@ func TestSchemaDeletePermission(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship for one of the relations.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
@@ -181,7 +180,7 @@ func TestSchemaDeletePermission(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to delete the `someperm` relation, which should succeed.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -199,7 +198,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -211,7 +210,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship for one of the relations.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#anotherrelation@example/user:someuser#..."),
 		))},
@@ -219,7 +218,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to change `anotherrelation` into a permission, which should fail since it has data.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -231,7 +230,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
 	// Delete the relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#anotherrelation@example/user:someuser#..."),
 		))},
@@ -239,7 +238,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to change `anotherrelation` into a permission, which should now succeed.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -258,7 +257,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -269,7 +268,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship for one of the relations.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
@@ -277,13 +276,13 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to delete the `document` type, which should fail.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}`,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
 	// Delete the relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
@@ -291,13 +290,13 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to  delete the `document` type, which should succeed.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}`,
 	})
 	require.Nil(t, err)
 
 	// Ensure it was deleted.
-	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
 	require.Equal(t, `definition example/user {}`, readback.SchemaText)
 }
@@ -309,7 +308,7 @@ func TestSchemaRemoveWildcard(t *testing.T) {
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -319,7 +318,7 @@ func TestSchemaRemoveWildcard(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write the wildcard relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
@@ -337,14 +336,14 @@ definition example/organization {
 definition example/user {}`
 
 	// Attempt to change the wildcard type, which should fail.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `example/user:*` from relation `somerelation` in object definition `example/document`, as a relationship exists with it", err.Error())
 
 	// Delete the relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
@@ -352,13 +351,13 @@ definition example/user {}`
 	require.Nil(t, err)
 
 	// Attempt to delete the wildcard type, which should work now.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
 	require.Nil(t, err)
 
 	// Ensure it was deleted.
-	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
 	require.Equal(t, newSchema, readback.SchemaText)
 }
@@ -370,7 +369,7 @@ func TestSchemaEmpty(t *testing.T) {
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -381,7 +380,7 @@ func TestSchemaEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship for one of the relations.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
@@ -389,13 +388,13 @@ func TestSchemaEmpty(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to empty the schema, which should fail.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: ``,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
 	// Delete the relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
@@ -403,7 +402,7 @@ func TestSchemaEmpty(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to empty the schema, which should succeed.
-	emptyResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	emptyResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: ``,
 	})
 	require.Nil(t, err)
@@ -411,7 +410,7 @@ func TestSchemaEmpty(t *testing.T) {
 	require.NotEmpty(t, emptyResp.WrittenAt.Token)
 
 	// Ensure it was deleted.
-	_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	_, err = client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 }
 
@@ -421,7 +420,7 @@ func TestSchemaTypeRedefined(t *testing.T) {
 	client := v1.NewSchemaServiceClient(conn)
 
 	// Write a schema that redefines the same type.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/user {}`,
@@ -442,7 +441,7 @@ func TestSchemaTypeInvalid(t *testing.T) {
 	client := v1.NewSchemaServiceClient(conn)
 
 	// Write a schema that references an invalid type.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -460,7 +459,7 @@ func TestSchemaRemoveCaveat(t *testing.T) {
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}
 
 		caveat somecaveat(a int, b int) {
@@ -483,7 +482,7 @@ func TestSchemaRemoveCaveat(t *testing.T) {
 		Context:    caveatCtx,
 	}
 
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			toWrite,
 		))},
@@ -497,14 +496,14 @@ func TestSchemaRemoveCaveat(t *testing.T) {
 definition user {}`
 
 	// Attempt to change the relation type, which should fail.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with somecaveat` from relation `somerelation` in object definition `document`, as a relationship exists with it", err.Error())
 
 	// Delete the relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			toWrite,
 		))},
@@ -512,13 +511,13 @@ definition user {}`
 	require.Nil(t, err)
 
 	// Attempt to delete the caveated type, which should work now.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
 	require.Nil(t, err)
 
 	// Ensure it was deleted.
-	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
 	require.Equal(t, newSchema, readback.SchemaText)
 }
@@ -530,7 +529,7 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 	client := v1.NewSchemaServiceClient(conn)
 
 	// Write a schema.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}
 	
 		definition document {
@@ -541,7 +540,7 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update the schema.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}
 	
 		definition document {
@@ -551,15 +550,15 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure the `user` definition was not modified.
-	rev, err := ds.HeadRevision(context.Background())
+	rev, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	reader := ds.SnapshotReader(rev)
 
-	_, userRevision, err := reader.ReadNamespaceByName(context.Background(), "user")
+	_, userRevision, err := reader.ReadNamespaceByName(t.Context(), "user")
 	require.NoError(t, err)
 
-	_, docRevision, err := reader.ReadNamespaceByName(context.Background(), "document")
+	_, docRevision, err := reader.ReadNamespaceByName(t.Context(), "document")
 	require.NoError(t, err)
 
 	require.True(t, docRevision.GreaterThan(userRevision))
@@ -571,7 +570,7 @@ func TestSchemaInvalid(t *testing.T) {
 	client := v1.NewSchemaServiceClient(conn)
 
 	// Write a schema that references an invalid type.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition org {
 			relation admin: user
 			relation member: user
@@ -602,14 +601,14 @@ func TestSchemaChangeExpiration(t *testing.T) {
 		definition document {
 			relation somerelation: user with expiration
 		}`
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: originalSchema,
 	})
 	require.NoError(t, err)
 
 	// Write the relationship referencing the expiration.
 	toWrite := tuple.MustParse("document:somedoc#somerelation@user:tom[expiration:2300-01-01T00:00:00Z]")
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			toWrite,
 		))},
@@ -619,14 +618,14 @@ func TestSchemaChangeExpiration(t *testing.T) {
 	newSchema := "definition document {\n\trelation somerelation: user\n}\n\ndefinition user {}"
 
 	// Attempt to change the relation type, which should fail.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with expiration` from relation `somerelation` in object definition `document`, as a relationship exists with it", err.Error())
 
 	// Delete the relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			toWrite,
 		))},
@@ -634,19 +633,19 @@ func TestSchemaChangeExpiration(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to delete the relation type, which should work now.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
 	require.Nil(t, err)
 
 	// Ensure it was deleted.
-	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
 	require.Equal(t, newSchema, readback.SchemaText)
 
 	// Add the relationship back without expiration.
 	toWriteWithoutExp := tuple.MustParse("document:somedoc#somerelation@user:tom")
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			toWriteWithoutExp,
 		))},
@@ -654,7 +653,7 @@ func TestSchemaChangeExpiration(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to change the relation type back to including expiration, which should fail.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: originalSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
@@ -676,14 +675,14 @@ func TestSchemaChangeExpirationAllowed(t *testing.T) {
 		definition document {
 			relation somerelation: user | user with expiration
 		}`
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: originalSchema,
 	})
 	require.NoError(t, err)
 
 	// Write the relationship without referencing the expiration.
 	toWrite := tuple.MustParse("document:somedoc#somerelation@user:tom")
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			toWrite,
 		))},
@@ -693,13 +692,13 @@ func TestSchemaChangeExpirationAllowed(t *testing.T) {
 	newSchema := "definition document {\n\trelation somerelation: user\n}\n\ndefinition user {}"
 
 	// Attempt to change the schema to remove the expiration, which should work.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
 	require.NoError(t, err)
 
 	// Ensure it was deleted.
-	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
 	require.Equal(t, newSchema, readback.SchemaText)
 }
@@ -770,12 +769,12 @@ func TestSchemaDiff(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Write the existing schema.
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tt.existingSchema,
 			})
 			require.NoError(t, err)
 
-			actual, err := schemaClient.DiffSchema(context.Background(), &v1.DiffSchemaRequest{
+			actual, err := schemaClient.DiffSchema(t.Context(), &v1.DiffSchemaRequest{
 				ComparisonSchema: tt.comparisonSchema,
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
@@ -1183,12 +1182,12 @@ definition user {}`,
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Write the schema.
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tt.schema,
 			})
 			require.NoError(t, err)
 
-			actual, err := schemaClient.ReflectSchema(context.Background(), &v1.ReflectSchemaRequest{
+			actual, err := schemaClient.ReflectSchema(t.Context(), &v1.ReflectSchemaRequest{
 				OptionalFilters: tt.filters,
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
@@ -1414,12 +1413,12 @@ func TestDependentRelations(t *testing.T) {
 			defer cleanup()
 
 			// Write the schema.
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tc.schema,
 			})
 			require.NoError(t, err)
 
-			actual, err := schemaClient.DependentRelations(context.Background(), &v1.DependentRelationsRequest{
+			actual, err := schemaClient.DependentRelations(t.Context(), &v1.DependentRelationsRequest{
 				DefinitionName: tc.definitionName,
 				PermissionName: tc.permissionName,
 				Consistency: &v1.Consistency{
@@ -1613,12 +1612,12 @@ func TestComputablePermissions(t *testing.T) {
 			defer cleanup()
 
 			// Write the schema.
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tc.schema,
 			})
 			require.NoError(t, err)
 
-			actual, err := schemaClient.ComputablePermissions(context.Background(), &v1.ComputablePermissionsRequest{
+			actual, err := schemaClient.ComputablePermissions(t.Context(), &v1.ComputablePermissionsRequest{
 				DefinitionName:               tc.definitionName,
 				RelationName:                 tc.relationName,
 				OptionalDefinitionNameFilter: tc.filter,

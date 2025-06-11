@@ -322,7 +322,7 @@ func TestMaxDepthLookup2(t *testing.T) {
 	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 
@@ -763,7 +763,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 
 					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-					ctx := datastoremw.ContextWithHandle(context.Background())
+					ctx := datastoremw.ContextWithHandle(t.Context())
 					require.NoError(datastoremw.SetInContext(ctx, ds))
 
 					var currentCursor *v1.Cursor
@@ -842,7 +842,7 @@ func TestLookupResources2ImmediateTimeout(t *testing.T) {
 	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 	cctx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
 	defer cancel()
 
@@ -877,7 +877,7 @@ func TestLookupResources2WithError(t *testing.T) {
 	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 	cctx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
 	defer cancel()
 
@@ -1357,7 +1357,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 			defer dispatcher.Close()
 
-			ctx := datastoremw.ContextWithHandle(context.Background())
+			ctx := datastoremw.ContextWithHandle(t.Context())
 			cctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 			defer cancel()
 

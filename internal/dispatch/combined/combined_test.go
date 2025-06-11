@@ -1,7 +1,6 @@
 package combined
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,7 +20,7 @@ func TestCombinedRecursiveCall(t *testing.T) {
 
 	t.Cleanup(func() { dispatcher.Close() })
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)

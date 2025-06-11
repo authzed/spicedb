@@ -1,7 +1,6 @@
 package schemacaching
 
 import (
-	"context"
 	"os"
 	"path"
 	"path/filepath"
@@ -51,7 +50,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, memdb.DisableGC)
 			require.NoError(err)
 
-			fullyResolved, _, err := validationfile.PopulateFromFiles(context.Background(), ds, caveattypes.Default.TypeSet, []string{filePath})
+			fullyResolved, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{filePath})
 			require.NoError(err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {

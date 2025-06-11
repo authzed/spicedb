@@ -131,7 +131,7 @@ func TestPopulateFromFiles(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, 0)
 			require.NoError(err)
 
-			parsed, _, err := PopulateFromFiles(context.Background(), ds, caveattypes.Default.TypeSet, tt.filePaths)
+			parsed, _, err := PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, tt.filePaths)
 			if tt.expectedError == "" {
 				require.NoError(err)
 
@@ -158,7 +158,7 @@ func TestPopulationChunking(t *testing.T) {
 	require.NoError(err)
 
 	cs := txCountingDatastore{delegate: ds}
-	_, _, err = PopulateFromFiles(context.Background(), &cs, caveattypes.Default.TypeSet, []string{"testdata/requires_chunking.yaml"})
+	_, _, err = PopulateFromFiles(t.Context(), &cs, caveattypes.Default.TypeSet, []string{"testdata/requires_chunking.yaml"})
 	require.NoError(err)
 	require.Equal(3, cs.count)
 }

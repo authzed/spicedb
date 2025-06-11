@@ -50,7 +50,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 			defer ds.Close()
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ok, err := ds.ReadyState(ctx)
 			require.NoError(err)
@@ -268,7 +268,7 @@ func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
 
 	for _, tc := range testCases {
 		t.Run(tc, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			require := require.New(t)
 
 			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
@@ -399,7 +399,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
@@ -451,7 +451,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 
 		setupDatastore(ds, require)
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Check that we get an error when there are no revisions
 		err = ds.CheckRevision(ctx, datastore.NoRevision)
@@ -493,7 +493,7 @@ func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
@@ -514,7 +514,7 @@ func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write the relationship.
@@ -549,7 +549,7 @@ func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tpl := makeTestRel("foo", "tom")
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
@@ -576,7 +576,7 @@ func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tpl1 := makeTestRel("foo", "tom")
 	tpl2 := makeTestRel("foo", "sarah")
@@ -606,7 +606,7 @@ func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tpl1 := makeTestRel("foo", "tom")
 	tpl2 := makeTestRel("foo", "sarah")
@@ -636,7 +636,7 @@ func CreateDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tpl1 := makeTestRel("foo", "tom")
 	tpl2 := makeTestRel("foo", "sarah")
@@ -665,7 +665,7 @@ func DeleteOneThousandIndividualInOneCallTest(t *testing.T, tester DatastoreTest
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Write the 1000 relationships.
 	relationships := make([]tuple.Relationship, 0, 1000)
@@ -700,7 +700,7 @@ func DeleteWithInvalidPrefixTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
@@ -720,7 +720,7 @@ func DeleteWithPrefixTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Write some relationships.
 	rels := make([]tuple.Relationship, 0, 100)
@@ -831,7 +831,7 @@ func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Write the 100 relationships.
 	rels := make([]tuple.Relationship, 0, 100)
@@ -921,7 +921,7 @@ func DeleteWithLimitTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Write the 1000 relationships.
 	rels := make([]tuple.Relationship, 0, 1000)
@@ -975,7 +975,7 @@ func DeleteCaveatedTupleTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tpl, err := tuple.Parse("test/resource:someresource#viewer@test/user:someuser[somecaveat]")
 	require.NoError(err)
@@ -1097,7 +1097,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 
 					// Write the initial relationships.
 					ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-					ctx := context.Background()
+					ctx := t.Context()
 
 					allRelationships := mapz.NewSet[string]()
 					for _, rel := range tc.relationships {
@@ -1191,7 +1191,7 @@ func RecreateRelationshipsAfterDeleteWithFilter(t *testing.T, tester DatastoreTe
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	relationships := make([]tuple.Relationship, 100)
 	for i := 0; i < 100; i++ {
@@ -1767,7 +1767,7 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			require.NoError(err)
 
 			ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			for _, rel := range tc.relationships {
 				tpl := tuple.MustParse(rel)
@@ -1801,7 +1801,7 @@ func RelationshipCaveatFilteringTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a relationship without a caveat.
 	rel1, err := tuple.Parse("document:foo#viewer@user:tom")
@@ -1872,7 +1872,7 @@ func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a relationship that expires in the future.
 	rel1, err := tuple.Parse("document:foo#expiring_viewer@user:tom[expiration:2900-01-01T00:00:00Z]")
@@ -1927,7 +1927,7 @@ func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tpl1, err := tuple.Parse("document:foo#viewer@user:tom")
 	require.NoError(err)
@@ -1949,7 +1949,7 @@ func TypedTouchAlreadyExistingWithCaveatTest(t *testing.T, tester DatastoreTeste
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ctpl1, err := tuple.Parse("document:foo#caveated_viewer@user:tom[test:{\"foo\":\"bar\"}]")
 	require.NoError(err)
@@ -1974,7 +1974,7 @@ func CreateTouchDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tpl1 := makeTestRel("foo", "tom")
 	tpl2 := makeTestRel("foo", "sarah")
@@ -2008,7 +2008,7 @@ func TouchAlreadyExistingCaveatedTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tpl1 := tuple.MustWithCaveat(makeTestRel("foo", "tom"), "formercaveat")
 	tpl2 := makeTestRel("foo", "sarah")
@@ -2033,7 +2033,7 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		it, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -2066,7 +2066,7 @@ func WriteAndReadInRWT(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write a relationship.
@@ -2098,7 +2098,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	g := errgroup.Group{}
 
@@ -2158,7 +2158,7 @@ func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Write a bunch of relationships.
 	t.Log(time.Now(), "starting write")

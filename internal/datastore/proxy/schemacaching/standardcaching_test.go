@@ -164,35 +164,35 @@ func TestSnapshotCaching(t *testing.T) {
 			require := require.New(t)
 			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
-			_, updatedOneA, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(one), nsA)
+			_, updatedOneA, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsA)
 			require.NoError(err)
 			require.True(old.Equal(updatedOneA))
 
-			_, updatedOneAAgain, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(one), nsA)
+			_, updatedOneAAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsA)
 			require.NoError(err)
 			require.True(old.Equal(updatedOneAAgain))
 
-			_, updatedOneB, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(one), nsB)
+			_, updatedOneB, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsB)
 			require.NoError(err)
 			require.True(zero.Equal(updatedOneB))
 
-			_, updatedOneBAgain, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(one), nsB)
+			_, updatedOneBAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsB)
 			require.NoError(err)
 			require.True(zero.Equal(updatedOneBAgain))
 
-			_, updatedTwoA, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(two), nsA)
+			_, updatedTwoA, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsA)
 			require.NoError(err)
 			require.True(zero.Equal(updatedTwoA))
 
-			_, updatedTwoAAgain, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(two), nsA)
+			_, updatedTwoAAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsA)
 			require.NoError(err)
 			require.True(zero.Equal(updatedTwoAAgain))
 
-			_, updatedTwoB, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(two), nsB)
+			_, updatedTwoB, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsB)
 			require.NoError(err)
 			require.True(one.Equal(updatedTwoB))
 
-			_, updatedTwoBAgain, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(two), nsB)
+			_, updatedTwoBAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsB)
 			require.NoError(err)
 			require.True(one.Equal(updatedTwoBAgain))
 
@@ -215,7 +215,7 @@ func TestRWTCaching(t *testing.T) {
 			dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
 			rwtMock.On(tester.readSingleFunctionName, nsA).Return(nil, zero, nil).Once()
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
@@ -252,7 +252,7 @@ func TestRWTCacheWithWrites(t *testing.T) {
 			dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
 			rwtMock.On(tester.readSingleFunctionName, nsA).Return(nil, zero, tester.notFoundErr).Once()
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
@@ -308,7 +308,7 @@ func TestSingleFlight(t *testing.T) {
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
 			readNamespace := func() error {
-				_, updatedAt, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(one), nsA)
+				_, updatedAt, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsA)
 				require.NoError(err)
 				require.True(old.Equal(updatedAt))
 				return err
@@ -370,7 +370,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ds := NewCachingDatastoreProxy(rawDS, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
 			if tc.nsDef != nil {
@@ -429,8 +429,8 @@ func TestSingleFlightCancelled(t *testing.T) {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
-			ctx1, cancel1 := context.WithCancel(context.Background())
-			ctx2, cancel2 := context.WithCancel(context.Background())
+			ctx1, cancel1 := context.WithCancel(t.Context())
+			ctx2, cancel2 := context.WithCancel(t.Context())
 			defer cancel2()
 			defer cancel1()
 
@@ -482,11 +482,11 @@ func TestMixedCaching(t *testing.T) {
 			dsReader := ds.SnapshotReader(one)
 
 			// Lookup name A
-			_, _, err := tester.readSingleFunc(context.Background(), dsReader, nsA)
+			_, _, err := tester.readSingleFunc(t.Context(), dsReader, nsA)
 			require.NoError(err)
 
 			// Lookup A and B, which should only lookup B and use A from cache.
-			found, err := tester.lookupFunc(context.Background(), dsReader, []string{nsA, nsB})
+			found, err := tester.lookupFunc(t.Context(), dsReader, []string{nsA, nsB})
 			require.NoError(err)
 			require.Equal(2, len(found))
 
@@ -499,7 +499,7 @@ func TestMixedCaching(t *testing.T) {
 			require.True(names.Has(nsB))
 
 			// Lookup A and B, which should use both from cache.
-			foundAgain, err := tester.lookupFunc(context.Background(), dsReader, []string{nsA, nsB})
+			foundAgain, err := tester.lookupFunc(t.Context(), dsReader, []string{nsA, nsB})
 			require.NoError(err)
 			require.Equal(2, len(foundAgain))
 
@@ -524,7 +524,7 @@ func TestInvalidNamespaceInCache(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memoryDatastore, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
@@ -555,7 +555,7 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	memoryDatastore, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)

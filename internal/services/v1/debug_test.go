@@ -1,7 +1,6 @@
 package v1_test
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -494,7 +493,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 			for _, stc := range tc.toTest {
@@ -891,7 +890,7 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 			items := make([]*v1.CheckBulkPermissionsRequestItem, 0, len(tc.toTest))

@@ -21,11 +21,11 @@ func TestIndexCheckingMissingIndex(t *testing.T) {
 	wrapped := WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	require.NotNil(t, wrapped.(*indexcheckingProxy).delegate)
 
-	headRev, err := ds.HeadRevision(context.Background())
+	headRev, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	reader := wrapped.SnapshotReader(headRev)
-	it, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	it, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"somedoc"},
 		OptionalResourceRelation: "viewer",
@@ -49,11 +49,11 @@ func TestIndexCheckingFoundIndex(t *testing.T) {
 	wrapped := WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	require.NotNil(t, wrapped.(*indexcheckingProxy).delegate)
 
-	headRev, err := ds.HeadRevision(context.Background())
+	headRev, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	reader := wrapped.SnapshotReader(headRev)
-	it, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	it, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"somedoc"},
 		OptionalResourceRelation: "viewer",
@@ -97,18 +97,18 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 	})
 
 	t.Run("OptimizedRevision", func(t *testing.T) {
-		rev, err := proxy.OptimizedRevision(context.Background())
+		rev, err := proxy.OptimizedRevision(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, rev)
 	})
 
 	t.Run("CheckRevision", func(t *testing.T) {
-		err := proxy.CheckRevision(context.Background(), datastore.NoRevision)
+		err := proxy.CheckRevision(t.Context(), datastore.NoRevision)
 		require.NoError(t, err)
 	})
 
 	t.Run("HeadRevision", func(t *testing.T) {
-		rev, err := proxy.HeadRevision(context.Background())
+		rev, err := proxy.HeadRevision(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, rev)
 	})
@@ -120,13 +120,13 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 	})
 
 	t.Run("Watch", func(t *testing.T) {
-		changes, errs := proxy.Watch(context.Background(), nil, datastore.WatchOptions{})
+		changes, errs := proxy.Watch(t.Context(), nil, datastore.WatchOptions{})
 		require.Nil(t, changes)
 		require.Nil(t, errs)
 	})
 
 	t.Run("Features", func(t *testing.T) {
-		features, err := proxy.Features(context.Background())
+		features, err := proxy.Features(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, features)
 	})
@@ -138,7 +138,7 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 	})
 
 	t.Run("Statistics", func(t *testing.T) {
-		stats, err := proxy.Statistics(context.Background())
+		stats, err := proxy.Statistics(t.Context())
 		require.NoError(t, err)
 		require.Equal(t, datastore.Stats{}, stats)
 	})
@@ -149,7 +149,7 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 	})
 
 	t.Run("ReadyState", func(t *testing.T) {
-		state, err := proxy.ReadyState(context.Background())
+		state, err := proxy.ReadyState(t.Context())
 		require.NoError(t, err)
 		require.Equal(t, datastore.ReadyState{}, state)
 	})
@@ -166,57 +166,57 @@ func TestIndexCheckingReaderMethods(t *testing.T) {
 	reader := proxy.SnapshotReader(nil)
 
 	t.Run("CountRelationships", func(t *testing.T) {
-		count, err := reader.CountRelationships(context.Background(), "test")
+		count, err := reader.CountRelationships(t.Context(), "test")
 		require.Error(t, err)
 		require.Equal(t, -1, count)
 	})
 
 	t.Run("LookupCounters", func(t *testing.T) {
-		counters, err := reader.LookupCounters(context.Background())
+		counters, err := reader.LookupCounters(t.Context())
 		require.Error(t, err)
 		require.Nil(t, counters)
 	})
 
 	t.Run("ReadCaveatByName", func(t *testing.T) {
-		caveat, rev, err := reader.ReadCaveatByName(context.Background(), "test")
+		caveat, rev, err := reader.ReadCaveatByName(t.Context(), "test")
 		require.Error(t, err)
 		require.Nil(t, caveat)
 		require.Nil(t, rev)
 	})
 
 	t.Run("LookupCaveatsWithNames", func(t *testing.T) {
-		caveats, err := reader.LookupCaveatsWithNames(context.Background(), []string{"test"})
+		caveats, err := reader.LookupCaveatsWithNames(t.Context(), []string{"test"})
 		require.Error(t, err)
 		require.Nil(t, caveats)
 	})
 
 	t.Run("ListAllCaveats", func(t *testing.T) {
-		caveats, err := reader.ListAllCaveats(context.Background())
+		caveats, err := reader.ListAllCaveats(t.Context())
 		require.Error(t, err)
 		require.Nil(t, caveats)
 	})
 
 	t.Run("ListAllNamespaces", func(t *testing.T) {
-		namespaces, err := reader.ListAllNamespaces(context.Background())
+		namespaces, err := reader.ListAllNamespaces(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, namespaces)
 	})
 
 	t.Run("LookupNamespacesWithNames", func(t *testing.T) {
-		namespaces, err := reader.LookupNamespacesWithNames(context.Background(), []string{"test"})
+		namespaces, err := reader.LookupNamespacesWithNames(t.Context(), []string{"test"})
 		require.Error(t, err)
 		require.Nil(t, namespaces)
 	})
 
 	t.Run("ReadNamespaceByName", func(t *testing.T) {
-		ns, rev, err := reader.ReadNamespaceByName(context.Background(), "test")
+		ns, rev, err := reader.ReadNamespaceByName(t.Context(), "test")
 		require.Error(t, err)
 		require.Nil(t, ns)
 		require.Nil(t, rev)
 	})
 
 	t.Run("successful reverse query", func(t *testing.T) {
-		it, err := reader.ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{
+		it, err := reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{
 			SubjectType:        "user",
 			OptionalSubjectIds: []string{"tom"},
 		}, options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
@@ -236,7 +236,7 @@ func TestIndexCheckingRWT(t *testing.T) {
 	ds := fakeDatastore{}
 	proxy := newIndexCheckingDatastoreProxy(ds)
 
-	_, err := proxy.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err := proxy.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		indexRWT := rwt.(*indexcheckingRWT)
 
 		t.Run("RegisterCounter", func(t *testing.T) {
@@ -302,7 +302,7 @@ func TestMustEnsureIndexes(t *testing.T) {
 		ds := &fakeDatastoreWithParseError{}
 		reader := &indexcheckingReader{parent: ds}
 
-		err := reader.mustEnsureIndexes(context.Background(), "sql", nil, queryshape.CheckPermissionSelectDirectSubjects, "explain", options.SQLIndexInformation{
+		err := reader.mustEnsureIndexes(t.Context(), "sql", nil, queryshape.CheckPermissionSelectDirectSubjects, "explain", options.SQLIndexInformation{
 			ExpectedIndexNames: []string{"testindex"},
 		})
 		require.Error(t, err)
@@ -313,7 +313,7 @@ func TestMustEnsureIndexes(t *testing.T) {
 		ds := fakeDatastore{}
 		reader := &indexcheckingReader{parent: ds}
 
-		err := reader.mustEnsureIndexes(context.Background(), "sql", nil, queryshape.CheckPermissionSelectDirectSubjects, "explain", options.SQLIndexInformation{
+		err := reader.mustEnsureIndexes(t.Context(), "sql", nil, queryshape.CheckPermissionSelectDirectSubjects, "explain", options.SQLIndexInformation{
 			ExpectedIndexNames: []string{},
 		})
 		require.NoError(t, err)
@@ -323,7 +323,7 @@ func TestMustEnsureIndexes(t *testing.T) {
 		ds := &fakeDatastoreNoIndexes{}
 		reader := &indexcheckingReader{parent: ds}
 
-		err := reader.mustEnsureIndexes(context.Background(), "sql", nil, queryshape.CheckPermissionSelectDirectSubjects, "explain", options.SQLIndexInformation{
+		err := reader.mustEnsureIndexes(t.Context(), "sql", nil, queryshape.CheckPermissionSelectDirectSubjects, "explain", options.SQLIndexInformation{
 			ExpectedIndexNames: []string{"testindex"},
 		})
 		require.NoError(t, err)

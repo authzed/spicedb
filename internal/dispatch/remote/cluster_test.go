@@ -159,7 +159,7 @@ func TestDispatchTimeout(t *testing.T) {
 			}()
 
 			conn, err := grpchelpers.DialAndWait(
-				context.Background(),
+				t.Context(),
 				"",
 				grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 					return listener.Dial()
@@ -184,7 +184,7 @@ func TestDispatchTimeout(t *testing.T) {
 
 			// Invoke a dispatched "check" and ensure it times out, as the fake dispatch will wait
 			// longer than the configured timeout.
-			resp, err := dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+			resp, err := dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 				ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 				ResourceIds:      []string{"foo"},
 				Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
@@ -200,7 +200,7 @@ func TestDispatchTimeout(t *testing.T) {
 			}
 
 			// Invoke a dispatched "LookupSubjects" and test as well.
-			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](t.Context())
 			err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 				ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 				ResourceIds:      []string{"foo"},
@@ -325,7 +325,7 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
-			resp, err := dispatcher.DispatchCheck(context.Background(), tc.request)
+			resp, err := dispatcher.DispatchCheck(t.Context(), tc.request)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedResult, resp.Metadata.DispatchCount)
 		})
@@ -595,7 +595,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
-			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](context.Background())
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](t.Context())
 			err = dispatcher.DispatchLookupResources2(tc.request, stream)
 
 			if tc.expectedError {
@@ -630,7 +630,7 @@ func TestLRDispatchFallbackToPrimary(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
-	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](context.Background())
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](t.Context())
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 		ResourceRelation: &corev1.RelationReference{
 			Namespace: "somenamespace",
@@ -723,7 +723,7 @@ func TestLSSecondaryDispatch(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, dispatcher.ReadyState().IsReady)
 
-			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](t.Context())
 			err = dispatcher.DispatchLookupSubjects(tc.request, stream)
 
 			if tc.expectedError {
@@ -758,7 +758,7 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady)
 
-	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](t.Context())
 	err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 		ResourceRelation: &corev1.RelationReference{
 			Namespace: "somenamespace",
@@ -798,7 +798,7 @@ func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
 
 	// Dispatch the check, which should (since it is the first request) add a delay of ~5ms to
 	// the primary, thus ensuring the secondary is used without any timeout for either,.
-	resp, err := dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+	resp, err := dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
 		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
@@ -833,7 +833,7 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 
 	// Dispatch the lookupsubjects, which should (since it is the first request) add a delay of ~10ms to
 	// the primary, thus ensuring the secondary is used without any timeout for either,.
-	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](context.Background())
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](t.Context())
 	err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 		ResourceRelation: &corev1.RelationReference{
 			Namespace: "somenamespace",
@@ -921,7 +921,7 @@ func TestCheckUsesMaximumDelayByDefaultForPrimary(t *testing.T) {
 
 	// Dispatch the check, which should (since it is the first request) add a delay of ~5ms (except the max is 0ms),
 	// thus ensuring the primary is used.
-	resp, err := dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+	resp, err := dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
 		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
@@ -943,7 +943,7 @@ func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.
 	}()
 
 	conn, err := grpchelpers.DialAndWait(
-		context.Background(),
+		t.Context(),
 		"",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return listener.Dial()
@@ -1057,7 +1057,7 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 
 	// Dispatch the check, which should (since it is the first request) add a delay of at most ~25ms to
 	// the primary, but fallback to the primary on the error.
-	resp, err := dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+	resp, err := dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
 		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
@@ -1073,7 +1073,7 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 
 	// Dispatch again, which should hit the primary without any delay.
 	startTime := time.Now()
-	resp, err = dispatcher.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+	resp, err = dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
 		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},

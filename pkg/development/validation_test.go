@@ -1,7 +1,6 @@
 package development
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,7 +13,7 @@ import (
 )
 
 func TestRunValidationSuccess(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -42,7 +41,7 @@ definition document {
 }
 
 func TestRunValidationMissingSubject(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -70,7 +69,7 @@ definition document {
 }
 
 func TestRunValidationExtraSubject(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -99,7 +98,7 @@ definition document {
 }
 
 func TestRunValidationWithWildcard(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -127,7 +126,7 @@ definition document {
 }
 
 func TestRunValidationInvalidONR(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -212,7 +211,7 @@ func TestToFoundRelationshipsStrings(t *testing.T) {
 }
 
 func TestRunValidationWithNilExpectedSubject(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {

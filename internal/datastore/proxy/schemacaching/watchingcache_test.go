@@ -30,15 +30,15 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	}
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
-	require.NoError(t, wcache.startSync(context.Background()))
+	require.NoError(t, wcache.startSync(t.Context()))
 
 	// Ensure no namespaces are found.
-	_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(context.Background(), "somenamespace")
+	_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
 
 	// Ensure a re-read also returns not found, even before a checkpoint is received.
-	_, _, err = wcache.SnapshotReader(rev("1")).ReadNamespaceByName(context.Background(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 
 	// Send a checkpoint for revision 1.
@@ -48,7 +48,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
 
 	// Ensure that reading at rev 2 returns found.
-	nsDef, _, err := wcache.SnapshotReader(rev("2")).ReadNamespaceByName(context.Background(), "somenamespace")
+	nsDef, _, err := wcache.SnapshotReader(rev("2")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
@@ -56,7 +56,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.disableReads()
 
 	// Ensure that reading at rev 3 returns an error, as with reads disabled the cache should not be hit.
-	_, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(context.Background(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "reads are disabled")
 
@@ -65,7 +65,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 
 	// Ensure that reading at rev 3 returns found, even though the cache should not yet be there. This will
 	// require a datastore fallback read because the cache is not yet checkedpointed to that revision.
-	nsDef, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(context.Background(), "somenamespace")
+	nsDef, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
@@ -77,12 +77,12 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.disableReads()
 
 	// Read again, which should now be via the cache.
-	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).ReadNamespaceByName(context.Background(), "somenamespace")
+	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
 	// Read via a lookup.
-	nsDefs, err := wcache.SnapshotReader(rev("3.0000000005")).LookupNamespacesWithNames(context.Background(), []string{"somenamespace"})
+	nsDefs, err := wcache.SnapshotReader(rev("3.0000000005")).LookupNamespacesWithNames(t.Context(), []string{"somenamespace"})
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDefs[0].Definition.Name)
 
@@ -90,17 +90,17 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateNamespace("somenamespace", nil, rev("5"))
 
 	// Re-read at an earlier revision.
-	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).ReadNamespaceByName(context.Background(), "somenamespace")
+	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
 	// Read at revision 5.
-	_, _, err = wcache.SnapshotReader(rev("5")).ReadNamespaceByName(context.Background(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(rev("5")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.Error(t, err)
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{}, "missing not found in: %v", err)
 
 	// Lookup at revision 5.
-	nsDefs, err = wcache.SnapshotReader(rev("5")).LookupNamespacesWithNames(context.Background(), []string{"somenamespace"})
+	nsDefs, err = wcache.SnapshotReader(rev("5")).LookupNamespacesWithNames(t.Context(), []string{"somenamespace"})
 	require.NoError(t, err)
 	require.Empty(t, nsDefs)
 
@@ -108,12 +108,12 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateCaveat("somecaveat", &corev1.CaveatDefinition{Name: "somecaveat"}, rev("6"))
 
 	// Read at revision 6.
-	caveatDef, _, err := wcache.SnapshotReader(rev("6")).ReadCaveatByName(context.Background(), "somecaveat")
+	caveatDef, _, err := wcache.SnapshotReader(rev("6")).ReadCaveatByName(t.Context(), "somecaveat")
 	require.NoError(t, err)
 	require.Equal(t, "somecaveat", caveatDef.Name)
 
 	// Attempt to read at revision 1, which should require a read.
-	_, _, err = wcache.SnapshotReader(rev("1")).ReadCaveatByName(context.Background(), "somecaveat")
+	_, _, err = wcache.SnapshotReader(rev("1")).ReadCaveatByName(t.Context(), "somecaveat")
 	require.ErrorContains(t, err, "reads are disabled")
 
 	// Close the proxy and ensure the background goroutines are terminated.
@@ -133,7 +133,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 	}
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
-	require.NoError(t, wcache.startSync(context.Background()))
+	require.NoError(t, wcache.startSync(t.Context()))
 
 	// Run some operations in parallel.
 	var wg sync.WaitGroup
@@ -141,7 +141,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 
 	go (func() {
 		// Read somenamespace (which should not be found)
-		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(context.Background(), "somenamespace")
+		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "somenamespace")
 		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 		require.False(t, wcache.namespaceCache.inFallbackMode)
 
@@ -149,7 +149,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
 
 		// Read again (which should be found now)
-		nsDef, _, err := wcache.SnapshotReader(rev("2")).ReadNamespaceByName(context.Background(), "somenamespace")
+		nsDef, _, err := wcache.SnapshotReader(rev("2")).ReadNamespaceByName(t.Context(), "somenamespace")
 		require.NoError(t, err)
 		require.Equal(t, "somenamespace", nsDef.Name)
 
@@ -158,12 +158,12 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 
 	go (func() {
 		// Read anothernamespace (which should not be found)
-		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(context.Background(), "anothernamespace")
+		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "anothernamespace")
 		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 		require.False(t, wcache.namespaceCache.inFallbackMode)
 
 		// Read again (which should still not be found)
-		_, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(context.Background(), "anothernamespace")
+		_, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(t.Context(), "anothernamespace")
 		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 		require.False(t, wcache.namespaceCache.inFallbackMode)
 
@@ -189,7 +189,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 	}
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
-	require.NoError(t, wcache.startSync(context.Background()))
+	require.NoError(t, wcache.startSync(t.Context()))
 
 	// Write somenamespace.
 	fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("0"))
@@ -211,10 +211,10 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 	go (func() {
 		// Start a loop to read a namespace a bunch of times.
 		for i := 0; i < 1000; i++ {
-			headRevision, err := fakeDS.HeadRevision(context.Background())
+			headRevision, err := fakeDS.HeadRevision(t.Context())
 			require.NoError(t, err)
 
-			nsDef, _, err := wcache.SnapshotReader(headRevision).ReadNamespaceByName(context.Background(), "somenamespace")
+			nsDef, _, err := wcache.SnapshotReader(headRevision).ReadNamespaceByName(t.Context(), "somenamespace")
 			require.NoError(t, err)
 			require.Equal(t, "somenamespace", nsDef.Name)
 		}
@@ -248,11 +248,11 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	require.NoError(t, err)
 
 	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
-	require.NoError(t, wcache.startSync(context.Background()))
+	require.NoError(t, wcache.startSync(t.Context()))
 
 	// Ensure the namespace is not found, but is cached in the fallback caching layer.
 	r := rev("1")
-	_, _, err = wcache.SnapshotReader(r).ReadNamespaceByName(context.Background(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(r).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
 
@@ -264,7 +264,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	// Disable reading and ensure it still works, via the fallback cache.
 	fakeDS.readsDisabled = true
 
-	_, _, err = wcache.SnapshotReader(rev("1")).ReadNamespaceByName(context.Background(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
 
@@ -306,10 +306,10 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 	require.NoError(t, err)
 
 	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
-	require.NoError(t, wcache.startSync(context.Background()))
+	require.NoError(t, wcache.startSync(t.Context()))
 
 	// Ensure the namespace is found.
-	def, _, err := wcache.SnapshotReader(rev("4")).ReadNamespaceByName(context.Background(), "somenamespace")
+	def, _, err := wcache.SnapshotReader(rev("4")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", def.Name)
 

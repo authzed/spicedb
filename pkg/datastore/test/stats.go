@@ -1,7 +1,6 @@
 package test
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +13,7 @@ import (
 const statsRetryCount = 10
 
 func StatsTest(t *testing.T, tester DatastoreTester) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)

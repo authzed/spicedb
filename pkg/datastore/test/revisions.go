@@ -36,7 +36,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			ds, err := tester.New(tc.quantizationRange, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			veryFirstRevision, err := ds.OptimizedRevision(ctx)
 			require.NoError(err)
 
@@ -77,7 +77,7 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 	revToTest, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testNamespace)
@@ -102,7 +102,7 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, gcInterval, gcWindow, 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	testCaveat := createCoreCaveat(t)
@@ -146,7 +146,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, veryLargeGCInterval, gcWindow, 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	testCaveat := createCoreCaveat(t)
@@ -228,7 +228,7 @@ func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, 1000*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// Write a new revision.
@@ -268,7 +268,7 @@ func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, 10*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	var previous datastore.Revision
@@ -291,7 +291,7 @@ func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, 10*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	var wg sync.WaitGroup

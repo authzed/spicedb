@@ -17,7 +17,7 @@ func TestPrimarySleeper_SleepWithZeroWaitTime(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	start := time.Now()
 	sleeper.sleep(ctx)
 	elapsed := time.Since(start)
@@ -34,7 +34,7 @@ func TestPrimarySleeper_SleepWithPositiveWaitTime(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	start := time.Now()
 	sleeper.sleep(ctx)
 	elapsed := time.Since(start)
@@ -52,7 +52,7 @@ func TestPrimarySleeper_SleepWithContextCancellation(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	start := time.Now()
 	go func() {
@@ -76,7 +76,7 @@ func TestPrimarySleeper_SleepWithContextTimeout(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 
 	start := time.Now()
@@ -96,7 +96,7 @@ func TestPrimarySleeper_CancelSleep(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	start := time.Now()
 	go func() {
@@ -122,7 +122,7 @@ func TestPrimarySleeper_CancelSleepBeforeSleep(t *testing.T) {
 
 	sleeper.cancelSleep()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	start := time.Now()
 	sleeper.sleep(ctx)
 	elapsed := time.Since(start)
@@ -139,7 +139,7 @@ func TestPrimarySleeper_MultipleCancelSleep(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	start := time.Now()
 	go func() {
@@ -165,7 +165,7 @@ func TestPrimarySleeper_ConcurrentCancelSleep(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	start := time.Now()
 	var wg sync.WaitGroup
@@ -199,7 +199,7 @@ func TestPrimarySleeper_SleepTwice(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	start := time.Now()
 	sleeper.sleep(ctx)
@@ -222,7 +222,7 @@ func TestPrimarySleeper_SleepConcurrently(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	var wg sync.WaitGroup
 	results := make([]time.Duration, 3)
 
@@ -253,7 +253,7 @@ func TestPrimarySleeper_EdgeCaseZeroDurationContext(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now())
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now())
 	defer cancel()
 
 	start := time.Now()
@@ -272,6 +272,6 @@ func TestPrimarySleeper_MetricsAreObserved(t *testing.T) {
 		lock:       sync.Mutex{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	sleeper.sleep(ctx)
 }

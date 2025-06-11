@@ -182,9 +182,9 @@ func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
-	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	parentStream := dispatch.NewCollectingDispatchStream[int](t.Context())
 	err = withParallelizedStreamingIterableInCursor[int, int](
-		context.Background(),
+		t.Context(),
 		ci,
 		items,
 		parentStream,
@@ -212,9 +212,9 @@ func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
-	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	parentStream := dispatch.NewCollectingDispatchStream[int](t.Context())
 	err = withParallelizedStreamingIterableInCursor[int, int](
-		context.Background(),
+		t.Context(),
 		ci,
 		items,
 		parentStream,
@@ -242,9 +242,9 @@ func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
-	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	parentStream := dispatch.NewCollectingDispatchStream[int](t.Context())
 	err = withParallelizedStreamingIterableInCursor[int, int](
-		context.Background(),
+		t.Context(),
 		ci,
 		items,
 		parentStream,
@@ -281,9 +281,9 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 	encountered := []int{}
 	lock := sync.Mutex{}
 
-	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	parentStream := dispatch.NewCollectingDispatchStream[int](t.Context())
 	err = withParallelizedStreamingIterableInCursor[int, int](
-		context.Background(),
+		t.Context(),
 		ci,
 		items,
 		parentStream,
@@ -315,9 +315,9 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 	encountered := []int{}
 	lock := sync.Mutex{}
 
-	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	parentStream := dispatch.NewCollectingDispatchStream[int](t.Context())
 	err = withDatastoreCursorInCursor[int, int](
-		context.Background(),
+		t.Context(),
 		ci,
 		parentStream,
 		5,
@@ -357,9 +357,9 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	encountered := []int{}
 	lock := sync.Mutex{}
 
-	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	parentStream := dispatch.NewCollectingDispatchStream[int](t.Context())
 	err = withDatastoreCursorInCursor(
-		context.Background(),
+		t.Context(),
 		ci,
 		parentStream,
 		5,

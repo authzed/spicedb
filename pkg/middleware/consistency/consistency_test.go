@@ -1,7 +1,6 @@
 package consistency
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -32,7 +31,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds, "somelabel")
 	require.NoError(err)
 
@@ -49,7 +48,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_MinimizeLatency{
@@ -72,7 +71,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("HeadRevision").Return(head, nil).Once()
 
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_FullyConsistent{
@@ -96,7 +95,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
@@ -120,7 +119,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	ds.On("CheckRevision", exact).Return(nil).Times(1)
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
@@ -144,7 +143,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 	ds.On("CheckRevision", zero).Return(datastore.NewInvalidRevisionErr(zero, datastore.RevisionStale)).Times(1)
 	ds.On("RevisionFromString", zero.String()).Return(zero, nil).Once()
 
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
@@ -160,7 +159,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 func TestAddRevisionToContextNoConsistencyAPI(t *testing.T) {
 	require := require.New(t)
 
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 
 	_, _, err := RevisionFromContext(updated)
 	require.Error(err)
@@ -178,7 +177,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 	require.NoError(err)
 
 	// revision in context is at `exact`
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 	err = AddRevisionToContext(updated, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
@@ -198,7 +197,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 }
 
 func TestAddRevisionToContextAtMalformedExactSnapshot(t *testing.T) {
-	err := AddRevisionToContext(ContextWithHandle(context.Background()), &v1.LookupResourcesRequest{
+	err := AddRevisionToContext(ContextWithHandle(t.Context()), &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
 				AtExactSnapshot: &v1.ZedToken{Token: "blah"},
@@ -213,7 +212,7 @@ func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 
-	err := AddRevisionToContext(ContextWithHandle(context.Background()), &v1.LookupResourcesRequest{
+	err := AddRevisionToContext(ContextWithHandle(t.Context()), &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
 				AtLeastAsFresh: &v1.ZedToken{Token: "blah"},
@@ -225,7 +224,7 @@ func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 }
 
 func TestRevisionFromContextMissingConsistency(t *testing.T) {
-	updated := ContextWithHandle(context.Background())
+	updated := ContextWithHandle(t.Context())
 	_, _, err := RevisionFromContext(updated)
 	require.Error(t, err)
 	grpcutil.RequireStatus(t, codes.Internal, err)

@@ -215,8 +215,8 @@ func TestReplaceAllMiddleware(t *testing.T) {
 	outUnary := mc.ToGRPCInterceptors()
 	require.NoError(t, err)
 
-	expectedReplaceUnary, _ := replaceUnary(context.Background(), nil, nil, nil)
-	receivedReplaceUnary, _ := outUnary[0](context.Background(), nil, nil, nil)
+	expectedReplaceUnary, _ := replaceUnary(t.Context(), nil, nil, nil)
+	receivedReplaceUnary, _ := outUnary[0](t.Context(), nil, nil, nil)
 	require.Equal(t, expectedReplaceUnary, receivedReplaceUnary)
 }
 
@@ -249,12 +249,12 @@ func TestPrependMiddleware(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, outUnary, 2)
 
-	expectedPrepend, _ := prependUnary(context.Background(), nil, nil, nil)
-	receivedPrepend, _ := outUnary[0](context.Background(), nil, nil, nil)
+	expectedPrepend, _ := prependUnary(t.Context(), nil, nil, nil)
+	receivedPrepend, _ := outUnary[0](t.Context(), nil, nil, nil)
 	require.Equal(t, expectedPrepend, receivedPrepend)
 
-	expectedReplace, _ := replaceUnary(context.Background(), nil, nil, nil)
-	receivedReplace, _ := outUnary[1](context.Background(), nil, nil, nil)
+	expectedReplace, _ := replaceUnary(t.Context(), nil, nil, nil)
+	receivedReplace, _ := outUnary[1](t.Context(), nil, nil, nil)
 	require.Equal(t, expectedReplace, receivedReplace)
 	require.NotEqual(t, receivedPrepend, receivedReplace)
 }
@@ -289,10 +289,10 @@ func TestAppendMiddleware(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, outUnary, 2)
 
-	expectedReplace, _ := replaceUnary(context.Background(), nil, nil, nil)
-	receivedReplace, _ := outUnary[0](context.Background(), nil, nil, nil)
-	expectedAppend, _ := appendUnary(context.Background(), nil, nil, nil)
-	receivedAppend, _ := outUnary[1](context.Background(), nil, nil, nil)
+	expectedReplace, _ := replaceUnary(t.Context(), nil, nil, nil)
+	receivedReplace, _ := outUnary[0](t.Context(), nil, nil, nil)
+	expectedAppend, _ := appendUnary(t.Context(), nil, nil, nil)
+	receivedAppend, _ := outUnary[1](t.Context(), nil, nil, nil)
 	require.Equal(t, expectedReplace, receivedReplace)
 	require.Equal(t, expectedAppend, receivedAppend)
 }
@@ -353,7 +353,7 @@ func (m mockStreamInterceptor) streamIntercept(_ interface{}, _ grpc.ServerStrea
 }
 
 func TestMiddlewareOrdering(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	ds, err := datastore.NewDatastore(ctx,
@@ -420,7 +420,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 }
 
 func TestIncorrectOrderAssertionFails(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	ds, err := datastore.NewDatastore(ctx,

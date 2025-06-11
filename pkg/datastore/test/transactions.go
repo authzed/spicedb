@@ -43,7 +43,7 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 				}
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 1500*time.Millisecond)
 			defer cancel()
 
 			var attempts int

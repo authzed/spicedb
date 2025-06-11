@@ -38,7 +38,7 @@ func (fakeExplainable) PreExplainStatements() []string {
 func TestRunExplainIfNecessaryWithoutEnabled(t *testing.T) {
 	fq := &fakeQuerier{}
 
-	err := runExplainIfNecessary(context.Background(), RelationshipsQueryBuilder{}, fq, fakeExplainable{})
+	err := runExplainIfNecessary(t.Context(), RelationshipsQueryBuilder{}, fq, fakeExplainable{})
 	require.Nil(t, err)
 	require.Nil(t, fq.queriesRun)
 }
@@ -75,7 +75,7 @@ func TestRunExplainIfNecessaryWithEnabled(t *testing.T) {
 		baseQueryBuilder: filterer,
 	}
 
-	err := runExplainIfNecessary(context.Background(), builder, fq, fakeExplainable{})
+	err := runExplainIfNecessary(t.Context(), builder, fq, fakeExplainable{})
 	require.Nil(t, err)
 	require.Equal(t, fq.queriesRun, []string{"SELECT SOMETHING", "SOME EXPLAIN QUERY"})
 }

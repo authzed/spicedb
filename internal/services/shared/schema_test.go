@@ -453,15 +453,15 @@ func TestApplySchemaChanges(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			validated, err := ValidateSchemaChanges(context.Background(), compiled, caveattypes.Default.TypeSet, false)
+			validated, err := ValidateSchemaChanges(t.Context(), compiled, caveattypes.Default.TypeSet, false)
 			if tc.expectedError != "" && err != nil && tc.expectedError == err.Error() {
 				return
 			}
 
 			require.NoError(err)
 
-			_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				applied, err := ApplySchemaChanges(context.Background(), rwt, caveattypes.Default.TypeSet, validated)
+			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				applied, err := ApplySchemaChanges(t.Context(), rwt, caveattypes.Default.TypeSet, validated)
 				if tc.expectedError != "" {
 					require.EqualError(err, tc.expectedError)
 					return nil

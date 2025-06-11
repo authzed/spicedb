@@ -61,7 +61,7 @@ func TestOverlapKeyAddition(t *testing.T) {
 	for _, tt := range cases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			set := newKeySet(context.Background())
+			set := newKeySet(t.Context())
 			for _, n := range tt.namespaces {
 				tt.keyer.addKey(set, n)
 			}
@@ -143,7 +143,7 @@ func TestOverlapKeysFromContext(t *testing.T) {
 		}()
 
 		conn, err := grpchelpers.DialAndWait(
-			context.Background(),
+			t.Context(),
 			"",
 			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 				return listener.Dial()
@@ -165,7 +165,7 @@ func TestOverlapKeysFromContext(t *testing.T) {
 				part := metadata.New(h)
 				md = metadata.Join(md, part)
 			}
-			ctx := metadata.NewOutgoingContext(context.Background(), md)
+			ctx := metadata.NewOutgoingContext(t.Context(), md)
 			resp, err := client.Ping(ctx, &testpb.PingRequest{})
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, resp.Value)

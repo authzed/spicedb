@@ -1,7 +1,6 @@
 package lsp
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -325,7 +324,7 @@ func TestLogJSONPtr(t *testing.T) {
 
 func TestServerRunInvalidArgs(t *testing.T) {
 	server := NewServer()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	err := server.Run(ctx, "-", false)
 	require.Error(t, err)

@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -203,7 +202,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	tpl := tuple.MustParse("folder:oops#owner@folder:oops#owner")
@@ -1010,7 +1009,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datastoremw.ContextWithHandle(context.Background())
+			ctx := datastoremw.ContextWithHandle(t.Context())
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
