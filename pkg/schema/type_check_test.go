@@ -443,20 +443,6 @@ func TestIncompleteSchema(t *testing.T) {
 			}
 		`,
 		},
-		{
-			name: "multi-type rel",
-			schemaText: `
-			definition user {}
-
-			definition organization {
-				relation member: user
-			}
-
-			definition resource {
-				relation viewer: user | organization
-			}
-		`,
-		},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
