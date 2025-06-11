@@ -145,7 +145,9 @@ func (ch *Changes[R, K]) SetRevisionMetadata(ctx context.Context, rev R, metadat
 	}
 
 	if len(record.metadata) > 0 {
-		return spiceerrors.MustBugf("metadata already set for revision")
+		if !maps.Equal(record.metadata, metadata) {
+			return spiceerrors.MustBugf("different metadata already set for revision %v: %v vs %v", rev, record.metadata, metadata)
+		}
 	}
 
 	maps.Copy(record.metadata, metadata)
