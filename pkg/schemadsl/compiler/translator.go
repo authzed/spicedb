@@ -8,12 +8,14 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 	"github.com/jzelinskie/stringz"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -378,12 +380,8 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 
 	// Check for optional type annotations
 	var typeAnnotations []string
-	if permissionNode.Has(dslshape.NodePermissionPredicateTypeAnnotations) {
-		typeAnnotationNode, err := permissionNode.Lookup(dslshape.NodePermissionPredicateTypeAnnotations)
-		if err != nil {
-			return nil, permissionNode.Errorf("invalid permission type annotations: %w", err)
-		}
-
+	typeAnnotationNode, err := permissionNode.Lookup(dslshape.NodePermissionPredicateTypeAnnotations)
+	if err == nil {
 		annotations, err := extractTypeAnnotations(typeAnnotationNode)
 		if err != nil {
 			return nil, permissionNode.Errorf("error extracting type annotations: %w", err)
@@ -406,8 +404,13 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 		return nil, err
 	}
 
-	// TODO: Store type annotations in metadata when protobuf support is added
-	_ = typeAnnotations
+	// Store type annotations in metadata
+	if len(typeAnnotations) > 0 {
+		err = addTypeAnnotationsToMetadata(permission, typeAnnotations)
+		if err != nil {
+			return nil, permissionNode.Errorf("error adding type annotations to metadata: %w", err)
+		}
+	}
 
 	if !tctx.skipValidate {
 		if err := permission.Validate(); err != nil {
@@ -432,6 +435,70 @@ func extractTypeAnnotations(typeAnnotationNode *dslNode) ([]string, error) {
 	}
 
 	return annotations, nil
+}
+
+func addTypeAnnotationsToMetadata(relation *core.Relation, typeAnnotations []string) error {
+	if relation.Metadata == nil {
+		relation.Metadata = &core.Metadata{}
+	}
+
+	// Find existing PERMISSION RelationMetadata and update it, or create new one
+	for i, metadataAny := range relation.Metadata.MetadataMessage {
+		var relationMetadata implv1.RelationMetadata
+		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
+			continue // Skip if this is not RelationMetadata
+		}
+
+		// Only update if this is the PERMISSION metadata
+		if relationMetadata.Kind == implv1.RelationMetadata_PERMISSION {
+			// Update existing RelationMetadata with type annotations
+			relationMetadata.TypeAnnotations = typeAnnotations
+			
+			// Re-encode and replace the existing message
+			updatedAny, err := anypb.New(&relationMetadata)
+			if err != nil {
+				return fmt.Errorf("failed to create updated Any message for relation metadata: %w", err)
+			}
+			
+			relation.Metadata.MetadataMessage[i] = updatedAny
+			return nil
+		}
+	}
+
+	// If no existing RelationMetadata found, create new one
+	relationMetadata := &implv1.RelationMetadata{
+		Kind:            implv1.RelationMetadata_PERMISSION,
+		TypeAnnotations: typeAnnotations,
+	}
+
+	metadataAny, err := anypb.New(relationMetadata)
+	if err != nil {
+		return fmt.Errorf("failed to create Any message for relation metadata: %w", err)
+	}
+
+	relation.Metadata.MetadataMessage = append(relation.Metadata.MetadataMessage, metadataAny)
+	return nil
+}
+
+func getTypeAnnotationsFromMetadata(relation *core.Relation) ([]string, error) {
+	if relation.Metadata == nil || len(relation.Metadata.MetadataMessage) == 0 {
+		return nil, nil
+	}
+
+	for _, metadataAny := range relation.Metadata.MetadataMessage {
+		var relationMetadata implv1.RelationMetadata
+		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
+			// Skip if this metadata message is not RelationMetadata
+			continue
+		}
+
+
+		if relationMetadata.Kind == implv1.RelationMetadata_PERMISSION {
+			return relationMetadata.TypeAnnotations, nil
+		}
+	}
+
+	return nil, nil
 }
 
 func translateBinary(tctx *translationContext, expressionNode *dslNode) (*core.SetOperation_Child, *core.SetOperation_Child, error) {
