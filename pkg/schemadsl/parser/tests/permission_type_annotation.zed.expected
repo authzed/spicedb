@@ -1,0 +1,93 @@
+NodeTypeFile
+  end-rune = 164
+  input-source = permission type annotation test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = mydefinition
+      end-rune = 164
+      input-source = permission type annotation test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 50
+          input-source = permission type annotation test
+          relation-name = viewer
+          start-rune = 30
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 50
+              input-source = permission type annotation test
+              start-rune = 47
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 50
+                  input-source = permission type annotation test
+                  start-rune = 47
+                  type-name = user
+        NodeTypePermission
+          end-rune = 90
+          input-source = permission type annotation test
+          relation-name = view
+          start-rune = 61
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 90
+              identifier-value = viewer
+              input-source = permission type annotation test
+              start-rune = 85
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 81
+              input-source = permission type annotation test
+              start-rune = 78
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 81
+                  identifier-value = user
+                  input-source = permission type annotation test
+                  start-rune = 83
+        NodeTypePermission
+          end-rune = 125
+          input-source = permission type annotation test
+          relation-name = edit
+          start-rune = 96
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 125
+              identifier-value = viewer
+              input-source = permission type annotation test
+              start-rune = 120
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 116
+              input-source = permission type annotation test
+              start-rune = 113
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 116
+                  identifier-value = user
+                  input-source = permission type annotation test
+                  start-rune = 118
+        NodeTypePermission
+          end-rune = 162
+          input-source = permission type annotation test
+          relation-name = admin
+          start-rune = 131
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 162
+              identifier-value = viewer
+              input-source = permission type annotation test
+              start-rune = 157
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 153
+              input-source = permission type annotation test
+              start-rune = 149
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 153
+                  identifier-value = group
+                  input-source = permission type annotation test
+                  start-rune = 155

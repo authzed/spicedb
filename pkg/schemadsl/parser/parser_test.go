@@ -131,6 +131,11 @@ func TestParser(t *testing.T) {
 		{"use after definition", "useafterdef"},
 		{"invalid use expiration test", "invaliduseexpiration"},
 		{"use typechecking test", "use_typechecking"},
+		{"permission type annotation test", "permission_type_annotation"},
+		{"permission mixed annotations test", "permission_mixed_annotations"},
+		{"permission multiple types test", "permission_multiple_types"},
+		{"permission mixed single multiple test", "permission_mixed_single_multiple"},
+		{"permission edge cases test", "permission_edge_cases"},
 	}
 
 	for _, test := range parserTests {

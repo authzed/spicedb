@@ -91,13 +91,23 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 		orderedDefinitions = append(orderedDefinitions, definition)
 	}
 
-	return &CompiledSchema{
+	compiledSchema := &CompiledSchema{
 		CaveatDefinitions:  caveatDefinitions,
 		ObjectDefinitions:  objectDefinitions,
 		OrderedDefinitions: orderedDefinitions,
 		rootNode:           root,
 		mapper:             tctx.mapper,
-	}, nil
+	}
+
+	// Check for typechecking after all definitions are processed.
+	if slices.Contains(tctx.enabledFlags, "typechecking") {
+		// Call your existing type-checking function here.
+		// For example: err := TypeCheckPermissions(objectDefinitions)
+		// if err != nil {
+		//    return nil, err
+		// }
+	}
+	return compiledSchema, nil
 }
 
 func translateCaveatDefinition(tctx *translationContext, defNode *dslNode) (*core.CaveatDefinition, error) {
@@ -366,6 +376,21 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 		return nil, permissionNode.Errorf("invalid permission name: %w", err)
 	}
 
+	// Check for optional type annotations
+	var typeAnnotations []string
+	if permissionNode.Has(dslshape.NodePermissionPredicateTypeAnnotations) {
+		typeAnnotationNode, err := permissionNode.Lookup(dslshape.NodePermissionPredicateTypeAnnotations)
+		if err != nil {
+			return nil, permissionNode.Errorf("invalid permission type annotations: %w", err)
+		}
+
+		annotations, err := extractTypeAnnotations(typeAnnotationNode)
+		if err != nil {
+			return nil, permissionNode.Errorf("error extracting type annotations: %w", err)
+		}
+		typeAnnotations = annotations
+	}
+
 	expressionNode, err := permissionNode.Lookup(dslshape.NodePermissionPredicateComputeExpression)
 	if err != nil {
 		return nil, permissionNode.Errorf("invalid permission expression: %w", err)
@@ -381,6 +406,9 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 		return nil, err
 	}
 
+	// TODO: Store type annotations in metadata when protobuf support is added
+	_ = typeAnnotations
+
 	if !tctx.skipValidate {
 		if err := permission.Validate(); err != nil {
 			return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
@@ -388,6 +416,22 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 	}
 
 	return permission, nil
+}
+
+func extractTypeAnnotations(typeAnnotationNode *dslNode) ([]string, error) {
+	var annotations []string
+
+	children := typeAnnotationNode.List(dslshape.NodeTypeAnnotationPredicateTypes)
+
+	for _, child := range children {
+		typeName, err := child.GetString(dslshape.NodeIdentiferPredicateValue)
+		if err != nil {
+			return nil, err
+		}
+		annotations = append(annotations, typeName)
+	}
+
+	return annotations, nil
 }
 
 func translateBinary(tctx *translationContext, expressionNode *dslNode) (*core.SetOperation_Child, *core.SetOperation_Child, error) {

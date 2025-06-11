@@ -1,0 +1,18 @@
+definition mydefinition {
+    relation viewer: user
+    
+    // Single type
+    permission single: user = viewer
+    
+    // Two types  
+    permission double: user | admin = viewer
+    
+    // Three types
+    permission triple: user | admin | group = viewer
+    
+    // Complex expression with types
+    permission complex: user | admin = viewer + (viewer - viewer)
+    
+    // No type annotation
+    permission none = viewer
+}

@@ -486,7 +486,7 @@ func (p *sourceParser) consumeTypePath() (string, bool) {
 }
 
 // consumePermission consumes a permission.
-// ```permission foo = bar + baz```
+// ```permission foo = bar + baz``` or ```permission foo: user = bar + baz```
 func (p *sourceParser) consumePermission() AstNode {
 	permNode := p.startNode(dslshape.NodeTypePermission)
 	defer p.mustFinishNode()
@@ -500,6 +500,12 @@ func (p *sourceParser) consumePermission() AstNode {
 
 	permNode.MustDecorate(dslshape.NodePredicateName, permissionName)
 
+	// Check for optional type annotation: user | organization
+	if _, ok := p.tryConsume(lexer.TokenTypeColon); ok {
+		typeAnnotationNode := p.consumeTypeAnnotation()
+		permNode.Connect(dslshape.NodePermissionPredicateTypeAnnotations, typeAnnotationNode)
+	}
+
 	// =
 	_, ok = p.consume(lexer.TokenTypeEquals)
 	if !ok {
@@ -508,6 +514,47 @@ func (p *sourceParser) consumePermission() AstNode {
 
 	permNode.Connect(dslshape.NodePermissionPredicateComputeExpression, p.consumeComputeExpression())
 	return permNode
+}
+
+// consumeTypeAnnotation consumes a type annotation for permissions.
+// ```user | organization```
+func (p *sourceParser) consumeTypeAnnotation() AstNode {
+	typeAnnotationNode := p.startNode(dslshape.NodeTypeTypeAnnotation)
+	defer p.mustFinishNode()
+
+	// Consume the first type
+	firstType, ok := p.consumeIdentifier()
+	if !ok {
+		p.emitErrorf("Expected type identifier in type annotation")
+		return typeAnnotationNode
+	}
+
+	// Create identifier node for the first type
+	firstTypeNode := p.startNode(dslshape.NodeTypeIdentifier)
+	firstTypeNode.MustDecorate(dslshape.NodeIdentiferPredicateValue, firstType)
+	p.mustFinishNode()
+	typeAnnotationNode.Connect(dslshape.NodeTypeAnnotationPredicateTypes, firstTypeNode)
+
+	// Consume additional types separated by pipe operator
+	for {
+		if _, ok := p.tryConsume(lexer.TokenTypePipe); !ok {
+			break
+		}
+
+		nextType, ok := p.consumeIdentifier()
+		if !ok {
+			p.emitErrorf("Expected type identifier after '|' in type annotation")
+			return typeAnnotationNode
+		}
+
+		// Create identifier node for the additional type
+		nextTypeNode := p.startNode(dslshape.NodeTypeIdentifier)
+		nextTypeNode.MustDecorate(dslshape.NodeIdentiferPredicateValue, nextType)
+		p.mustFinishNode()
+		typeAnnotationNode.Connect(dslshape.NodeTypeAnnotationPredicateTypes, nextTypeNode)
+	}
+
+	return typeAnnotationNode
 }
 
 // ComputeExpressionOperators defines the binary operators in precedence order.
