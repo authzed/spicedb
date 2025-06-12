@@ -298,6 +298,11 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 			return nil
 		}
 
+		// do not attempt to retry on context errors, fail fast
+		if ctxErr := contextError(ctx, err); ctxErr != nil {
+			return ctxErr
+		}
+
 		var (
 			resettable *ResettableError
 			retryable  *RetryableError
@@ -305,7 +310,7 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 
 		// we consider error resettable when connection is closed only if it wasn't caused by context cancellation or deadline exceeded.
 		// this prevents us from marking a node as unhealthy when the client triggers context errors that cause connections to close.
-		if errors.As(err, &resettable) || (isConnClosed(conn) && contextError(ctx, err) == nil) {
+		if errors.As(err, &resettable) || isConnClosed(conn) {
 			log.Ctx(ctx).Info().Err(err).Uint8("retries", retries).Msg("resettable error")
 
 			nodeID := p.Node(getConn(conn))
