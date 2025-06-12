@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: "actions/setup-go@v6.2.0"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "./go.mod"
           cache-dependency-path: "./go.sum"

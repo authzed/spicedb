@@ -13,10 +13,10 @@ jobs:
       contents: "write"
       packages: "write" # publish to GHCR
     steps:
-      - uses: "actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8" # v4.2.2
+      - uses: "actions/checkout@v6"
         with:
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
       - uses: "nowsprinting/check-version-format-action@bb1181a02ee5d9ae4feead2842236183c85152c6" # v4.0.7
         id: "version"
         with:

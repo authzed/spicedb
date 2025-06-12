@@ -23,13 +23,14 @@ jobs:
       - uses: "dangoslen/changelog-enforcer@ea6a56764870c323a4563f450c0a50c5f2d72cd6"
         with:
           skipLabels: "Skip-Changelog,dependencies,tests"
+          missingUpdateErrorMessage: "If your PR has a change that users might care about, please add an entry to CHANGELOG.md, run 'npx keep-a-changelog', and commit the changes. Otherwise, add the Skip-Changelog label to your PR."
       - uses: "actions/checkout@v6"
       - uses: "actions/setup-node@v6"
       - run: "npx keep-a-changelog@2.8.0"
       - run: |
           files=$(git status --porcelain)
           if [[ -n ${files}  ]]; then
-            >&2 echo "If your PR has a change that users might care about, please edit CHANGELOG.md and then run \`npx keep-a-changelog\`. Otherwise, add the Skip-Changelog label to your PR."
+            >&2 echo "Please run \`npx keep-a-changelog\` and commit the changes."
             >&2 echo ""
             >&2 echo "${files}"
             >&2 echo ""
