@@ -13,7 +13,7 @@ import (
 )
 
 type fakePgxPool struct {
-	Pool
+	pool
 	acquired int
 }
 
@@ -23,22 +23,11 @@ func (m *fakePgxPool) Acquire(_ context.Context) (*pgxpool.Conn, error) {
 }
 
 func TestWithRetries(t *testing.T) {
-	originalClosedFunc := isConnClosed
-	t.Cleanup(func() {
-		isConnClosed = originalClosedFunc
-	})
-
-	isConnClosed = func(conn *pgxpool.Conn) bool {
+	fakeIsConnClosed := func(conn *pgxpool.Conn) bool {
 		return true
 	}
-
-	originalGetConnFunc := getConn
-	t.Cleanup(func() {
-		getConn = originalGetConnFunc
-	})
-
 	conn1 := &pgx.Conn{}
-	getConn = func(conn *pgxpool.Conn) *pgx.Conn {
+	fakeGetConn := func(conn *pgxpool.Conn) *pgx.Conn {
 		return conn1
 	}
 
@@ -56,6 +45,8 @@ func TestWithRetries(t *testing.T) {
 		healthTracker: tracker,
 		nodeForConn:   map[*pgx.Conn]uint32{conn1: 1},
 		gc:            make(map[*pgx.Conn]struct{}),
+		isConnClosed:  fakeIsConnClosed,
+		getConn:       fakeGetConn,
 	}
 
 	// Test that a closed connection caused by context cancellation does not count towards health check

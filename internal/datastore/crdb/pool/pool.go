@@ -33,19 +33,17 @@ type ctxDisableRetries struct{}
 
 var CtxDisableRetries ctxDisableRetries
 
-var isConnClosed = isConnClosedFunc
-
 func isConnClosedFunc(conn *pgxpool.Conn) bool {
 	return conn.Conn().IsClosed()
 }
-
-var getConn = getConnFunc
 
 func getConnFunc(conn *pgxpool.Conn) *pgx.Conn {
 	return conn.Conn()
 }
 
-type Pool interface {
+// pool is an interface that defines the methods required for a connection pool.
+// It's defined to be able to mock the pgxpool.Pool for testing purposes.
+type pool interface {
 	Config() *pgxpool.Config
 	AcquireAllIdle(ctx context.Context) []*pgxpool.Conn
 	Close()
@@ -54,7 +52,7 @@ type Pool interface {
 }
 
 type RetryPool struct {
-	pool          Pool
+	pool          pool
 	id            string
 	healthTracker *NodeHealthTracker
 
@@ -62,6 +60,10 @@ type RetryPool struct {
 	maxRetries  uint8
 	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
 	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
+
+	// just in place to be able to test RetryPool
+	isConnClosed func(*pgxpool.Conn) bool
+	getConn      func(conn *pgxpool.Conn) *pgx.Conn
 }
 
 func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
@@ -72,6 +74,8 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 		healthTracker: healthTracker,
 		nodeForConn:   make(map[*pgx.Conn]uint32, 0),
 		gc:            make(map[*pgx.Conn]struct{}, 0),
+		getConn:       getConnFunc,
+		isConnClosed:  isConnClosedFunc,
 	}
 
 	limiter := rate.NewLimiter(rate.Every(connectRate), 1)
@@ -178,7 +182,7 @@ func (p *RetryPool) MinConns() uint32 {
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error {
 	return p.withRetries(ctx, func(conn *pgxpool.Conn) error {
-		tag, err := getConn(conn).Exec(ctx, sql, arguments...)
+		tag, err := p.getConn(conn).Exec(ctx, sql, arguments...)
 		return tagFunc(ctx, tag, err)
 	})
 }
@@ -187,7 +191,7 @@ func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Conte
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, func(conn *pgxpool.Conn) error {
-		rows, err := getConn(conn).Query(ctx, sql, optionsAndArgs...)
+		rows, err := p.getConn(conn).Query(ctx, sql, optionsAndArgs...)
 		if err != nil {
 			return err
 		}
@@ -200,7 +204,7 @@ func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Con
 // the connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, func(conn *pgxpool.Conn) error {
-		return rowFunc(ctx, getConn(conn).QueryRow(ctx, sql, optionsAndArgs...))
+		return rowFunc(ctx, p.getConn(conn).QueryRow(ctx, sql, optionsAndArgs...))
 	})
 }
 
@@ -299,7 +303,7 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 		}
 
 		// do not attempt to retry on context errors, fail fast
-		if ctxErr := contextError(ctx, err); ctxErr != nil {
+		if ctxErr := asContextError(ctx, err); ctxErr != nil {
 			return ctxErr
 		}
 
@@ -310,11 +314,11 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 
 		// we consider error resettable when connection is closed only if it wasn't caused by context cancellation or deadline exceeded.
 		// this prevents us from marking a node as unhealthy when the client triggers context errors that cause connections to close.
-		if errors.As(err, &resettable) || isConnClosed(conn) {
+		if errors.As(err, &resettable) || p.isConnClosed(conn) {
 			log.Ctx(ctx).Info().Err(err).Uint8("retries", retries).Msg("resettable error")
 
-			nodeID := p.Node(getConn(conn))
-			p.GC(getConn(conn))
+			nodeID := p.Node(p.getConn(conn))
+			p.GC(p.getConn(conn))
 			conn.Release()
 
 			// After a resettable error, mark the node as unhealthy
@@ -327,7 +331,7 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 			common.SleepOnErr(ctx, err, retries)
 
 			// if this is the last attempt to retry, do not unnecessarily attempt to acquire a new connection
-			if retries != maxRetries {
+			if retries < maxRetries {
 				var acqErr error
 				conn, acqErr = p.acquireFromDifferentNode(ctx, nodeID)
 				if acqErr != nil {
@@ -379,7 +383,7 @@ func (p *RetryPool) acquireFromDifferentNode(ctx context.Context, nodeID uint32)
 			log.Ctx(ctx).Info().Msg("less than 2 healthy nodes, not attempting to get a connection from a different node")
 			return conn, nil
 		}
-		id := p.Node(getConn(conn))
+		id := p.Node(p.getConn(conn))
 		if id == nodeID {
 			conn.Release()
 			continue
@@ -439,7 +443,7 @@ func wrapRetryableError(ctx context.Context, err error) error {
 		return nil
 	}
 
-	if ctxErr := contextError(ctx, err); ctxErr != nil {
+	if ctxErr := asContextError(ctx, err); ctxErr != nil {
 		return ctxErr
 	}
 
@@ -454,7 +458,7 @@ func wrapRetryableError(ctx context.Context, err error) error {
 }
 
 // returns error if either the context or the provided error is of type context.DeadlineExceeded or context.Canceled
-func contextError(ctx context.Context, err error) error {
+func asContextError(ctx context.Context, err error) error {
 	// if context is errored or timed out, return immediately
 	if ctx.Err() != nil {
 		return ctx.Err()
