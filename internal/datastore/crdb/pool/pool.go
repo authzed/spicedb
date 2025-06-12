@@ -321,11 +321,15 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 
 			common.SleepOnErr(ctx, err, retries)
 
-			var acqErr error
-			conn, acqErr = p.acquireFromDifferentNode(ctx, nodeID)
-			if acqErr != nil {
-				return fmt.Errorf("error acquiring connection from pool after retry %d: %w", retries, acqErr)
+			// if this is the last attempt to retry, do not unnecessarily attempt to acquire a new connection
+			if retries != maxRetries {
+				var acqErr error
+				conn, acqErr = p.acquireFromDifferentNode(ctx, nodeID)
+				if acqErr != nil {
+					return fmt.Errorf("error acquiring connection from pool after retry %d: %w", retries, acqErr)
+				}
 			}
+
 			continue
 		}
 		if errors.As(err, &retryable) {
