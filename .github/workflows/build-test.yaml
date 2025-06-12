@@ -53,7 +53,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
@@ -70,7 +70,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
       - name: "Unit tests with coverage"
         run: "go run mage.go test:unitCover"
       - name: "Coverage"
@@ -88,7 +88,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
       - name: "Steelthread tests"
         run: "go run mage.go test:steelthread"
 
@@ -100,7 +100,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
@@ -126,7 +126,7 @@ jobs:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
@@ -160,7 +160,7 @@ jobs:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
@@ -195,7 +195,7 @@ jobs:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
@@ -230,7 +230,7 @@ jobs:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
@@ -265,7 +265,7 @@ jobs:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
@@ -300,7 +300,7 @@ jobs:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
@@ -330,7 +330,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
@@ -362,48 +362,48 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "tools/analyzers/go.mod"
           cache-dependency-path: "tools/analyzers/go.sum"
       - name: "Analyzer tests"
         run: "go run mage.go test:analyzers"
-  development:
-    name: "WASM Tests"
-    runs-on: "depot-ubuntu-24.04-4"
-    needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
-    steps:
-      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
-      - name: "Disable AppArmor"
-        if:
-          "runner.os == 'Linux'"
-          # Disable AppArmor for Ubuntu 23.10+.
-          # https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md
-        run: "echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns"
-      # cleanenv is a util provided by the wasmbrowsertest package that removes
-      # environment variables from the environment handed to wasmbrowsertest.
-      # this works around https://github.com/agnivade/wasmbrowsertest/issues/40,
-      # which we were experiencing on depot.
-      - name: "Install cleanenv"
-        run: "go install github.com/agnivade/wasmbrowsertest/cmd/cleanenv@latest"
-      - name: "WASM tests"
-        # There's a whole bunch of vars in the environment that aren't needed for running this test, so we clear them out.
-        # NOTE: if you need to do this in the future, I recommend bashing into the container and running `env | sort | less`
-        run: "cleanenv -remove-prefix GITHUB_ -remove-prefix ANDROID_ -remove-prefix JAVA_ -remove-prefix DOTNET_ -remove-prefix RUNNER_ -remove-prefix HOMEBREW_ -remove-prefix runner_ -- go run mage.go test:wasm"
+development:
+  name: "WASM Tests"
+  runs-on: "depot-ubuntu-24.04-4"
+  needs: "paths-filter"
+  if: |
+    needs.paths-filter.outputs.codechange == 'true'
+  steps:
+    - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+    - uses: "authzed/actions/setup-go@main"
+    - name: "Disable AppArmor"
+      if:
+        "runner.os == 'Linux'"
+      # Disable AppArmor for Ubuntu 23.10+.
+      # https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md
+      run: "echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns"
+    # cleanenv is a util provided by the wasmbrowsertest package that removes
+    # environment variables from the environment handed to wasmbrowsertest.
+    # this works around https://github.com/agnivade/wasmbrowsertest/issues/40,
+    # which we were experiencing on depot.
+    - name: "Install cleanenv"
+      run: "go install github.com/agnivade/wasmbrowsertest/cmd/cleanenv@latest"
+    - name: "WASM tests"
+      # There's a whole bunch of vars in the environment that aren't needed for running this test, so we clear them out.
+      # NOTE: if you need to do this in the future, I recommend bashing into the container and running `env | sort | less`
+      run: "cleanenv -remove-prefix GITHUB_ -remove-prefix ANDROID_ -remove-prefix JAVA_ -remove-prefix DOTNET_ -remove-prefix RUNNER_ -remove-prefix HOMEBREW_ -remove-prefix runner_ -- go run mage.go test:wasm"
 
-  protobuf:
+protobuf:
     name: "Generate Protobufs"
     runs-on: "depot-ubuntu-24.04-small"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.protochange == 'true'
     steps:
-      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@main"
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
       - uses: "chainguard-dev/actions/nodiff@3caedd3784c809ba873cbb8c6a12e2bc6bf6ab09" # main
