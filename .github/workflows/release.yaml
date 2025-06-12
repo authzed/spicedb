@@ -17,7 +17,7 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         with:
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
       - uses: "nowsprinting/check-version-format-action@c7180d5aa53d69af70c364c047482fc71e133f55" # v4.0.6
         id: "version"
         with:

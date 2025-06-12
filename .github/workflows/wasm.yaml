@@ -15,7 +15,7 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         with:
           ref: "${{ env.GITHUB_SHA }}"
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
       - name: "Build WASM"
         run: "go run mage.go build:wasm"
       - uses: "shogo82148/actions-upload-release-asset@d22998fda4c1407f60d1ab48cd6fe67f360f34de" # v1.8.0

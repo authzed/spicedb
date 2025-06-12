@@ -53,12 +53,12 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
-      - uses: "authzed/actions/go-build@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/go-build@main"
       - name: "Image tests"
         run: "go run mage.go test:image"
 
@@ -70,7 +70,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
       - name: "Unit tests with coverage"
         run: "go run mage.go test:unitCover"
       - name: "Coverage"
@@ -88,7 +88,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
       - name: "Steelthread tests"
         run: "go run mage.go test:steelthread"
 
@@ -100,7 +100,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
@@ -126,7 +126,7 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -160,7 +160,7 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -195,7 +195,7 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -230,7 +230,7 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -265,7 +265,7 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -300,7 +300,7 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -330,7 +330,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
@@ -363,7 +363,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "tools/analyzers/go.mod"
           cache-dependency-path: "tools/analyzers/go.sum"
@@ -377,7 +377,7 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
       - name: "WASM tests"
         run: "go run mage.go test:wasm"
 
@@ -389,7 +389,7 @@ jobs:
       needs.paths-filter.outputs.protochange == 'true'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@9013d08e1002d122cc87f21d9ed43063555642d0" # main
+      - uses: "authzed/actions/setup-go@main"
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
       - uses: "chainguard-dev/actions/nodiff@ce51233d303aed2394a9976e7f5642fd2158f693" # main

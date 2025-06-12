@@ -1,5 +1,5 @@
 # vim: syntax=dockerfile
-FROM golang:1.24.3-alpine3.20@sha256:9f98e9893fbc798c710f3432baa1e0ac6127799127c3101d2c263c3a954f0abe AS health-probe-builder
+FROM golang:1.24.4-alpine3.21@sha256:17656bcdf9097d55d0028bef53f5a2789e9e49cda4eb31cd6f437f8a29f0754d AS health-probe-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 RUN git clone https://github.com/authzed/grpc-health-probe.git
