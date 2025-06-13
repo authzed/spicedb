@@ -467,7 +467,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 					third
 				}
 				`, nil, req)
-			headRevision, err := ds.HeadRevision(context.Background())
+			headRevision, err := ds.HeadRevision(t.Context())
 			req.NoError(err)
 
 			reader := ds.SnapshotReader(headRevision)
@@ -480,7 +480,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 				t.Run(fmt.Sprintf("%v", debugOption), func(t *testing.T) {
 					req := require.New(t)
 
-					result, err := RunSingleCaveatExpression(context.Background(), types.Default.TypeSet, tc.expression, tc.context, reader, debugOption)
+					result, err := RunSingleCaveatExpression(t.Context(), types.Default.TypeSet, tc.expression, tc.context, reader, debugOption)
 					req.NoError(err)
 					req.Equal(tc.expectedValue, result.Value())
 
@@ -519,13 +519,13 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(context.Background())
+	headRevision, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
 
 	result, err := RunSingleCaveatExpression(
-		context.Background(),
+		t.Context(),
 		types.Default.TypeSet,
 		caveatexpr("some_caveat"),
 		map[string]any{},
@@ -549,13 +549,13 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(context.Background())
+	headRevision, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
 
 	_, err = RunSingleCaveatExpression(
-		context.Background(),
+		t.Context(),
 		types.Default.TypeSet,
 		caveatexpr("some_caveat"),
 		map[string]any{
@@ -585,14 +585,14 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(context.Background())
+	headRevision, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Run the first caveat.
-	result, err := runner.RunCaveatExpression(context.Background(), caveatexpr("some_caveat"), map[string]any{
+	result, err := runner.RunCaveatExpression(t.Context(), caveatexpr("some_caveat"), map[string]any{
 		"themap": map[string]any{
 			"first": 42,
 		},
@@ -602,7 +602,7 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 
 	// Run the first caveat again, giving a reader that will error if it is used, ensuring
 	// the cache is used.
-	result, err = runner.RunCaveatExpression(context.Background(), caveatexpr("some_caveat"), map[string]any{
+	result, err = runner.RunCaveatExpression(t.Context(), caveatexpr("some_caveat"), map[string]any{
 		"themap": map[string]any{
 			"first": 41,
 		},
@@ -611,7 +611,7 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 	req.False(result.Value())
 
 	// Run the second caveat.
-	result, err = runner.RunCaveatExpression(context.Background(), caveatexpr("another_caveat"), map[string]any{
+	result, err = runner.RunCaveatExpression(t.Context(), caveatexpr("another_caveat"), map[string]any{
 		"somecondition": int64(42),
 	}, reader, RunCaveatExpressionNoDebugging)
 	req.NoError(err)
@@ -646,14 +646,14 @@ func TestRunCaveatWithMissingDefinition(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(context.Background())
+	headRevision, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
 
 	// Try to run a caveat that doesn't exist
 	_, err = RunSingleCaveatExpression(
-		context.Background(),
+		t.Context(),
 		types.Default.TypeSet,
 		caveatexpr("nonexistent_caveat"),
 		map[string]any{},
@@ -679,7 +679,7 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(context.Background())
+	headRevision, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
@@ -691,12 +691,12 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 		caveatexpr("second_caveat"),
 	)
 
-	err = runner.PopulateCaveatDefinitionsForExpr(context.Background(), expr, reader)
+	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, reader)
 	req.NoError(err)
 
 	// Should be able to run the expression now without additional lookups
 	result, err := runner.RunCaveatExpression(
-		context.Background(),
+		t.Context(),
 		expr,
 		map[string]any{
 			"firstparam": int64(42),
@@ -721,7 +721,7 @@ func TestCaveatRunnerEmptyExpression(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(context.Background())
+	headRevision, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
@@ -737,7 +737,7 @@ func TestCaveatRunnerEmptyExpression(t *testing.T) {
 		},
 	}
 
-	err = runner.PopulateCaveatDefinitionsForExpr(context.Background(), expr, reader)
+	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, reader)
 	req.Error(err)
 	req.Contains(err.Error(), "received empty caveat expression")
 }
@@ -799,7 +799,7 @@ func TestUnknownCaveatOperation(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(context.Background())
+	headRevision, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
 	reader := ds.SnapshotReader(headRevision)
@@ -815,12 +815,12 @@ func TestUnknownCaveatOperation(t *testing.T) {
 		},
 	}
 
-	err = runner.PopulateCaveatDefinitionsForExpr(context.Background(), expr, reader)
+	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, reader)
 	req.NoError(err)
 
 	require.Panics(t, func() {
 		_, err = runner.RunCaveatExpression(
-			context.Background(),
+			t.Context(),
 			expr,
 			map[string]any{"param": int64(42)},
 			reader,

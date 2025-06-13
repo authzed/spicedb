@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"sync"
 	"testing"
 
@@ -34,7 +33,7 @@ func TestTypeSystemConcurrency(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := NewTypeSystem(ResolverForPredefinedDefinitions(*setup))
 	require := require.New(t)
 	for range 10 {

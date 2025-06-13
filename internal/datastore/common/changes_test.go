@@ -1,7 +1,6 @@
 package common
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"sort"
@@ -310,7 +309,7 @@ func TestChanges(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 			for _, step := range tc.script {
 				if step.relationship != "" {
@@ -346,7 +345,7 @@ func TestChanges(t *testing.T) {
 		t.Run(fmt.Sprintf("reversed(%s)", tc.name), func(t *testing.T) {
 			require := require.New(t)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 			for _, step := range tc.script {
 				for _, c := range step.deletedCaveats {
@@ -383,7 +382,7 @@ func TestChanges(t *testing.T) {
 }
 
 func TestFilteredSchemaChanges(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchSchema, 0)
 	require.True(t, ch.IsEmpty())
 
@@ -392,7 +391,7 @@ func TestFilteredSchemaChanges(t *testing.T) {
 }
 
 func TestSetMetadata(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 	require.True(t, ch.IsEmpty())
 
@@ -409,7 +408,7 @@ func TestSetMetadata(t *testing.T) {
 }
 
 func TestFilteredRelationshipChanges(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships, 0)
 	require.True(t, ch.IsEmpty())
 
@@ -419,7 +418,7 @@ func TestFilteredRelationshipChanges(t *testing.T) {
 }
 
 func TestFilterAndRemoveRevisionChanges(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 
 	require.True(t, ch.IsEmpty())
@@ -480,7 +479,7 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 }
 
 func TestHLCOrdering(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 	require.True(t, ch.IsEmpty())
@@ -524,7 +523,7 @@ func TestHLCOrdering(t *testing.T) {
 }
 
 func TestHLCSameRevision(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 	require.True(t, ch.IsEmpty())
@@ -573,7 +572,7 @@ func TestHLCSameRevision(t *testing.T) {
 }
 
 func TestMaximumSize(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 939)
 	require.True(t, ch.IsEmpty())
@@ -605,7 +604,7 @@ func TestMaximumSize(t *testing.T) {
 }
 
 func TestMaximumSizeReplacement(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 243)
 	require.True(t, ch.IsEmpty())

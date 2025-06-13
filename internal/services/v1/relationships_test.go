@@ -300,7 +300,7 @@ func TestReadRelationships(t *testing.T) {
 							uintPageSize, err := safecast.ToUint32(pageSize)
 							require.NoError(err)
 							for i := 0; i < 20; i++ {
-								stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+								stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 									Consistency: &v1.Consistency{
 										Requirement: &v1.Consistency_AtLeastAsFresh{
 											AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
@@ -377,7 +377,7 @@ func TestWriteRelationships(t *testing.T) {
 	}
 
 	// Write with a failing precondition
-	resp, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	resp, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: tuple.ToV1Relationship(toWrite[0]),
@@ -410,7 +410,7 @@ func TestWriteRelationships(t *testing.T) {
 			Relationship: tuple.ToV1Relationship(tpl),
 		})
 	}
-	resp, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	resp, err = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: toWriteUpdates,
 		OptionalPreconditions: []*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
@@ -428,7 +428,7 @@ func TestWriteRelationships(t *testing.T) {
 			OptionalResourceId: tpl.Resource.ObjectID,
 		}
 
-		stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 			RelationshipFilter: findWritten,
 		})
 		require.NoError(err)
@@ -443,7 +443,7 @@ func TestWriteRelationships(t *testing.T) {
 		require.ErrorIs(err, io.EOF)
 
 		// Delete the written relationship
-		deleted, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		deleted, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 			Updates: []*v1.RelationshipUpdate{{
 				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 				Relationship: tuple.ToV1Relationship(tpl),
@@ -452,7 +452,7 @@ func TestWriteRelationships(t *testing.T) {
 		require.NoError(err)
 
 		// Ensure the relationship was deleted
-		stream, err = client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		stream, err = client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 			Consistency: &v1.Consistency{
 				Requirement: &v1.Consistency_AtLeastAsFresh{AtLeastAsFresh: deleted.WrittenAt},
 			},
@@ -474,7 +474,7 @@ func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 	toDelete := tuple.MustParse("document:totallynew#parent@folder:plans")
 
 	// Delete the non-existent relationship
-	_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 			Relationship: tuple.ToV1Relationship(toDelete),
@@ -499,7 +499,7 @@ func TestWriteExpiringRelationships(t *testing.T) {
 		}},
 	}
 
-	resp, err := client.WriteRelationships(context.Background(), writeReq)
+	resp, err := client.WriteRelationships(t.Context(), writeReq)
 	req.NoError(err)
 
 	// read relationship back
@@ -535,7 +535,7 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 			}
 
 			// Should fail due to non-existing caveat
-			ctx := context.Background()
+			ctx := t.Context()
 			_, err = client.WriteRelationships(ctx, writeReq)
 			grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
@@ -543,7 +543,7 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 
 			// should succeed
 			relWritten.OptionalCaveat.CaveatName = "test"
-			resp, err := client.WriteRelationships(context.Background(), writeReq)
+			resp, err := client.WriteRelationships(t.Context(), writeReq)
 			req.NoError(err)
 
 			// read relationship back
@@ -563,11 +563,11 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 				}},
 			}
 
-			resp, err = client.WriteRelationships(context.Background(), deleteReq)
+			resp, err = client.WriteRelationships(t.Context(), deleteReq)
 			req.NoError(err)
 
 			// ensure the relationship is no longer present.
-			stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+			stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_AtExactSnapshot{
 						AtExactSnapshot: resp.WrittenAt,
@@ -902,7 +902,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 						})
 					}
 
-					_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+					_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 						Updates:               mutations,
 						OptionalPreconditions: preconditions,
 					})
@@ -1257,7 +1257,7 @@ func TestDeleteRelationships(t *testing.T) {
 				client := v1.NewPermissionsServiceClient(conn)
 				t.Cleanup(cleanup)
 
-				resp, err := client.DeleteRelationships(context.Background(), tc.req)
+				resp, err := client.DeleteRelationships(t.Context(), tc.req)
 
 				if tc.expectedCode != codes.OK {
 					grpcutil.RequireStatus(t, tc.expectedCode, err)
@@ -1286,7 +1286,7 @@ func TestDeleteRelationshipsBeyondLimit(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	_, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+	_, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: "document",
 		},
@@ -1303,7 +1303,7 @@ func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	_, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+	_, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: "document",
 		},
@@ -1320,7 +1320,7 @@ func TestReadRelationshipsBeyondAllowedLimit(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	resp, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+	resp, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: "document",
 		},
@@ -1365,12 +1365,12 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 			for i := 0; i < 10; i++ {
 				iterations++
 
-				headRev, err := ds.HeadRevision(context.Background())
+				headRev, err := ds.HeadRevision(t.Context())
 				require.NoError(err)
 
 				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevision(headRev))
 
-				resp, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+				resp, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 					RelationshipFilter: &v1.RelationshipFilter{
 						ResourceType: "document",
 					},
@@ -1422,7 +1422,7 @@ func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	_, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+	_, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType:       "folder",
 			OptionalResourceId: "auditors",
@@ -1486,7 +1486,7 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 	})
 	require.NoError(err)
 
-	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		OptionalTransactionMetadata: metadata,
 		Updates: []*v1.RelationshipUpdate{
 			{
@@ -1499,7 +1499,7 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 	require.NoError(err)
 
 	beforeWriteToken := zedtoken.MustNewFromRevision(beforeWriteRev)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	watchClient := v1.NewWatchServiceClient(conn)
@@ -1533,7 +1533,7 @@ func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
 	})
 	require.NoError(err)
 
-	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		OptionalTransactionMetadata: metadata,
 	})
 
@@ -1562,7 +1562,7 @@ func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
 	})
 	require.NoError(err)
 
-	_, err = client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+	_, err = client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 		OptionalTransactionMetadata: metadata,
 		RelationshipFilter:          &v1.RelationshipFilter{},
 	})
@@ -1587,7 +1587,7 @@ func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		OptionalPreconditions: []*v1.Precondition{
 			{
 				Operation: v1.Precondition_OPERATION_MUST_MATCH,
@@ -1636,7 +1636,7 @@ func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{
 			{
 				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
@@ -1673,7 +1673,7 @@ func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
 	require.NoError(err)
 	rel.OptionalCaveat.Context = strct
 
-	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{
 			{
 				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
@@ -1717,7 +1717,7 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 			})
 		}
 
-		_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 			Updates: updates,
 		})
 		require.NoError(err)
@@ -1726,7 +1726,7 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 	retryCount := 5
 	for i := 0; i < retryCount; i++ {
 		// Perform a read and ensures it times out.
-		stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 			Consistency: &v1.Consistency{
 				Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
 			},
@@ -1754,7 +1754,7 @@ func TestReadRelationshipsInvalidCursor(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+	stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
 				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
@@ -1850,7 +1850,7 @@ func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *tes
 				})
 			}
 
-			_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+			_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 				Updates: updates,
 			})
 			return err

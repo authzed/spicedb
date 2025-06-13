@@ -77,7 +77,7 @@ func TestObserveShapeLatency(t *testing.T) {
 	require.NoError(t, reg.Register(metric))
 
 	// Report some data.
-	observeShapeLatency(context.Background(), metric, "testMethod", APIShapeLabels{
+	observeShapeLatency(t.Context(), metric, "testMethod", APIShapeLabels{
 		ResourceTypeLabel:     "resource_type",
 		ResourceRelationLabel: "resource_relation",
 		SubjectTypeLabel:      42,
@@ -132,7 +132,7 @@ func TestNoLabels(t *testing.T) {
 }
 
 func TestSetInContext(t *testing.T) {
-	ctx := contextWithHandle(context.Background())
+	ctx := contextWithHandle(t.Context())
 	builder := func() APIShapeLabels {
 		return APIShapeLabels{ResourceTypeLabel: "test"}
 	}
@@ -147,7 +147,7 @@ func TestSetInContext(t *testing.T) {
 }
 
 func TestContextWithHandle(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	newCtx := contextWithHandle(ctx)
 	require.NotNil(t, newCtx)
 }
@@ -307,7 +307,7 @@ func TestUnaryRPCMetricReporting(t *testing.T) {
 	service := &testServiceImpl{}
 
 	// Create a context with the middleware's context handling
-	ctx := contextWithHandle(context.Background())
+	ctx := contextWithHandle(t.Context())
 
 	// Create a mock unary server info
 	info := &grpc.UnaryServerInfo{
@@ -343,7 +343,7 @@ func TestStreamRPCMetricReporting(t *testing.T) {
 	require.NotNil(t, interceptor)
 
 	// Create a mock server stream
-	ctx := contextWithHandle(context.Background())
+	ctx := contextWithHandle(t.Context())
 	mockStream := &fakeServerStream{
 		ctx:      ctx,
 		recvMsgs: []*TestRequest{{Message: "stream test"}},
@@ -444,11 +444,11 @@ func TestPerfInsightsMiddlewareWithBuffcon(t *testing.T) {
 
 	// Make a unary call to the test service.
 	var resp TestResponse
-	err = conn.Invoke(context.Background(), "/perfinsights.TestService/UnaryCall", &TestRequest{Message: "buffcon test"}, &resp)
+	err = conn.Invoke(t.Context(), "/perfinsights.TestService/UnaryCall", &TestRequest{Message: "buffcon test"}, &resp)
 	require.NoError(t, err)
 
 	// Make a stream call to the test service.
-	stream, err := conn.NewStream(context.Background(), &TestServiceServiceDesc.Streams[0], "/perfinsights.TestService/StreamCall")
+	stream, err := conn.NewStream(t.Context(), &TestServiceServiceDesc.Streams[0], "/perfinsights.TestService/StreamCall")
 	require.NoError(t, err)
 
 	// Send a request through the stream

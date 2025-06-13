@@ -4,7 +4,6 @@
 package integrationtesting_test
 
 import (
-	"context"
 	"fmt"
 	"path"
 	"sort"
@@ -240,7 +239,7 @@ func ensureRelationshipWrites(t *testing.T, vctx validationContext) {
 		}
 
 		for _, relationship := range relationships {
-			err := vctx.serviceTester.Write(context.Background(), relationship)
+			err := vctx.serviceTester.Write(t.Context(), relationship)
 			require.NoError(t, err, "failed to write %s", tuple.MustString(relationship))
 		}
 	}
@@ -249,7 +248,7 @@ func ensureRelationshipWrites(t *testing.T, vctx validationContext) {
 // validateRelationshipReads ensures that all defined relationships are returned by the Read API.
 func validateRelationshipReads(t *testing.T, vctx validationContext) {
 	testForEachRelationship(t, vctx, "read", func(t *testing.T, relationship tuple.Relationship) {
-		foundRelationships, err := vctx.serviceTester.Read(context.Background(),
+		foundRelationships, err := vctx.serviceTester.Read(t.Context(),
 			relationship.Resource.ObjectType,
 			vctx.revision,
 		)
@@ -272,7 +271,7 @@ func validateRelationshipReads(t *testing.T, vctx validationContext) {
 func ensureNoExpansionErrors(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "run_expand",
 		func(t *testing.T, resource tuple.ObjectAndRelation) {
-			_, err := vctx.serviceTester.Expand(context.Background(),
+			_, err := vctx.serviceTester.Expand(t.Context(),
 				resource,
 				vctx.revision,
 			)
@@ -374,7 +373,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							var currentCursor *v1.Cursor
 							resolvedResources := map[string]*v1.LookupResourcesResponse{}
 							for i := 0; i < 100; i++ {
-								foundResources, lastCursor, err := vctx.serviceTester.LookupResources(context.Background(), resourceRelation, subject, vctx.revision, currentCursor, pageSize, nil)
+								foundResources, lastCursor, err := vctx.serviceTester.LookupResources(t.Context(), resourceRelation, subject, vctx.revision, currentCursor, pageSize, nil)
 								require.NoError(t, err)
 
 								if pageSize > 0 {
@@ -399,7 +398,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							expectedBulkPermissions := map[string]v1.CheckPermissionResponse_Permissionship{}
 
 							for _, resolvedResource := range resolvedResources {
-								permissionship, err := vctx.serviceTester.Check(context.Background(),
+								permissionship, err := vctx.serviceTester.Check(t.Context(),
 									tuple.ObjectAndRelation{
 										ObjectType: resourceRelation.ObjectType,
 										ObjectID:   resolvedResource.ResourceObjectId,
@@ -447,7 +446,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							}
 
 							// Ensure they are all found via bulk check as well.
-							results, err := vctx.serviceTester.CheckBulk(context.Background(),
+							results, err := vctx.serviceTester.CheckBulk(t.Context(),
 								checkBulkItems,
 								vctx.revision,
 							)
@@ -470,7 +469,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 				subjectType := subjectType
 				t.Run(fmt.Sprintf("%s#%s", subjectType.ObjectType, subjectType.Relation),
 					func(t *testing.T) {
-						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, nil)
+						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(t.Context(), resource, subjectType, vctx.revision, nil)
 						require.NoError(t, err)
 
 						// Ensure the subjects found include those defined as expected. Since the
@@ -516,7 +515,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 										// If the assertion has caveat context, rerun LookupSubjects with the context to ensure the returned subject
 										// matches the context given.
 										if len(assertion.CaveatContext) > 0 {
-											resolvedSubjectsWithContext, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, assertion.CaveatContext)
+											resolvedSubjectsWithContext, err := vctx.serviceTester.LookupSubjects(t.Context(), resource, subjectType, vctx.revision, assertion.CaveatContext)
 											require.NoError(t, err)
 
 											resolvedSubjectsToCheck = resolvedSubjectsWithContext
@@ -554,7 +553,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 							}
 
 							for _, excludedSubject := range resolvedSubject.ExcludedSubjects {
-								permissionship, err := vctx.serviceTester.Check(context.Background(),
+								permissionship, err := vctx.serviceTester.Check(t.Context(),
 									resource,
 									tuple.ObjectAndRelation{
 										ObjectType: subjectType.ObjectType,
@@ -596,7 +595,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 								Relation:   subjectType.Relation,
 							}
 
-							permissionship, err := vctx.serviceTester.Check(context.Background(),
+							permissionship, err := vctx.serviceTester.Check(t.Context(),
 								resource,
 								subject,
 								vctx.revision,
@@ -673,12 +672,12 @@ func runAssertions(t *testing.T, vctx validationContext) {
 						assertion := assertion
 						t.Run(assertion.RelationshipWithContextString, func(t *testing.T) {
 							rel := assertion.Relationship
-							permissionship, err := vctx.serviceTester.Check(context.Background(), rel.Resource, rel.Subject, vctx.revision, assertion.CaveatContext)
+							permissionship, err := vctx.serviceTester.Check(t.Context(), rel.Resource, rel.Subject, vctx.revision, assertion.CaveatContext)
 							require.NoError(t, err)
 							require.Equal(t, entry.expectedPermissionship, permissionship, "Assertion `%s` returned %s; expected %s", tuple.MustString(rel), permissionship, entry.expectedPermissionship)
 
 							// Ensure the assertion passes LookupResources with context, directly.
-							resolvedDirectResources, _, err := vctx.serviceTester.LookupResources(context.Background(), rel.Resource.RelationReference(), rel.Subject, vctx.revision, nil, 0, assertion.CaveatContext)
+							resolvedDirectResources, _, err := vctx.serviceTester.LookupResources(t.Context(), rel.Resource.RelationReference(), rel.Subject, vctx.revision, nil, 0, assertion.CaveatContext)
 							require.NoError(t, err)
 
 							resolvedDirectResourcesMap := map[string]*v1.LookupResourcesResponse{}
@@ -687,7 +686,7 @@ func runAssertions(t *testing.T, vctx validationContext) {
 							}
 
 							// Ensure the assertion passes LookupResources without context, indirectly.
-							resolvedIndirectResources, _, err := vctx.serviceTester.LookupResources(context.Background(), rel.Resource.RelationReference(), rel.Subject, vctx.revision, nil, 0, nil)
+							resolvedIndirectResources, _, err := vctx.serviceTester.LookupResources(t.Context(), rel.Resource.RelationReference(), rel.Subject, vctx.revision, nil, 0, nil)
 							require.NoError(t, err)
 
 							resolvedIndirectResourcesMap := map[string]*v1.LookupResourcesResponse{}
@@ -745,7 +744,7 @@ func runAssertions(t *testing.T, vctx validationContext) {
 						})
 
 						// Run all assertions under bulk check and ensure they match as well.
-						results, err := vctx.serviceTester.BulkCheck(context.Background(), bulkCheckItems, vctx.revision)
+						results, err := vctx.serviceTester.BulkCheck(t.Context(), bulkCheckItems, vctx.revision)
 						require.NoError(t, err)
 
 						for _, result := range results {
@@ -771,7 +770,7 @@ func validateDevelopment(t *testing.T, vctx validationContext) {
 		Relationships: rels,
 	}
 
-	devContext, devErr, err := development.NewDevContext(context.Background(), reqContext)
+	devContext, devErr, err := development.NewDevContext(t.Context(), reqContext)
 	require.NoError(t, err)
 	require.Nil(t, devErr, "dev error: %v", devErr)
 	require.NotNil(t, devContext)
@@ -921,13 +920,13 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 // validateReachableSubjectTypes validates that the reachable subject types are those expected.
 func validateReachableSubjectTypes(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_reachable_subject_types", func(t *testing.T, resource tuple.ObjectAndRelation) {
-		headRev, err := vctx.clusterAndData.DataStore.HeadRevision(context.Background())
+		headRev, err := vctx.clusterAndData.DataStore.HeadRevision(t.Context())
 		require.NoError(t, err)
 
 		reader := vctx.clusterAndData.DataStore.SnapshotReader(headRev)
 		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 
-		reachableSubjectTypes, err := ts.GetFullRecursiveSubjectTypesForRelation(context.Background(), resource.ObjectType, resource.Relation)
+		reachableSubjectTypes, err := ts.GetFullRecursiveSubjectTypesForRelation(t.Context(), resource.ObjectType, resource.Relation)
 		require.NoError(t, err)
 
 		reachableSubjectTypesSet := mapz.NewSet(reachableSubjectTypes...)

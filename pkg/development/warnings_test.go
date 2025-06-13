@@ -1,7 +1,6 @@
 package development
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -218,13 +217,13 @@ func TestWarnings(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			devCtx, devErr, err := NewDevContext(context.Background(), &developerv1.RequestContext{
+			devCtx, devErr, err := NewDevContext(t.Context(), &developerv1.RequestContext{
 				Schema: tc.schema,
 			})
 			require.NoError(t, err)
 			require.Empty(t, devErr)
 
-			warnings, err := GetWarnings(context.Background(), devCtx)
+			warnings, err := GetWarnings(t.Context(), devCtx)
 			require.NoError(t, err)
 
 			if tc.expectedWarning == nil {

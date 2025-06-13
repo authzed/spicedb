@@ -1,7 +1,6 @@
 package relationships
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -327,7 +326,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			}
 
 			// Validate update.
-			err = ValidateRelationshipUpdates(context.Background(), reader, caveattypes.Default.TypeSet, []tuple.RelationshipUpdate{
+			err = ValidateRelationshipUpdates(t.Context(), reader, caveattypes.Default.TypeSet, []tuple.RelationshipUpdate{
 				op(tuple.MustParse(tc.relationship)),
 			})
 			if tc.expectedError != "" {
@@ -338,7 +337,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 
 			// Validate create/touch.
 			if tc.operation != core.RelationTupleUpdate_DELETE {
-				err = ValidateRelationshipsForCreateOrTouch(context.Background(), reader, caveattypes.Default.TypeSet, tuple.MustParse(tc.relationship))
+				err = ValidateRelationshipsForCreateOrTouch(t.Context(), reader, caveattypes.Default.TypeSet, tuple.MustParse(tc.relationship))
 				if tc.expectedError != "" {
 					req.ErrorContains(err, tc.expectedError)
 				} else {

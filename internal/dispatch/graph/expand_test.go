@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"context"
 	"fmt"
 	"go/ast"
 	"go/printer"
@@ -290,7 +289,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
 	tpl := tuple.MustParse("folder:oops#parent@folder:oops")
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
 	require.NoError(err)

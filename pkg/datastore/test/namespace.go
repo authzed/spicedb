@@ -40,7 +40,7 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
@@ -57,7 +57,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
@@ -149,7 +149,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
 	docTpl, err := tuple.Parse(testfixtures.StandardRelationships[0])
@@ -199,7 +199,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
 	require.NoError(t, err)
@@ -227,7 +227,7 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.DeleteNamespaces(ctx, testfixtures.UserNS.Name)
@@ -261,7 +261,7 @@ definition document {
 	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
 		if err != nil {
@@ -312,7 +312,7 @@ definition document {
 	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	updatedRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
 		if err != nil {

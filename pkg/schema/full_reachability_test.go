@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -300,7 +299,7 @@ func TestRelationsReferencing(t *testing.T) {
 			require.NoError(t, err)
 
 			res := ResolverForCompiledSchema(*schema)
-			graph, err := BuildGraph(context.Background(), res)
+			graph, err := BuildGraph(t.Context(), res)
 			require.NoError(t, err)
 
 			for _, resource := range schema.ObjectDefinitions {
@@ -356,7 +355,7 @@ func BenchmarkRelationsReferencing(b *testing.B) {
 	require.NoError(b, err)
 
 	res := ResolverForCompiledSchema(*schema)
-	graph, err := BuildGraph(context.Background(), res)
+	graph, err := BuildGraph(b.Context(), res)
 	require.NoError(b, err)
 
 	var size int

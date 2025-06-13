@@ -50,7 +50,7 @@ func TestWithDatastore(t *testing.T) {
 	require.Equal(t, opts.DisableGRPCHistogram, withDS.DisableGRPCHistogram)
 	require.Equal(t, opts.MiddlewareServiceLabel, withDS.MiddlewareServiceLabel)
 
-	_, authError := withDS.AuthFunc(context.Background())
+	_, authError := withDS.AuthFunc(t.Context())
 	require.Error(t, authError)
 	require.ErrorContains(t, authError, "expected auth error")
 }
@@ -89,7 +89,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 	require.Equal(t, opts.DisableGRPCHistogram, withDS.DisableGRPCHistogram)
 	require.Equal(t, opts.MiddlewareServiceLabel, withDS.MiddlewareServiceLabel)
 
-	_, authError := withDS.AuthFunc(context.Background())
+	_, authError := withDS.AuthFunc(t.Context())
 	require.Error(t, authError)
 	require.ErrorContains(t, authError, "expected auth error")
 }

@@ -50,13 +50,13 @@ func LoadDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath st
 func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) ConsistencyClusterAndData {
 	require := require.New(t)
 
-	populated, revision, err := validationfile.PopulateFromFiles(context.Background(), ds, caveattypes.Default.TypeSet, []string{consistencyTestFilePath})
+	populated, revision, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{consistencyTestFilePath})
 	require.NoError(err)
 
 	connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds, additionalServerOptions...)
 	t.Cleanup(cleanup)
 
-	dsCtx := datastoremw.ContextWithHandle(context.Background())
+	dsCtx := datastoremw.ContextWithHandle(t.Context())
 	require.NoError(datastoremw.SetInContext(dsCtx, ds))
 	res := schema.ResolverForDatastoreReader(ds.SnapshotReader(revision))
 	ts := schema.NewTypeSystem(res)

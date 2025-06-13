@@ -165,7 +165,7 @@ func TestMaxDepth(t *testing.T) {
 
 	mutation := tuple.Create(tuple.MustParse("folder:oops#parent@folder:oops"))
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	revision, err := common.UpdateRelationshipsInDatastore(ctx, ds, mutation)
@@ -1426,7 +1426,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datastoremw.ContextWithHandle(context.Background())
+			ctx := datastoremw.ContextWithHandle(t.Context())
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -1931,7 +1931,7 @@ func TestCheckWithHints(t *testing.T) {
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datastoremw.ContextWithHandle(context.Background())
+			ctx := datastoremw.ContextWithHandle(t.Context())
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -1981,7 +1981,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 		tuple.MustParse("document:somedoc#viewer@user:tom"),
 	}, require)
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -2032,7 +2032,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 		tuple.MustParse("organization:someorg#member@user:tom"),
 	}, require)
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -2069,7 +2069,7 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 	require.NoError(t, err)
 	cachingDispatcher.SetDelegate(dispatch)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	return ctx, cachingDispatcher, revision
@@ -2091,7 +2091,7 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 	require.NoError(t, err)
 	cachingDispatcher.SetDelegate(dispatch)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	return ctx, cachingDispatcher, revision

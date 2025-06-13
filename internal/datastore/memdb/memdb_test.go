@@ -37,7 +37,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	recoverErr := errors.New("panic")
 
 	// Make the namespace very large to increase the likelihood of overlapping
@@ -89,7 +89,7 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Kick off a number of writes to ensure at least one hits an error.
 	g := errgroup.Group{}
@@ -121,13 +121,13 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
-	lowestRevision, err := ds.HeadRevision(context.Background())
+	lowestRevision, err := ds.HeadRevision(t.Context())
 	require.NoError(err)
 
 	err = ds.Close()
 	require.NoError(err)
 
-	_, errChan := ds.Watch(context.Background(), lowestRevision, datastore.WatchJustRelationships())
+	_, errChan := ds.Watch(t.Context(), lowestRevision, datastore.WatchJustRelationships())
 
 	select {
 	case err := <-errChan:
@@ -136,17 +136,17 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 		require.Fail("expected an error but waited too long")
 	}
 
-	_, err = ds.Statistics(context.Background())
+	_, err = ds.Statistics(t.Context())
 	require.ErrorIs(err, ErrMemDBIsClosed)
 
-	err = ds.CheckRevision(context.Background(), lowestRevision)
+	err = ds.CheckRevision(t.Context(), lowestRevision)
 	require.ErrorIs(err, ErrMemDBIsClosed)
 
-	_, err = ds.OptimizedRevision(context.Background())
+	_, err = ds.OptimizedRevision(t.Context())
 	require.ErrorIs(err, ErrMemDBIsClosed)
 
 	reader := ds.SnapshotReader(datastore.NoRevision)
-	_, err = reader.CountRelationships(context.Background(), "blah")
+	_, err = reader.CountRelationships(t.Context(), "blah")
 	require.ErrorIs(err, ErrMemDBIsClosed)
 }
 
@@ -157,7 +157,7 @@ func BenchmarkQueryRelationships(b *testing.B) {
 	require.NoError(err)
 
 	// Write a bunch of relationships.
-	ctx := context.Background()
+	ctx := b.Context()
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		updates := []tuple.RelationshipUpdate{}
 		for i := 0; i < 1000; i++ {

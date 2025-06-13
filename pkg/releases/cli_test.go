@@ -21,7 +21,7 @@ func TestRegisterFlags(t *testing.T) {
 }
 
 func TestCheckAndLogVersionUpdate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("version check error", func(t *testing.T) {
 		err := mustCheckAndLogVersionUpdate(ctx, func() (string, error) {

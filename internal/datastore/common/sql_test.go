@@ -1410,7 +1410,7 @@ func TestExecuteQuery(t *testing.T) {
 							return nil, nil
 						},
 					}
-					_, err := fake.ExecuteQuery(context.Background(), ran, tc.options...)
+					_, err := fake.ExecuteQuery(t.Context(), ran, tc.options...)
 					require.NoError(t, err)
 					require.True(t, wasRun)
 				})
@@ -1514,7 +1514,7 @@ func TestIndexHint(t *testing.T) {
 		},
 	}
 
-	_, err := fake.ExecuteQuery(context.Background(), filterer)
+	_, err := fake.ExecuteQuery(t.Context(), filterer)
 	require.NoError(t, err)
 	require.True(t, wasRun)
 }

@@ -27,7 +27,7 @@ func TestAsyncDispatch(t *testing.T) {
 		t.Run(fmt.Sprintf("%d/%d", tc.numRequests, tc.concurrencyLimit), func(t *testing.T) {
 			require := require.New(t)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			l := &sync.Mutex{}
 			letFinish := sync.NewCond(l)

@@ -16,7 +16,7 @@ import (
 func TestTaskRunnerCompletesAllTasks(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	tr := NewTaskRunner(context.Background(), 2)
+	tr := NewTaskRunner(t.Context(), 2)
 	completed := sync.Map{}
 
 	for i := 0; i < 5; i++ {
@@ -43,7 +43,7 @@ func TestTaskRunnerCompletesAllTasks(t *testing.T) {
 func TestTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -82,7 +82,7 @@ func TestTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 func TestTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -122,7 +122,7 @@ func TestTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 func TestTaskRunnerDoesNotBlockOnQueuing(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

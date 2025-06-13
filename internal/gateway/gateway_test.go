@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -26,7 +25,7 @@ func TestOtelForwarding(t *testing.T) {
 	require.Nil(t, err)
 
 	// Create a context with the test data
-	inCtx := trace.ContextWithSpanContext(context.Background(), trace.NewSpanContext(trace.SpanContextConfig{
+	inCtx := trace.ContextWithSpanContext(t.Context(), trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID: traceID,
 		SpanID:  spanID,
 	}))
@@ -37,7 +36,7 @@ func TestOtelForwarding(t *testing.T) {
 	otel.GetTextMapPropagator().Inject(inCtx, propagation.HeaderCarrier(r.Header))
 
 	// Run the annotator with a new context to ensure no existing tracing data
-	outCtx := context.Background()
+	outCtx := t.Context()
 	md := OtelAnnotator(outCtx, r)
 
 	// Assert the context was injected into the gRPC context.
@@ -49,7 +48,7 @@ func TestOtelForwarding(t *testing.T) {
 func TestCloseConnections(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
-	gatewayHandler, err := NewHandler(context.Background(), "192.0.2.0:4321", "")
+	gatewayHandler, err := NewHandler(t.Context(), "192.0.2.0:4321", "")
 	require.NoError(t, err)
 	// 4 conns for permission+schema+watch+experimental services, 1 for health check
 	require.Len(t, gatewayHandler.closers, 5)

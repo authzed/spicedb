@@ -1,7 +1,6 @@
 package development
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestRunAllAssertionsWithCaveatedFailures(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 caveat somecaveat(somecondition int) {
@@ -47,7 +46,7 @@ definition document {
 }
 
 func TestRunAllAssertionsWithFalseAssertions(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -75,7 +74,7 @@ definition document {
 }
 
 func TestRunAllAssertionsWithCaveatOnAssertion(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 caveat somecaveat(somecondition int) {
@@ -112,7 +111,7 @@ definition document {
 }
 
 func TestRunAllAssertionsFailure(t *testing.T) {
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {

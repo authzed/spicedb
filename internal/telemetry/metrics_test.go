@@ -1,7 +1,6 @@
 package telemetry
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -42,7 +41,7 @@ func TestSpiceDBClusterInfoCollector(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(100, 10*time.Hour, 10*time.Hour)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	collector, err := SpiceDBClusterInfoCollector(ctx, "test", "memdb", ds)
 	require.NoError(t, err)
 

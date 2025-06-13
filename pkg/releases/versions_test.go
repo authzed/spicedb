@@ -32,7 +32,7 @@ func TestCheckIsLatestVersion(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			state, _, release, _ := CheckIsLatestVersion(context.Background(), func() (string, error) {
+			state, _, release, _ := CheckIsLatestVersion(t.Context(), func() (string, error) {
 				return tc.version, nil
 			}, func(ctx context.Context) (*Release, error) {
 				return &Release{
@@ -53,7 +53,7 @@ func TestCurrentVersion(t *testing.T) {
 
 func TestCheckIsLatestVersionErrors(t *testing.T) {
 	t.Run("getCurrentVersion error", func(t *testing.T) {
-		state, version, release, err := CheckIsLatestVersion(context.Background(), func() (string, error) {
+		state, version, release, err := CheckIsLatestVersion(t.Context(), func() (string, error) {
 			return "", errors.New("version error")
 		}, func(ctx context.Context) (*Release, error) {
 			return &Release{Version: "v1.0.0"}, nil
@@ -65,7 +65,7 @@ func TestCheckIsLatestVersionErrors(t *testing.T) {
 	})
 
 	t.Run("getLatestRelease error", func(t *testing.T) {
-		state, version, release, err := CheckIsLatestVersion(context.Background(), func() (string, error) {
+		state, version, release, err := CheckIsLatestVersion(t.Context(), func() (string, error) {
 			return "v1.0.0", nil
 		}, func(ctx context.Context) (*Release, error) {
 			return nil, errors.New("release error")

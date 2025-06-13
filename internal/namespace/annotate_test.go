@@ -1,7 +1,6 @@
 package namespace
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
-	lastRevision, err := ds.HeadRevision(context.Background())
+	lastRevision, err := ds.HeadRevision(t.Context())
 	require.NoError(err)
 
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
@@ -41,7 +40,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	def, err := schema.NewDefinition(ts, compiled.ObjectDefinitions[0])
 	require.NoError(err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	vdef, terr := def.Validate(ctx)
 	require.NoError(terr)
 

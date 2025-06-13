@@ -26,7 +26,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 	for _, tc := range testCases {
 		t.Run(strconv.Itoa(tc), func(t *testing.T) {
 			require := require.New(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
@@ -67,7 +67,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 
 func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -87,7 +87,7 @@ func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 
 func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -126,7 +126,7 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 	tc := 10
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -169,7 +169,7 @@ func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 	tc := 10
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -208,7 +208,7 @@ func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 	tc := 10
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -275,7 +275,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 
 func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)

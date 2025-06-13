@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -218,7 +217,7 @@ func TestTypecheckingJustTypes(t *testing.T) {
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
-					types, err := ts.GetRecursiveTerminalTypesForRelation(context.Background(), resource.Name, relation.Name)
+					types, err := ts.GetRecursiveTerminalTypesForRelation(t.Context(), resource.Name, relation.Name)
 					require.NoError(t, err)
 
 					rel := resource.Name + "#" + relation.Name
@@ -401,7 +400,7 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
-					types, err := ts.GetFullRecursiveSubjectTypesForRelation(context.Background(), resource.Name, relation.Name)
+					types, err := ts.GetFullRecursiveSubjectTypesForRelation(t.Context(), resource.Name, relation.Name)
 					require.NoError(t, err)
 
 					rel := resource.Name + "#" + relation.Name
@@ -466,9 +465,9 @@ func TestIncompleteSchema(t *testing.T) {
 
 			res := ResolverForCompiledSchema(*schema)
 			ts := NewTypeSystem(res)
-			_, err = ts.GetRecursiveTerminalTypesForRelation(context.Background(), "resource", "view")
+			_, err = ts.GetRecursiveTerminalTypesForRelation(t.Context(), "resource", "view")
 			require.Error(t, err)
-			_, err = ts.GetFullRecursiveSubjectTypesForRelation(context.Background(), "resource", "view")
+			_, err = ts.GetFullRecursiveSubjectTypesForRelation(t.Context(), "resource", "view")
 			require.Error(t, err)
 		})
 	}

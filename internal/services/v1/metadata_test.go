@@ -1,7 +1,6 @@
 package v1_test
 
 import (
-	"context"
 	"errors"
 	"io"
 	"reflect"
@@ -26,7 +25,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 	conn, cleanup, _, revision := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// PermissionsService
 	checkServiceMethods(

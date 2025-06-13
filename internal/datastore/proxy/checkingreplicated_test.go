@@ -25,7 +25,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 
 	// Try at revision 1, which should use the replica.
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
-	ns, err := reader.ListAllNamespaces(context.Background())
+	ns, err := reader.ListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, 0, len(ns))
 
@@ -33,7 +33,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 
 	// Try at revision 2, which should use the primary.
 	reader = replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("2"))
-	ns, err = reader.ListAllNamespaces(context.Background())
+	ns, err = reader.ListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, 0, len(ns))
 
@@ -48,7 +48,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t
 	require.NoError(t, err)
 
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
-	ns, err := reader.LookupNamespacesWithNames(context.Background(), []string{"ns1"})
+	ns, err := reader.LookupNamespacesWithNames(t.Context(), []string{"ns1"})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(ns))
 }
@@ -72,7 +72,7 @@ func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 
 			// Try at revision 1, which should use the replica.
 			reader := ds.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
-			_, _, err := reader.ReadNamespaceByName(context.Background(), "expecterror")
+			_, _, err := reader.ReadNamespaceByName(t.Context(), "expecterror")
 			require.Error(t, err)
 			require.ErrorContains(t, err, "raising an expected error")
 		})

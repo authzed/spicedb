@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ import (
 func TestUnwrapStatusError(t *testing.T) {
 	t.Parallel()
 
-	err := rewriteError(context.Background(), graph.NewCheckFailureErr(status.Error(codes.Canceled, "canceled")))
+	err := rewriteError(t.Context(), graph.NewCheckFailureErr(status.Error(codes.Canceled, "canceled")))
 	grpcutil.RequireStatus(t, codes.Canceled, err)
 }
 

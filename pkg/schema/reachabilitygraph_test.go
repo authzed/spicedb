@@ -210,7 +210,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+			ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
 
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -219,7 +219,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 			require.NoError(err)
 
 			// Write the schema.
-			_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				for _, nsDef := range compiled.ObjectDefinitions {
 					if err := tx.WriteNamespaces(ctx, nsDef); err != nil {
 						return err
@@ -230,7 +230,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 			})
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			resolver := ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
@@ -579,7 +579,7 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+			ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
 
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -588,7 +588,7 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 			require.NoError(err)
 
 			// Write the schema.
-			_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				for _, nsDef := range compiled.ObjectDefinitions {
 					if err := tx.WriteNamespaces(ctx, nsDef); err != nil {
 						return err
@@ -599,7 +599,7 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 			})
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			resolver := ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
@@ -1190,7 +1190,7 @@ func TestReachabilityGraph(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+			ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
 
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -1198,7 +1198,7 @@ func TestReachabilityGraph(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			reader := ds.SnapshotReader(lastRevision)

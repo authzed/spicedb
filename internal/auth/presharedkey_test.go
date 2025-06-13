@@ -33,7 +33,7 @@ func TestPresharedKeys(t *testing.T) {
 		testcase := testcase
 		t.Run(testcase.name, func(t *testing.T) {
 			f := MustRequirePresharedKey(testcase.presharedkeys)
-			ctx := context.Background()
+			ctx := t.Context()
 			if testcase.withMetadata {
 				ctx = withTokenMetadata(testcase.authzHeader)
 			}

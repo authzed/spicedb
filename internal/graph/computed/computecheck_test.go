@@ -809,7 +809,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			require.NoError(t, err)
 
 			dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
-			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 			revision, err := writeCaveatedTuples(ctx, t, ds, tt.schema, tt.updates)
@@ -860,7 +860,7 @@ func TestComputeCheckError(t *testing.T) {
 	require.NoError(t, err)
 
 	dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	_, _, err = computed.ComputeCheck(ctx, dispatch,
@@ -884,7 +884,7 @@ func TestComputeBulkCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	revision, err := writeCaveatedTuples(ctx, t, ds, `

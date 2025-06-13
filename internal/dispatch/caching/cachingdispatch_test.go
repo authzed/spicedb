@@ -128,7 +128,7 @@ func TestMaxDepthCaching(t *testing.T) {
 				parsed, err := tuple.ParseONR(step.start)
 				require.NoError(err)
 
-				resp, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+				resp, err := dispatch.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 					ResourceRelation: RR(parsed.ObjectType, parsed.Relation),
 					ResourceIds:      []string{parsed.ObjectID},
 					Subject:          tuple.MustParseSubjectONR(step.goal).ToCoreONR(),

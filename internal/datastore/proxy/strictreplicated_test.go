@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 
 	// Query the replicated, which should fallback to the primary.
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
-	iter, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
 	require.NoError(t, err)
@@ -37,7 +36,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	require.NoError(t, err)
 	require.Equal(t, 2, len(found))
 
-	rit, err := reader.ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{
+	rit, err := reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{
 		SubjectType: "user",
 	})
 	require.NoError(t, err)
@@ -48,7 +47,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 
 	// Query the replica directly, which should error.
 	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
-	iter, err = reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	iter, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
 	require.NoError(t, err)
@@ -57,7 +56,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	require.Error(t, err)
 	require.ErrorContains(t, err, "revision not available")
 
-	rit, err = reader.ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{
+	rit, err = reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{
 		SubjectType: "user",
 	})
 	require.NoError(t, err)
@@ -68,7 +67,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 
 	// Query the replica for a different revision, which should work.
 	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
-	iter, err = reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	iter, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
 	require.NoError(t, err)
@@ -78,7 +77,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	require.NoError(t, err)
 	require.Equal(t, 2, len(found))
 
-	rit, err = reader.ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{
+	rit, err = reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{
 		SubjectType: "user",
 	})
 	require.NoError(t, err)
@@ -97,7 +96,7 @@ func TestStrictReplicatedQueryNonFallbackError(t *testing.T) {
 
 	// Query the replicated, which should return the error.
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
-	_, err = reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	_, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
 	require.ErrorContains(t, err, "raising an expected error")

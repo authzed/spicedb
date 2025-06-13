@@ -31,7 +31,7 @@ func TestRWOperationErrors(t *testing.T) {
 	delegate, _ := newReadOnlyMock()
 
 	ds := NewReadonlyDatastore(delegate)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.DeleteNamespaces(ctx, "fake")
@@ -57,7 +57,7 @@ func TestReadyStatePassthrough(t *testing.T) {
 
 	delegate, _ := newReadOnlyMock()
 	ds := NewReadonlyDatastore(delegate)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	delegate.On("ReadyState").Return(datastore.ReadyState{IsReady: true}, nil).Times(1)
 
@@ -72,7 +72,7 @@ func TestOptimizedRevisionPassthrough(t *testing.T) {
 
 	delegate, _ := newReadOnlyMock()
 	ds := NewReadonlyDatastore(delegate)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	delegate.On("OptimizedRevision").Return(expectedRevision, nil).Times(1)
 
@@ -87,7 +87,7 @@ func TestHeadRevisionPassthrough(t *testing.T) {
 
 	delegate, _ := newReadOnlyMock()
 	ds := NewReadonlyDatastore(delegate)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	delegate.On("HeadRevision").Return(expectedRevision, nil).Times(1)
 
@@ -102,7 +102,7 @@ func TestCheckRevisionPassthrough(t *testing.T) {
 
 	delegate, _ := newReadOnlyMock()
 	ds := NewReadonlyDatastore(delegate)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	delegate.On("CheckRevision", expectedRevision).Return(nil).Times(1)
 
@@ -114,7 +114,7 @@ func TestCheckRevisionPassthrough(t *testing.T) {
 func TestWatchPassthrough(t *testing.T) {
 	delegate, _ := newReadOnlyMock()
 	ds := NewReadonlyDatastore(delegate)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	delegate.On("Watch", expectedRevision).Return(
 		make(<-chan datastore.RevisionChanges),
@@ -130,7 +130,7 @@ func TestSnapshotReaderPassthrough(t *testing.T) {
 
 	delegate, reader := newReadOnlyMock()
 	ds := NewReadonlyDatastore(delegate)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	reader.On("ReadNamespaceByName", "fake").Return(nil, expectedRevision, nil).Times(1)
 

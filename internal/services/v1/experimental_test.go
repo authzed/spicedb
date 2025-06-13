@@ -62,7 +62,7 @@ func TestBulkImportRelationships(t *testing.T) {
 					client := v1.NewExperimentalServiceClient(conn)
 					t.Cleanup(cleanup)
 
-					ctx := context.Background()
+					ctx := t.Context()
 
 					writer, err := client.BulkImportRelationships(ctx)
 					require.NoError(err)
@@ -153,7 +153,7 @@ func TestBulkExportRelationshipsBeyondAllowedLimit(t *testing.T) {
 	client := v1.NewExperimentalServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	resp, err := client.BulkExportRelationships(context.Background(), &v1.BulkExportRelationshipsRequest{
+	resp, err := client.BulkExportRelationships(t.Context(), &v1.BulkExportRelationshipsRequest{
 		OptionalLimit: 10000005,
 	})
 	require.NoError(err)
@@ -192,7 +192,7 @@ func TestBulkExportRelationships(t *testing.T) {
 		expectedRels.Add(tuple.MustV1RelString(v1rel))
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	writer, err := client.BulkImportRelationships(ctx)
 	require.NoError(t, err)
 
@@ -357,7 +357,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 
 			require.Equal(tc.expectedCount, expectedRels.Size())
 
-			ctx := context.Background()
+			ctx := t.Context()
 			writer, err := client.BulkImportRelationships(ctx)
 			require.NoError(err)
 
@@ -645,7 +645,7 @@ func TestBulkCheckPermission(t *testing.T) {
 				}
 
 				if r.err != nil {
-					rewritten := shared.RewriteError(context.Background(), r.err, &shared.ConfigForErrors{})
+					rewritten := shared.RewriteError(t.Context(), r.err, &shared.ConfigForErrors{})
 					s, ok := status.FromError(rewritten)
 					require.True(t, ok, "expected provided error to be status")
 					pair.Response = &v1.BulkCheckPermissionPair_Error{
@@ -656,7 +656,7 @@ func TestBulkCheckPermission(t *testing.T) {
 			}
 
 			var trailer metadata.MD
-			actual, err := client.BulkCheckPermission(context.Background(), &req, grpc.Trailer(&trailer))
+			actual, err := client.BulkCheckPermission(t.Context(), &req, grpc.Trailer(&trailer))
 			require.NoError(t, err)
 
 			testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, nil, "response bulk check pairs did not match")
@@ -755,12 +755,12 @@ func TestExperimentalSchemaDiff(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Write the existing schema.
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tt.existingSchema,
 			})
 			require.NoError(t, err)
 
-			actual, err := expClient.ExperimentalDiffSchema(context.Background(), &v1.ExperimentalDiffSchemaRequest{
+			actual, err := expClient.ExperimentalDiffSchema(t.Context(), &v1.ExperimentalDiffSchemaRequest{
 				ComparisonSchema: tt.comparisonSchema,
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
@@ -1169,12 +1169,12 @@ definition user {}`,
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Write the schema.
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tt.schema,
 			})
 			require.NoError(t, err)
 
-			actual, err := expClient.ExperimentalReflectSchema(context.Background(), &v1.ExperimentalReflectSchemaRequest{
+			actual, err := expClient.ExperimentalReflectSchema(t.Context(), &v1.ExperimentalReflectSchemaRequest{
 				OptionalFilters: tt.filters,
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
@@ -1401,12 +1401,12 @@ func TestExperimentalDependentRelations(t *testing.T) {
 			defer cleanup()
 
 			// Write the schema.
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tc.schema,
 			})
 			require.NoError(t, err)
 
-			actual, err := expClient.ExperimentalDependentRelations(context.Background(), &v1.ExperimentalDependentRelationsRequest{
+			actual, err := expClient.ExperimentalDependentRelations(t.Context(), &v1.ExperimentalDependentRelationsRequest{
 				DefinitionName: tc.definitionName,
 				PermissionName: tc.permissionName,
 				Consistency: &v1.Consistency{
@@ -1601,12 +1601,12 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 			defer cleanup()
 
 			// Write the schema.
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tc.schema,
 			})
 			require.NoError(t, err)
 
-			actual, err := expClient.ExperimentalComputablePermissions(context.Background(), &v1.ExperimentalComputablePermissionsRequest{
+			actual, err := expClient.ExperimentalComputablePermissions(t.Context(), &v1.ExperimentalComputablePermissionsRequest{
 				DefinitionName:               tc.definitionName,
 				RelationName:                 tc.relationName,
 				OptionalDefinitionNameFilter: tc.filter,
@@ -1640,7 +1640,7 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	defer cleanup()
 
 	// Write the schema.
-	_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}
 		
 		definition document {
@@ -1668,13 +1668,13 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = permsClient.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = permsClient.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: updates,
 	})
 	require.NoError(t, err)
 
 	// Try to read the count on an unregistered filter.
-	_, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
+	_, err = expClient.ExperimentalCountRelationships(t.Context(), &v1.ExperimentalCountRelationshipsRequest{
 		Name: "unregistered",
 	})
 	require.Error(t, err)
@@ -1682,7 +1682,7 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 
 	// Register some filters.
-	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+	_, err = expClient.ExperimentalRegisterRelationshipCounter(t.Context(), &v1.ExperimentalRegisterRelationshipCounterRequest{
 		Name: "somedocfilter",
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: "document",
@@ -1690,7 +1690,7 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+	_, err = expClient.ExperimentalRegisterRelationshipCounter(t.Context(), &v1.ExperimentalRegisterRelationshipCounterRequest{
 		Name: "somedocfilter",
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: "document",
@@ -1700,7 +1700,7 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	require.ErrorContains(t, err, "counter with name `somedocfilter` already registered")
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 
-	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+	_, err = expClient.ExperimentalRegisterRelationshipCounter(t.Context(), &v1.ExperimentalRegisterRelationshipCounterRequest{
 		Name: "someotherfilter",
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType:     "document",
@@ -1710,21 +1710,21 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read the counts on the registered filers.
-	actual, err := expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
+	actual, err := expClient.ExperimentalCountRelationships(t.Context(), &v1.ExperimentalCountRelationshipsRequest{
 		Name: "somedocfilter",
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint64(9), actual.GetReadCounterValue().RelationshipCount)
 	require.NotNil(t, actual.GetReadCounterValue().ReadAt)
 
-	actual, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
+	actual, err = expClient.ExperimentalCountRelationships(t.Context(), &v1.ExperimentalCountRelationshipsRequest{
 		Name: "someotherfilter",
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint64(7), actual.GetReadCounterValue().RelationshipCount)
 
 	// Register one more filter.
-	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+	_, err = expClient.ExperimentalRegisterRelationshipCounter(t.Context(), &v1.ExperimentalRegisterRelationshipCounterRequest{
 		Name: "somethirdfilter",
 		RelationshipFilter: &v1.RelationshipFilter{
 			OptionalResourceIdPrefix: "a",
@@ -1733,7 +1733,7 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the count.
-	actual, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
+	actual, err = expClient.ExperimentalCountRelationships(t.Context(), &v1.ExperimentalCountRelationshipsRequest{
 		Name: "somethirdfilter",
 	})
 	require.NoError(t, err)

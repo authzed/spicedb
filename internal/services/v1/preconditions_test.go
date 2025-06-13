@@ -39,7 +39,7 @@ func TestPreconditions(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithData(uninitialized, require)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		require.NoError(checkPreconditions(ctx, rwt, []*v1.Precondition{
 			{

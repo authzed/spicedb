@@ -186,7 +186,7 @@ func TestGCFailureBackoff(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	require.NoError(t, reg.Register(localCounter))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	go func() {
 		gc := newFakeGCStore(alwaysErrorDeleter{})
@@ -208,7 +208,7 @@ func TestGCFailureBackoff(t *testing.T) {
 	localCounter = prometheus.NewCounter(gcFailureCounterConfig)
 	reg = prometheus.NewRegistry()
 	require.NoError(t, reg.Register(localCounter))
-	ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel = context.WithCancel(t.Context())
 	defer cancel()
 	go func() {
 		gc := newFakeGCStore(alwaysErrorDeleter{})
@@ -238,7 +238,7 @@ func TestGCFailureBackoffReset(t *testing.T) {
 		errorOnRevisions: []uint64{1, 2, 3, 4, 5},
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	go func() {
@@ -264,7 +264,7 @@ func TestGCFailureBackoffReset(t *testing.T) {
 func TestGCUnlockOnTimeout(t *testing.T) {
 	gc := newFakeGCStore(alwaysErrorDeleter{})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	go func() {

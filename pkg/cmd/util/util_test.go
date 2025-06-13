@@ -1,7 +1,6 @@
 package util
 
 import (
-	"context"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -11,7 +10,7 @@ import (
 func TestDisabledGRPC(t *testing.T) {
 	s, err := (&GRPCServerConfig{Enabled: false}).Complete(zerolog.InfoLevel, nil)
 	require.NoError(t, err)
-	require.NoError(t, s.Listen(context.Background())())
+	require.NoError(t, s.Listen(t.Context())())
 	require.True(t, s.Insecure())
 	s.GracefulStop()
 }
