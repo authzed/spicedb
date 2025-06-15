@@ -425,7 +425,10 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 	}
 }
 
-const lrv2CursorFlag = "lrv2"
+const (
+	lrv2CursorFlag = "lrv2"
+	lrv3CursorFlag = "lrv3"
+)
 
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
@@ -437,15 +440,176 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		}
 	})
 
-	// NOTE: LRv2 is the only valid option, and we'll expect that all cursors include that flag.
-	// This is to preserve backward-compatibility in the meantime.
 	if req.OptionalCursor != nil {
-		_, _, err := cursor.GetCursorFlag(req.OptionalCursor, lrv2CursorFlag)
+		_, isLR3, err := cursor.GetCursorFlag(req.OptionalCursor, lrv3CursorFlag)
 		if err != nil {
 			return ps.rewriteError(resp.Context(), err)
 		}
+
+		if isLR3 {
+			return ps.lookupResources3(req, resp)
+		}
+
+		_, isLR2, err := cursor.GetCursorFlag(req.OptionalCursor, lrv2CursorFlag)
+		if err != nil {
+			return ps.rewriteError(resp.Context(), err)
+		}
+
+		if isLR2 {
+			return ps.lookupResources2(req, resp)
+		}
 	}
 
+	if ps.config.EnableExperimentalLookupResources3 {
+		return ps.lookupResources3(req, resp)
+	}
+
+	return ps.lookupResources2(req, resp)
+}
+
+func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
+		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
+	}
+
+	ctx := resp.Context()
+
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+	if err := namespace.CheckNamespaceAndRelations(ctx,
+		[]namespace.TypeAndRelationToCheck{
+			{
+				NamespaceName: req.ResourceObjectType,
+				RelationName:  req.Permission,
+				AllowEllipsis: false,
+			},
+			{
+				NamespaceName: req.Subject.Object.ObjectType,
+				RelationName:  normalizeSubjectRelation(req.Subject),
+				AllowEllipsis: true,
+			},
+		}, ds); err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	respMetadata := &dispatch.ResponseMeta{
+		DispatchCount:       1,
+		CachedDispatchCount: 0,
+		DepthRequired:       1,
+		DebugInfo:           nil,
+	}
+	usagemetrics.SetInContext(ctx, respMetadata)
+
+	var currentCursor *dispatch.Cursor
+
+	lrRequestHash, err := computeLRRequestHash(req)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	if req.OptionalCursor != nil {
+		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+		currentCursor = decodedCursor
+	}
+
+	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
+	var totalCountPublished uint64
+	defer func() {
+		telemetry.RecordLogicalChecks(totalCountPublished)
+	}()
+
+	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources3Response) error {
+		found := result.Resource
+
+		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
+		currentCursor = result.AfterResponseCursor
+
+		var partial *v1.PartialCaveatInfo
+		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+		if len(found.MissingContextParams) > 0 {
+			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+			partial = &v1.PartialCaveatInfo{
+				MissingRequiredContext: found.MissingContextParams,
+			}
+		} else if req.OptionalLimit == 0 {
+			if _, ok := alreadyPublishedPermissionedResourceIds[found.ResourceId]; ok {
+				// Skip publishing the duplicate.
+				return nil
+			}
+
+			// TODO(jschorr): Investigate something like a Trie here for better memory efficiency.
+			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
+		}
+
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, map[string]string{
+			lrv3CursorFlag: "1",
+		})
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+
+		err = resp.Send(&v1.LookupResourcesResponse{
+			LookedUpAt:        revisionReadAt,
+			ResourceObjectId:  found.ResourceId,
+			Permissionship:    permissionship,
+			PartialCaveatInfo: partial,
+			AfterResultCursor: encodedCursor,
+		})
+		if err != nil {
+			return err
+		}
+
+		totalCountPublished++
+		return nil
+	})
+
+	bf, err := dispatch.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
+	if err != nil {
+		return err
+	}
+
+	err = ps.dispatch.DispatchLookupResources3(
+		&dispatch.DispatchLookupResources3Request{
+			Metadata: &dispatch.ResolverMeta{
+				AtRevision:     atRevision.String(),
+				DepthRemaining: ps.config.MaximumAPIDepth,
+				TraversalBloom: bf,
+			},
+			ResourceRelation: &core.RelationReference{
+				Namespace: req.ResourceObjectType,
+				Relation:  req.Permission,
+			},
+			SubjectRelation: &core.RelationReference{
+				Namespace: req.Subject.Object.ObjectType,
+				Relation:  normalizeSubjectRelation(req.Subject),
+			},
+			SubjectIds: []string{req.Subject.Object.ObjectId},
+			TerminalSubject: &core.ObjectAndRelation{
+				Namespace: req.Subject.Object.ObjectType,
+				ObjectId:  req.Subject.Object.ObjectId,
+				Relation:  normalizeSubjectRelation(req.Subject),
+			},
+			Context:        req.Context,
+			OptionalCursor: currentCursor,
+			OptionalLimit:  req.OptionalLimit,
+		},
+		stream)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	return nil
+}
+
+func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
 		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
 	}
