@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -23,10 +23,14 @@ const dropIndexTemplate = `
 
 const timeoutMessage = "This typically indicates that your database global statement_timeout needs to be increased and/or spicedb migrate command needs --migration-timeout increased (1h by default)"
 
+type execer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
 // CreateIndexConcurrently creates an index concurrently, dropping the existing index if it exists to ensure
 // that indexes are not left in a partially constructed state.
 // See: https://www.shayon.dev/post/2024/225/stop-relying-on-if-not-exists-for-concurrent-index-creation-in-postgresql/
-func CreateIndexConcurrently(ctx context.Context, conn *pgx.Conn, index common.IndexDefinition) error {
+func CreateIndexConcurrently(ctx context.Context, conn execer, index common.IndexDefinition) error {
 	dropIndexSQL := fmt.Sprintf(dropIndexTemplate, index.Name)
 	if _, err := conn.Exec(ctx, dropIndexSQL); err != nil {
 		if pgxcommon.IsQueryCanceledError(err) {
