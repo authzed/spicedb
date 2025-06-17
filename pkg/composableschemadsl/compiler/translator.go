@@ -514,9 +514,9 @@ func translateExpressionDirect(tctx *translationContext, expressionNode *dslNode
 		if err != nil {
 			return nil, err
 		}
-		leftOps := collapseOps(leftOperation, lookup)
-		rightOps := collapseOps(rightOperation, lookup)
-		ops := append(leftOps, rightOps...)
+		var ops []*core.SetOperation_Child
+		ops = append(ops, collapseOps(leftOperation, lookup)...)
+		ops = append(ops, collapseOps(rightOperation, lookup)...)
 		return builder(ops[0], ops[1:]...), nil
 	}
 
