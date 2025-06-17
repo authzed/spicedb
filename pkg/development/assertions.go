@@ -31,9 +31,9 @@ func RunAllAssertions(devContext *DevContext, assertions *blocks.Assertions) ([]
 		return nil, err
 	}
 
-	failures := append(trueFailures, caveatedFailures...)
-	failures = append(failures, falseFailures...)
-	return failures, nil
+	trueFailures = append(trueFailures, caveatedFailures...)
+	trueFailures = append(trueFailures, falseFailures...)
+	return trueFailures, nil
 }
 
 func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expected v1.ResourceCheckResult_Membership, fmtString string) ([]*devinterface.DeveloperError, error) {
