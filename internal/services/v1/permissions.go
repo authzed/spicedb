@@ -738,14 +738,15 @@ func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.F
 			return nil, err
 		}
 
-		if cr.Value() {
+		switch {
+		case cr.Value():
 			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
-		} else if cr.IsPartial() {
+		case cr.IsPartial():
 			missingFields, _ := cr.MissingVarNames()
 			partialCaveat = &v1.PartialCaveatInfo{
 				MissingRequiredContext: missingFields,
 			}
-		} else {
+		default:
 			// Skip this found subject.
 			return nil, nil
 		}
