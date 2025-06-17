@@ -224,7 +224,8 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			for _, change := range tx.Changes() {
 				switch change.Table {
 				case tableRelationship:
-					if change.After != nil {
+					switch {
+					case change.After != nil:
 						rt, err := change.After.(*relationship).Relationship()
 						if err != nil {
 							return datastore.NoRevision, err
@@ -233,7 +234,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, tuple.UpdateOperationTouch); err != nil {
 							return datastore.NoRevision, err
 						}
-					} else if change.After == nil && change.Before != nil {
+					case change.After == nil && change.Before != nil:
 						rt, err := change.Before.(*relationship).Relationship()
 						if err != nil {
 							return datastore.NoRevision, err
@@ -242,11 +243,12 @@ func (mdb *memdbDatastore) ReadWriteTx(
 						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, tuple.UpdateOperationDelete); err != nil {
 							return datastore.NoRevision, err
 						}
-					} else {
+					default:
 						return datastore.NoRevision, spiceerrors.MustBugf("unexpected relationship change")
 					}
 				case tableNamespace:
-					if change.After != nil {
+					switch {
+					case change.After != nil:
 						loaded := &corev1.NamespaceDefinition{}
 						if err := loaded.UnmarshalVT(change.After.(*namespace).configBytes); err != nil {
 							return datastore.NoRevision, err
@@ -256,16 +258,17 @@ func (mdb *memdbDatastore) ReadWriteTx(
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-					} else if change.After == nil && change.Before != nil {
+					case change.After == nil && change.Before != nil:
 						err := tracked.AddDeletedNamespace(ctx, newRevision, change.Before.(*namespace).name)
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-					} else {
+					default:
 						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
 					}
 				case tableCaveats:
-					if change.After != nil {
+					switch {
+					case change.After != nil:
 						loaded := &corev1.CaveatDefinition{}
 						if err := loaded.UnmarshalVT(change.After.(*caveat).definition); err != nil {
 							return datastore.NoRevision, err
@@ -275,12 +278,12 @@ func (mdb *memdbDatastore) ReadWriteTx(
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-					} else if change.After == nil && change.Before != nil {
+					case change.After == nil && change.Before != nil:
 						err := tracked.AddDeletedCaveat(ctx, newRevision, change.Before.(*caveat).name)
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-					} else {
+					default:
 						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
 					}
 				}
