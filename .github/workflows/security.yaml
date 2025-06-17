@@ -1,6 +1,6 @@
 ---
 name: "Security"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "!dependabot/*"
@@ -18,7 +18,7 @@ env:
 jobs:
   codeql:
     name: "CodeQL Analyze"
-    if: "${{ github.event_name == 'pull_request' }}"  # workaround to https://github.com/github/codeql-action/issues/1537
+    if: "${{ github.event_name == 'pull_request' }}" # workaround to https://github.com/github/codeql-action/issues/1537
     runs-on: "depot-ubuntu-24.04-8"
     timeout-minutes: "${{ (matrix.language == 'swift' && 120) || 360 }}"
     permissions:
@@ -35,15 +35,15 @@ jobs:
         language: ["go"]
 
     steps:
-      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493"  # v4.2.2
-      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5"  # main
-      - uses: "authzed/actions/codeql@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1"  # main"
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
+      - uses: "authzed/actions/codeql@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main"
 
   trivy:
     name: "Analyze Code and Docker Image with Trivvy"
     runs-on: "depot-ubuntu-24.04"
     steps:
-      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493"  # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         with:
           # Only a single commit is fetched by default, for the ref/SHA that triggered the workflow. Set fetch-depth: 0
           # to fetch all history for all branches and tags. Refer here to learn which commit $GITHUB_SHA
@@ -52,8 +52,8 @@ jobs:
           # this is used so goreleaser generates the right version out of the tags, which we need so that
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5"  # main
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1"  # v3.5.0
+      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
+      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -62,7 +62,7 @@ jobs:
           sudo snap install snapcraft --channel=8.x/stable --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages
-      - uses: "aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808"  # master
+      - uses: "aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808" # master
         with:
           scan-type: "fs"
           ignore-unfixed: true
@@ -72,7 +72,7 @@ jobs:
         env:
           TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db"
           TRIVY_JAVA_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-java-db"
-      - uses: "goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a"  # v6.4.0
+      - uses: "goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a" # v6.4.0
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"

@@ -1,23 +1,23 @@
 ---
 schema: |+
-    definition user {
-    	relation supertoken: token
-    	relation direct_token: token
-        permission token = direct_token + supertoken
-    }
+  definition user {
+  	relation supertoken: token
+  	relation direct_token: token
+      permission token = direct_token + supertoken
+  }
 
-    definition token {}
+  definition token {}
 
-    definition resource {
-    	relation admin: user#token | user#supertoken
-    }
+  definition resource {
+  	relation admin: user#token | user#supertoken
+  }
 
 relationships: >-
-    user:someuser#direct_token@token:sometoken#...
+  user:someuser#direct_token@token:sometoken#...
 
-    resource:someresource#admin@user:someuser#token
+  resource:someresource#admin@user:someuser#token
 
-    resource:anotherresource#admin@user:someuser#supertoken
+  resource:anotherresource#admin@user:someuser#supertoken
 assertions:
-    assertTrue: []
-    assertFalse: []
+  assertTrue: []
+  assertFalse: []

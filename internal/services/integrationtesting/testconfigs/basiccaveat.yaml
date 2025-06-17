@@ -24,10 +24,10 @@ assertions:
     - "document:firstdoc#view@user:tom"
     - "document:firstdoc#view@user:tracy"
     - 'document:firstdoc#view@user:sarah with {"somecondition": 42}'
-    - 'document:firstdoc#view@user:tom with {"somecondition": 41}'  # Context written overrides specified at check time.
+    - 'document:firstdoc#view@user:tom with {"somecondition": 41}' # Context written overrides specified at check time.
   assertCaveated:
     - "document:firstdoc#view@user:sarah"
   assertFalse:
     - "document:firstdoc#view@user:fred"
     - 'document:firstdoc#view@user:sarah with {"somecondition": 41}'
-    - 'document:firstdoc#view@user:fred with {"somecondition": 42}'  # Context written overrides specified at check time.
+    - 'document:firstdoc#view@user:fred with {"somecondition": 42}' # Context written overrides specified at check time.

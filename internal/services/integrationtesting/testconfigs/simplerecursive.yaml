@@ -1,25 +1,25 @@
 ---
 schema: |+
-    definition srrr/user {}
+  definition srrr/user {}
 
-    definition srrr/group {
-    	relation member: srrr/user | srrr/group#member
-    }
+  definition srrr/group {
+  	relation member: srrr/user | srrr/group#member
+  }
 
-    definition srrr/resource {
-    	relation viewer: srrr/group#member
-    }
+  definition srrr/resource {
+  	relation viewer: srrr/group#member
+  }
 
 relationships: >-
-    srrr/group:ultragroup#member@srrr/user:someguy#...
+  srrr/group:ultragroup#member@srrr/user:someguy#...
 
-    srrr/group:megagroup#member@srrr/group:ultragroup#member
+  srrr/group:megagroup#member@srrr/group:ultragroup#member
 
-    srrr/group:supergroup#member@srrr/group:megagroup#member
+  srrr/group:supergroup#member@srrr/group:megagroup#member
 
-    srrr/group:subgroup#member@srrr/group:supergroup#member
+  srrr/group:subgroup#member@srrr/group:supergroup#member
 
-    srrr/resource:someresource#viewer@srrr/group:subgroup#member
+  srrr/resource:someresource#viewer@srrr/group:subgroup#member
 assertions:
-    assertTrue: []
-    assertFalse: []
+  assertTrue: []
+  assertFalse: []

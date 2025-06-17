@@ -19,11 +19,11 @@ relationships: >-
   document:firstdoc#viewer@user:fred[some_caveat:{"somemap": {"foo": 42, "bar": 57}}]
 assertions:
   assertTrue:
-    - 'document:firstdoc#view@user:tom'
+    - "document:firstdoc#view@user:tom"
     - 'document:firstdoc#view@user:sarah with {"somemap":{"foo": 42, "bar": -2}}'
   assertCaveated:
-    - 'document:firstdoc#view@user:sarah'
+    - "document:firstdoc#view@user:sarah"
   assertFalse:
-    - 'document:firstdoc#view@user:fred'
+    - "document:firstdoc#view@user:fred"
     - 'document:firstdoc#view@user:sarah with {"somemap":{"foo": 41}}'
     - 'document:firstdoc#view@user:sarah with {"somemap":{"foo": 42, "bar": 56}}'

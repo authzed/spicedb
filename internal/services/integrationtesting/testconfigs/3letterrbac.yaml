@@ -1,21 +1,21 @@
 ---
 schema: |+
-    definition exm/usr {}
+  definition exm/usr {}
 
-    definition exm/doc {
-    	relation wri: exm/usr
-        relation red: exm/usr
-    	permission can = red + wri
-    }
+  definition exm/doc {
+  	relation wri: exm/usr
+      relation red: exm/usr
+  	permission can = red + wri
+  }
 
 relationships: >-
-    exm/doc:firstdoc#wri@exm/usr:tom#...
+  exm/doc:firstdoc#wri@exm/usr:tom#...
 
-    exm/doc:firstdoc#red@exm/usr:fred#...
+  exm/doc:firstdoc#red@exm/usr:fred#...
 
-    exm/doc:seconddoc#red@exm/usr:tom#...
+  exm/doc:seconddoc#red@exm/usr:tom#...
 assertions:
-    assertTrue:
-        - "exm/doc:firstdoc#can@exm/usr:tom#..."
-        - "exm/doc:firstdoc#can@exm/usr:fred#..."
-    assertFalse: []
+  assertTrue:
+    - "exm/doc:firstdoc#can@exm/usr:tom#..."
+    - "exm/doc:firstdoc#can@exm/usr:fred#..."
+  assertFalse: []
