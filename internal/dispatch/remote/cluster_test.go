@@ -953,6 +953,7 @@ func TestCheckUsesMaximumDelayByDefaultForPrimary(t *testing.T) {
 }
 
 func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.ClientConn {
+	t.Helper()
 	listener := bufconn.Listen(humanize.MiByte)
 	s := grpc.NewServer()
 
