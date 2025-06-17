@@ -20,6 +20,7 @@ import (
 
 // RevisionQuantizationTest tests whether or not the requirements for revisions hold
 // for a particular datastore.
+// TODO: rewrite using synctest
 func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 	testCases := []struct {
 		quantizationRange        time.Duration
@@ -95,6 +96,7 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 
 // GCProcessRunTest tests whether the custom GC process runs for the datastore.
 // For datastores that do not have custom GC processes, will no-op.
+// TODO: rewrite using synctest
 func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	gcWindow := 300 * time.Millisecond
@@ -139,6 +141,7 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 
 // RevisionGCTest makes sure revision GC takes place, revisions out-side of the GC window
 // are invalid, and revisions inside the GC window are valid.
+// TODO: rewrite using synctest if possible
 func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	gcWindow := 300 * time.Millisecond
@@ -179,7 +182,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	if ok {
 		// Run garbage collection.
 		gcable.ResetGCCompleted()
-		err := common.RunGarbageCollection(gcable, gcWindow, 10*time.Second)
+		err := common.RunGarbageCollection(ctx, gcable, gcWindow)
 		require.NoError(err)
 		require.True(gcable.HasGCRun(), "GC was never run as expected")
 	}
