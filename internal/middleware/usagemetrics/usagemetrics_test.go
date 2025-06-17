@@ -114,7 +114,7 @@ func (s *metricsMiddlewareTestSuite) TestTrailers_Stream() {
 		if errors.Is(err, io.EOF) {
 			break
 		}
-		s.NoError(err, "no error on messages sent occurred")
+		s.Require().NoError(err, "no error on messages sent occurred")
 	}
 
 	dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(
