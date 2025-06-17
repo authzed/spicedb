@@ -78,7 +78,7 @@ func TestAsyncDispatch(t *testing.T) {
 				defer l.Unlock()
 
 				letFinish.Broadcast()
-				return tc.numRequests == dispatchedCount && tc.numRequests == completedCount
+				return dispatchedCount == tc.numRequests && completedCount == tc.numRequests
 			}, 1*time.Second, 1*time.Millisecond)
 		})
 	}
