@@ -14,8 +14,6 @@ import (
 
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/stringz"
-
-	// Register Snappy S2 compression
 	_ "github.com/mostynb/go-grpc-compression/experimental/s2"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -26,8 +24,6 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
-
-	// Register cert watcher metrics
 	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
