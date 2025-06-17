@@ -8,10 +8,9 @@ import (
 	"fmt"
 	"syscall/js"
 
-	"github.com/authzed/spicedb/pkg/development"
-
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/authzed/spicedb/pkg/development"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 )
 
