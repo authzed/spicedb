@@ -79,28 +79,34 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 	var numSucceeded atomic.Int32
 	var numFailed atomic.Int32
 	var wg sync.WaitGroup
+	errs := make([]error, 10)
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
-		go func() {
+		go func(idx int) {
+			defer wg.Done()
 			_, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				return tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
 					ResourceType: testfixtures.DocumentNS.Name,
 				})
 			})
+			errs[idx] = err
 			if err != nil {
-				require.Contains(t, err.Error(), "counter with name `document` already registered")
 				numFailed.Add(1)
 			} else {
 				numSucceeded.Add(1)
 			}
-			wg.Done()
-		}()
+		}(i)
 	}
 
 	// Wait for all goroutines to finish.
 	wg.Wait()
 	require.Equal(t, int32(1), numSucceeded.Load())
 	require.Equal(t, int32(9), numFailed.Load())
+	for _, err := range errs {
+		if err != nil {
+			require.Contains(t, err.Error(), "counter with name `document` already registered")
+		}
+	}
 }
 
 func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
