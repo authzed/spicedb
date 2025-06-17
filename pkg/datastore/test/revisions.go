@@ -316,7 +316,7 @@ func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
 					errCh <- fmt.Errorf("CheckRevision error: %w", err)
 					continue
 				}
-				if !(head.GreaterThan(startingRev) || head.Equal(startingRev)) {
+				if !head.GreaterThan(startingRev) && !head.Equal(startingRev) {
 					errCh <- fmt.Errorf("head revision is not greater than or equal to startingRev")
 				}
 			}
