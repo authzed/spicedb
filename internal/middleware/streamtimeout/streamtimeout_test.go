@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 )
@@ -70,7 +69,7 @@ func TestStreamTimeoutMiddleware(t *testing.T) {
 
 func (s *testSuite) TestStreamTimeout() {
 	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{Value: "something"})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	var maxCounter int32
 
@@ -78,13 +77,13 @@ func (s *testSuite) TestStreamTimeout() {
 		// Ensure if we get an error, it is because the context was canceled.
 		resp, err := stream.Recv()
 		if err != nil {
-			require.ErrorContains(s.T(), err, "context canceled")
+			s.Require().ErrorContains(err, "context canceled")
 			return
 		}
 
 		// Ensure that we produced a *maximum* of 6 responses (timeout is 50ms and each response
 		// should take 10ms * counter). This ensures that we timed out (roughly) when expected.
 		maxCounter = resp.Counter
-		require.LessOrEqual(s.T(), maxCounter, int32(6), "stream was not properly canceled: %d", maxCounter)
+		s.Require().LessOrEqual(maxCounter, int32(6), "stream was not properly canceled: %d", maxCounter)
 	}
 }

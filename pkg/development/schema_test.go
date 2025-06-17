@@ -34,8 +34,8 @@ func TestCompileSchemaInvalidSyntax(t *testing.T) {
 	require.NotNil(t, devErr)
 	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
 	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.Kind)
-	require.Greater(t, devErr.Line, uint32(0))
-	require.Greater(t, devErr.Column, uint32(0))
+	require.Positive(t, devErr.Line)
+	require.Positive(t, devErr.Column)
 }
 
 func TestCompileSchemaUndefinedRelation(t *testing.T) {

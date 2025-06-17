@@ -388,7 +388,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 		SchemaString: debugInfo.SchemaUsed,
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err, "Invalid schema: %s", debugInfo.SchemaUsed)
-	require.Equal(4, len(compiled.OrderedDefinitions))
+	require.Len(compiled.OrderedDefinitions, 4)
 }
 
 func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
@@ -448,8 +448,8 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 			err = prototext.Unmarshal([]byte(errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]), debugInfo)
 			req.NoError(err)
 
-			req.Equal(1, len(debugInfo.Check.GetSubProblems().Traces))
-			req.Equal(1, len(debugInfo.Check.GetSubProblems().Traces[0].GetSubProblems().Traces))
+			req.Len(debugInfo.Check.GetSubProblems().Traces, 1)
+			req.Len(debugInfo.Check.GetSubProblems().Traces[0].GetSubProblems().Traces, 1)
 
 			foundDebugInfo = true
 		}
@@ -1081,7 +1081,7 @@ func TestCheckWithCaveats(t *testing.T) {
 	checkResp, err = client.CheckPermission(ctx, request)
 	req.NoError(err)
 	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION, checkResp.Permissionship)
-	req.EqualValues([]string{"secret"}, checkResp.PartialCaveatInfo.MissingRequiredContext)
+	req.Equal([]string{"secret"}, checkResp.PartialCaveatInfo.MissingRequiredContext)
 
 	// context exceeds length limit
 	request.Context, err = structpb.NewStruct(generateMap(64))
@@ -1285,7 +1285,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 		responses = append(responses, res)
 	}
 
-	require.Equal(t, 2, len(responses))
+	require.Len(t, responses, 2)
 	slices.SortFunc(responses, byIDAndPermission)
 
 	require.Equal(t, "first", responses[0].ResourceObjectId)                                                    // nolint: gosec
@@ -1522,7 +1522,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "*", resp.Subject.SubjectObjectId)
 		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.Subject.Permissionship)
-		require.Equal(t, 1, len(resp.ExcludedSubjects))
+		require.Len(t, resp.ExcludedSubjects, 1)
 
 		require.Equal(t, "bannedguy", resp.ExcludedSubjects[0].SubjectObjectId)
 		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.ExcludedSubjects[0].Permissionship)
@@ -1561,7 +1561,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "*", resp.Subject.SubjectObjectId)
 		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.Subject.Permissionship)
-		require.Equal(t, 0, len(resp.ExcludedSubjects))
+		require.Empty(t, resp.ExcludedSubjects)
 	}
 	require.True(t, found)
 }
@@ -2043,7 +2043,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 							if pair.GetItem() != nil {
 								parsed := tuple.MustParse(tt.requests[index])
 								require.NotNil(t, pair.GetItem().DebugTrace, "missing debug trace in response for item %v", pair.GetItem())
-								require.True(t, pair.GetItem().DebugTrace.Check != nil, "missing check trace in response for item %v", pair.GetItem())
+								require.NotEqual(t, pair.GetItem().DebugTrace.Check, nil, "missing check trace in response for item %v", pair.GetItem())
 								require.Equal(t, parsed.Resource.ObjectID, pair.GetItem().DebugTrace.Check.Resource.ObjectId, "resource in debug trace does not match")
 								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.TraceOperationId, "trace operation ID in debug trace is empty")
 								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.Source, "source in debug trace is empty")

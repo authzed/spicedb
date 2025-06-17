@@ -139,5 +139,5 @@ func TestONRSetAsSlice(t *testing.T) {
 		tuple.MustParseONR("resource:3#viewer"),
 	})
 
-	require.Equal(t, 3, len(set.AsSlice()))
+	require.Len(t, set.AsSlice(), 3)
 }

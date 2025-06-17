@@ -9,7 +9,7 @@ import (
 
 func TestPositionMapping(t *testing.T) {
 	mappingText, err := os.ReadFile("tests/mapping.txt")
-	if !assert.Nil(t, err, "Got error reading mapping file") {
+	if !assert.NoError(t, err, "Got error reading mapping file") {
 		return
 	}
 
@@ -17,13 +17,13 @@ func TestPositionMapping(t *testing.T) {
 
 	for runePosition := range mappingText {
 		lineNumber, colPosition, err := mapper.RunePositionToLineAndCol(runePosition)
-		if !assert.Nil(t, err, "Got error mapping file") {
+		if !assert.NoError(t, err, "Got error mapping file") {
 			return
 		}
 
 		// Check mapping back.
 		foundRunePosition, err := mapper.LineAndColToRunePosition(lineNumber, colPosition)
-		if !assert.Nil(t, err, "Got error mapping file") {
+		if !assert.NoError(t, err, "Got error mapping file") {
 			return
 		}
 

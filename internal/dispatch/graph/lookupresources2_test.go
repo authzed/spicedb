@@ -207,7 +207,7 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 
 			require.NoError(err)
 
-			require.Equal(1, len(stream.Results()))
+			require.Len(stream.Results(), 1)
 
 			found.Insert(stream.Results()[0].Resource.ResourceId)
 			require.Equal(tc.expectedFirst, found.AsSlice())
@@ -266,7 +266,7 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 	}, stream)
 
 	require.NoError(err)
-	require.Equal(2, len(stream.Results()))
+	require.Len(stream.Results(), 2)
 
 	cursor := stream.Results()[1].AfterResponseCursor
 	require.NotNil(cursor)
@@ -288,7 +288,7 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 	require.NoError(err)
 
 	require.NoError(err)
-	require.Equal(2, len(stream.Results()))
+	require.Len(stream.Results(), 2)
 
 	cursorAgain := stream.Results()[1].AfterResponseCursor
 	require.NotNil(cursor)
@@ -816,7 +816,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 					}
 
 					for _, chunk := range foundChunks[0 : len(foundChunks)-1] {
-						require.Equal(pageSize, len(chunk))
+						require.Len(chunk, pageSize)
 					}
 
 					foundResourceIDsSlice := foundResourceIDs.AsSlice()

@@ -85,17 +85,17 @@ validation:
 		t.Run(tt.name, func(t *testing.T) {
 			decoded, err := DecodeValidationFile([]byte(tt.contents))
 			if tt.expectedError != "" {
-				require.NotNil(t, err)
-				require.Equal(t, err.Error(), tt.expectedError)
+				require.Error(t, err)
+				require.Equal(t, tt.expectedError, err.Error())
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 
 				require.NotNil(t, decoded)
-				require.Equal(t, len(decoded.Relationships.Relationships), tt.expectedRelCount)
+				require.Equal(t, tt.expectedRelCount, len(decoded.Relationships.Relationships))
 
-				require.Equal(t, len(decoded.Assertions.AssertTrue), tt.expectedAssertTrueCount)
-				require.Equal(t, len(decoded.Assertions.AssertFalse), tt.expectedAssertFalseCount)
-				require.Equal(t, len(decoded.ExpectedRelations.ValidationMap), tt.expectedValidationCount)
+				require.Equal(t, tt.expectedAssertTrueCount, len(decoded.Assertions.AssertTrue))
+				require.Equal(t, tt.expectedAssertFalseCount, len(decoded.Assertions.AssertFalse))
+				require.Equal(t, tt.expectedValidationCount, len(decoded.ExpectedRelations.ValidationMap))
 			}
 		})
 	}
@@ -126,7 +126,7 @@ relationships: >-
 	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
-	require.Equal(t, err.Error(), "error parsing relationship `document:firstdocwriter@user:tom`: invalid relationship string")
+	require.Equal(t, "error parsing relationship `document:firstdocwriter@user:tom`: invalid relationship string", err.Error())
 	require.Equal(t, uint64(5), errWithSource.LineNumber)
 }
 
@@ -143,7 +143,7 @@ relationships: >-
 	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
-	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`: invalid relationship string")
+	require.Equal(t, "error parsing relationship `document:firstdoc#readeruser:fred`: invalid relationship string", err.Error())
 	require.Equal(t, uint64(7), errWithSource.LineNumber)
 }
 
@@ -166,7 +166,7 @@ relationships: >-
 	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
-	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`: invalid relationship string")
+	require.Equal(t, "error parsing relationship `document:firstdoc#readeruser:fred`: invalid relationship string", err.Error())
 	require.Equal(t, uint64(13), errWithSource.LineNumber)
 }
 
@@ -190,7 +190,7 @@ assertions:
 	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
-	require.Equal(t, err.Error(), "unexpected value `asdkjha`")
+	require.Equal(t, "unexpected value `asdkjha`", err.Error())
 	require.Equal(t, uint64(9), errWithSource.LineNumber)
 }
 
@@ -214,6 +214,6 @@ assertions:
 	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
-	require.Equal(t, err.Error(), "unexpected value `asdk`")
+	require.Equal(t, "unexpected value `asdk`", err.Error())
 	require.Equal(t, uint64(9), errWithSource.LineNumber)
 }

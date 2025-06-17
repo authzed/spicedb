@@ -51,7 +51,7 @@ func TestValidateCaveatDefinition(t *testing.T) {
 		t.Run(tc.caveat.Name, func(t *testing.T) {
 			err := ValidateCaveatDefinition(caveattypes.Default.TypeSet, tc.caveat)
 			if tc.expectedError != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.expectedError)
 			} else {
 				require.NoError(t, err)

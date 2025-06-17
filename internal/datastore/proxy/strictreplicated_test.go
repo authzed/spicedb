@@ -34,7 +34,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 
 	found, err := datastore.IteratorToSlice(iter)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(found))
+	require.Len(t, found, 2)
 
 	rit, err := reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{
 		SubjectType: "user",
@@ -43,7 +43,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 
 	revfound, err := datastore.IteratorToSlice(rit)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(revfound))
+	require.Len(t, revfound, 2)
 
 	// Query the replica directly, which should error.
 	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
@@ -71,11 +71,11 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 		OptionalResourceType: "resource",
 	})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(found))
+	require.Len(t, found, 2)
 
 	found, err = datastore.IteratorToSlice(iter)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(found))
+	require.Len(t, found, 2)
 
 	rit, err = reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{
 		SubjectType: "user",
@@ -84,7 +84,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 
 	revfound, err = datastore.IteratorToSlice(rit)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(revfound))
+	require.Len(t, revfound, 2)
 }
 
 func TestStrictReplicatedQueryNonFallbackError(t *testing.T) {

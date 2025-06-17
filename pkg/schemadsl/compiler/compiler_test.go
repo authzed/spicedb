@@ -1072,8 +1072,8 @@ func TestCompile(t *testing.T) {
 				require.Error(err)
 				require.Contains(err.Error(), test.expectedError)
 			} else {
-				require.Nil(err)
-				require.Equal(len(test.expectedProto), len(compiled.OrderedDefinitions))
+				require.NoError(err)
+				require.Len(compiled.OrderedDefinitions, len(test.expectedProto))
 				for index, def := range compiled.OrderedDefinitions {
 					filterSourcePositions(def.ProtoReflect())
 					expectedDef := test.expectedProto[index]
@@ -1082,7 +1082,7 @@ func TestCompile(t *testing.T) {
 						expectedCaveatDef, ok := expectedDef.(*core.CaveatDefinition)
 						require.True(ok, "definition is not a caveat def")
 						require.Equal(expectedCaveatDef.Name, caveatDef.Name)
-						require.Equal(len(expectedCaveatDef.ParameterTypes), len(caveatDef.ParameterTypes))
+						require.Len(caveatDef.ParameterTypes, len(expectedCaveatDef.ParameterTypes))
 
 						for expectedParamName, expectedParam := range expectedCaveatDef.ParameterTypes {
 							foundParam, ok := caveatDef.ParameterTypes[expectedParamName]
@@ -1163,8 +1163,8 @@ func TestSuperLargeCaveatCompile(t *testing.T) {
 		"superlarge", string(b),
 	}, AllowUnprefixedObjectType())
 	require.NoError(t, err)
-	require.Equal(t, 29, len(compiled.ObjectDefinitions))
-	require.Equal(t, 1, len(compiled.CaveatDefinitions))
+	require.Len(t, compiled.ObjectDefinitions, 29)
+	require.Len(t, compiled.CaveatDefinitions, 1)
 }
 
 func TestCompileWithCustomCaveatTypeSet(t *testing.T) {

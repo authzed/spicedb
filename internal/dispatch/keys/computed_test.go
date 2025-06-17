@@ -565,7 +565,7 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 	unstableCacheKeysSeen := mapz.NewSet[uint64]()
 
 	// Ensure all key functions are generated.
-	require.Equal(t, len(generatorFuncs), len(cachePrefixes))
+	require.Len(t, cachePrefixes, len(generatorFuncs))
 
 	for _, resourceIds := range allResourceIds {
 		resourceIds := resourceIds

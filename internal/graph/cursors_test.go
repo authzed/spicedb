@@ -56,7 +56,7 @@ func TestCursorHasHeadSectionOnEmpty(t *testing.T) {
 
 	value, ok := ci.headSectionValue()
 	require.False(t, ok)
-	require.Equal(t, "", value)
+	require.Empty(t, value)
 }
 
 func TestCursorWithClonedLimits(t *testing.T) {
@@ -96,11 +96,11 @@ func TestCursorSections(t *testing.T) {
 
 	value, ok := ci.headSectionValue()
 	require.True(t, ok)
-	require.Equal(t, value, "1")
+	require.Equal(t, "1", value)
 
 	ivalue, err := ci.integerSectionValue()
 	require.NoError(t, err)
-	require.Equal(t, ivalue, 1)
+	require.Equal(t, 1, ivalue)
 }
 
 func TestCursorNonIntSection(t *testing.T) {
@@ -114,7 +114,7 @@ func TestCursorNonIntSection(t *testing.T) {
 
 	value, ok := ci.headSectionValue()
 	require.True(t, ok)
-	require.Equal(t, value, "one")
+	require.Equal(t, "one", value)
 
 	_, err = ci.integerSectionValue()
 	require.Error(t, err)
@@ -296,8 +296,8 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 			return stream.Publish(item * 10)
 		})
 
-	require.Equal(t, len(expected), len(encountered))
-	require.NotEqual(t, encountered, expected)
+	require.Len(t, encountered, len(expected))
+	require.NotEqual(t, expected, encountered)
 
 	require.NoError(t, err)
 	require.Equal(t, expected, parentStream.Results())
@@ -338,8 +338,8 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 
 	expected := []int{10, 20, 30}
 
-	require.Equal(t, len(expected), len(encountered))
-	require.NotEqual(t, encountered, expected)
+	require.Len(t, encountered, len(expected))
+	require.NotEqual(t, expected, encountered)
 
 	require.NoError(t, err)
 	require.Equal(t, expected, parentStream.Results())
@@ -387,6 +387,6 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []int{440, 30}
-	require.Equal(t, len(expected), len(encountered))
+	require.Len(t, encountered, len(expected))
 	require.Equal(t, expected, parentStream.Results())
 }

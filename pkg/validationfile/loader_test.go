@@ -196,7 +196,7 @@ func TestPopulateFromFiles(t *testing.T) {
 				sort.Strings(foundRelationships)
 				require.Equal(tt.want, foundRelationships)
 			} else {
-				require.NotNil(err)
+				require.Error(err)
 				if tt.expectedError.message != "" {
 					require.Contains(err.Error(), tt.expectedError.message)
 				}
