@@ -29,12 +29,12 @@ func (sg *sourceGenerator) ensureBlankLineOrNewScope() {
 
 // indent increases the current indentation.
 func (sg *sourceGenerator) indent() {
-	sg.indentationLevel = sg.indentationLevel + 1
+	sg.indentationLevel++
 }
 
 // dedent decreases the current indentation.
 func (sg *sourceGenerator) dedent() {
-	sg.indentationLevel = sg.indentationLevel - 1
+	sg.indentationLevel--
 }
 
 // appendIssue adds an issue found in generation.
