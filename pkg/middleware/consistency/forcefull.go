@@ -49,8 +49,7 @@ func setFullConsistencyRevisionToContext(ctx context.Context, req any, ds datast
 		return nil
 	}
 
-	switch req.(type) {
-	case hasConsistency:
+	if _, ok := req.(hasConsistency); ok {
 		if serviceLabel != "" {
 			ConsistencyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
 		}
