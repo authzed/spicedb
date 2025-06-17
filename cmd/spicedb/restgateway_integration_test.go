@@ -1,5 +1,4 @@
 //go:build docker && image
-// +build docker,image
 
 package main
 

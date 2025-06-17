@@ -1,5 +1,4 @@
 //go:build ci && docker && postgres
-// +build ci,docker,postgres
 
 package postgres
 

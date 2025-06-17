@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -71,14 +72,16 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 	}
 
 	err = tx.QueryFunc(ctx, func(ctx context.Context, rows R) error {
-		explainString := ""
+		var explainBuilder strings.Builder
 		for rows.Next() {
 			var explain string
 			if err := rows.Scan(&explain); err != nil {
 				return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("scan err: %w", err))
 			}
-			explainString += explain + "\n"
+			explainBuilder.WriteString(explain + "\n")
 		}
+
+		explainString := explainBuilder.String()
 		if explainString == "" {
 			return errors.New("received empty explain")
 		}

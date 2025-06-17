@@ -1,5 +1,4 @@
 //go:build steelthread
-// +build steelthread
 
 package steelthreadtesting
 

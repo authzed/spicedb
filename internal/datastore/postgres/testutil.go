@@ -1,5 +1,4 @@
 //go:build ci && docker
-// +build ci,docker
 
 package postgres
 
@@ -25,15 +24,16 @@ func getExplanation(ctx context.Context, querier pgxcommon.Querier, sql string, 
 		return "", err
 	}
 
-	explanation := ""
+	var explanation strings.Builder
 	for explainRows.Next() {
-		explanation += string(explainRows.RawValues()[0]) + "\n"
+		explanation.Write(explainRows.RawValues()[0])
+		explanation.WriteString("\n")
 	}
 	explainRows.Close()
 	if err := explainRows.Err(); err != nil {
 		return "", err
 	}
-	return explanation, nil
+	return explanation.String(), nil
 }
 
 type withQueryInterceptor struct {
