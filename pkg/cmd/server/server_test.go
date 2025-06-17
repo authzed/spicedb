@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"log"
 	"testing"
 	"time"
 
@@ -70,9 +69,7 @@ func TestOTelReporting(t *testing.T) {
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithRequestHedgingEnabled(false),
 	)
-	if err != nil {
-		log.Fatalf("unable to start memdb datastore: %s", err)
-	}
+	require.NoError(t, err)
 
 	configOpts := []ConfigOption{
 		WithGRPCServer(util.GRPCServerConfig{
