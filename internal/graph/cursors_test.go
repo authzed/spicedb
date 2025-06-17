@@ -378,7 +378,7 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 
 			if v, _ := cc.headSectionValue(); v != "" {
 				value, _ := cc.integerSectionValue()
-				item = item + value
+				item += value
 			}
 
 			return stream.Publish(item * 10)
