@@ -99,9 +99,8 @@ func TestOTelReporting(t *testing.T) {
 
 	schemaSrv := v1.NewSchemaServiceClient(conn)
 
-	runErrCh := make(chan error, 1)
 	go func() {
-		runErrCh <- srv.Run(ctx)
+		require.NoError(t, srv.Run(ctx))
 	}()
 
 	spanrecorder, restoreOtel := setupSpanRecorder()
@@ -131,7 +130,6 @@ func TestOTelReporting(t *testing.T) {
 	require.Error(t, err)
 
 	requireSpanExists(t, spanrecorder, "authzed.api.v1.PermissionsService/LookupResources")
-	require.NoError(t, <-runErrCh)
 }
 
 func requireSpanExists(t *testing.T, spanrecorder *tracetest.SpanRecorder, spanName string) {
