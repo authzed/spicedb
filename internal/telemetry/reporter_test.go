@@ -58,14 +58,14 @@ func TestWriteTimeSeries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var handlerWriteErr error
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tt.validateReq != nil {
 					tt.validateReq(t, r)
 				}
 				w.WriteHeader(tt.statusCode)
 				if tt.responseBody != "" {
-					_, err := w.Write([]byte(tt.responseBody))
-					require.NoError(t, err)
+					_, handlerWriteErr = w.Write([]byte(tt.responseBody))
 				}
 			}))
 			defer server.Close()
@@ -90,6 +90,7 @@ func TestWriteTimeSeries(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+			require.NoError(t, handlerWriteErr)
 		})
 	}
 }
@@ -128,9 +129,10 @@ func TestDiscoverTimeseries(t *testing.T) {
 func TestDiscoverAndWriteMetrics(t *testing.T) {
 	receivedData := make(chan []byte, 1)
 
+	errChan := make(chan error, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		errChan <- err
 		receivedData <- body
 		w.WriteHeader(200)
 	}))
@@ -143,13 +145,15 @@ func TestDiscoverAndWriteMetrics(t *testing.T) {
 	})
 	gauge.Set(100)
 	registry.MustRegister(gauge)
-
 	client := &http.Client{}
 	err := discoverAndWriteMetrics(t.Context(), registry, client, server.URL)
 	require.NoError(t, err)
 
 	select {
 	case data := <-receivedData:
+		// Check for error from handler
+		handlerErr := <-errChan
+		require.NoError(t, handlerErr)
 		require.NotEmpty(t, data)
 
 		// Verify the data can be decompressed
