@@ -180,10 +180,10 @@ func TestCertRotation(t *testing.T) {
 	).Complete(ctx)
 	require.NoError(t, err)
 
-	wait := make(chan struct{}, 1)
+	wait := make(chan error, 1)
 	go func() {
-		require.NoError(t, srv.Run(ctx))
-		wait <- struct{}{}
+		err := srv.Run(ctx)
+		wait <- err
 	}()
 
 	// If previous code takes more than initialValidDuration*2 to execute, the cert
@@ -279,7 +279,8 @@ func TestCertRotation(t *testing.T) {
 	cancel()
 	cancelDial()
 	select {
-	case <-wait:
+	case err := <-wait:
+		require.NoError(t, err)
 		return
 	case <-time.After(30 * time.Second):
 		require.Fail(t, "ungraceful server termination")
