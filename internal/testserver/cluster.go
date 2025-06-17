@@ -220,10 +220,15 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 		srv, err := server.NewConfigWithOptionsAndDefaults(serverOptions...).Complete(ctx)
 		require.NoError(t, err)
 
+		errCh := make(chan error, 1)
 		go func() {
-			require.NoError(t, srv.Run(ctx))
+			errCh <- srv.Run(ctx)
 		}()
-		cancelFuncs = append(cancelFuncs, cancel)
+		cancelFuncs = append(cancelFuncs, func() {
+			cancel()
+			err := <-errCh
+			require.NoError(t, err)
+		})
 
 		dialers = append(dialers, srv.DispatchNetDialContext)
 
