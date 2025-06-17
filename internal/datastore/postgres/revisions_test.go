@@ -91,13 +91,13 @@ func TestTxIDTimestampAvailable(t *testing.T) {
 	// Timestamps should be non-negative
 	testTimestamp, _ := safecast.ToUint64(time.Now().Unix())
 	snapshot := snap(0, 5, 1)
-	pgr := postgresRevision{snapshot: snapshot, optionalTxID: newXid8(1), optionalNanosTimestamp: testTimestamp}
+	pgr := postgresRevision{snapshot: snapshot, optionalTxID: NewXid8(1), optionalNanosTimestamp: testTimestamp}
 	receivedTimestamp, ok := pgr.OptionalNanosTimestamp()
 	require.True(t, ok)
 	require.Equal(t, receivedTimestamp, testTimestamp)
 	txid, ok := pgr.OptionalTransactionID()
 	require.True(t, ok)
-	require.Equal(t, newXid8(1), txid)
+	require.Equal(t, NewXid8(1), txid)
 
 	anotherRev := postgresRevision{snapshot: snapshot}
 	_, ok = anotherRev.OptionalNanosTimestamp()
