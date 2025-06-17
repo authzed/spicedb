@@ -76,7 +76,7 @@ func DefaultWriteConnPool() *ConnPoolConfig {
 
 func RegisterConnPoolFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, defaults, opts *ConnPoolConfig) {
 	if prefix != "" {
-		prefix = prefix + "-"
+		prefix += "-"
 	}
 	flagName := func(flag string) string {
 		return prefix + flag
@@ -198,7 +198,7 @@ func RegisterDatastoreFlags(flagset *pflag.FlagSet, opts *Config) error {
 // prefix argument. If left empty, the datastore flags are not prefixed.
 func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opts *Config) error {
 	if prefix != "" {
-		prefix = prefix + "-"
+		prefix += "-"
 	}
 	flagName := func(flag string) string {
 		return prefix + flag
