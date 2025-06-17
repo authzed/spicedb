@@ -188,12 +188,14 @@ func TestGCFailureBackoff(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+	errCh := make(chan error, 1)
 	go func() {
 		gc := newFakeGCStore(alwaysErrorDeleter{})
-		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, gc, 100*time.Millisecond, 1*time.Second, 1*time.Nanosecond, 1*time.Minute, localCounter))
+		errCh <- startGarbageCollectorWithMaxElapsedTime(ctx, gc, 100*time.Millisecond, 1*time.Second, 1*time.Nanosecond, 1*time.Minute, localCounter)
 	}()
 	time.Sleep(200 * time.Millisecond)
 	cancel()
+	require.Error(t, <-errCh)
 
 	metrics, err := reg.Gather()
 	require.NoError(t, err)
@@ -210,12 +212,14 @@ func TestGCFailureBackoff(t *testing.T) {
 	require.NoError(t, reg.Register(localCounter))
 	ctx, cancel = context.WithCancel(t.Context())
 	defer cancel()
+	errCh = make(chan error, 1)
 	go func() {
 		gc := newFakeGCStore(alwaysErrorDeleter{})
-		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, gc, 100*time.Millisecond, 0, 1*time.Second, 1*time.Minute, localCounter))
+		errCh <- startGarbageCollectorWithMaxElapsedTime(ctx, gc, 100*time.Millisecond, 0, 1*time.Second, 1*time.Minute, localCounter)
 	}()
 	time.Sleep(200 * time.Millisecond)
 	cancel()
+	require.Error(t, <-errCh)
 
 	metrics, err = reg.Gather()
 	require.NoError(t, err)
@@ -241,16 +245,18 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
+	errCh := make(chan error, 1)
 	go func() {
 		interval := 10 * time.Millisecond
 		window := 10 * time.Second
 		timeout := 1 * time.Minute
 
-		require.Error(t, StartGarbageCollector(ctx, gc, interval, window, timeout))
+		errCh <- StartGarbageCollector(ctx, gc, interval, window, timeout)
 	}()
 
 	time.Sleep(500 * time.Millisecond)
 	cancel()
+	require.Error(t, <-errCh)
 
 	// The next interval should have been reset after recovering from the error.
 	// If it is not reset, the last exponential backoff interval will not give
@@ -267,13 +273,17 @@ func TestGCUnlockOnTimeout(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
+	errCh := make(chan error, 1)
 	go func() {
 		interval := 10 * time.Millisecond
 		window := 10 * time.Second
-		timeout := 1 * time.Millisecond
+		timeout := 1 * time.Minute
 
-		require.Error(t, StartGarbageCollector(ctx, gc, interval, window, timeout))
+		errCh <- StartGarbageCollector(ctx, gc, interval, window, timeout)
 	}()
+	time.Sleep(20 * time.Millisecond) // Give goroutine time to acquire lock
+	cancel()
+	require.Error(t, <-errCh)
 
 	time.Sleep(30 * time.Millisecond)
 	require.False(t, gc.HasGCRun(), "GC should not have run")
