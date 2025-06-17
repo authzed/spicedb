@@ -730,12 +730,13 @@ func runAssertions(t *testing.T, vctx validationContext) {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
 								// If the caveat context given is empty, then the lookup result must not exist at all.
 								// Otherwise, it *could* be caveated or not exist, depending on the context given.
-								if len(assertion.CaveatContext) == 0 {
+								switch {
+								case len(assertion.CaveatContext) == 0:
 									require.NotContains(t, resolvedIndirectResourceIds, rel.Resource.ObjectID, "Found unexpected object %s in indirect lookup for assertion %s", rel.Resource, rel)
-								} else if accessibility == consistencytestutil.NotAccessible {
+								case accessibility == consistencytestutil.NotAccessible:
 									found, ok := resolvedIndirectResourcesMap[rel.Resource.ObjectID]
 									require.True(t, !ok || found.Permissionship != v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION) // LookupResources can be caveated, since we didn't rerun LookupResources with the context
-								} else if accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat {
+								case accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat:
 									found, ok := resolvedIndirectResourcesMap[rel.Resource.ObjectID]
 									require.True(t, ok, "Missing expected object %s in indirect lookup for assertion %s", rel.Resource, rel)
 									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, found.Permissionship,
