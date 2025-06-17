@@ -70,8 +70,8 @@ func DefaultReadConnPool() *ConnPoolConfig {
 
 func DefaultWriteConnPool() *ConnPoolConfig {
 	cfg := DefaultReadConnPool()
-	cfg.MaxOpenConns = cfg.MaxOpenConns / 2
-	cfg.MinOpenConns = cfg.MinOpenConns / 2
+	cfg.MaxOpenConns /= 2
+	cfg.MinOpenConns /= 2
 	return cfg
 }
 
