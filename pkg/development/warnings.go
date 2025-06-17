@@ -11,6 +11,7 @@ import (
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/schema"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -61,7 +62,7 @@ func warningForPosition(warningName string, message string, sourceCode string, s
 // GetWarnings returns a list of warnings for the given developer context.
 func GetWarnings(ctx context.Context, devCtx *DevContext) ([]*devinterface.DeveloperWarning, error) {
 	warnings := []*devinterface.DeveloperWarning{}
-	res := schema.ResolverForCompiledSchema(*devCtx.CompiledSchema)
+	res := compiler.ResolverForCompiledSchema(devCtx.CompiledSchema)
 	ts := schema.NewTypeSystem(res)
 
 	for _, def := range devCtx.CompiledSchema.ObjectDefinitions {

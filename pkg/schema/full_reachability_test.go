@@ -1,4 +1,4 @@
-package schema
+package schema_test
 
 import (
 	"fmt"
@@ -6,13 +6,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
 type expectedRelation struct {
 	Namespace string
 	Relation  string
-	Type      ReferenceType
+	Type      schema.ReferenceType
 }
 
 type testcase struct {
@@ -44,14 +45,14 @@ func TestRelationsReferencing(t *testing.T) {
 			`,
 			expected: map[string][]expectedRelation{
 				"group#direct_member": {
-					{Namespace: "group", Relation: "member", Type: RelationInExpression},
+					{Namespace: "group", Relation: "member", Type: schema.RelationInExpression},
 				},
 				"group#member": {},
 				"resource#viewer": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#editor": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#view": {},
 			},
@@ -74,18 +75,18 @@ func TestRelationsReferencing(t *testing.T) {
 		`,
 			expected: map[string][]expectedRelation{
 				"group#direct_member": {
-					{Namespace: "group", Relation: "member", Type: RelationInExpression},
+					{Namespace: "group", Relation: "member", Type: schema.RelationInExpression},
 				},
 				"group#member": {
-					{Namespace: "group", Relation: "direct_member", Type: RelationIsSubjectType},
-					{Namespace: "resource", Relation: "viewer", Type: RelationIsSubjectType},
-					{Namespace: "resource", Relation: "editor", Type: RelationIsSubjectType},
+					{Namespace: "group", Relation: "direct_member", Type: schema.RelationIsSubjectType},
+					{Namespace: "resource", Relation: "viewer", Type: schema.RelationIsSubjectType},
+					{Namespace: "resource", Relation: "editor", Type: schema.RelationIsSubjectType},
 				},
 				"resource#viewer": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#editor": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#view": {},
 			},
@@ -108,18 +109,18 @@ func TestRelationsReferencing(t *testing.T) {
 		`,
 			expected: map[string][]expectedRelation{
 				"group#direct_member": {
-					{Namespace: "group", Relation: "member", Type: RelationInExpression},
+					{Namespace: "group", Relation: "member", Type: schema.RelationInExpression},
 				},
 				"group#member": {
-					{Namespace: "group", Relation: "direct_member", Type: RelationIsSubjectType},
-					{Namespace: "resource", Relation: "viewer", Type: RelationIsSubjectType},
-					{Namespace: "resource", Relation: "editor", Type: RelationIsSubjectType},
+					{Namespace: "group", Relation: "direct_member", Type: schema.RelationIsSubjectType},
+					{Namespace: "resource", Relation: "viewer", Type: schema.RelationIsSubjectType},
+					{Namespace: "resource", Relation: "editor", Type: schema.RelationIsSubjectType},
 				},
 				"resource#viewer": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#editor": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#view": {},
 			},
@@ -138,13 +139,13 @@ func TestRelationsReferencing(t *testing.T) {
 		`,
 			expected: map[string][]expectedRelation{
 				"resource#viewer": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#editor": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#banned": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#view": {},
 			},
@@ -163,13 +164,13 @@ func TestRelationsReferencing(t *testing.T) {
 		`,
 			expected: map[string][]expectedRelation{
 				"resource#viewer": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#editor": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#third": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#view": {},
 			},
@@ -193,22 +194,22 @@ func TestRelationsReferencing(t *testing.T) {
 		`,
 			expected: map[string][]expectedRelation{
 				"group#direct_member": {
-					{Namespace: "group", Relation: "member", Type: RelationInExpression},
+					{Namespace: "group", Relation: "member", Type: schema.RelationInExpression},
 				},
 				"group#member": {
-					{Namespace: "group", Relation: "direct_member", Type: RelationIsSubjectType},
-					{Namespace: "resource", Relation: "viewer", Type: RelationIsSubjectType},
-					{Namespace: "resource", Relation: "editor", Type: RelationIsSubjectType},
-					{Namespace: "resource", Relation: "third", Type: RelationIsSubjectType},
+					{Namespace: "group", Relation: "direct_member", Type: schema.RelationIsSubjectType},
+					{Namespace: "resource", Relation: "viewer", Type: schema.RelationIsSubjectType},
+					{Namespace: "resource", Relation: "editor", Type: schema.RelationIsSubjectType},
+					{Namespace: "resource", Relation: "third", Type: schema.RelationIsSubjectType},
 				},
 				"resource#viewer": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#editor": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#third": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#view": {},
 			},
@@ -230,16 +231,16 @@ func TestRelationsReferencing(t *testing.T) {
 			}`,
 			expected: map[string][]expectedRelation{
 				"organization#direct_member": {
-					{Namespace: "organization", Relation: "member", Type: RelationInExpression},
+					{Namespace: "organization", Relation: "member", Type: schema.RelationInExpression},
 				},
 				"organization#member": {
-					{Namespace: "organization", Relation: "org", Type: RelationIsComputedUsersetForArrow},
+					{Namespace: "organization", Relation: "org", Type: schema.RelationIsComputedUsersetForArrow},
 				},
 				"resource#viewer": {
-					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationInExpression},
 				},
 				"resource#org": {
-					{Namespace: "resource", Relation: "view", Type: RelationIsTuplesetForArrow},
+					{Namespace: "resource", Relation: "view", Type: schema.RelationIsTuplesetForArrow},
 				},
 				"resource#view": {},
 			},
@@ -266,21 +267,21 @@ func TestRelationsReferencing(t *testing.T) {
 			}`,
 			expected: map[string][]expectedRelation{
 				"organization#owner": {
-					{Namespace: "organization", Relation: "create_repository", Type: RelationInExpression},
-					{Namespace: "organization", Relation: "organization", Type: RelationIsComputedUsersetForArrow},
+					{Namespace: "organization", Relation: "create_repository", Type: schema.RelationInExpression},
+					{Namespace: "organization", Relation: "organization", Type: schema.RelationIsComputedUsersetForArrow},
 				},
 				"organization#member": {
-					{Namespace: "organization", Relation: "create_repository", Type: RelationInExpression},
+					{Namespace: "organization", Relation: "create_repository", Type: schema.RelationInExpression},
 				},
 				"organization#create_repository": {},
 				"repository#organization": {
-					{Namespace: "repository", Relation: "read", Type: RelationIsTuplesetForArrow},
+					{Namespace: "repository", Relation: "read", Type: schema.RelationIsTuplesetForArrow},
 				},
 				"repository#reader": {
-					{Namespace: "repository", Relation: "read", Type: RelationInExpression},
+					{Namespace: "repository", Relation: "read", Type: schema.RelationInExpression},
 				},
 				"repository#admin": {
-					{Namespace: "repository", Relation: "read", Type: RelationInExpression},
+					{Namespace: "repository", Relation: "read", Type: schema.RelationInExpression},
 				},
 				"repository#read": {},
 			},
@@ -292,17 +293,17 @@ func TestRelationsReferencing(t *testing.T) {
 			tc := tc
 			t.Parallel()
 
-			schema, err := compiler.Compile(compiler.InputSchema{
+			compiledSchema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
 				SchemaString: tc.schemaText,
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
-			graph, err := BuildGraph(t.Context(), res)
+			res := compiler.ResolverForCompiledSchema(compiledSchema)
+			graph, err := schema.BuildGraph(t.Context(), res)
 			require.NoError(t, err)
 
-			for _, resource := range schema.ObjectDefinitions {
+			for _, resource := range compiledSchema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
 					references := graph.RelationsReferencing(resource.Name, relation.Name)
 					rel := resource.Name + "#" + relation.Name
@@ -318,7 +319,7 @@ func TestRelationsReferencing(t *testing.T) {
 	}
 }
 
-func containsRelation(references []RelationReferenceInfo, relation expectedRelation) bool {
+func containsRelation(references []schema.RelationReferenceInfo, relation expectedRelation) bool {
 	for _, reference := range references {
 		if reference.Relation.Namespace == relation.Namespace &&
 			reference.Relation.Relation == relation.Relation &&
@@ -331,7 +332,7 @@ func containsRelation(references []RelationReferenceInfo, relation expectedRelat
 
 func BenchmarkRelationsReferencing(b *testing.B) {
 	b.ReportAllocs()
-	schema, err := compiler.Compile(compiler.InputSchema{
+	compiledSchema, err := compiler.Compile(compiler.InputSchema{
 		Source: "",
 		SchemaString: `
 			definition user {}
@@ -354,8 +355,8 @@ func BenchmarkRelationsReferencing(b *testing.B) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(b, err)
 
-	res := ResolverForCompiledSchema(*schema)
-	graph, err := BuildGraph(b.Context(), res)
+	res := compiler.ResolverForCompiledSchema(compiledSchema)
+	graph, err := schema.BuildGraph(b.Context(), res)
 	require.NoError(b, err)
 
 	var size int

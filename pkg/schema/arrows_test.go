@@ -1,4 +1,4 @@
-package schema
+package schema_test
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
@@ -78,17 +79,17 @@ func TestLookupTuplesetArrows(t *testing.T) {
 			tc := tc
 			t.Parallel()
 
-			schema, err := compiler.Compile(compiler.InputSchema{
+			compiledSchema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
 				SchemaString: tc.schemaText,
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
-			arrowSet, err := buildArrowSet(t.Context(), res)
+			res := compiler.ResolverForCompiledSchema(compiledSchema)
+			arrowSet, err := schema.BuildArrowSet(t.Context(), res)
 			require.NoError(t, err)
 
-			for _, resource := range schema.ObjectDefinitions {
+			for _, resource := range compiledSchema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
 					arrows := arrowSet.LookupTuplesetArrows(resource.Name, relation.Name)
 					require.NotNil(t, arrows)
@@ -170,14 +171,14 @@ func TestAllReachableRelations(t *testing.T) {
 			tc := tc
 			t.Parallel()
 
-			schema, err := compiler.Compile(compiler.InputSchema{
+			compiledSchema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
 				SchemaString: tc.schemaText,
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
-			arrows, err := buildArrowSet(t.Context(), res)
+			res := compiler.ResolverForCompiledSchema(compiledSchema)
+			arrows, err := schema.BuildArrowSet(t.Context(), res)
 			require.NoError(t, err)
 
 			reachable := arrows.AllReachableRelations()

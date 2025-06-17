@@ -26,8 +26,8 @@ type ArrowSet struct {
 	reachableComputedUsersetRelationsByTuplesetRelation *mapz.MultiMap[string, string]
 }
 
-// buildArrowSet builds a new set of all arrows found in the given schema.
-func buildArrowSet(ctx context.Context, res FullSchemaResolver) (*ArrowSet, error) {
+// BuildArrowSet builds a new set of all arrows found in the given schema.
+func BuildArrowSet(ctx context.Context, res FullSchemaResolver) (*ArrowSet, error) {
 	arrowSet := &ArrowSet{
 		res:                          res,
 		ts:                           NewTypeSystem(res),

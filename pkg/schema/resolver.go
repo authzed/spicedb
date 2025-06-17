@@ -7,7 +7,6 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
 // Resolver is an interface defined for resolving referenced namespaces and caveats when constructing
@@ -18,6 +17,13 @@ type Resolver interface {
 
 	// LookupCaveat lookups up a caveat.
 	LookupCaveat(ctx context.Context, name string) (*Caveat, error)
+}
+
+// FullSchemaResolver is a superset of a resolver that knows how to retrieve all definitions
+// from its source by name (by having a complete list of names).
+type FullSchemaResolver interface {
+	Resolver
+	AllDefinitionNames() []string
 }
 
 // ResolverForDatastoreReader returns a Resolver for a datastore reader.
@@ -45,16 +51,6 @@ func ResolverForPredefinedDefinitions(predefined PredefinedElements) Resolver {
 	return &DatastoreResolver{
 		predefined: predefined,
 	}
-}
-
-// ResolverForSchema returns a resolver for a schema.
-func ResolverForSchema(schema compiler.CompiledSchema) Resolver {
-	return ResolverForPredefinedDefinitions(
-		PredefinedElements{
-			Definitions: schema.ObjectDefinitions,
-			Caveats:     schema.CaveatDefinitions,
-		},
-	)
 }
 
 // DatastoreResolver is a resolver implementation for a datastore, to look up schema stored in the underlying storage.

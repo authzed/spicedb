@@ -1,33 +1,26 @@
-package schema
+package compiler
 
 import (
 	"context"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schema"
 )
-
-// FullSchemaResolver is a superset of a resolver that knows how to retrieve all definitions
-// from its source by name (by having a complete list of names).
-type FullSchemaResolver interface {
-	Resolver
-	AllDefinitionNames() []string
-}
 
 // CompiledSchemaResolver is a resolver for a fully compiled schema. It implements FullSchemaResolver,
 // as it has the full context of the schema.
 type CompiledSchemaResolver struct {
-	schema compiler.CompiledSchema
+	schema *CompiledSchema
 }
 
 // ResolverForCompiledSchema builds a resolver from a compiled schema.
-func ResolverForCompiledSchema(schema compiler.CompiledSchema) *CompiledSchemaResolver {
+func ResolverForCompiledSchema(schema *CompiledSchema) *CompiledSchemaResolver {
 	return &CompiledSchemaResolver{
 		schema: schema,
 	}
 }
 
-var _ FullSchemaResolver = &CompiledSchemaResolver{}
+var _ schema.FullSchemaResolver = &CompiledSchemaResolver{}
 
 // LookupDefinition lookups up a namespace, also returning whether it was pre-validated.
 func (c CompiledSchemaResolver) LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error) {
@@ -36,17 +29,17 @@ func (c CompiledSchemaResolver) LookupDefinition(ctx context.Context, name strin
 			return o, false, nil
 		}
 	}
-	return nil, false, asTypeError(NewDefinitionNotFoundErr(name))
+	return nil, false, schema.NewDefinitionNotFoundErr(name)
 }
 
 // LookupCaveat lookups up a caveat.
-func (c CompiledSchemaResolver) LookupCaveat(ctx context.Context, name string) (*Caveat, error) {
+func (c CompiledSchemaResolver) LookupCaveat(ctx context.Context, name string) (*schema.Caveat, error) {
 	for _, v := range c.schema.CaveatDefinitions {
 		if v.GetName() == name {
 			return v, nil
 		}
 	}
-	return nil, asTypeError(NewCaveatNotFoundErr(name))
+	return nil, schema.NewCaveatNotFoundErr(name)
 }
 
 // AllDefinitionNames returns a list of all the names of defined namespaces for this resolved schema.
@@ -57,4 +50,14 @@ func (c CompiledSchemaResolver) AllDefinitionNames() []string {
 		out[i] = o.GetName()
 	}
 	return out
+}
+
+// ResolverForSchema returns a resolver for a schema.
+func ResolverForSchema(compiledSchema *CompiledSchema) schema.Resolver {
+	return schema.ResolverForPredefinedDefinitions(
+		schema.PredefinedElements{
+			Definitions: compiledSchema.ObjectDefinitions,
+			Caveats:     compiledSchema.CaveatDefinitions,
+		},
+	)
 }
