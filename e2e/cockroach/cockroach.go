@@ -151,15 +151,12 @@ func (cs Cluster) Stop(out io.Writer) error {
 }
 
 // Init runs the cockroach init command against the cluster
-func (cs Cluster) Init(ctx context.Context, out, errOut io.Writer) {
+func (cs Cluster) Init(ctx context.Context, out, errOut io.Writer) error {
 	// this retries until it succeeds, it won't return unless it does
-	if err := e2e.Run(ctx, out, errOut, "./cockroach",
+	return e2e.Run(ctx, out, errOut, "./cockroach",
 		"init",
 		"--insecure",
-		"--host="+cs[0].Addr,
-	); err != nil {
-		panic(err)
-	}
+		"--host="+cs[0].Addr)
 }
 
 // SQL runs the set of SQL commands against the cluster
