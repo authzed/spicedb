@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/authzed/grpcutil"
@@ -64,7 +64,6 @@ func (hm *healthManager) Checker(ctx context.Context) func() error {
 	return func() error {
 		// Run immediately for the initial check
 		backoffInterval := backoff.NewExponentialBackOff()
-		backoffInterval.MaxElapsedTime = 0
 
 		ticker := time.After(0)
 

@@ -40,7 +40,7 @@ require (
 	github.com/bits-and-blooms/bloom/v3 v3.7.1
 	github.com/caio/go-tdigest/v4 v4.1.0
 	github.com/ccoveille/go-safecast/v2 v2.0.0
-	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cloudspannerecosystem/spanner-change-streams-tail v0.3.1
 	github.com/creasty/defaults v1.8.0
@@ -213,6 +213,7 @@ require (
 	github.com/butuzov/mirror v1.3.0 // indirect
 	github.com/catenacyber/perfsprint v0.10.0 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.4 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
 	github.com/charithe/durationcheck v0.0.11 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect

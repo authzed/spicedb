@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 
@@ -149,14 +149,20 @@ var MaxGCInterval = 60 * time.Minute
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, collectable GarbageCollectableDatastore, interval, window, timeout time.Duration) error {
-	return startGarbageCollectorWithMaxElapsedTime(ctx, collectable, interval, window, 0, timeout, gcFailureCounter)
+	return runOnIntervalWithBackoff(ctx, func() error {
+		// NOTE: we're okay using the parent context here because the
+		// callers of this function create a dedicated garbage collection
+		// context anyway, which is only cancelled when the ds is closed.
+		gcCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return RunGarbageCollection(gcCtx, collectable, window)
+	}, interval, timeout, gcFailureCounter)
 }
 
-func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, collectable GarbageCollectableDatastore, interval, window, maxElapsedTime, timeout time.Duration, failureCounter prometheus.Counter) error {
+func runOnIntervalWithBackoff(ctx context.Context, taskFn func() error, interval, timeout time.Duration, failureCounter prometheus.Counter) error {
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
 	backoffInterval.MaxInterval = max(MaxGCInterval, interval)
-	backoffInterval.MaxElapsedTime = maxElapsedTime
 	backoffInterval.Reset()
 
 	nextInterval := interval
@@ -175,11 +181,10 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, collectable Ga
 		case <-time.After(nextInterval):
 			log.Ctx(ctx).Info().
 				Dur("interval", nextInterval).
-				Dur("window", window).
 				Dur("timeout", timeout).
 				Msg("running garbage collection worker")
 
-			err := RunGarbageCollection(collectable, window, timeout)
+			err := taskFn()
 			if err != nil {
 				failureCounter.Inc()
 				nextInterval = backoffInterval.NextBackOff()
@@ -200,10 +205,7 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, collectable Ga
 }
 
 // RunGarbageCollection runs garbage collection for the datastore.
-func RunGarbageCollection(collectable GarbageCollectableDatastore, window, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
+func RunGarbageCollection(ctx context.Context, collectable GarbageCollectableDatastore, window time.Duration) error {
 	ctx, span := tracer.Start(ctx, "RunGarbageCollection")
 	defer span.End()
 
