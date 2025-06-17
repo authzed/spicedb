@@ -49,7 +49,7 @@ func getLatestReleaseWithClient(ctx context.Context, httpClient *http.Client) (*
 
 	return &Release{
 		Version:     *release.Name,
-		PublishedAt: (*release.PublishedAt).UTC(),
+		PublishedAt: release.PublishedAt.UTC(),
 		ViewURL:     *release.HTMLURL,
 	}, nil
 }
