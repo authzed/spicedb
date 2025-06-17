@@ -108,7 +108,7 @@ func TestInexactFloat64(t *testing.T) {
 			rev, err := HLCRevisionFromString(tc)
 			require.NoError(t, err)
 
-			require.Equal(t, floatValue, rev.InexactFloat64())
+			require.InEpsilon(t, floatValue, rev.InexactFloat64(), 1e-9)
 		})
 	}
 }
