@@ -28,69 +28,83 @@ func (mc fakeQuerier) ExecFunc(_ context.Context, _ func(ctx context.Context, ta
 	return mc.err
 }
 
-func TestStrictReaderDetectsLagErrors(t *testing.T) {
+/*
+NOTE: these tests aren't in a tabular format because we want to
+assert require.ErrorsAs against different kinds of errors,
+but you can't write a tabular test that takes different kinds of
+errors in a struct because you lose type information.
+*/
+
+func TestStrictReaderDetectsLagErrors_NoErrors(t *testing.T) {
 	mc := fakeQuerier{}
 	reader := strictReaderQueryFuncs{
 		wrapped: mc,
 	}
-
-	cases := []struct {
-		name string
-		in   error
-		want error
-	}{
-		{
-			name: "no error is bubbledtest",
-		},
-		{
-			name: "missing revision on replica - invalid argument",
-			in:   &pgconn.PgError{Code: "22023", Message: "is in the future"},
-			want: common.RevisionUnavailableError{},
-		},
-		{
-			name: "missing revision on replica",
-			in:   &pgconn.PgError{Message: "replica missing revision"},
-			want: common.RevisionUnavailableError{},
-		},
-		{
-			name: "serialization error due to conflicting WAL changes on replica",
-			in:   &pgconn.PgError{Code: "40001"},
-			want: common.RevisionUnavailableError{},
-		},
-		{
-			name: "bubbles up unrelated error",
-			in:   fmt.Errorf("unrelated error"),
-			want: fmt.Errorf("unrelated error"),
-		},
+	for _, err := range runQueries(t.Context(), reader) {
+		require.NoError(t, err)
 	}
+}
 
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			received := tt.in
-			expected := tt.want
+func TestStrictReaderDetectsLagErrors_MissingRevisionInvalidArg(t *testing.T) {
+	// missing revision on replica - invalid argument
+	mc := fakeQuerier{
+		err: &pgconn.PgError{Code: "22023", Message: "is in the future"},
+	}
+	reader := strictReaderQueryFuncs{
+		wrapped: mc,
+	}
+	var expectedErr common.RevisionUnavailableError
+	for _, err := range runQueries(t.Context(), reader) {
+		require.ErrorAs(t, err, &expectedErr)
+	}
+}
 
-			mc.err = received
-			reader.wrapped = mc
-			err := reader.ExecFunc(t.Context(), nil, "SELECT 1")
-			if expected != nil {
-				require.ErrorAs(t, err, &expected)
-			} else {
-				require.NoError(t, err)
-			}
+func TestStrictReaderDetectsLagErrors_MissingRevisionOnReplica(t *testing.T) {
+	// missing revision on replica
+	mc := fakeQuerier{
+		err: &pgconn.PgError{Message: "replica missing revision"},
+	}
+	reader := strictReaderQueryFuncs{
+		wrapped: mc,
+	}
+	var expectedErr common.RevisionUnavailableError
+	for _, err := range runQueries(t.Context(), reader) {
+		require.ErrorAs(t, err, &expectedErr)
+	}
+}
 
-			err = reader.QueryFunc(t.Context(), nil, "SELECT 1")
-			if expected != nil {
-				require.ErrorAs(t, err, &expected)
-			} else {
-				require.NoError(t, err)
-			}
+func TestStrictReaderDetectsLagErrors_SerializationError(t *testing.T) {
+	// serialization error due to conflicting WAL changes on replica
+	mc := fakeQuerier{
+		err: &pgconn.PgError{Code: "40001"},
+	}
+	reader := strictReaderQueryFuncs{
+		wrapped: mc,
+	}
+	var expectedErr common.RevisionUnavailableError
+	for _, err := range runQueries(t.Context(), reader) {
+		require.ErrorAs(t, err, &expectedErr)
+	}
+}
 
-			err = reader.QueryRowFunc(t.Context(), nil, "SELECT 1")
-			if expected != nil {
-				require.ErrorAs(t, err, &expected)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+func TestStrictReaderDetectsLagErrors_UnrelatedError(t *testing.T) {
+	// bubbles up unrelated error
+	mc := fakeQuerier{
+		err: common.NewSerializationError(fmt.Errorf("augh")),
+	}
+	reader := strictReaderQueryFuncs{
+		wrapped: mc,
+	}
+	var expectedErr common.SerializationError
+	for _, err := range runQueries(t.Context(), reader) {
+		require.ErrorAs(t, err, &expectedErr)
+	}
+}
+
+func runQueries(ctx context.Context, reader strictReaderQueryFuncs) []error {
+	return []error{
+		reader.ExecFunc(ctx, nil, "SELECT 1"),
+		reader.QueryFunc(ctx, nil, "SELECT 1"),
+		reader.QueryRowFunc(ctx, nil, "SELECT 1"),
 	}
 }
