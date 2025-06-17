@@ -17,7 +17,7 @@ func RequireReason(t testing.TB, reason v1.ErrorReason, err error, expectedMetad
 	require.Error(t, err)
 	withStatus, ok := status.FromError(err)
 	require.True(t, ok)
-	require.Positive(t, len(withStatus.Details()))
+	require.NotEmpty(t, withStatus.Details())
 
 	info := withStatus.Details()[0].(*errdetails.ErrorInfo)
 	require.Equal(t, v1.ErrorReason_name[int32(reason)], info.GetReason())
