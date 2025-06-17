@@ -88,7 +88,7 @@ func TestForEachChunkOverflowPanic(t *testing.T) {
 	ForEachChunk(data, chunksize, func(items []int) {
 		found = append(found, items...)
 		require.LessOrEqual(t, len(items), int(chunksize))
-		require.Positive(t, len(items))
+		require.NotEmpty(t, items)
 	})
 
 	require.Equal(t, data, found)
@@ -112,7 +112,7 @@ func TestForEachChunkOverflowIncorrect(t *testing.T) {
 			ForEachChunk(data, chunksize, func(items []int) {
 				found = append(found, items...)
 				require.LessOrEqual(t, len(items), int(chunksize))
-				require.Positive(t, len(items))
+				require.NotEmpty(t, items)
 			})
 
 			require.Equal(t, data, found)
