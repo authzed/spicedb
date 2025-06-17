@@ -1353,24 +1353,23 @@ func TestCompile(t *testing.T) {
 
 func filterSourcePositions(m protoreflect.Message) {
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-		if fd.Kind() == protoreflect.MessageKind {
-			if fd.IsList() {
-				l := v.List()
-				for i := 0; i < l.Len(); i++ {
-					filterSourcePositions(l.Get(i).Message())
-				}
-			} else if fd.IsMap() {
-				m := v.Map()
-				m.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
-					filterSourcePositions(v.Message())
-					return true
-				})
+		switch {
+		case fd.Kind() == protoreflect.MessageKind && fd.IsList():
+			l := v.List()
+			for i := 0; i < l.Len(); i++ {
+				filterSourcePositions(l.Get(i).Message())
+			}
+		case fd.Kind() == protoreflect.MessageKind && fd.IsMap():
+			m := v.Map()
+			m.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
+				filterSourcePositions(v.Message())
+				return true
+			})
+		case fd.Kind() == protoreflect.MessageKind:
+			if string(fd.Message().Name()) == "SourcePosition" {
+				m.Clear(fd)
 			} else {
-				if string(fd.Message().Name()) == "SourcePosition" {
-					m.Clear(fd)
-				} else {
-					filterSourcePositions(v.Message())
-				}
+				filterSourcePositions(v.Message())
 			}
 		}
 		return true
