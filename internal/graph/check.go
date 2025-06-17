@@ -328,11 +328,12 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	totalWildcardSubjects := 0
 
 	defer func() {
-		if totalNonTerminals > 0 {
+		switch {
+		case totalNonTerminals > 0:
 			span.SetName("non terminal")
-		} else if totalDirectSubjects > 0 {
+		case totalDirectSubjects > 0:
 			span.SetName("terminal")
-		} else {
+		default:
 			span.SetName("wildcard subject")
 		}
 	}()
