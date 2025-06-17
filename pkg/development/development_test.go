@@ -29,7 +29,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	assertions := &blocks.Assertions{
@@ -95,7 +95,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	validation, devErr := ParseExpectedRelationsYAML(`document:somedoc#viewer: []`)
@@ -103,10 +103,10 @@ definition document {
 	require.NotNil(t, validation)
 
 	ms, _, err := RunValidation(devCtx, validation)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	generated, err := GenerateValidation(ms)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	require.Equal(t, "document:somedoc#viewer:\n- '[user:someuser[...]] is <document:somedoc#viewer>'\n", generated)
 }
@@ -126,16 +126,16 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	conn, shutdown, err := devCtx.RunV1InMemoryService()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	t.Cleanup(shutdown)
 
 	client := v1.NewSchemaServiceClient(conn)
 	resp, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Contains(t, resp.SchemaText, "definition document")
 
 	shutdown()

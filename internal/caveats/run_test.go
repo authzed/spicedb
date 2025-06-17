@@ -566,7 +566,7 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 	)
 	req.Error(err)
 	var evalErr EvaluationError
-	req.True(errors.As(err, &evalErr))
+	req.ErrorAs(err, &evalErr)
 }
 
 func TestRunCaveatMultipleTimes(t *testing.T) {

@@ -273,7 +273,7 @@ func TestCaveatDiff(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			diff, err := DiffCaveats(tc.existing, tc.updated, caveattypes.Default.TypeSet)
-			require.Nil(err)
+			require.NoError(err)
 			require.Equal(tc.expectedDeltas, diff.Deltas())
 		})
 	}

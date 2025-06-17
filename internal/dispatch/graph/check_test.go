@@ -1446,7 +1446,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				membership = r.Membership
 			}
 
-			require.Equal(tc.expectedPermissionship, membership, fmt.Sprintf("expected permissionship %s, got %s", tc.expectedPermissionship, membership))
+			require.Equal(tc.expectedPermissionship, membership, "expected permissionship %s, got %s", tc.expectedPermissionship, membership)
 
 			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat == nil {
 				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectID].Expression)

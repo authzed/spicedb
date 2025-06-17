@@ -401,7 +401,7 @@ func TestSetMetadata(t *testing.T) {
 
 	results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(results))
+	require.Len(t, results, 1)
 	require.True(t, ch.IsEmpty())
 
 	require.Equal(t, map[string]any{"foo": "bar"}, results[0].Metadata.AsMap())
@@ -436,7 +436,7 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 
 	results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(results))
+	require.Len(t, results, 2)
 	require.False(t, ch.IsEmpty())
 
 	require.Equal(t, []datastore.RevisionChanges{
@@ -455,7 +455,7 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 	}, results)
 
 	remaining, err := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
-	require.Equal(t, 1, len(remaining))
+	require.Len(t, remaining, 1)
 	require.NoError(t, err)
 
 	require.Equal(t, []datastore.RevisionChanges{
@@ -469,12 +469,12 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 
 	results, err = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillion)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(results))
+	require.Len(t, results, 1)
 	require.True(t, ch.IsEmpty())
 
 	results, err = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillionOne)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(results))
+	require.Empty(t, results)
 	require.True(t, ch.IsEmpty())
 }
 
@@ -498,7 +498,7 @@ func TestHLCOrdering(t *testing.T) {
 
 	remaining, err := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(remaining))
+	require.Len(t, remaining, 2)
 
 	require.Equal(t, []datastore.RevisionChanges{
 		{
@@ -542,7 +542,7 @@ func TestHLCSameRevision(t *testing.T) {
 
 	remaining, err := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(remaining))
+	require.Len(t, remaining, 1)
 
 	expected := []tuple.RelationshipUpdate{
 		tuple.Touch(tuple.MustParse("document:foo#viewer@user:tom")),

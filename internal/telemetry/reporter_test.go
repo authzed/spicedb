@@ -252,7 +252,7 @@ func TestRemoteReporterWithServer(t *testing.T) {
 	cancel() // Stop the reporter
 	<-done   // Wait for reporter to finish
 
-	require.Greater(t, requestCount, 0, "Expected at least one request to be made")
+	require.Positive(t, requestCount, "Expected at least one request to be made")
 }
 
 func TestRemoteReporterErrorHandling(t *testing.T) {

@@ -580,16 +580,16 @@ func TestRelationshipsFilterTest(t *testing.T) {
 
 func TestUnwrapAs(t *testing.T) {
 	result := UnwrapAs[error](nil)
-	require.Nil(t, result)
+	require.NoError(t, result)
 
 	ds := fakeDatastore{delegate: fakeDatastore{fakeDatastoreError{}}}
 	result = UnwrapAs[error](ds)
-	require.NotNil(t, result)
+	require.Error(t, result)
 	require.IsType(t, fakeDatastoreError{}, result)
 
 	errorable := fakeDatastoreError{}
 	result = UnwrapAs[error](errorable)
-	require.NotNil(t, result)
+	require.Error(t, result)
 	require.IsType(t, fakeDatastoreError{}, result)
 }
 

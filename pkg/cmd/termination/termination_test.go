@@ -39,7 +39,7 @@ func TestPublishError(t *testing.T) {
 	require.NotEmpty(t, readErr.Timestamp)
 	require.Equal(t, publishedError.Timestamp, readErr.Timestamp)
 	require.Len(t, readErr.Metadata, 1)
-	require.Equal(t, readErr.Metadata["k"], "v")
+	require.Equal(t, "v", readErr.Metadata["k"])
 
 	// test error metadata is truncated when too large
 	var builder strings.Builder
@@ -55,7 +55,7 @@ func TestPublishError(t *testing.T) {
 	require.NoError(t, err)
 	err = json.Unmarshal(jsonBytes, &readErr)
 	require.NoError(t, err)
-	require.Len(t, readErr.Metadata, 0)
+	require.Empty(t, readErr.Metadata)
 }
 
 func TestPublishDisabled(t *testing.T) {

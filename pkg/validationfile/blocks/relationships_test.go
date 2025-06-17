@@ -50,11 +50,11 @@ document:second#viewer@user:1`,
 			pr := ParsedRelationships{}
 			err := yamlv3.Unmarshal([]byte(tt.contents), &pr)
 			if tt.expectedError != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectedError)
 			} else {
-				require.Nil(t, err)
-				require.Equal(t, tt.expectedRelCount, len(pr.Relationships))
+				require.NoError(t, err)
+				require.Len(t, pr.Relationships, tt.expectedRelCount)
 			}
 		})
 	}

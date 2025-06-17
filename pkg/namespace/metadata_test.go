@@ -16,12 +16,12 @@ func TestMetadata(t *testing.T) {
 	marshalled, err := anypb.New(&iv1.DocComment{
 		Comment: "Hi there",
 	})
-	require.Nil(err)
+	require.NoError(err)
 
 	marshalledKind, err := anypb.New(&iv1.RelationMetadata{
 		Kind: iv1.RelationMetadata_PERMISSION,
 	})
-	require.Nil(err)
+	require.NoError(err)
 
 	ns := &core.NamespaceDefinition{
 		Name: "somens",

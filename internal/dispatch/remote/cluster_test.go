@@ -602,7 +602,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, 2, len(stream.Results()))
+				require.Len(t, stream.Results(), 2)
 				require.Equal(t, tc.expectedDispatchCount, stream.Results()[0].Metadata.DispatchCount)
 			}
 		})
@@ -730,7 +730,7 @@ func TestLSSecondaryDispatch(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, 2, len(stream.Results()))
+				require.Len(t, stream.Results(), 2)
 				require.Equal(t, tc.expectedDispatchCount, stream.Results()[0].Metadata.DispatchCount)
 			}
 		})

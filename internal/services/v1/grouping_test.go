@@ -206,7 +206,7 @@ func TestGroupItems(t *testing.T) {
 			} else {
 				ccp := maps.Values(ccpByHash)
 				require.NoError(t, err)
-				require.Equal(t, len(tt.groupings), len(ccp))
+				require.Len(t, ccp, len(tt.groupings))
 
 				sort.Slice(tt.groupings, func(first, second int) bool {
 					// NOTE: This sorting is solely for testing, so it does not need to be secure

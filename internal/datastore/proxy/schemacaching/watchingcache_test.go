@@ -259,7 +259,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	expectedKey := cache.StringKey("n:somenamespace@" + r.String())
 	entry, ok := c.Get(expectedKey)
 	require.True(t, ok)
-	require.NotNil(t, entry.notFound)
+	require.Error(t, entry.notFound)
 
 	// Disable reading and ensure it still works, via the fallback cache.
 	fakeDS.readsDisabled = true

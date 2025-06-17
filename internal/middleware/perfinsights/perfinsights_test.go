@@ -128,7 +128,7 @@ func TestObserveShapeLatency(t *testing.T) {
 func TestNoLabels(t *testing.T) {
 	labels := NoLabels()
 	require.NotNil(t, labels)
-	require.Equal(t, 0, len(labels))
+	require.Empty(t, labels)
 }
 
 func TestSetInContext(t *testing.T) {

@@ -162,41 +162,41 @@ validation: null
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithMissingToken() {
 	resp, err := s.Client.Ping(s.SimpleCtx(), &testpb.PingRequest{Value: "test"})
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "3", resp.Value)
+	s.Require().NoError(err)
+	s.Require().Equal("3", resp.Value)
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithEmptyToken() {
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "")
 	resp, err := s.Client.Ping(ctx, &testpb.PingRequest{Value: "test"})
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "3", resp.Value)
+	s.Require().NoError(err)
+	s.Require().Equal("3", resp.Value)
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithIncorrectToken() {
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "missingbearer")
 	resp, err := s.Client.Ping(ctx, &testpb.PingRequest{Value: "test"})
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "3", resp.Value)
+	s.Require().NoError(err)
+	s.Require().Equal("3", resp.Value)
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithDefinedToken() {
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "bearer sometoken")
 	resp, err := s.Client.Ping(ctx, &testpb.PingRequest{Value: "test"})
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "3", resp.Value)
+	s.Require().NoError(err)
+	s.Require().Equal("3", resp.Value)
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithDifferentToken() {
 	// Connect with sometoken, creating an additional relationship.
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "bearer sometoken")
 	resp, err := s.Client.Ping(ctx, &testpb.PingRequest{Value: "createrel"})
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "4", resp.Value)
+	s.Require().NoError(err)
+	s.Require().Equal("4", resp.Value)
 
 	// Connect with a different token, which should not see the new relationship.
 	ctx = metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "bearer differenttoken")
 	resp, err = s.Client.Ping(ctx, &testpb.PingRequest{Value: "test"})
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "3", resp.Value)
+	s.Require().NoError(err)
+	s.Require().Equal("3", resp.Value)
 }

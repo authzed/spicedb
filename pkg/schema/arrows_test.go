@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -95,12 +94,12 @@ func TestLookupTuplesetArrows(t *testing.T) {
 
 					rel := resource.Name + "#" + relation.Name
 					expected, ok := tc.expected[rel]
-					require.True(t, ok, fmt.Sprintf("expected %v to be in %v", rel, tc.expected))
+					require.True(t, ok, "expected %v to be in %v", rel, tc.expected)
 					require.Len(t, arrows, len(expected), rel)
 
 					for _, arrow := range arrows {
 						key := arrow.Arrow.Tupleset.Relation + "->" + arrow.Arrow.ComputedUserset.Relation
-						require.Contains(t, expected, key, fmt.Sprintf("expected %v to be in %v", key, expected))
+						require.Contains(t, expected, key, "expected %v to be in %v", key, expected)
 					}
 				}
 			}

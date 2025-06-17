@@ -42,7 +42,7 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 		}
 
 		require.Len(stats.ObjectTypeStatistics, 3, "must report object stats")
-		require.Greater(stats.EstimatedRelationshipCount, uint64(0), "must report some relationships")
+		require.Positive(stats.EstimatedRelationshipCount, "must report some relationships")
 
 		newStats, err := ds.Statistics(ctx)
 		require.NoError(err)

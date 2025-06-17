@@ -30,7 +30,7 @@ func DatastoreProxyTestCache(t testing.TB) cache.Cache[cache.StringKey, CacheEnt
 		NumCounters: 1000,
 		MaxCost:     1 * humanize.MiByte,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	return cache
 }
 

@@ -249,11 +249,11 @@ func checkServiceMethods[T any](
 			require.True(t, ok, "missing handler for method %s under %T", methodName, new(T))
 
 			trailer := handler(t, client)
-			require.Greater(t, trailer.Len(), 0)
+			require.Positive(t, trailer.Len())
 
 			dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
 			require.NoError(t, err)
-			require.Greater(t, dispatchCount, 0)
+			require.Positive(t, dispatchCount)
 		})
 	}
 }

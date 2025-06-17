@@ -20,9 +20,9 @@ func TestOtelForwarding(t *testing.T) {
 
 	// Create some test IDs
 	traceID, err := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	spanID, err := trace.SpanIDFromHex("00f067aa0ba902b7")
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Create a context with the test data
 	inCtx := trace.ContextWithSpanContext(t.Context(), trace.NewSpanContext(trace.SpanContextConfig{
@@ -32,7 +32,7 @@ func TestOtelForwarding(t *testing.T) {
 
 	// Create a new http request and inject the context into the headers
 	r, err := http.NewRequest(http.MethodPost, "/v1/schema/read", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	otel.GetTextMapPropagator().Inject(inCtx, propagation.HeaderCarrier(r.Header))
 
 	// Run the annotator with a new context to ensure no existing tracing data

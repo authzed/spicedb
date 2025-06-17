@@ -39,7 +39,7 @@ func TestRunExplainIfNecessaryWithoutEnabled(t *testing.T) {
 	fq := &fakeQuerier{}
 
 	err := runExplainIfNecessary(t.Context(), RelationshipsQueryBuilder{}, fq, fakeExplainable{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, fq.queriesRun)
 }
 
@@ -76,6 +76,6 @@ func TestRunExplainIfNecessaryWithEnabled(t *testing.T) {
 	}
 
 	err := runExplainIfNecessary(t.Context(), builder, fq, fakeExplainable{})
-	require.Nil(t, err)
-	require.Equal(t, fq.queriesRun, []string{"SELECT SOMETHING", "SOME EXPLAIN QUERY"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"SELECT SOMETHING", "SOME EXPLAIN QUERY"}, fq.queriesRun)
 }

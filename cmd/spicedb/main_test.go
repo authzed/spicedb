@@ -87,7 +87,7 @@ func TestTerminationErrorHandling(t *testing.T) {
 	testErr := spiceerrors.NewTerminationErrorBuilder(baseErr).ExitCode(42).Error()
 
 	var termErr spiceerrors.TerminationError
-	require.True(t, errors.As(testErr, &termErr))
+	require.ErrorAs(t, testErr, &termErr)
 	require.Equal(t, 42, termErr.ExitCode())
 }
 
