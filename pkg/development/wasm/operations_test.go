@@ -6,10 +6,10 @@ package main
 import (
 	"testing"
 
-	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/authzed/spicedb/internal/sharederrors"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/testutil"

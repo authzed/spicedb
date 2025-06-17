@@ -15,7 +15,6 @@ import (
 )
 
 func TestTypeSystemConcurrency(t *testing.T) {
-	fmt.Println("starting test")
 	emptyEnv := caveats.NewEnvironmentWithDefaultTypeSet()
 	setup := &PredefinedElements{
 		Definitions: []*core.NamespaceDefinition{
