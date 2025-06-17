@@ -300,18 +300,33 @@ func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
 	startingRev, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
+	errCh := make(chan error, 10*5)
+
 	for i := 0; i < 10; i++ {
 		go func() {
 			defer wg.Done()
 
 			for i := 0; i < 5; i++ {
 				head, err := ds.HeadRevision(ctx)
-				require.NoError(err)
-				require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
-				require.True(head.GreaterThan(startingRev) || head.Equal(startingRev))
+				if err != nil {
+					errCh <- fmt.Errorf("HeadRevision error: %w", err)
+					continue
+				}
+				if err := ds.CheckRevision(ctx, head); err != nil {
+					errCh <- fmt.Errorf("CheckRevision error: %w", err)
+					continue
+				}
+				if !(head.GreaterThan(startingRev) || head.Equal(startingRev)) {
+					errCh <- fmt.Errorf("head revision is not greater than or equal to startingRev")
+				}
 			}
 		}()
 	}
 
 	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		require.NoError(err)
+	}
 }
