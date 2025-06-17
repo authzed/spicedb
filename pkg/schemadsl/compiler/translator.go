@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,10 +13,10 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -54,7 +55,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
 
-	names := mapz.NewSet[string]()
+	nodes := make(map[string]*dslNode)
 
 	for _, definitionNode := range root.GetChildren() {
 		var definition SchemaDefinition
@@ -86,9 +87,11 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 			objectDefinitions = append(objectDefinitions, def)
 		}
 
-		if !names.Add(definition.GetName()) {
+		if _, ok := nodes[definition.GetName()]; ok {
 			return nil, definitionNode.WithSourceErrorf(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
 		}
+
+		nodes[definition.GetName()] = definitionNode
 
 		orderedDefinitions = append(orderedDefinitions, definition)
 	}
@@ -103,6 +106,24 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 
 	// Check for typechecking after all definitions are processed.
 	if slices.Contains(tctx.enabledFlags, "typechecking") {
+		resolver := ResolverForCompiledSchema(compiledSchema)
+		ts := schema.NewTypeSystem(resolver)
+		for _, def := range objectDefinitions {
+			for _, rel := range def.Relation {
+				if annotations := getTypeAnnotationsFromMetadata(rel); len(annotations) != 0 {
+					tset, err := ts.GetRecursiveTerminalTypesForRelation(context.Background(), def.GetName(), rel.GetName())
+					if err != nil {
+						return nil, err
+					}
+					for _, typ := range tset {
+						if !slices.Contains(annotations, typ) {
+							node := nodes[def.GetName()]
+							return nil, node.WithSourceErrorf(def.GetName(), "incomplete type annotation on relation %s in definition %s: %s found as reachable type, but not contained in provided set %v", rel.GetName(), def.GetName(), typ, annotations)
+						}
+					}
+				}
+			}
+		}
 		// Call your existing type-checking function here.
 		// For example: err := TypeCheckPermissions(objectDefinitions)
 		// if err != nil {
@@ -453,13 +474,13 @@ func addTypeAnnotationsToMetadata(relation *core.Relation, typeAnnotations []str
 		if relationMetadata.Kind == implv1.RelationMetadata_PERMISSION {
 			// Update existing RelationMetadata with type annotations
 			relationMetadata.TypeAnnotations = typeAnnotations
-			
+
 			// Re-encode and replace the existing message
 			updatedAny, err := anypb.New(&relationMetadata)
 			if err != nil {
 				return fmt.Errorf("failed to create updated Any message for relation metadata: %w", err)
 			}
-			
+
 			relation.Metadata.MetadataMessage[i] = updatedAny
 			return nil
 		}
@@ -480,9 +501,9 @@ func addTypeAnnotationsToMetadata(relation *core.Relation, typeAnnotations []str
 	return nil
 }
 
-func getTypeAnnotationsFromMetadata(relation *core.Relation) ([]string, error) {
+func getTypeAnnotationsFromMetadata(relation *core.Relation) []string {
 	if relation.Metadata == nil || len(relation.Metadata.MetadataMessage) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	for _, metadataAny := range relation.Metadata.MetadataMessage {
@@ -492,13 +513,12 @@ func getTypeAnnotationsFromMetadata(relation *core.Relation) ([]string, error) {
 			continue
 		}
 
-
 		if relationMetadata.Kind == implv1.RelationMetadata_PERMISSION {
-			return relationMetadata.TypeAnnotations, nil
+			return relationMetadata.TypeAnnotations
 		}
 	}
 
-	return nil, nil
+	return nil
 }
 
 func translateBinary(tctx *translationContext, expressionNode *dslNode) (*core.SetOperation_Child, *core.SetOperation_Child, error) {
