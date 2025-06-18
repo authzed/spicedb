@@ -73,21 +73,24 @@ func TestStrictReaderDetectsLagErrors(t *testing.T) {
 			reader.wrapped = mc
 			err := reader.ExecFunc(t.Context(), nil, "SELECT 1")
 			if expected != nil {
-				require.ErrorAs(t, err, &expected) //nolint:testifylint
+				require.Error(t, err)
+				require.IsType(t, expected, err)
 			} else {
 				require.NoError(t, err)
 			}
 
 			err = reader.QueryFunc(t.Context(), nil, "SELECT 1")
 			if expected != nil {
-				require.ErrorAs(t, err, &expected) //nolint:testifylint
+				require.Error(t, err)
+				require.IsType(t, expected, err)
 			} else {
 				require.NoError(t, err)
 			}
 
 			err = reader.QueryRowFunc(t.Context(), nil, "SELECT 1")
 			if expected != nil {
-				require.ErrorAs(t, err, &expected) //nolint:testifylint
+				require.Error(t, err)
+				require.IsType(t, expected, err)
 			} else {
 				require.NoError(t, err)
 			}
