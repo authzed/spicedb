@@ -2,6 +2,9 @@ ignore:
   - "**/zz_*.go"
   - "**/*.pb.go"
   - "**/*.pb.validate.go"
+  - "**/*fortesting.go"
+  - "**/testutil.go"
+  - "**/testutil/*.go"
 coverage:
   # UI Colors. The first number represents the cutover from red to yellow,
   # and the second represents the cutover from yellow to green.
