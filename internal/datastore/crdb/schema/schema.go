@@ -70,7 +70,7 @@ func Schema(colOptimizationOpt common.ColumnOptimizationOption, withIntegrity bo
 		common.WithColumnOptimization(colOptimizationOpt),
 		common.WithIntegrityEnabled(withIntegrity),
 		common.WithExpirationDisabled(expirationDisabled),
-		common.SetIndexes(crdbIndexes),
+		common.SetIndexes(crdbAllIndexes),
 
 		// NOTE: this order differs from the default because the index
 		// used for sorting by subject (ix_relation_tuple_by_subject) is
