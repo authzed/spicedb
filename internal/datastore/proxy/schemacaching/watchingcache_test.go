@@ -19,10 +19,6 @@ import (
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
-func errorAs(err error, target any) bool {
-	return errors.As(err, target)
-}
-
 func TestWatchingCacheBasicOperation(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
@@ -148,7 +144,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		// Read somenamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "somenamespace")
 		var nsNotFoundErr datastore.NamespaceNotFoundError
-		if err == nil || !errorAs(err, &nsNotFoundErr) {
+		if err == nil || !errors.As(err, &nsNotFoundErr) {
 			t.Errorf("expected NamespaceNotFoundError, got: %v", err)
 		}
 		if wcache.namespaceCache.inFallbackMode {
@@ -173,7 +169,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		// Read anothernamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "anothernamespace")
 		var nsNotFoundErr datastore.NamespaceNotFoundError
-		if err == nil || !errorAs(err, &nsNotFoundErr) {
+		if err == nil || !errors.As(err, &nsNotFoundErr) {
 			t.Errorf("expected NamespaceNotFoundError, got: %T: %v - ", err, err)
 		}
 		if wcache.namespaceCache.inFallbackMode {
@@ -182,7 +178,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 
 		// Read again (which should still not be found)
 		_, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(t.Context(), "anothernamespace")
-		if err == nil || !errorAs(err, &nsNotFoundErr) {
+		if err == nil || !errors.As(err, &nsNotFoundErr) {
 			t.Errorf("expected NamespaceNotFoundError, got: %T: %v - ", err, err)
 		}
 		if wcache.namespaceCache.inFallbackMode {
