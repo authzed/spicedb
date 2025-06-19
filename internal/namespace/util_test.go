@@ -174,7 +174,7 @@ func TestCheckNamespaceAndRelations(t *testing.T) {
 
 			err = namespace.CheckNamespaceAndRelations(t.Context(), tc.checks, reader)
 			if tc.expectedError == "" {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			} else {
 				require.ErrorContains(t, err, tc.expectedError)
 			}

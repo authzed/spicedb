@@ -212,7 +212,7 @@ func TestCompile(t *testing.T) {
 
 func TestDeserializeEmpty(t *testing.T) {
 	_, err := DeserializeCaveatWithDefaultTypeSet([]byte{}, nil)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestSerialization(t *testing.T) {

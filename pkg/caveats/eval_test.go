@@ -384,7 +384,7 @@ func TestEvaluateCaveat(t *testing.T) {
 
 					vars, err := result.MissingVarNames()
 					require.NoError(t, err)
-					require.EqualValues(t, tc.missingVars, vars)
+					require.Equal(t, tc.missingVars, vars)
 				} else {
 					require.False(t, result.IsPartial())
 					_, partialErr := result.PartialValue()

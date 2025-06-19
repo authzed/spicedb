@@ -419,7 +419,7 @@ func TestWriteRelationships(t *testing.T) {
 	})
 	require.NoError(err)
 	require.NotNil(resp.WrittenAt)
-	require.NotZero(resp.WrittenAt.Token)
+	require.NotEmpty(resp.WrittenAt.Token)
 
 	// Ensure the written relationships exist
 	for _, tpl := range toWrite {
@@ -578,7 +578,7 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = stream.Recv()
-			require.True(t, errors.Is(err, io.EOF))
+			require.ErrorIs(t, err, io.EOF)
 		})
 	}
 }
@@ -1274,7 +1274,7 @@ func TestDeleteRelationships(t *testing.T) {
 				require.True(rev.GreaterThan(revision))
 
 				require.Equal(uint64(len(tc.deleted)), resp.RelationshipsDeletedCount)
-				require.EqualValues(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))
+				require.Equal(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))
 			})
 		}
 	}
@@ -1396,7 +1396,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 					rev, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 					require.NoError(err)
 					require.True(rev.GreaterThan(revision))
-					require.EqualValues(standardTuplesWithout(expected), readAll(require, client, resp.DeletedAt))
+					require.Equal(standardTuplesWithout(expected), readAll(require, client, resp.DeletedAt))
 					break
 				}
 			}

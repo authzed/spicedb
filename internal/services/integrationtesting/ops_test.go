@@ -766,7 +766,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 					for _, step := range tc.steps {
 						err := step.op.Execute(tester)
 						if step.expectedError != "" {
-							require.NotNil(t, err)
+							require.Error(t, err)
 							require.Contains(t, err.Error(), step.expectedError)
 						} else {
 							require.NoError(t, err)

@@ -19,8 +19,8 @@ func RunServeTest(t *testing.T, args []string, assertConfig func(t *testing.T, m
 	config := server.NewConfigWithOptionsAndDefaults()
 	cmd := NewServeCommand("spicedb", config)
 	err := RegisterRootFlags(cmd)
-	require.Nil(t, err)
-	require.Nil(t, RegisterServeFlags(cmd, config))
+	require.NoError(t, err)
+	require.NoError(t, RegisterServeFlags(cmd, config))
 	// Disable all metrics as they are singletons
 	config.DispatchClusterMetricsEnabled = false
 	config.DispatchClientMetricsEnabled = false
@@ -42,7 +42,7 @@ func RunServeTest(t *testing.T, args []string, assertConfig func(t *testing.T, m
 		assertConfig(t, config)
 		return nil
 	}
-	require.Nil(t, cmd.Execute())
+	require.NoError(t, cmd.Execute())
 }
 
 func prepareTempConfigDir(t *testing.T) string {
@@ -54,10 +54,10 @@ func prepareTempConfigDir(t *testing.T) string {
 func prepareTempConfigFile(t *testing.T, config string) {
 	confdir := prepareTempConfigDir(t)
 	confFile, err := os.Create(filepath.Join(confdir, "spicedb.env"))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	_, err = confFile.WriteString(config)
-	require.Nil(t, err)
-	require.Nil(t, confFile.Close())
+	require.NoError(t, err)
+	require.NoError(t, confFile.Close())
 	prevEnv := os.Environ()
 	restore := func() {
 		restoreEnv(prevEnv)
@@ -78,9 +78,9 @@ func TestDefaultConfig(t *testing.T) {
 		"--grpc-preshared-key", "some_key",
 	}
 	RunServeTest(t, flags, func(t *testing.T, mergedConfig *server.Config) {
-		require.Equal(t, true, mergedConfig.GRPCServer.Enabled)
+		require.True(t, mergedConfig.GRPCServer.Enabled)
 		require.Equal(t, ":50051", mergedConfig.GRPCServer.Address)
-		require.Equal(t, false, mergedConfig.HTTPGateway.HTTPEnabled)
+		require.False(t, mergedConfig.HTTPGateway.HTTPEnabled)
 		require.Equal(t, ":8443", mergedConfig.HTTPGateway.HTTPAddress)
 		require.Equal(t, "memory", mergedConfig.DatastoreConfig.Engine)
 		require.Equal(t, uint16(1024), mergedConfig.DatastoreConfig.WatchBufferLength)
@@ -97,9 +97,9 @@ func TestFlagsAreParsed(t *testing.T) {
 		"--datastore-watch-buffer-length", "9000",
 	}
 	RunServeTest(t, flags, func(t *testing.T, mergedConfig *server.Config) {
-		require.Equal(t, true, mergedConfig.GRPCServer.Enabled)
+		require.True(t, mergedConfig.GRPCServer.Enabled)
 		require.Equal(t, "127.0.0.1:9051", mergedConfig.GRPCServer.Address)
-		require.Equal(t, true, mergedConfig.HTTPGateway.HTTPEnabled)
+		require.True(t, mergedConfig.HTTPGateway.HTTPEnabled)
 		require.Equal(t, "127.0.0.1:9443", mergedConfig.HTTPGateway.HTTPAddress)
 		require.Equal(t, "memory", mergedConfig.DatastoreConfig.Engine)
 		require.Equal(t, uint16(9000), mergedConfig.DatastoreConfig.WatchBufferLength)
@@ -115,9 +115,9 @@ func TestEnvVarsAreParsed(t *testing.T) {
 	t.Setenv("SPICEDB_DATASTORE_WATCH_BUFFER_LENGTH", "10000")
 	flags := []string{}
 	RunServeTest(t, flags, func(t *testing.T, mergedConfig *server.Config) {
-		require.Equal(t, true, mergedConfig.GRPCServer.Enabled)
+		require.True(t, mergedConfig.GRPCServer.Enabled)
 		require.Equal(t, "127.0.0.1:10051", mergedConfig.GRPCServer.Address)
-		require.Equal(t, true, mergedConfig.HTTPGateway.HTTPEnabled)
+		require.True(t, mergedConfig.HTTPGateway.HTTPEnabled)
 		require.Equal(t, "127.0.0.1:10443", mergedConfig.HTTPGateway.HTTPAddress)
 		require.Equal(t, "memory", mergedConfig.DatastoreConfig.Engine)
 		require.Equal(t, uint16(10000), mergedConfig.DatastoreConfig.WatchBufferLength)
@@ -135,9 +135,9 @@ func TestConfigFileValuesAreParsed(t *testing.T) {
 	prepareTempConfigFile(t, config)
 	flags := []string{}
 	RunServeTest(t, flags, func(t *testing.T, mergedConfig *server.Config) {
-		require.Equal(t, true, mergedConfig.GRPCServer.Enabled)
+		require.True(t, mergedConfig.GRPCServer.Enabled)
 		require.Equal(t, "127.0.0.1:11051", mergedConfig.GRPCServer.Address)
-		require.Equal(t, true, mergedConfig.HTTPGateway.HTTPEnabled)
+		require.True(t, mergedConfig.HTTPGateway.HTTPEnabled)
 		require.Equal(t, "127.0.0.1:11443", mergedConfig.HTTPGateway.HTTPAddress)
 		require.Equal(t, "memory", mergedConfig.DatastoreConfig.Engine)
 		require.Equal(t, uint16(11000), mergedConfig.DatastoreConfig.WatchBufferLength)
@@ -158,9 +158,9 @@ func TestConfigsAreMerged(t *testing.T) {
 		"--datastore-watch-buffer-length", "12000",
 	}
 	RunServeTest(t, flags, func(t *testing.T, mergedConfig *server.Config) {
-		require.Equal(t, true, mergedConfig.GRPCServer.Enabled)
+		require.True(t, mergedConfig.GRPCServer.Enabled)
 		require.Equal(t, "127.0.0.1:12051", mergedConfig.GRPCServer.Address)
-		require.Equal(t, true, mergedConfig.HTTPGateway.HTTPEnabled)
+		require.True(t, mergedConfig.HTTPGateway.HTTPEnabled)
 		require.Equal(t, "127.0.0.1:12443", mergedConfig.HTTPGateway.HTTPAddress)
 		require.Equal(t, "memory", mergedConfig.DatastoreConfig.Engine)
 		require.Equal(t, uint16(12000), mergedConfig.DatastoreConfig.WatchBufferLength)
@@ -190,9 +190,9 @@ func TestConfigPrecedence(t *testing.T) {
 		"--datastore-watch-buffer-length", "23000",
 	}
 	RunServeTest(t, flags, func(t *testing.T, mergedConfig *server.Config) {
-		require.Equal(t, true, mergedConfig.GRPCServer.Enabled)
+		require.True(t, mergedConfig.GRPCServer.Enabled)
 		require.Equal(t, "127.0.0.1:21051", mergedConfig.GRPCServer.Address)
-		require.Equal(t, true, mergedConfig.HTTPGateway.HTTPEnabled)
+		require.True(t, mergedConfig.HTTPGateway.HTTPEnabled)
 		require.Equal(t, "127.0.0.1:22443", mergedConfig.HTTPGateway.HTTPAddress)
 		require.Equal(t, "memory", mergedConfig.DatastoreConfig.Engine)
 		require.Equal(t, uint16(23000), mergedConfig.DatastoreConfig.WatchBufferLength)

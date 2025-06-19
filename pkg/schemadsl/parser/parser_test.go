@@ -156,9 +156,9 @@ func TestParser(t *testing.T) {
 
 func getParseTree(currentNode *testNode, indentation int) string {
 	parseTree := ""
-	parseTree = parseTree + strings.Repeat(" ", indentation)
-	parseTree = parseTree + fmt.Sprintf("%v", currentNode.nodeType)
-	parseTree = parseTree + "\n"
+	parseTree += strings.Repeat(" ", indentation)
+	parseTree += fmt.Sprintf("%v", currentNode.nodeType)
+	parseTree += "\n"
 
 	keys := make([]string, 0)
 
@@ -169,9 +169,9 @@ func getParseTree(currentNode *testNode, indentation int) string {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		parseTree = parseTree + strings.Repeat(" ", indentation+2)
-		parseTree = parseTree + fmt.Sprintf("%s = %v", key, currentNode.properties[key])
-		parseTree = parseTree + "\n"
+		parseTree += strings.Repeat(" ", indentation+2)
+		parseTree += fmt.Sprintf("%s = %v", key, currentNode.properties[key])
+		parseTree += "\n"
 	}
 
 	keys = make([]string, 0)
@@ -184,11 +184,11 @@ func getParseTree(currentNode *testNode, indentation int) string {
 
 	for _, key := range keys {
 		value := currentNode.children[key]
-		parseTree = parseTree + fmt.Sprintf("%s%v =>", strings.Repeat(" ", indentation+2), key)
-		parseTree = parseTree + "\n"
+		parseTree += fmt.Sprintf("%s%v =>", strings.Repeat(" ", indentation+2), key)
+		parseTree += "\n"
 
 		for e := value.Front(); e != nil; e = e.Next() {
-			parseTree = parseTree + getParseTree(e.Value.(*testNode), indentation+4)
+			parseTree += getParseTree(e.Value.(*testNode), indentation+4)
 		}
 	}
 

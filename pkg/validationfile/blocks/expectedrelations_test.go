@@ -125,7 +125,7 @@ func TestValidationString(t *testing.T) {
 				require.Nil(err)
 				require.Equal(tc.expectedSubject, tuple.StringONR(subject.Subject.Subject))
 				require.Equal(tc.isSubjectCaveated, subject.Subject.IsCaveated)
-				require.Equal(len(tc.expectedExceptions), len(subject.Exceptions))
+				require.Len(subject.Exceptions, len(tc.expectedExceptions))
 
 				if len(tc.expectedExceptions) > 0 {
 					sort.Strings(tc.expectedExceptions)
@@ -260,7 +260,7 @@ document:seconddoc#view:
 				require.Contains(err.Error(), tc.expectedError)
 			} else {
 				require.NoError(err)
-				require.Equal(tc.expectedKeys, len(per.ValidationMap))
+				require.Len(per.ValidationMap, tc.expectedKeys)
 			}
 		})
 	}

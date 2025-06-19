@@ -166,10 +166,8 @@ func (ms *MembershipSet) Subtract(resultsMap CheckResultsMap) {
 			// Otherwise, the caveat expression gets combined with an intersection of the inversion
 			// of the expression.
 			ms.membersByID[resourceID] = caveatSub(expression, details.Expression)
-		} else {
-			if expression == nil {
-				ms.hasDeterminedMember = true
-			}
+		} else if expression == nil {
+			ms.hasDeterminedMember = true
 		}
 	}
 }

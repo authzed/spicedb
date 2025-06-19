@@ -26,7 +26,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	validation, devErr := ParseExpectedRelationsYAML(`document:somedoc#view:
@@ -35,7 +35,7 @@ definition document {
 	require.NotNil(t, validation)
 
 	ms, devErrors, err := RunValidation(devCtx, validation)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrors)
 	require.NotNil(t, ms)
 }
@@ -52,7 +52,7 @@ definition document {
 		Relationships: []*core.RelationTuple{},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	validation, devErr := ParseExpectedRelationsYAML(`document:somedoc#view:
@@ -61,7 +61,7 @@ definition document {
 	require.NotNil(t, validation)
 
 	ms, devErrors, err := RunValidation(devCtx, validation)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, devErrors, 1)
 	require.Equal(t, devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP, devErrors[0].Kind)
 	require.Contains(t, devErrors[0].Message, "missing expected subject")
@@ -83,7 +83,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	validation, devErr := ParseExpectedRelationsYAML(`document:somedoc#view:
@@ -92,7 +92,7 @@ definition document {
 	require.NotNil(t, validation)
 
 	ms, devErrors, err := RunValidation(devCtx, validation)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotEmpty(t, devErrors) // Should have some errors due to extra/missing subjects
 	require.NotNil(t, ms)
 }
@@ -111,7 +111,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	validation, devErr := ParseExpectedRelationsYAML(`document:somedoc#view:
@@ -120,7 +120,7 @@ definition document {
 	require.NotNil(t, validation)
 
 	ms, devErrors, err := RunValidation(devCtx, validation)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrors) // Should pass now
 	require.NotNil(t, ms)
 }
@@ -135,7 +135,7 @@ definition document {
 `,
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	validation, devErr := ParseExpectedRelationsYAML(`document:somedoc#nonexistent:
@@ -144,7 +144,7 @@ definition document {
 	require.NotNil(t, validation)
 
 	ms, devErrors, err := RunValidation(devCtx, validation)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotEmpty(t, devErrors) // Should have errors due to invalid relation
 	require.NotNil(t, ms)
 }
@@ -180,7 +180,7 @@ func TestWrapResources(t *testing.T) {
 
 	// Check that they're sorted
 	for i := 1; i < len(wrapped); i++ {
-		require.True(t, wrapped[i-1] <= wrapped[i])
+		require.LessOrEqual(t, wrapped[i-1], wrapped[i])
 	}
 }
 
@@ -222,7 +222,7 @@ definition document {
 		Relationships: []*core.RelationTuple{},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	// Create a validation with a nil expected subject to test error handling
@@ -231,7 +231,7 @@ definition document {
 	require.NotNil(t, validation)
 
 	ms, devErrors, err := RunValidation(devCtx, validation)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Empty(t, devErrors) // No errors since no subjects are expected or found
 	require.NotNil(t, ms)
 }

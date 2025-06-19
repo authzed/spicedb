@@ -47,7 +47,7 @@ func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
 		NumCounters: 1000,
 		MaxCost:     1 * humanize.MiByte,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	return cache
 }
 

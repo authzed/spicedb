@@ -315,7 +315,7 @@ func TestDeleteMiddleware(t *testing.T) {
 
 	outUnary := defaultMiddleware.ToGRPCInterceptors()
 	require.NoError(t, err)
-	require.Len(t, outUnary, 0)
+	require.Empty(t, outUnary)
 }
 
 func TestCannotReplaceInternalMiddleware(t *testing.T) {

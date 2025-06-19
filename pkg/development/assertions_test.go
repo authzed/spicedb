@@ -28,7 +28,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	assertions := &blocks.Assertions{
@@ -56,7 +56,7 @@ definition document {
 		Relationships: []*core.RelationTuple{},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	assertions := &blocks.Assertions{
@@ -88,7 +88,7 @@ definition document {
 		Relationships: []*core.RelationTuple{},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	// Create an assertion with a caveat, which should result in an error
@@ -121,7 +121,7 @@ definition document {
 		Relationships: []*core.RelationTuple{},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	assertions := &blocks.Assertions{

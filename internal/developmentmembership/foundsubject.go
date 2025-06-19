@@ -89,12 +89,12 @@ func (fs FoundSubject) ToValidationString() string {
 	onrString := tuple.StringONR(fs.Subject())
 	validationString := onrString
 	if fs.caveatExpression != nil {
-		validationString = validationString + "[...]"
+		validationString += "[...]"
 	}
 
 	excluded, isWildcard := fs.ExcludedSubjectsFromWildcard()
 	if isWildcard && len(excluded) > 0 {
-		validationString = validationString + " - {" + strings.Join(fs.excludedSubjectStrings(), ", ") + "}"
+		validationString += " - {" + strings.Join(fs.excludedSubjectStrings(), ", ") + "}"
 	}
 
 	return validationString

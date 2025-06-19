@@ -23,7 +23,7 @@ func TestParsePercent(t *testing.T) {
 	for _, tt := range table {
 		v, err := parsePercent(tt.percent, tt.freeMem)
 		if tt.expectedErr == nil {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		} else {
 			require.Equal(t, tt.expectedErr, err)
 		}

@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -222,11 +221,11 @@ func TestTypecheckingJustTypes(t *testing.T) {
 
 					rel := resource.Name + "#" + relation.Name
 					expected, ok := tc.expected[rel]
-					require.True(t, ok, fmt.Sprintf("expected %v to be in %v", rel, tc.expected))
+					require.True(t, ok, "expected %v to be in %v", rel, tc.expected)
 					require.Len(t, types, len(expected), rel)
 
 					for _, typ := range types {
-						require.Contains(t, expected, typ, fmt.Sprintf("expected %v to be in %v", typ, expected))
+						require.Contains(t, expected, typ, "expected %v to be in %v", typ, expected)
 					}
 				}
 			}
@@ -405,11 +404,11 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 
 					rel := resource.Name + "#" + relation.Name
 					expected, ok := tc.expected[rel]
-					require.True(t, ok, fmt.Sprintf("expected %v to be in %v", rel, tc.expected))
+					require.True(t, ok, "expected %v to be in %v", rel, tc.expected)
 					require.Len(t, types, len(expected), rel)
 
 					for _, typ := range types {
-						require.Contains(t, expected, typ, fmt.Sprintf("expected %v to be in %v", typ, expected))
+						require.Contains(t, expected, typ, "expected %v to be in %v", typ, expected)
 					}
 				}
 			}

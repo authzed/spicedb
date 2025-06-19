@@ -55,7 +55,7 @@ func addTransactionMetadataTable(ctx context.Context, conn *pgx.Conn) error {
 		return err
 	}
 
-	re, err := regexp.Compile(semver.SemVerRegex)
+	re, err := regexp.Compile(semver.SemVerRegex) //nolint:gocritic
 	if err != nil {
 		return fmt.Errorf("failed to compile regex: %w", err)
 	}

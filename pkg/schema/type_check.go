@@ -63,9 +63,10 @@ func (ts *TypeSystem) getTypesForRelationInternal(ctx context.Context, defName s
 func (ts *TypeSystem) getTypesForInfo(ctx context.Context, rel *corev1.TypeInformation, seen *mapz.Set[string], nonTerminals *mapz.Set[string]) (*mapz.Set[string], error) {
 	out := mapz.NewSet[string]()
 	for _, dr := range rel.GetAllowedDirectRelations() {
-		if dr.GetRelation() == ellipsesRelation {
+		switch {
+		case dr.GetRelation() == ellipsesRelation:
 			out.Add(dr.GetNamespace())
-		} else if dr.GetRelation() != "" {
+		case dr.GetRelation() != "":
 			if nonTerminals != nil {
 				nonTerminals.Add(fmt.Sprintf("%s#%s", dr.GetNamespace(), dr.GetRelation()))
 			}
@@ -77,7 +78,7 @@ func (ts *TypeSystem) getTypesForInfo(ctx context.Context, rel *corev1.TypeInfor
 				continue
 			}
 			out.Merge(rest)
-		} else {
+		default:
 			// It's a wildcard, so all things of that type count
 			out.Add(dr.GetNamespace())
 		}

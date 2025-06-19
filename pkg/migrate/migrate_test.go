@@ -174,7 +174,7 @@ func TestIsHeadCompatible(t *testing.T) {
 	for _, tc := range testCases {
 		m := Manager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]{migrations: tc.migrations}
 		compatible, err := m.IsHeadCompatible(tc.currentMigration)
-		req.Equal(compatible, tc.expectedResult)
+		req.Equal(tc.expectedResult, compatible)
 		req.Equal(tc.expectError, err != nil, err)
 	}
 }
@@ -190,7 +190,7 @@ func TestManagerEnsureVersionIsWritten(t *testing.T) {
 
 	writtenVer, err := drv.Version(t.Context())
 	req.NoError(err)
-	req.Equal("", writtenVer)
+	req.Empty(writtenVer)
 }
 
 var noMigrations = map[string]migration[fakeConnPool, fakeTx]{}

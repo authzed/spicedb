@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var tests = []uint8{
@@ -14,8 +15,8 @@ func TestTokenBytes(t *testing.T) {
 	assert := assert.New(t)
 	for _, nbytes := range tests {
 		res, err := TokenBytes(nbytes)
-		assert.Nil(err)
-		assert.Equal(int(nbytes), len(res))
+		require.NoError(t, err)
+		assert.Len(res, int(nbytes))
 	}
 }
 
@@ -23,7 +24,7 @@ func TestTokenHex(t *testing.T) {
 	assert := assert.New(t)
 	for _, nbytes := range tests {
 		res, err := TokenHex(nbytes)
-		assert.Nil(err)
-		assert.Equal(int(nbytes)*2, len(res))
+		require.NoError(t, err)
+		assert.Len(res, int(nbytes)*2)
 	}
 }

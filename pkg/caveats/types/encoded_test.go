@@ -59,14 +59,14 @@ func TestDecodeUnknownType(t *testing.T) {
 	_, err := DecodeParameterType(Default.TypeSet, &core.CaveatTypeReference{
 		TypeName: "unknown",
 	})
-	require.NotNil(t, err)
-	require.Equal(t, err.Error(), "unknown caveat parameter type `unknown`")
+	require.Error(t, err)
+	require.Equal(t, "unknown caveat parameter type `unknown`", err.Error())
 }
 
 func TestDecodeWrongChildTypeCount(t *testing.T) {
 	_, err := DecodeParameterType(Default.TypeSet, &core.CaveatTypeReference{
 		TypeName: "list",
 	})
-	require.NotNil(t, err)
-	require.Equal(t, err.Error(), "caveat parameter type `list` requires 0 child types; found 1")
+	require.Error(t, err)
+	require.Equal(t, "caveat parameter type `list` requires 0 child types; found 1", err.Error())
 }

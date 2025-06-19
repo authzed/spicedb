@@ -70,17 +70,17 @@ func TestNodeIDMiddleware(t *testing.T) {
 
 func (s *nodeIDMiddlewareTestSuite) TestUnaryInterceptor_SetsNodeID() {
 	_, err := s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{})
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), s.testNodeID, s.testSrv.lastNodeID)
+	s.Require().NoError(err)
+	s.Require().Equal(s.testNodeID, s.testSrv.lastNodeID)
 }
 
 func (s *nodeIDMiddlewareTestSuite) TestStreamInterceptor_SetsNodeID() {
 	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	resp, err := stream.Recv()
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), s.testNodeID, resp.Value)
+	s.Require().NoError(err)
+	s.Require().Equal(s.testNodeID, resp.Value)
 }
 
 // Test suite for default node ID behavior
@@ -111,19 +111,19 @@ func TestNodeIDMiddlewareDefault(t *testing.T) {
 
 func (s *nodeIDDefaultMiddlewareTestSuite) TestUnaryInterceptor_UsesDefaultNodeID() {
 	_, err := s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{})
-	require.NoError(s.T(), err)
-	require.NotEmpty(s.T(), s.testSrv.lastNodeID)
-	require.Contains(s.T(), s.testSrv.lastNodeID, spiceDBPrefix)
+	s.Require().NoError(err)
+	s.Require().NotEmpty(s.testSrv.lastNodeID)
+	s.Require().Contains(s.testSrv.lastNodeID, spiceDBPrefix)
 }
 
 func (s *nodeIDDefaultMiddlewareTestSuite) TestStreamInterceptor_UsesDefaultNodeID() {
 	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	resp, err := stream.Recv()
-	require.NoError(s.T(), err)
-	require.NotEmpty(s.T(), resp.Value)
-	require.Contains(s.T(), resp.Value, spiceDBPrefix)
+	s.Require().NoError(err)
+	s.Require().NotEmpty(resp.Value)
+	s.Require().Contains(resp.Value, spiceDBPrefix)
 }
 
 // Test ContextWithHandle and FromContext functions directly
