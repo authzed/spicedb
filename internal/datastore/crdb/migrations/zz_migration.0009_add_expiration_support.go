@@ -47,7 +47,11 @@ func addExpirationSupport(ctx context.Context, conn *pgx.Conn) error {
 		return err
 	}
 
-	re := regexp.MustCompile(semver.SemVerRegex)
+	re, err := regexp.Compile(semver.SemVerRegex) //nolint:gocritic
+	if err != nil {
+		return fmt.Errorf("failed to compile regex: %w", err)
+	}
+
 	version := re.FindString(fullVersionString)
 	v, err := semver.NewVersion(version)
 	if err != nil {

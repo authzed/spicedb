@@ -25,7 +25,7 @@ type xid8 struct {
 	Valid  bool
 }
 
-func NewXid8(u uint64) xid8 {
+func newXid8(u uint64) xid8 {
 	return xid8{
 		Uint64: u,
 		Valid:  true,

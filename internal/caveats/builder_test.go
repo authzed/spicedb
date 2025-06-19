@@ -228,7 +228,7 @@ func TestMustCaveatExprForTestingWithContext(t *testing.T) {
 
 	contextMap := result.GetCaveat().Context.AsMap()
 	require.Equal(t, "value1", contextMap["key1"])
-	require.InEpsilon(t, 42, contextMap["key2"], 0.00001)
+	require.Equal(t, float64(42), contextMap["key2"]) //nolint:testifylint
 }
 
 func TestMustCaveatExprForTestingWithContextPanic(t *testing.T) {
