@@ -1,4 +1,4 @@
-package schema
+package schema_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -233,9 +234,9 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
-			resolver := ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
+			resolver := schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
 
-			vts, err := NewTypeSystem(resolver).GetDefinition(ctx, tc.subjectType)
+			vts, err := schema.NewTypeSystem(resolver).GetDefinition(ctx, tc.subjectType)
 			require.NoError(err)
 
 			rg := vts.Reachability()
@@ -602,9 +603,9 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
-			resolver := ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
+			resolver := schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
 
-			vts, err := NewTypeSystem(resolver).GetDefinition(ctx, tc.resourceType)
+			vts, err := schema.NewTypeSystem(resolver).GetDefinition(ctx, tc.resourceType)
 			require.NoError(err)
 
 			rg := vts.Reachability()
@@ -1203,13 +1204,13 @@ func TestReachabilityGraph(t *testing.T) {
 
 			reader := ds.SnapshotReader(lastRevision)
 
-			var rdef *ValidatedDefinition
+			var rdef *schema.ValidatedDefinition
 			for _, nsDef := range compiled.ObjectDefinitions {
-				resolver := ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
+				resolver := schema.ResolverForDatastoreReader(reader).WithPredefinedElements(schema.PredefinedElements{
 					Definitions: compiled.ObjectDefinitions,
 					Caveats:     compiled.CaveatDefinitions,
 				})
-				ts := NewTypeSystem(resolver)
+				ts := schema.NewTypeSystem(resolver)
 
 				vdef, terr := ts.GetValidatedDefinition(ctx, nsDef.Name)
 				require.NoError(terr)
@@ -1231,7 +1232,7 @@ func TestReachabilityGraph(t *testing.T) {
 	}
 }
 
-func verifyEntrypoints(require *require.Assertions, foundEntrypoints []ReachabilityEntrypoint, expectedEntrypoints []rrtStruct) {
+func verifyEntrypoints(require *require.Assertions, foundEntrypoints []schema.ReachabilityEntrypoint, expectedEntrypoints []rrtStruct) {
 	expectedEntrypointRelations := make([]string, 0, len(expectedEntrypoints))
 	isDirectMap := map[string]bool{}
 	for _, expected := range expectedEntrypoints {
@@ -1243,7 +1244,7 @@ func verifyEntrypoints(require *require.Assertions, foundEntrypoints []Reachabil
 	for _, entrypoint := range foundEntrypoints {
 		foundRelations = append(foundRelations, tuple.StringCoreRR(entrypoint.ContainingRelationOrPermission()))
 		if isDirect, ok := isDirectMap[tuple.StringCoreRR(entrypoint.ContainingRelationOrPermission())]; ok {
-			require.Equal(isDirect, entrypoint.IsDirectResult(), "found mismatch for whether a direct result for entrypoint for %s", entrypoint.parentRelation.Relation)
+			require.Equal(isDirect, entrypoint.IsDirectResult(), "found mismatch for whether a direct result for entrypoint for %s", entrypoint.ContainingRelationOrPermission().Relation)
 		}
 	}
 

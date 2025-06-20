@@ -1,4 +1,4 @@
-package schema
+package schema_test
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
@@ -207,15 +208,15 @@ func TestTypecheckingJustTypes(t *testing.T) {
 			tc := tc
 			t.Parallel()
 
-			schema, err := compiler.Compile(compiler.InputSchema{
+			compiledSchema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
 				SchemaString: tc.schemaText,
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
-			ts := NewTypeSystem(res)
-			for _, resource := range schema.ObjectDefinitions {
+			res := compiler.ResolverForCompiledSchema(compiledSchema)
+			ts := schema.NewTypeSystem(res)
+			for _, resource := range compiledSchema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
 					types, err := ts.GetRecursiveTerminalTypesForRelation(t.Context(), resource.Name, relation.Name)
 					require.NoError(t, err)
@@ -390,15 +391,15 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 			tc := tc
 			t.Parallel()
 
-			schema, err := compiler.Compile(compiler.InputSchema{
+			compiledSchema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
 				SchemaString: tc.schemaText,
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
-			ts := NewTypeSystem(res)
-			for _, resource := range schema.ObjectDefinitions {
+			res := compiler.ResolverForCompiledSchema(compiledSchema)
+			ts := schema.NewTypeSystem(res)
+			for _, resource := range compiledSchema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
 					types, err := ts.GetFullRecursiveSubjectTypesForRelation(t.Context(), resource.Name, relation.Name)
 					require.NoError(t, err)
@@ -448,7 +449,7 @@ func TestIncompleteSchema(t *testing.T) {
 			tc := tc
 			t.Parallel()
 
-			schema, err := compiler.Compile(compiler.InputSchema{
+			compiledSchema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
 				SchemaString: tc.schemaText,
 			}, compiler.AllowUnprefixedObjectType())
@@ -456,15 +457,15 @@ func TestIncompleteSchema(t *testing.T) {
 
 			// Inject the failure
 			var missingDefs []*corev1.NamespaceDefinition
-			for _, v := range schema.ObjectDefinitions {
+			for _, v := range compiledSchema.ObjectDefinitions {
 				if v.GetName() == "resource" {
 					missingDefs = append(missingDefs, v)
 				}
 			}
-			schema.ObjectDefinitions = missingDefs
+			compiledSchema.ObjectDefinitions = missingDefs
 
-			res := ResolverForCompiledSchema(*schema)
-			ts := NewTypeSystem(res)
+			res := compiler.ResolverForCompiledSchema(compiledSchema)
+			ts := schema.NewTypeSystem(res)
 			_, err = ts.GetRecursiveTerminalTypesForRelation(t.Context(), "resource", "view")
 			require.Error(t, err)
 			_, err = ts.GetFullRecursiveSubjectTypesForRelation(t.Context(), "resource", "view")

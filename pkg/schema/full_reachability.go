@@ -18,8 +18,8 @@ type Graph struct {
 }
 
 // BuildGraph builds the graph of all reachable information in the schema.
-func BuildGraph(ctx context.Context, r *CompiledSchemaResolver) (*Graph, error) {
-	arrowSet, err := buildArrowSet(ctx, r)
+func BuildGraph(ctx context.Context, r FullSchemaResolver) (*Graph, error) {
+	arrowSet, err := BuildArrowSet(ctx, r)
 	if err != nil {
 		return nil, err
 	}
