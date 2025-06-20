@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/proto"
-	"k8s.io/utils/strings/slices"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -80,7 +80,7 @@ const expirationFlag = "expiration"
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
-		cfg.allowedFlags = slices.Filter([]string{}, cfg.allowedFlags, func(s string) bool {
+		cfg.allowedFlags = lo.Filter(cfg.allowedFlags, func(s string, _ int) bool {
 			return s != expirationFlag
 		})
 	}
