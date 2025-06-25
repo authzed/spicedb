@@ -105,6 +105,7 @@ func (hm *healthManager) checkIsReady(ctx context.Context) bool {
 	dsReady, err := hm.dsc.ReadyState(ctx)
 	if err != nil {
 		log.Ctx(ctx).Warn().Err(err).Msg("could not check if the datastore was ready")
+		return false
 	}
 
 	if !dsReady.IsReady {
