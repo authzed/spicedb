@@ -38,6 +38,7 @@ func NewAlembicPostgresDriver(ctx context.Context, url string, credentialsProvid
 	}
 	pgxcommon.ConfigurePGXLogger(connConfig)
 	pgxcommon.ConfigureOTELTracer(connConfig, includeQueryParametersInTraces)
+	pgxcommon.ConfigureDefaultQueryExecMode(connConfig)
 
 	if credentialsProvider != nil {
 		log.Ctx(ctx).Debug().Str("name", credentialsProvider.Name()).Msg("using credentials provider")
