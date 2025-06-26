@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -111,6 +113,16 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		log.Warn().Msg("filterMaximumIDCount not set, defaulting to 100")
 	}
 
+	// Default to 30m jitter for CockroachDB database pools when not explicitly set
+	// or when explicitly set to zero (which happens when using pkg/cmd/datastore defaults)
+	if computed.readPoolOpts.ConnMaxLifetimeJitter == nil || *computed.readPoolOpts.ConnMaxLifetimeJitter == 0 {
+		computed.readPoolOpts.ConnMaxLifetimeJitter = ptr.To(30 * time.Minute)
+	}
+
+	if computed.writePoolOpts.ConnMaxLifetimeJitter == nil || *computed.writePoolOpts.ConnMaxLifetimeJitter == 0 {
+		computed.writePoolOpts.ConnMaxLifetimeJitter = ptr.To(30 * time.Minute)
+	}
+
 	return computed, nil
 }
 
@@ -183,7 +195,7 @@ func ReadConnMaxLifetime(lifetime time.Duration) Option {
 // ReadConnMaxLifetimeJitter is an interval to wait up to after the max lifetime
 // to close the connection.
 //
-// This value defaults to 20% of the max lifetime.
+// For CockroachDB, this value defaults to 30 minutes when not explicitly set.
 func ReadConnMaxLifetimeJitter(jitter time.Duration) Option {
 	return func(po *crdbOptions) { po.readPoolOpts.ConnMaxLifetimeJitter = &jitter }
 }
@@ -199,7 +211,7 @@ func WriteConnMaxLifetime(lifetime time.Duration) Option {
 // WriteConnMaxLifetimeJitter is an interval to wait up to after the max lifetime
 // to close the connection.
 //
-// This value defaults to 20% of the max lifetime.
+// For CockroachDB, this value defaults to 30 minutes when not explicitly set.
 func WriteConnMaxLifetimeJitter(jitter time.Duration) Option {
 	return func(po *crdbOptions) { po.writePoolOpts.ConnMaxLifetimeJitter = &jitter }
 }
