@@ -74,6 +74,18 @@ func (s *Set[T]) Union(other *Set[T]) *Set[T] {
 	return cpy
 }
 
+// Difference returns a new set with all of the values that not in the provided
+// sets.
+func (s *Set[T]) Difference(others ...*Set[T]) *Set[T] {
+	cp := s.Copy()
+	for _, other := range others {
+		for item := range other.values {
+			cp.Delete(item)
+		}
+	}
+	return cp
+}
+
 // IntersectionDifference removes any values from this set that
 // are not shared with the other set. Returns the same set.
 func (s *Set[T]) IntersectionDifference(other *Set[T]) *Set[T] {
