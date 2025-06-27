@@ -310,14 +310,15 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		// relation ...
 		// permission ...
 		switch {
+		case p.isToken(lexer.TokenTypeAt):
+			defNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
+
 		case p.isKeyword("relation"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumeRelation())
 
 		case p.isKeyword("permission"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumePermission())
 
-		case p.isKeyword("@deprecated"):
-			defNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
 		}
 
 		ok := p.consumeStatementTerminator()
@@ -325,7 +326,6 @@ func (p *sourceParser) consumeDefinition() AstNode {
 			break
 		}
 	}
-
 	return defNode
 }
 
@@ -357,30 +357,33 @@ func (p *sourceParser) consumeRelation() AstNode {
 }
 
 func (p *sourceParser) consumeDeprecation() AstNode {
-	relNode := p.startNode(dslshape.NodeTypeDeprecated)
+	depNode := p.startNode(dslshape.NodeTypeDeprecation)
 	defer p.mustFinishNode()
 
-	// deprecation
-	p.consumeKeyword("@deprecated")
+	p.consume(lexer.TokenTypeAt)
 
-	_, ok := p.consume(lexer.TokenTypeLeftParen)
+	ok := p.consumeKeyword("deprecated")
 	if !ok {
-		return relNode
+		return depNode
+	}
+
+	_, ok = p.consume(lexer.TokenTypeLeftParen)
+	if !ok {
+		return depNode
 	}
 
 	deprecationType, ok := p.consumeIdentifier()
 	if !ok {
-		return relNode
+		return depNode
 	}
-
-	relNode.MustDecorate(dslshape.NodeDeprecatedPredicateName, deprecationType)
+	depNode.MustDecorate(dslshape.NodeDeprecatedPredicateName, deprecationType)
 
 	_, ok = p.consume(lexer.TokenTypeRightParen)
 	if !ok {
-		return relNode
+		return depNode
 	}
 
-	return relNode
+	return depNode
 }
 
 // consumeTypeReference consumes a reference to a type or types of relations.

@@ -4,6 +4,9 @@ package lexer
 // feature in the schema.
 const FlagExpiration = "expiration"
 
+// Deprecation Flag
+const FlagDeprecation = "deprecation"
+
 type transformer func(lexeme Lexeme) (Lexeme, bool)
 
 // Flags is a map of flag names to their corresponding transformers.

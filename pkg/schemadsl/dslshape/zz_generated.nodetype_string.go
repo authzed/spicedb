@@ -18,7 +18,7 @@ func _() {
 	_ = x[NodeTypeCaveatExpression-7]
 	_ = x[NodeTypeRelation-8]
 	_ = x[NodeTypePermission-9]
-	_ = x[NodeTypeDeprecated-10]
+	_ = x[NodeTypeDeprecation-10]
 	_ = x[NodeTypeTypeReference-11]
 	_ = x[NodeTypeSpecificTypeReference-12]
 	_ = x[NodeTypeCaveatReference-13]
@@ -32,9 +32,9 @@ func _() {
 	_ = x[NodeTypeCaveatTypeReference-21]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeDeprecatedNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeDeprecationNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 196, 217, 246, 269, 291, 314, 341, 368, 391, 409, 430, 457}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 197, 218, 247, 270, 292, 315, 342, 369, 392, 410, 431, 458}
 
 func (i NodeType) String() string {
 	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {
