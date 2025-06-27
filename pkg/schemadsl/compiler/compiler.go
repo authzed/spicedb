@@ -91,7 +91,7 @@ func DisallowExpirationFlag() Option {
 
 func DisallowDeprecationFlag() Option {
 	return func(cfg *config) {
-		cfg.allowedFlags = slices.Filter([]string{}, cfg.allowedFlags, func(s string) bool {
+		cfg.allowedFlags = lo.Filter(cfg.allowedFlags, func(s string, _ int) bool {
 			return s != deprecationFlag
 		})
 	}
