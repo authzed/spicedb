@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/ccoveille/go-safecast"
-	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -2237,7 +2236,7 @@ func TestExportBulkRelationships(t *testing.T) {
 	}
 
 	totalToWrite := 1_000
-	expectedRels := set.NewStringSetWithSize(totalToWrite)
+	expectedRels := mapz.NewSet[string]()
 	batch := make([]*v1.Relationship, totalToWrite)
 	for i := range batch {
 		nsAndRel := nsAndRels[i%len(nsAndRels)]
@@ -2277,7 +2276,7 @@ func TestExportBulkRelationships(t *testing.T) {
 
 			var totalRead int
 			remainingRels := expectedRels.Copy()
-			require.Equal(totalToWrite, expectedRels.Size())
+			require.Equal(totalToWrite, expectedRels.Len())
 			var cursor *v1.Cursor
 
 			var done bool
@@ -2306,7 +2305,7 @@ func TestExportBulkRelationships(t *testing.T) {
 					totalRead += len(batch.Relationships)
 
 					for _, rel := range batch.Relationships {
-						remainingRels.Remove(tuple.MustV1RelString(rel))
+						remainingRels.Delete(tuple.MustV1RelString(rel))
 					}
 				}
 
@@ -2314,7 +2313,7 @@ func TestExportBulkRelationships(t *testing.T) {
 			}
 
 			require.Equal(totalToWrite, totalRead)
-			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
+			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.AsSlice())
 		})
 	}
 }
@@ -2388,7 +2387,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 				{tf.DocumentNS.Name, "expiring_viewer"},
 			}
 
-			expectedRels := set.NewStringSetWithSize(1000)
+			expectedRels := mapz.NewSet[string]()
 			batch := make([]*v1.Relationship, 1000)
 			for i := range batch {
 				nsAndRel := nsAndRels[i%len(nsAndRels)]
@@ -2406,7 +2405,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 				expectedRels.Add(tuple.MustV1RelString(v1rel))
 			}
 
-			require.Equal(tc.expectedCount, expectedRels.Size())
+			require.Equal(tc.expectedCount, expectedRels.Len())
 
 			ctx := t.Context()
 			writer, err := client.ImportBulkRelationships(ctx)
@@ -2458,7 +2457,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 					}
 
 					require.True(remainingRels.Has(tuple.MustV1RelString(rel)), "relationship was not expected or was repeated: %s", rel)
-					remainingRels.Remove(tuple.MustV1RelString(rel))
+					remainingRels.Delete(tuple.MustV1RelString(rel))
 					foundRels.Add(tuple.MustV1RelString(rel))
 				}
 
@@ -2468,7 +2467,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 			// These are statically defined.
 			expectedCount, _ := safecast.ToUint64(tc.expectedCount)
 			require.Equal(expectedCount, totalRead, "found: %v", foundRels.AsSlice())
-			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
+			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.AsSlice())
 		})
 	}
 }

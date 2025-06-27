@@ -89,7 +89,6 @@ require (
 	github.com/samber/lo v1.51.0
 	github.com/samber/slog-zerolog/v2 v2.7.3
 	github.com/schollz/progressbar/v3 v3.18.0
-	github.com/scylladb/go-set v1.0.2
 	github.com/sean-/sysexits v1.0.0
 	github.com/sercand/kuberesolver/v5 v5.1.1
 	github.com/shopspring/decimal v1.4.0
