@@ -220,12 +220,16 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 			continue
 		}
 
-		if relationOrPermissionNode.GetType() == dslshape.NodeTypeDeprecated {
+		if relationOrPermissionNode.GetType() == dslshape.NodeTypeDeprecation {
+			if !slices.Contains(tctx.allowedFlags, "deprecation") || !slices.Contains(tctx.enabledFlags, "deprecation") {
+				return nil, relationOrPermissionNode.WithSourceErrorf(tctx.deprecatedType, "deprecation not enabled: %w", err)
+			}
 			tctx.deprecatedRelation = true
 			tctx.deprecatedType, err = relationOrPermissionNode.GetString(dslshape.NodeDeprecatedPredicateName)
 			if err != nil {
 				return nil, relationOrPermissionNode.WithSourceErrorf(tctx.deprecatedType, "invalid deprecation type: %w", err)
 			}
+
 			continue
 		}
 

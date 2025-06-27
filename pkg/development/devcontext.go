@@ -173,6 +173,7 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		MaximumAPIDepth:                  50,
 		MaxCaveatContextSize:             0,
 		ExpiringRelationshipsEnabled:     true,
+		DeprecatedRelationshipsEnabled:   true,
 		CaveatTypeSet:                    caveattypes.Default.TypeSet,
 		PerformanceInsightMetricsEnabled: false,
 	})
@@ -180,6 +181,7 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		CaveatTypeSet:                    caveattypes.Default.TypeSet,
 		AdditiveOnly:                     false,
 		ExpiringRelsEnabled:              true,
+		DeprecatedRelsEnabled:            true,
 		PerformanceInsightMetricsEnabled: false,
 	})
 

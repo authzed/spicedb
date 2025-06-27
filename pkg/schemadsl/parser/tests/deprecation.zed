@@ -1,3 +1,5 @@
+use deprecation
+
 definition deprecated_relation {
 
     @deprecated(warn)

@@ -21,7 +21,7 @@ const (
 	NodeTypeRelation   // A relation
 	NodeTypePermission // A permission
 
-	NodeTypeDeprecated            // A deprecated relation.
+	NodeTypeDeprecation           // A deprecated relation.
 	NodeTypeTypeReference         // A type reference
 	NodeTypeSpecificTypeReference // A reference to a specific type.
 	NodeTypeCaveatReference       // A caveat reference under a type.
@@ -211,5 +211,6 @@ const (
 	//
 	// NodeTypeDeprecated
 	//
-	NodeDeprecatedPredicateName = "deprecated-relation"
+	// The value of a deprecated node
+	NodeDeprecatedPredicateName = "deprecated-relation-value"
 )

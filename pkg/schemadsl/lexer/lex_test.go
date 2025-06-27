@@ -260,11 +260,13 @@ var lexerTests = []lexerTest{
 		tEOF,
 	}},
 	{"deprecation test with keyword", "@deprecated", []Lexeme{
-		{TokenTypeKeyword, 0, "@deprecated", ""},
+		{TokenTypeAt, 0, "@", ""},
+		{TokenTypeKeyword, 0, "deprecated", ""},
 		tEOF,
 	}},
 	{"deprecation test with keyword and identifier", "@deprecated(something)", []Lexeme{
-		{TokenTypeKeyword, 0, "@deprecated", ""},
+		{TokenTypeAt, 0, "@", ""},
+		{TokenTypeKeyword, 0, "deprecated", ""},
 		{TokenTypeLeftParen, 0, "(", ""},
 		{TokenTypeIdentifier, 0, "something", ""},
 		{TokenTypeRightParen, 0, ")", ""},
