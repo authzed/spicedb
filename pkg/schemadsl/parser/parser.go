@@ -318,7 +318,6 @@ func (p *sourceParser) consumeDefinition() AstNode {
 
 		case p.isKeyword("permission"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumePermission())
-
 		}
 
 		ok := p.consumeStatementTerminator()
