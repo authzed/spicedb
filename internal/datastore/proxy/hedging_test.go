@@ -40,17 +40,17 @@ func TestDatastoreRequestHedging(t *testing.T) {
 	testCases := []struct {
 		methodName        string
 		useSnapshotReader bool
-		arguments         []interface{}
-		firstCallResults  []interface{}
-		secondCallResults []interface{}
+		arguments         []any
+		firstCallResults  []any
+		secondCallResults []any
 		f                 testFunc
 	}{
 		{
 			"ReadNamespaceByName",
 			true,
-			[]interface{}{nsKnown},
-			[]interface{}{&core.NamespaceDefinition{}, revisionKnown, errKnown},
-			[]interface{}{&core.NamespaceDefinition{}, anotherRevisionKnown, errKnown},
+			[]any{nsKnown},
+			[]any{&core.NamespaceDefinition{}, revisionKnown, errKnown},
+			[]any{&core.NamespaceDefinition{}, anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
 				_, rev, err := proxy.SnapshotReader(datastore.NoRevision).ReadNamespaceByName(t.Context(), nsKnown)
@@ -65,9 +65,9 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		{
 			"OptimizedRevision",
 			false,
-			[]interface{}{mock.Anything, mock.Anything},
-			[]interface{}{revisionKnown, errKnown},
-			[]interface{}{anotherRevisionKnown, errKnown},
+			[]any{mock.Anything, mock.Anything},
+			[]any{revisionKnown, errKnown},
+			[]any{anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
 				rev, err := proxy.OptimizedRevision(t.Context())
@@ -82,9 +82,9 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		{
 			"HeadRevision",
 			false,
-			[]interface{}{mock.Anything},
-			[]interface{}{revisionKnown, errKnown},
-			[]interface{}{anotherRevisionKnown, errKnown},
+			[]any{mock.Anything},
+			[]any{revisionKnown, errKnown},
+			[]any{anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
 				rev, err := proxy.HeadRevision(t.Context())
@@ -99,9 +99,9 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		{
 			"QueryRelationships",
 			true,
-			[]interface{}{mock.Anything, mock.Anything},
-			[]interface{}{emptyIterator, errKnown},
-			[]interface{}{emptyIterator, errAnotherKnown},
+			[]any{mock.Anything, mock.Anything},
+			[]any{emptyIterator, errKnown},
+			[]any{emptyIterator, errAnotherKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
 				_, err := proxy.
@@ -117,9 +117,9 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		{
 			"ReverseQueryRelationships",
 			true,
-			[]interface{}{mock.Anything, mock.Anything},
-			[]interface{}{emptyIterator, errKnown},
-			[]interface{}{emptyIterator, errAnotherKnown},
+			[]any{mock.Anything, mock.Anything},
+			[]any{emptyIterator, errKnown},
+			[]any{emptyIterator, errAnotherKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
 				_, err := proxy.

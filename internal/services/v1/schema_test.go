@@ -1651,6 +1651,7 @@ func TestSchemaChangeRelationDeprecation(t *testing.T) {
 
 	// Write a basic schema with deprecation type warning.
 	originalSchema := `
+		use deprecation
 		definition user {}
 
 		definition document {
@@ -1672,6 +1673,7 @@ func TestSchemaChangeRelationDeprecation(t *testing.T) {
 	require.Nil(t, err)
 
 	deprecatedErrSchema := `
+		use deprecation
 		definition user {}
 
 		definition document {

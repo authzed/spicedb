@@ -1,12 +1,12 @@
 package v1
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"time"
 
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
-	"github.com/jzelinskie/stringz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
@@ -105,6 +105,9 @@ type PermissionsServerConfig struct {
 	// ExpiringRelationshipsEnabled defines whether or not expiring relationships are enabled.
 	ExpiringRelationshipsEnabled bool
 
+	// DeprecatedRelationshipsEnabled defines whether or not deprecated relationships are enabled.
+	DeprecatedRelationshipsEnabled bool
+
 	// CaveatTypeSet is the set of caveat types to use for caveats. If not specified,
 	// the default type set is used.
 	CaveatTypeSet *caveattypes.TypeSet
@@ -134,6 +137,7 @@ func NewPermissionsServer(
 		MaxCheckBulkConcurrency:          defaultIfZero(config.MaxCheckBulkConcurrency, 50),
 		CaveatTypeSet:                    caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
 		ExpiringRelationshipsEnabled:     config.ExpiringRelationshipsEnabled,
+		DeprecatedRelationshipsEnabled:   config.DeprecatedRelationshipsEnabled,
 		PerformanceInsightMetricsEnabled: config.PerformanceInsightMetricsEnabled,
 	}
 
@@ -326,7 +330,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
 		// TODO(jschorr): Change to struct-based keys.
-		if err := checkForDeprecatedRelationships(ctx, update, ds); err != nil {
+		if err := checkForDeprecatedRelationships(ctx, update, ds, ps); err != nil {
 			return nil, ps.rewriteError(ctx, err)
 		}
 
@@ -554,7 +558,7 @@ func checkFilterComponent(ctx context.Context, objectType, optionalRelation stri
 		return nil
 	}
 
-	relationToTest := stringz.DefaultEmpty(optionalRelation, datastore.Ellipsis)
+	relationToTest := cmp.Or(optionalRelation, datastore.Ellipsis)
 	allowEllipsis := optionalRelation == ""
 	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, ds)
 }
@@ -627,7 +631,7 @@ func labelsForFilter(filter *v1.RelationshipFilter) perfinsights.APIShapeLabels 
 	}
 }
 
-func checkForDeprecatedRelationships(ctx context.Context, update *v1.RelationshipUpdate, ds datastore.Datastore) error {
+func checkForDeprecatedRelationships(ctx context.Context, update *v1.RelationshipUpdate, ds datastore.Datastore, ps *permissionServer) error {
 	resource := update.Relationship.Resource
 	headRevision, err := ds.HeadRevision(ctx)
 	if err != nil {
@@ -637,6 +641,13 @@ func checkForDeprecatedRelationships(ctx context.Context, update *v1.Relationshi
 	_, relDef, err := namespace.ReadNamespaceAndRelation(ctx, resource.ObjectType, update.Relationship.Relation, reader)
 	if err != nil {
 		return err
+	}
+
+	if !ps.config.DeprecatedRelationshipsEnabled && relDef.DeprecationType != corev1.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+		return ps.rewriteError(
+			ctx,
+			fmt.Errorf("support for deprecated relationships is not enabled"),
+		)
 	}
 
 	switch relDef.DeprecationType {

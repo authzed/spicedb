@@ -437,7 +437,7 @@ func sanityCheckNamespaceChanges(
 
 // errorIfTupleIteratorReturnsTuples takes a tuple iterator and any error that was generated
 // when the original iterator was created, and returns an error if iterator contains any tuples.
-func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.RelationshipIterator, qyErr error, message string, args ...interface{}) error {
+func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.RelationshipIterator, qyErr error, message string, args ...any) error {
 	if qyErr != nil {
 		return qyErr
 	}

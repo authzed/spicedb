@@ -6,6 +6,7 @@ linters:
   enable:
     - "bidichk"
     - "bodyclose"
+    - "depguard"
     - "errcheck"
     - "errname"
     - "errorlint"
@@ -32,6 +33,12 @@ linters:
     - "whitespace"
     - "unused"
   settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: "k8s.io/utils/strings/slices$"
+              desc: "use github.com/samber/lo"
     staticcheck:
       checks:
         - "all"
@@ -80,9 +87,16 @@ linters:
 formatters:
   enable:
     - "gci"
+    - "gofmt"
     - "gofumpt"
     - "goimports"
   settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+        - pattern: "a[b:len(a)]"
+          replacement: "a[b:]"
     gci:
       sections:
         - "standard"

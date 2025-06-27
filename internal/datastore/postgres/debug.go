@@ -22,7 +22,7 @@ func (pgd *pgDatastore) PreExplainStatements() []string {
 	return nil
 }
 
-func (pgd *pgDatastore) BuildExplainQuery(sql string, args []interface{}) (string, []any, error) {
+func (pgd *pgDatastore) BuildExplainQuery(sql string, args []any) (string, []any, error) {
 	return "EXPLAIN (FORMAT JSON) " + sql, args, nil
 }
 

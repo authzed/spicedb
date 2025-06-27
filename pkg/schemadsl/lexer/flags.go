@@ -1,8 +1,30 @@
 package lexer
 
-// FlagExpiration indicates that `expiration` is supported as a first-class
-// feature in the schema.
-const FlagExpiration = "expiration"
+import (
+	"maps"
+	"slices"
+)
+
+const (
+	// FlagExpiration indicates that `expiration` is supported as a first-class
+	// feature in the schema.
+	FlagExpiration = "expiration"
+
+	// FlagTypeChecking indicates that `typechecking` is supported as a first-class
+	// feature in the schema.
+	FlagTypeChecking = "typechecking"
+
+	// FlagDeprecation indicates that `deprecation` is supported as a first-class
+	// feature in the schema.
+	FlagDeprecation = "deprecation"
+)
+
+var AllUseFlags []string
+
+func init() {
+	AllUseFlags = slices.Collect(maps.Keys(Flags))
+	slices.Sort(AllUseFlags)
+}
 
 type transformer func(lexeme Lexeme) (Lexeme, bool)
 
@@ -17,6 +39,25 @@ var Flags = map[string]transformer{
 
 		// `and` becomes a keyword.
 		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "and" {
+			lexeme.Kind = TokenTypeKeyword
+			return lexeme, true
+		}
+
+		return lexeme, false
+	},
+
+	FlagDeprecation: func(lexeme Lexeme) (Lexeme, bool) {
+		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "deprecation" {
+			lexeme.Kind = TokenTypeKeyword
+			return lexeme, true
+		}
+
+		return lexeme, false
+	},
+
+	FlagTypeChecking: func(lexeme Lexeme) (Lexeme, bool) {
+		// `typechecking` becomes a keyword.
+		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "typechecking" {
 			lexeme.Kind = TokenTypeKeyword
 			return lexeme, true
 		}

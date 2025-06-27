@@ -172,6 +172,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	}
 
 	experimentalFlags.BoolVar(&config.EnableExperimentalRelationshipExpiration, "enable-experimental-relationship-expiration", false, "enables experimental support for first-class relationship expiration")
+	experimentalFlags.BoolVar(&config.EnableExperimentalRelationshipDeprecation, "enable-experimental-relationship-deprecation", false, "enables experimental support for deprecating relations")
 	experimentalFlags.BoolVar(&config.EnableExperimentalWatchableSchemaCache, "enable-experimental-watchable-schema-cache", false, "enables the experimental schema cache which makes use of the Watch API for automatic updates")
 	// TODO: these two could reasonably be put in either the Dispatch group or the Experimental group. Is there a preference?
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")

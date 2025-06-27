@@ -2,11 +2,10 @@ package releases
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/google/go-github/v43/github"
 )
 
 const (
@@ -37,19 +36,38 @@ func GetLatestRelease(ctx context.Context) (*Release, error) {
 }
 
 func getLatestReleaseWithClient(ctx context.Context, httpClient *http.Client) (*Release, error) {
-	client := github.NewClient(httpClient)
-	release, _, err := client.Repositories.GetLatestRelease(ctx, githubNamespace, githubRepository)
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", githubNamespace, githubRepository)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if release == nil {
-		return nil, fmt.Errorf("latest release not found")
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	var ghResp struct {
+		Name        string    `json:"name"`
+		PublishedAt time.Time `json:"published_at"`
+		HTMLURL     string    `json:"html_url"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&ghResp); err != nil {
+		return nil, err
 	}
 
 	return &Release{
-		Version:     *release.Name,
-		PublishedAt: (*release.PublishedAt).UTC(),
-		ViewURL:     *release.HTMLURL,
+		Version:     ghResp.Name,
+		PublishedAt: ghResp.PublishedAt.UTC(),
+		ViewURL:     ghResp.HTMLURL,
 	}, nil
 }

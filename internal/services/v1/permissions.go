@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -327,7 +327,7 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.Relati
 				Subject: &core.ObjectAndRelation{
 					Namespace: subj.Object.ObjectType,
 					ObjectId:  subj.Object.ObjectId,
-					Relation:  stringz.DefaultEmpty(subj.OptionalRelation, graph.Ellipsis),
+					Relation:  cmp.Or(subj.OptionalRelation, graph.Ellipsis),
 				},
 			})
 		}
@@ -624,7 +624,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 			},
 			{
 				NamespaceName: req.SubjectObjectType,
-				RelationName:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
+				RelationName:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 				AllowEllipsis: true,
 			},
 		}, ds); err != nil {
@@ -716,7 +716,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 			ResourceIds: []string{req.Resource.ObjectId},
 			SubjectRelation: &core.RelationReference{
 				Namespace: req.SubjectObjectType,
-				Relation:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
+				Relation:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 			},
 		},
 		stream)
@@ -840,7 +840,7 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	a.current.Resource.Relation = a.currentBatch[a.numSent].Relation
 	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
 	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
-	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
+	a.current.Subject.Relation = cmp.Or(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
 
 	if a.currentBatch[a.numSent].OptionalCaveat != nil {
 		a.caveat.CaveatName = a.currentBatch[a.numSent].OptionalCaveat.CaveatName

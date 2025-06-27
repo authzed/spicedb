@@ -16,7 +16,7 @@ type fakeQuerier struct {
 	queriesRun []string
 }
 
-func (fq *fakeQuerier) QueryFunc(ctx context.Context, f func(context.Context, Rows) error, sql string, args ...interface{}) error {
+func (fq *fakeQuerier) QueryFunc(ctx context.Context, f func(context.Context, Rows) error, sql string, args ...any) error {
 	fq.queriesRun = append(fq.queriesRun, sql)
 	return nil
 }

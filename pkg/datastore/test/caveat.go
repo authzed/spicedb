@@ -402,7 +402,7 @@ func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
 
 func createTestCaveatedRel(t *testing.T, relString string, caveatName string) tuple.Relationship {
 	rel := tuple.MustParse(relString)
-	st, err := structpb.NewStruct(map[string]interface{}{"a": 1, "b": "test"})
+	st, err := structpb.NewStruct(map[string]any{"a": 1, "b": "test"})
 	require.NoError(t, err)
 	return rel.WithCaveat(&core.ContextualizedCaveat{
 		CaveatName: caveatName,

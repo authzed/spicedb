@@ -61,7 +61,7 @@ func ContextWithDatastore(ctx context.Context, datastore datastore.Datastore) co
 // UnaryServerInterceptor returns a new unary server interceptor that adds the
 // datastore to the context
 func UnaryServerInterceptor(datastore datastore.Datastore) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		newCtx := ContextWithHandle(ctx)
 		if err := SetInContext(newCtx, datastore); err != nil {
 			return nil, err
@@ -74,7 +74,7 @@ func UnaryServerInterceptor(datastore datastore.Datastore) grpc.UnaryServerInter
 // StreamServerInterceptor returns a new stream server interceptor that adds the
 // datastore to the context
 func StreamServerInterceptor(datastore datastore.Datastore) grpc.StreamServerInterceptor {
-	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		wrapped := middleware.WrapServerStream(stream)
 		wrapped.WrappedContext = ContextWithHandle(wrapped.WrappedContext)
 		if err := SetInContext(wrapped.WrappedContext, datastore); err != nil {

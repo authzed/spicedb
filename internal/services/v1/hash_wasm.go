@@ -3,9 +3,9 @@ package v1
 import (
 	"crypto/sha256"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
-
-	"golang.org/x/exp/maps"
 )
 
 func computeAPICallHash(apiName string, arguments map[string]string) (string, error) {
@@ -21,7 +21,7 @@ func computeAPICallHash(apiName string, arguments map[string]string) (string, er
 		return "", err
 	}
 
-	keys := maps.Keys(arguments)
+	keys := slices.Collect(maps.Keys(arguments))
 	sort.Strings(keys)
 
 	for _, key := range keys {

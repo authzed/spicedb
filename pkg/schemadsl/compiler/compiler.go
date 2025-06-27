@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
-	"k8s.io/utils/strings/slices"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -76,12 +76,23 @@ func CaveatTypeSet(cts *caveattypes.TypeSet) Option {
 	return func(cfg *config) { cfg.caveatTypeSet = cts }
 }
 
-const expirationFlag = "expiration"
+const (
+	expirationFlag  = "expiration"
+	deprecationFlag = "deprecation"
+)
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
-		cfg.allowedFlags = slices.Filter([]string{}, cfg.allowedFlags, func(s string) bool {
+		cfg.allowedFlags = slicez.Filter(cfg.allowedFlags, func(s string) bool {
 			return s != expirationFlag
+		})
+	}
+}
+
+func DisallowDeprecationFlag() Option {
+	return func(cfg *config) {
+		cfg.allowedFlags = slicez.Filter(cfg.allowedFlags, func(s string) bool {
+			return s != deprecationFlag
 		})
 	}
 }
@@ -98,6 +109,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 
 	// Enable `expiration` flag by default.
 	cfg.allowedFlags = append(cfg.allowedFlags, expirationFlag)
+	cfg.allowedFlags = append(cfg.allowedFlags, deprecationFlag)
 
 	prefix(cfg) // required option
 

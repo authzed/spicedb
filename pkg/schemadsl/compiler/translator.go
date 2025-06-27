@@ -11,7 +11,6 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
@@ -54,7 +53,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
 
-	names := mapz.NewSet[string]()
+	nodes := make(map[string]*dslNode)
 
 	for _, definitionNode := range root.GetChildren() {
 		var definition SchemaDefinition
@@ -86,11 +85,25 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 			objectDefinitions = append(objectDefinitions, def)
 		}
 
-		if !names.Add(definition.GetName()) {
+		if _, ok := nodes[definition.GetName()]; ok {
 			return nil, definitionNode.WithSourceErrorf(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
 		}
 
+		nodes[definition.GetName()] = definitionNode
+
 		orderedDefinitions = append(orderedDefinitions, definition)
+	}
+
+	// Strip the type annotation metadata if typechecking isn't enabled.
+	if !slices.Contains(tctx.enabledFlags, "typechecking") {
+		for _, def := range objectDefinitions {
+			for _, rel := range def.GetRelation() {
+				err := namespace.SetTypeAnnotations(rel, nil)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	return &CompiledSchema{
@@ -220,12 +233,16 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 			continue
 		}
 
-		if relationOrPermissionNode.GetType() == dslshape.NodeTypeDeprecated {
+		if relationOrPermissionNode.GetType() == dslshape.NodeTypeDeprecation {
+			if !slices.Contains(tctx.allowedFlags, "deprecation") || !slices.Contains(tctx.enabledFlags, "deprecation") {
+				return nil, relationOrPermissionNode.WithSourceErrorf(tctx.deprecatedType, "deprecation not enabled: %w", err)
+			}
 			tctx.deprecatedRelation = true
 			tctx.deprecatedType, err = relationOrPermissionNode.GetString(dslshape.NodeDeprecatedPredicateName)
 			if err != nil {
 				return nil, relationOrPermissionNode.WithSourceErrorf(tctx.deprecatedType, "invalid deprecation type: %w", err)
 			}
+
 			continue
 		}
 
@@ -392,6 +409,17 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 		return nil, permissionNode.Errorf("invalid permission name: %w", err)
 	}
 
+	// Check for optional type annotations
+	var typeAnnotations []string
+	typeAnnotationNode, err := permissionNode.Lookup(dslshape.NodePermissionPredicateTypeAnnotations)
+	if err == nil {
+		annotations, err := extractTypeAnnotations(typeAnnotationNode)
+		if err != nil {
+			return nil, permissionNode.Errorf("error extracting type annotations: %w", err)
+		}
+		typeAnnotations = annotations
+	}
+
 	expressionNode, err := permissionNode.Lookup(dslshape.NodePermissionPredicateComputeExpression)
 	if err != nil {
 		return nil, permissionNode.Errorf("invalid permission expression: %w", err)
@@ -407,6 +435,14 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 		return nil, err
 	}
 
+	// Store type annotations in metadata
+	if len(typeAnnotations) > 0 {
+		err = namespace.SetTypeAnnotations(permission, typeAnnotations)
+		if err != nil {
+			return nil, permissionNode.Errorf("error adding type annotations to metadata: %w", err)
+		}
+	}
+
 	if !tctx.skipValidate {
 		if err := permission.Validate(); err != nil {
 			return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
@@ -414,6 +450,23 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 	}
 
 	return permission, nil
+}
+
+// extractTypeAnnotations is a helper function to return the literal identifiers under the type annotation node
+func extractTypeAnnotations(typeAnnotationNode *dslNode) ([]string, error) {
+	children := typeAnnotationNode.List(dslshape.NodeTypeAnnotationPredicateTypes)
+
+	annotations := make([]string, 0, len(children))
+
+	for _, child := range children {
+		typeName, err := child.GetString(dslshape.NodeIdentiferPredicateValue)
+		if err != nil {
+			return nil, err
+		}
+		annotations = append(annotations, typeName)
+	}
+
+	return annotations, nil
 }
 
 func translateBinary(tctx *translationContext, expressionNode *dslNode) (*core.SetOperation_Child, *core.SetOperation_Child, error) {

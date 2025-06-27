@@ -3,11 +3,12 @@ package caveats
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -42,7 +43,7 @@ func (hc HashableContext) AppendToHash(hasher HasherInterface) {
 	}
 
 	fields := hc.Fields
-	keys := maps.Keys(fields)
+	keys := slices.Collect(maps.Keys(fields))
 	sort.Strings(keys)
 
 	for _, key := range keys {

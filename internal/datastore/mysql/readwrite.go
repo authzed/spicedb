@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"database/sql/driver"
@@ -15,8 +16,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast"
 	"github.com/go-sql-driver/mysql"
-	"github.com/jzelinskie/stringz"
-	"golang.org/x/exp/maps"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -62,7 +61,7 @@ func (cc *structpbWrapper) Scan(val any) error {
 		return fmt.Errorf("unsupported type: %T", v)
 	}
 
-	maps.Clear(*cc)
+	clear(*cc)
 	return json.Unmarshal(v, &cc)
 }
 
@@ -367,7 +366,7 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+			query = query.Where(sq.Eq{colUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
 		}
 	}
 
@@ -518,7 +517,7 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 	for rel != nil && err == nil {
 		sqlStmt.Reset()
 		sqlStmt.WriteString(sql)
-		var args []interface{}
+		var args []any
 		var batchLen uint64
 
 		for ; rel != nil && err == nil && batchLen < bulkInsertRowsLimit; rel, err = iter.Next(ctx) {

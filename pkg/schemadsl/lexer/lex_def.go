@@ -156,11 +156,7 @@ Loop:
 		case r == '%':
 			l.emit(TokenTypePercent)
 		case r == '@':
-			if l.acceptString("deprecated") {
-				l.emit(TokenTypeKeyword)
-			} else {
-				l.emit(TokenTypeAt)
-			}
+			l.emit(TokenTypeAt)
 
 		case r == '<':
 			if l.acceptString("=") {

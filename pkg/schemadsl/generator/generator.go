@@ -3,10 +3,10 @@ package generator
 import (
 	"bufio"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -138,7 +138,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.append(caveat.Name)
 	sg.append("(")
 
-	parameterNames := maps.Keys(caveat.ParameterTypes)
+	parameterNames := slices.Collect(maps.Keys(caveat.ParameterTypes))
 	sort.Strings(parameterNames)
 
 	for index, paramName := range parameterNames {
@@ -202,6 +202,20 @@ func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) er
 	sg.markNewScope()
 
 	for _, relation := range namespace.Relation {
+		if relation.DeprecationType != core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+			sg.flags.Add("deprecation")
+			sg.append("@deprecated(")
+
+			switch relation.DeprecationType {
+			case core.DeprecationType_DEPRECATED_TYPE_WARNING:
+				sg.append("warn")
+			case core.DeprecationType_DEPRECATED_TYPE_ERROR:
+				sg.append("error")
+			}
+			sg.append(")")
+			sg.appendLine()
+		}
+
 		err := sg.emitRelation(relation)
 		if err != nil {
 			return err

@@ -1,0 +1,15 @@
+NodeTypeFile
+  end-rune = 38
+  input-source = use typechecking test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 15
+      input-source = use typechecking test
+      start-rune = 0
+      use-flag-name = typechecking
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 38
+      input-source = use typechecking test
+      start-rune = 17

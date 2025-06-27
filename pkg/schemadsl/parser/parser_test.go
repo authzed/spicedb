@@ -16,7 +16,7 @@ import (
 
 type testNode struct {
 	nodeType   dslshape.NodeType
-	properties map[string]interface{}
+	properties map[string]any
 	children   map[string]*list.List
 }
 
@@ -53,7 +53,7 @@ func (pt *parserTest) writeTree(value string) {
 func createAstNode(_ input.Source, kind dslshape.NodeType) AstNode {
 	return &testNode{
 		nodeType:   kind,
-		properties: make(map[string]interface{}),
+		properties: make(map[string]any),
 		children:   make(map[string]*list.List),
 	}
 }
@@ -130,6 +130,18 @@ func TestParser(t *testing.T) {
 		{"invalid use", "invaliduse"},
 		{"use after definition", "useafterdef"},
 		{"invalid use expiration test", "invaliduseexpiration"},
+		{"use typechecking test", "use_typechecking"},
+		{"permission type annotation test", "permission_type_annotation"},
+		{"permission mixed annotations test", "permission_mixed_annotations"},
+		{"permission multiple types test", "permission_multiple_types"},
+		{"permission mixed single multiple test", "permission_mixed_single_multiple"},
+		{"permission edge cases test", "permission_edge_cases"},
+		{"permission type annotation empty after colon test", "permission_type_annotation_empty_after_colon"},
+		{"permission type annotation pipe no type before test", "permission_type_annotation_pipe_no_type_before"},
+		{"permission type annotation trailing pipe no type after test", "permission_type_annotation_trailing_pipe_no_type_after"},
+		{"permission type annotation double colon test", "permission_type_annotation_double_colon"},
+		{"permission type annotation newline after colon test", "permission_type_annotation_newline_after_colon"},
+		{"permission type annotation just pipe test", "permission_type_annotation_just_pipe"},
 		{"use typechecking test", "use_typechecking"},
 		{"permission type annotation test", "permission_type_annotation"},
 		{"permission mixed annotations test", "permission_mixed_annotations"},

@@ -404,3 +404,11 @@ func NewTypeWithSourceError(wrapped error, withSource nspkg.WithSourcePosition, 
 		0,
 	))
 }
+
+func backtickNames(names []string) []string {
+	out := make([]string, len(names))
+	for i, n := range names {
+		out[i] = fmt.Sprintf("`%s`", n)
+	}
+	return out
+}

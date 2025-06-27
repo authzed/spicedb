@@ -4,8 +4,6 @@ package parser
 import (
 	"strings"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
@@ -261,7 +259,7 @@ func (p *sourceParser) consumeUseFlag(afterDefinition bool) AstNode {
 	}
 
 	if _, ok := lexer.Flags[useFlag]; !ok {
-		p.emitErrorf("Unknown use flag: `%s`. Options are: %s", useFlag, strings.Join(maps.Keys(lexer.Flags), ", "))
+		p.emitErrorf("Unknown use flag: `%s`. Options are: %s", useFlag, strings.Join(lexer.AllUseFlags, ", "))
 		return useNode
 	}
 
@@ -310,14 +308,14 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		// relation ...
 		// permission ...
 		switch {
+		case p.isToken(lexer.TokenTypeAt):
+			defNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
+
 		case p.isKeyword("relation"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumeRelation())
 
 		case p.isKeyword("permission"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumePermission())
-
-		case p.isKeyword("@deprecated"):
-			defNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
 		}
 
 		ok := p.consumeStatementTerminator()
@@ -325,7 +323,6 @@ func (p *sourceParser) consumeDefinition() AstNode {
 			break
 		}
 	}
-
 	return defNode
 }
 
@@ -357,30 +354,33 @@ func (p *sourceParser) consumeRelation() AstNode {
 }
 
 func (p *sourceParser) consumeDeprecation() AstNode {
-	relNode := p.startNode(dslshape.NodeTypeDeprecated)
+	depNode := p.startNode(dslshape.NodeTypeDeprecation)
 	defer p.mustFinishNode()
 
-	// deprecation
-	p.consumeKeyword("@deprecated")
+	p.consume(lexer.TokenTypeAt)
 
-	_, ok := p.consume(lexer.TokenTypeLeftParen)
+	ok := p.consumeKeyword("deprecated")
 	if !ok {
-		return relNode
+		return depNode
+	}
+
+	_, ok = p.consume(lexer.TokenTypeLeftParen)
+	if !ok {
+		return depNode
 	}
 
 	deprecationType, ok := p.consumeIdentifier()
 	if !ok {
-		return relNode
+		return depNode
 	}
-
-	relNode.MustDecorate(dslshape.NodeDeprecatedPredicateName, deprecationType)
+	depNode.MustDecorate(dslshape.NodeDeprecatedPredicateName, deprecationType)
 
 	_, ok = p.consume(lexer.TokenTypeRightParen)
 	if !ok {
-		return relNode
+		return depNode
 	}
 
-	return relNode
+	return depNode
 }
 
 // consumeTypeReference consumes a reference to a type or types of relations.
@@ -516,7 +516,7 @@ func (p *sourceParser) consumeTypePath() (string, bool) {
 }
 
 // consumePermission consumes a permission.
-// ```permission foo = bar + baz```
+// ```permission foo = bar + baz``` or ```permission foo: user = bar + baz```
 func (p *sourceParser) consumePermission() AstNode {
 	permNode := p.startNode(dslshape.NodeTypePermission)
 	defer p.mustFinishNode()
@@ -530,6 +530,12 @@ func (p *sourceParser) consumePermission() AstNode {
 
 	permNode.MustDecorate(dslshape.NodePredicateName, permissionName)
 
+	// Check for optional type annotation: user | organization
+	if _, ok := p.tryConsume(lexer.TokenTypeColon); ok {
+		typeAnnotationNode := p.consumeTypeAnnotation()
+		permNode.Connect(dslshape.NodePermissionPredicateTypeAnnotations, typeAnnotationNode)
+	}
+
 	// =
 	_, ok = p.consume(lexer.TokenTypeEquals)
 	if !ok {
@@ -538,6 +544,47 @@ func (p *sourceParser) consumePermission() AstNode {
 
 	permNode.Connect(dslshape.NodePermissionPredicateComputeExpression, p.consumeComputeExpression())
 	return permNode
+}
+
+// consumeTypeAnnotation consumes a type annotation for permissions.
+// ```user | organization```
+func (p *sourceParser) consumeTypeAnnotation() AstNode {
+	typeAnnotationNode := p.startNode(dslshape.NodeTypeTypeAnnotation)
+	defer p.mustFinishNode()
+
+	// Consume the first type
+	firstType, ok := p.consumeIdentifier()
+	if !ok {
+		p.emitErrorf("Expected type identifier in type annotation")
+		return typeAnnotationNode
+	}
+
+	// Create identifier node for the first type
+	firstTypeNode := p.startNode(dslshape.NodeTypeIdentifier)
+	firstTypeNode.MustDecorate(dslshape.NodeIdentiferPredicateValue, firstType)
+	p.mustFinishNode()
+	typeAnnotationNode.Connect(dslshape.NodeTypeAnnotationPredicateTypes, firstTypeNode)
+
+	// Consume additional types separated by pipe operator
+	for {
+		if _, ok := p.tryConsume(lexer.TokenTypePipe); !ok {
+			break
+		}
+
+		nextType, ok := p.consumeIdentifier()
+		if !ok {
+			p.emitErrorf("Expected type identifier after '|' in type annotation")
+			return typeAnnotationNode
+		}
+
+		// Create identifier node for the additional type
+		nextTypeNode := p.startNode(dslshape.NodeTypeIdentifier)
+		nextTypeNode.MustDecorate(dslshape.NodeIdentiferPredicateValue, nextType)
+		p.mustFinishNode()
+		typeAnnotationNode.Connect(dslshape.NodeTypeAnnotationPredicateTypes, nextTypeNode)
+	}
+
+	return typeAnnotationNode
 }
 
 // ComputeExpressionOperators defines the binary operators in precedence order.

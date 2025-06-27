@@ -9,7 +9,7 @@ NodeTypeFile
       input-source = invalid deprecated relation test
       start-rune = 0
       child-node =>
-        NodeTypeDeprecated
+        NodeTypeDeprecation
           end-rune = 48
           input-source = invalid deprecated relation test
           start-rune = 37

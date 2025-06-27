@@ -13,7 +13,7 @@ import (
 // ForceFullConsistencyUnaryServerInterceptor returns a new unary server interceptor that enforces full consistency
 // for all requests, except for those in the bypassServiceWhitelist.
 func ForceFullConsistencyUnaryServerInterceptor(serviceLabel string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
 				return handler(ctx, req)
@@ -32,7 +32,7 @@ func ForceFullConsistencyUnaryServerInterceptor(serviceLabel string) grpc.UnaryS
 // ForceFullConsistencyStreamServerInterceptor returns a new stream server interceptor that enforces full consistency
 // for all requests, except for those in the bypassServiceWhitelist.
 func ForceFullConsistencyStreamServerInterceptor(serviceLabel string) grpc.StreamServerInterceptor {
-	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
 				return handler(srv, stream)
@@ -43,7 +43,7 @@ func ForceFullConsistencyStreamServerInterceptor(serviceLabel string) grpc.Strea
 	}
 }
 
-func setFullConsistencyRevisionToContext(ctx context.Context, req interface{}, ds datastore.Datastore, serviceLabel string) error {
+func setFullConsistencyRevisionToContext(ctx context.Context, req any, ds datastore.Datastore, serviceLabel string) error {
 	handle := ctx.Value(revisionKey)
 	if handle == nil {
 		return nil
