@@ -304,7 +304,7 @@ func (soeb *StreamOrderEnforcerBuilder) Done() ReferenceableMiddleware[grpc.Stre
 	return ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		Name:     soeb.name,
 		Internal: soeb.internal,
-		Middleware: func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		Middleware: func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 			wss := middleware.WrapServerStream(ss)
 			if wss.WrappedContext.Value(streamExecuted{}) == nil {
 				handle := executedHandle{executed: make(map[string]struct{}, 0)}
@@ -385,7 +385,7 @@ func (soeb *UnaryOrderEnforcerBuilder) Done() ReferenceableMiddleware[grpc.Unary
 	return ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		Name:     soeb.name,
 		Internal: soeb.internal,
-		Middleware: func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+		Middleware: func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 			if ctx.Value(interceptorsExecuted{}) == nil {
 				handle := executedHandle{executed: make(map[string]struct{}, 0)}
 				ctx = context.WithValue(ctx, interceptorsExecuted{}, &handle)

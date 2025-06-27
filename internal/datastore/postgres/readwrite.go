@@ -92,7 +92,7 @@ func appendForInsertion(builder sq.InsertBuilder, tpl tuple.Relationship) sq.Ins
 		caveatContext = tpl.OptionalCaveat.Context.AsMap()
 	}
 
-	valuesToWrite := []interface{}{
+	valuesToWrite := []any{
 		tpl.Resource.ObjectType,
 		tpl.Resource.ObjectID,
 		tpl.Resource.Relation,
@@ -565,7 +565,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 
 		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{schema.ColNamespace: newNamespace.Name})
 
-		valuesToWrite := []interface{}{newNamespace.Name, serialized}
+		valuesToWrite := []any{newNamespace.Name, serialized}
 
 		writeQuery = writeQuery.Values(valuesToWrite...)
 	}

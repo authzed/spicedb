@@ -62,7 +62,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	}
 	cor.RUnlock()
 
-	newQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (interface{}, error) {
+	newQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (any, error) {
 		log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
 		span.AddEvent("computing new revision")
 

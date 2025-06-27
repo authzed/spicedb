@@ -831,7 +831,7 @@ func validateDevelopmentAssertions(t *testing.T, devContext *development.DevCont
 		}
 	}
 
-	assertionsMap := map[string]interface{}{
+	assertionsMap := map[string]any{
 		"assertTrue":     trueAssertions,
 		"assertCaveated": caveatedAssertions,
 		"assertFalse":    falseAssertions,
@@ -853,7 +853,7 @@ func validateDevelopmentAssertions(t *testing.T, devContext *development.DevCont
 // that expected.
 func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevContext, vctx validationContext) {
 	// Build the Expected Relations (inputs only).
-	expectedMap := map[string]interface{}{}
+	expectedMap := map[string]any{}
 	for relString, permissionship := range vctx.accessibilitySet.PermissionshipByRelationship {
 		if permissionship == dispatchv1.ResourceCheckResult_NOT_MEMBER {
 			continue

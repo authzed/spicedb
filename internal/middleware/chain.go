@@ -17,9 +17,9 @@ import (
 func ChainUnaryServer(interceptors ...grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
 	n := len(interceptors)
 
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		chainer := func(currentInter grpc.UnaryServerInterceptor, currentHandler grpc.UnaryHandler) grpc.UnaryHandler {
-			return func(currentCtx context.Context, currentReq interface{}) (interface{}, error) {
+			return func(currentCtx context.Context, currentReq any) (any, error) {
 				return currentInter(currentCtx, currentReq, info, currentHandler)
 			}
 		}
@@ -41,9 +41,9 @@ func ChainUnaryServer(interceptors ...grpc.UnaryServerInterceptor) grpc.UnarySer
 func ChainStreamServer(interceptors ...grpc.StreamServerInterceptor) grpc.StreamServerInterceptor {
 	n := len(interceptors)
 
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		chainer := func(currentInter grpc.StreamServerInterceptor, currentHandler grpc.StreamHandler) grpc.StreamHandler {
-			return func(currentSrv interface{}, currentStream grpc.ServerStream) error {
+			return func(currentSrv any, currentStream grpc.ServerStream) error {
 				return currentInter(currentSrv, currentStream, info, currentHandler)
 			}
 		}

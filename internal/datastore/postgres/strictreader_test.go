@@ -24,7 +24,7 @@ func (mc fakeQuerier) QueryRowFunc(ctx context.Context, rowFunc func(ctx context
 	return mc.err
 }
 
-func (mc fakeQuerier) ExecFunc(_ context.Context, _ func(ctx context.Context, tag pgconn.CommandTag, err error) error, _ string, _ ...interface{}) error {
+func (mc fakeQuerier) ExecFunc(_ context.Context, _ func(ctx context.Context, tag pgconn.CommandTag, err error) error, _ string, _ ...any) error {
 	return mc.err
 }
 

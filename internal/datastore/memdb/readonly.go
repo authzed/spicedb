@@ -392,7 +392,7 @@ func filterFuncForFilters(
 	optionalExpirationFilter datastore.ExpirationFilterOption,
 	cursorFilter func(*relationship) bool,
 ) memdb.FilterFunc {
-	return func(tupleRaw interface{}) bool {
+	return func(tupleRaw any) bool {
 		tuple := tupleRaw.(*relationship)
 
 		switch {

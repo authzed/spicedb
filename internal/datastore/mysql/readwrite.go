@@ -518,7 +518,7 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 	for rel != nil && err == nil {
 		sqlStmt.Reset()
 		sqlStmt.WriteString(sql)
-		var args []interface{}
+		var args []any
 		var batchLen uint64
 
 		for ; rel != nil && err == nil && batchLen < bulkInsertRowsLimit; rel, err = iter.Next(ctx) {

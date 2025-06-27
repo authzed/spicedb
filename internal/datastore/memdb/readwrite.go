@@ -351,8 +351,8 @@ func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWr
 	return numCopied, err
 }
 
-func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{}) bool {
-	return func(tupleRaw interface{}) bool {
+func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(any) bool {
+	return func(tupleRaw any) bool {
 		tuple := tupleRaw.(*relationship)
 
 		// If it doesn't match one of the resource filters, filter it.

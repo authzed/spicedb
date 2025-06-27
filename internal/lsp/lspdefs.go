@@ -46,7 +46,7 @@ type InitializeParams struct {
 	RootURI               baselsp.DocumentURI `json:"rootUri,omitempty"`
 	ClientInfo            baselsp.ClientInfo  `json:"clientInfo,omitempty"`
 	Trace                 baselsp.Trace       `json:"trace,omitempty"`
-	InitializationOptions interface{}         `json:"initializationOptions,omitempty"`
+	InitializationOptions any                 `json:"initializationOptions,omitempty"`
 	Capabilities          ClientCapabilities  `json:"capabilities"`
 
 	WorkDoneToken string `json:"workDoneToken,omitempty"`
