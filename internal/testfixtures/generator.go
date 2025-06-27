@@ -70,7 +70,7 @@ func (btg *BulkRelationshipGenerator) Next(_ context.Context) (*tuple.Relationsh
 
 	var caveat *corev1.ContextualizedCaveat
 	if btg.WithCaveat {
-		c, err := structpb.NewStruct(map[string]interface{}{
+		c, err := structpb.NewStruct(map[string]any{
 			"secret": "1235",
 		})
 		if err != nil {

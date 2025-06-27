@@ -11,14 +11,14 @@ import (
 
 type dslNode struct {
 	nodeType   dslshape.NodeType
-	properties map[string]interface{}
+	properties map[string]any
 	children   map[string]*list.List
 }
 
 func createAstNode(_ input.Source, kind dslshape.NodeType) parser.AstNode {
 	return &dslNode{
 		nodeType:   kind,
-		properties: make(map[string]interface{}),
+		properties: make(map[string]any),
 		children:   make(map[string]*list.List),
 	}
 }
@@ -163,7 +163,7 @@ func (tn *dslNode) Lookup(predicateName string) (*dslNode, error) {
 	return nil, fmt.Errorf("nothing in predicate %s", predicateName)
 }
 
-func (tn *dslNode) Errorf(message string, args ...interface{}) error {
+func (tn *dslNode) Errorf(message string, args ...any) error {
 	return withNodeError{
 		error:           fmt.Errorf(message, args...),
 		errorSourceCode: "",
@@ -171,7 +171,7 @@ func (tn *dslNode) Errorf(message string, args ...interface{}) error {
 	}
 }
 
-func (tn *dslNode) WithSourceErrorf(sourceCode string, message string, args ...interface{}) error {
+func (tn *dslNode) WithSourceErrorf(sourceCode string, message string, args ...any) error {
 	return withNodeError{
 		error:           fmt.Errorf(message, args...),
 		errorSourceCode: sourceCode,

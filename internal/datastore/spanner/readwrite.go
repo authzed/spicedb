@@ -282,7 +282,7 @@ func deleteWithFilterAndNoLimit(ctx context.Context, rwt *spanner.ReadWriteTrans
 }
 
 type builder[T any] interface {
-	Where(pred interface{}, args ...interface{}) T
+	Where(pred any, args ...any) T
 }
 
 func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) (T, error) {

@@ -66,7 +66,7 @@ func ConnectWithInstrumentationAndTimeout(ctx context.Context, url string, conne
 // info level events to debug, as they are rather verbose for SpiceDB's info level
 func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 	levelMappingFn := func(logger tracelog.Logger) tracelog.LoggerFunc {
-		return func(ctx context.Context, level tracelog.LogLevel, msg string, data map[string]interface{}) {
+		return func(ctx context.Context, level tracelog.LogLevel, msg string, data map[string]any) {
 			if level == tracelog.LogLevelInfo {
 				level = tracelog.LogLevelDebug
 			}

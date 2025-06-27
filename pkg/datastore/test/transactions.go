@@ -19,7 +19,7 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 		name                 string
 		returnRetryableError bool
 		txOptions            []options.RWTOptionsOption
-		countAssertion       func(require.TestingT, interface{}, ...interface{})
+		countAssertion       func(require.TestingT, any, ...any)
 	}{
 		{"retryable with retries", true, nil, require.Positive},
 		{"non-retryable with retries", false, nil, require.Zero},

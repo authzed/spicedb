@@ -36,7 +36,7 @@ func (ipa IPAddress) SerializedString() string {
 	return ipa.ip.String()
 }
 
-func (ipa IPAddress) ConvertToNative(typeDesc reflect.Type) (interface{}, error) {
+func (ipa IPAddress) ConvertToNative(typeDesc reflect.Type) (any, error) {
 	switch typeDesc {
 	case reflect.TypeOf(""):
 		return ipa.ip.String(), nil
@@ -66,7 +66,7 @@ func (ipa IPAddress) Type() ref.Type {
 	return ipaddressCelType
 }
 
-func (ipa IPAddress) Value() interface{} {
+func (ipa IPAddress) Value() any {
 	return ipa
 }
 

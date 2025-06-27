@@ -26,6 +26,6 @@ func DebugAssertNotNil(obj any, format string, args ...any) {
 
 // SetFinalizerForDebugging sets a finalizer on the object for debugging purposes
 // in CI builds.
-func SetFinalizerForDebugging[T any](obj interface{}, finalizer func(obj T)) {
+func SetFinalizerForDebugging[T any](obj any, finalizer func(obj T)) {
 	runtime.SetFinalizer(obj, finalizer)
 }

@@ -14,7 +14,7 @@ type handwrittenValidator interface {
 
 // UnaryServerInterceptor returns a new unary server interceptor that runs the handwritten validation
 // on the incoming request, if any.
-func UnaryServerInterceptor(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func UnaryServerInterceptor(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	validator, ok := req.(handwrittenValidator)
 	if ok {
 		err := validator.HandwrittenValidate()
@@ -28,7 +28,7 @@ func UnaryServerInterceptor(ctx context.Context, req interface{}, _ *grpc.UnaryS
 
 // StreamServerInterceptor returns a new stream server interceptor that runs the handwritten validation
 // on the incoming request messages, if any.
-func StreamServerInterceptor(srv interface{}, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func StreamServerInterceptor(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	wrapper := &recvWrapper{stream}
 	return handler(srv, wrapper)
 }
@@ -37,7 +37,7 @@ type recvWrapper struct {
 	grpc.ServerStream
 }
 
-func (s *recvWrapper) RecvMsg(m interface{}) error {
+func (s *recvWrapper) RecvMsg(m any) error {
 	if err := s.ServerStream.RecvMsg(m); err != nil {
 		return err
 	}

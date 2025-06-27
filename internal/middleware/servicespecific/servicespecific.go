@@ -19,7 +19,7 @@ type ExtraStreamInterceptor interface {
 }
 
 // UnaryServerInterceptor returns a new unary server interceptor that runs bundled interceptors.
-func UnaryServerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func UnaryServerInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	if hasExtraInterceptor, ok := info.Server.(ExtraUnaryInterceptor); ok {
 		interceptor := hasExtraInterceptor.UnaryInterceptor()
 		return interceptor(ctx, req, info, handler)
@@ -29,7 +29,7 @@ func UnaryServerInterceptor(ctx context.Context, req interface{}, info *grpc.Una
 }
 
 // StreamServerInterceptor returns a new stream server interceptor that runs bundled interceptors.
-func StreamServerInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func StreamServerInterceptor(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	if hasExtraInterceptor, ok := srv.(ExtraStreamInterceptor); ok {
 		interceptor := hasExtraInterceptor.StreamInterceptor()
 		return interceptor(srv, stream, info, handler)

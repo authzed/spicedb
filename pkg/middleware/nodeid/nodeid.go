@@ -75,7 +75,7 @@ func setInContext(ctx context.Context, nodeID string) error {
 // UnaryServerInterceptor returns a new unary server interceptor that adds the
 // node ID to the context. If empty, spicedb:$hostname is used.
 func UnaryServerInterceptor(nodeID string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		newCtx := ContextWithHandle(ctx)
 		if nodeID != "" {
 			if err := setInContext(newCtx, nodeID); err != nil {
@@ -89,7 +89,7 @@ func UnaryServerInterceptor(nodeID string) grpc.UnaryServerInterceptor {
 // StreamServerInterceptor returns a new stream server interceptor that adds the
 // node ID to the context. If empty, spicedb:$hostname is used.
 func StreamServerInterceptor(nodeID string) grpc.StreamServerInterceptor {
-	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		wrapped := middleware.WrapServerStream(stream)
 		wrapped.WrappedContext = ContextWithHandle(wrapped.WrappedContext)
 		if nodeID != "" {

@@ -24,15 +24,15 @@ type strictReaderQueryFuncs struct {
 func (srqf strictReaderQueryFuncs) ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, args ...any) error {
 	// NOTE: it is *required* for the pgx.QueryExecModeSimpleProtocol to be added as pgx will otherwise wrap
 	// the query as a prepared statement, which does *not* support running more than a single statement at a time.
-	return srqf.rewriteError(srqf.wrapped.ExecFunc(ctx, tagFunc, srqf.addAssertToSelectSQL(sql), append([]interface{}{pgx.QueryExecModeSimpleProtocol}, args...)...))
+	return srqf.rewriteError(srqf.wrapped.ExecFunc(ctx, tagFunc, srqf.addAssertToSelectSQL(sql), append([]any{pgx.QueryExecModeSimpleProtocol}, args...)...))
 }
 
 func (srqf strictReaderQueryFuncs) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, args ...any) error {
-	return srqf.rewriteError(srqf.wrapped.QueryFunc(ctx, rowsFunc, srqf.addAssertToSelectSQL(sql), append([]interface{}{pgx.QueryExecModeSimpleProtocol}, args...)...))
+	return srqf.rewriteError(srqf.wrapped.QueryFunc(ctx, rowsFunc, srqf.addAssertToSelectSQL(sql), append([]any{pgx.QueryExecModeSimpleProtocol}, args...)...))
 }
 
 func (srqf strictReaderQueryFuncs) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, args ...any) error {
-	return srqf.rewriteError(srqf.wrapped.QueryRowFunc(ctx, rowFunc, srqf.addAssertToSelectSQL(sql), append([]interface{}{pgx.QueryExecModeSimpleProtocol}, args...)...))
+	return srqf.rewriteError(srqf.wrapped.QueryRowFunc(ctx, rowFunc, srqf.addAssertToSelectSQL(sql), append([]any{pgx.QueryExecModeSimpleProtocol}, args...)...))
 }
 
 func (srqf strictReaderQueryFuncs) rewriteError(err error) error {

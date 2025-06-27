@@ -120,7 +120,7 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 
 	// Add some stats row with a byte count.
 	_, err = spannerClient.Apply(ctx, []*spanner.Mutation{
-		spanner.Insert("fake_stats_table", []string{"interval_end", "table_name", "used_bytes"}, []interface{}{
+		spanner.Insert("fake_stats_table", []string{"interval_end", "table_name", "used_bytes"}, []any{
 			time.Now().UTC().Add(-100 * time.Second), tableRelationship, 100,
 		}),
 	})
