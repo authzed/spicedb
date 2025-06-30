@@ -4,8 +4,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
-	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // IndexPrimaryKey is a synthetic index that represents the primary key of the relation_tuple table.
@@ -46,10 +44,21 @@ var IndexRelationshipWithIntegrity = common.IndexDefinition{
 	},
 }
 
-var crdbIndexes = []common.IndexDefinition{
+var crdbAllIndexes = []common.IndexDefinition{
 	IndexPrimaryKey,
 	IndexRelationshipBySubject,
 	IndexRelationshipBySubjectRelation,
+	IndexRelationshipWithIntegrity,
+}
+
+var crdbWithoutIntegrityIndexes = []common.IndexDefinition{
+	IndexPrimaryKey,
+	IndexRelationshipBySubject,
+	IndexRelationshipBySubjectRelation,
+}
+
+// TODO: add new indexes to integrity to match the existing ones on non-integrity.
+var crdbWithIntegrityIndexes = []common.IndexDefinition{
 	IndexRelationshipWithIntegrity,
 }
 
@@ -84,100 +93,11 @@ func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Sh
 }
 
 // IndexForFilter returns the index to use for a given relationships filter or nil if no index is forced.
-func IndexForFilter(schema common.SchemaInformation, filter datastore.RelationshipsFilter) *common.IndexDefinition {
-	// Special case: if the filter specifies the resource type and relation and the subject type and relation, then
-	// the schema diff index can be used.
-	if filter.OptionalResourceType != "" &&
-		filter.OptionalResourceRelation != "" &&
-		len(filter.OptionalSubjectsSelectors) == 1 &&
-		filter.OptionalSubjectsSelectors[0].OptionalSubjectType != "" &&
-		filter.OptionalSubjectsSelectors[0].RelationFilter.NonEllipsisRelation != "" &&
-		!filter.OptionalSubjectsSelectors[0].RelationFilter.IncludeEllipsisRelation &&
-		!filter.OptionalSubjectsSelectors[0].RelationFilter.OnlyNonEllipsisRelations {
-		return &IndexRelationshipBySubjectRelation
+func IndexForFilter(schema common.SchemaInformation, filter datastore.RelationshipsFilter) (*common.IndexDefinition, error) {
+	indexesToCheck := crdbWithoutIntegrityIndexes
+	if schema.IntegrityEnabled {
+		indexesToCheck = crdbWithIntegrityIndexes
 	}
 
-	// Otherwise, determine an index based on whether the filter has a larger match on the resources or subject.
-	resourceFieldDepth := 0
-	if filter.OptionalResourceType != "" {
-		resourceFieldDepth = 1
-		if len(filter.OptionalResourceIds) > 0 || filter.OptionalResourceIDPrefix != "" {
-			resourceFieldDepth = 2
-			if filter.OptionalResourceRelation != "" {
-				if filter.OptionalResourceIDPrefix != "" {
-					return nil // Cannot use an index with a prefix and a relation.
-				}
-
-				resourceFieldDepth = 3
-			}
-		}
-	}
-
-	subjectFieldDepths := mapz.NewSet[int]()
-	for _, subjectSelector := range filter.OptionalSubjectsSelectors {
-		sfd := 0
-		if len(subjectSelector.OptionalSubjectIds) > 0 {
-			sfd = 1
-			if subjectSelector.OptionalSubjectType != "" {
-				sfd = 2
-				if subjectSelector.RelationFilter.NonEllipsisRelation != "" {
-					sfd = 3
-				}
-			}
-		}
-		subjectFieldDepths.Add(sfd)
-	}
-
-	if subjectFieldDepths.Len() > 1 {
-		return nil
-	}
-
-	subjectFieldDepth := 0
-	if !subjectFieldDepths.IsEmpty() {
-		subjectFieldDepth = subjectFieldDepths.AsSlice()[0]
-	}
-
-	if resourceFieldDepth == 0 && subjectFieldDepth == 0 {
-		return nil
-	}
-
-	if resourceFieldDepth > subjectFieldDepth {
-		return &IndexPrimaryKey
-	}
-
-	if resourceFieldDepth < subjectFieldDepth {
-		if schema.IntegrityEnabled {
-			// Don't force this index since it doesn't exist for integrity-enabled schemas.
-			return nil
-		}
-
-		return &IndexRelationshipBySubject
-	}
-
-	return nil
+	return forcedIndexForFilter(filter, indexesToCheck)
 }
-
-// forcedIndex is an index hint that forces the use of a specific index.
-type forcedIndex struct {
-	index common.IndexDefinition
-}
-
-func (f forcedIndex) FromSQLSuffix() (string, error) {
-	return "", nil
-}
-
-func (f forcedIndex) FromTable(existingTableName string) (string, error) {
-	// Indexes are forced in CRDB by appending the index name after an @ sign after the table
-	// name in the FROM clause.
-	// Example: FROM relation_tuple@ix_relation_tuple_by_subject
-	if existingTableName == "" {
-		return "", spiceerrors.MustBugf("existing table name is empty")
-	}
-	return existingTableName + "@" + f.index.Name, nil
-}
-
-func (f forcedIndex) SQLPrefix() (string, error) {
-	return "", nil
-}
-
-var _ common.IndexingHint = forcedIndex{}

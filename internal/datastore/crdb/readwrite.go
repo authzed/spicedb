@@ -409,7 +409,12 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 		return 0, false, fmt.Errorf("unable to translate relationship filter: %w", err)
 	}
 
-	query := rwt.queryDeleteTuples(schema.IndexForFilter(rwt.schema, dsFilter))
+	index, err := schema.IndexForFilter(rwt.schema, dsFilter)
+	if err != nil {
+		return 0, false, fmt.Errorf("unable to determine index for filter: %w", err)
+	}
+
+	query := rwt.queryDeleteTuples(index)
 
 	if filter.ResourceType != "" {
 		query = query.Where(sq.Eq{schema.ColNamespace: filter.ResourceType})

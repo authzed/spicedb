@@ -215,6 +215,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestDeleteAllData", runner(tester, DeleteAllDataTest))
 	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
 	t.Run("TestRegisterRelationshipCountersInParallel", runner(tester, RegisterRelationshipCountersInParallelTest))
+	t.Run("TestRelationshipCountersWithOddFilter", runner(tester, RelationshipCountersWithOddFilterTest))
 }
 
 func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {
