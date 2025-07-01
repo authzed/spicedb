@@ -88,7 +88,7 @@ func TestSetIntersect(t *testing.T) {
 	require.True(t, set.Add("4"))
 
 	// Subtract some items.
-	updated := set.Intersect(NewSet[string]("1", "2", "3", "5"))
+	updated := set.Intersect(NewSet("1", "2", "3", "5"))
 	updatedSlice := updated.AsSlice()
 	sort.Strings(updatedSlice)
 	require.Equal(t, []string{"1", "2", "3"}, updatedSlice)
@@ -98,7 +98,7 @@ func TestSetIntersect(t *testing.T) {
 	require.Equal(t, []string{"1", "2", "3", "4"}, slice)
 
 	// Perform in reverse.
-	updated = NewSet[string]("1", "2", "3", "5").Intersect(set)
+	updated = NewSet("1", "2", "3", "5").Intersect(set)
 	updatedSlice = updated.AsSlice()
 	sort.Strings(updatedSlice)
 	require.Equal(t, []string{"1", "2", "3"}, updatedSlice)
@@ -116,7 +116,7 @@ func TestSetSubtract(t *testing.T) {
 	require.True(t, set.Add("4"))
 
 	// Subtract some items.
-	updated := set.Subtract(NewSet[string]("1", "2", "3", "5"))
+	updated := set.Subtract(NewSet("1", "2", "3", "5"))
 	require.Equal(t, []string{"4"}, updated.AsSlice())
 
 	slice := set.AsSlice()
@@ -126,15 +126,15 @@ func TestSetSubtract(t *testing.T) {
 
 func TestEqual(t *testing.T) {
 	require.True(t, NewSet[string]().Equal(NewSet[string]()))
-	require.True(t, NewSet[string]("2").Equal(NewSet[string]("2")))
-	require.False(t, NewSet[string]("1", "2").Equal(NewSet[string]("1", "3")))
+	require.True(t, NewSet("2").Equal(NewSet("2")))
+	require.False(t, NewSet("1", "2").Equal(NewSet("1", "3")))
 }
 
 func TestUnion(t *testing.T) {
-	u1 := NewSet[string]("1", "2").Union(NewSet[string]("2", "3")).AsSlice()
+	u1 := NewSet("1", "2").Union(NewSet("2", "3")).AsSlice()
 	sort.Strings(u1)
 
-	u2 := NewSet[string]("2", "3").Union(NewSet[string]("1", "2")).AsSlice()
+	u2 := NewSet("2", "3").Union(NewSet("1", "2")).AsSlice()
 	sort.Strings(u2)
 
 	require.Equal(t, []string{"1", "2", "3"}, u1)
@@ -142,8 +142,8 @@ func TestUnion(t *testing.T) {
 }
 
 func TestMerge(t *testing.T) {
-	u1 := NewSet[string]("1", "2")
-	u2 := NewSet[string]("2", "3")
+	u1 := NewSet("1", "2")
+	u2 := NewSet("2", "3")
 
 	u1.Merge(u2)
 
@@ -153,8 +153,8 @@ func TestMerge(t *testing.T) {
 	require.Equal(t, []string{"1", "2", "3"}, slice)
 
 	// Try the reverse.
-	u1 = NewSet[string]("1", "2")
-	u2 = NewSet[string]("2", "3")
+	u1 = NewSet("1", "2")
+	u2 = NewSet("2", "3")
 
 	u2.Merge(u1)
 
