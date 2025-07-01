@@ -443,14 +443,14 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 		{
 			Revision:           rev1,
 			DeletedNamespaces:  []string{"deletedns1"},
-			DeletedCaveats:     []string{},
-			ChangedDefinitions: []datastore.SchemaDefinition{},
+			DeletedCaveats:     nil,
+			ChangedDefinitions: nil,
 		},
 		{
 			Revision:           rev2,
 			DeletedNamespaces:  []string{"deletedns2"},
-			DeletedCaveats:     []string{},
-			ChangedDefinitions: []datastore.SchemaDefinition{},
+			DeletedCaveats:     nil,
+			ChangedDefinitions: nil,
 		},
 	}, results)
 
@@ -462,8 +462,8 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 		{
 			Revision:           rev3,
 			DeletedNamespaces:  []string{"deletedns3"},
-			DeletedCaveats:     []string{},
-			ChangedDefinitions: []datastore.SchemaDefinition{},
+			DeletedCaveats:     nil,
+			ChangedDefinitions: nil,
 		},
 	}, remaining)
 
@@ -506,18 +506,18 @@ func TestHLCOrdering(t *testing.T) {
 			RelationshipChanges: []tuple.RelationshipUpdate{
 				tuple.Touch(tuple.MustParse("document:foo#viewer@user:tom")),
 			},
-			DeletedNamespaces:  []string{},
-			DeletedCaveats:     []string{},
-			ChangedDefinitions: []datastore.SchemaDefinition{},
+			DeletedNamespaces:  nil,
+			DeletedCaveats:     nil,
+			ChangedDefinitions: nil,
 		},
 		{
 			Revision: rev1,
 			RelationshipChanges: []tuple.RelationshipUpdate{
 				tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom")),
 			},
-			DeletedNamespaces:  []string{},
-			DeletedCaveats:     []string{},
-			ChangedDefinitions: []datastore.SchemaDefinition{},
+			DeletedNamespaces:  nil,
+			DeletedCaveats:     nil,
+			ChangedDefinitions: nil,
 		},
 	}, remaining)
 }
@@ -564,9 +564,9 @@ func TestHLCSameRevision(t *testing.T) {
 		{
 			Revision:            rev0,
 			RelationshipChanges: expected,
-			DeletedNamespaces:   []string{},
-			DeletedCaveats:      []string{},
-			ChangedDefinitions:  []datastore.SchemaDefinition{},
+			DeletedNamespaces:   nil,
+			DeletedCaveats:      nil,
+			ChangedDefinitions:  nil,
 		},
 	}, remaining)
 }

@@ -1,10 +1,10 @@
 package v1
 
 import (
+	"maps"
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/maps"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -651,7 +651,7 @@ func expCaveatAPIRepr(caveatDef *core.CaveatDefinition, expSchemaFilters *expSch
 	}
 
 	parameters := make([]*v1.ExpCaveatParameter, 0, len(caveatDef.ParameterTypes))
-	paramNames := maps.Keys(caveatDef.ParameterTypes)
+	paramNames := slices.Collect(maps.Keys(caveatDef.ParameterTypes))
 	sort.Strings(paramNames)
 
 	for _, paramName := range paramNames {

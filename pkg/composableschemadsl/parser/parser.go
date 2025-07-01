@@ -2,9 +2,9 @@
 package parser
 
 import (
+	"maps"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
@@ -267,7 +267,8 @@ func (p *sourceParser) consumeUseFlag(afterDefinition bool) AstNode {
 	}
 
 	if _, ok := lexer.Flags[useFlag]; !ok {
-		p.emitErrorf("Unknown use flag: `%s`. Options are: %s", useFlag, strings.Join(maps.Keys(lexer.Flags), ", "))
+		opts := strings.Join(slices.Collect(maps.Keys(lexer.Flags)), ", ")
+		p.emitErrorf("Unknown use flag: `%s`. Options are: %s", useFlag, opts)
 		return useNode
 	}
 

@@ -3,12 +3,13 @@ package schema
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
-	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -194,7 +195,7 @@ func (rg *DefinitionReachability) computeEntrypoints(
 	encounteredRelations := map[string]struct{}{}
 	err := rg.collectEntrypoints(ctx, resourceType, optionalSubjectType, collected, encounteredRelations, reachabilityOption, entrypointLookupOption)
 	if err != nil {
-		return nil, maps.Keys(encounteredRelations), err
+		return nil, slices.Collect(maps.Keys(encounteredRelations)), err
 	}
 
 	collectedEntrypoints := *collected
@@ -211,7 +212,7 @@ func (rg *DefinitionReachability) computeEntrypoints(
 	for _, entrypoint := range collectedEntrypoints {
 		hash, err := entrypoint.Hash()
 		if err != nil {
-			return nil, maps.Keys(encounteredRelations), err
+			return nil, slices.Collect(maps.Keys(encounteredRelations)), err
 		}
 
 		if _, ok := entrypointMap[hash]; !ok {
@@ -220,7 +221,7 @@ func (rg *DefinitionReachability) computeEntrypoints(
 		}
 	}
 
-	return uniqueEntrypoints, maps.Keys(encounteredRelations), nil
+	return uniqueEntrypoints, slices.Collect(maps.Keys(encounteredRelations)), nil
 }
 
 func (rg *DefinitionReachability) getOrBuildGraph(ctx context.Context, resourceType *core.RelationReference, reachabilityOption reachabilityOption) (*core.ReachabilityGraph, error) {
@@ -300,7 +301,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 	}
 
 	// Sort the keys to ensure a stable graph is produced.
-	keys := maps.Keys(rrg.EntrypointsBySubjectRelation)
+	keys := slices.Collect(maps.Keys(rrg.EntrypointsBySubjectRelation))
 	sort.Strings(keys)
 
 	// Recursively collect over any reachability graphs for subjects with non-ellipsis relations.

@@ -5,14 +5,15 @@ package integrationtesting_test
 
 import (
 	"fmt"
+	"maps"
 	"path"
+	"slices"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/structpb"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -391,7 +392,10 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 								}
 							}
 
-							requireSameSets(t, maps.Keys(accessibleResources), maps.Keys(resolvedResources))
+							requireSameSets(t,
+								slices.Collect(maps.Keys(accessibleResources)),
+								slices.Collect(maps.Keys(resolvedResources)),
+							)
 
 							// Ensure that every returned concrete object Checks directly.
 							checkBulkItems := make([]*v1.CheckBulkPermissionsRequestItem, 0, len(resolvedResources))
@@ -477,7 +481,10 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 						// permissions as their subject relation, or wildcards), this should be a
 						// subset.
 						expectedDefinedSubjects := vctx.accessibilitySet.DirectlyAccessibleDefinedSubjectsOfType(resource, subjectType)
-						requireSubsetOf(t, maps.Keys(resolvedSubjects), maps.Keys(expectedDefinedSubjects))
+						requireSubsetOf(t,
+							slices.Collect(maps.Keys(resolvedSubjects)),
+							slices.Collect(maps.Keys(expectedDefinedSubjects)),
+						)
 
 						// Ensure all subjects in true and caveated assertions for the subject type are found
 						// in the LookupSubject result, except those added via wildcard.
@@ -695,7 +702,7 @@ func runAssertions(t *testing.T, vctx validationContext) {
 							}
 
 							// Check the assertion was returned for a direct (with context) lookup.
-							resolvedDirectResourceIds := maps.Keys(resolvedDirectResourcesMap)
+							resolvedDirectResourceIds := slices.Collect(maps.Keys(resolvedDirectResourcesMap))
 							switch permissionship {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
 								require.NotContains(t, resolvedDirectResourceIds, rel.Resource.ObjectID, "Found unexpected object %s in direct lookup for assertion %s", rel.Resource, rel)
@@ -710,7 +717,7 @@ func runAssertions(t *testing.T, vctx validationContext) {
 							}
 
 							// Check the assertion was returned for an indirect (without context) lookup.
-							resolvedIndirectResourceIds := maps.Keys(resolvedIndirectResourcesMap)
+							resolvedIndirectResourceIds := slices.Collect(maps.Keys(resolvedIndirectResourcesMap))
 							accessibility, _, _ := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(rel.Resource, rel.Subject)
 
 							switch permissionship {

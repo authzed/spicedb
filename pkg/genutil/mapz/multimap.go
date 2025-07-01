@@ -1,7 +1,8 @@
 package mapz
 
 import (
-	"golang.org/x/exp/maps"
+	"maps"
+	"slices"
 )
 
 // ReadOnlyMultimap is a read-only multimap.
@@ -97,12 +98,12 @@ func (mm *MultiMap[T, Q]) IsEmpty() bool { return len(mm.items) == 0 }
 func (mm *MultiMap[T, Q]) Len() int { return len(mm.items) }
 
 // Keys returns the keys of the map.
-func (mm *MultiMap[T, Q]) Keys() []T { return maps.Keys(mm.items) }
+func (mm *MultiMap[T, Q]) Keys() []T { return slices.Collect(maps.Keys(mm.items)) }
 
 // Values returns all values in the map.
 func (mm MultiMap[T, Q]) Values() []Q {
 	values := make([]Q, 0, len(mm.items)*2)
-	for _, valueSlice := range maps.Values(mm.items) {
+	for valueSlice := range maps.Values(mm.items) {
 		values = append(values, valueSlice...)
 	}
 	return values
@@ -169,12 +170,12 @@ func (mm readOnlyMultimap[T, Q]) IsEmpty() bool { return len(mm.items) == 0 }
 func (mm readOnlyMultimap[T, Q]) Len() int { return len(mm.items) }
 
 // Keys returns the keys of the map.
-func (mm readOnlyMultimap[T, Q]) Keys() []T { return maps.Keys(mm.items) }
+func (mm readOnlyMultimap[T, Q]) Keys() []T { return slices.Collect(maps.Keys(mm.items)) }
 
 // Values returns all values in the map.
 func (mm readOnlyMultimap[T, Q]) Values() []Q {
 	values := make([]Q, 0, len(mm.items)*2)
-	for _, valueSlice := range maps.Values(mm.items) {
+	for valueSlice := range maps.Values(mm.items) {
 		values = append(values, valueSlice...)
 	}
 	return values
