@@ -1,7 +1,8 @@
 package datasets
 
 import (
-	"golang.org/x/exp/maps"
+	"maps"
+	"slices"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -257,7 +258,7 @@ func (bss BaseSubjectSet[T]) IsEmpty() bool {
 
 // AsSlice returns the contents of the subject set as a slice of found subjects.
 func (bss BaseSubjectSet[T]) AsSlice() []T {
-	values := maps.Values(bss.concrete)
+	values := slices.Collect(maps.Values(bss.concrete))
 	if wildcard, ok := bss.wildcard.get(); ok {
 		values = append(values, wildcard)
 	}

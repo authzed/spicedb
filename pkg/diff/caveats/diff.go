@@ -2,9 +2,8 @@ package caveats
 
 import (
 	"bytes"
-
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
+	"maps"
+	"slices"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -108,8 +107,8 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 		})
 	}
 
-	existingParameterNames := mapz.NewSet(maps.Keys(existing.ParameterTypes)...)
-	updatedParameterNames := mapz.NewSet(maps.Keys(updated.ParameterTypes)...)
+	existingParameterNames := mapz.NewSet(slices.Collect(maps.Keys(existing.ParameterTypes))...)
+	updatedParameterNames := mapz.NewSet(slices.Collect(maps.Keys(updated.ParameterTypes))...)
 
 	for _, removed := range existingParameterNames.Subtract(updatedParameterNames).AsSlice() {
 		deltas = append(deltas, Delta{

@@ -46,7 +46,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			// Create some revisions
 			var writtenAt datastore.Revision
 			tpl := makeTestRel("first", "owner")
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				writtenAt, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl)
 				require.NoError(err)
 			}
@@ -272,7 +272,7 @@ func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 	defer cancel()
 
 	var previous datastore.Revision
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		head, err := ds.HeadRevision(ctx)
 		require.NoError(err)
 		require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")

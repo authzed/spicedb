@@ -2,9 +2,9 @@ package mapz
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/rs/zerolog"
-	expmaps "golang.org/x/exp/maps"
 )
 
 // Set implements a very basic generic set.
@@ -146,7 +146,7 @@ func (s *Set[T]) AsSlice() []T {
 		return nil
 	}
 
-	return expmaps.Keys(s.values)
+	return slices.Collect(maps.Keys(s.values))
 }
 
 // Len returns the length of the set.

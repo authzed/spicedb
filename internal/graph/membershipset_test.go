@@ -1,11 +1,12 @@
 package graph
 
 import (
+	"maps"
+	"slices"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/caveats"
@@ -762,7 +763,7 @@ func TestMembershipSetUnionWithNonMemberEntries(t *testing.T) {
 		},
 	})
 
-	keys := maps.Keys(ms.membersByID)
+	keys := slices.Collect(maps.Keys(ms.membersByID))
 	sort.Strings(keys)
 
 	require.Equal(t, 2, ms.Size())
@@ -786,7 +787,7 @@ func TestMembershipSetIntersectWithNonMemberEntries(t *testing.T) {
 
 	require.Equal(t, 1, ms.Size())
 	require.True(t, ms.HasDeterminedMember())
-	require.Equal(t, []string{"resource2"}, maps.Keys(ms.membersByID))
+	require.Equal(t, []string{"resource2"}, slices.Collect(maps.Keys(ms.membersByID)))
 }
 
 func TestMembershipSetSubtractWithNonMemberEntries(t *testing.T) {
@@ -806,7 +807,7 @@ func TestMembershipSetSubtractWithNonMemberEntries(t *testing.T) {
 
 	require.Equal(t, 1, ms.Size())
 	require.True(t, ms.HasDeterminedMember())
-	require.Equal(t, []string{"resource1"}, maps.Keys(ms.membersByID))
+	require.Equal(t, []string{"resource1"}, slices.Collect(maps.Keys(ms.membersByID)))
 }
 
 func unwrapCaveat(ce *core.CaveatExpression) *core.ContextualizedCaveat {

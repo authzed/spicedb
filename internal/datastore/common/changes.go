@@ -2,10 +2,11 @@ package common
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sort"
 
 	"github.com/ccoveille/go-safecast"
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -327,9 +328,9 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 		for _, rel := range revisionChangeRecord.relDeletes {
 			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, tuple.Delete(rel))
 		}
-		changes[i].ChangedDefinitions = maps.Values(revisionChangeRecord.definitionsChanged)
-		changes[i].DeletedNamespaces = maps.Keys(revisionChangeRecord.namespacesDeleted)
-		changes[i].DeletedCaveats = maps.Keys(revisionChangeRecord.caveatsDeleted)
+		changes[i].ChangedDefinitions = slices.Collect(maps.Values(revisionChangeRecord.definitionsChanged))
+		changes[i].DeletedNamespaces = slices.Collect(maps.Keys(revisionChangeRecord.namespacesDeleted))
+		changes[i].DeletedCaveats = slices.Collect(maps.Keys(revisionChangeRecord.caveatsDeleted))
 
 		if len(revisionChangeRecord.metadata) > 0 {
 			metadata, err := structpb.NewStruct(revisionChangeRecord.metadata)
