@@ -2,6 +2,7 @@ package mapz
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"testing"
 
@@ -161,6 +162,142 @@ func TestMerge(t *testing.T) {
 	sort.Strings(slice)
 
 	require.Equal(t, []string{"1", "2", "3"}, slice)
+}
+
+func TestSetDifference(t *testing.T) {
+	tests := []struct {
+		name     string
+		original []int
+		others   [][]int
+		expected []int
+	}{
+		{
+			name:     "empty set difference with empty set",
+			original: []int{},
+			others:   [][]int{{}},
+			expected: []int{},
+		},
+		{
+			name:     "empty set difference with non-empty set",
+			original: []int{},
+			others:   [][]int{{1, 2, 3}},
+			expected: []int{},
+		},
+		{
+			name:     "non-empty set difference with empty set",
+			original: []int{1, 2, 3},
+			others:   [][]int{{}},
+			expected: []int{1, 2, 3},
+		},
+		{
+			name:     "identical sets difference",
+			original: []int{1, 2, 3},
+			others:   [][]int{{1, 2, 3}},
+			expected: []int{},
+		},
+		{
+			name:     "completely disjoint sets",
+			original: []int{1, 2, 3},
+			others:   [][]int{{4, 5, 6}},
+			expected: []int{1, 2, 3},
+		},
+		{
+			name:     "partial overlap - some elements removed",
+			original: []int{1, 2, 3, 4, 5},
+			others:   [][]int{{2, 4, 6}},
+			expected: []int{1, 3, 5},
+		},
+		{
+			name:     "subset removal",
+			original: []int{1, 2, 3, 4, 5},
+			others:   [][]int{{2, 3}},
+			expected: []int{1, 4, 5},
+		},
+		{
+			name:     "superset removal - original is subset",
+			original: []int{2, 3},
+			others:   [][]int{{1, 2, 3, 4, 5}},
+			expected: []int{},
+		},
+		{
+			name:     "single element sets",
+			original: []int{1},
+			others:   [][]int{{1}},
+			expected: []int{},
+		},
+		{
+			name:     "single element different",
+			original: []int{1},
+			others:   [][]int{{2}},
+			expected: []int{1},
+		},
+		{
+			name:     "multiple other sets - all disjoint",
+			original: []int{1, 2, 3, 4, 5},
+			others:   [][]int{{6, 7}, {8, 9}, {10, 11}},
+			expected: []int{1, 2, 3, 4, 5},
+		},
+		{
+			name:     "multiple other sets - with overlaps",
+			original: []int{1, 2, 3, 4, 5, 6, 7, 8},
+			others:   [][]int{{1, 2}, {3, 4}, {5, 6}},
+			expected: []int{7, 8},
+		},
+		{
+			name:     "multiple other sets - complete removal",
+			original: []int{1, 2, 3},
+			others:   [][]int{{1}, {2}, {3}},
+			expected: []int{},
+		},
+		{
+			name:     "multiple other sets - overlapping removals",
+			original: []int{1, 2, 3, 4, 5},
+			others:   [][]int{{1, 2, 6}, {2, 3, 7}, {3, 4, 8}},
+			expected: []int{5},
+		},
+		{
+			name:     "no other sets provided",
+			original: []int{1, 2, 3},
+			others:   [][]int{},
+			expected: []int{1, 2, 3},
+		},
+		{
+			name:     "duplicate elements in original (shouldn't happen in real set, but testing robustness)",
+			original: []int{1, 2, 3},
+			others:   [][]int{{1}},
+			expected: []int{2, 3},
+		},
+		{
+			name:     "large set difference",
+			original: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+			others:   [][]int{{2, 4, 6, 8, 10, 12, 14}},
+			expected: []int{1, 3, 5, 7, 9, 11, 13, 15},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original := NewSet(tt.original...)
+			others := make([]*Set[int], len(tt.others))
+			for i, otherSlice := range tt.others {
+				others[i] = NewSet(otherSlice...)
+			}
+
+			result := original.Difference(others...)
+
+			resultSlice := result.AsSlice()
+			if resultSlice == nil {
+				resultSlice = []int{}
+			}
+			slices.Sort(resultSlice)
+
+			expectedSorted := make([]int, len(tt.expected))
+			copy(expectedSorted, tt.expected)
+			slices.Sort(expectedSorted)
+
+			require.Equal(t, expectedSorted, resultSlice)
+		})
+	}
 }
 
 func TestSetIntersectionDifference(t *testing.T) {
