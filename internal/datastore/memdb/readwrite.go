@@ -1,12 +1,12 @@
 package memdb
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
 
 	"github.com/hashicorp/go-memdb"
-	"github.com/jzelinskie/stringz"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -375,7 +375,7 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(any) bool 
 			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.subjectObjectID:
 				return true
 			case subjectFilter.OptionalRelation != nil &&
-				stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
+				cmp.Or(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
 				return true
 			}
 		}

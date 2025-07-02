@@ -1,12 +1,12 @@
 package v1
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"time"
 
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
-	"github.com/jzelinskie/stringz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
@@ -548,7 +548,7 @@ func checkFilterComponent(ctx context.Context, objectType, optionalRelation stri
 		return nil
 	}
 
-	relationToTest := stringz.DefaultEmpty(optionalRelation, datastore.Ellipsis)
+	relationToTest := cmp.Or(optionalRelation, datastore.Ellipsis)
 	allowEllipsis := optionalRelation == ""
 	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, ds)
 }
