@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/samber/lo"
 	"google.golang.org/protobuf/proto"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -12,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/parser"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -90,7 +90,7 @@ const expirationFlag = "expiration"
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
-		cfg.allowedFlags = lo.Filter(cfg.allowedFlags, func(s string, _ int) bool {
+		cfg.allowedFlags = slicez.Filter(cfg.allowedFlags, func(s string) bool {
 			return s != expirationFlag
 		})
 	}

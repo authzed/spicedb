@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"github.com/ccoveille/go-safecast"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/jzelinskie/stringz"
-	"github.com/samber/lo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -234,7 +234,7 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 		}
 	}
 
-	return lo.Keys(newNamespaces), lo.Keys(newCaveats)
+	return slices.Collect(maps.Keys(newNamespaces)), slices.Collect(maps.Keys(newCaveats))
 }
 
 // TODO: this is now duplicate code with ImportBulkRelationships
