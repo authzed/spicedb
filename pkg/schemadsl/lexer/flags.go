@@ -4,6 +4,9 @@ package lexer
 // feature in the schema.
 const FlagExpiration = "expiration"
 
+// Deprecation Flag
+const FlagDeprecation = "deprecation"
+
 type transformer func(lexeme Lexeme) (Lexeme, bool)
 
 // Flags is a map of flag names to their corresponding transformers.
@@ -17,6 +20,14 @@ var Flags = map[string]transformer{
 
 		// `and` becomes a keyword.
 		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "and" {
+			lexeme.Kind = TokenTypeKeyword
+			return lexeme, true
+		}
+
+		return lexeme, false
+	},
+	FlagDeprecation: func(lexeme Lexeme) (Lexeme, bool) {
+		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "deprecation" {
 			lexeme.Kind = TokenTypeKeyword
 			return lexeme, true
 		}

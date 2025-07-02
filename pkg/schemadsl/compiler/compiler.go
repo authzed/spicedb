@@ -76,12 +76,23 @@ func CaveatTypeSet(cts *caveattypes.TypeSet) Option {
 	return func(cfg *config) { cfg.caveatTypeSet = cts }
 }
 
-const expirationFlag = "expiration"
+const (
+	expirationFlag  = "expiration"
+	deprecationFlag = "deprecation"
+)
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
 		cfg.allowedFlags = lo.Filter(cfg.allowedFlags, func(s string, _ int) bool {
 			return s != expirationFlag
+		})
+	}
+}
+
+func DisallowDeprecationFlag() Option {
+	return func(cfg *config) {
+		cfg.allowedFlags = lo.Filter(cfg.allowedFlags, func(s string, _ int) bool {
+			return s != deprecationFlag
 		})
 	}
 }
@@ -98,6 +109,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 
 	// Enable `expiration` flag by default.
 	cfg.allowedFlags = append(cfg.allowedFlags, expirationFlag)
+	cfg.allowedFlags = append(cfg.allowedFlags, deprecationFlag)
 
 	prefix(cfg) // required option
 

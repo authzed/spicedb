@@ -76,6 +76,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithEnableExperimentalRelationshipExpiration(true),
+		server.WithEnableExperimentalRelationshipDeprecation(true),
 		server.WithDatastore(ds),
 		server.WithDispatcher(graph.NewLocalOnlyDispatcher(cts, 10, 100)),
 		server.WithDispatchMaxDepth(50),

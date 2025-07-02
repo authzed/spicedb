@@ -60,6 +60,9 @@ const (
 
 	// ChangedRelationComment indicates that the comment of the relation has changed in some way.
 	ChangedRelationComment DeltaType = "changed-relation-comment"
+
+	// ChangedDeprecation indicates that the deprecation status of the relation has changed.
+	ChangedDeprecation DeltaType = "changed-deprecation"
 )
 
 // Diff holds the diff between two namespaces.
@@ -236,6 +239,14 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		if areDifferentExpressions(existingRel.UsersetRewrite, updatedRel.UsersetRewrite) {
 			deltas = append(deltas, Delta{
 				Type:         LegacyChangedRelationImpl,
+				RelationName: shared,
+			})
+		}
+
+		// Compare deprecation status
+		if existingRel.DeprecationType != updatedRel.DeprecationType {
+			deltas = append(deltas, Delta{
+				Type:         ChangedDeprecation,
 				RelationName: shared,
 			})
 		}

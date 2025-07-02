@@ -16,6 +16,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
@@ -34,6 +35,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -103,6 +105,9 @@ type PermissionsServerConfig struct {
 	// ExpiringRelationshipsEnabled defines whether or not expiring relationships are enabled.
 	ExpiringRelationshipsEnabled bool
 
+	// DeprecatedRelationshipsEnabled defines whether or not deprecated relationships are enabled.
+	DeprecatedRelationshipsEnabled bool
+
 	// CaveatTypeSet is the set of caveat types to use for caveats. If not specified,
 	// the default type set is used.
 	CaveatTypeSet *caveattypes.TypeSet
@@ -132,6 +137,7 @@ func NewPermissionsServer(
 		MaxCheckBulkConcurrency:          defaultIfZero(config.MaxCheckBulkConcurrency, 50),
 		CaveatTypeSet:                    caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
 		ExpiringRelationshipsEnabled:     config.ExpiringRelationshipsEnabled,
+		DeprecatedRelationshipsEnabled:   config.DeprecatedRelationshipsEnabled,
 		PerformanceInsightMetricsEnabled: config.PerformanceInsightMetricsEnabled,
 	}
 
@@ -324,6 +330,10 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
 		// TODO(jschorr): Change to struct-based keys.
+		if err := checkForDeprecatedRelationships(ctx, update, ds, ps); err != nil {
+			return nil, ps.rewriteError(ctx, err)
+		}
+
 		tupleStr := tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
 			return nil, ps.rewriteError(
@@ -619,4 +629,37 @@ func labelsForFilter(filter *v1.RelationshipFilter) perfinsights.APIShapeLabels 
 		perfinsights.SubjectTypeLabel:      filter.OptionalSubjectFilter.SubjectType,
 		perfinsights.SubjectRelationLabel:  filter.OptionalSubjectFilter.OptionalRelation.Relation,
 	}
+}
+
+func checkForDeprecatedRelationships(ctx context.Context, update *v1.RelationshipUpdate, ds datastore.Datastore, ps *permissionServer) error {
+	resource := update.Relationship.Resource
+	headRevision, err := ds.HeadRevision(ctx)
+	if err != nil {
+		return err
+	}
+	reader := ds.SnapshotReader(headRevision)
+	_, relDef, err := namespace.ReadNamespaceAndRelation(ctx, resource.ObjectType, update.Relationship.Relation, reader)
+	if err != nil {
+		return err
+	}
+
+	if !ps.config.DeprecatedRelationshipsEnabled && relDef.DeprecationType != corev1.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+		return ps.rewriteError(
+			ctx,
+			fmt.Errorf("support for deprecated relationships is not enabled"),
+		)
+	}
+
+	switch relDef.DeprecationType {
+	case corev1.DeprecationType_DEPRECATED_TYPE_WARNING:
+		log.Warn().
+			Str("namespace", update.Relationship.Resource.ObjectType).
+			Str("relation", update.Relationship.Relation).
+			Msg("write to deprecated relation")
+
+	case corev1.DeprecationType_DEPRECATED_TYPE_ERROR:
+		return shared.NewDeprecationError(update.Relationship.Resource.ObjectType, update.Relationship.Relation)
+	}
+
+	return nil
 }
