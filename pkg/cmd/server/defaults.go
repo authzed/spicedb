@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/logging"
@@ -157,6 +158,40 @@ var traceIDFieldOption = grpclog.WithFieldsFromContext(func(ctx context.Context)
 	}
 	return nil
 })
+
+var requestBodyLoggerOption = grpclog.WithFieldsFromContextAndCallMeta(requestBodyLogger)
+
+func requestBodyLogger(_ context.Context, c interceptors.CallMeta) grpclog.Fields {
+	if c.ReqOrNil == nil {
+		return nil
+	}
+
+	var redacted any
+
+	switch req := c.ReqOrNil.(type) {
+	case *v1.CheckPermissionRequest:
+		cloned := req.CloneVT()
+		cloned.Resource.ObjectId = "*****"
+		cloned.Subject.Object.ObjectId = "*****"
+		redacted = cloned
+	case *v1.LookupResourcesRequest:
+		cloned := req.CloneVT()
+		cloned.Subject.Object.ObjectId = "*****"
+		redacted = cloned
+	case *v1.LookupSubjectsRequest:
+		cloned := req.CloneVT()
+		cloned.Resource.ObjectId = "*****"
+		redacted = cloned
+	default:
+		return nil
+	}
+
+	params, err := json.Marshal(redacted)
+	if err != nil {
+		return grpclog.Fields{"grpc.request", "error_marshaling_as_json"}
+	}
+	return grpclog.Fields{"grpc.request", string(params)}
+}
 
 var alwaysDebugOption = grpclog.WithLevels(func(code codes.Code) grpclog.Level {
 	return grpclog.LevelDebug
@@ -318,7 +353,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
 			WithInterceptor(selector.UnaryServerInterceptor(
-				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
+				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption, requestBodyLoggerOption),
 										selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
 			EnsureAlreadyExecuted(DefaultMiddlewareOTelGRPC). // dependency so that OTel traceID is injected in logs),
 			Done(),
@@ -396,7 +431,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
 			WithInterceptor(selector.StreamServerInterceptor(
-				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
+				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption, requestBodyLoggerOption),
 											selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
 			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareOTelGRPC). // dependency so that OTel traceID is injected in logs),
 			Done(),
@@ -470,7 +505,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			nodeid.StreamServerInterceptor(""),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
-			grpclog.StreamServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
+			grpclog.StreamServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption, requestBodyLoggerOption),
 			grpcMetricsStreamingInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
