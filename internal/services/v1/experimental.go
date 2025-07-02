@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
-	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -180,7 +180,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	a.current.Resource.Relation = a.currentBatch[a.numSent].Relation
 	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
 	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
-	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
+	a.current.Subject.Relation = cmp.Or(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
 
 	if a.currentBatch[a.numSent].OptionalCaveat != nil {
 		a.caveat.CaveatName = a.currentBatch[a.numSent].OptionalCaveat.CaveatName

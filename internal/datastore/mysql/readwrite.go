@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"database/sql/driver"
@@ -15,7 +16,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast"
 	"github.com/go-sql-driver/mysql"
-	"github.com/jzelinskie/stringz"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -366,7 +366,7 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+			query = query.Where(sq.Eq{colUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
 		}
 	}
 

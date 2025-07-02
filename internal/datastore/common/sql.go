@@ -1,6 +1,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -618,7 +618,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 				} else {
 					orClause := sq.Or{}
 					for _, relationName := range relations {
-						dsRelationName := stringz.DefaultEmpty(relationName, datastore.Ellipsis)
+						dsRelationName := cmp.Or(relationName, datastore.Ellipsis)
 						orClause = append(orClause, sq.Eq{sqf.schema.ColUsersetRelation: dsRelationName})
 						sqf.recordColumnValue(sqf.schema.ColUsersetRelation, dsRelationName)
 					}
@@ -647,7 +647,7 @@ func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) S
 	}
 
 	if filter.OptionalRelation != nil {
-		dsRelationName := stringz.DefaultEmpty(filter.OptionalRelation.Relation, datastore.Ellipsis)
+		dsRelationName := cmp.Or(filter.OptionalRelation.Relation, datastore.Ellipsis)
 
 		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetRelation: dsRelationName})
 		sqf.recordColumnValue(sqf.schema.ColUsersetRelation, datastore.Ellipsis)
