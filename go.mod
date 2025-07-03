@@ -7,6 +7,9 @@ go 1.24.0
 // upgrade Kubernetes to a version that uses a newer version of `cel-go`.
 require github.com/authzed/cel-go v0.20.2
 
+// Bring https://github.com/fsnotify/fsnotify/pull/650
+replace github.com/fsnotify/fsnotify => github.com/fsnotify/fsnotify v1.9.0
+
 // See: https://github.com/envoyproxy/go-control-plane/issues/1074
 replace github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.13.2
 
