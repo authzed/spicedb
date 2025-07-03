@@ -16,6 +16,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type translationContext struct {
@@ -82,9 +83,11 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 
 			definition = def
 			objectDefinitions = append(objectDefinitions, def)
+		default:
+			return nil, spiceerrors.MustBugf("unknown definition node type %s", definitionNode.GetType())
 		}
 
-		if !names.Add(definition.GetName()) {
+		if definition != nil && !names.Add(definition.GetName()) {
 			return nil, definitionNode.WithSourceErrorf(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
 		}
 
