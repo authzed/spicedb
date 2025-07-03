@@ -87,9 +87,16 @@ linters:
 formatters:
   enable:
     - "gci"
+    - "gofmt"
     - "gofumpt"
     - "goimports"
   settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+        - pattern: "a[b:len(a)]"
+          replacement: "a[b:]"
     gci:
       sections:
         - "standard"
