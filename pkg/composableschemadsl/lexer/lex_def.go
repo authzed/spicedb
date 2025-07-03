@@ -81,6 +81,19 @@ var keywords = map[string]struct{}{
 	"import":     {},
 	"all":        {},
 	"any":        {},
+	"partial":    {},
+	"use":        {},
+	"expiration": {},
+	// Parking lot for future keywords
+	"and":     {},
+	"or":      {},
+	"not":     {},
+	"under":   {},
+	"static":  {},
+	"if":      {},
+	"where":   {},
+	"private": {},
+	"public":  {},
 }
 
 // IsKeyword returns whether the specified input string is a reserved keyword.
@@ -317,11 +330,7 @@ func lexMultilineComment(l *Lexer) stateFn {
 
 // lexIdentifierOrKeyword searches for a keyword or literal identifier.
 func lexIdentifierOrKeyword(l *Lexer) stateFn {
-	for {
-		if !isAlphaNumeric(l.peek()) {
-			break
-		}
-
+	for isAlphaNumeric(l.peek()) {
 		l.next()
 	}
 

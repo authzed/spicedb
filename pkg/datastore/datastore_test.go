@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/stretchr/testify/require"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
@@ -492,7 +493,7 @@ func TestRelationshipsFilterTest(t *testing.T) {
 		{
 			name: "caveat filter match",
 			filter: RelationshipsFilter{
-				OptionalCaveatName: "bar",
+				OptionalCaveatNameFilter: WithCaveatName("bar"),
 			},
 			relationshipString: "foo:something#viewer@user:fred[bar]",
 			expected:           true,
@@ -500,10 +501,32 @@ func TestRelationshipsFilterTest(t *testing.T) {
 		{
 			name: "caveat filter mismatch",
 			filter: RelationshipsFilter{
-				OptionalCaveatName: "bar",
+				OptionalCaveatNameFilter: WithCaveatName("bar"),
 			},
 			relationshipString: "foo:something#viewer@user:fred[baz]",
 			expected:           false,
+		},
+		{
+			name: "no caveat over caveated",
+			filter: RelationshipsFilter{
+				OptionalCaveatNameFilter: WithNoCaveat(),
+			},
+			relationshipString: "foo:something#viewer@user:fred[baz]",
+			expected:           false,
+		},
+		{
+			name: "no caveat over not caveated",
+			filter: RelationshipsFilter{
+				OptionalCaveatNameFilter: WithNoCaveat(),
+			},
+			relationshipString: "foo:something#viewer@user:fred",
+			expected:           true,
+		},
+		{
+			name:               "no caveat option",
+			filter:             RelationshipsFilter{},
+			relationshipString: "foo:something#viewer@user:fred",
+			expected:           true,
 		},
 		{
 			name: "non-ellipsis subject filter match",
@@ -586,6 +609,10 @@ func (f fakeDatastore) Unwrap() Datastore {
 	return f.delegate
 }
 
+func (f fakeDatastore) MetricsID() (string, error) {
+	return "fake", nil
+}
+
 func (f fakeDatastore) SnapshotReader(_ Revision) Reader {
 	return nil
 }
@@ -610,8 +637,8 @@ func (f fakeDatastore) RevisionFromString(_ string) (Revision, error) {
 	return nil, nil
 }
 
-func (f fakeDatastore) Watch(_ context.Context, _ Revision, _ WatchOptions) (<-chan *RevisionChanges, <-chan error) {
-	return nil, nil
+func (f fakeDatastore) Watch(_ context.Context, _ Revision, _ WatchOptions) (<-chan RevisionChanges, <-chan error) {
+	panic("should never be called")
 }
 
 func (f fakeDatastore) ReadyState(_ context.Context) (ReadyState, error) {

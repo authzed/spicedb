@@ -2,6 +2,7 @@
 package datastore
 
 import (
+	types "github.com/authzed/spicedb/pkg/caveats/types"
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
 	"time"
@@ -46,12 +47,14 @@ func (c *Config) ToOption() ConfigOption {
 		to.DisableStats = c.DisableStats
 		to.IncludeQueryParametersInTraces = c.IncludeQueryParametersInTraces
 		to.ReadReplicaConnPool = c.ReadReplicaConnPool
+		to.OldReadReplicaConnPool = c.OldReadReplicaConnPool
 		to.ReadReplicaURIs = c.ReadReplicaURIs
 		to.ReadReplicaCredentialsProviderName = c.ReadReplicaCredentialsProviderName
 		to.BootstrapFiles = c.BootstrapFiles
 		to.BootstrapFileContents = c.BootstrapFileContents
 		to.BootstrapOverwrite = c.BootstrapOverwrite
 		to.BootstrapTimeout = c.BootstrapTimeout
+		to.CaveatTypeSet = c.CaveatTypeSet
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
 		to.RequestHedgingInitialSlowValue = c.RequestHedgingInitialSlowValue
 		to.RequestHedgingMaxRequests = c.RequestHedgingMaxRequests
@@ -64,11 +67,13 @@ func (c *Config) ToOption() ConfigOption {
 		to.ConnectRate = c.ConnectRate
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
+		to.RelaxedIsolationLevel = c.RelaxedIsolationLevel
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
 		to.SpannerCredentialsJSON = c.SpannerCredentialsJSON
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
 		to.SpannerMinSessions = c.SpannerMinSessions
 		to.SpannerMaxSessions = c.SpannerMaxSessions
+		to.SpannerDatastoreMetricsOption = c.SpannerDatastoreMetricsOption
 		to.TablePrefix = c.TablePrefix
 		to.RelationshipIntegrityEnabled = c.RelationshipIntegrityEnabled
 		to.RelationshipIntegrityCurrentKey = c.RelationshipIntegrityCurrentKey
@@ -76,10 +81,12 @@ func (c *Config) ToOption() ConfigOption {
 		to.WatchBufferLength = c.WatchBufferLength
 		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
 		to.WatchConnectTimeout = c.WatchConnectTimeout
+		to.DisableWatchSupport = c.DisableWatchSupport
 		to.MigrationPhase = c.MigrationPhase
 		to.AllowedMigrations = c.AllowedMigrations
 		to.ExperimentalColumnOptimization = c.ExperimentalColumnOptimization
 		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
+		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 	}
 }
 
@@ -118,11 +125,13 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["ConnectRate"] = helpers.DebugValue(c.ConnectRate, false)
 	debugMap["GCInterval"] = helpers.DebugValue(c.GCInterval, false)
 	debugMap["GCMaxOperationTime"] = helpers.DebugValue(c.GCMaxOperationTime, false)
+	debugMap["RelaxedIsolationLevel"] = helpers.DebugValue(c.RelaxedIsolationLevel, false)
 	debugMap["SpannerCredentialsFile"] = helpers.DebugValue(c.SpannerCredentialsFile, false)
 	debugMap["SpannerCredentialsJSON"] = helpers.SensitiveDebugValue(c.SpannerCredentialsJSON)
 	debugMap["SpannerEmulatorHost"] = helpers.DebugValue(c.SpannerEmulatorHost, false)
 	debugMap["SpannerMinSessions"] = helpers.DebugValue(c.SpannerMinSessions, false)
 	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
+	debugMap["SpannerDatastoreMetricsOption"] = helpers.DebugValue(c.SpannerDatastoreMetricsOption, false)
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
 	debugMap["RelationshipIntegrityEnabled"] = helpers.DebugValue(c.RelationshipIntegrityEnabled, false)
 	debugMap["RelationshipIntegrityCurrentKey"] = helpers.DebugValue(c.RelationshipIntegrityCurrentKey, false)
@@ -134,6 +143,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["AllowedMigrations"] = helpers.DebugValue(c.AllowedMigrations, false)
 	debugMap["ExperimentalColumnOptimization"] = helpers.DebugValue(c.ExperimentalColumnOptimization, false)
 	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
+	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	return debugMap
 }
 
@@ -258,6 +268,13 @@ func WithReadReplicaConnPool(readReplicaConnPool ConnPoolConfig) ConfigOption {
 	}
 }
 
+// WithOldReadReplicaConnPool returns an option that can set OldReadReplicaConnPool on a Config
+func WithOldReadReplicaConnPool(oldReadReplicaConnPool ConnPoolConfig) ConfigOption {
+	return func(c *Config) {
+		c.OldReadReplicaConnPool = oldReadReplicaConnPool
+	}
+}
+
 // WithReadReplicaURIs returns an option that can append ReadReplicaURIss to Config.ReadReplicaURIs
 func WithReadReplicaURIs(readReplicaURIs string) ConfigOption {
 	return func(c *Config) {
@@ -318,6 +335,13 @@ func WithBootstrapOverwrite(bootstrapOverwrite bool) ConfigOption {
 func WithBootstrapTimeout(bootstrapTimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.BootstrapTimeout = bootstrapTimeout
+	}
+}
+
+// WithCaveatTypeSet returns an option that can set CaveatTypeSet on a Config
+func WithCaveatTypeSet(caveatTypeSet *types.TypeSet) ConfigOption {
+	return func(c *Config) {
+		c.CaveatTypeSet = caveatTypeSet
 	}
 }
 
@@ -405,6 +429,13 @@ func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 	}
 }
 
+// WithRelaxedIsolationLevel returns an option that can set RelaxedIsolationLevel on a Config
+func WithRelaxedIsolationLevel(relaxedIsolationLevel bool) ConfigOption {
+	return func(c *Config) {
+		c.RelaxedIsolationLevel = relaxedIsolationLevel
+	}
+}
+
 // WithSpannerCredentialsFile returns an option that can set SpannerCredentialsFile on a Config
 func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
 	return func(c *Config) {
@@ -444,6 +475,13 @@ func WithSpannerMinSessions(spannerMinSessions uint64) ConfigOption {
 func WithSpannerMaxSessions(spannerMaxSessions uint64) ConfigOption {
 	return func(c *Config) {
 		c.SpannerMaxSessions = spannerMaxSessions
+	}
+}
+
+// WithSpannerDatastoreMetricsOption returns an option that can set SpannerDatastoreMetricsOption on a Config
+func WithSpannerDatastoreMetricsOption(spannerDatastoreMetricsOption string) ConfigOption {
+	return func(c *Config) {
+		c.SpannerDatastoreMetricsOption = spannerDatastoreMetricsOption
 	}
 }
 
@@ -503,6 +541,13 @@ func WithWatchConnectTimeout(watchConnectTimeout time.Duration) ConfigOption {
 	}
 }
 
+// WithDisableWatchSupport returns an option that can set DisableWatchSupport on a Config
+func WithDisableWatchSupport(disableWatchSupport bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableWatchSupport = disableWatchSupport
+	}
+}
+
 // WithMigrationPhase returns an option that can set MigrationPhase on a Config
 func WithMigrationPhase(migrationPhase string) ConfigOption {
 	return func(c *Config) {
@@ -535,5 +580,12 @@ func WithExperimentalColumnOptimization(experimentalColumnOptimization bool) Con
 func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationshipExpiration bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableExperimentalRelationshipExpiration = enableExperimentalRelationshipExpiration
+	}
+}
+
+// WithEnableRevisionHeartbeat returns an option that can set EnableRevisionHeartbeat on a Config
+func WithEnableRevisionHeartbeat(enableRevisionHeartbeat bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableRevisionHeartbeat = enableRevisionHeartbeat
 	}
 }

@@ -1,21 +1,21 @@
 package namespace
 
-import "github.com/authzed/spicedb/pkg/typesystem"
+import "github.com/authzed/spicedb/pkg/schema"
 
 // AnnotateNamespace annotates the namespace in the type system with computed aliasing and cache key
 // metadata for more efficient dispatching.
-func AnnotateNamespace(ts *typesystem.ValidatedNamespaceTypeSystem) error {
-	aliases, aerr := computePermissionAliases(ts)
+func AnnotateNamespace(def *schema.ValidatedDefinition) error {
+	aliases, aerr := computePermissionAliases(def)
 	if aerr != nil {
 		return aerr
 	}
 
-	cacheKeys, cerr := computeCanonicalCacheKeys(ts, aliases)
+	cacheKeys, cerr := computeCanonicalCacheKeys(def, aliases)
 	if cerr != nil {
 		return cerr
 	}
 
-	for _, rel := range ts.Namespace().Relation {
+	for _, rel := range def.Namespace().Relation {
 		if alias, ok := aliases[rel.Name]; ok {
 			rel.AliasingRelation = alias
 		}

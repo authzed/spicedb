@@ -12,12 +12,13 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	"github.com/authzed/spicedb/internal/taskrunner"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // runCheckerAndDispatch runs the dispatch and checker for a lookup resources call, and publishes
@@ -31,9 +32,10 @@ func runCheckerAndDispatch(
 	parentStream dispatch.LookupResources2Stream,
 	newSubjectType *core.RelationReference,
 	filteredSubjectIDs []string,
-	entrypoint typesystem.ReachabilityEntrypoint,
+	entrypoint schema.ReachabilityEntrypoint,
 	lrDispatcher dispatch.LookupResources2,
 	checkDispatcher dispatch.Check,
+	caveatTypeSet *caveattypes.TypeSet,
 	concurrencyLimit uint16,
 	dispatchChunkSize uint16,
 ) error {
@@ -59,28 +61,29 @@ func runCheckerAndDispatch(
 		taskrunner:         taskrunner.NewTaskRunner(ctx, concurrencyLimit),
 		lock:               &sync.Mutex{},
 		dispatchChunkSize:  dispatchChunkSize,
+		caveatTypeSet:      caveatTypeSet,
 	}
 
 	return rdc.runAndWait()
 }
 
 type checkAndDispatchRunner struct {
-	parentRequest     ValidatedLookupResources2Request
-	foundResources    dispatchableResourcesSubjectMap2
-	ci                cursorInformation
-	parentStream      dispatch.LookupResources2Stream
-	newSubjectType    *core.RelationReference
-	entrypoint        typesystem.ReachabilityEntrypoint
-	lrDispatcher      dispatch.LookupResources2
-	checkDispatcher   dispatch.Check
-	dispatchChunkSize uint16
-
+	parentRequest      ValidatedLookupResources2Request
+	foundResources     dispatchableResourcesSubjectMap2
+	parentStream       dispatch.LookupResources2Stream
+	newSubjectType     *core.RelationReference
+	entrypoint         schema.ReachabilityEntrypoint
+	lrDispatcher       dispatch.LookupResources2
+	checkDispatcher    dispatch.Check
+	dispatchChunkSize  uint16
+	caveatTypeSet      *caveattypes.TypeSet
 	filteredSubjectIDs []string
-	currentCheckIndex  int
 
-	taskrunner *taskrunner.TaskRunner
+	currentCheckIndex int
+	taskrunner        *taskrunner.TaskRunner
 
 	lock *sync.Mutex
+	ci   cursorInformation // GUARDED_BY(lock)
 }
 
 func (rdc *checkAndDispatchRunner) runAndWait() error {
@@ -128,7 +131,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 
 	// NOTE: we are checking the containing permission here, *not* the target relation, as
 	// the goal is to shear for the containing permission.
-	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, computed.CheckParameters{
+	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, rdc.caveatTypeSet, computed.CheckParameters{
 		ResourceType:  tuple.FromCoreRelationReference(rdc.newSubjectType),
 		Subject:       tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 		CaveatContext: rdc.parentRequest.Context.AsMap(),

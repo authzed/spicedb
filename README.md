@@ -20,8 +20,11 @@
   &nbsp;
   <a href="https://authzed.com/blog/go-ecosystem"><img alt="built with Go badge" src="https://img.shields.io/badge/built_with-Go-367B99.svg?style=flat-square"></a>
   &nbsp;
+  <a href="https://app.codecov.io/gh/authzed/spicedb"><img alt="coverage" src="https://img.shields.io/codecov/c/github/authzed/spicedb"></a>
+  &nbsp;
   <a href="https://www.bestpractices.dev/en/projects/6348" target="_blank"><img alt="cii badge" src="https://img.shields.io/cii/percentage/6348?style=flat-square&label=cii%20best%20practices&color=F8D44B"></a>
   &nbsp;
+  <a href="https://securityscorecards.dev/viewer/?uri=github.com/authzed/spicedb" target="_blank"><img alt="ssf badge" src="https://api.securityscorecards.dev/projects/github.com/authzed/spicedb/badge"></a>
 </p>
 
 <p align="center">
@@ -30,6 +33,12 @@
     <a href="https://twitter.com/authzed"><img alt="twitter badge" src="https://img.shields.io/badge/twitter-@authzed-1d9bf0.svg?style=flat-square"></a>
     &nbsp;
     <a href="https://www.linkedin.com/company/authzed/"><img alt="linkedin badge" src="https://img.shields.io/badge/linkedin-+authzed-2D65BC.svg?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=396856161" target="_blank"><img alt="launch codespaces badge" src="https://img.shields.io/badge/launch-Codespaces-blue?style=flat-square"></a>
+  &nbsp;
+  <a href="https://gitpod.io/#https://github.com/authzed/spicedb" target="_blank"><img alt="launch gitpod badge" src="https://img.shields.io/badge/Gitpod-ready--to--code-blue?style=flat-square"></a>
 </p>
 
 ## What is SpiceDB?

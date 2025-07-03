@@ -8,8 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/authzed/authzed-go/pkg/requestmeta"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -19,25 +17,32 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/internal/telemetry"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 func (ps *permissionServer) rewriteError(ctx context.Context, err error) error {
@@ -54,6 +59,17 @@ func (ps *permissionServer) rewriteErrorWithOptionalDebugTrace(ctx context.Conte
 }
 
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
+			perfinsights.ResourceRelationLabel: req.Permission,
+			perfinsights.SubjectTypeLabel:      req.Subject.Object.ObjectType,
+			perfinsights.SubjectRelationLabel:  req.Subject.OptionalRelation,
+		}
+	})
+
+	telemetry.RecordLogicalChecks(1)
+
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -96,6 +112,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	}
 
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
+		ps.config.CaveatTypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR(req.Resource.ObjectType, req.Permission),
 			Subject:       tuple.ONR(req.Subject.Object.ObjectType, req.Subject.Object.ObjectId, normalizeSubjectRelation(req.Subject)),
@@ -112,7 +129,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	var debugTrace *v1.DebugInformation
 	if debugOption != computed.NoDebugging && metadata.DebugInfo != nil {
 		// Convert the dispatch debug information into API debug information.
-		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, metadata.DebugInfo, ds)
+		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, metadata.DebugInfo, ds)
 		if cerr != nil {
 			return nil, ps.rewriteError(ctx, cerr)
 		}
@@ -124,7 +141,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		// a dispatch error occurs and debug was requested.
 		if dispatchDebugInfo, ok := spiceerrors.GetDetails[*dispatch.DebugInformation](err); ok {
 			// Convert the dispatch debug information into API debug information.
-			converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, dispatchDebugInfo, ds)
+			converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, dispatchDebugInfo, ds)
 			if cerr != nil {
 				return nil, ps.rewriteError(ctx, cerr)
 			}
@@ -150,9 +167,10 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermissionResponse_Permissionship, *v1.PartialCaveatInfo) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
-	if cr.Membership == dispatch.ResourceCheckResult_MEMBER {
+	switch cr.Membership {
+	case dispatch.ResourceCheckResult_MEMBER:
 		permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
-	} else if cr.Membership == dispatch.ResourceCheckResult_CAVEATED_MEMBER {
+	case dispatch.ResourceCheckResult_CAVEATED_MEMBER:
 		permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 		partialCaveat = &v1.PartialCaveatInfo{
 			MissingRequiredContext: cr.MissingExprFields,
@@ -162,6 +180,9 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 }
 
 func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
+	// NOTE: perfinsights are added for the individual check results as well, so there is no shape here.
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	res, err := ps.bulkChecker.checkBulkPermissions(ctx, req)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -207,6 +228,15 @@ func requestItemFromResourceAndParameters(params *computed.CheckParameters, reso
 }
 
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
+			perfinsights.ResourceRelationLabel: req.Permission,
+		}
+	})
+
+	telemetry.RecordLogicalChecks(1)
+
 	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -398,6 +428,15 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 const lrv2CursorFlag = "lrv2"
 
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.ResourceObjectType,
+			perfinsights.ResourceRelationLabel: req.Permission,
+			perfinsights.SubjectTypeLabel:      req.Subject.Object.ObjectType,
+			perfinsights.SubjectRelationLabel:  req.Subject.OptionalRelation,
+		}
+	})
+
 	// NOTE: LRv2 is the only valid option, and we'll expect that all cursors include that flag.
 	// This is to preserve backward-compatibility in the meantime.
 	if req.OptionalCursor != nil {
@@ -460,6 +499,10 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	}
 
 	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
+	var totalCountPublished uint64
+	defer func() {
+		telemetry.RecordLogicalChecks(totalCountPublished)
+	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources2Response) error {
 		found := result.Resource
@@ -501,6 +544,8 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		if err != nil {
 			return err
 		}
+
+		totalCountPublished++
 		return nil
 	})
 
@@ -543,7 +588,20 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 }
 
 func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
+	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
+			perfinsights.ResourceRelationLabel: req.Permission,
+			perfinsights.SubjectTypeLabel:      req.SubjectObjectType,
+			perfinsights.SubjectRelationLabel:  req.OptionalSubjectRelation,
+		}
+	})
+
 	ctx := resp.Context()
+
+	if req.OptionalConcreteLimit != 0 {
+		return ps.rewriteError(ctx, status.Errorf(codes.Unimplemented, "concrete limit is not yet supported"))
+	}
 
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
@@ -581,6 +639,11 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
+	var totalCountPublished uint64
+	defer func() {
+		telemetry.RecordLogicalChecks(totalCountPublished)
+	}()
+
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
 		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
 		if !ok {
@@ -595,7 +658,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 			excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.ExcludedSubjects))
 			for _, excludedSubject := range foundSubject.ExcludedSubjects {
-				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds)
+				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds, ps.config.CaveatTypeSet)
 				if err != nil {
 					return err
 				}
@@ -607,7 +670,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				excludedSubjects = append(excludedSubjects, resolvedExcludedSubject)
 			}
 
-			subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, ds)
+			subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, ds, ps.config.CaveatTypeSet)
 			if err != nil {
 				return err
 			}
@@ -629,6 +692,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 			}
 		}
 
+		totalCountPublished++
 		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
 		return nil
 	})
@@ -663,13 +727,13 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	return nil
 }
 
-func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.CaveatReader) (*v1.ResolvedSubject, error) {
+func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.CaveatReader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 	if foundSubject.GetCaveatExpression() != nil {
 		permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 
-		cr, err := cexpr.RunSingleCaveatExpression(ctx, foundSubject.GetCaveatExpression(), caveatContext, ds, cexpr.RunCaveatExpressionNoDebugging)
+		cr, err := cexpr.RunSingleCaveatExpression(ctx, caveatTypeSet, foundSubject.GetCaveatExpression(), caveatContext, ds, cexpr.RunCaveatExpressionNoDebugging)
 		if err != nil {
 			return nil, err
 		}
@@ -730,10 +794,11 @@ func GetCaveatContext(ctx context.Context, caveatCtx *structpb.Struct, maxCaveat
 
 type loadBulkAdapter struct {
 	stream                 grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]
-	referencedNamespaceMap map[string]*typesystem.TypeSystem
+	referencedNamespaceMap map[string]*schema.Definition
 	referencedCaveatMap    map[string]*core.CaveatDefinition
 	current                tuple.Relationship
 	caveat                 core.ContextualizedCaveat
+	caveatTypeSet          *caveattypes.TypeSet
 
 	awaitingNamespaces []string
 	awaitingCaveats    []string
@@ -770,9 +835,9 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
-	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
-	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
-	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
+	a.current.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
+	a.current.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
+	a.current.Resource.Relation = a.currentBatch[a.numSent].Relation
 	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
 	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
 	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
@@ -797,6 +862,7 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
 		a.referencedCaveatMap,
+		a.caveatTypeSet,
 		a.current,
 		relationships.ValidateRelationshipForCreateOrTouch,
 	); err != nil {
@@ -808,11 +874,13 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 }
 
 func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]) error {
+	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
+
 	ds := datastoremw.MustFromContext(stream.Context())
 
 	var numWritten uint64
 	if _, err := ds.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		loadedNamespaces := make(map[string]*typesystem.TypeSystem, 2)
+		loadedNamespaces := make(map[string]*schema.Definition, 2)
 		loadedCaveats := make(map[string]*core.CaveatDefinition, 0)
 
 		adapter := &loadBulkAdapter{
@@ -820,8 +888,10 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			referencedNamespaceMap: loadedNamespaces,
 			referencedCaveatMap:    loadedCaveats,
 			caveat:                 core.ContextualizedCaveat{},
+			caveatTypeSet:          ps.config.CaveatTypeSet,
 		}
-		resolver := typesystem.ResolverForDatastoreReader(rwt)
+		resolver := schema.ResolverForDatastoreReader(rwt)
+		ts := schema.NewTypeSystem(resolver)
 
 		var streamWritten uint64
 		var err error
@@ -836,12 +906,12 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 				}
 
 				for _, nsDef := range nsDefs {
-					nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, resolver)
+					newDef, err := schema.NewDefinition(ts, nsDef.Definition)
 					if err != nil {
 						return err
 					}
 
-					loadedNamespaces[nsDef.Definition.Name] = nts
+					loadedNamespaces[nsDef.Definition.Name] = newDef
 				}
 				adapter.awaitingNamespaces = nil
 			}
@@ -880,6 +950,10 @@ func (ps *permissionServer) ExportBulkRelationships(
 	resp grpc.ServerStreamingServer[v1.ExportBulkRelationshipsResponse],
 ) error {
 	ctx := resp.Context()
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return labelsForFilter(req.OptionalRelationshipFilter)
+	})
+
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
@@ -988,12 +1062,12 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 				rels = append(rels, &relsArray[offset]) // nozero
 
 				v1Rel := &relsArray[offset]
-				v1Rel.Resource.ObjectType = rel.RelationshipReference.Resource.ObjectType
-				v1Rel.Resource.ObjectId = rel.RelationshipReference.Resource.ObjectID
-				v1Rel.Relation = rel.RelationshipReference.Resource.Relation
-				v1Rel.Subject.Object.ObjectType = rel.RelationshipReference.Subject.ObjectType
-				v1Rel.Subject.Object.ObjectId = rel.RelationshipReference.Subject.ObjectID
-				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.RelationshipReference.Subject.Relation)
+				v1Rel.Resource.ObjectType = rel.Resource.ObjectType
+				v1Rel.Resource.ObjectId = rel.Resource.ObjectID
+				v1Rel.Relation = rel.Resource.Relation
+				v1Rel.Subject.Object.ObjectType = rel.Subject.ObjectType
+				v1Rel.Subject.Object.ObjectId = rel.Subject.ObjectID
+				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.Subject.Relation)
 
 				if rel.OptionalCaveat != nil {
 					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
@@ -1020,6 +1094,7 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 				dsoptions.WithLimit(&limit),
 				dsoptions.WithAfter(cur),
 				dsoptions.WithSort(dsoptions.ByResource),
+				dsoptions.WithQueryShape(queryshape.Varying),
 			)
 			if err != nil {
 				return shared.RewriteErrorWithoutConfig(ctx, err)

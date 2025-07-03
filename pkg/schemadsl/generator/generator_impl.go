@@ -3,6 +3,7 @@ package generator
 import (
 	"strings"
 
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
 
@@ -15,6 +16,7 @@ type sourceGenerator struct {
 	hasNewScope        bool              // Whether there is a new scope at the end of the buffer.
 	existingLineLength int               // Length of the existing line.
 	flags              *mapz.Set[string] // The flags added while generating.
+	caveatTypeSet      *caveattypes.TypeSet
 }
 
 // ensureBlankLineOrNewScope ensures that there is a blank line or new scope at the tail of the buffer. If not,

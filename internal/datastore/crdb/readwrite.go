@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"github.com/jzelinskie/stringz"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -33,130 +35,134 @@ const (
 var (
 	upsertNamespaceSuffix = fmt.Sprintf(
 		"ON CONFLICT (%s) DO UPDATE SET %s = excluded.%s",
-		colNamespace,
-		colConfig,
-		colConfig,
+		schema.ColNamespace,
+		schema.ColConfig,
+		schema.ColConfig,
 	)
-	queryWriteNamespace = psql.Insert(tableNamespace).Columns(
-		colNamespace,
-		colConfig,
+	queryWriteNamespace = psql.Insert(schema.TableNamespace).Columns(
+		schema.ColNamespace,
+		schema.ColConfig,
 	).Suffix(upsertNamespaceSuffix)
 
-	queryDeleteNamespace = psql.Delete(tableNamespace)
+	queryDeleteNamespace = psql.Delete(schema.TableNamespace)
 )
 
 type crdbReadWriteTXN struct {
 	*crdbReader
-	tx             pgx.Tx
-	relCountChange int64
+	tx                          pgx.Tx
+	relCountChange              int64
+	hasNonExpiredDeletionChange bool
 }
 
 var (
 	upsertTupleSuffixWithoutIntegrity = fmt.Sprintf(
 		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple.%s <> excluded.%s OR relation_tuple.%s <> excluded.%s OR relation_tuple.%s <> excluded.%s)",
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colTimestamp,
-		colCaveatContextName,
-		colCaveatContextName,
-		colCaveatContext,
-		colCaveatContext,
-		colExpiration,
-		colExpiration,
-		colCaveatContextName,
-		colCaveatContextName,
-		colCaveatContext,
-		colCaveatContext,
-		colExpiration,
-		colExpiration,
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColTimestamp,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContext,
+		schema.ColCaveatContext,
+		schema.ColExpiration,
+		schema.ColExpiration,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContext,
+		schema.ColCaveatContext,
+		schema.ColExpiration,
+		schema.ColExpiration,
 	)
 
 	upsertTupleSuffixWithIntegrity = fmt.Sprintf(
 		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s, %s = excluded.%s, %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple_with_integrity.%s <> excluded.%s OR relation_tuple_with_integrity.%s <> excluded.%s OR relation_tuple_with_integrity.%s <> excluded.%s)",
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colTimestamp,
-		colCaveatContextName,
-		colCaveatContextName,
-		colCaveatContext,
-		colCaveatContext,
-		colIntegrityKeyID,
-		colIntegrityKeyID,
-		colIntegrityHash,
-		colIntegrityHash,
-		colExpiration,
-		colExpiration,
-		colCaveatContextName,
-		colCaveatContextName,
-		colCaveatContext,
-		colCaveatContext,
-		colExpiration,
-		colExpiration,
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColTimestamp,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContext,
+		schema.ColCaveatContext,
+		schema.ColIntegrityKeyID,
+		schema.ColIntegrityKeyID,
+		schema.ColIntegrityHash,
+		schema.ColIntegrityHash,
+		schema.ColExpiration,
+		schema.ColExpiration,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContext,
+		schema.ColCaveatContext,
+		schema.ColExpiration,
+		schema.ColExpiration,
 	)
 
 	queryTouchTransaction = fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES ($1::text) ON CONFLICT (%s) DO UPDATE SET %s = now()",
-		tableTransactions,
-		colTransactionKey,
-		colTransactionKey,
-		colTimestamp,
+		schema.TableTransactions,
+		schema.ColTransactionKey,
+		schema.ColTransactionKey,
+		schema.ColTimestamp,
 	)
 
-	queryWriteCounter = psql.Insert(tableRelationshipCounter).Columns(
-		colCounterName,
-		colCounterSerializedFilter,
-		colCounterCurrentCount,
-		colCounterUpdatedAt,
+	queryWriteCounter = psql.Insert(schema.TableRelationshipCounter).Columns(
+		schema.ColCounterName,
+		schema.ColCounterSerializedFilter,
+		schema.ColCounterCurrentCount,
+		schema.ColCounterUpdatedAt,
 	)
 
-	queryUpdateCounter = psql.Update(tableRelationshipCounter)
+	queryUpdateCounter = psql.Update(schema.TableRelationshipCounter)
 
-	queryDeleteCounter = psql.Delete(tableRelationshipCounter)
+	queryDeleteCounter = psql.Delete(schema.TableRelationshipCounter)
 )
 
 func (rwt *crdbReadWriteTXN) insertQuery() sq.InsertBuilder {
 	return psql.Insert(rwt.schema.RelationshipTableName)
 }
 
-func (rwt *crdbReadWriteTXN) queryDeleteTuples() sq.DeleteBuilder {
-	return psql.Delete(rwt.schema.RelationshipTableName)
+func (rwt *crdbReadWriteTXN) queryDeleteTuples(index *common.IndexDefinition) sq.DeleteBuilder {
+	if index == nil {
+		return psql.Delete(rwt.schema.RelationshipTableName)
+	}
+	return psql.Delete(rwt.schema.RelationshipTableName + "@" + index.Name)
 }
 
 func (rwt *crdbReadWriteTXN) queryWriteTuple() sq.InsertBuilder {
 	if rwt.withIntegrity {
 		return rwt.insertQuery().Columns(
-			colNamespace,
-			colObjectID,
-			colRelation,
-			colUsersetNamespace,
-			colUsersetObjectID,
-			colUsersetRelation,
-			colCaveatContextName,
-			colCaveatContext,
-			colExpiration,
-			colIntegrityKeyID,
-			colIntegrityHash,
+			schema.ColNamespace,
+			schema.ColObjectID,
+			schema.ColRelation,
+			schema.ColUsersetNamespace,
+			schema.ColUsersetObjectID,
+			schema.ColUsersetRelation,
+			schema.ColCaveatContextName,
+			schema.ColCaveatContext,
+			schema.ColExpiration,
+			schema.ColIntegrityKeyID,
+			schema.ColIntegrityHash,
 		)
 	}
 
 	return rwt.insertQuery().Columns(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-		colExpiration,
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContext,
+		schema.ColExpiration,
 	)
 }
 
@@ -169,6 +175,8 @@ func (rwt *crdbReadWriteTXN) queryTouchTuple() sq.InsertBuilder {
 }
 
 func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	rwt.hasNonExpiredDeletionChange = true
+
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
@@ -208,6 +216,8 @@ func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, name string, f
 }
 
 func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
+	rwt.hasNonExpiredDeletionChange = true
+
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
@@ -218,7 +228,7 @@ func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, name string)
 	}
 
 	// Remove the counter from the table.
-	sql, args, err := queryDeleteCounter.Where(sq.Eq{colCounterName: name}).ToSql()
+	sql, args, err := queryDeleteCounter.Where(sq.Eq{schema.ColCounterName: name}).ToSql()
 	if err != nil {
 		return fmt.Errorf("unable to unregister counter: %w", err)
 	}
@@ -232,6 +242,8 @@ func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, name string)
 }
 
 func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	rwt.hasNonExpiredDeletionChange = true
+
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
@@ -248,9 +260,9 @@ func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, name string,
 
 	// Update the counter in the table.
 	sql, args, err := queryUpdateCounter.
-		Set(colCounterCurrentCount, value).
-		Set(colCounterUpdatedAt, computedAtRevisionTimestamp).
-		Where(sq.Eq{colCounterName: name}).
+		Set(schema.ColCounterCurrentCount, value).
+		Set(schema.ColCounterUpdatedAt, computedAtRevisionTimestamp).
+		Where(sq.Eq{schema.ColCounterName: name}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("unable to store counter value: %w", err)
@@ -271,13 +283,17 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	bulkTouch := rwt.queryTouchTuple()
 	var bulkTouchCount int64
 
-	bulkDelete := rwt.queryDeleteTuples()
+	bulkDelete := rwt.queryDeleteTuples(nil)
 	bulkDeleteOr := sq.Or{}
 	var bulkDeleteCount int64
 
 	// Process the actual updates
 	for _, mutation := range mutations {
 		rel := mutation.Relationship
+
+		if mutation.Operation != tuple.UpdateOperationDelete {
+			rwt.hasNonExpiredDeletionChange = true
+		}
 
 		var caveatContext map[string]any
 		var caveatName string
@@ -377,46 +393,57 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 
 func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.Resource.ObjectType,
-		colObjectID:         r.Resource.ObjectID,
-		colRelation:         r.Resource.Relation,
-		colUsersetNamespace: r.Subject.ObjectType,
-		colUsersetObjectID:  r.Subject.ObjectID,
-		colUsersetRelation:  r.Subject.Relation,
+		schema.ColNamespace:        r.Resource.ObjectType,
+		schema.ColObjectID:         r.Resource.ObjectID,
+		schema.ColRelation:         r.Resource.Relation,
+		schema.ColUsersetNamespace: r.Subject.ObjectType,
+		schema.ColUsersetObjectID:  r.Subject.ObjectID,
+		schema.ColUsersetRelation:  r.Subject.Relation,
 	}
 }
 
-func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
+func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
 	// Add clauses for the ResourceFilter
-	query := rwt.queryDeleteTuples()
+	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
+	if err != nil {
+		return 0, false, fmt.Errorf("unable to translate relationship filter: %w", err)
+	}
+
+	index, err := schema.IndexForFilter(rwt.schema, dsFilter)
+	if err != nil {
+		return 0, false, fmt.Errorf("unable to determine index for filter: %w", err)
+	}
+
+	query := rwt.queryDeleteTuples(index)
 
 	if filter.ResourceType != "" {
-		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+		query = query.Where(sq.Eq{schema.ColNamespace: filter.ResourceType})
 	}
 	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+		query = query.Where(sq.Eq{schema.ColObjectID: filter.OptionalResourceId})
 	}
 	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+		query = query.Where(sq.Eq{schema.ColRelation: filter.OptionalRelation})
 	}
 	if filter.OptionalResourceIdPrefix != "" {
-		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
-			return false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.OptionalResourceIdPrefix)
+		if err != nil {
+			return 0, false, fmt.Errorf("unable to build like clause: %w", err)
 		}
 
-		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
+		query = query.Where(likeClause)
 	}
 
 	rwt.addOverlapKey(filter.ResourceType)
 
 	// Add clauses for the SubjectFilter
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.SubjectType})
 		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.OptionalSubjectId})
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+			query = query.Where(sq.Eq{schema.ColUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
 		}
 		rwt.addOverlapKey(subjectFilter.SubjectType)
 	}
@@ -434,27 +461,29 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	modified, err := rwt.tx.Exec(ctx, sql, args...)
 	if err != nil {
-		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	rwt.relCountChange -= modified.RowsAffected()
 	rowsAffected, err := safecast.ToUint64(modified.RowsAffected())
 	if err != nil {
-		return false, spiceerrors.MustBugf("could not cast RowsAffected to uint64: %v", err)
+		return 0, false, spiceerrors.MustBugf("could not cast RowsAffected to uint64: %v", err)
 	}
 	if delLimit > 0 && rowsAffected == delLimit {
-		return true, nil
+		return rowsAffected, true, nil
 	}
 
-	return false, nil
+	return rowsAffected, false, nil
 }
 
 func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	rwt.hasNonExpiredDeletionChange = true
+
 	query := queryWriteNamespace
 
 	for _, newConfig := range newConfigs {
@@ -480,6 +509,8 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 }
 
 func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	rwt.hasNonExpiredDeletionChange = true
+
 	querier := pgxcommon.QuerierFuncsFor(rwt.tx)
 	// For each namespace, check they exist and collect predicates for the
 	// "WHERE" clause to delete the namespaces and associated tuples.
@@ -495,8 +526,8 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 		}
 
 		for _, nsName := range nsNames {
-			nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName, colTimestamp: timestamp})
-			tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
+			nsClauses = append(nsClauses, sq.Eq{schema.ColNamespace: nsName, schema.ColTimestamp: timestamp})
+			tplClauses = append(tplClauses, sq.Eq{schema.ColNamespace: nsName})
 		}
 	}
 
@@ -510,7 +541,7 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := rwt.queryDeleteTuples().Where(sq.Or(tplClauses)).ToSql()
+	deleteTupleSQL, deleteTupleArgs, err := rwt.queryDeleteTuples(nil).Where(sq.Or(tplClauses)).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -527,33 +558,35 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 }
 
 var copyCols = []string{
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatContextName,
-	colCaveatContext,
-	colExpiration,
+	schema.ColNamespace,
+	schema.ColObjectID,
+	schema.ColRelation,
+	schema.ColUsersetNamespace,
+	schema.ColUsersetObjectID,
+	schema.ColUsersetRelation,
+	schema.ColCaveatContextName,
+	schema.ColCaveatContext,
+	schema.ColExpiration,
 }
 
 var copyColsWithIntegrity = []string{
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatContextName,
-	colCaveatContext,
-	colExpiration,
-	colIntegrityKeyID,
-	colIntegrityHash,
-	colTimestamp,
+	schema.ColNamespace,
+	schema.ColObjectID,
+	schema.ColRelation,
+	schema.ColUsersetNamespace,
+	schema.ColUsersetObjectID,
+	schema.ColUsersetRelation,
+	schema.ColCaveatContextName,
+	schema.ColCaveatContext,
+	schema.ColExpiration,
+	schema.ColIntegrityKeyID,
+	schema.ColIntegrityHash,
+	schema.ColTimestamp,
 }
 
 func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	rwt.hasNonExpiredDeletionChange = true
+
 	if rwt.withIntegrity {
 		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyColsWithIntegrity, iter)
 	}

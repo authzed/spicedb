@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -17,6 +16,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	itestutil "github.com/authzed/spicedb/internal/testutil"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -133,6 +133,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(fmt.Sprintf("simple-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -200,14 +202,14 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	tpl := tuple.MustParse("folder:oops#owner@folder:oops#owner")
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
 	require.NoError(err)
 
-	dis := NewLocalOnlyDispatcher(10, 100)
+	dis := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 	err = dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
@@ -253,6 +255,8 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(fmt.Sprintf("dispatch-count-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -994,16 +998,18 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10, 100)
+			dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datastoremw.ContextWithHandle(context.Background())
+			ctx := datastoremw.ContextWithHandle(t.Context())
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)

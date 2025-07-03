@@ -6,6 +6,7 @@ import (
 	"github.com/authzed/cel-go/cel"
 )
 
+// ReplaceVariable replaces all occurrences of an existing variable in the given CEL expression with a new variable name.
 func ReplaceVariable(e *cel.Env, existingAst *cel.Ast, oldVarName string, newVarName string) (*cel.Ast, error) {
 	newExpr, iss := e.Compile(newVarName)
 	if iss.Err() != nil {

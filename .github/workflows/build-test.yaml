@@ -1,6 +1,6 @@
 ---
 name: "Build & Test"
-on: # yamllint disable-line rule:truthy
+on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
@@ -10,18 +10,20 @@ on: # yamllint disable-line rule:truthy
   merge_group:
     types:
       - "checks_requested"
+permissions:
+  contents: "read"
 env:
   DOCKERHUB_PUBLIC_ACCESS_TOKEN: "dckr_pat_8AEETZWxu8f7FvJUk9NrpyX_ZEQ"
   DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
 jobs:
   paths-filter:
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     outputs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "dorny/paths-filter@v3"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36" # v3.0.2
         id: "code-filter"
         with:
           filters: |
@@ -34,7 +36,7 @@ jobs:
               - "pkg/**"
               - "e2e/**"
               - "internal/**"
-      - uses: "dorny/paths-filter@v3"
+      - uses: "dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36" # v3.0.2
         id: "proto-filter"
         with:
           filters: |
@@ -45,77 +47,89 @@ jobs:
               - "go.mod"
   build:
     name: "Build Binary & Image"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v3"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
-      - uses: "authzed/actions/go-build@main"
+      - uses: "authzed/actions/go-build@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
       - name: "Image tests"
         run: "go run mage.go test:image"
 
   unit:
     name: "Unit"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
-      - name: "Unit tests"
-        run: "go run mage.go test:unit"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+      - name: "Unit tests with coverage"
+        run: "go run mage.go test:unitCover"
+      - name: "Coverage"
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   steelthread:
     name: "Steelthread"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
       - name: "Steelthread tests"
         run: "go run mage.go test:steelthread"
 
   integration:
     name: "Integration Tests"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v3"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
-      - name: "Integration tests"
-        run: "go run mage.go test:integration"
+      - name: "Integration tests with coverage"
+        run: "go run mage.go test:integrationCover"
+      - name: "Coverage"
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   datastoreinttest:
     name: "Datastore Integration Tests"
-    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
     strategy:
       fail-fast: false
       matrix:
-        datastore: ["crdb", "mysql", "spanner"]
+        datastore: ["mysql", "spanner"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -125,23 +139,31 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testds:${{ matrix.datastore }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   datastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
     strategy:
       fail-fast: false
       matrix:
-        datastore: ["crdb", "mysql", "spanner"]
+        datastore: ["mysql", "spanner"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -151,10 +173,18 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testcons:${{ matrix.datastore }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   pgdatastoreinttest:
     name: "Datastore Integration Tests"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -162,13 +192,13 @@ jobs:
         datastore: ["postgres", "pgbouncer"]
         pgversion: ["13.8", "14", "15", "16", "17"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -178,10 +208,18 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testds:${{ matrix.datastore }}ver ${{ matrix.pgversion }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   pgdatastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -189,13 +227,13 @@ jobs:
         datastore: ["postgres"]
         pgversion: ["13.8", "14", "15", "16", "17"]
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@v3"
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -205,43 +243,103 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testcons:postgresver ${{ matrix.pgversion }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
+
+  crdbdatastoreinttest:
+    name: "Datastore Integration Tests"
+    runs-on: "depot-ubuntu-24.04-4"
+    needs: "paths-filter"
+    strategy:
+      fail-fast: false
+      matrix:
+        datastore: ["crdb"]
+        crdbversion: ["24.3.6", "25.1.0", "25.2.0"]
+    steps:
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        with:
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
+      - name: "Integration tests"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        run: "go run mage.go testds:${{ matrix.datastore }}ver ${{ matrix.crdbversion }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
+
+  crdbdatastoreconstest:
+    name: "Datastore Consistency Tests"
+    runs-on: "depot-ubuntu-24.04-4"
+    needs: "paths-filter"
+    strategy:
+      fail-fast: false
+      matrix:
+        datastore: ["crdb"]
+        crdbversion: ["24.3.6", "25.1.0", "25.2.0"]
+    steps:
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        with:
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
+      - name: "Consistency tests"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        run: "go run mage.go testcons:crdbver ${{ matrix.crdbversion }}"
+      - name: "Coverage"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        uses: "codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24" # v5.4.3
+        with:
+          files: "./coverage.txt"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          fail_ci_if_error: false
 
   e2e:
     name: "E2E"
-    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         with:
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
-      - name: "Cache Binaries"
-        id: "cache-binaries"
-        uses: "buildjet/cache@v4"
-        with:
-          path: |
-            e2e/newenemy/cockroach
-            e2e/newenemy/chaosd
-            e2e/newenemy/watchmaker
-          # this key will need to be bumped when dependencies are changed
-          key: "cockroach-v22.1.5-chaosd-v1.1.1"
       - name: "Install cockroachdb and chaosd"
         if: "steps.cache-binaries.outputs.cache-hit != 'true'"
         working-directory: "e2e/newenemy"
         run: |
           curl https://binaries.cockroachdb.com/cockroach-v22.1.5.linux-amd64.tgz | tar -xz && mv cockroach-v22.1.5.linux-amd64/cockroach ./cockroach
           curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.1.1-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.1.1-linux-amd64/chaosd ./chaosd
-      - uses: "buildjet/cache@v4"
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: "${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}"
-          restore-keys: |
-            ${{ runner.os }}-go-
       - name: "Build SpiceDB"
         run: |
           go get -d ./...
@@ -250,7 +348,7 @@ jobs:
         working-directory: "e2e/newenemy"
         run: |
           go test -v -timeout 11m ./...
-      - uses: "actions/upload-artifact@v4"
+      - uses: "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" # v4.6.2
         if: "always()"
         # this upload step is really flaky, don't fail the job if it fails
         continue-on-error: true
@@ -259,13 +357,13 @@ jobs:
           path: "e2e/newenemy/*.log"
   analyzers-unit-tests:
     name: "Analyzers Unit Tests"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         with:
           go-version-file: "tools/analyzers/go.mod"
           cache-dependency-path: "tools/analyzers/go.sum"
@@ -273,33 +371,33 @@ jobs:
         run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "ubuntu-22.04"  # do not run Depot runners due to somehow triggering https://github.com/agnivade/wasmbrowsertest/issues/40
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
       - name: "WASM tests"
         run: "go run mage.go test:wasm"
 
   protobuf:
     name: "Generate Protobufs"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.protochange == 'true'
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
-      - uses: "chainguard-dev/actions/nodiff@main"
+      - uses: "chainguard-dev/actions/nodiff@ce51233d303aed2394a9976e7f5642fd2158f693" # main
         with:
           path: ""
           fixup-command: "go run mage.go gen:proto"
-      - uses: "bufbuild/buf-setup-action@v1"
-      - uses: "bufbuild/buf-breaking-action@v1.1.4"
+      - uses: "bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99" # v1.5.0
+      - uses: "bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba" # v1.1.4 TODO(miparnisari) deprecated, use buf-action
         if: "github.event_name == 'pull_request'"
         env:
           BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"

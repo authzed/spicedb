@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"

@@ -89,6 +89,8 @@ func (tn *testNode) MustDecorateWithInt(property string, value int) AstNode {
 }
 
 func TestParser(t *testing.T) {
+	t.Parallel()
+
 	parserTests := []parserTest{
 		{"empty file test", "empty"},
 		{"basic definition test", "basic"},
@@ -122,12 +124,27 @@ func TestParser(t *testing.T) {
 		{"arrow illegal operations test", "arrowillegalops"},
 		{"arrow illegal function test", "arrowillegalfunc"},
 		{"caveat with keyword parameter test", "caveatwithkeywordparam"},
+		{"use expiration test", "useexpiration"},
+		// NOTE: a duplicate use statement should be an error at the level
+		// of the compiler, but should not be an error at the level
+		// of the parser.
+		{"duplicate use statement test", "duplicate_use_statement"},
+		{"use expiration keyword test", "useexpirationkeyword"},
+		{"expiration non-keyword test", "expirationnonkeyword"},
+		{"invalid use", "invaliduse"},
+		{"use after definition", "useafterdef"},
+		{"invalid use expiration test", "invaliduseexpiration"},
 		{"local imports test", "localimport"},
 		{"local imports with singlequotes on import test", "localimport_with_singlequotes"},
 		{"local imports with quotes within quotes on import test", "localimport_with_quotes_in_quotes"},
 		{"local imports with unterminated string on import test", "localimport_with_unterminated_string"},
 		{"local imports with mismatched quotes on import test", "localimport_with_mismatched_quotes"},
 		{"local imports with keyword in import path test", "localimport_import_path_with_keyword"},
+		{"top-level block with unrecognized keyword", "nonsense_top_level_block"},
+		{"partials happy path", "partials"},
+		{"partials with malformed partial reference", "partials_with_malformed_partial_reference"},
+		{"partials with malformed reference splat", "partials_with_malformed_reference_splat"},
+		{"partials with malformed partial block", "partials_with_malformed_partial_block"},
 	}
 
 	for _, test := range parserTests {

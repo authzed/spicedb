@@ -7,10 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/tuple"
-
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // veryLargeGCWindow is a very large time duration, which when passed to a constructor should
@@ -56,6 +55,11 @@ func (c Categories) Watch() bool {
 	return ok
 }
 
+func (c Categories) Transaction() bool {
+	_, ok := c[TransactionCategory]
+	return ok
+}
+
 func (c Categories) WatchSchema() bool {
 	_, ok := c[WatchSchemaCategory]
 	return ok
@@ -74,6 +78,7 @@ const (
 	WatchSchemaCategory      = "WatchSchema"
 	WatchCheckpointsCategory = "WatchCheckpoints"
 	StatsCategory            = "Stats"
+	TransactionCategory      = "Transaction"
 )
 
 func WithCategories(cats ...string) Categories {
@@ -132,12 +137,14 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestDeleteCaveatedTuple", runner(tester, DeleteCaveatedTupleTest))
 	t.Run("TestDeleteWithLimit", runner(tester, DeleteWithLimitTest))
 	t.Run("TestDeleteWithInvalidPrefix", runner(tester, DeleteWithInvalidPrefixTest))
+	t.Run("TestDeleteWithPrefix", runner(tester, DeleteWithPrefixTest))
 	t.Run("TestQueryRelationshipsWithVariousFilters", runner(tester, QueryRelationshipsWithVariousFiltersTest))
 	t.Run("TestDeleteRelationshipsWithVariousFilters", runner(tester, DeleteRelationshipsWithVariousFiltersTest))
 	t.Run("TestTouchTypedAlreadyExistingWithoutCaveat", runner(tester, TypedTouchAlreadyExistingTest))
 	t.Run("TestTouchTypedAlreadyExistingWithCaveat", runner(tester, TypedTouchAlreadyExistingWithCaveatTest))
 	t.Run("TestRelationshipExpiration", runner(tester, RelationshipExpirationTest))
 	t.Run("TestMixedWriteOperations", runner(tester, MixedWriteOperationsTest))
+	t.Run("TestRelationshipCaveatFiltering", runner(tester, RelationshipCaveatFilteringTest))
 
 	t.Run("TestMultipleReadsInRWT", runner(tester, MultipleReadsInRWTTest))
 	t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))
@@ -199,11 +206,16 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 		t.Run("TestWatchCheckpoints", runner(tester, WatchCheckpointsTest))
 	}
 
+	if !except.Transaction() {
+		t.Run("TestWriteAndReadInRWT", runner(tester, WriteAndReadInRWT))
+	}
+
 	t.Run("TestRelationshipCounters", runner(tester, RelationshipCountersTest))
 	t.Run("TestUpdateRelationshipCounter", runner(tester, UpdateRelationshipCounterTest))
 	t.Run("TestDeleteAllData", runner(tester, DeleteAllDataTest))
 	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
 	t.Run("TestRegisterRelationshipCountersInParallel", runner(tester, RegisterRelationshipCountersInParallelTest))
+	t.Run("TestRelationshipCountersWithOddFilter", runner(tester, RelationshipCountersWithOddFilterTest))
 }
 
 func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {

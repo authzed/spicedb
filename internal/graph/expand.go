@@ -5,12 +5,13 @@ import (
 	"errors"
 
 	"github.com/authzed/spicedb/internal/caveats"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -62,7 +63,7 @@ func (ce *ConcurrentExpander) expandDirect(
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: req.ResourceAndRelation.Relation,
-		})
+		}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return
@@ -224,13 +225,14 @@ func (ce *ConcurrentExpander) dispatch(req ValidatedExpandRequest) ReduceableExp
 func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req ValidatedExpandRequest, cu *core.ComputedUserset, rel *tuple.Relationship) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Str("relation", cu.Relation).Msg("computed userset")
 	var start tuple.ObjectAndRelation
-	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
+	switch cu.Object {
+	case core.ComputedUserset_TUPLE_USERSET_OBJECT:
 		if rel == nil {
 			return expandError(spiceerrors.MustBugf("computed userset for tupleset without tuple"))
 		}
 
 		start = rel.Subject
-	} else if cu.Object == core.ComputedUserset_TUPLE_OBJECT {
+	case core.ComputedUserset_TUPLE_OBJECT:
 		if rel != nil {
 			start = rel.Resource
 		} else {
@@ -278,7 +280,7 @@ func expandTupleToUserset[T relation](
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
-		})
+		}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return

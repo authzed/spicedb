@@ -7,17 +7,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 func TestPublishError(t *testing.T) {
 	cmd := cobra.Command{}
 	RegisterFlags(cmd.Flags())
 
-	f, err := os.CreateTemp("", "")
+	f, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	filePath := f.Name()
 	cmd.Flag(terminationLogFlagName).Value = newStringValue(filePath, &filePath)

@@ -1,18 +1,16 @@
 package namespace
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/typesystem"
-
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -429,21 +427,23 @@ func TestCanonicalization(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
-			ts, err := typesystem.NewNamespaceTypeSystem(tc.toCheck, typesystem.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+
+			def, err := schema.NewDefinition(ts, tc.toCheck)
 			require.NoError(err)
 
-			vts, terr := ts.Validate(ctx)
-			require.NoError(terr)
+			vdef, derr := def.Validate(ctx)
+			require.NoError(derr)
 
-			aliases, aerr := computePermissionAliases(vts)
+			aliases, aerr := computePermissionAliases(vdef)
 			require.NoError(aerr)
 
-			cacheKeys, cerr := computeCanonicalCacheKeys(vts, aliases)
+			cacheKeys, cerr := computeCanonicalCacheKeys(vdef, aliases)
 			require.NoError(cerr)
 			require.Equal(tc.expectedCacheMap, cacheKeys)
 		})
@@ -556,7 +556,7 @@ func TestCanonicalizationComparison(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			schemaText := fmt.Sprintf(comparisonSchemaTemplate, tc.first, tc.second)
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -565,13 +565,14 @@ func TestCanonicalizationComparison(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(context.Background())
+			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
-			ts, err := typesystem.NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], typesystem.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			def, err := schema.NewDefinition(ts, compiled.ObjectDefinitions[0])
 			require.NoError(err)
 
-			vts, terr := ts.Validate(ctx)
+			vts, terr := def.Validate(ctx)
 			require.NoError(terr)
 
 			aliases, aerr := computePermissionAliases(vts)

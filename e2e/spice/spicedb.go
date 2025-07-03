@@ -137,7 +137,7 @@ type Cluster []*Node
 
 // NewClusterFromCockroachCluster creates a spicedb instance for every
 // cockroach instance, with each spicedb configured to talk to the corresponding
-// cockraoch node.
+// cockroach node.
 func NewClusterFromCockroachCluster(c cockroach.Cluster, opts ...NodeOption) Cluster {
 	ss := make([]*Node, 0, len(c))
 

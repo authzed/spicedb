@@ -148,7 +148,7 @@ message DispatchLookupSubjectsResponse {
 }
 
 message ResolverMeta {
-  string at_revision = 1 [(validate.rules).string = {max_bytes: 1024}];
+  string at_revision = 1;
   uint32 depth_remaining = 2 [(validate.rules).uint32.gt = 0];
   string request_id = 3 [deprecated = true];
   bytes traversal_bloom = 4 [(validate.rules).bytes = {max_len: 1024}];

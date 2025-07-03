@@ -1,12 +1,12 @@
 package development
 
 import (
-	"context"
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
@@ -17,7 +17,7 @@ import (
 func TestDevelopment(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -49,7 +49,7 @@ definition document {
 func TestDevelopmentInvalidRelationship(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
-	_, _, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	_, _, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -79,7 +79,7 @@ definition document {
 func TestDevelopmentCaveatedExpectedRels(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 caveat somecaveat(somecondition int) {
@@ -114,7 +114,7 @@ definition document {
 func TestDevContextV1Service(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
-	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -134,7 +134,7 @@ definition document {
 	t.Cleanup(shutdown)
 
 	client := v1.NewSchemaServiceClient(conn)
-	resp, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	resp, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.Nil(t, err)
 	require.Contains(t, resp.SchemaText, "definition document")
 

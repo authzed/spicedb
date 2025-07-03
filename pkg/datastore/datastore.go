@@ -12,12 +12,11 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/authzed/spicedb/pkg/tuple"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var Engines []string
@@ -68,7 +67,7 @@ type RevisionChanges struct {
 	Metadata *structpb.Struct
 }
 
-func (rc *RevisionChanges) DebugString() string {
+func (rc RevisionChanges) DebugString() string {
 	if rc.IsCheckpoint {
 		return "[checkpoint]"
 	}
@@ -94,7 +93,7 @@ func (rc *RevisionChanges) DebugString() string {
 	return debugString
 }
 
-func (rc *RevisionChanges) MarshalZerologObject(e *zerolog.Event) {
+func (rc RevisionChanges) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("revision", rc.Revision.String())
 	e.Bool("is-checkpoint", rc.IsCheckpoint)
 	e.Array("deleted-namespaces", strArray(rc.DeletedNamespaces))
@@ -126,6 +125,23 @@ const (
 	ExpirationFilterOptionNoExpiration
 )
 
+// CaveatFilterOption is the filter option for the caveat name field on relationships.
+type CaveatFilterOption int
+
+const (
+	// CaveatFilterOptionNone indicates that the caveat filter should not be used:
+	// relationships both with and without caveats will be returned.
+	CaveatFilterOptionNone CaveatFilterOption = iota
+
+	// CaveatFilterOptionHasMatchingCaveat indicates that the caveat filter should only
+	// return relationships with the matching caveat.
+	CaveatFilterOptionHasMatchingCaveat
+
+	// CaveatFilterOptionNoCaveat indicates that the caveat filter should only
+	// return relationships without a caveat.
+	CaveatFilterOptionNoCaveat
+)
+
 // RelationshipsFilter is a filter for relationships.
 type RelationshipsFilter struct {
 	// OptionalResourceType is the namespace/type for the resources to be found.
@@ -146,9 +162,9 @@ type RelationshipsFilter struct {
 	// If specified, relationships matching *any* selector will be returned.
 	OptionalSubjectsSelectors []SubjectsSelector
 
-	// OptionalCaveatName is the filter to use for caveated relationships, filtering by a specific caveat name.
-	// If nil, all caveated and non-caveated relationships are allowed
-	OptionalCaveatName string
+	// OptionalCaveatNameFilter is the filter to use for caveated relationships, filtering by a specific caveat name.
+	// By default, no caveat filtered is done (one direction or the other).
+	OptionalCaveatNameFilter CaveatNameFilter
 
 	// OptionalExpirationOption is the filter to use for relationships with or without an expiration.
 	OptionalExpirationOption ExpirationFilterOption
@@ -181,8 +197,17 @@ func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
 		return false
 	}
 
-	if rf.OptionalCaveatName != "" {
-		if relationship.OptionalCaveat == nil || relationship.OptionalCaveat.CaveatName != rf.OptionalCaveatName {
+	switch rf.OptionalCaveatNameFilter.Option {
+	case CaveatFilterOptionNone:
+		// No caveat filter, so no need to check.
+
+	case CaveatFilterOptionHasMatchingCaveat:
+		if relationship.OptionalCaveat == nil || relationship.OptionalCaveat.CaveatName != rf.OptionalCaveatNameFilter.CaveatName {
+			return false
+		}
+
+	case CaveatFilterOptionNoCaveat:
+		if relationship.OptionalCaveat != nil && relationship.OptionalCaveat.CaveatName != "" {
 			return false
 		}
 	}
@@ -196,6 +221,29 @@ func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
 	}
 
 	return true
+}
+
+// CaveatNameFilter is a filter for caveat names.
+type CaveatNameFilter struct {
+	// Option is the filter option to use for the caveat name.
+	Option CaveatFilterOption
+
+	// CaveatName is the name of the caveat to filter by. Must be specified if option is
+	// CaveatFilterOptionHasCaveat.
+	CaveatName string
+}
+
+func WithCaveatName(caveatName string) CaveatNameFilter {
+	return CaveatNameFilter{
+		Option:     CaveatFilterOptionHasMatchingCaveat,
+		CaveatName: caveatName,
+	}
+}
+
+func WithNoCaveat() CaveatNameFilter {
+	return CaveatNameFilter{
+		Option: CaveatFilterOptionNoCaveat,
+	}
 }
 
 // CoreFilterFromRelationshipFilter constructs a core RelationshipFilter from a V1 RelationshipsFilter.
@@ -504,11 +552,12 @@ type ReadWriteTransaction interface {
 	WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error
 
 	// DeleteRelationships deletes relationships that match the provided filter, with
-	// the optional limit. If a limit is provided and reached, the method will return
-	// true as the first return value. Otherwise, the boolean can be ignored.
+	// the optional limit. Returns the number of deleted relationships. If a limit
+	// is provided and reached, the method will return true as the second return value.
+	// Otherwise, the boolean can be ignored.
 	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter,
 		options ...options.DeleteOptionsOption,
-	) (bool, error)
+	) (uint64, bool, error)
 
 	// WriteNamespaces takes proto namespace definitions and persists them.
 	WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error
@@ -628,6 +677,11 @@ func (wo WatchOptions) WithCheckpointInterval(interval time.Duration) WatchOptio
 
 // ReadOnlyDatastore is an interface for reading relationships from the datastore.
 type ReadOnlyDatastore interface {
+	// MetricsID returns an identifier for the datastore for use in metrics.
+	// This identifier is typically the hostname of the datastore (where applicable)
+	// and may not be unique; callers should not rely on uniqueness.
+	MetricsID() (string, error)
+
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 	// Any errors establishing the reader will be returned by subsequent calls.
 	SnapshotReader(Revision) Reader
@@ -651,7 +705,16 @@ type ReadOnlyDatastore interface {
 	// Watch notifies the caller about changes to the datastore, based on the specified options.
 	//
 	// All events following afterRevision will be sent to the caller.
-	Watch(ctx context.Context, afterRevision Revision, options WatchOptions) (<-chan *RevisionChanges, <-chan error)
+	//
+	// Errors returned will fall into a few classes:
+	// - WatchDisconnectedError - the watch has fallen too far behind and has been disconnected.
+	// - WatchCanceledError     - the watch was canceled by the caller.
+	// - WatchDisabledError     - the watch is disabled by being unsupported by the datastore.
+	// - WatchRetryableError    - the watch is retryable, and the caller may retry after some backoff time.
+	// - InvalidRevisionError   - the revision specified has passed the datastore's watch history window and
+	//                            the watch cannot be retried.
+	// - Other errors 			- the watch should not be retried due to a fatal error.
+	Watch(ctx context.Context, afterRevision Revision, options WatchOptions) (<-chan RevisionChanges, <-chan error)
 
 	// ReadyState returns a state indicating whether the datastore is ready to accept data.
 	// Datastores that require database schema creation will return not-ready until the migrations
@@ -681,6 +744,30 @@ type Datastore interface {
 	// ReadWriteTx starts a read/write transaction, which will be committed if no error is
 	// returned and rolled back if an error is returned.
 	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
+}
+
+// ParsedExplain represents the parsed output of an EXPLAIN statement.
+type ParsedExplain struct {
+	// IndexesUsed is the list of indexes used in the query.
+	IndexesUsed []string
+}
+
+// Explainable is an interface for datastores that support EXPLAIN statements.
+type Explainable interface {
+	// BuildExplainQuery builds an EXPLAIN statement for the given SQL and arguments.
+	BuildExplainQuery(sql string, args []any) (string, []any, error)
+
+	// ParseExplain parses the output of an EXPLAIN statement.
+	ParseExplain(explain string) (ParsedExplain, error)
+
+	// PreExplainStatements returns any statements that should be run before the EXPLAIN statement.
+	PreExplainStatements() []string
+}
+
+// SQLDatastore is an interface for datastores that support SQL-based operations.
+type SQLDatastore interface {
+	Datastore
+	Explainable
 }
 
 // StrictReadDatastore is an interface for datastores that support strict read mode.

@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -31,47 +31,47 @@ var (
 	SELECT %[1]s, %[2]s, %[3]s, %[4]s FROM %[5]s
 	WHERE %[1]s >= pg_snapshot_xmax($1) OR (
 		%[1]s >= pg_snapshot_xmin($1) AND NOT pg_visible_in_snapshot(%[1]s, $1)
-	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, colMetadata, colTimestamp, tableTransaction)
+	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, schema.ColXID, schema.ColSnapshot, schema.ColMetadata, schema.ColTimestamp, schema.TableTransaction)
 
 	queryChangedTuples = psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-		colExpiration,
-		colCreatedXid,
-		colDeletedXid,
-	).From(tableTuple)
+		schema.ColNamespace,
+		schema.ColObjectID,
+		schema.ColRelation,
+		schema.ColUsersetNamespace,
+		schema.ColUsersetObjectID,
+		schema.ColUsersetRelation,
+		schema.ColCaveatContextName,
+		schema.ColCaveatContext,
+		schema.ColExpiration,
+		schema.ColCreatedXid,
+		schema.ColDeletedXid,
+	).From(schema.TableTuple)
 
 	queryChangedNamespaces = psql.Select(
-		colConfig,
-		colCreatedXid,
-		colDeletedXid,
-	).From(tableNamespace)
+		schema.ColConfig,
+		schema.ColCreatedXid,
+		schema.ColDeletedXid,
+	).From(schema.TableNamespace)
 
 	queryChangedCaveats = psql.Select(
-		colCaveatName,
-		colCaveatDefinition,
-		colCreatedXid,
-		colDeletedXid,
-	).From(tableCaveat)
+		schema.ColCaveatName,
+		schema.ColCaveatDefinition,
+		schema.ColCreatedXid,
+		schema.ColDeletedXid,
+	).From(schema.TableCaveat)
 )
 
 func (pgd *pgDatastore) Watch(
 	ctx context.Context,
 	afterRevisionRaw datastore.Revision,
 	options datastore.WatchOptions,
-) (<-chan *datastore.RevisionChanges, <-chan error) {
+) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := options.WatchBufferLength
 	if watchBufferLength <= 0 {
 		watchBufferLength = pgd.watchBufferLength
 	}
 
-	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
+	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	if !pgd.watchEnabled {
@@ -97,7 +97,7 @@ func (pgd *pgDatastore) Watch(
 		watchBufferWriteTimeout = pgd.watchBufferWriteTimeout
 	}
 
-	sendChange := func(change *datastore.RevisionChanges) bool {
+	sendChange := func(change datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
 			return true
@@ -126,12 +126,14 @@ func (pgd *pgDatastore) Watch(
 		currentTxn := afterRevision
 		requestedCheckpoints := options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints
 		for {
-			newTxns, optionalHeadRevision, err := pgd.getNewRevisions(ctx, currentTxn, requestedCheckpoints)
+			newTxns, err := pgd.getNewRevisions(ctx, currentTxn)
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
-				} else if pgxcommon.IsCancellationError(err) {
+				} else if common.IsCancellationError(err) {
 					errs <- datastore.NewWatchCanceledErr()
+				} else if common.IsResettableError(err) {
+					errs <- datastore.NewWatchTemporaryErr(err)
 				} else {
 					errs <- err
 				}
@@ -143,6 +145,10 @@ func (pgd *pgDatastore) Watch(
 				if err != nil {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						errs <- datastore.NewWatchCanceledErr()
+					} else if common.IsCancellationError(err) {
+						errs <- datastore.NewWatchCanceledErr()
+					} else if common.IsResettableError(err) {
+						errs <- datastore.NewWatchTemporaryErr(err)
 					} else {
 						errs <- err
 					}
@@ -151,7 +157,7 @@ func (pgd *pgDatastore) Watch(
 
 				for _, changeToWrite := range changesToWrite {
 					changeToWrite := changeToWrite
-					if !sendChange(&changeToWrite) {
+					if !sendChange(changeToWrite) {
 						return
 					}
 				}
@@ -174,7 +180,7 @@ func (pgd *pgDatastore) Watch(
 				// move revisions forward outside of changes, these could be necessary if the caller is
 				// watching only a *subset* of changes.
 				if requestedCheckpoints {
-					if !sendChange(&datastore.RevisionChanges{
+					if !sendChange(datastore.RevisionChanges{
 						Revision:     currentTxn,
 						IsCheckpoint: true,
 					}) {
@@ -182,31 +188,6 @@ func (pgd *pgDatastore) Watch(
 					}
 				}
 			} else {
-				// PG head revision could move outside of changes (e.g. VACUUM ANALYZE), and we still need to
-				// send a checkpoint to the client, as could have determined also via Head that changes exist and
-				// called Watch API
-				//
-				// we need to compute the head revision in the same transaction where we determine any new spicedb,
-				// transactions, otherwise there could be a race that means we issue a checkpoint before we issue
-				// the corresponding changes.
-				if requestedCheckpoints {
-					if optionalHeadRevision == nil {
-						errs <- spiceerrors.MustBugf("expected to have an optional head revision")
-						return
-					}
-
-					if optionalHeadRevision.GreaterThan(currentTxn) {
-						if !sendChange(&datastore.RevisionChanges{
-							Revision:     *optionalHeadRevision,
-							IsCheckpoint: true,
-						}) {
-							return
-						}
-
-						currentTxn = *optionalHeadRevision
-					}
-				}
-
 				select {
 				case <-time.NewTimer(watchSleep).C:
 					break
@@ -221,18 +202,9 @@ func (pgd *pgDatastore) Watch(
 	return updates, errs
 }
 
-func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision, returnHeadRevision bool) ([]postgresRevision, *postgresRevision, error) {
+func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision) ([]postgresRevision, error) {
 	var ids []postgresRevision
-	var optionalHeadRevision *postgresRevision
-	var err error
 	if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		if returnHeadRevision {
-			optionalHeadRevision, err = pgd.getHeadRevision(ctx, tx)
-			if err != nil {
-				return fmt.Errorf("unable to get head revision: %w", err)
-			}
-		}
-
 		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot)
 		if err != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
@@ -265,10 +237,10 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 		}
 		return nil
 	}); err != nil {
-		return nil, optionalHeadRevision, fmt.Errorf("transaction error: %w", err)
+		return nil, fmt.Errorf("transaction error: %w", err)
 	}
 
-	return ids, optionalHeadRevision, nil
+	return ids, nil
 }
 
 func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRevision, options datastore.WatchOptions) ([]datastore.RevisionChanges, error) {
@@ -329,12 +301,12 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedTuples.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: xmax},
-			sq.GtOrEq{colCreatedXid: xmin},
+			sq.LtOrEq{schema.ColCreatedXid: xmax},
+			sq.GtOrEq{schema.ColCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: xmax},
-			sq.GtOrEq{colDeletedXid: xmin},
+			sq.LtOrEq{schema.ColDeletedXid: xmax},
+			sq.GtOrEq{schema.ColDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {
@@ -425,12 +397,12 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64
 func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedNamespaces.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: xmax},
-			sq.GtOrEq{colCreatedXid: xmin},
+			sq.LtOrEq{schema.ColCreatedXid: xmax},
+			sq.GtOrEq{schema.ColCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: xmax},
-			sq.GtOrEq{colDeletedXid: xmin},
+			sq.LtOrEq{schema.ColDeletedXid: xmax},
+			sq.GtOrEq{schema.ColDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {
@@ -482,12 +454,12 @@ func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, x
 func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedCaveats.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: xmax},
-			sq.GtOrEq{colCreatedXid: xmin},
+			sq.LtOrEq{schema.ColCreatedXid: xmax},
+			sq.GtOrEq{schema.ColCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: xmax},
-			sq.GtOrEq{colDeletedXid: xmin},
+			sq.LtOrEq{schema.ColDeletedXid: xmax},
+			sq.GtOrEq{schema.ColDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {

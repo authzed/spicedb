@@ -6,19 +6,23 @@ import (
 	"sync"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/taskrunner"
+	"github.com/authzed/spicedb/internal/telemetry"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
@@ -33,6 +37,7 @@ type bulkChecker struct {
 	maxAPIDepth          uint32
 	maxCaveatContextSize int
 	maxConcurrency       uint16
+	caveatTypeSet        *caveattypes.TypeSet
 
 	dispatch          dispatch.Dispatcher
 	dispatchChunkSize uint16
@@ -41,6 +46,8 @@ type bulkChecker struct {
 const maxBulkCheckCount = 10000
 
 func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
+	telemetry.RecordLogicalChecks(uint64(len(req.Items)))
+
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -79,6 +86,10 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 	}
 
 	bulkResponseMutex := sync.Mutex{}
+
+	spiceerrors.DebugAssert(func() bool {
+		return bc.maxConcurrency > 0
+	}, "max concurrency must be greater than 0 in bulk check")
 
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, bc.maxConcurrency, len(groupedItems))
 
@@ -204,7 +215,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 					}
 
 					// Convert to debug information.
-					dt, err := convertCheckDispatchDebugInformationWithSchema(ctx, params.CaveatContext, wrappedDebugInfo, ds, schemaText)
+					dt, err := convertCheckDispatchDebugInformationWithSchema(ctx, params.CaveatContext, wrappedDebugInfo, ds, bc.caveatTypeSet, schemaText)
 					if err != nil {
 						return err
 					}
@@ -235,6 +246,8 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 
 		slicez.ForEachChunk(group.resourceIDs, bc.dispatchChunkSize, func(resourceIDs []string) {
 			tr.Add(func(ctx context.Context) error {
+				startTime := time.Now()
+
 				ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 				// Ensure the check namespaces and relations are valid.
@@ -256,10 +269,18 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 				}
 
 				// Call bulk check to compute the check result(s) for the resource ID(s).
-				rcr, metadata, debugInfos, err := computed.ComputeBulkCheck(ctx, bc.dispatch, *group.params, resourceIDs, bc.dispatchChunkSize)
+				rcr, metadata, debugInfos, err := computed.ComputeBulkCheck(ctx, bc.dispatch, bc.caveatTypeSet, *group.params, resourceIDs, bc.dispatchChunkSize)
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}
+
+				// If successful, add the perf insight metric.
+				perfinsights.ObserveShapeLatency(ctx, "CheckBulkPermissions::Check", perfinsights.APIShapeLabels{
+					perfinsights.ResourceTypeLabel:     group.params.ResourceType.ObjectType,
+					perfinsights.ResourceRelationLabel: group.params.ResourceType.Relation,
+					perfinsights.SubjectTypeLabel:      group.params.Subject.ObjectType,
+					perfinsights.SubjectRelationLabel:  group.params.Subject.Relation,
+				}, time.Since(startTime))
 
 				return appendResultsForCheck(group.params, resourceIDs, metadata, debugInfos, rcr)
 			})

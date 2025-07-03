@@ -1,9 +1,12 @@
 package lsp
 
 import (
+	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/sourcegraph/go-lsp"
+	"github.com/sourcegraph/jsonrpc2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -235,4 +238,180 @@ dfinition resource {
 		Position: lsp.Position{Line: 3, Character: 18},
 	})
 	require.Error(t, err)
+}
+
+func TestTextDocDidSave(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///test", "definition user{}")
+
+	_, serverState := sendAndReceive[any](tester, "textDocument/didSave", lsp.DidSaveTextDocumentParams{
+		TextDocument: lsp.TextDocumentIdentifier{URI: "file:///test"},
+	})
+	require.Equal(t, serverStateInitialized, serverState)
+}
+
+func TestInitialized(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	_, serverState := sendAndReceive[any](tester, "initialized", struct{}{})
+	require.Equal(t, serverStateInitialized, serverState)
+}
+
+func TestInitializedBeforeInitialize(t *testing.T) {
+	tester := newLSPTester(t)
+
+	lerr, serverState := sendAndExpectError(tester, "initialized", struct{}{})
+	require.Equal(t, serverStateNotInitialized, serverState)
+	require.Equal(t, codeUninitialized, lerr.Code)
+}
+
+func TestShutdown(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	_, serverState := sendAndReceive[any](tester, "shutdown", struct{}{})
+	require.Equal(t, serverStateShuttingDown, serverState)
+}
+
+func TestRequestAfterShutdown(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	sendAndReceive[any](tester, "shutdown", struct{}{})
+
+	_, serverState := sendAndReceive[any](tester, "textDocument/formatting", lsp.FormattingOptions{})
+	require.Equal(t, serverStateShuttingDown, serverState)
+}
+
+func TestDiagnosticsRefreshSupport(t *testing.T) {
+	tester := newLSPTester(t)
+
+	// Initialize with diagnostic refresh support enabled
+	resp, serverState := sendAndReceive[lsp.InitializeResult](tester, "initialize", InitializeParams{
+		Capabilities: ClientCapabilities{
+			Diagnostics: DiagnosticWorkspaceClientCapabilities{
+				RefreshSupport: true,
+			},
+		},
+	})
+	require.Equal(t, serverStateInitialized, serverState)
+	require.True(t, resp.Capabilities.DocumentFormattingProvider)
+	require.True(t, tester.server.requestsDiagnostics)
+
+	// Initialize without diagnostic refresh support
+	tester2 := newLSPTester(t)
+	resp2, serverState2 := sendAndReceive[lsp.InitializeResult](tester2, "initialize", InitializeParams{
+		Capabilities: ClientCapabilities{
+			Diagnostics: DiagnosticWorkspaceClientCapabilities{
+				RefreshSupport: false,
+			},
+		},
+	})
+	require.Equal(t, serverStateInitialized, serverState2)
+	require.True(t, resp2.Capabilities.DocumentFormattingProvider)
+	require.False(t, tester2.server.requestsDiagnostics)
+}
+
+func TestLogJSONPtr(t *testing.T) {
+	require.Equal(t, "nil", logJSONPtr(nil))
+
+	msg := json.RawMessage(`{"test": "value"}`)
+	require.Equal(t, `{"test": "value"}`, logJSONPtr(&msg))
+}
+
+func TestServerRunInvalidArgs(t *testing.T) {
+	server := NewServer()
+	ctx := t.Context()
+
+	err := server.Run(ctx, "-", false)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot use stdin with stdio disabled")
+}
+
+func TestUnmarshalParamsErrors(t *testing.T) {
+	// Test with nil params
+	r := &jsonrpc2.Request{Method: "test", Params: nil}
+	_, err := unmarshalParams[struct{}](r)
+	require.Error(t, err)
+	require.IsType(t, &jsonrpc2.Error{}, err)
+	require.Equal(t, int64(jsonrpc2.CodeInvalidParams), func() *jsonrpc2.Error {
+		target := &jsonrpc2.Error{}
+		_ = errors.As(err, &target)
+		return target
+	}().Code)
+
+	// Test with invalid JSON
+	invalidJSON := json.RawMessage(`{"invalid": json}`)
+	r = &jsonrpc2.Request{Method: "test", Params: &invalidJSON}
+	_, err = unmarshalParams[struct{ Valid bool }](r)
+	require.Error(t, err)
+	require.IsType(t, &jsonrpc2.Error{}, err)
+	require.Equal(t, int64(jsonrpc2.CodeInvalidParams), func() *jsonrpc2.Error {
+		target := &jsonrpc2.Error{}
+		_ = errors.As(err, &target)
+		return target
+	}().Code)
+}
+
+func TestInvalidParams(t *testing.T) {
+	err := invalidParams(errors.New("test error"))
+	require.Equal(t, int64(jsonrpc2.CodeInvalidParams), err.Code)
+	require.Equal(t, "test error", err.Message)
+}
+
+func TestInvalidRequest(t *testing.T) {
+	err := invalidRequest(errors.New("test error"))
+	require.Equal(t, int64(jsonrpc2.CodeInvalidRequest), err.Code)
+	require.Equal(t, "test error", err.Message)
+}
+
+func TestUnsupportedMethod(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	// Test unsupported method - should return nil without error
+	_, serverState := sendAndReceive[any](tester, "unsupported/method", struct{}{})
+	require.Equal(t, serverStateInitialized, serverState)
+}
+
+func TestHoverNoReferenceFound(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	sendAndReceive[any](tester, "textDocument/didOpen", lsp.DidOpenTextDocumentParams{
+		TextDocument: lsp.TextDocumentItem{
+			URI:        lsp.DocumentURI("file:///test"),
+			LanguageID: "test",
+			Version:    1,
+			Text:       "definition user {}",
+		},
+	})
+
+	// Test hover at position where no reference exists
+	resp, _ := sendAndReceive[*Hover](tester, "textDocument/hover", lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: lsp.DocumentURI("file:///test"),
+		},
+		Position: lsp.Position{Line: 0, Character: 0},
+	})
+
+	require.Nil(t, resp)
+}
+
+func TestGetCompiledContentsFileNotFound(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	// Test hover on non-existent file
+	err, _ := sendAndExpectError(tester, "textDocument/hover", lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: lsp.DocumentURI("file:///nonexistent"),
+		},
+		Position: lsp.Position{Line: 0, Character: 0},
+	})
+	require.Error(t, err)
+	require.Equal(t, int64(jsonrpc2.CodeInternalError), err.Code)
 }

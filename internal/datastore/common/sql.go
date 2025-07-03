@@ -2,21 +2,24 @@ package common
 
 import (
 	"context"
-	"github.com/authzed/spicedb/pkg/middleware/tenantid"
+	"fmt"
 	"maps"
 	"math"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
+	"github.com/authzed/spicedb/pkg/middleware/tenantid"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -103,6 +106,20 @@ type SchemaQueryFilterer struct {
 	isCustomQuery          bool
 	extraFields            []string
 	fromSuffix             string
+	fromTable              string
+	indexingHint           IndexingHint
+}
+
+// IndexingHint is an interface that can be implemented to provide a hint for the SQL query.
+type IndexingHint interface {
+	// SQLPrefix returns the SQL prefix to be used for the indexing hint, if any.
+	SQLPrefix() (string, error)
+
+	// FromTable returns the table name to be used for the indexing hint, if any.
+	FromTable(existingTableName string) (string, error)
+
+	// FromSQLSuffix returns the suffix to be used for the indexing hint, if any.
+	FromSQLSuffix() (string, error)
 }
 
 // NewSchemaQueryFiltererForRelationshipsSelect creates a new SchemaQueryFilterer object for selecting
@@ -124,6 +141,7 @@ func NewSchemaQueryFiltererForRelationshipsSelect(schema SchemaInformation, filt
 		filterMaximumIDCount:   filterMaximumIDCount,
 		isCustomQuery:          false,
 		extraFields:            extraFields,
+		fromTable:              "",
 	}
 }
 
@@ -145,6 +163,7 @@ func NewSchemaQueryFiltererWithStartingQuery(schema SchemaInformation, startingQ
 		filterMaximumIDCount:   filterMaximumIDCount,
 		isCustomQuery:          true,
 		extraFields:            nil,
+		fromTable:              "",
 	}
 }
 
@@ -154,9 +173,21 @@ func (sqf SchemaQueryFilterer) WithAdditionalFilter(filter func(original sq.Sele
 	return sqf
 }
 
+// WithFromTable returns the SchemaQueryFilterer with a custom FROM table.
+func (sqf SchemaQueryFilterer) WithFromTable(fromTable string) SchemaQueryFilterer {
+	sqf.fromTable = fromTable
+	return sqf
+}
+
 // WithFromSuffix returns the SchemaQueryFilterer with a suffix added to the FROM clause.
 func (sqf SchemaQueryFilterer) WithFromSuffix(fromSuffix string) SchemaQueryFilterer {
 	sqf.fromSuffix = fromSuffix
+	return sqf
+}
+
+// WithIndexingHint returns the SchemaQueryFilterer with an indexing hint applied to the query.
+func (sqf SchemaQueryFilterer) WithIndexingHint(indexingHint IndexingHint) SchemaQueryFilterer {
+	sqf.indexingHint = indexingHint
 	return sqf
 }
 
@@ -184,24 +215,10 @@ func (sqf SchemaQueryFilterer) queryBuilderWithMaybeExpirationFilter(skipExpirat
 func (sqf SchemaQueryFilterer) TupleOrder(order options.SortOrder) SchemaQueryFilterer {
 	switch order {
 	case options.ByResource:
-		sqf.queryBuilder = sqf.queryBuilder.OrderBy(
-			sqf.schema.ColNamespace,
-			sqf.schema.ColObjectID,
-			sqf.schema.ColRelation,
-			sqf.schema.ColUsersetNamespace,
-			sqf.schema.ColUsersetObjectID,
-			sqf.schema.ColUsersetRelation,
-		)
+		sqf.queryBuilder = sqf.queryBuilder.OrderBy(sqf.schema.sortByResourceColumnOrderColumns()...)
 
 	case options.BySubject:
-		sqf.queryBuilder = sqf.queryBuilder.OrderBy(
-			sqf.schema.ColUsersetNamespace,
-			sqf.schema.ColUsersetObjectID,
-			sqf.schema.ColUsersetRelation,
-			sqf.schema.ColNamespace,
-			sqf.schema.ColObjectID,
-			sqf.schema.ColRelation,
-		)
+		sqf.queryBuilder = sqf.queryBuilder.OrderBy(sqf.schema.sortBySubjectColumnOrderColumns()...)
 	}
 
 	return sqf
@@ -212,52 +229,87 @@ type nameAndValue struct {
 	value string
 }
 
-func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
+func columnsAndValuesForSort(
+	order options.SortOrder,
+	schema SchemaInformation,
+	cursor options.Cursor,
+) ([]nameAndValue, error) {
+	var columnNames []string
+
+	switch order {
+	case options.ByResource:
+		columnNames = schema.sortByResourceColumnOrderColumns()
+
+	case options.BySubject:
+		columnNames = schema.sortBySubjectColumnOrderColumns()
+
+	default:
+		return nil, spiceerrors.MustBugf("invalid sort order %q", order)
+	}
+
+	nameAndValues := make([]nameAndValue, 0, len(columnNames))
+	for _, columnName := range columnNames {
+		switch columnName {
+		case schema.ColNamespace:
+			nameAndValues = append(nameAndValues, nameAndValue{
+				name:  columnName,
+				value: cursor.Resource.ObjectType,
+			})
+
+		case schema.ColObjectID:
+			nameAndValues = append(nameAndValues, nameAndValue{
+				name:  columnName,
+				value: cursor.Resource.ObjectID,
+			})
+
+		case schema.ColRelation:
+			nameAndValues = append(nameAndValues, nameAndValue{
+				name:  columnName,
+				value: cursor.Resource.Relation,
+			})
+
+		case schema.ColUsersetNamespace:
+			nameAndValues = append(nameAndValues, nameAndValue{
+				name:  columnName,
+				value: cursor.Subject.ObjectType,
+			})
+
+		case schema.ColUsersetObjectID:
+			nameAndValues = append(nameAndValues, nameAndValue{
+				name:  columnName,
+				value: cursor.Subject.ObjectID,
+			})
+
+		case schema.ColUsersetRelation:
+			nameAndValues = append(nameAndValues, nameAndValue{
+				name:  columnName,
+				value: cursor.Subject.Relation,
+			})
+
+		default:
+			return nil, spiceerrors.MustBugf("invalid column name %q", columnName)
+		}
+	}
+
+	return nameAndValues, nil
+}
+
+func (sqf SchemaQueryFilterer) MustAfter(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
+	updated, err := sqf.After(cursor, order)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
+func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOrder) (SchemaQueryFilterer, error) {
 	spiceerrors.DebugAssertNotNil(cursor, "cursor cannot be nil")
 
 	// NOTE: The ordering of these columns can affect query performance, be aware when changing.
-	columnsAndValues := map[options.SortOrder][]nameAndValue{
-		options.ByResource: {
-			{
-				sqf.schema.ColNamespace, cursor.Resource.ObjectType,
-			},
-			{
-				sqf.schema.ColObjectID, cursor.Resource.ObjectID,
-			},
-			{
-				sqf.schema.ColRelation, cursor.Resource.Relation,
-			},
-			{
-				sqf.schema.ColUsersetNamespace, cursor.Subject.ObjectType,
-			},
-			{
-				sqf.schema.ColUsersetObjectID, cursor.Subject.ObjectID,
-			},
-			{
-				sqf.schema.ColUsersetRelation, cursor.Subject.Relation,
-			},
-		},
-		options.BySubject: {
-			{
-				sqf.schema.ColUsersetNamespace, cursor.Subject.ObjectType,
-			},
-			{
-				sqf.schema.ColUsersetObjectID, cursor.Subject.ObjectID,
-			},
-			{
-				sqf.schema.ColNamespace, cursor.Resource.ObjectType,
-			},
-			{
-				sqf.schema.ColObjectID, cursor.Resource.ObjectID,
-			},
-			{
-				sqf.schema.ColRelation, cursor.Resource.Relation,
-			},
-			{
-				sqf.schema.ColUsersetRelation, cursor.Subject.Relation,
-			},
-		},
-	}[order]
+	columnsAndValues, err := columnsAndValuesForSort(order, sqf.schema, cursor)
+	if err != nil {
+		return sqf, err
+	}
 
 	switch sqf.schema.PaginationFilterType {
 	case TupleComparison:
@@ -305,7 +357,7 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 		}
 	}
 
-	return sqf
+	return sqf, nil
 }
 
 // FilterToResourceType returns a new SchemaQueryFilterer that is limited to resources of the
@@ -350,17 +402,12 @@ func (sqf SchemaQueryFilterer) MustFilterToResourceIDs(resourceIds []string) Sch
 // FilterWithResourceIDPrefix returns new SchemaQueryFilterer that is limited to resources whose ID
 // starts with the specified prefix.
 func (sqf SchemaQueryFilterer) FilterWithResourceIDPrefix(prefix string) (SchemaQueryFilterer, error) {
-	if strings.Contains(prefix, "%") {
-		return sqf, spiceerrors.MustBugf("prefix cannot contain the percent sign")
-	}
-	if prefix == "" {
-		return sqf, spiceerrors.MustBugf("prefix cannot be empty")
+	likeClause, err := BuildLikePrefixClause(sqf.schema.ColObjectID, prefix)
+	if err != nil {
+		return sqf, err
 	}
 
-	prefix = strings.ReplaceAll(prefix, `\`, `\\`)
-	prefix = strings.ReplaceAll(prefix, "_", `\_`)
-
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Like{sqf.schema.ColObjectID: prefix + "%"})
+	sqf.queryBuilder = sqf.queryBuilder.Where(likeClause)
 
 	// NOTE: we do *not* record the use of the resource ID column here, because it is not used
 	// statically and thus is necessary for sorting operations.
@@ -463,14 +510,28 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 		csqf = usqf
 	}
 
-	if filter.OptionalCaveatName != "" {
-		csqf = csqf.FilterWithCaveatName(filter.OptionalCaveatName)
+	switch filter.OptionalCaveatNameFilter.Option {
+	case datastore.CaveatFilterOptionHasMatchingCaveat:
+		spiceerrors.DebugAssert(func() bool {
+			return filter.OptionalCaveatNameFilter.CaveatName != ""
+		}, "caveat name must be set when using HasMatchingCaveat")
+		csqf = csqf.FilterWithCaveatName(filter.OptionalCaveatNameFilter.CaveatName)
+
+	case datastore.CaveatFilterOptionNoCaveat:
+		csqf = csqf.FilterWithNoCaveat()
+
+	case datastore.CaveatFilterOptionNone:
+		// No action needed, as this is the default behavior.
+
+	default:
+		return csqf, spiceerrors.MustBugf("unknown caveat filter option: %v", filter.OptionalCaveatNameFilter.Option)
 	}
 
-	if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionHasExpiration {
+	switch filter.OptionalExpirationOption {
+	case datastore.ExpirationFilterOptionHasExpiration:
 		csqf.queryBuilder = csqf.queryBuilder.Where(sq.NotEq{csqf.schema.ColExpiration: nil})
 		spiceerrors.DebugAssert(func() bool { return !sqf.schema.ExpirationDisabled }, "expiration filter requested but schema does not support expiration")
-	} else if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionNoExpiration {
+	case datastore.ExpirationFilterOptionNoExpiration:
 		csqf.queryBuilder = csqf.queryBuilder.Where(sq.Eq{csqf.schema.ColExpiration: nil})
 	}
 
@@ -604,9 +665,22 @@ func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) S
 	return sqf
 }
 
+// FilterWithCaveatName returns a new SchemaQueryFilterer that is limited to resources with the
+// specified caveat name.
 func (sqf SchemaQueryFilterer) FilterWithCaveatName(caveatName string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColCaveatName: caveatName})
 	sqf.recordColumnValue(sqf.schema.ColCaveatName, caveatName)
+	return sqf
+}
+
+// FilterWithNoCaveat returns a new SchemaQueryFilterer that is limited to resources with no caveat.
+func (sqf SchemaQueryFilterer) FilterWithNoCaveat() SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(
+		sq.Or{
+			sq.Eq{sqf.schema.ColCaveatName: nil},
+			sq.Eq{sqf.schema.ColCaveatName: ""},
+		})
+	sqf.recordVaryingColumnValue(sqf.schema.ColCaveatName)
 	return sqf
 }
 
@@ -645,7 +719,11 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 			return nil, datastore.ErrCursorsWithoutSorting
 		}
 
-		query = query.After(queryOpts.After, queryOpts.Sort)
+		q, err := query.After(queryOpts.After, queryOpts.Sort)
+		if err != nil {
+			return nil, err
+		}
+		query = q
 	}
 
 	// Add limit.
@@ -665,6 +743,40 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 
 	// Add FROM clause.
 	from := query.schema.RelationshipTableName
+	if query.fromTable != "" {
+		from = query.fromTable
+	}
+
+	// Add index hints, if any.
+	if query.indexingHint != nil {
+		// Check for a SQL prefix (pg_hint_plan).
+		sqlPrefix, err := query.indexingHint.SQLPrefix()
+		if err != nil {
+			return nil, fmt.Errorf("error getting SQL prefix for indexing hint: %w", err)
+		}
+
+		if sqlPrefix != "" {
+			query.queryBuilder = query.queryBuilder.Prefix(sqlPrefix)
+		}
+
+		// Check for an adjusting FROM table name (CRDB).
+		fromTableName, err := query.indexingHint.FromTable(from)
+		if err != nil {
+			return nil, fmt.Errorf("error getting FROM table name for indexing hint: %w", err)
+		}
+		from = fromTableName
+
+		// Check for a SQL suffix (MySQL, Spanner).
+		fromSuffix, err := query.indexingHint.FromSQLSuffix()
+		if err != nil {
+			return nil, fmt.Errorf("error getting SQL suffix for indexing hint: %w", err)
+		}
+
+		if fromSuffix != "" {
+			from += " " + fromSuffix
+		}
+	}
+
 	if query.fromSuffix != "" {
 		from += " " + query.fromSuffix
 	}
@@ -672,12 +784,14 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	query.queryBuilder = query.queryBuilder.From(from)
 
 	builder := RelationshipsQueryBuilder{
-		Schema:           query.schema,
-		SkipCaveats:      queryOpts.SkipCaveats,
-		SkipExpiration:   queryOpts.SkipExpiration,
-		sqlAssertion:     queryOpts.SQLAssertion,
-		filteringValues:  query.filteringColumnTracker,
-		baseQueryBuilder: query,
+		Schema:                    query.schema,
+		SkipCaveats:               queryOpts.SkipCaveats,
+		SkipExpiration:            queryOpts.SkipExpiration,
+		SQLCheckAssertionForTest:  queryOpts.SQLCheckAssertionForTest,
+		SQLExplainCallbackForTest: queryOpts.SQLExplainCallbackForTest,
+		filteringValues:           query.filteringColumnTracker,
+		queryShape:                queryOpts.QueryShape,
+		baseQueryBuilder:          query,
 	}
 
 	return exc.Executor(ctx, builder)
@@ -690,9 +804,11 @@ type RelationshipsQueryBuilder struct {
 	SkipCaveats    bool
 	SkipExpiration bool
 
-	filteringValues  columnTrackerMap
-	baseQueryBuilder SchemaQueryFilterer
-	sqlAssertion     options.Assertion
+	filteringValues           columnTrackerMap
+	baseQueryBuilder          SchemaQueryFilterer
+	SQLCheckAssertionForTest  options.SQLCheckAssertionForTest
+	SQLExplainCallbackForTest options.SQLExplainCallbackForTest
+	queryShape                queryshape.Shape
 }
 
 // withCaveats returns true if caveats should be included in the query.
@@ -761,8 +877,8 @@ func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 		return "", nil, err
 	}
 
-	if b.sqlAssertion != nil {
-		b.sqlAssertion(sql)
+	if b.SQLCheckAssertionForTest != nil {
+		b.SQLCheckAssertionForTest(sql)
 	}
 
 	return sql, args, nil
@@ -843,9 +959,24 @@ func ColumnsToSelect[CN any, CC any, EC any](
 	}
 
 	if len(colsToSelect) == 0 {
-		var unused int
+		var unused int64
 		colsToSelect = append(colsToSelect, &unused)
 	}
 
 	return colsToSelect, nil
+}
+
+// BuildLikePrefixClause builds a LIKE clause for the given column name and prefix.
+func BuildLikePrefixClause(columnName string, prefix string) (sq.Like, error) {
+	if prefix == "" {
+		return sq.Like{}, spiceerrors.MustBugf("prefix cannot be empty")
+	}
+
+	if strings.Contains(prefix, "%") {
+		return sq.Like{}, fmt.Errorf("prefix cannot contain the percent sign. found: %q", prefix)
+	}
+
+	prefix = strings.ReplaceAll(prefix, `\`, `\\`)
+	prefix = strings.ReplaceAll(prefix, "_", `\_`)
+	return sq.Like{columnName: prefix + "%"}, nil
 }

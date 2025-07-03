@@ -1,6 +1,5 @@
 //go:generate go run golang.org/x/tools/cmd/stringer -type=NodeType -output zz_generated.nodetype_string.go
 
-// Package dslshape defines the types representing the structure of schema DSL.
 package dslshape
 
 // NodeType identifies the type of AST node.
@@ -11,6 +10,7 @@ const (
 	NodeTypeError   NodeType = iota // error occurred; value is text of error
 	NodeTypeFile                    // The file root node
 	NodeTypeComment                 // A single or multiline comment
+	NodeTypeUseFlag                 // A use flag
 
 	NodeTypeDefinition       // A definition.
 	NodeTypeCaveatDefinition // A caveat definition.
@@ -24,6 +24,7 @@ const (
 	NodeTypeTypeReference         // A type reference
 	NodeTypeSpecificTypeReference // A reference to a specific type.
 	NodeTypeCaveatReference       // A caveat reference under a type.
+	NodeTypeTraitReference        // A trait reference under a typr.
 
 	NodeTypeUnionExpression
 	NodeTypeIntersectExpression
@@ -37,6 +38,8 @@ const (
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
 
 	NodeTypeImport
+	NodeTypePartial
+	NodeTypePartialReference // A location where a partial is referenced
 )
 
 const (
@@ -72,6 +75,13 @@ const (
 
 	// The value of the comment, including its delimeter(s)
 	NodeCommentPredicateValue = "comment-value"
+
+	//
+	// NodeTypeUseFlag
+	//
+
+	// The name of the use flag.
+	NodeUseFlagPredicateName = "use-flag-name"
 
 	//
 	// NodeTypeDefinition
@@ -157,12 +167,22 @@ const (
 	// A caveat under a type reference.
 	NodeSpecificReferencePredicateCaveat = "caveat"
 
+	// A trait under a type reference.
+	NodeSpecificReferencePredicateTrait = "trait"
+
 	//
 	// NodeTypeCaveatReference
 	//
 
 	// The caveat name under the caveat.
 	NodeCaveatPredicateCaveat = "caveat-name"
+
+	//
+	// NodeTypeTraitReference
+	//
+
+	// The trait name under the trait.
+	NodeTraitPredicateTrait = "trait-name"
 
 	//
 	// NodeTypePermission
@@ -195,4 +215,14 @@ const (
 	// NodeTypeImport
 	//
 	NodeImportPredicatePath = "import-path"
+
+	//
+	// NodeTypePartial
+	//
+	NodePartialPredicateName = "partial-name"
+
+	//
+	// NodeTypePartialReference
+	//
+	NodePartialReferencePredicateName = "partial-reference-name"
 )

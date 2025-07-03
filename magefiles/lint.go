@@ -26,8 +26,7 @@ func (l Lint) Scan() error {
 
 // Extra Lint everything that's not code
 func (l Lint) Extra() error {
-	// FIXME temporarily disabled buf format
-	mg.Deps(l.Markdown, l.Yaml)
+	mg.Deps(l.Markdown, l.Yaml, l.BufFormat)
 	return nil
 }
 
@@ -74,20 +73,21 @@ func (Lint) Gofumpt() error {
 // Golangcilint Run golangci-lint
 func (Lint) Golangcilint() error {
 	fmt.Println("running golangci-lint")
-	return RunSh("go", WithV())("run", "github.com/golangci/golangci-lint/cmd/golangci-lint", "run", "--fix")
+	return RunSh("go", WithV())("run", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", "run", "--fix")
 }
 
 // Analyzers Run all analyzers
 func (Lint) Analyzers() error {
 	fmt.Println("running analyzers")
 	return RunSh("go", WithDir("tools/analyzers"), WithV())("run", "./cmd/analyzers/main.go",
+		"-mutexcheck",
 		"-nilvaluecheck",
 		"-nilvaluecheck.skip-pkg=github.com/authzed/spicedb/pkg/proto/dispatch/v1",
 		"-nilvaluecheck.disallowed-nil-return-type-paths=*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse",
 		"-exprstatementcheck",
 		"-exprstatementcheck.disallowed-expr-statement-types=*github.com/rs/zerolog.Event:MarshalZerologObject:missing Send or Msg on zerolog log Event",
 		"-paniccheck",
-		"-paniccheck.skip-files=_test,zz_",
+		"-paniccheck.skip-files=_test,zz_,migrations/index.go",
 		"-zerologmarshalcheck",
 		"-zerologmarshalcheck.skip-files=_test,zz_",
 		"-protomarshalcheck",
@@ -105,12 +105,12 @@ func (Lint) Analyzers() error {
 // Vulncheck Run vulncheck
 func (Lint) Vulncheck() error {
 	fmt.Println("running vulncheck")
-	return RunSh("go", WithV())("run", "golang.org/x/vuln/cmd/govulncheck", "-show", "verbose", "./...")
+	return RunSh("go", WithV())("run", "golang.org/x/vuln/cmd/govulncheck", "./...")
 }
 
 // BufFormat runs buf format command
 func (l Lint) BufFormat() error {
-	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write")
+	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write", "../")
 }
 
 // Trivy Run Trivy

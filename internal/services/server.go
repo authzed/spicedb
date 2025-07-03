@@ -3,11 +3,12 @@ package services
 import (
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
@@ -68,7 +69,13 @@ func RegisterGrpcServices(
 	}
 
 	if schemaServiceOption == V1SchemaServiceEnabled || schemaServiceOption == V1SchemaServiceAdditiveOnly {
-		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaServiceOption == V1SchemaServiceAdditiveOnly, permSysConfig.ExpiringRelationshipsEnabled))
+		schemaConfig := v1svc.SchemaServerConfig{
+			CaveatTypeSet:                    permSysConfig.CaveatTypeSet,
+			AdditiveOnly:                     schemaServiceOption == V1SchemaServiceAdditiveOnly,
+			ExpiringRelsEnabled:              permSysConfig.ExpiringRelationshipsEnabled,
+			PerformanceInsightMetricsEnabled: permSysConfig.PerformanceInsightMetricsEnabled,
+		}
+		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaConfig))
 		healthManager.RegisterReportedService(v1.SchemaService_ServiceDesc.ServiceName)
 	}
 

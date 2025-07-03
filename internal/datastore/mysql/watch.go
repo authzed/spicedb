@@ -5,12 +5,12 @@ import (
 	"errors"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
-
-	sq "github.com/Masterminds/squirrel"
 )
 
 const (
@@ -20,14 +20,20 @@ const (
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
-func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := options.WatchBufferLength
 	if watchBufferLength <= 0 {
 		watchBufferLength = mds.watchBufferLength
 	}
 
-	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
+	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
+
+	if !mds.watchEnabled {
+		close(updates)
+		errs <- datastore.NewWatchDisabledErr("watch is disabled")
+		return updates, errs
+	}
 
 	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
 		close(updates)
@@ -52,7 +58,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 		watchBufferWriteTimeout = mds.watchBufferWriteTimeout
 	}
 
-	sendChange := func(change *datastore.RevisionChanges) bool {
+	sendChange := func(change datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
 			return true
@@ -95,7 +101,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
 				changeToWrite := changeToWrite
-				if !sendChange(&changeToWrite) {
+				if !sendChange(changeToWrite) {
 					return
 				}
 			}
@@ -147,8 +153,12 @@ func (mds *Datastore) loadChanges(
 
 	rows, err := mds.db.QueryContext(ctx, sql, args...)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(ctx.Err(), context.Canceled) {
 			err = datastore.NewWatchCanceledErr()
+		} else if common.IsCancellationError(err) {
+			err = datastore.NewWatchCanceledErr()
+		} else if common.IsResettableError(err) {
+			err = datastore.NewWatchTemporaryErr(err)
 		}
 		return
 	}

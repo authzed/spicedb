@@ -3,6 +3,8 @@ package common
 import (
 	sq "github.com/Masterminds/squirrel"
 
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -36,6 +38,9 @@ type SchemaInformation struct {
 	ColIntegrityHash      string `debugmap:"visible"`
 	ColIntegrityTimestamp string `debugmap:"visible"`
 
+	// Indexes are the indexes to use for this schema.
+	Indexes []IndexDefinition `debugmap:"visible"`
+
 	// PaginationFilterType is the type of pagination filter to use for this schema.
 	PaginationFilterType PaginationFilterType `debugmap:"visible"`
 
@@ -53,6 +58,25 @@ type SchemaInformation struct {
 
 	// ExpirationDisabled is a flag to indicate whether expiration support is disabled.
 	ExpirationDisabled bool `debugmap:"visible"`
+
+	// SortByResourceColumnOrder is the order of the resource columns in the schema to use
+	// when sorting by resource. If unspecified, the default will be used.
+	SortByResourceColumnOrder []string `debugmap:"visible"`
+
+	// SortBySubjectColumnOrder is the order of the subject columns in the schema to use
+	// when sorting by subject. If unspecified, the default will be used.
+	SortBySubjectColumnOrder []string `debugmap:"visible"`
+}
+
+// expectedIndexesForShape returns the expected index names for a given query shape.
+func (si SchemaInformation) expectedIndexesForShape(shape queryshape.Shape) options.SQLIndexInformation {
+	expectedIndexes := options.SQLIndexInformation{}
+	for _, index := range si.Indexes {
+		if index.matchesShape(shape) {
+			expectedIndexes.ExpectedIndexNames = append(expectedIndexes.ExpectedIndexNames, index.Name)
+		}
+	}
+	return expectedIndexes
 }
 
 func (si SchemaInformation) debugValidate() {
@@ -60,6 +84,36 @@ func (si SchemaInformation) debugValidate() {
 		si.mustValidate()
 		return true
 	}, "SchemaInformation failed to validate")
+}
+
+func (si SchemaInformation) sortByResourceColumnOrderColumns() []string {
+	if len(si.SortByResourceColumnOrder) > 0 {
+		return si.SortByResourceColumnOrder
+	}
+
+	return []string{
+		si.ColNamespace,
+		si.ColObjectID,
+		si.ColRelation,
+		si.ColUsersetNamespace,
+		si.ColUsersetObjectID,
+		si.ColUsersetRelation,
+	}
+}
+
+func (si SchemaInformation) sortBySubjectColumnOrderColumns() []string {
+	if len(si.SortBySubjectColumnOrder) > 0 {
+		return si.SortBySubjectColumnOrder
+	}
+
+	return []string{
+		si.ColUsersetNamespace,
+		si.ColUsersetObjectID,
+		si.ColUsersetRelation,
+		si.ColNamespace,
+		si.ColObjectID,
+		si.ColRelation,
+	}
 }
 
 func (si SchemaInformation) mustValidate() {

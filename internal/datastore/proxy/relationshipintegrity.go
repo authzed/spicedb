@@ -157,6 +157,10 @@ func computeRelationshipHash(rel tuple.Relationship, key *hmacConfig) ([]byte, e
 	return hasher.Sum(nil)[:hashLength], nil
 }
 
+func (r *relationshipIntegrityProxy) MetricsID() (string, error) {
+	return r.ds.MetricsID()
+}
+
 func (r *relationshipIntegrityProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	return relationshipIntegrityReader{
 		parent:  r,
@@ -252,9 +256,9 @@ func (r *relationshipIntegrityProxy) validateRelationTuple(rel tuple.Relationshi
 	return nil
 }
 
-func (r *relationshipIntegrityProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (r *relationshipIntegrityProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	resultsChan, errChan := r.ds.Watch(ctx, afterRevision, options)
-	checkedResultsChan := make(chan *datastore.RevisionChanges)
+	checkedResultsChan := make(chan datastore.RevisionChanges)
 	checkedErrChan := make(chan error, 1)
 
 	go func() {

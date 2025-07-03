@@ -1,21 +1,21 @@
 package v1_test
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/authzed/authzed-go/pkg/requestmeta"
-	"github.com/authzed/authzed-go/pkg/responsemeta"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/authzed/authzed-go/pkg/requestmeta"
+	"github.com/authzed/authzed-go/pkg/responsemeta"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
@@ -493,7 +493,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 			for _, stc := range tc.toTest {
@@ -890,7 +890,7 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 			items := make([]*v1.CheckBulkPermissionsRequestItem, 0, len(tc.toTest))

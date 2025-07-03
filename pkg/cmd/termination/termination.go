@@ -8,12 +8,12 @@ import (
 	"os"
 	"path"
 
-	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
+
+	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (

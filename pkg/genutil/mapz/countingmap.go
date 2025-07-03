@@ -6,7 +6,7 @@ import "sync"
 // key, removing the key from the map when the count reaches zero. Safe for concurrent
 // use.
 type CountingMultiMap[T comparable, Q comparable] struct {
-	valuesByKey map[T]*Set[Q]
+	valuesByKey map[T]*Set[Q] // GUARDED_BY(lock)
 	lock        sync.Mutex
 }
 

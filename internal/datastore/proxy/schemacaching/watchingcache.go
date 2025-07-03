@@ -147,7 +147,7 @@ func (p *watchingCachingProxy) Start(ctx context.Context) error {
 
 func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	log.Info().Msg("starting watching cache")
-	headRev, err := p.Datastore.HeadRevision(context.Background())
+	headRev, err := p.HeadRevision(context.Background())
 	if err != nil {
 		p.namespaceCache.setFallbackMode()
 		p.caveatCache.setFallbackMode()
@@ -239,10 +239,13 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
 
 			log.Debug().Str("revision", headRev.String()).Dur("watch-heartbeat", p.watchHeartbeat).Msg("beginning schema watch")
-			ssc, serrc := p.Datastore.Watch(ctx, headRev, datastore.WatchOptions{
+			ssc, serrc := p.Watch(ctx, headRev, datastore.WatchOptions{
 				Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
 				CheckpointInterval: p.watchHeartbeat,
 			})
+			spiceerrors.DebugAssertNotNil(ssc, "ssc is nil")
+			spiceerrors.DebugAssertNotNil(serrc, "serrc is nil")
+
 			log.Debug().Msg("schema watch started")
 
 			p.namespaceCache.startAtRevision(headRev)
@@ -261,7 +264,12 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 					return
 
 				case ss := <-ssc:
-					log.Trace().Object("update", ss).Msg("received update from schema watch")
+					log.Trace().
+						Bool("is-checkpoint", ss.IsCheckpoint).
+						Int("changed-definition-count", len(ss.ChangedDefinitions)).
+						Int("deleted-namespace-count", len(ss.DeletedNamespaces)).
+						Int("deleted-caveat-count", len(ss.DeletedCaveats)).
+						Msg("received update from schema watch")
 
 					if ss.IsCheckpoint {
 						if converted, ok := ss.Revision.(revisions.WithInexactFloat64); ok {
@@ -363,17 +371,14 @@ type schemaWatchCache[T datastore.SchemaDefinition] struct {
 	// inFallbackMode, if true, indicates that an error occurred with the WatchSchema call and that
 	// all further calls to this cache should passthrough, rather than using the cache itself (which
 	// is likely out of date).
-	// *Must* be accessed under the lock.
-	inFallbackMode bool
+	inFallbackMode bool // GUARDED_BY(lock)
 
 	// checkpointRevision is the current revision at which the cache has been given *all* possible
 	// changes.
-	// *Must* be accessed under the lock.
-	checkpointRevision datastore.Revision
+	checkpointRevision datastore.Revision // GUARDED_BY(lock)
 
 	// entries are the entries in the cache, by name of the namespace or caveat.
-	// *Must* be accessed under the lock.
-	entries map[string]*intervalTracker[revisionedEntry[T]]
+	entries map[string]*intervalTracker[revisionedEntry[T]] // GUARDED_BY(lock)
 
 	// definitionsReadCachedCounter is a counter of the number of cached definitions
 	// returned by the cache directly (without fallback)

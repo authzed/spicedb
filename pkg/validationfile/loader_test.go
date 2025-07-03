@@ -5,13 +5,14 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/tuple"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestPopulateFromFiles(t *testing.T) {
@@ -130,7 +131,7 @@ func TestPopulateFromFiles(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, 0)
 			require.NoError(err)
 
-			parsed, _, err := PopulateFromFiles(context.Background(), ds, tt.filePaths)
+			parsed, _, err := PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, tt.filePaths)
 			if tt.expectedError == "" {
 				require.NoError(err)
 
@@ -157,7 +158,7 @@ func TestPopulationChunking(t *testing.T) {
 	require.NoError(err)
 
 	cs := txCountingDatastore{delegate: ds}
-	_, _, err = PopulateFromFiles(context.Background(), &cs, []string{"testdata/requires_chunking.yaml"})
+	_, _, err = PopulateFromFiles(t.Context(), &cs, caveattypes.Default.TypeSet, []string{"testdata/requires_chunking.yaml"})
 	require.NoError(err)
 	require.Equal(3, cs.count)
 }

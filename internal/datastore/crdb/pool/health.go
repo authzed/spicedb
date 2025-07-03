@@ -34,8 +34,8 @@ func init() {
 type NodeHealthTracker struct {
 	sync.RWMutex
 	connConfig    *pgx.ConnConfig
-	healthyNodes  map[uint32]struct{}
-	nodesEverSeen map[uint32]*rate.Limiter
+	healthyNodes  map[uint32]struct{}      // GUARDED_BY(RWMutex)
+	nodesEverSeen map[uint32]*rate.Limiter // GUARDED_BY(RWMutex)
 	newLimiter    func() *rate.Limiter
 }
 

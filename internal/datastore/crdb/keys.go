@@ -4,8 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 )
 
 type keySet map[string]struct{}

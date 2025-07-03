@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -25,7 +26,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 	for _, tc := range testCases {
 		t.Run(strconv.Itoa(tc), func(t *testing.T) {
 			require := require.New(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
@@ -56,7 +57,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 
 			iter, err := ds.SnapshotReader(head).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testfixtures.DocumentNS.Name,
-			})
+			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			require.NoError(err)
 
 			tRequire.VerifyIteratorCount(iter, tc)
@@ -66,7 +67,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 
 func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -86,7 +87,7 @@ func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 
 func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -125,7 +126,7 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 	tc := 10
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -152,7 +153,7 @@ func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 
 	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	for found, err := range iter {
@@ -168,7 +169,7 @@ func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 	tc := 10
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -195,7 +196,7 @@ func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 
 	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	for found, err := range iter {
@@ -207,7 +208,7 @@ func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 	tc := 10
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
@@ -233,7 +234,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 
 	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	updates := make([]tuple.RelationshipUpdate, 0, tc)
@@ -258,7 +259,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 
 	iter, err = ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
 
 	foundChanged := 0
@@ -274,7 +275,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 
 func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)

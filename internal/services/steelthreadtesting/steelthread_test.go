@@ -18,9 +18,11 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -55,8 +57,10 @@ func TestNonMemdbSteelThreads(t *testing.T) {
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10),
 						dsconfig.WithMaxRetries(50),
+						dsconfig.WithExperimentalColumnOptimization(true),
 						dsconfig.WithRequestHedgingEnabled(false)))
 
+					ds = indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 					runSteelThreadTest(t, tc, ds)
 				})
 			}
@@ -75,7 +79,7 @@ func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datas
 		ds,
 		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 			// Load in the data.
-			_, rev, err := validationfile.PopulateFromFiles(ctx, ds, []string{"testdata/" + tc.datafile})
+			_, rev, err := validationfile.PopulateFromFiles(ctx, ds, caveattypes.Default.TypeSet, []string{"testdata/" + tc.datafile})
 			require.NoError(err)
 
 			return ds, rev

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/proto"
 
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/parser"
@@ -53,6 +55,9 @@ func (cs CompiledSchema) SourcePositionToRunePosition(source input.Source, posit
 type config struct {
 	skipValidation   bool
 	objectTypePrefix *string
+	allowedFlags     []string
+	caveatTypeSet    *caveattypes.TypeSet
+
 	// In an import context, this is the folder containing
 	// the importing schema (as opposed to imported schemas)
 	sourceFolder string
@@ -76,6 +81,21 @@ func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
 }
 
+// WithCaveatTypeSet sets the caveat type set to use for the compilation.
+func WithCaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
+	return func(cfg *config) { cfg.caveatTypeSet = caveatTypeSet }
+}
+
+const expirationFlag = "expiration"
+
+func DisallowExpirationFlag() Option {
+	return func(cfg *config) {
+		cfg.allowedFlags = lo.Filter(cfg.allowedFlags, func(s string, _ int) bool {
+			return s != expirationFlag
+		})
+	}
+}
+
 // Config that supplies the root source folder for compilation. Required
 // for relative import syntax to work properly.
 func SourceFolder(sourceFolder string) Option {
@@ -86,66 +106,72 @@ type Option func(*config)
 
 type ObjectPrefixOption func(*config)
 
-type compilationContext struct {
-	// The set of definition names that we've seen as we compile.
-	// If these collide we throw an error.
-	existingNames *mapz.Set[string]
-	// The global set of files we've visited in the import process.
-	// If these collide we short circuit, preventing duplicate imports.
-	globallyVisitedFiles *mapz.Set[string]
-	// The set of files that we've visited on a particular leg of the recursion.
-	// This allows for detection of circular imports.
-	// NOTE: This depends on an assumption that a depth-first search will always
-	// find a cycle, even if we're otherwise marking globally visited nodes.
-	locallyVisitedFiles *mapz.Set[string]
-}
-
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
-	cctx := compilationContext{
-		existingNames:        mapz.NewSet[string](),
-		globallyVisitedFiles: mapz.NewSet[string](),
-		locallyVisitedFiles:  mapz.NewSet[string](),
+	cfg := &config{
+		allowedFlags: make([]string, 0, 1),
 	}
-	return compileImpl(schema, cctx, prefix, opts...)
-}
 
-func compileImpl(schema InputSchema, cctx compilationContext, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
-	cfg := &config{}
+	// Enable `expiration` flag by default.
+	cfg.allowedFlags = append(cfg.allowedFlags, expirationFlag)
+
 	prefix(cfg) // required option
 
 	for _, fn := range opts {
 		fn(cfg)
 	}
 
-	mapper := newPositionMapper(schema)
-	root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
-	errs := root.FindAll(dslshape.NodeTypeError)
-	if len(errs) > 0 {
-		err := errorNodeToError(errs[0], mapper)
+	root, mapper, err := parseSchema(schema)
+	if err != nil {
 		return nil, err
 	}
 
-	compiled, err := translate(translationContext{
-		objectTypePrefix:     cfg.objectTypePrefix,
-		mapper:               mapper,
-		schemaString:         schema.SchemaString,
-		skipValidate:         cfg.skipValidation,
+	// NOTE: import translation is done separately so that partial references
+	// and definitions defined in separate files can correctly resolve.
+	err = translateImports(importResolutionContext{
+		globallyVisitedFiles: mapz.NewSet[string](),
+		locallyVisitedFiles:  mapz.NewSet[string](),
 		sourceFolder:         cfg.sourceFolder,
-		existingNames:        cctx.existingNames,
-		locallyVisitedFiles:  cctx.locallyVisitedFiles,
-		globallyVisitedFiles: cctx.globallyVisitedFiles,
+		mapper:               mapper,
+	}, root)
+	if err != nil {
+		return nil, err
+	}
+
+	initialCompiledPartials := make(map[string][]*core.Relation)
+	caveatTypeSet := caveattypes.TypeSetOrDefault(cfg.caveatTypeSet)
+	compiled, err := translate(&translationContext{
+		objectTypePrefix:   cfg.objectTypePrefix,
+		mapper:             mapper,
+		schemaString:       schema.SchemaString,
+		skipValidate:       cfg.skipValidation,
+		allowedFlags:       cfg.allowedFlags,
+		existingNames:      mapz.NewSet[string](),
+		compiledPartials:   initialCompiledPartials,
+		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
+		caveatTypeSet:      caveatTypeSet,
 	}, root)
 	if err != nil {
 		var withNodeError withNodeError
 		if errors.As(err, &withNodeError) {
-			err = toContextError(withNodeError.error.Error(), withNodeError.errorSourceCode, withNodeError.node, mapper)
+			err = toContextError(withNodeError.Error(), withNodeError.errorSourceCode, withNodeError.node, mapper)
 		}
 
 		return nil, err
 	}
 
 	return compiled, nil
+}
+
+func parseSchema(schema InputSchema) (*dslNode, input.PositionMapper, error) {
+	mapper := newPositionMapper(schema)
+	root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
+	errs := root.FindAll(dslshape.NodeTypeError)
+	if len(errs) > 0 {
+		err := errorNodeToError(errs[0], mapper)
+		return nil, nil, err
+	}
+	return root, mapper, nil
 }
 
 func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {

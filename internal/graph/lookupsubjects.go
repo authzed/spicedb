@@ -17,6 +17,8 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -115,7 +117,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 		OptionalResourceType:     req.ResourceRelation.Namespace,
 		OptionalResourceRelation: req.ResourceRelation.Relation,
 		OptionalResourceIds:      req.ResourceIds,
-	})
+	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 	if err != nil {
 		return err
 	}
@@ -199,11 +201,11 @@ type resourceDispatchTracker struct {
 	cancelDispatch context.CancelFunc
 	resourceID     string
 
-	subjectsSet datasets.SubjectSet
-	metadata    *v1.ResponseMeta
+	subjectsSet datasets.SubjectSet // GUARDED_BY(lock)
+	metadata    *v1.ResponseMeta    // GUARDED_BY(lock)
 
-	isFirstUpdate bool
-	wasCanceled   bool
+	isFirstUpdate bool // GUARDED_BY(lock)
+	wasCanceled   bool // GUARDED_BY(lock)
 
 	lock sync.Mutex
 }
@@ -220,7 +222,7 @@ func lookupViaIntersectionTupleToUserset(
 		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 		OptionalResourceIds:      parentRequest.ResourceIds,
-	})
+	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 	if err != nil {
 		return err
 	}
@@ -389,7 +391,7 @@ func lookupViaTupleToUserset[T relation](
 		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 		OptionalResourceIds:      parentRequest.ResourceIds,
-	})
+	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 	if err != nil {
 		return err
 	}

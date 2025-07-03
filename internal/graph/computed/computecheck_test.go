@@ -6,6 +6,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
@@ -14,14 +15,12 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/pkg/caveats/types"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/tuple"
-
-	"github.com/stretchr/testify/require"
 )
 
 type caveatedUpdate struct {
@@ -410,7 +409,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				{
 					"repository:foobar#read@user:johndoe",
 					map[string]any{
-						"user_ip": types.MustParseIPAddress("192.168.0.1"),
+						"user_ip": caveattypes.MustParseIPAddress("192.168.0.1"),
 					},
 					v1.ResourceCheckResult_MEMBER,
 					nil,
@@ -419,7 +418,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				{
 					"repository:foobar#read@user:johndoe",
 					map[string]any{
-						"user_ip": types.MustParseIPAddress("9.2.3.1"),
+						"user_ip": caveattypes.MustParseIPAddress("9.2.3.1"),
 					},
 					v1.ResourceCheckResult_NOT_MEMBER,
 					nil,
@@ -809,8 +808,8 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			dispatch := graph.NewLocalOnlyDispatcher(10, 100)
-			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+			dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 			revision, err := writeCaveatedTuples(ctx, t, ds, tt.schema, tt.updates)
@@ -822,6 +821,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 					rel := tuple.MustParse(r.check)
 
 					result, _, err := computed.ComputeCheck(ctx, dispatch,
+						caveattypes.Default.TypeSet,
 						computed.CheckParameters{
 							ResourceType:  rel.Resource.RelationReference(),
 							Subject:       rel.Subject,
@@ -859,11 +859,12 @@ func TestComputeCheckError(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	_, _, err = computed.ComputeCheck(ctx, dispatch,
+		caveattypes.Default.TypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR("a", "b"),
 			Subject:       tuple.ONR("c", "d", "..."),
@@ -882,8 +883,8 @@ func TestComputeBulkCheck(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	revision, err := writeCaveatedTuples(ctx, t, ds, `
@@ -910,6 +911,7 @@ func TestComputeBulkCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	resp, _, _, err := computed.ComputeBulkCheck(ctx, dispatch,
+		caveattypes.Default.TypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR("document", "view"),
 			Subject:       tuple.ONR("user", "tom", "..."),

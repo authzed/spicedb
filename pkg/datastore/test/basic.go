@@ -1,13 +1,14 @@
 package test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
 func UseAfterCloseTest(t *testing.T, tester DatastoreTester) {
@@ -22,7 +23,7 @@ func UseAfterCloseTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// Attempt to use and ensure an error is returned.
-	_, err = ds.HeadRevision(context.Background())
+	_, err = ds.HeadRevision(t.Context())
 	require.Error(err)
 }
 
@@ -31,7 +32,7 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	ds, revision := testfixtures.StandardDatastoreWithCaveatedData(rawDS, require.New(t))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Ensure at least a few relationships and namespaces exist.
 	reader := ds.SnapshotReader(revision)
@@ -41,7 +42,11 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 
 	foundRels := false
 	for _, nsDef := range nsDefs {
-		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name})
+		iter, err := reader.QueryRelationships(
+			ctx,
+			datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name},
+			options.WithQueryShape(queryshape.FindResourceOfType),
+		)
 		require.NoError(t, err)
 
 		for range iter {
@@ -65,7 +70,11 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	require.Empty(t, afterNSDefs, "namespace definitions still exist")
 
 	for _, nsDef := range nsDefs {
-		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name})
+		iter, err := reader.QueryRelationships(
+			ctx,
+			datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name},
+			options.WithQueryShape(queryshape.FindResourceOfType),
+		)
 		require.NoError(t, err)
 
 		for range iter {

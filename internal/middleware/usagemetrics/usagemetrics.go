@@ -5,12 +5,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/authzed/authzed-go/pkg/responsemeta"
-	"github.com/authzed/grpcutil"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
+
+	"github.com/authzed/authzed-go/pkg/responsemeta"
+	"github.com/authzed/grpcutil"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -18,7 +19,7 @@ import (
 
 var (
 	// DispatchedCountLabels are the labels that DispatchedCountHistogram will
-	// have have by default.
+	// have by default.
 	DispatchedCountLabels = []string{"method", "cached"}
 
 	// DispatchedCountHistogram is the metric that SpiceDB uses to keep track

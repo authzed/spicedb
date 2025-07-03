@@ -416,10 +416,10 @@ type parallelLimitedIndexedStream[Q any] struct {
 
 	streamCount                 int
 	toPublishTaskIndex          int
-	countingStream              *dispatch.CountingDispatchStream[Q]
-	childStreams                map[int]*dispatch.CollectingDispatchStream[Q]
-	childContextCancels         map[int]func(cause error)
-	completedTaskIndexes        map[int]bool
+	countingStream              *dispatch.CountingDispatchStream[Q]           // GUARDED_BY(lock)
+	childStreams                map[int]*dispatch.CollectingDispatchStream[Q] // GUARDED_BY(lock)
+	childContextCancels         map[int]func(cause error)                     // GUARDED_BY(lock)
+	completedTaskIndexes        map[int]bool                                  // GUARDED_BY(lock)
 	errCanceledBecauseFulfilled error
 }
 

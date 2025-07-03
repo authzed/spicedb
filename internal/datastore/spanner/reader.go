@@ -140,6 +140,10 @@ func (sr spannerReader) QueryRelationships(
 		return nil, err
 	}
 
+	builtOpts := options.NewQueryOptionsWithOptions(opts...)
+	indexingHint := IndexingHintForQueryShape(sr.schema, builtOpts.QueryShape)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
+
 	return sr.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
@@ -162,11 +166,18 @@ func (sr spannerReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
+	indexingHint := IndexingHintForQueryShape(sr.schema, queryOpts.QueryShapeForReverse)
+	qBuilder = qBuilder.WithIndexingHint(indexingHint)
+
 	return sr.executor.ExecuteQuery(ctx,
 		qBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),
+		options.WithSkipCaveats(queryOpts.SkipCaveatsForReverse),
+		options.WithSkipExpiration(queryOpts.SkipExpirationForReverse),
+		options.WithQueryShape(queryOpts.QueryShapeForReverse),
+		options.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
 	)
 }
 

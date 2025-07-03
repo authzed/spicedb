@@ -8,13 +8,14 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -24,7 +25,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const waitForChangesTimeout = 5 * time.Second
+const waitForChangesTimeout = 15 * time.Second
 
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.
@@ -66,7 +67,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			setupDatastore(ds, require)
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			lowestRevision, err := ds.HeadRevision(ctx)
@@ -111,7 +112,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			testUpdates = append(testUpdates, batch, []tuple.RelationshipUpdate{deleteUpdate})
 
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+				_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 					ResourceType:     testResourceNamespace,
 					OptionalRelation: testReaderRelation,
 					OptionalSubjectFilter: &v1.SubjectFilter{
@@ -140,7 +141,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 func VerifyUpdates(
 	require *require.Assertions,
 	testUpdates [][]tuple.RelationshipUpdate,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
@@ -182,7 +183,7 @@ func VerifyUpdates(
 func VerifyUpdatesWithMetadata(
 	require *require.Assertions,
 	testUpdates []updateWithMetadata,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
@@ -241,7 +242,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 
 	startWatchRevision := setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	changes, errchan := ds.Watch(ctx, startWatchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
@@ -287,7 +288,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	lowestRevision, err := ds.HeadRevision(ctx)
@@ -392,7 +393,7 @@ func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	lowestRevision, err := ds.HeadRevision(ctx)
@@ -433,7 +434,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	lowestRevision, err := ds.HeadRevision(ctx)
@@ -472,7 +473,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	lowestRevision, err := ds.HeadRevision(ctx)
@@ -530,7 +531,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 
 func verifyNoUpdates(
 	require *require.Assertions,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
@@ -564,7 +565,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	lowestRevision, err := ds.HeadRevision(ctx)
@@ -656,7 +657,7 @@ func WatchAllTest(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	lowestRevision, err := ds.HeadRevision(ctx)
@@ -729,7 +730,7 @@ func WatchAllTest(t *testing.T, tester DatastoreTester) {
 func verifyMixedUpdates(
 	require *require.Assertions,
 	expectedUpdates [][]string,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
@@ -788,7 +789,7 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	lowestRevision, err := ds.HeadRevision(ctx)
@@ -823,16 +824,13 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	features, err := ds.Features(ctx)
 	require.NoError(err)
 
-	expectsWatchError := false
-	if !(features.WatchEmitsImmediately.Status == datastore.FeatureSupported) {
-		expectsWatchError = true
-	}
+	expectsWatchError := (features.WatchEmitsImmediately.Status != datastore.FeatureSupported)
 
 	lowestRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
@@ -911,7 +909,7 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 func verifyCheckpointUpdate(
 	require *require.Assertions,
 	expectedRevision datastore.Revision,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 ) {
 	var relChangeEmitted, schemaChangeEmitted bool
 	changeWait := time.NewTimer(waitForChangesTimeout)

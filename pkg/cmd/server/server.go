@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/authzed/spicedb/pkg/middleware/tenantid"
 	"io"
@@ -10,12 +11,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/authzed/consistent"
-	"github.com/authzed/grpcutil"
 	"github.com/cespare/xxhash/v2"
 	"github.com/ecordell/optgen/helpers"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
-	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
@@ -24,6 +22,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
+
+	"github.com/authzed/consistent"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
@@ -102,8 +103,10 @@ type Config struct {
 	DispatchHashringSpread            uint8                   `debugmap:"visible"`
 	DispatchChunkSize                 uint16                  `debugmap:"visible" default:"100"`
 
-	DispatchSecondaryUpstreamAddrs map[string]string `debugmap:"visible"`
-	DispatchSecondaryUpstreamExprs map[string]string `debugmap:"visible"`
+	DispatchSecondaryUpstreamAddrs               map[string]string `debugmap:"visible"`
+	DispatchSecondaryUpstreamExprs               map[string]string `debugmap:"visible"`
+	DispatchSecondaryMaximumPrimaryHedgingDelays map[string]string `debugmap:"visible"`
+	DispatchPrimaryDelayForTesting               time.Duration     `debugmap:"hidden"`
 
 	DispatchCacheConfig        CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig CacheConfig `debugmap:"visible"`
@@ -122,6 +125,8 @@ type Config struct {
 	MaxBulkExportRelationshipsLimit          uint32        `debugmap:"visible"`
 	EnableExperimentalLookupResources        bool          `debugmap:"visible"`
 	EnableExperimentalRelationshipExpiration bool          `debugmap:"visible"`
+	EnableRevisionHeartbeat                  bool          `debugmap:"visible"`
+	EnablePerformanceInsightMetrics          bool          `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -174,7 +179,7 @@ func (c *closeableStack) Close() error {
 	// closer in reverse order how it's expected in deferred funcs
 	for i := len(c.closers) - 1; i >= 0; i-- {
 		if closerErr := c.closers[i](); closerErr != nil {
-			err = multierror.Append(err, closerErr)
+			err = errors.Join(err, closerErr)
 		}
 	}
 	return err
@@ -191,8 +196,6 @@ func (c *closeableStack) CloseIfError(err error) error {
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
-	log.Ctx(ctx).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
-
 	closeables := closeableStack{}
 	var err error
 	defer func() {
@@ -224,11 +227,13 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	ds := c.Datastore
 	if ds == nil {
 		var err error
+		c.supportOldAndNewReadReplicaConnectionPoolFlags()
 		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption(),
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
 			datastorecfg.WithEnableExperimentalRelationshipExpiration(c.EnableExperimentalRelationshipExpiration),
+			datastorecfg.WithEnableRevisionHeartbeat(c.EnableRevisionHeartbeat),
 		)
 		if err != nil {
 			return nil, spiceerrors.NewTerminationErrorBuilder(fmt.Errorf("failed to create datastore: %w", err)).
@@ -289,6 +294,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
 			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
+			combineddispatch.SecondaryMaximumPrimaryHedgingDelays(c.DispatchSecondaryMaximumPrimaryHedgingDelays),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
@@ -305,6 +311,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimits(concurrencyLimits),
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
+			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -428,20 +435,29 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("error building streaming middlewares: %w", err)
 	}
 
+	// NOTE: Preconditions are disabled if the isolation level is relaxed, as we cannot
+	// ensure the transactional guarantees of preconditions in that case.
+	maxPreconditionCount := c.MaximumPreconditionCount
+	if c.DatastoreConfig.RelaxedIsolationLevel {
+		maxPreconditionCount = 0
+	}
+
 	permSysConfig := v1svc.PermissionsServerConfig{
-		MaxPreconditionsCount:           c.MaximumPreconditionCount,
-		MaxUpdatesPerWrite:              c.MaximumUpdatesPerWrite,
-		MaximumAPIDepth:                 c.DispatchMaxDepth,
-		MaxCaveatContextSize:            c.MaxCaveatContextSize,
-		MaxRelationshipContextSize:      c.MaxRelationshipContextSize,
-		MaxDatastoreReadPageSize:        c.MaxDatastoreReadPageSize,
-		StreamingAPITimeout:             c.StreamingAPITimeout,
-		MaxReadRelationshipsLimit:       c.MaxReadRelationshipsLimit,
-		MaxDeleteRelationshipsLimit:     c.MaxDeleteRelationshipsLimit,
-		MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
-		MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
-		DispatchChunkSize:               c.DispatchChunkSize,
-		ExpiringRelationshipsEnabled:    c.EnableExperimentalRelationshipExpiration,
+		MaxPreconditionsCount:            maxPreconditionCount,
+		MaxUpdatesPerWrite:               c.MaximumUpdatesPerWrite,
+		MaximumAPIDepth:                  c.DispatchMaxDepth,
+		MaxCaveatContextSize:             c.MaxCaveatContextSize,
+		MaxRelationshipContextSize:       c.MaxRelationshipContextSize,
+		MaxDatastoreReadPageSize:         c.MaxDatastoreReadPageSize,
+		StreamingAPITimeout:              c.StreamingAPITimeout,
+		MaxReadRelationshipsLimit:        c.MaxReadRelationshipsLimit,
+		MaxDeleteRelationshipsLimit:      c.MaxDeleteRelationshipsLimit,
+		MaxLookupResourcesLimit:          c.MaxLookupResourcesLimit,
+		MaxBulkExportRelationshipsLimit:  c.MaxBulkExportRelationshipsLimit,
+		DispatchChunkSize:                c.DispatchChunkSize,
+		ExpiringRelationshipsEnabled:     c.EnableExperimentalRelationshipExpiration,
+		CaveatTypeSet:                    c.DatastoreConfig.CaveatTypeSet,
+		PerformanceInsightMetricsEnabled: c.EnablePerformanceInsightMetrics,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)
@@ -510,6 +526,8 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithoutError(metricsServer.Close)
 
+	log.Ctx(ctx).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
+
 	return &completedServerConfig{
 		ds:                  ds,
 		gRPCServer:          grpcServer,
@@ -523,6 +541,47 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		healthManager:       healthManager,
 		closeFunc:           closeables.Close,
 	}, nil
+}
+
+func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
+	defaultReadConnPoolCfg := *datastorecfg.DefaultReadConnPool()
+	if c.DatastoreConfig.ReadReplicaConnPool.MaxOpenConns == defaultReadConnPoolCfg.MaxOpenConns && c.DatastoreConfig.
+		OldReadReplicaConnPool.MaxOpenConns != defaultReadConnPoolCfg.MaxOpenConns {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MaxOpenConns = c.DatastoreConfig.
+			OldReadReplicaConnPool.MaxOpenConns
+	}
+	if c.DatastoreConfig.
+		ReadReplicaConnPool.MinOpenConns == defaultReadConnPoolCfg.MinOpenConns && c.DatastoreConfig.
+		OldReadReplicaConnPool.MinOpenConns != defaultReadConnPoolCfg.MinOpenConns {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MinOpenConns = c.DatastoreConfig.
+			OldReadReplicaConnPool.MinOpenConns
+	}
+	if c.DatastoreConfig.
+		ReadReplicaConnPool.MaxLifetime == defaultReadConnPoolCfg.MaxLifetime && c.DatastoreConfig.
+		OldReadReplicaConnPool.MaxLifetime != defaultReadConnPoolCfg.MaxLifetime {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MaxLifetime = c.DatastoreConfig.
+			OldReadReplicaConnPool.MaxLifetime
+	}
+	if c.DatastoreConfig.
+		ReadReplicaConnPool.MaxLifetimeJitter == defaultReadConnPoolCfg.MaxLifetimeJitter && c.DatastoreConfig.
+		OldReadReplicaConnPool.MaxLifetimeJitter != defaultReadConnPoolCfg.MaxLifetimeJitter {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MaxLifetimeJitter = c.DatastoreConfig.
+			OldReadReplicaConnPool.MaxLifetimeJitter
+	}
+	if c.DatastoreConfig.
+		ReadReplicaConnPool.MaxIdleTime == defaultReadConnPoolCfg.MaxIdleTime && c.DatastoreConfig.
+		OldReadReplicaConnPool.MaxIdleTime != defaultReadConnPoolCfg.MaxIdleTime {
+		c.DatastoreConfig.
+			ReadReplicaConnPool.MaxIdleTime = c.DatastoreConfig.OldReadReplicaConnPool.MaxIdleTime
+	}
+	if c.DatastoreConfig.ReadReplicaConnPool.HealthCheckInterval == defaultReadConnPoolCfg.HealthCheckInterval &&
+		c.DatastoreConfig.OldReadReplicaConnPool.HealthCheckInterval != defaultReadConnPoolCfg.HealthCheckInterval {
+		c.DatastoreConfig.ReadReplicaConnPool.HealthCheckInterval = c.DatastoreConfig.OldReadReplicaConnPool.HealthCheckInterval
+	}
 }
 
 func (c *Config) buildUnaryMiddleware(defaultMiddleware *MiddlewareChain[grpc.UnaryServerInterceptor]) ([]grpc.UnaryServerInterceptor, error) {

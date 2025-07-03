@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 	humanize "github.com/dustin/go-humanize"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -15,6 +14,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -27,14 +28,15 @@ import (
 	"github.com/authzed/spicedb/internal/relationships"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 const defaultConnBufferSize = humanize.MiByte
@@ -144,7 +146,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		Datastore:      ds,
 		CompiledSchema: compiled,
 		Revision:       currentRevision,
-		Dispatcher:     graph.NewLocalOnlyDispatcher(10, 100),
+		Dispatcher:     graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100),
 	}, nil, nil
 }
 
@@ -166,20 +168,27 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		),
 	)
 	ps := v1svc.NewPermissionsServer(dc.Dispatcher, v1svc.PermissionsServerConfig{
-		MaxUpdatesPerWrite:           50,
-		MaxPreconditionsCount:        50,
-		MaximumAPIDepth:              50,
-		MaxCaveatContextSize:         0,
-		ExpiringRelationshipsEnabled: true,
+		MaxUpdatesPerWrite:               50,
+		MaxPreconditionsCount:            50,
+		MaximumAPIDepth:                  50,
+		MaxCaveatContextSize:             0,
+		ExpiringRelationshipsEnabled:     true,
+		CaveatTypeSet:                    caveattypes.Default.TypeSet,
+		PerformanceInsightMetricsEnabled: false,
 	})
-	ss := v1svc.NewSchemaServer(false, true)
+	ss := v1svc.NewSchemaServer(v1svc.SchemaServerConfig{
+		CaveatTypeSet:                    caveattypes.Default.TypeSet,
+		AdditiveOnly:                     false,
+		ExpiringRelsEnabled:              true,
+		PerformanceInsightMetricsEnabled: false,
+	})
 
 	v1.RegisterPermissionsServiceServer(s, ps)
 	v1.RegisterSchemaServiceServer(s, ss)
 
 	go func() {
 		if err := s.Serve(listener); err != nil {
-			panic(err)
+			log.Err(err).Msg("error when serving in-memory server")
 		}
 	}()
 
@@ -220,7 +229,7 @@ func loadsRels(ctx context.Context, rels []tuple.Relationship, rwt datastore.Rea
 	devErrors := make([]*devinterface.DeveloperError, 0, len(rels))
 	updates := make([]tuple.RelationshipUpdate, 0, len(rels))
 	for _, rel := range rels {
-		if err := relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, rel); err != nil {
+		if err := relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, caveattypes.Default.TypeSet, rel); err != nil {
 			relString, serr := tuple.String(rel)
 			if serr != nil {
 				return nil, serr
@@ -249,13 +258,10 @@ func loadCompiled(
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
 	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
-	resolver := typesystem.ResolverForPredefinedDefinitions(typesystem.PredefinedElements{
-		Namespaces: compiled.ObjectDefinitions,
-		Caveats:    compiled.CaveatDefinitions,
-	})
+	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(*compiled))
 
 	for _, caveatDef := range compiled.CaveatDefinitions {
-		cverr := namespace.ValidateCaveatDefinition(caveatDef)
+		cverr := namespace.ValidateCaveatDefinition(caveattypes.Default.TypeSet, caveatDef)
 		if cverr == nil {
 			if err := rwt.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef}); err != nil {
 				return errors, err
@@ -293,7 +299,7 @@ func loadCompiled(
 	}
 
 	for _, nsDef := range compiled.ObjectDefinitions {
-		ts, terr := typesystem.NewNamespaceTypeSystem(nsDef, resolver)
+		def, terr := schema.NewDefinition(ts, nsDef)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsWithSourceError(terr)
 			// NOTE: zeroes are fine here to mean "unknown"
@@ -326,7 +332,7 @@ func loadCompiled(
 			continue
 		}
 
-		_, tverr := ts.Validate(ctx)
+		_, tverr := def.Validate(ctx)
 		if tverr == nil {
 			if err := rwt.WriteNamespaces(ctx, nsDef); err != nil {
 				return errors, err

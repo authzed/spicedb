@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -14,20 +15,38 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
+var coverageFlags = []string{"-coverpkg=./...", "-covermode=atomic", "-coverprofile=coverage.txt"}
+
 // run go test in the root
-func goTest(path string, args ...string) error {
-	return goDirTest(".", path, args...)
+func goTest(ctx context.Context, path string, args ...string) error {
+	return goDirTest(ctx, ".", path, args...)
 }
 
 // run go test in a directory
-func goDirTest(dir string, path string, args ...string) error {
-	testArgs := append([]string{"test", "-failfast", "-count=1"}, args...)
+func goDirTest(ctx context.Context, dir string, path string, args ...string) error {
+	testArgs, err := testWithArgs(ctx, args...)
+	if err != nil {
+		return err
+	}
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithArgs(testArgs...))(path)
 }
 
-func goDirTestWithEnv(dir string, path string, env map[string]string, args ...string) error {
-	testArgs := append([]string{"test", "-failfast", "-count=1"}, args...)
+func goDirTestWithEnv(ctx context.Context, dir string, path string, env map[string]string, args ...string) error {
+	testArgs, err := testWithArgs(ctx, args...)
+	if err != nil {
+		return err
+	}
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
+}
+
+func testWithArgs(ctx context.Context, args ...string) ([]string, error) {
+	testArgs := append([]string{
+		"test",
+		"-failfast",
+		"-count=1",
+	}, args...)
+
+	return testArgs, nil
 }
 
 // check if docker is installed and running

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/IBM/pgxpoolprometheus"
@@ -24,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -47,42 +49,7 @@ var (
 )
 
 const (
-	Engine                   = "cockroachdb"
-	tableNamespace           = "namespace_config"
-	tableTuple               = "relation_tuple"
-	tableTupleWithIntegrity  = "relation_tuple_with_integrity"
-	tableTransactions        = "transactions"
-	tableCaveat              = "caveat"
-	tableRelationshipCounter = "relationship_counter"
-	tableTransactionMetadata = "transaction_metadata"
-
-	colNamespace      = "namespace"
-	colConfig         = "serialized_config"
-	colTimestamp      = "timestamp"
-	colTransactionKey = "key"
-
-	colObjectID = "object_id"
-	colRelation = "relation"
-
-	colUsersetNamespace = "userset_namespace"
-	colUsersetObjectID  = "userset_object_id"
-	colUsersetRelation  = "userset_relation"
-
-	colCaveatName        = "name"
-	colCaveatDefinition  = "definition"
-	colCaveatContextName = "caveat_name"
-	colCaveatContext     = "caveat_context"
-	colExpiration        = "expires_at"
-
-	colIntegrityHash  = "integrity_hash"
-	colIntegrityKeyID = "integrity_key_id"
-
-	colCounterName             = "name"
-	colCounterSerializedFilter = "serialized_filter"
-	colCounterCurrentCount     = "current_count"
-	colCounterUpdatedAt        = "updated_at_timestamp"
-	colExpiresAt               = "expires_at"
-	colMetadata                = "metadata"
+	Engine = "cockroachdb"
 
 	errUnableToInstantiate = "unable to instantiate datastore"
 	errRevision            = "unable to find revision: %w"
@@ -200,33 +167,6 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, fmt.Errorf("invalid head migration found for cockroach: %w", err)
 	}
 
-	relTableName := tableTuple
-	if config.withIntegrity {
-		relTableName = tableTupleWithIntegrity
-	}
-
-	schema := common.NewSchemaInformationWithOptions(
-		common.WithRelationshipTableName(relTableName),
-		common.WithColNamespace(colNamespace),
-		common.WithColObjectID(colObjectID),
-		common.WithColRelation(colRelation),
-		common.WithColUsersetNamespace(colUsersetNamespace),
-		common.WithColUsersetObjectID(colUsersetObjectID),
-		common.WithColUsersetRelation(colUsersetRelation),
-		common.WithColCaveatName(colCaveatContextName),
-		common.WithColCaveatContext(colCaveatContext),
-		common.WithColExpiration(colExpiration),
-		common.WithColIntegrityKeyID(colIntegrityKeyID),
-		common.WithColIntegrityHash(colIntegrityHash),
-		common.WithColIntegrityTimestamp(colTimestamp),
-		common.WithPaginationFilterType(common.ExpandedLogicComparison),
-		common.WithPlaceholderFormat(sq.Dollar),
-		common.WithNowFunction("NOW"),
-		common.WithColumnOptimization(config.columnOptimizationOption),
-		common.WithIntegrityEnabled(config.withIntegrity),
-		common.WithExpirationDisabled(config.expirationDisabled),
-	)
-
 	ds := &crdbDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			config.gcWindow,
@@ -248,9 +188,11 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		supportsIntegrity:       config.withIntegrity,
 		gcWindow:                config.gcWindow,
-		schema:                  *schema,
+		expirationEnabled:       !config.expirationDisabled,
+		watchEnabled:            !config.watchDisabled,
+		schema:                  *schema.Schema(config.columnOptimizationOption, config.withIntegrity, config.expirationDisabled),
 	}
-	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
+	ds.SetNowFunc(ds.headRevisionInternal)
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
@@ -316,6 +258,7 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	if err != nil {
 		return nil, err
 	}
+
 	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
@@ -338,18 +281,22 @@ type crdbDatastore struct {
 	beginChangefeedQuery string
 	transactionNowQuery  string
 
-	featureGroup singleflight.Group[string, *datastore.Features]
+	featuresGroup  singleflight.Group[string, *datastore.Features]
+	cachedFeatures *datastore.Features // GUARDED_BY(featuresLock)
+	featuresLock   sync.Mutex
 
 	pruneGroup           *errgroup.Group
 	ctx                  context.Context
 	cancel               context.CancelFunc
 	filterMaximumIDCount uint16
 	supportsIntegrity    bool
+	expirationEnabled    bool
+	watchEnabled         bool
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	executor := common.QueryRelationshipsExecutor{
-		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(cds.readPool),
+		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(cds.readPool, cds),
 	}
 	return &crdbReader{
 		schema:               cds.schema,
@@ -361,6 +308,10 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 		withIntegrity:        cds.supportsIntegrity,
 		atSpecificRevision:   rev.String(),
 	}
+}
+
+func (cds *crdbDatastore) MetricsID() (string, error) {
+	return common.MetricsIDFromURL(cds.dburl)
 }
 
 func (cds *crdbDatastore) ReadWriteTx(
@@ -378,28 +329,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 	err := cds.writePool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		querier := pgxcommon.QuerierFuncsFor(tx)
 		executor := common.QueryRelationshipsExecutor{
-			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier),
-		}
-
-		// Write metadata onto the transaction.
-		metadata := config.Metadata.AsMap()
-
-		// Mark the transaction as coming from SpiceDB. See the comment in watch.go
-		// for why this is necessary.
-		metadata[spicedbTransactionKey] = true
-
-		expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
-		insertTransactionMetadata := psql.Insert(tableTransactionMetadata).
-			Columns(colExpiresAt, colMetadata).
-			Values(expiresAt, metadata)
-
-		sql, args, err := insertTransactionMetadata.ToSql()
-		if err != nil {
-			return fmt.Errorf("error building metadata insert: %w", err)
-		}
-
-		if _, err := tx.Exec(ctx, sql, args...); err != nil {
-			return fmt.Errorf("error writing metadata: %w", err)
+			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier, cds),
 		}
 
 		reader := &crdbReader{
@@ -417,10 +347,42 @@ func (cds *crdbDatastore) ReadWriteTx(
 			reader,
 			tx,
 			0,
+			false,
 		}
 
 		if err := f(ctx, rwt); err != nil {
 			return err
+		}
+
+		// A transaction metadata entry is required if either:
+		// 1) len(metadata) > 0, which requires writing the metadata provided
+		// 2) metadata is required to mark the transaction as not matching
+		//    a deletion of expired relationships.
+		//
+		//    A transaction is marked as such IF and only IF the operations in the transaction
+		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watc
+		//    changefeed that the transaction is not a deletion of expired relationships performed
+		//    by CRDB itself. This is also only necessary if both expiration and watch are enabled.
+		metadata := config.Metadata.AsMap()
+		requiresMetadata := len(metadata) > 0 || (cds.expirationEnabled && cds.watchEnabled && !rwt.hasNonExpiredDeletionChange)
+		if requiresMetadata {
+			// Mark the transaction as coming from SpiceDB. See the comment in watch.go
+			// for why this is necessary.
+			metadata[spicedbTransactionKey] = true
+
+			expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
+			insertTransactionMetadata := psql.Insert(schema.TableTransactionMetadata).
+				Columns(schema.ColExpiresAt, schema.ColMetadata).
+				Values(expiresAt, metadata)
+
+			sql, args, err := insertTransactionMetadata.ToSql()
+			if err != nil {
+				return fmt.Errorf("error building metadata insert: %w", err)
+			}
+
+			if _, err := tx.Exec(ctx, sql, args...); err != nil {
+				return fmt.Errorf("error writing metadata: %w", err)
+			}
 		}
 
 		// Touching the transaction key happens last so that the "write intent" for
@@ -466,7 +428,7 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		return datastore.ReadyState{}, err
 	}
 
-	if state := cds.MigrationValidator.MigrationReadyState(version); !state.IsReady {
+	if state := cds.MigrationReadyState(version); !state.IsReady {
 		return state, nil
 	}
 
@@ -553,9 +515,25 @@ func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
 }
 
 func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
-	features, _, err := cds.featureGroup.Do(ctx, "", func(ictx context.Context) (*datastore.Features, error) {
+	cds.featuresLock.Lock()
+	cached := cds.cachedFeatures
+	cds.featuresLock.Unlock()
+
+	if cached != nil {
+		return cached, nil
+	}
+
+	features, _, err := cds.featuresGroup.Do(ctx, "", func(ictx context.Context) (*datastore.Features, error) {
 		return cds.features(ictx)
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	cds.featuresLock.Lock()
+	cds.cachedFeatures = features
+	cds.featuresLock.Unlock()
+
 	return features, err
 }
 
@@ -577,26 +555,30 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 		return nil, err
 	}
 
-	// Start a changefeed with an invalid value. If we get back an invalid value error (SQLSTATE 22023)
-	// then we know that the datastore supports watch. If we get back any other error, then we know that
-	// the datastore does not support watch emits or there is a permissions issue.
-	_ = cds.writePool.ExecFunc(ctx, func(ctx context.Context, tag pgconn.CommandTag, err error) error {
-		if err == nil {
-			return spiceerrors.MustBugf("expected an error, but got none")
-		}
-
-		var pgerr *pgconn.PgError
-		if errors.As(err, &pgerr) {
-			if pgerr.Code == "22023" {
-				features.Watch.Status = datastore.FeatureSupported
-				return nil
+	if cds.watchEnabled {
+		// Start a changefeed with an invalid value. If we get back an invalid value error (SQLSTATE 22023)
+		// then we know that the datastore supports watch. If we get back any other error, then we know that
+		// the datastore does not support watch emits or there is a permissions issue.
+		_ = cds.writePool.ExecFunc(ctx, func(ctx context.Context, tag pgconn.CommandTag, err error) error {
+			if err == nil {
+				return spiceerrors.MustBugf("expected an error, but got none")
 			}
-		}
 
+			var pgerr *pgconn.PgError
+			if errors.As(err, &pgerr) {
+				if pgerr.Code == "22023" {
+					features.Watch.Status = datastore.FeatureSupported
+					return nil
+				}
+			}
+
+			features.Watch.Status = datastore.FeatureUnsupported
+			features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
+			return nil
+		}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "-1s"))
+	} else {
 		features.Watch.Status = datastore.FeatureUnsupported
-		features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
-		return nil
-	}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "-1s"))
+	}
 
 	return &features, nil
 }

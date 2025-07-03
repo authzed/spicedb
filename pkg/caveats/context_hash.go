@@ -41,7 +41,7 @@ func (hc HashableContext) AppendToHash(hasher HasherInterface) {
 		return
 	}
 
-	fields := hc.Struct.Fields
+	fields := hc.Fields
 	keys := maps.Keys(fields)
 	sort.Strings(keys)
 

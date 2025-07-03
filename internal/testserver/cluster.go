@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/consistent"
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/resolver"
+
+	"github.com/authzed/consistent"
 
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -195,6 +196,7 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 			server.WithDispatchMaxDepth(50),
 			server.WithMaximumPreconditionCount(1000),
 			server.WithMaximumUpdatesPerWrite(1000),
+			server.WithEnableExperimentalRelationshipExpiration(true),
 			server.WithGRPCServer(util.GRPCServerConfig{
 				Network: util.BufferedNetwork,
 				Enabled: true,
@@ -214,7 +216,7 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 		}
 		serverOptions = append(serverOptions, additionalServerOptions...)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		srv, err := server.NewConfigWithOptionsAndDefaults(serverOptions...).Complete(ctx)
 		require.NoError(t, err)
 

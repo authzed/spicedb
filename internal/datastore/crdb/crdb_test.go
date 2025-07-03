@@ -26,15 +26,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
+	"github.com/authzed/spicedb/internal/datastore/crdb/version"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/migrate"
@@ -54,9 +60,18 @@ func (cds *crdbDatastore) ExampleRetryableError() error {
 	}
 }
 
+func crdbTestVersion() string {
+	ver := os.Getenv("CRDB_TEST_VERSION")
+	if ver != "" {
+		return ver
+	}
+
+	return version.LatestTestedCockroachDBVersion
+}
+
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Parallel()
-	b := testdatastore.RunCRDBForTesting(t, "")
+	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -70,7 +85,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 				DebugAnalyzeBeforeStatistics(),
 			)
 			require.NoError(t, err)
-			return ds
+			return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 		})
 
 		return ds, nil
@@ -79,6 +94,13 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Run("TestWatchStreaming", createDatastoreTest(
 		b,
 		StreamingWatchTest,
+		RevisionQuantization(0),
+		GCWindow(veryLargeGCWindow),
+	))
+
+	t.Run("TestTransactionMetadataMarking", createDatastoreTest(
+		b,
+		TransactionMetadataMarkingTest,
 		RevisionQuantization(0),
 		GCWindow(veryLargeGCWindow),
 	))
@@ -105,7 +127,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
-	engine := testdatastore.RunCRDBForTesting(t, "")
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
 	quantizationDurations := []time.Duration{
 		0 * time.Second,
@@ -163,7 +185,7 @@ var defaultKeyForTesting = proxy.KeyConfig{
 
 func TestCRDBDatastoreWithIntegrity(t *testing.T) {
 	t.Parallel()
-	b := testdatastore.RunCRDBForTesting(t, "")
+	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
@@ -247,10 +269,10 @@ func TestWatchFeatureDetection(t *testing.T) {
 				_, err = adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true;`)
 				require.NoError(t, err)
 
-				_, err = adminConn.Exec(ctx, fmt.Sprintf(`GRANT CHANGEFEED ON TABLE testspicedb.%s TO unprivileged;`, tableTuple))
+				_, err = adminConn.Exec(ctx, fmt.Sprintf(`GRANT CHANGEFEED ON TABLE testspicedb.%s TO unprivileged;`, schema.TableTuple))
 				require.NoError(t, err)
 
-				_, err = adminConn.Exec(ctx, fmt.Sprintf(`GRANT SELECT ON TABLE testspicedb.%s TO unprivileged;`, tableTuple))
+				_, err = adminConn.Exec(ctx, fmt.Sprintf(`GRANT SELECT ON TABLE testspicedb.%s TO unprivileged;`, schema.TableTuple))
 				require.NoError(t, err)
 			},
 			expectEnabled: true,
@@ -409,7 +431,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "mirror.gcr.io/cockroachdb/cockroach",
-		Tag:        testdatastore.CRDBTestVersionTag,
+		Tag:        "v" + crdbTestVersion(),
 		Cmd:        []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
 		Mounts:     []string{certDir + ":/certs"},
 	})
@@ -488,7 +510,7 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"foo"},
 		OptionalResourceRelation: "viewer",
-	})
+	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 	require.NoError(err)
 
 	slice, err := datastore.IteratorToSlice(iter)
@@ -551,7 +573,7 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"foo"},
 		OptionalResourceRelation: "viewer",
-	})
+	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 	require.NoError(err)
 
 	slice, err := datastore.IteratorToSlice(iter)
@@ -616,6 +638,107 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 	case <-time.NewTimer(10 * time.Second).C:
 		require.Fail("Timed out")
 	}
+}
+
+func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
+	require := require.New(t)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+		definition user {}
+
+		definition resource {
+			relation viewer: user
+		}
+	`, []tuple.Relationship{
+		tuple.MustParse("resource:foo#viewer@user:tom"),
+		tuple.MustParse("resource:foo#viewer@user:fred"),
+	}, require)
+	ctx := context.Background()
+
+	cds := datastore.UnwrapAs[*crdbDatastore](ds)
+	require.NotNil(cds)
+
+	// Ensure the transaction metadata table is empty.
+	err := cds.readPool.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var count int
+			err := rows.Scan(&count)
+			require.NoError(err)
+			require.Equal(0, count)
+		}
+		return nil
+	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
+	require.NoError(err)
+
+	// Write some rels, which should still avoid writing to the transactions table.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:tom")),
+			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:fred")),
+		})
+		require.NoError(err)
+		return nil
+	})
+	require.NoError(err)
+
+	// Ensure the transaction metadata table is still empty.
+	err = cds.readPool.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var count int
+			err := rows.Scan(&count)
+			require.NoError(err)
+			require.Equal(0, count)
+		}
+		return nil
+	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
+	require.NoError(err)
+
+	// Only delete rels, which should result in a transaction metadata entry.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Delete(tuple.MustParse("resource:foo#viewer@user:fred")),
+		})
+		require.NoError(err)
+		return nil
+	})
+	require.NoError(err)
+
+	err = cds.readPool.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var count int
+			err := rows.Scan(&count)
+			require.NoError(err)
+			require.Equal(1, count)
+		}
+		return nil
+	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
+	require.NoError(err)
+
+	// Write some rels with metadata, which should also result in a transaction metadata entry.
+	metadata, err := structpb.NewStruct(map[string]any{
+		"key1": "value1",
+	})
+	require.NoError(err)
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("resource:foo#viewer@user:fred")),
+		})
+		require.NoError(err)
+		return nil
+	}, options.WithMetadata(metadata))
+	require.NoError(err)
+
+	err = cds.readPool.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var count int
+			err := rows.Scan(&count)
+			require.NoError(err)
+			require.Equal(2, count)
+		}
+		return nil
+	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
+	require.NoError(err)
 }
 
 func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {

@@ -3,17 +3,16 @@ package consistency
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/cursor"
@@ -36,7 +35,7 @@ type ctxKeyType struct{}
 
 var revisionKey ctxKeyType = struct{}{}
 
-var errInvalidZedToken = errors.New("invalid revision requested")
+var errInvalidZedToken = status.Error(codes.InvalidArgument, "invalid revision requested")
 
 type revisionHandle struct {
 	revision datastore.Revision
@@ -59,7 +58,7 @@ func RevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken,
 		}
 	}
 
-	return nil, nil, fmt.Errorf("consistency middleware did not inject revision")
+	return nil, nil, status.Error(codes.Internal, "consistency middleware did not inject revision")
 }
 
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found
@@ -95,12 +94,12 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 
 		requestedRev, err := cursor.DecodeToDispatchRevision(withOptionalCursor.GetOptionalCursor(), ds)
 		if err != nil {
-			return rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(err)
 		}
 
 		err = ds.CheckRevision(ctx, requestedRev)
 		if err != nil {
-			return rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(err)
 		}
 
 		revision = requestedRev
@@ -118,7 +117,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 
 		databaseRev, err := ds.OptimizedRevision(ctx)
 		if err != nil {
-			return rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(err)
 		}
 		revision = databaseRev
 
@@ -130,7 +129,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 
 		databaseRev, err := ds.HeadRevision(ctx)
 		if err != nil {
-			return rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(err)
 		}
 		revision = databaseRev
 
@@ -139,7 +138,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		// ever is later.
 		picked, pickedRequest, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds)
 		if err != nil {
-			return rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(err)
 		}
 
 		source := "server"
@@ -166,13 +165,13 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 
 		err = ds.CheckRevision(ctx, requestedRev)
 		if err != nil {
-			return rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(err)
 		}
 
 		revision = requestedRev
 
 	default:
-		return fmt.Errorf("missing handling of consistency case in %v", consistency)
+		return status.Errorf(codes.Internal, "missing handling of consistency case in %v", consistency)
 	}
 
 	handle.(*revisionHandle).revision = revision
@@ -260,7 +259,7 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 	return databaseRev, false, nil
 }
 
-func rewriteDatastoreError(ctx context.Context, err error) error {
+func rewriteDatastoreError(err error) error {
 	// Check if the error can be directly used.
 	if _, ok := status.FromError(err); ok {
 		return err
@@ -274,7 +273,6 @@ func rewriteDatastoreError(ctx context.Context, err error) error {
 		return shared.ErrServiceReadOnly
 
 	default:
-		log.Ctx(ctx).Err(err).Msg("unexpected consistency middleware error")
-		return err
+		return status.Errorf(codes.Internal, "unexpected consistency middleware error: %s", err.Error())
 	}
 }

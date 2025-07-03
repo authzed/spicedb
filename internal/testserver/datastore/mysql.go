@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
@@ -111,27 +112,46 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 func (mb *mysqlTester) NewDatabase(t testing.TB) string {
 	uniquePortion, err := secrets.TokenHex(4)
 	require.NoError(t, err, "Could not generate unique portion of db name: %s", err)
+
 	dbName := testDBPrefix + uniquePortion
-	tx, err := mb.db.Begin()
-	require.NoError(t, err, "Could being transaction: %s", err)
-	_, err = tx.Exec(fmt.Sprintf("CREATE DATABASE %s;", dbName))
+
+	_, err = mb.db.Exec(fmt.Sprintf("CREATE DATABASE %s;", dbName))
 	require.NoError(t, err, "failed to create database %s: %s", dbName, err)
-	err = tx.Commit()
-	require.NoError(t, err, "failed to commit: %s", err)
+
 	return fmt.Sprintf("%s@(%s:%s)/%s?parseTime=true", mb.creds, mb.hostname, mb.port, dbName)
 }
 
-func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) {
+func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) error {
 	driver, err := migrations.NewMySQLDriverFromDSN(dsn, mb.options.Prefix, datastore.NoCredentialsProvider)
-	require.NoError(t, err, "failed to create migration driver: %s", err)
+	if err != nil {
+		return fmt.Errorf("failed to create mysql driver: %w", err)
+	}
+
 	err = migrations.Manager.Run(context.Background(), driver, migrate.Head, migrate.LiveRun)
-	require.NoError(t, err, "failed to run migration: %s", err)
+	if err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+	return nil
 }
 
 func (mb *mysqlTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	dsn := mb.NewDatabase(t)
-	if mb.options.MigrateForNewDatastore {
-		mb.runMigrate(t, dsn)
+	for i := 1; i <= retryCount; i++ {
+		dsn := mb.NewDatabase(t)
+		if mb.options.MigrateForNewDatastore {
+			if err := mb.runMigrate(t, dsn); err != nil {
+				if i == retryCount {
+					require.NoError(t, err, "failed to run migration")
+				} else {
+					t.Logf("failed to run migration: %v, retrying... %d", err, i)
+				}
+				time.Sleep(time.Duration(i) * timeBetweenRetries)
+				continue
+			}
+		}
+
+		return initFunc("mysql", dsn)
 	}
-	return initFunc("mysql", dsn)
+
+	require.Fail(t, "failed to create datastore for testing")
+	return nil
 }

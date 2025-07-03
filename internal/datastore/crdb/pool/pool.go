@@ -40,8 +40,8 @@ type RetryPool struct {
 
 	sync.RWMutex
 	maxRetries  uint8
-	nodeForConn map[*pgx.Conn]uint32
-	gc          map[*pgx.Conn]struct{}
+	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
+	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
 }
 
 func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
@@ -310,8 +310,12 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 			continue
 		}
 		conn.Release()
+
 		// error is not resettable or retryable
-		log.Ctx(ctx).Warn().Err(err).Uint8("retries", retries).Msg("error is not resettable or retryable")
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			log.Ctx(ctx).Warn().Err(err).Uint8("retries", retries).Msg("error is not resettable or retryable")
+		}
+
 		return err
 	}
 	return &MaxRetryError{MaxRetries: maxRetries, LastErr: err}

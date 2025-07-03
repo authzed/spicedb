@@ -8,10 +8,54 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var testTime = time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
+
+func TestBuildDebugInformationErrors(t *testing.T) {
+	// Test error propagation in buildDebugInformation
+	result := syntheticResult{
+		value: true,
+		op:    999, // Invalid operation
+		exprResultsForDebug: []ExpressionResult{
+			eval("true", nil)(t),
+		},
+	}
+
+	_, _, err := BuildDebugInformation(result)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unknown operator")
+}
+
+func TestBuildDebugInformationForConcreteWithDuplicateParam(t *testing.T) {
+	// Create a caveat result with parameters
+	env := caveats.NewEnvironmentWithDefaultTypeSet()
+	require.NoError(t, env.AddVariable("param", types.Default.AnyType))
+
+	caveat, err := caveats.CompileCaveatWithName(env, "param == 5", "test")
+	require.NoError(t, err)
+
+	result1, err := caveats.EvaluateCaveat(caveat, map[string]any{"param": 5})
+	require.NoError(t, err)
+
+	result2, err := caveats.EvaluateCaveat(caveat, map[string]any{"param": 10})
+	require.NoError(t, err)
+
+	// Set up multimap with duplicate parameter names
+	resultsByParam := mapz.NewMultiMap[string, *caveats.CaveatResult]()
+
+	// result1 and result2 are already *caveats.CaveatResult types from EvaluateCaveat
+	resultsByParam.Add("param", result1)
+	resultsByParam.Add("param", result2)
+
+	// Test that buildDebugInformationForConcrete handles parameter renaming
+	exprString, contextMap, err := buildDebugInformationForConcrete(result1, resultsByParam)
+	require.NoError(t, err)
+	require.NotEmpty(t, exprString)
+	require.NotEmpty(t, contextMap)
+}
 
 func TestBuildDebugInformation(t *testing.T) {
 	tcs := []struct {
@@ -248,10 +292,10 @@ func not(opFuncs ...func(t *testing.T) ExpressionResult) func(t *testing.T) Expr
 
 func eval(expr string, context map[string]any) func(t *testing.T) ExpressionResult {
 	return func(t *testing.T) ExpressionResult {
-		env := caveats.NewEnvironment()
+		env := caveats.NewEnvironmentWithDefaultTypeSet()
 
 		for name := range context {
-			require.NoError(t, env.AddVariable(name, types.AnyType))
+			require.NoError(t, env.AddVariable(name, types.Default.AnyType))
 		}
 
 		caveat, err := caveats.CompileCaveatWithName(env, expr, "test")

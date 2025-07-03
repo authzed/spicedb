@@ -1,9 +1,9 @@
 package mysql
 
 import (
-	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
-
 	sq "github.com/Masterminds/squirrel"
+
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 )
 
 // QueryBuilder captures all parameterizable queries used

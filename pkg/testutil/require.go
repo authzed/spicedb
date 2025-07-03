@@ -1,16 +1,14 @@
-// Package testutil implements various utilities to reduce boilerplate in unit
-// tests a la testify.
 package testutil
 
 import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )

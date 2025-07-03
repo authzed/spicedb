@@ -1,71 +1,107 @@
 ---
+version: "2"
 run:
-  timeout: '5m'
-output:
-  sort-results: true
-linters-settings:
-  goimports:
-    local-prefixes: 'github.com/authzed/spicedb'
-  rowserrcheck:
-    packages:
-      - 'github.com/jmoiron/sqlx'
-      - 'github.com/jackc/pgx'
-  revive:
-    rules:
-      - name: 'unused-parameter'
-        disabled: true
+  allow-parallel-runners: true
 linters:
   enable:
-    - 'bidichk'
-    - 'bodyclose'
-    - 'errcheck'
-    - 'errname'
-    - 'errorlint'
-    - 'gofumpt'
-    - 'goimports'
-    - 'goprintffuncname'
-    - 'gosec'
-    - 'gosimple'
-    - 'govet'
-    - 'importas'
-    - 'ineffassign'
-    - 'makezero'
-    - 'prealloc'
-    - 'predeclared'
-    - 'promlinter'
-    - 'revive'
-    - 'rowserrcheck'
-    - 'staticcheck'
-    - 'stylecheck'
-    - 'tenv'
-    - 'typecheck'
-    - 'unconvert'
-    - 'unused'
-    - 'wastedassign'
-    - 'whitespace'
-issues:
-  exclude-rules:
-    - text: 'tx.Rollback()'
-      linters:
-        - 'errcheck'
-    # NOTE: temporarily disable deprecation checks for v0.
-    - path: 'internal/services/'
-      linters:
-        - 'staticcheck'
-      text: 'SA1019'
-    - path: 'internal/middleware/consistency/'
-      linters:
-        - 'staticcheck'
-      text: 'SA1019'
-    - path: 'pkg/proto/core/v1/core.pb.validate.manual.go'  # Ignore manual definition of metadata map
-      linters:
-        - 'stylecheck'
-      text: 'ST1003'
-    - path: 'pkg/proto/core/v1/core.pb.validate.manual.go'  # Ignore manual definition of metadata map
-      linters:
-        - 'revive'
-      text: 'var-naming'
-    # Ignore receiver errors for generic types not understood by the linter.
-    - linters:
-        - 'revive'
-      text: 'receiver-naming: receiver name \S+ should be consistent with previous receiver name \S+ for invalid-type'
+    - "bidichk"
+    - "bodyclose"
+    - "depguard"
+    - "errcheck"
+    - "errname"
+    - "errorlint"
+#    - "gocritic" TODO: fix issues
+    - "goprintffuncname"
+    - "gosec"
+#    - "govet" TODO: fix issues
+    - "importas"
+    - "ineffassign"
+    - "makezero"
+    - "prealloc"
+    - "predeclared"
+    - "promlinter"
+    - "revive"
+    - "rowserrcheck"
+    - "spancheck"
+    - "staticcheck"
+    - "tagalign"
+#    - "testifylint" TODO: fix issues
+    - "tparallel"
+    - "unconvert"
+    - "usetesting"
+    - "wastedassign"
+    - "whitespace"
+    - "unused"
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: "k8s.io/utils/strings/slices$"
+              desc: "use github.com/samber/lo"
+    staticcheck:
+      checks:
+        - "all"
+    revive:
+      rules:
+        - name: "unused-parameter"
+          disabled: true
+    rowserrcheck:
+      packages:
+        - "github.com/jmoiron/sqlx"
+        - "github.com/jackc/pgx"
+  exclusions:
+    generated: "lax"
+    presets:
+      - "comments"
+      - "common-false-positives"
+      - "legacy"
+      - "std-error-handling"
+    rules:
+      - linters:
+          - "errcheck"
+        text: "tx.Rollback()"
+      - linters:
+          - "staticcheck"
+        path: "internal/services/"
+        text: "SA1019"
+      - linters:
+          - "staticcheck"
+        path: "internal/middleware/consistency/"
+        text: "SA1019"
+      - linters:
+          - "staticcheck"
+        path: "pkg/proto/core/v1/core.pb.validate.manual.go"
+        text: "ST1003"
+      - linters:
+          - "revive"
+        path: "pkg/proto/core/v1/core.pb.validate.manual.go"
+        text: "var-naming"
+      - linters:
+          - "revive"
+        text: 'receiver-naming: receiver name \S+ should be consistent with previous receiver name \S+ for invalid-type'
+    paths:
+      - "third_party$"
+      - "builtin$"
+      - "examples$"
+formatters:
+  enable:
+    - "gci"
+    - "gofumpt"
+    - "goimports"
+  settings:
+    gci:
+      sections:
+        - "standard"
+        - "default"
+        - "prefix(github.com/authzed)"
+        - "localmodule"
+    goimports:
+      local-prefixes:
+        - "github.com/authzed/spicedb"
+  exclusions:
+    generated: "lax"
+    paths:
+      - "third_party$"
+      - "builtin$"
+      - "examples$"

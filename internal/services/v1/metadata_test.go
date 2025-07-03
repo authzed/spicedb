@@ -1,23 +1,22 @@
 package v1_test
 
 import (
-	"context"
 	"errors"
 	"io"
 	"reflect"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/tuple"
-
-	"github.com/authzed/authzed-go/pkg/responsemeta"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/authzed/authzed-go/pkg/responsemeta"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -26,7 +25,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 	conn, cleanup, _, revision := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// PermissionsService
 	checkServiceMethods(

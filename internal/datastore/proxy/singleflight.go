@@ -24,6 +24,10 @@ type singleflightProxy struct {
 
 var _ datastore.Datastore = (*singleflightProxy)(nil)
 
+func (p *singleflightProxy) MetricsID() (string, error) {
+	return p.delegate.MetricsID()
+}
+
 func (p *singleflightProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	return p.delegate.SnapshotReader(rev)
 }
@@ -56,7 +60,7 @@ func (p *singleflightProxy) RevisionFromString(serialized string) (datastore.Rev
 	return p.delegate.RevisionFromString(serialized)
 }
 
-func (p *singleflightProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (p *singleflightProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	return p.delegate.Watch(ctx, afterRevision, options)
 }
 

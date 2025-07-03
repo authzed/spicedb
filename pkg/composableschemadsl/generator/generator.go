@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -25,12 +26,18 @@ const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
 // GenerateSchema generates a DSL view of the given schema.
 func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
+	return GenerateSchemaWithCaveatTypeSet(definitions, caveattypes.Default.TypeSet)
+}
+
+func GenerateSchemaWithCaveatTypeSet(definitions []compiler.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
 	generated := make([]string, 0, len(definitions))
+	flags := mapz.NewSet[string]()
+
 	result := true
 	for _, definition := range definitions {
 		switch def := definition.(type) {
 		case *core.CaveatDefinition:
-			generatedCaveat, ok, err := GenerateCaveatSource(def)
+			generatedCaveat, ok, err := GenerateCaveatSource(def, caveatTypeSet)
 			if err != nil {
 				return "", false, err
 			}
@@ -39,16 +46,26 @@ func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, erro
 			generated = append(generated, generatedCaveat)
 
 		case *core.NamespaceDefinition:
-			generatedSchema, ok, err := GenerateSource(def)
+			generatedSchema, defFlags, ok, err := generateDefinitionSource(def, caveatTypeSet)
 			if err != nil {
 				return "", false, err
 			}
 
 			result = result && ok
 			generated = append(generated, generatedSchema)
+			flags.Extend(defFlags)
 
 		default:
 			return "", false, spiceerrors.MustBugf("unknown type of definition %T in GenerateSchema", def)
+		}
+	}
+
+	if !flags.IsEmpty() {
+		flagsSlice := flags.AsSlice()
+		sort.Strings(flagsSlice)
+
+		for _, flag := range flagsSlice {
+			generated = append([]string{"use " + flag}, generated...)
 		}
 	}
 
@@ -56,12 +73,13 @@ func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, erro
 }
 
 // GenerateCaveatSource generates a DSL view of the given caveat definition.
-func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool, error) {
+func GenerateCaveatSource(caveat *core.CaveatDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 		hasBlankline:     true,
 		hasNewScope:      true,
+		caveatTypeSet:    caveatTypeSet,
 	}
 
 	err := generator.emitCaveat(caveat)
@@ -73,29 +91,37 @@ func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool, error) {
 }
 
 // GenerateSource generates a DSL view of the given namespace definition.
-func GenerateSource(namespace *core.NamespaceDefinition) (string, bool, error) {
+func GenerateSource(namespace *core.NamespaceDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
+	source, _, ok, err := generateDefinitionSource(namespace, caveatTypeSet)
+	return source, ok, err
+}
+
+func generateDefinitionSource(namespace *core.NamespaceDefinition, caveatTypeSet *caveattypes.TypeSet) (string, []string, bool, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 		hasBlankline:     true,
 		hasNewScope:      true,
+		flags:            mapz.NewSet[string](),
+		caveatTypeSet:    caveatTypeSet,
 	}
 
 	err := generator.emitNamespace(namespace)
 	if err != nil {
-		return "", false, err
+		return "", nil, false, err
 	}
 
-	return generator.buf.String(), !generator.hasIssue, nil
+	return generator.buf.String(), generator.flags.AsSlice(), !generator.hasIssue, nil
 }
 
 // GenerateRelationSource generates a DSL view of the given relation definition.
-func GenerateRelationSource(relation *core.Relation) (string, error) {
+func GenerateRelationSource(relation *core.Relation, caveatTypeSet *caveattypes.TypeSet) (string, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 		hasBlankline:     true,
 		hasNewScope:      true,
+		caveatTypeSet:    caveatTypeSet,
 	}
 
 	err := generator.emitRelation(relation)
@@ -120,7 +146,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 			sg.append(", ")
 		}
 
-		decoded, err := caveattypes.DecodeParameterType(caveat.ParameterTypes[paramName])
+		decoded, err := caveattypes.DecodeParameterType(sg.caveatTypeSet, caveat.ParameterTypes[paramName])
 		if err != nil {
 			return fmt.Errorf("invalid parameter type on caveat: %w", err)
 		}
@@ -137,12 +163,12 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.indent()
 	sg.markNewScope()
 
-	parameterTypes, err := caveattypes.DecodeParameterTypes(caveat.ParameterTypes)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(sg.caveatTypeSet, caveat.ParameterTypes)
 	if err != nil {
 		return fmt.Errorf("invalid caveat parameters: %w", err)
 	}
 
-	deserializedExpression, err := caveats.DeserializeCaveat(caveat.SerializedExpression, parameterTypes)
+	deserializedExpression, err := caveats.DeserializeCaveatWithTypeSet(sg.caveatTypeSet, caveat.SerializedExpression, parameterTypes)
 	if err != nil {
 		return fmt.Errorf("invalid caveat expression bytes: %w", err)
 	}
@@ -237,9 +263,25 @@ func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRela
 	if allowedRelation.GetPublicWildcard() != nil {
 		sg.append(":*")
 	}
-	if allowedRelation.GetRequiredCaveat() != nil {
+
+	hasExpirationTrait := allowedRelation.GetRequiredExpiration() != nil
+	hasCaveat := allowedRelation.GetRequiredCaveat() != nil
+
+	if hasExpirationTrait || hasCaveat {
 		sg.append(" with ")
-		sg.append(allowedRelation.RequiredCaveat.CaveatName)
+		if hasCaveat {
+			sg.append(allowedRelation.RequiredCaveat.CaveatName)
+		}
+
+		if hasExpirationTrait {
+			sg.flags.Add("expiration")
+
+			if hasCaveat {
+				sg.append(" and ")
+			}
+
+			sg.append("expiration")
+		}
 	}
 }
 

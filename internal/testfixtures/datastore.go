@@ -11,21 +11,22 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var UserNS = ns.Namespace("user")
 
 var CaveatDef = ns.MustCaveatDefinition(
-	caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
-		"secret":         caveattypes.StringType,
-		"expectedSecret": caveattypes.StringType,
+	caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
+		"secret":         caveattypes.Default.StringType,
+		"expectedSecret": caveattypes.Default.StringType,
 	}),
 	"test",
 	"secret == expectedSecret",
@@ -209,9 +210,9 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 }
 
 func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
-	env, err := caveats.EnvForVariables(map[string]caveattypes.VariableType{
-		"secret":         caveattypes.StringType,
-		"expectedSecret": caveattypes.StringType,
+	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
+		"secret":         caveattypes.Default.StringType,
+		"expectedSecret": caveattypes.Default.StringType,
 	})
 	require.NoError(err)
 
@@ -229,7 +230,7 @@ func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
 }
 
 // DatastoreFromSchemaAndTestRelationships returns a validating datastore wrapping that specified,
-// loaded with the given scehma and relationships.
+// loaded with the given schema and relationships.
 func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema string, relationships []tuple.Relationship, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ctx := context.Background()
 	validating := NewValidatingDatastore(ds)
@@ -265,18 +266,15 @@ func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objec
 			require.NoError(err)
 		}
 
+		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(rwt).WithPredefinedElements(schema.PredefinedElements{
+			Definitions: objectDefs,
+			Caveats:     caveatDefs,
+		}))
 		for _, nsDef := range objectDefs {
-			ts, err := typesystem.NewNamespaceTypeSystem(nsDef,
-				typesystem.ResolverForDatastoreReader(rwt).WithPredefinedElements(typesystem.PredefinedElements{
-					Namespaces: objectDefs,
-					Caveats:    caveatDefs,
-				}))
+			vdef, err := ts.GetValidatedDefinition(ctx, nsDef.GetName())
 			require.NoError(err)
 
-			vts, err := ts.Validate(ctx)
-			require.NoError(err)
-
-			aerr := namespace.AnnotateNamespace(vts)
+			aerr := namespace.AnnotateNamespace(vdef)
 			require.NoError(aerr)
 
 			err = rwt.WriteNamespaces(ctx, nsDef)
@@ -301,7 +299,7 @@ func (tc RelationshipChecker) ExactRelationshipIterator(ctx context.Context, rel
 	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
 	tc.Require.NoError(err)
 
-	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, dsFilter)
+	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, dsFilter, options.WithQueryShape(queryshape.Varying))
 	tc.Require.NoError(err)
 	return iter
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -32,6 +34,7 @@ type crdbOptions struct {
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
 	expirationDisabled             bool
+	watchDisabled                  bool
 }
 
 const (
@@ -59,9 +62,10 @@ const (
 	defaultConnectRate                    = 100 * time.Millisecond
 	defaultFilterMaximumIDCount           = 100
 	defaultWithIntegrity                  = false
-	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionNone
+	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces = false
 	defaultExpirationDisabled             = false
+	defaultWatchDisabled                  = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -88,6 +92,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		expirationDisabled:             defaultExpirationDisabled,
+		watchDisabled:                  defaultWatchDisabled,
 	}
 
 	for _, option := range options {
@@ -106,6 +111,16 @@ func generateConfig(options []Option) (crdbOptions, error) {
 	if computed.filterMaximumIDCount == 0 {
 		computed.filterMaximumIDCount = 100
 		log.Warn().Msg("filterMaximumIDCount not set, defaulting to 100")
+	}
+
+	// Default to 30m jitter for CockroachDB database pools when not explicitly set
+	// or when explicitly set to zero (which happens when using pkg/cmd/datastore defaults)
+	if computed.readPoolOpts.ConnMaxLifetimeJitter == nil || *computed.readPoolOpts.ConnMaxLifetimeJitter == 0 {
+		computed.readPoolOpts.ConnMaxLifetimeJitter = ptr.To(30 * time.Minute)
+	}
+
+	if computed.writePoolOpts.ConnMaxLifetimeJitter == nil || *computed.writePoolOpts.ConnMaxLifetimeJitter == 0 {
+		computed.writePoolOpts.ConnMaxLifetimeJitter = ptr.To(30 * time.Minute)
 	}
 
 	return computed, nil
@@ -180,7 +195,7 @@ func ReadConnMaxLifetime(lifetime time.Duration) Option {
 // ReadConnMaxLifetimeJitter is an interval to wait up to after the max lifetime
 // to close the connection.
 //
-// This value defaults to 20% of the max lifetime.
+// For CockroachDB, this value defaults to 30 minutes when not explicitly set.
 func ReadConnMaxLifetimeJitter(jitter time.Duration) Option {
 	return func(po *crdbOptions) { po.readPoolOpts.ConnMaxLifetimeJitter = &jitter }
 }
@@ -196,7 +211,7 @@ func WriteConnMaxLifetime(lifetime time.Duration) Option {
 // WriteConnMaxLifetimeJitter is an interval to wait up to after the max lifetime
 // to close the connection.
 //
-// This value defaults to 20% of the max lifetime.
+// For CockroachDB, this value defaults to 30 minutes when not explicitly set.
 func WriteConnMaxLifetimeJitter(jitter time.Duration) Option {
 	return func(po *crdbOptions) { po.writePoolOpts.ConnMaxLifetimeJitter = &jitter }
 }
@@ -375,4 +390,9 @@ func WithColumnOptimization(isEnabled bool) Option {
 // WithExpirationDisabled configures the datastore to disable relationship expiration.
 func WithExpirationDisabled(isDisabled bool) Option {
 	return func(po *crdbOptions) { po.expirationDisabled = isDisabled }
+}
+
+// WithWatchDisabled configures the datastore to disable watch functionality.
+func WithWatchDisabled(isDisabled bool) Option {
+	return func(po *crdbOptions) { po.watchDisabled = isDisabled }
 }

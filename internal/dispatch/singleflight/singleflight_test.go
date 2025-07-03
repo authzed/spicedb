@@ -42,21 +42,21 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
 		anotherReq := req.CloneVT()
 		anotherReq.ResourceIds = []string{"foo", "baz"}
-		_, _ = disp.DispatchCheck(context.Background(), anotherReq)
+		_, _ = disp.DispatchCheck(t.Context(), anotherReq)
 		wg.Done()
 	}()
 
@@ -94,22 +94,22 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 
 		wg.Done()
 	}()
 	go func() {
 		differentReq := req.CloneVT()
 		differentReq.ResourceIds = []string{"foo", "baz"}
-		_, _ = disp.DispatchCheck(context.Background(), differentReq)
+		_, _ = disp.DispatchCheck(t.Context(), differentReq)
 		wg.Done()
 	}()
 
@@ -146,15 +146,15 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 
 		wg.Done()
 	}()
@@ -188,21 +188,21 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, req.CloneVT())
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, req.CloneVT())
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, req.CloneVT())
 		wg.Done()
@@ -233,21 +233,21 @@ func TestSingleFlightDispatcherExpand(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchExpand(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchExpand(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchExpand(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchExpand(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchExpand(context.Background(), req.CloneVT())
+		_, _ = disp.DispatchExpand(t.Context(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
 		anotherReq := req.CloneVT()
 		anotherReq.ResourceAndRelation.ObjectId = "baz"
-		_, _ = disp.DispatchExpand(context.Background(), anotherReq)
+		_, _ = disp.DispatchExpand(t.Context(), anotherReq)
 		wg.Done()
 	}()
 
@@ -275,7 +275,7 @@ func TestSingleFlightDispatcherCheckBypassesIfMissingBloomFiler(t *testing.T) {
 		},
 	}
 
-	_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+	_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 
 	require.Equal(t, uint64(1), called.Load(), "should have dispatched %d calls but did %d", uint64(1), called.Load())
 	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "missing")
@@ -298,7 +298,7 @@ func TestSingleFlightDispatcherExpandBypassesIfMissingBloomFiler(t *testing.T) {
 		},
 	}
 
-	_, _ = disp.DispatchExpand(context.Background(), req.CloneVT())
+	_, _ = disp.DispatchExpand(t.Context(), req.CloneVT())
 
 	require.Equal(t, uint64(1), called.Load(), "should have dispatched %d calls but did %d", uint64(1), called.Load())
 	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "missing")
@@ -341,7 +341,7 @@ func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req 
 	t.Helper()
 
 	bloomFilter := bloom.NewWithEstimates(defaultBloomFilterSize, 0.001)
-	key, err := keyHandler.CheckDispatchKey(context.Background(), req)
+	key, err := keyHandler.CheckDispatchKey(t.Context(), req)
 	require.NoError(t, err)
 	stringKey := hex.EncodeToString(key)
 	bloomFilter = bloomFilter.AddString(stringKey)

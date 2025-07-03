@@ -3,9 +3,10 @@ package proxy_test
 import (
 	"context"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/mock"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -20,6 +21,10 @@ type MockDatastore struct {
 func (dm *MockDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	args := dm.Called(rev)
 	return args.Get(0).(datastore.Reader)
+}
+
+func (dm *MockDatastore) MetricsID() (string, error) {
+	return "mock", nil
 }
 
 func (dm *MockDatastore) ReadWriteTx(
@@ -57,9 +62,9 @@ func (dm *MockDatastore) RevisionFromString(s string) (datastore.Revision, error
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (dm *MockDatastore) Watch(_ context.Context, afterRevision datastore.Revision, _ datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (dm *MockDatastore) Watch(_ context.Context, afterRevision datastore.Revision, _ datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	args := dm.Called(afterRevision)
-	return args.Get(0).(<-chan *datastore.RevisionChanges), args.Get(1).(<-chan error)
+	return args.Get(0).(<-chan datastore.RevisionChanges), args.Get(1).(<-chan error)
 }
 
 func (dm *MockDatastore) ReadyState(_ context.Context) (datastore.ReadyState, error) {
@@ -269,9 +274,9 @@ func (dm *MockReadWriteTransaction) WriteRelationships(_ context.Context, mutati
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
+func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	args := dm.Called(filter)
-	return false, args.Error(0)
+	return 0, false, args.Error(0)
 }
 
 func (dm *MockReadWriteTransaction) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {

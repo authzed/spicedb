@@ -7,11 +7,10 @@ package dispatchv1
 
 import (
 	"google.golang.org/grpc/encoding"
-	"google.golang.org/grpc/mem"
-
 	// Guarantee that the built-in proto is called registered before this one
 	// so that it can be replaced.
 	_ "google.golang.org/grpc/encoding/proto"
+	"google.golang.org/grpc/mem"
 )
 
 // Name is the name registered for the proto compressor.

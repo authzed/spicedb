@@ -10,6 +10,8 @@ import (
 )
 
 func TestPositionToAstNode(t *testing.T) {
+	t.Parallel()
+
 	tcs := []struct {
 		name          string
 		schema        string

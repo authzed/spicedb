@@ -1,7 +1,6 @@
 package namespace_test
 
 import (
-	"context"
 	"sort"
 	"testing"
 
@@ -168,12 +167,12 @@ func TestCheckNamespaceAndRelations(t *testing.T) {
 
 			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, req)
 
-			rev, err := ds.HeadRevision(context.Background())
+			rev, err := ds.HeadRevision(t.Context())
 			require.NoError(t, err)
 
 			reader := ds.SnapshotReader(rev)
 
-			err = namespace.CheckNamespaceAndRelations(context.Background(), tc.checks, reader)
+			err = namespace.CheckNamespaceAndRelations(t.Context(), tc.checks, reader)
 			if tc.expectedError == "" {
 				require.Nil(t, err)
 			} else {

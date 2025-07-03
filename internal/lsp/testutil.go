@@ -1,7 +1,6 @@
 package lsp
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -152,7 +151,7 @@ func sendAndReceive[T any](lt *lspTester, method string, params interface{}) (T,
 }
 
 func newLSPTester(t *testing.T) *lspTester {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := newTestStream()
 
 	var connOpts []jsonrpc2.ConnOpt

@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -21,6 +22,7 @@ type optionState struct {
 	concurrencyLimits     graph.ConcurrencyLimits
 	remoteDispatchTimeout time.Duration
 	dispatchChunkSize     uint16
+	caveatTypeSet         *caveattypes.TypeSet
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -66,6 +68,14 @@ func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
 	}
 }
 
+// CaveatTypeSet sets the type set to use for caveats. If not specified, the default
+// type set is used.
+func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
+	return func(state *optionState) {
+		state.caveatTypeSet = caveatTypeSet
+	}
+}
+
 // NewClusterDispatcher takes a dispatcher (such as one created by
 // combined.NewDispatcher) and returns a cluster dispatcher suitable for use as
 // the dispatcher for the dispatch grpc server.
@@ -80,7 +90,9 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		chunkSize = 100
 		log.Warn().Msgf("ClusterDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
 	}
-	clusterDispatch := graph.NewDispatcher(dispatch, opts.concurrencyLimits, opts.dispatchChunkSize)
+
+	cts := caveattypes.TypeSetOrDefault(opts.caveatTypeSet)
+	clusterDispatch := graph.NewDispatcher(dispatch, cts, opts.concurrencyLimits, opts.dispatchChunkSize)
 
 	if opts.prometheusSubsystem == "" {
 		opts.prometheusSubsystem = "dispatch"

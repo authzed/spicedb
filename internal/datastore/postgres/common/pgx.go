@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/ccoveille/go-safecast"
@@ -21,9 +22,9 @@ import (
 )
 
 // NewPGXQueryRelationshipsExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXQueryRelationshipsExecutor(querier DBFuncQuerier) common.ExecuteReadRelsQueryFunc {
+func NewPGXQueryRelationshipsExecutor(querier DBFuncQuerier, explainable datastore.Explainable) common.ExecuteReadRelsQueryFunc {
 	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
-		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, builder, querier)
+		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, builder, querier, explainable)
 	}
 }
 
@@ -73,10 +74,18 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 			truncateLargeSQL(data)
 
 			// log cancellation and serialization errors at debug level
+			// log revision not available errors at debug level
+			// expected logs don't get logged at all
 			if errArg, ok := data["err"]; ok {
 				err, ok := errArg.(error)
-				if ok && (IsCancellationError(err) || IsSerializationError(err)) {
+				if ok && (common.IsCancellationError(err) || IsQueryCanceledError(err) || IsSerializationError(err) || IsReplicationLagError(err)) {
 					logger.Log(ctx, tracelog.LogLevelDebug, msg, data)
+					return
+				}
+
+				// NOTE: this error is raised *on purpose* by the CRDB datastore when checking if watch
+				// is enabled. It is not a real error, and therefore should not be logged.
+				if strings.Contains(err.Error(), "negative durations are not accepted") {
 					return
 				}
 			}
@@ -118,16 +127,6 @@ func truncateLargeSQL(data map[string]any) {
 			data["args"] = argsSlice[:maxSQLArgsLen]
 		}
 	}
-}
-
-// IsCancellationError determines if an error returned by pgx has been caused by context cancellation.
-func IsCancellationError(err error) bool {
-	if errors.Is(err, context.Canceled) ||
-		errors.Is(err, context.DeadlineExceeded) ||
-		err.Error() == "conn closed" { // conns are sometimes closed async upon cancellation
-		return true
-	}
-	return false
 }
 
 func IsSerializationError(err error) bool {
@@ -299,4 +298,23 @@ func SleepOnErr(ctx context.Context, err error, retries uint8) {
 	case <-time.After(after):
 	case <-ctx.Done():
 	}
+}
+
+// ConfigureDefaultQueryExecMode parses a Postgres URI and determines if a default_query_exec_mode
+// has been specified. If not, it defaults to "exec".
+// SpiceDB queries have high variability of arguments and rarely benefit from using prepared statements.
+// The default and recommended query exec mode is 'exec', which has shown the best performance under various
+// synthetic workloads. See more in https://spicedb.dev/d/query-exec-mode.
+//
+// The docs for the different execution modes offered by pgx may be found
+// here: https://pkg.go.dev/github.com/jackc/pgx/v5#QueryExecMode
+func ConfigureDefaultQueryExecMode(config *pgx.ConnConfig) {
+	if !strings.Contains(config.ConnString(), "default_query_exec_mode") {
+		// the execution mode was not overridden by the user
+		config.DefaultQueryExecMode = pgx.QueryExecModeExec
+	}
+
+	log.Info().
+		Str("details-url", "https://spicedb.dev/d/query-exec-mode").
+		Msg("found default_query_exec_mode in DB URI; leaving as-is")
 }

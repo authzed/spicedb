@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -42,25 +43,25 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 
 		t.Run(fmt.Sprintf("%s-%d", tc.resourceType, tc.ordering), func(t *testing.T) {
 			require := require.New(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			expected := sortedStandardData(tc.resourceType, tc.ordering)
 
 			// Check the snapshot reader order
 			iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: tc.resourceType,
-			}, options.WithSort(tc.ordering))
+			}, options.WithSort(tc.ordering), options.WithQueryShape(queryshape.FindResourceOfType))
 
 			require.NoError(err)
-			tRequire.VerifyOrderedIteratorResults(iter, expected...)
+			tRequire.VerifyIteratorResults(iter, expected...)
 
 			// Check a reader from with a transaction
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					OptionalResourceType: tc.resourceType,
-				}, options.WithSort(tc.ordering))
+				}, options.WithSort(tc.ordering), options.WithQueryShape(queryshape.FindResourceOfType))
 				require.NoError(err)
-				tRequire.VerifyOrderedIteratorResults(iter, expected...)
+				tRequire.VerifyIteratorResults(iter, expected...)
 				return nil
 			})
 			require.NoError(err)
@@ -87,12 +88,12 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 			testLimit, _ := safecast.ToUint64(limit)
 			t.Run(fmt.Sprintf("%s-%d", objectType, limit), func(t *testing.T) {
 				require := require.New(t)
-				ctx := context.Background()
+				ctx := t.Context()
 
 				foreachTxType(ctx, ds, rev, func(reader datastore.Reader) {
 					iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 						OptionalResourceType: objectType,
-					}, options.WithLimit(&testLimit))
+					}, options.WithLimit(&testLimit), options.WithQueryShape(queryshape.FindResourceOfType))
 
 					require.NoError(err)
 
@@ -114,17 +115,31 @@ type (
 
 func forwardIterator(resourceType string, _ options.SortOrder) iterator {
 	return func(ctx context.Context, reader datastore.Reader, limit uint64, cursor options.Cursor) (datastore.RelationshipIterator, error) {
-		return reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			OptionalResourceType: resourceType,
-		}, options.WithSort(options.ByResource), options.WithLimit(&limit), options.WithAfter(cursor))
+		return reader.QueryRelationships(
+			ctx,
+			datastore.RelationshipsFilter{
+				OptionalResourceType: resourceType,
+			},
+			options.WithSort(options.ByResource),
+			options.WithLimit(&limit),
+			options.WithAfter(cursor),
+			options.WithQueryShape(queryshape.Varying),
+		)
 	}
 }
 
 func reverseIterator(subjectType string, _ options.SortOrder) iterator {
 	return func(ctx context.Context, reader datastore.Reader, limit uint64, cursor options.Cursor) (datastore.RelationshipIterator, error) {
-		return reader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
-			SubjectType: subjectType,
-		}, options.WithSortForReverse(options.ByResource), options.WithLimitForReverse(&limit), options.WithAfterForReverse(cursor))
+		return reader.ReverseQueryRelationships(
+			ctx,
+			datastore.SubjectsFilter{
+				SubjectType: subjectType,
+			},
+			options.WithSortForReverse(options.ByResource),
+			options.WithLimitForReverse(&limit),
+			options.WithAfterForReverse(cursor),
+			options.WithQueryShapeForReverse(queryshape.Varying),
+		)
 	}
 }
 
@@ -178,7 +193,7 @@ func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
 
 			t.Run(tc.name, func(t *testing.T) {
 				require := require.New(t)
-				ctx := context.Background()
+				ctx := t.Context()
 
 				foreachTxType(ctx, ds, rev, func(reader datastore.Reader) {
 					var iter datastore.RelationshipIterator
@@ -217,7 +232,7 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 
 			t.Run(fmt.Sprintf("%s-batches-%d", tc.name, batchSize), func(t *testing.T) {
 				require := require.New(t)
-				ctx := context.Background()
+				ctx := t.Context()
 
 				foreachTxType(ctx, ds, rev, func(reader datastore.Reader) {
 					cursor := options.Cursor(nil)
@@ -254,7 +269,7 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require.New(t))
 
 	// Add test relationships.
-	rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	rev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:alice")),
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom")),
@@ -277,13 +292,21 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 			foundTuples := mapz.NewSet[string]()
 
 			for i := 0; i < 5; i++ {
-				iter, err := reader.ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{
-					SubjectType:        testfixtures.UserNS.Name,
-					OptionalSubjectIds: []string{"alice", "tom", "fred", "*"},
-				}, options.WithResRelation(&options.ResourceRelation{
-					Namespace: "document",
-					Relation:  "viewer",
-				}), options.WithSortForReverse(sortBy), options.WithLimitForReverse(&limit), options.WithAfterForReverse(cursor))
+				iter, err := reader.ReverseQueryRelationships(
+					t.Context(),
+					datastore.SubjectsFilter{
+						SubjectType:        testfixtures.UserNS.Name,
+						OptionalSubjectIds: []string{"alice", "tom", "fred", "*"},
+					},
+					options.WithResRelation(&options.ResourceRelation{
+						Namespace: "document",
+						Relation:  "viewer",
+					}),
+					options.WithSortForReverse(sortBy),
+					options.WithLimitForReverse(&limit),
+					options.WithAfterForReverse(cursor),
+					options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
+				)
 				require.NoError(t, err)
 
 				encounteredTuples := mapz.NewSet[string]()
@@ -313,7 +336,7 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require.New(t))
 
 	// Add test relationships.
-	rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	rev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:alice")),
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom")),
@@ -336,9 +359,16 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 			foundTuples := mapz.NewSet[string]()
 
 			for i := 0; i < 5; i++ {
-				iter, err := reader.ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{
-					SubjectType: testfixtures.UserNS.Name,
-				}, options.WithSortForReverse(sortBy), options.WithLimitForReverse(&limit), options.WithAfterForReverse(cursor))
+				iter, err := reader.ReverseQueryRelationships(
+					t.Context(),
+					datastore.SubjectsFilter{
+						SubjectType: testfixtures.UserNS.Name,
+					},
+					options.WithSortForReverse(sortBy),
+					options.WithLimitForReverse(&limit),
+					options.WithAfterForReverse(cursor),
+					options.WithQueryShapeForReverse(queryshape.Varying),
+				)
 				require.NoError(t, err)
 
 				encounteredTuples := mapz.NewSet[string]()

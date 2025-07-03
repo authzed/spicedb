@@ -10,38 +10,40 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"github.com/jzelinskie/stringz"
+	"github.com/samber/lo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/ccoveille/go-safecast"
-	"github.com/jzelinskie/stringz"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/services/v1/options"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/zedtoken"
-
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
-	"github.com/samber/lo"
 )
 
 const (
@@ -97,21 +99,25 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 				grpcvalidate.UnaryServerInterceptor(),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
+				perfinsights.UnaryServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
 				grpcvalidate.StreamServerInterceptor(),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
+				perfinsights.StreamServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 		},
-		maxBatchSize: uint64(config.MaxExportBatchSize),
+		maxBatchSize:  uint64(config.MaxExportBatchSize),
+		caveatTypeSet: caveattypes.TypeSetOrDefault(permServerConfig.CaveatTypeSet),
 		bulkChecker: &bulkChecker{
 			maxAPIDepth:          permServerConfig.MaximumAPIDepth,
 			maxCaveatContextSize: permServerConfig.MaxCaveatContextSize,
 			maxConcurrency:       config.BulkCheckMaxConcurrency,
 			dispatch:             dispatch,
 			dispatchChunkSize:    chunkSize,
+			caveatTypeSet:        caveattypes.TypeSetOrDefault(permServerConfig.CaveatTypeSet),
 		},
 	}
 }
@@ -122,15 +128,17 @@ type experimentalServer struct {
 
 	maxBatchSize uint64
 
-	bulkChecker *bulkChecker
+	bulkChecker   *bulkChecker
+	caveatTypeSet *caveattypes.TypeSet
 }
 
 type bulkLoadAdapter struct {
 	stream                 v1.ExperimentalService_BulkImportRelationshipsServer
-	referencedNamespaceMap map[string]*typesystem.TypeSystem
+	referencedNamespaceMap map[string]*schema.Definition
 	referencedCaveatMap    map[string]*core.CaveatDefinition
 	current                tuple.Relationship
 	caveat                 core.ContextualizedCaveat
+	caveatTypeSet          *caveattypes.TypeSet
 
 	awaitingNamespaces []string
 	awaitingCaveats    []string
@@ -167,9 +175,9 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
-	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
-	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
-	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
+	a.current.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
+	a.current.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
+	a.current.Resource.Relation = a.currentBatch[a.numSent].Relation
 	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
 	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
 	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
@@ -194,6 +202,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
 		a.referencedCaveatMap,
+		a.caveatTypeSet,
 		a.current,
 		relationships.ValidateRelationshipForCreateOrTouch,
 	); err != nil {
@@ -206,7 +215,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 
 func extractBatchNewReferencedNamespacesAndCaveats(
 	batch []*v1.Relationship,
-	existingNamespaces map[string]*typesystem.TypeSystem,
+	existingNamespaces map[string]*schema.Definition,
 	existingCaveats map[string]*core.CaveatDefinition,
 ) ([]string, []string) {
 	newNamespaces := make(map[string]struct{}, 2)
@@ -230,11 +239,13 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 
 // TODO: this is now duplicate code with ImportBulkRelationships
 func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalService_BulkImportRelationshipsServer) error {
+	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
+
 	ds := datastoremw.MustFromContext(stream.Context())
 
 	var numWritten uint64
 	if _, err := ds.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		loadedNamespaces := make(map[string]*typesystem.TypeSystem, 2)
+		loadedNamespaces := make(map[string]*schema.Definition, 2)
 		loadedCaveats := make(map[string]*core.CaveatDefinition, 0)
 
 		adapter := &bulkLoadAdapter{
@@ -243,8 +254,10 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			referencedCaveatMap:    loadedCaveats,
 			current:                tuple.Relationship{},
 			caveat:                 core.ContextualizedCaveat{},
+			caveatTypeSet:          es.caveatTypeSet,
 		}
-		resolver := typesystem.ResolverForDatastoreReader(rwt)
+		resolver := schema.ResolverForDatastoreReader(rwt)
+		ts := schema.NewTypeSystem(resolver)
 
 		var streamWritten uint64
 		var err error
@@ -259,12 +272,12 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 				}
 
 				for _, nsDef := range nsDefs {
-					nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, resolver)
+					newDef, err := schema.NewDefinition(ts, nsDef.Definition)
 					if err != nil {
 						return err
 					}
 
-					loadedNamespaces[nsDef.Definition.Name] = nts
+					loadedNamespaces[nsDef.Definition.Name] = newDef
 				}
 				adapter.awaitingNamespaces = nil
 			}
@@ -304,6 +317,8 @@ func (es *experimentalServer) BulkExportRelationships(
 	resp grpc.ServerStreamingServer[v1.BulkExportRelationshipsResponse],
 ) error {
 	ctx := resp.Context()
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
@@ -410,12 +425,12 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 				rels = append(rels, &relsArray[offset]) // nozero
 
 				v1Rel := &relsArray[offset]
-				v1Rel.Resource.ObjectType = rel.RelationshipReference.Resource.ObjectType
-				v1Rel.Resource.ObjectId = rel.RelationshipReference.Resource.ObjectID
-				v1Rel.Relation = rel.RelationshipReference.Resource.Relation
-				v1Rel.Subject.Object.ObjectType = rel.RelationshipReference.Subject.ObjectType
-				v1Rel.Subject.Object.ObjectId = rel.RelationshipReference.Subject.ObjectID
-				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.RelationshipReference.Subject.Relation)
+				v1Rel.Resource.ObjectType = rel.Resource.ObjectType
+				v1Rel.Resource.ObjectId = rel.Resource.ObjectID
+				v1Rel.Relation = rel.Resource.Relation
+				v1Rel.Subject.Object.ObjectType = rel.Subject.ObjectType
+				v1Rel.Subject.Object.ObjectId = rel.Subject.ObjectID
+				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.Subject.Relation)
 
 				if rel.OptionalCaveat != nil {
 					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
@@ -440,6 +455,7 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 				dsoptions.WithLimit(&limit),
 				dsoptions.WithAfter(cur),
 				dsoptions.WithSort(dsoptions.ByResource),
+				dsoptions.WithQueryShape(queryshape.Varying),
 			)
 			if err != nil {
 				return shared.RewriteErrorWithoutConfig(ctx, err)
@@ -476,6 +492,8 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 }
 
 func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.BulkCheckPermissionRequest) (*v1.BulkCheckPermissionResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	convertedReq := toCheckBulkPermissionsRequest(req)
 	res, err := es.bulkChecker.checkBulkPermissions(ctx, convertedReq)
 	if err != nil {
@@ -486,13 +504,15 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 }
 
 func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req *v1.ExperimentalReflectSchemaRequest) (*v1.ExperimentalReflectSchemaResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	// Get the current schema.
 	schema, atRevision, err := loadCurrentSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	filters, err := newSchemaFilters(req.OptionalFilters)
+	filters, err := newexpSchemaFilters(req.OptionalFilters)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -500,7 +520,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	definitions := make([]*v1.ExpDefinition, 0, len(schema.ObjectDefinitions))
 	if filters.HasNamespaces() {
 		for _, ns := range schema.ObjectDefinitions {
-			def, err := namespaceAPIRepr(ns, filters)
+			def, err := expNamespaceAPIRepr(ns, filters)
 			if err != nil {
 				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 			}
@@ -514,7 +534,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	caveats := make([]*v1.ExpCaveat, 0, len(schema.CaveatDefinitions))
 	if filters.HasCaveats() {
 		for _, cd := range schema.CaveatDefinitions {
-			caveat, err := caveatAPIRepr(cd, filters)
+			caveat, err := expCaveatAPIRepr(cd, filters, es.caveatTypeSet)
 			if err != nil {
 				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 			}
@@ -533,17 +553,19 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 }
 
 func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v1.ExperimentalDiffSchemaRequest) (*v1.ExperimentalDiffSchemaResponse, error) {
+	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema)
+	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema, es.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	resp, err := convertDiff(diff, existingSchema, comparisonSchema, atRevision)
+	resp, err := expConvertDiff(diff, existingSchema, comparisonSchema, atRevision, es.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -552,13 +574,22 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 }
 
 func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Context, req *v1.ExperimentalComputablePermissionsRequest) (*v1.ExperimentalComputablePermissionsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.DefinitionName,
+			perfinsights.ResourceRelationLabel: req.RelationName,
+			perfinsights.FilterLabel:           req.OptionalDefinitionNameFilter,
+		}
+	})
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -567,8 +598,8 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 	if relationName == "" {
 		relationName = tuple.Ellipsis
 	} else {
-		if _, ok := vts.GetRelation(relationName); !ok {
-			return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, relationName))
+		if _, ok := vdef.GetRelation(relationName); !ok {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, relationName))
 		}
 	}
 
@@ -582,7 +613,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		allDefinitions = append(allDefinitions, ns.Definition)
 	}
 
-	rg := typesystem.ReachabilityGraphFor(vts)
+	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  relationName,
@@ -601,7 +632,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 			continue
 		}
 
-		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		def, err := ts.GetValidatedDefinition(ctx, r.Namespace)
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}
@@ -609,7 +640,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		relations = append(relations, &v1.ExpRelationReference{
 			DefinitionName: r.Namespace,
 			RelationName:   r.Relation,
-			IsPermission:   ts.IsPermission(r.Relation),
+			IsPermission:   def.IsPermission(r.Relation),
 		})
 	}
 
@@ -627,27 +658,35 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 }
 
 func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context, req *v1.ExperimentalDependentRelationsRequest) (*v1.ExperimentalDependentRelationsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.ResourceTypeLabel:     req.DefinitionName,
+			perfinsights.ResourceRelationLabel: req.PermissionName,
+		}
+	})
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	_, ok := vts.GetRelation(req.PermissionName)
+	_, ok := vdef.GetRelation(req.PermissionName)
 	if !ok {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
+		return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
 	}
 
-	if !vts.IsPermission(req.PermissionName) {
+	if !vdef.IsPermission(req.PermissionName) {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
 	}
 
-	rg := typesystem.ReachabilityGraphFor(vts)
+	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  req.PermissionName,
@@ -662,7 +701,7 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 			continue
 		}
 
-		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		ts, err := ts.GetDefinition(ctx, r.Namespace)
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}
@@ -689,6 +728,12 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 }
 
 func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalRegisterRelationshipCounterRequest) (*v1.ExperimentalRegisterRelationshipCounterResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.NameLabel: req.Name,
+		}
+	})
+
 	ds := datastoremw.MustFromContext(ctx)
 
 	if req.Name == "" {
@@ -711,6 +756,12 @@ func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx contex
 }
 
 func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalUnregisterRelationshipCounterRequest) (*v1.ExperimentalUnregisterRelationshipCounterResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.NameLabel: req.Name,
+		}
+	})
+
 	ds := datastoremw.MustFromContext(ctx)
 
 	if req.Name == "" {
@@ -728,6 +779,12 @@ func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx cont
 }
 
 func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context, req *v1.ExperimentalCountRelationshipsRequest) (*v1.ExperimentalCountRelationshipsResponse, error) {
+	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
+		return perfinsights.APIShapeLabels{
+			perfinsights.NameLabel: req.Name,
+		}
+	})
+
 	if req.Name == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}

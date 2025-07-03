@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -22,6 +23,21 @@ const (
 	errRevision       = "unable to find revision: %w"
 	errCheckRevision  = "unable to check revision: %w"
 	errRevisionFormat = "invalid revision format: %w"
+
+	//   %[1] Name of xid column
+	//   %[2] Relationship tuple transaction table
+	//   %[3] Name of timestamp column
+	//   %[4] Quantization period (in nanoseconds)
+	//   %[5] Name of snapshot column
+	insertHeartBeatRevision = `
+	INSERT INTO %[2]s (%[1]s, %[5]s)
+	SELECT pg_current_xact_id(), pg_current_snapshot()
+	WHERE NOT EXISTS (
+		SELECT 1
+		FROM %[2]s rtt
+		WHERE rtt.%[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc'
+        LIMIT 1
+	);`
 
 	// querySelectRevision will round the database's timestamp down to the nearest
 	// quantization period, and then find the first transaction (and its active xmin)
@@ -35,9 +51,10 @@ const (
 	//   %[3] Name of timestamp column
 	//   %[4] Quantization period (in nanoseconds)
 	//   %[5] Name of snapshot column
+	//   %[6] Follower read delay (in nanoseconds)
 	querySelectRevision = `
 	WITH selected AS (SELECT (
-		(SELECT %[1]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 / %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1)
+		(SELECT %[1]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 - %[6]d)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1)
 	) as xid)
 	SELECT selected.xid,
 	COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
@@ -56,18 +73,31 @@ const (
 	//   %[4] Inverse of GC window (in seconds)
 	//   %[5] Name of the snapshot column
 	queryValidTransaction = `
-	WITH minvalid AS (
-		SELECT %[1]s, %[5]s
-        FROM %[2]s
-        WHERE 
-            %[3]s >= NOW() - INTERVAL '%[4]f seconds'
-          OR
-             %[3]s = (SELECT MAX(%[3]s) FROM %[2]s)
-        ORDER BY %[3]s ASC
-        LIMIT 1
-	)
-	SELECT minvalid.%[1]s, minvalid.%[5]s, pg_current_snapshot() FROM minvalid;`
-
+	WITH
+	  earliest AS (
+		SELECT %[1]s, %[5]s, %[3]s
+		FROM %[2]s
+		WHERE %[3]s >= NOW() - INTERVAL '%[4]f seconds'
+		ORDER BY %[3]s ASC
+		LIMIT 1
+	  ),
+	  newest AS (
+		SELECT %[1]s, %[5]s, %[3]s
+		FROM %[2]s
+		ORDER BY %[3]s DESC
+		LIMIT 1
+	  )
+	SELECT
+	  %[1]s,
+	  %[5]s,
+	  pg_current_snapshot()
+	FROM (
+	  SELECT * FROM earliest
+	  UNION ALL
+	  SELECT * FROM newest
+	) AS candidates
+	ORDER BY %[3]s ASC
+	LIMIT 1;`
 	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
 
 	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
@@ -274,7 +304,7 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]an
 		metadata = emptyMetadata
 	}
 
-	sql, args, err := createTxn.Values(metadata).Suffix("RETURNING " + colXID + ", " + colSnapshot).ToSql()
+	sql, args, err := createTxn.Values(metadata).Suffix("RETURNING " + schema.ColXID + ", " + schema.ColSnapshot).ToSql()
 	if err != nil {
 		return
 	}

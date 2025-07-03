@@ -1,0 +1,31 @@
+ignore:
+  - "**/zz_*.go"
+  - "**/*.pb.go"
+  - "**/*.pb.validate.go"
+  - "**/*fortesting.go"
+  - "**/testutil.go"
+  - "**/testutil/*.go"
+coverage:
+  # UI Colors. The first number represents the cutover from red to yellow,
+  # and the second represents the cutover from yellow to green.
+  range: "70..85"
+  round: "up"
+  precision: 2
+  status:
+    project:
+      default:
+        target: "75%"
+    patch:
+      default:
+        # use the coverage from the pull request base to compare against.
+        target: "auto"
+        # allow the coverage to drop
+        threshold: "0.5%"
+        # the status will pass if there is no report for the head.
+        # used on PRs there won't be code coverage, but we still want codecov to pass.
+        if_not_found: "success"
+github_checks:
+  annotations: true
+parsers:
+  go:
+    partials_as_hits: false

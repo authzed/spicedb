@@ -7,11 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/testutil"
-
 	"github.com/stretchr/testify/require"
-
 	"go.uber.org/goleak"
+
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 // done so we can do t.Parallel() and still use goleak
@@ -22,7 +21,7 @@ func TestMain(m *testing.M) {
 func TestPreloadedTaskRunnerCompletesAllTasks(t *testing.T) {
 	t.Parallel()
 
-	tr := NewPreloadedTaskRunner(context.Background(), 2, 5)
+	tr := NewPreloadedTaskRunner(t.Context(), 2, 5)
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < 5; i++ {
@@ -45,7 +44,7 @@ func TestPreloadedTaskRunnerCompletesAllTasks(t *testing.T) {
 func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -83,7 +82,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -122,7 +121,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -161,7 +160,7 @@ func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
 func TestPreloadedTaskRunnerEmpty(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

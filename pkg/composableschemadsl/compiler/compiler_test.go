@@ -50,7 +50,7 @@ func TestCompile(t *testing.T) {
 			"nested parse error",
 			withTenantPrefix,
 			`definition foo {
-				relation something: rela | relb + relc	
+				relation something: rela | relb + relc
 			}`,
 			"parse error in `nested parse error`, line 2, column 37: Expected end of statement or definition, found: TokenTypePlus",
 			[]SchemaDefinition{},
@@ -87,6 +87,268 @@ func TestCompile(t *testing.T) {
 					),
 				),
 			},
+		},
+		{
+			"simple partial",
+			withTenantPrefix,
+			`partial view_partial {
+				relation user: user;
+			}
+
+			definition simple {
+				...view_partial
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"more complex partial",
+			withTenantPrefix,
+			`
+			definition user {}
+			definition organization {}
+
+			partial view_partial {
+				relation user: user;
+				permission view = user
+			}
+
+			definition resource {
+				relation organization: organization
+				permission manage = organization
+
+				...view_partial
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/user"),
+				namespace.Namespace("sometenant/organization"),
+				namespace.Namespace("sometenant/resource",
+					namespace.MustRelation("organization", nil,
+						namespace.AllowedRelation("sometenant/organization", "..."),
+					),
+					namespace.MustRelation("manage",
+						namespace.Union(
+							namespace.ComputedUserset("organization"),
+						),
+					),
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+					namespace.MustRelation("view",
+						namespace.Union(
+							namespace.ComputedUserset("user"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"partial defined after reference",
+			withTenantPrefix,
+			`definition simple {
+				...view_partial
+			}
+
+			partial view_partial {
+				relation user: user;
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"transitive partials",
+			withTenantPrefix,
+			`
+			partial view_partial {
+				relation user: user;
+			}
+
+			partial transitive_partial {
+				...view_partial
+			}
+
+			definition simple {
+				...view_partial
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"transitive partials out of order",
+			withTenantPrefix,
+			`
+			partial transitive_partial {
+				...view_partial
+			}
+
+			partial view_partial {
+				relation user: user;
+			}
+
+			definition simple {
+				...view_partial
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"transitive partials in reverse order",
+			withTenantPrefix,
+			`
+			definition simple {
+				...view_partial
+			}
+
+			partial transitive_partial {
+				...view_partial
+			}
+
+			partial view_partial {
+				relation user: user;
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"forking transitive partials out of order",
+			withTenantPrefix,
+			`
+			partial transitive_partial {
+				...view_partial
+				...group_partial
+			}
+
+			partial view_partial {
+				relation user: user;
+			}
+
+			partial group_partial {
+				relation group: group;
+			}
+
+			definition simple {
+				...transitive_partial
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+					namespace.MustRelation("group", nil,
+						namespace.AllowedRelation("sometenant/group", "..."),
+					),
+				),
+			},
+		},
+		{
+			"circular reference in partials",
+			withTenantPrefix,
+			`
+			partial one_partial {
+				...another_partial
+			}
+
+			partial another_partial {
+				...one_partial
+			}
+
+			definition simple {
+				...one_partial
+			}
+			`,
+			"could not resolve partials",
+			[]SchemaDefinition{},
+		},
+		{
+			"definition reference to nonexistent partial",
+			withTenantPrefix,
+			`
+			definition simple {
+				...some_partial
+			}
+			`,
+			"could not find partial reference",
+			[]SchemaDefinition{},
+		},
+		{
+			"definition with same name as partial",
+			withTenantPrefix,
+			`
+			partial simple {
+				relation user: user
+			}
+			definition simple {
+				...simple
+			}
+			`,
+			"found definition with same name as existing partial",
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat with same name as partial",
+			withTenantPrefix,
+			`
+			caveat some_caveat(someparam int) { someparam == 42}
+
+			partial some_caveat {
+				relation user: user
+			}
+			definition simple {
+				...some_caveat
+			}
+			`,
+			"found caveat with same name as existing partial",
+			[]SchemaDefinition{},
+		},
+		{
+			"definition reference to another definition errors",
+			withTenantPrefix,
+			`
+			definition some_definition {}
+
+			definition simple {
+				...some_definition
+			}
+			`,
+			"could not find partial reference",
+			[]SchemaDefinition{},
 		},
 		{
 			"explicit relation",
@@ -163,9 +425,9 @@ func TestCompile(t *testing.T) {
 			}`,
 			"",
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"someparam": caveattypes.IntType,
+						"someparam": caveattypes.Default.IntType,
 					},
 				), "sometenant/somecaveat", "someparam == 42"),
 				namespace.Namespace("sometenant/simple",
@@ -670,9 +932,9 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"someParam": caveattypes.IntType,
+						"someParam": caveattypes.Default.IntType,
 					},
 				), "sometenant/foo", "someParam == 42"),
 			},
@@ -686,14 +948,14 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"someParam":    caveattypes.IntType,
-						"anotherParam": caveattypes.StringType,
-						"thirdParam":   caveattypes.MustListType(caveattypes.IntType),
+						"someParam":    caveattypes.Default.IntType,
+						"anotherParam": caveattypes.Default.StringType,
+						"thirdParam":   caveattypes.Default.MustListType(caveattypes.Default.IntType),
 					},
 				), "sometenant/foo",
-					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56 
+					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56
 					&& anotherParam == "hi there" && 42 in thirdParam`),
 			},
 		},
@@ -705,9 +967,9 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"user_ip": caveattypes.IPAddressType,
+						"user_ip": caveattypes.Default.IPAddressType,
 					},
 				), "sometenant/has_allowed_ip",
 					`!user_ip.in_cidr('1.2.3.0')`),
@@ -721,10 +983,10 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"someMap":    caveattypes.MustMapType(caveattypes.AnyType),
-						"anotherMap": caveattypes.MustMapType(caveattypes.AnyType),
+						"someMap":    caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
+						"anotherMap": caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
 					},
 				), "sometenant/something",
 					`someMap.isSubtreeOf(anotherMap)`),
@@ -974,6 +1236,63 @@ func TestCompile(t *testing.T) {
 				),
 			},
 		},
+		{
+			"relation with expiration trait",
+			withTenantPrefix,
+			`use expiration
+
+			definition simple {
+				relation viewer: user with expiration
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithExpiration("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"duplicate use pragmas",
+			withTenantPrefix,
+			`
+			use expiration
+			use expiration
+
+			definition simple {
+				relation viewer: user with expiration
+			}`,
+			`found duplicate use flag`,
+			[]SchemaDefinition{},
+		},
+		{
+			"expiration use without use expiration",
+			withTenantPrefix,
+			`
+			definition simple {
+				relation viewer: user with expiration
+			}`,
+			`expiration flag is not enabled`,
+			[]SchemaDefinition{},
+		},
+		{
+			"relation with expiration trait and caveat",
+			withTenantPrefix,
+			`use expiration
+
+			definition simple {
+				relation viewer: user with somecaveat and expiration
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithCaveatAndExpiration("sometenant/user", "...", namespace.AllowedCaveat("sometenant/somecaveat")),
+					),
+				),
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1007,13 +1326,13 @@ func TestCompile(t *testing.T) {
 							testutil.RequireProtoEqual(t, expectedParam, foundParam, "mismatch type for parameter %s", expectedParamName)
 						}
 
-						parameterTypes, err := caveattypes.DecodeParameterTypes(caveatDef.ParameterTypes)
+						parameterTypes, err := caveattypes.DecodeParameterTypes(caveattypes.Default.TypeSet, caveatDef.ParameterTypes)
 						require.NoError(err)
 
-						expectedDecoded, err := caveats.DeserializeCaveat(expectedCaveatDef.SerializedExpression, parameterTypes)
+						expectedDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(expectedCaveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
-						foundDecoded, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression, parameterTypes)
+						foundDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(caveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
 						expectedExprString, err := expectedDecoded.ExprString()

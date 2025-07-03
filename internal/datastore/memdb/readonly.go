@@ -140,7 +140,7 @@ func (r *memdbReader) QueryRelationships(
 		filter.OptionalResourceIDPrefix,
 		filter.OptionalResourceRelation,
 		filter.OptionalSubjectsSelectors,
-		filter.OptionalCaveatName,
+		filter.OptionalCaveatNameFilter,
 		filter.OptionalExpirationOption,
 		makeCursorFilterFn(queryOpts.After, queryOpts.Sort),
 	)
@@ -203,7 +203,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 		"",
 		filterRelation,
 		[]datastore.SubjectsSelector{subjectsFilter.AsSelector()},
-		"",
+		datastore.CaveatNameFilter{},
 		datastore.ExpirationFilterOptionNone,
 		makeCursorFilterFn(queryOpts.AfterForReverse, queryOpts.SortForReverse),
 	)
@@ -214,11 +214,11 @@ func (r *memdbReader) ReverseQueryRelationships(
 		fallthrough
 
 	case options.ByResource:
-		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.LimitForReverse, false, false)
+		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.LimitForReverse, queryOpts.SkipCaveatsForReverse, queryOpts.SkipExpirationForReverse)
 		return iter, nil
 
 	case options.BySubject:
-		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.LimitForReverse, false, false)
+		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.LimitForReverse, queryOpts.SkipCaveatsForReverse, queryOpts.SkipExpirationForReverse)
 
 	default:
 		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.SortForReverse)
@@ -388,7 +388,7 @@ func filterFuncForFilters(
 	optionalResourceIDPrefix string,
 	optionalRelation string,
 	optionalSubjectsSelectors []datastore.SubjectsSelector,
-	optionalCaveatFilter string,
+	optionalCaveatFilter datastore.CaveatNameFilter,
 	optionalExpirationFilter datastore.ExpirationFilterOption,
 	cursorFilter func(*relationship) bool,
 ) memdb.FilterFunc {
@@ -404,7 +404,9 @@ func filterFuncForFilters(
 			return true
 		case optionalRelation != "" && optionalRelation != tuple.relation:
 			return true
-		case optionalCaveatFilter != "" && (tuple.caveat == nil || tuple.caveat.caveatName != optionalCaveatFilter):
+		case optionalCaveatFilter.Option == datastore.CaveatFilterOptionHasMatchingCaveat && (tuple.caveat == nil || tuple.caveat.caveatName != optionalCaveatFilter.CaveatName):
+			return true
+		case optionalCaveatFilter.Option == datastore.CaveatFilterOptionNoCaveat && (tuple.caveat != nil && tuple.caveat.caveatName != ""):
 			return true
 		case optionalExpirationFilter == datastore.ExpirationFilterOptionHasExpiration && tuple.expiration == nil:
 			return true

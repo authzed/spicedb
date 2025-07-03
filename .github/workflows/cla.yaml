@@ -12,12 +12,17 @@ on:  # yamllint disable-line rule:truthy
   merge_group:
     types:
       - "checks_requested"
+permissions:
+  actions: "write"
+  contents: "read" # CLA signatures are stored in https://github.com/authzed/cla
+  pull-requests: "write"
+  statuses: "write"
 jobs:
   cla:
     name: "Check Signature"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "authzed/actions/cla-check@main"
+      - uses: "authzed/actions/cla-check@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         with:
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           cla_assistant_token: "${{ secrets.CLA_ASSISTANT_ACCESS_TOKEN }}"

@@ -10,6 +10,33 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
+// DatastoreMetricsOption is an option for configuring the metrics that are emitted
+// by the Spanner datastore.
+type DatastoreMetricsOption string
+
+const (
+	// DatastoreMetricsOptionNone disables all metrics.
+	DatastoreMetricsOptionNone DatastoreMetricsOption = "none"
+
+	// DatastoreMetricsOptionNative enables the native metrics that are emitted
+	// by the Spanner datastore. These metrics are emitted to GCP and require
+	// a ServiceAccount with the appropriate permissions to be configured.
+	// See: https://cloud.google.com/spanner/docs/view-manage-client-side-metrics
+	DatastoreMetricsOptionNative = "native"
+
+	// DatastoreMetricsOptionOpenTelemetry enables the OpenTelemetry metrics that are emitted
+	// by the Spanner datastore. These metrics are emitted to the configured
+	// OpenTelemetry collector.
+	// This option is enabled by default.
+	DatastoreMetricsOptionOpenTelemetry = "otel"
+
+	// DatastoreMetricsOptionLegacyPrometheus enables the legacy Prometheus metrics that are emitted
+	// by the Spanner datastore. These metrics are emitted to the configured
+	// Prometheus server.
+	// This option is deprecated and will be removed in a future release.
+	DatastoreMetricsOptionLegacyPrometheus = "deprecated-prometheus"
+)
+
 type spannerOptions struct {
 	watchBufferLength           uint16
 	watchBufferWriteTimeout     time.Duration
@@ -29,6 +56,8 @@ type spannerOptions struct {
 	filterMaximumIDCount        uint16
 	columnOptimizationOption    common.ColumnOptimizationOption
 	expirationDisabled          bool
+	watchDisabled               bool
+	datastoreMetricsOption      DatastoreMetricsOption
 }
 
 type migrationPhase uint8
@@ -52,8 +81,9 @@ const (
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
 	defaultFilterMaximumIDCount        = 100
-	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionNone
+	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionStaticValues
 	defaultExpirationDisabled          = false
+	defaultWatchDisabled               = false
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -79,6 +109,7 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 		columnOptimizationOption:    defaultColumnOptimizationOption,
 		expirationDisabled:          defaultExpirationDisabled,
+		watchDisabled:               defaultWatchDisabled,
 	}
 
 	for _, option := range options {
@@ -176,6 +207,13 @@ func EmulatorHost(uri string) Option {
 	}
 }
 
+// WithDatastoreMetricsOption configures the metrics that are emitted by the Spanner datastore.
+func WithDatastoreMetricsOption(opt DatastoreMetricsOption) Option {
+	return func(po *spannerOptions) {
+		po.datastoreMetricsOption = opt
+	}
+}
+
 // DisableStats disables recording counts to the stats table
 func DisableStats(disable bool) Option {
 	return func(po *spannerOptions) {
@@ -248,5 +286,12 @@ func WithColumnOptimization(isEnabled bool) Option {
 func WithExpirationDisabled(isDisabled bool) Option {
 	return func(po *spannerOptions) {
 		po.expirationDisabled = isDisabled
+	}
+}
+
+// WithWatchDisabled disables watch support in the Spanner.
+func WithWatchDisabled(isDisabled bool) Option {
+	return func(po *spannerOptions) {
+		po.watchDisabled = isDisabled
 	}
 }

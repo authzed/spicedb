@@ -3,8 +3,8 @@ package developmentmembership
 import (
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/datasets"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -84,7 +84,7 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 
 		case core.SetOperationUserset_INTERSECTION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
-				return nil, fmt.Errorf("found intersection with no children")
+				return &TrackingSubjectSet{setByType: make(map[tuple.RelationReference]datasets.BaseSubjectSet[FoundSubject])}, nil
 			}
 
 			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.ChildNodes[0])

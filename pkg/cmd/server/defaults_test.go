@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 )
 
 func TestWithDatastore(t *testing.T) {
@@ -49,7 +50,7 @@ func TestWithDatastore(t *testing.T) {
 	require.Equal(t, opts.DisableGRPCHistogram, withDS.DisableGRPCHistogram)
 	require.Equal(t, opts.MiddlewareServiceLabel, withDS.MiddlewareServiceLabel)
 
-	_, authError := withDS.AuthFunc(context.Background())
+	_, authError := withDS.AuthFunc(t.Context())
 	require.Error(t, authError)
 	require.ErrorContains(t, authError, "expected auth error")
 }
@@ -74,7 +75,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		nil,
 	}
 
-	someMiddleware := pertoken.NewMiddleware(nil)
+	someMiddleware := pertoken.NewMiddleware(nil, caveattypes.Default.TypeSet)
 
 	withDS := opts.WithDatastoreMiddleware(someMiddleware)
 	require.NotNil(t, withDS)
@@ -88,7 +89,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 	require.Equal(t, opts.DisableGRPCHistogram, withDS.DisableGRPCHistogram)
 	require.Equal(t, opts.MiddlewareServiceLabel, withDS.MiddlewareServiceLabel)
 
-	_, authError := withDS.AuthFunc(context.Background())
+	_, authError := withDS.AuthFunc(t.Context())
 	require.Error(t, authError)
 	require.ErrorContains(t, authError, "expected auth error")
 }

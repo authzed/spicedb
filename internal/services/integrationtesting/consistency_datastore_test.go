@@ -11,10 +11,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -50,15 +52,16 @@ func TestConsistencyPerDatastore(t *testing.T) {
 					}
 
 					rde := testdatastore.RunDatastoreEngine(t, engineID)
-					ds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
+					baseds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 						dsconfig.WithWatchBufferLength(0),
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10),
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithRequestHedgingEnabled(false)))
+					ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 
 					cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
-					dispatcher := graph.NewLocalOnlyDispatcher(10, 100)
+					dispatcher := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 					accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
 
 					headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)

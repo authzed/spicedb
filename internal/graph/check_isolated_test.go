@@ -1,7 +1,6 @@
 package graph_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -135,7 +134,7 @@ func TestTraitsForArrowRelation(t *testing.T) {
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, require)
 			reader := ds.SnapshotReader(revision)
 
-			traits, err := graph.TraitsForArrowRelation(context.Background(), reader, tc.namespaceName, tc.relationName)
+			traits, err := graph.TraitsForArrowRelation(t.Context(), reader, tc.namespaceName, tc.relationName)
 			if tc.expectedError != "" {
 				require.ErrorContains(err, tc.expectedError)
 				return

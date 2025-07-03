@@ -19,6 +19,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -164,13 +165,13 @@ func TestMaxDepth(t *testing.T) {
 
 	mutation := tuple.Create(tuple.MustParse("folder:oops#parent@folder:oops"))
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	revision, err := common.UpdateRelationshipsInDatastore(ctx, ds, mutation)
 	require.NoError(err)
 
-	dispatch := NewLocalOnlyDispatcher(10, 100)
+	dispatch := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 
 	_, err = dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("folder", "view").ToCoreRR(),
@@ -261,6 +262,8 @@ func TestCheckMetadata(t *testing.T) {
 				userset := userset
 				expected := expected
 				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
 					require := require.New(t)
 
 					ctx, dispatch, revision := newLocalDispatcher(t)
@@ -1317,21 +1320,113 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(40)}),
 			),
 		},
+		{
+			name: "caveated_with_arrows",
+			schema: `
+			 definition user {}
+  
+			  definition office {
+				relation parent: office
+				relation manager: user
+				permission read = manager + parent->read
+			  }
+				  
+			  definition group {
+				relation parent: office
+				permission read = parent->read
+			  }
+				  
+			  definition document {
+				relation owner: group with equals
+				permission read = owner->read
+			  }
+				  
+			  caveat equals(actual string, required string) {
+				actual == required
+			  }
+			`,
+			relationships: []tuple.Relationship{
+				tuple.MustParse(`office:headoffice#manager@user:maria`),
+				tuple.MustParse(`office:branch1#parent@office:headoffice`),
+				tuple.MustParse(`group:admins#parent@office:branch1`),
+				tuple.MustParse(`group:managers#parent@office:headoffice`),
+				tuple.MustParse(`document:budget#owner@group:admins[equals:{"required":"admin"}]`),
+				tuple.MustParse(`document:budget#owner@group:managers[equals:{"required":"manager"}]`),
+			},
+			resource:               ONR("document", "budget", "read"),
+			subject:                ONR("user", "maria", "..."),
+			expectedPermissionship: v1.ResourceCheckResult_CAVEATED_MEMBER,
+			expectedCaveat: caveatOr(
+				caveatAndCtx("equals", map[string]any{"required": "admin"}),
+				caveatAndCtx("equals", map[string]any{"required": "manager"}),
+			),
+			alternativeExpectedCaveat: caveatOr(
+				caveatAndCtx("equals", map[string]any{"required": "manager"}),
+				caveatAndCtx("equals", map[string]any{"required": "admin"}),
+			),
+		},
+		{
+			name: "caveated_nested_with_intersection_arrows",
+			schema: `
+			 definition user {}
+  
+			  definition office {
+				relation parent: office
+				relation manager: user
+				permission read = manager + parent.all(read)
+			  }
+				  
+			  definition group {
+				relation parent: office
+				permission read = parent.all(read)
+			  }
+				  
+			  definition document {
+				relation owner: group with equals
+				permission read = owner.all(read)
+			  }
+				  
+			  caveat equals(actual string, required string) {
+				actual == required
+			  }
+			`,
+			relationships: []tuple.Relationship{
+				tuple.MustParse(`office:headoffice#manager@user:maria`),
+				tuple.MustParse(`office:branch1#parent@office:headoffice`),
+				tuple.MustParse(`group:admins#parent@office:branch1`),
+				tuple.MustParse(`group:managers#parent@office:headoffice`),
+				tuple.MustParse(`document:budget#owner@group:admins[equals:{"required":"admin"}]`),
+				tuple.MustParse(`document:budget#owner@group:managers[equals:{"required":"manager"}]`),
+			},
+			resource:               ONR("document", "budget", "read"),
+			subject:                ONR("user", "maria", "..."),
+			expectedPermissionship: v1.ResourceCheckResult_CAVEATED_MEMBER,
+			expectedCaveat: caveatAnd(
+				caveatAndCtx("equals", map[string]any{"required": "admin"}),
+				caveatAndCtx("equals", map[string]any{"required": "manager"}),
+			),
+			alternativeExpectedCaveat: caveatAnd(
+				caveatAndCtx("equals", map[string]any{"required": "manager"}),
+				caveatAndCtx("equals", map[string]any{"required": "admin"}),
+			),
+		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10, 100)
+			dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datastoremw.ContextWithHandle(context.Background())
+			ctx := datastoremw.ContextWithHandle(t.Context())
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -1351,7 +1446,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				membership = r.Membership
 			}
 
-			require.Equal(tc.expectedPermissionship, membership)
+			require.Equal(tc.expectedPermissionship, membership, fmt.Sprintf("expected permissionship %s, got %s", tc.expectedPermissionship, membership))
 
 			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat == nil {
 				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectID].Expression)
@@ -1455,6 +1550,8 @@ func TestCheckDebugging(t *testing.T) {
 
 		tc := tc
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcher(t)
@@ -1823,16 +1920,18 @@ func TestCheckWithHints(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10, 100)
+			dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datastoremw.ContextWithHandle(context.Background())
+			ctx := datastoremw.ContextWithHandle(t.Context())
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -1865,7 +1964,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	dispatcher := NewLocalOnlyDispatcher(10, 100)
+	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -1882,7 +1981,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 		tuple.MustParse("document:somedoc#viewer@user:tom"),
 	}, require)
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -1911,7 +2010,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	dispatcher := NewLocalOnlyDispatcher(10, 100)
+	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -1933,7 +2032,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 		tuple.MustParse("organization:someorg#member@user:tom"),
 	}, require)
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := datastoremw.ContextWithHandle(t.Context())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -1964,13 +2063,13 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 
-	dispatch := NewLocalOnlyDispatcher(concurrencyLimit, 100)
+	dispatch := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, concurrencyLimit, 100)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
-	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(t, err)
+	cachingDispatcher.SetDelegate(dispatch)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	return ctx, cachingDispatcher, revision
@@ -1986,13 +2085,13 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schema, rels, require.New(t))
 
-	dispatch := NewLocalOnlyDispatcher(10, 100)
+	dispatch := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
-	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(t, err)
+	cachingDispatcher.SetDelegate(dispatch)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	return ctx, cachingDispatcher, revision

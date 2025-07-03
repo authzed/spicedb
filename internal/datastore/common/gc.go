@@ -77,9 +77,19 @@ func RegisterGCMetrics() error {
 	return nil
 }
 
-// GarbageCollector represents any datastore that supports external garbage
-// collection.
-type GarbageCollector interface {
+// GarbageCollectableDatastore represents a datastore supporting external
+// and explicit garbage collection.
+type GarbageCollectableDatastore interface {
+	// BuildGarbageCollector builds a garbage collector for the datastore.
+	//
+	// Each instance is considered isolated and will be used for the duration
+	// of a *single* garbage collection call.
+	BuildGarbageCollector(ctx context.Context) (GarbageCollector, error)
+
+	// ReadyState returns the current state of the datastore. Note that this does not
+	// operate over the dedicated connection.
+	ReadyState(context.Context) (datastore.ReadyState, error)
+
 	// HasGCRun returns true if a garbage collection run has been completed.
 	HasGCRun() bool
 
@@ -88,7 +98,10 @@ type GarbageCollector interface {
 
 	// ResetGCCompleted resets the state of the garbage collection run.
 	ResetGCCompleted()
+}
 
+// GarbageCollector represents a runnable garbage collector for a datastore.
+type GarbageCollector interface {
 	// LockForGCRun attempts to acquire a lock for garbage collection. This lock
 	// is typically done at the datastore level, to ensure that no other nodes are
 	// running garbage collection at the same time.
@@ -98,9 +111,6 @@ type GarbageCollector interface {
 	// NOTE: this method does not take a context, as the context used for the
 	// reset of the GC run can be canceled/timed out and the unlock will still need to happen.
 	UnlockAfterGCRun() error
-
-	// ReadyState returns the current state of the datastore.
-	ReadyState(context.Context) (datastore.ReadyState, error)
 
 	// Now returns the current time from the datastore.
 	Now(context.Context) (time.Time, error)
@@ -113,6 +123,9 @@ type GarbageCollector interface {
 
 	// DeleteExpiredRels deletes all relationships that have expired.
 	DeleteExpiredRels(ctx context.Context) (int64, error)
+
+	// Close closes the garbage collector.
+	Close()
 }
 
 // DeletionCounts tracks the amount of deletions that occurred when calling
@@ -134,11 +147,11 @@ var MaxGCInterval = 60 * time.Minute
 
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
-func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, window, timeout time.Duration) error {
-	return startGarbageCollectorWithMaxElapsedTime(ctx, gc, interval, window, 0, timeout, gcFailureCounter)
+func StartGarbageCollector(ctx context.Context, collectable GarbageCollectableDatastore, interval, window, timeout time.Duration) error {
+	return startGarbageCollectorWithMaxElapsedTime(ctx, collectable, interval, window, 0, timeout, gcFailureCounter)
 }
 
-func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageCollector, interval, window, maxElapsedTime, timeout time.Duration, failureCounter prometheus.Counter) error {
+func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, collectable GarbageCollectableDatastore, interval, window, maxElapsedTime, timeout time.Duration, failureCounter prometheus.Counter) error {
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
 	backoffInterval.MaxInterval = max(MaxGCInterval, interval)
@@ -165,7 +178,7 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 				Dur("timeout", timeout).
 				Msg("running garbage collection worker")
 
-			err := RunGarbageCollection(gc, window, timeout)
+			err := RunGarbageCollection(collectable, window, timeout)
 			if err != nil {
 				failureCounter.Inc()
 				nextInterval = backoffInterval.NextBackOff()
@@ -186,7 +199,7 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 }
 
 // RunGarbageCollection runs garbage collection for the datastore.
-func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) error {
+func RunGarbageCollection(collectable GarbageCollectableDatastore, window, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -195,7 +208,7 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 
 	// Before attempting anything, check if the datastore is ready.
 	startTime := time.Now()
-	ready, err := gc.ReadyState(ctx)
+	ready, err := collectable.ReadyState(ctx)
 	if err != nil {
 		return err
 	}
@@ -204,6 +217,12 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 			Msgf("datastore wasn't ready when attempting garbage collection: %s", ready.Message)
 		return nil
 	}
+
+	gc, err := collectable.BuildGarbageCollector(ctx)
+	if err != nil {
+		return fmt.Errorf("error building garbage collector: %w", err)
+	}
+	defer gc.Close()
 
 	ok, err := gc.LockForGCRun(ctx)
 	if err != nil {
@@ -264,6 +283,6 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 		Int64("expiredRelationships", expiredRelationshipsCount).
 		Msg("datastore garbage collection completed successfully")
 
-	gc.MarkGCCompleted()
+	collectable.MarkGCCompleted()
 	return nil
 }

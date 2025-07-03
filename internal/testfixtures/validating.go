@@ -2,15 +2,16 @@ package testfixtures
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -34,7 +35,7 @@ func (vd validatingDatastore) ReadWriteTx(
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	if f == nil {
-		return datastore.NoRevision, fmt.Errorf("nil delegate function")
+		return datastore.NoRevision, spiceerrors.MustBugf("nil delegate function")
 	}
 
 	return vd.Datastore.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -100,6 +101,11 @@ func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+	if queryOpts.QueryShape == "" || queryOpts.QueryShape == queryshape.Unspecified {
+		return nil, spiceerrors.MustBugf("query shape is unspecified")
+	}
+
 	return vsr.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
@@ -123,11 +129,15 @@ func (vsr validatingSnapshotReader) ReverseQueryRelationships(ctx context.Contex
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 	if queryOpts.ResRelation != nil {
 		if queryOpts.ResRelation.Namespace == "" {
-			return nil, errors.New("resource relation on reverse query missing namespace")
+			return nil, spiceerrors.MustBugf("resource relation on reverse query missing namespace")
 		}
 		if queryOpts.ResRelation.Relation == "" {
-			return nil, errors.New("resource relation on reverse query missing relation")
+			return nil, spiceerrors.MustBugf("resource relation on reverse query missing relation")
 		}
+	}
+
+	if queryOpts.QueryShapeForReverse == "" || queryOpts.QueryShapeForReverse == queryshape.Unspecified {
+		return nil, spiceerrors.MustBugf("query shape for reverse query is unspecified")
 	}
 
 	return vsr.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
@@ -225,9 +235,9 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	return vrwt.delegate.WriteRelationships(ctx, mutations)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
+func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	if err := filter.Validate(); err != nil {
-		return false, err
+		return 0, false, err
 	}
 
 	return vrwt.delegate.DeleteRelationships(ctx, filter, options...)
@@ -257,10 +267,10 @@ func validateUpdatesToWrite(updates ...tuple.RelationshipUpdate) error {
 			return err
 		}
 		if update.Relationship.Subject.Relation == "" {
-			return fmt.Errorf("expected ... instead of an empty relation string relation in %v", update.Relationship)
+			return spiceerrors.MustBugf("expected ... instead of an empty relation string relation in %v", update.Relationship)
 		}
 		if update.Relationship.Subject.ObjectID == tuple.PublicWildcard && update.Relationship.Subject.Relation != tuple.Ellipsis {
-			return fmt.Errorf(
+			return spiceerrors.MustBugf(
 				"attempt to write a wildcard relationship (`%s`) with a non-empty relation `%v`. Please report this bug",
 				tuple.MustString(update.Relationship),
 				update.Relationship.Subject.Relation,

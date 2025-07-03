@@ -1,5 +1,3 @@
-// Package combined implements a dispatcher that combines caching,
-// redispatching and optional cluster dispatching.
 package combined
 
 import (
@@ -7,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
@@ -20,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -27,18 +27,21 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	metricsEnabled         bool
-	prometheusSubsystem    string
-	upstreamAddr           string
-	upstreamCAPath         string
-	grpcPresharedKey       string
-	grpcDialOpts           []grpc.DialOption
-	cache                  cache.Cache[keys.DispatchCacheKey, any]
-	concurrencyLimits      graph.ConcurrencyLimits
-	remoteDispatchTimeout  time.Duration
-	secondaryUpstreamAddrs map[string]string
-	secondaryUpstreamExprs map[string]string
-	dispatchChunkSize      uint16
+	metricsEnabled                               bool
+	prometheusSubsystem                          string
+	upstreamAddr                                 string
+	upstreamCAPath                               string
+	grpcPresharedKey                             string
+	grpcDialOpts                                 []grpc.DialOption
+	cache                                        cache.Cache[keys.DispatchCacheKey, any]
+	concurrencyLimits                            graph.ConcurrencyLimits
+	remoteDispatchTimeout                        time.Duration
+	secondaryUpstreamAddrs                       map[string]string
+	secondaryUpstreamExprs                       map[string]string
+	secondaryUpstreamMaximumPrimaryHedgingDelays map[string]string
+	dispatchChunkSize                            uint16
+	startingPrimaryHedgingDelay                  time.Duration
+	caveatTypeSet                                *caveattypes.TypeSet
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -87,6 +90,16 @@ func SecondaryUpstreamExprs(addrs map[string]string) Option {
 	}
 }
 
+// SecondaryMaximumPrimaryHedgingDelays sets a named map from dispatch type to the
+// maximum primary hedging delay to use for that dispatch type. This is used to
+// determine how long to delay a primary dispatch when invoking the secondary dispatch.
+// The default is 5ms.
+func SecondaryMaximumPrimaryHedgingDelays(delays map[string]string) Option {
+	return func(state *optionState) {
+		state.secondaryUpstreamMaximumPrimaryHedgingDelays = delays
+	}
+}
+
 // GrpcPresharedKey sets the preshared key used to authenticate for optional
 // cluster dispatching.
 func GrpcPresharedKey(key string) Option {
@@ -132,6 +145,23 @@ func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
 	}
 }
 
+// StartingPrimaryHedgingDelay sets the starting delay for primary hedging for a remote
+// dispatch.
+// Defaults to 0, which uses the default defined in the remote dispatcher.
+func StartingPrimaryHedgingDelay(startingPrimaryHedgingDelay time.Duration) Option {
+	return func(state *optionState) {
+		state.startingPrimaryHedgingDelay = startingPrimaryHedgingDelay
+	}
+}
+
+// CaveatTypeSet sets the type set to use for caveats. If not specified, the default
+// type set is used.
+func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
+	return func(state *optionState) {
+		state.caveatTypeSet = caveatTypeSet
+	}
+}
+
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
 func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
@@ -155,7 +185,9 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		chunkSize = 100
 		log.Warn().Msgf("CombinedDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
 	}
-	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits, chunkSize)
+
+	cts := caveattypes.TypeSetOrDefault(opts.caveatTypeSet)
+	redispatch := graph.NewDispatcher(cachingRedispatch, cts, opts.concurrencyLimits, chunkSize)
 	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 
 	// If an upstream is specified, create a cluster dispatcher.
@@ -185,9 +217,23 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			maximumHedgingDelay := 5 * time.Millisecond
+			if maximumHedgingDelayStr, ok := opts.secondaryUpstreamMaximumPrimaryHedgingDelays[name]; ok {
+				mgd, err := time.ParseDuration(maximumHedgingDelayStr)
+				if err != nil {
+					return nil, fmt.Errorf("error parsing maximum primary hedging delay for secondary dispatch `%s`: %w", name, err)
+				}
+				if mgd <= 0 {
+					return nil, fmt.Errorf("maximum primary hedging delay for secondary dispatch `%s` must be greater than 0", name)
+				}
+				maximumHedgingDelay = mgd
+			}
+
 			secondaryClients[name] = remote.SecondaryDispatch{
-				Name:   name,
-				Client: v1.NewDispatchServiceClient(secondaryConn),
+				Name:                       name,
+				Client:                     v1.NewDispatchServiceClient(secondaryConn),
+				MaximumPrimaryHedgingDelay: maximumHedgingDelay,
 			}
 		}
 
@@ -200,11 +246,14 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			secondaryExprs[name] = parsed
 		}
 
-		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
+		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
-		}, secondaryClients, secondaryExprs)
-		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
+		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
+		if err != nil {
+			return nil, err
+		}
+		redispatch = singleflight.New(re, &keys.CanonicalKeyHandler{})
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

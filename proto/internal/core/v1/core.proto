@@ -21,7 +21,7 @@ message RelationTuple {
   /** integrity holds (optional) information about the integrity of the tuple */
   RelationshipIntegrity integrity = 4 [(validate.rules).message.required = false];
 
-  /** optional_expiration_time is the (optional) time at which the tuple expires */ 
+  /** optional_expiration_time is the (optional) time at which the tuple expires */
   google.protobuf.Timestamp optional_expiration_time = 5;
 }
 
@@ -43,8 +43,8 @@ message RelationshipIntegrity {
 message ContextualizedCaveat {
   /** caveat_name is the name used in the schema for a stored caveat **/
   string caveat_name = 1 [(validate.rules).string = {
-    pattern: "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
-    max_bytes: 128,
+    pattern: "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$"
+    max_bytes: 128
   }];
 
   /** context are arguments used as input during caveat evaluation with a predefined value **/
@@ -54,19 +54,19 @@ message ContextualizedCaveat {
 message CaveatDefinition {
   /** name represents the globally-unique identifier of the caveat **/
   string name = 1 [(validate.rules).string = {
-    pattern: "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
-    max_bytes: 128,
+    pattern: "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$"
+    max_bytes: 128
   }];
 
   /** serialized_expression is the byte representation of a caveat's logic */
   bytes serialized_expression = 2 [(validate.rules).bytes = {
-    min_len: 0,
+    min_len: 0
     max_len: 4096
   }];
 
   /** parameters_and_types is a map from parameter name to its type */
   map<string, CaveatTypeReference> parameter_types = 3 [(validate.rules).map = {
-    min_pairs: 1,
+    min_pairs: 1
     max_pairs: 20
   }];
 
@@ -80,7 +80,7 @@ message CaveatDefinition {
 message CaveatTypeReference {
   string type_name = 1;
   repeated CaveatTypeReference child_types = 2 [(validate.rules).repeated = {
-    min_items: 0,
+    min_items: 0
     max_items: 1
   }];
 }
@@ -88,34 +88,34 @@ message CaveatTypeReference {
 message ObjectAndRelation {
   /** namespace is the full namespace path for the referenced object */
   string namespace = 1 [(validate.rules).string = {
-    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-    max_bytes: 128,
+    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+    max_bytes: 128
   }];
 
   /** object_id is the unique ID for the object within the namespace */
   string object_id = 2 [(validate.rules).string = {
-    pattern: "^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$",
-    max_bytes: 1024,
+    pattern: "^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$"
+    max_bytes: 1024
   }];
 
   /** relation is the name of the referenced relation or permission under the namespace */
   string relation = 3 [(validate.rules).string = {
-    pattern: "^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$",
-    max_bytes: 64,
+    pattern: "^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$"
+    max_bytes: 64
   }];
 }
 
 message RelationReference {
   /** namespace is the full namespace path */
   string namespace = 1 [(validate.rules).string = {
-    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-    max_bytes: 128,
+    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+    max_bytes: 128
   }];
 
   /** relation is the name of the referenced relation or permission under the namespace */
   string relation = 3 [(validate.rules).string = {
-    pattern: "^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$",
-    max_bytes: 64,
+    pattern: "^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$"
+    max_bytes: 64
   }];
 }
 
@@ -180,8 +180,8 @@ message Metadata {
       in: [
         "type.googleapis.com/impl.v1.DocComment",
         "type.googleapis.com/impl.v1.RelationMetadata"
-      ],
-      required: true,
+      ]
+      required: true
     }
   ];
 }
@@ -192,8 +192,8 @@ message Metadata {
 message NamespaceDefinition {
   /** name is the unique for the namespace, including prefixes (which are optional) */
   string name = 1 [(validate.rules).string = {
-    pattern: "^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-    max_bytes: 128,
+    pattern: "^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+    max_bytes: 128
   }];
 
   /** relation contains the relations and permissions defined in the namespace */
@@ -212,8 +212,8 @@ message NamespaceDefinition {
 message Relation {
   /** name is the full name for the relation or permission */
   string name = 1 [(validate.rules).string = {
-    pattern: "^[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-    max_bytes: 64,
+    pattern: "^[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+    max_bytes: 64
   }];
 
   /** userset_rewrite, if specified, is the rewrite for computing the value of the permission. */
@@ -368,9 +368,9 @@ message ReachabilityEntrypoint {
   string tupleset_relation = 5;
 
   /**
-    * computed_userset_relation is the name of the computed userset relation on the ComputedUserset
-    * this entrypoint represents, if applicable.
-    */  
+   * computed_userset_relation is the name of the computed userset relation on the ComputedUserset
+   * this entrypoint represents, if applicable.
+   */
   string computed_userset_relation = 6;
 }
 
@@ -393,8 +393,8 @@ message AllowedRelation {
 
   /** namespace is the full namespace path of the allowed object type */
   string namespace = 1 [(validate.rules).string = {
-    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-    max_bytes: 128,
+    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+    max_bytes: 128
   }];
 
   /**
@@ -402,8 +402,8 @@ message AllowedRelation {
    */
   oneof relation_or_wildcard {
     string relation = 3 [(validate.rules).string = {
-      pattern: "^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$",
-      max_bytes: 64,
+      pattern: "^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$"
+      max_bytes: 64
     }];
     PublicWildcard public_wildcard = 4;
   }
@@ -485,8 +485,8 @@ message SetOperation {
 message TupleToUserset {
   message Tupleset {
     string relation = 1 [(validate.rules).string = {
-      pattern: "^[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-      max_bytes: 64,
+      pattern: "^[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+      max_bytes: 64
     }];
   }
 
@@ -504,12 +504,15 @@ message FunctionedTupleToUserset {
 
   message Tupleset {
     string relation = 1 [(validate.rules).string = {
-      pattern: "^[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-      max_bytes: 64,
+      pattern: "^[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+      max_bytes: 64
     }];
   }
 
-  Function function = 1 [ (validate.rules).enum = {defined_only: true, not_in: [0]} ];
+  Function function = 1 [(validate.rules).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
   Tupleset tupleset = 2 [(validate.rules).message.required = true];
   ComputedUserset computed_userset = 3 [(validate.rules).message.required = true];
   SourcePosition source_position = 4;
@@ -523,8 +526,8 @@ message ComputedUserset {
 
   Object object = 1 [(validate.rules).enum.defined_only = true];
   string relation = 2 [(validate.rules).string = {
-    pattern: "^[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-    max_bytes: 64,
+    pattern: "^[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+    max_bytes: 64
   }];
   SourcePosition source_position = 3;
 }
@@ -556,31 +559,30 @@ message CaveatOperation {
 message RelationshipFilter {
   // resource_type is the *optional* resource type of the relationship.
   // NOTE: It is not prefixed with "optional_" for legacy compatibility.
-  string resource_type = 1 [ (validate.rules).string = {
-    pattern : "^(([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9])?$",
-    max_bytes : 128,
-  } ];
+  string resource_type = 1 [(validate.rules).string = {
+    pattern: "^(([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9])?$"
+    max_bytes: 128
+  }];
 
   // optional_resource_id is the *optional* resource ID of the relationship.
   // If specified, optional_resource_id_prefix cannot be specified.
-  string optional_resource_id = 2 [ (validate.rules).string = {
-    pattern : "^([a-zA-Z0-9/_|\\-=+]{1,})?$",
-    max_bytes : 1024,
-  } ];
+  string optional_resource_id = 2 [(validate.rules).string = {
+    pattern: "^([a-zA-Z0-9/_|\\-=+]{1,})?$"
+    max_bytes: 1024
+  }];
 
   // optional_resource_id_prefix is the *optional* prefix for the resource ID of the relationship.
   // If specified, optional_resource_id cannot be specified.
-  string optional_resource_id_prefix = 5 [ (validate.rules).string = {
-    pattern : "^([a-zA-Z0-9/_|\\-=+]{1,})?$",
-    max_bytes : 1024,
-  } ];
-
+  string optional_resource_id_prefix = 5 [(validate.rules).string = {
+    pattern: "^([a-zA-Z0-9/_|\\-=+]{1,})?$"
+    max_bytes: 1024
+  }];
 
   // relation is the *optional* relation of the relationship.
-  string optional_relation = 3 [ (validate.rules).string = {
-    pattern : "^([a-z][a-z0-9_]{1,62}[a-z0-9])?$",
-    max_bytes : 64,
-  } ];
+  string optional_relation = 3 [(validate.rules).string = {
+    pattern: "^([a-z][a-z0-9_]{1,62}[a-z0-9])?$"
+    max_bytes: 64
+  }];
 
   // optional_subject_filter is the optional filter for the subjects of the relationships.
   SubjectFilter optional_subject_filter = 4;
@@ -592,22 +594,21 @@ message RelationshipFilter {
 // impose any additional requirements if left unspecified.
 message SubjectFilter {
   message RelationFilter {
-    string relation = 1 [ (validate.rules).string = {
-      pattern : "^([a-z][a-z0-9_]{1,62}[a-z0-9])?$",
-      max_bytes : 64,
-    } ];
+    string relation = 1 [(validate.rules).string = {
+      pattern: "^([a-z][a-z0-9_]{1,62}[a-z0-9])?$"
+      max_bytes: 64
+    }];
   }
 
-  string subject_type = 1 [ (validate.rules).string = {
-    pattern : "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
-    max_bytes : 128,
-  } ];
+  string subject_type = 1 [(validate.rules).string = {
+    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$"
+    max_bytes: 128
+  }];
 
-  string optional_subject_id = 2 [ (validate.rules).string = {
-    pattern : "^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)?$",
-    max_bytes : 1024,
-  } ];
+  string optional_subject_id = 2 [(validate.rules).string = {
+    pattern: "^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)?$"
+    max_bytes: 1024
+  }];
 
   RelationFilter optional_relation = 3;
 }
-

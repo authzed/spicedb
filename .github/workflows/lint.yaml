@@ -10,40 +10,42 @@ on:  # yamllint disable-line rule:truthy
   merge_group:
     types:
       - "checks_requested"
+permissions:
+  contents: "read"
 jobs:
   go-license-check:
     name: "License Check"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
       - name: "Check Licenses"
-        uses: "authzed/actions/go-license-check@main"
+        uses: "authzed/actions/go-license-check@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         with:
           ignore: "buf.build"  # Has no license information
 
   go-lint:
     name: "Lint Go"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
       - name: "Lint Go"
         run: "go run mage.go lint:go"
-      - uses: "chainguard-dev/actions/nodiff@main"
+      - uses: "chainguard-dev/actions/nodiff@ce51233d303aed2394a9976e7f5642fd2158f693" # main
         with:
           path: ""
           fixup-command: "go run mage.go lint:go"
 
   extra-lint:
     name: "Lint YAML & Markdown"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@v4"
-      - uses: "authzed/actions/setup-go@main"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
       - name: "Lint Everything Else"
         run: "go run mage.go lint:extra"
-      - uses: "chainguard-dev/actions/nodiff@main"
+      - uses: "chainguard-dev/actions/nodiff@ce51233d303aed2394a9976e7f5642fd2158f693" # main
         with:
           path: ""
           fixup-command: "go run mage.go lint:extra"

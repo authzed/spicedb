@@ -2,6 +2,7 @@
 package testserver
 
 import (
+	types "github.com/authzed/spicedb/pkg/caveats/types"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
@@ -44,6 +45,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
+		to.CaveatTypeSet = c.CaveatTypeSet
 	}
 }
 
@@ -177,5 +179,12 @@ func WithMaxLookupResourcesLimit(maxLookupResourcesLimit uint32) ConfigOption {
 func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32) ConfigOption {
 	return func(c *Config) {
 		c.MaxBulkExportRelationshipsLimit = maxBulkExportRelationshipsLimit
+	}
+}
+
+// WithCaveatTypeSet returns an option that can set CaveatTypeSet on a Config
+func WithCaveatTypeSet(caveatTypeSet *types.TypeSet) ConfigOption {
+	return func(c *Config) {
+		c.CaveatTypeSet = caveatTypeSet
 	}
 }

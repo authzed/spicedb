@@ -18,9 +18,6 @@ func NewTheineCacheWithMetrics[K KeyString, V any](name string, config *Config) 
 
 func NewTheineCache[K KeyString, V any](config *Config) (Cache[K, V], error) {
 	builder := theine.NewBuilder[K, V](config.MaxCost)
-	builder.StringKey(func(key K) string {
-		return key.KeyString()
-	})
 	built, err := builder.Build()
 	if err != nil {
 		return nil, err

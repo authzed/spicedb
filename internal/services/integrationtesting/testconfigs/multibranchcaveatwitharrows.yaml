@@ -1,0 +1,37 @@
+---
+schema: |+
+  definition user {}
+
+  definition office {
+    relation parent: office
+    relation manager: user
+    permission read = manager + parent->read
+  }
+
+  definition group {
+    relation parent: office
+    permission read = parent->read
+  }
+
+  definition document {
+    relation owner: group with equals
+    permission read = owner->read
+  }
+
+  caveat equals(actual string, required string) {
+    actual == required
+  }
+
+relationships: |
+  office:headoffice#manager@user:maria
+  office:branch1#parent@office:headoffice
+  group:admins#parent@office:branch1
+  group:managers#parent@office:headoffice
+  document:budget#owner@group:admins[equals:{"required":"admin"}]
+  document:budget#owner@group:managers[equals:{"required":"manager"}]
+assertions:
+  assertTrue:
+    - 'document:budget#read@user:maria with {"actual" : "admin"}'
+    - 'document:budget#read@user:maria with {"actual" : "manager"}'
+  assertFalse:
+    - 'document:budget#read@user:maria with {"actual" : "unknown"}'

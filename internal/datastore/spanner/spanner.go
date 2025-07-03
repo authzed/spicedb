@@ -86,6 +86,7 @@ type spannerDatastore struct {
 
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
+	watchEnabled            bool
 
 	client   *spanner.Client
 	config   spannerOptions
@@ -93,7 +94,7 @@ type spannerDatastore struct {
 	schema   common.SchemaInformation
 
 	cachedEstimatedBytesPerRelationshipLock sync.RWMutex
-	cachedEstimatedBytesPerRelationship     uint64
+	cachedEstimatedBytesPerRelationship     uint64 // GUARDED_BY(cachedEstimatedBytesPerRelationshipLock)
 
 	tableSizesStatsTable string
 	filterMaximumIDCount uint16
@@ -121,14 +122,21 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
 
-	// TODO(jschorr): Replace with OpenTelemetry instrumentation once available.
-	err = spanner.EnableStatViews() // nolint: staticcheck
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable spanner session metrics: %w", err)
+	if config.datastoreMetricsOption == DatastoreMetricsOptionOpenTelemetry {
+		log.Info().Msg("enabling OpenTelemetry metrics for Spanner datastore")
+		spanner.EnableOpenTelemetryMetrics()
 	}
-	err = spanner.EnableGfeLatencyAndHeaderMissingCountViews() // nolint: staticcheck
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable spanner GFE metrics: %w", err)
+
+	if config.datastoreMetricsOption == DatastoreMetricsOptionLegacyPrometheus {
+		log.Info().Msg("enabling legacy Prometheus metrics for Spanner datastore")
+		err = spanner.EnableStatViews() // nolint: staticcheck
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable spanner session metrics: %w", err)
+		}
+		err = spanner.EnableGfeLatencyAndHeaderMissingCountViews() // nolint: staticcheck
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable spanner GFE metrics: %w", err)
+		}
 	}
 
 	// Register Spanner client gRPC metrics (include round-trip latency, received/sent bytes...)
@@ -166,7 +174,10 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	client, err := spanner.NewClientWithConfig(
 		context.Background(),
 		database,
-		spanner.ClientConfig{SessionPoolConfig: cfg},
+		spanner.ClientConfig{
+			SessionPoolConfig:    cfg,
+			DisableNativeMetrics: config.datastoreMetricsOption != DatastoreMetricsOptionNative,
+		},
 		spannerOpts...,
 	)
 	if err != nil {
@@ -196,6 +207,18 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		common.WithPlaceholderFormat(sq.AtP),
 		common.WithNowFunction("CURRENT_TIMESTAMP"),
 		common.WithColumnOptimization(config.columnOptimizationOption),
+
+		// NOTE: this order differs from the default because the index
+		// used for sorting by subject (ix_relation_tuple_by_subject) is
+		// defined with the userset object ID first.
+		common.SetSortBySubjectColumnOrder([]string{
+			colUsersetObjectID,
+			colUsersetNamespace,
+			colUsersetRelation,
+			colNamespace,
+			colRelation,
+			colObjectID,
+		}),
 	)
 
 	ds := &spannerDatastore{
@@ -214,6 +237,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		database:                                database,
 		watchBufferWriteTimeout:                 config.watchBufferWriteTimeout,
 		watchBufferLength:                       config.watchBufferLength,
+		watchEnabled:                            !config.watchDisabled,
 		cachedEstimatedBytesPerRelationship:     0,
 		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
 		tableSizesStatsTable:                    tableSizesStatsTable,
@@ -224,7 +248,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	// current timestamp.
 	// TODO: Still investigating whether a stale read can be used for
 	//       HeadRevision for FullConsistency queries.
-	ds.RemoteClockRevisions.SetNowFunc(ds.staleHeadRevision)
+	ds.SetNowFunc(ds.staleHeadRevision)
 
 	return ds, nil
 }
@@ -268,6 +292,10 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 	}
 	executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
 	return spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
+}
+
+func (sd *spannerDatastore) MetricsID() (string, error) {
+	return sd.database, nil
 }
 
 func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transactionTag string) (map[string]any, error) {
@@ -359,9 +387,14 @@ func (sd *spannerDatastore) Features(ctx context.Context) (*datastore.Features, 
 }
 
 func (sd *spannerDatastore) OfflineFeatures() (*datastore.Features, error) {
+	watchSupported := datastore.FeatureUnsupported
+	if sd.watchEnabled {
+		watchSupported = datastore.FeatureSupported
+	}
+
 	return &datastore.Features{
 		Watch: datastore.Feature{
-			Status: datastore.FeatureSupported,
+			Status: watchSupported,
 		},
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureUnsupported,

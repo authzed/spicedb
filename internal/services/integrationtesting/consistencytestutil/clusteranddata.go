@@ -5,21 +5,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/dispatch"
-
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testserver"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/typesystem"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -50,25 +50,20 @@ func LoadDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath st
 func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) ConsistencyClusterAndData {
 	require := require.New(t)
 
-	populated, revision, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{consistencyTestFilePath})
+	populated, revision, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{consistencyTestFilePath})
 	require.NoError(err)
 
 	connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds, additionalServerOptions...)
 	t.Cleanup(cleanup)
 
-	dsCtx := datastoremw.ContextWithHandle(context.Background())
+	dsCtx := datastoremw.ContextWithHandle(t.Context())
 	require.NoError(datastoremw.SetInContext(dsCtx, ds))
+	res := schema.ResolverForDatastoreReader(ds.SnapshotReader(revision))
+	ts := schema.NewTypeSystem(res)
 
 	// Validate the type system for each namespace.
 	for _, nsDef := range populated.NamespaceDefinitions {
-		_, ts, err := typesystem.ReadNamespaceAndTypes(
-			dsCtx,
-			nsDef.Name,
-			ds.SnapshotReader(revision),
-		)
-		require.NoError(err)
-
-		_, err = ts.Validate(dsCtx)
+		_, err = ts.GetValidatedDefinition(dsCtx, nsDef.GetName())
 		require.NoError(err)
 	}
 
@@ -84,12 +79,12 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 // caching enabled.
 func CreateDispatcherForTesting(t *testing.T, withCaching bool) dispatch.Dispatcher {
 	require := require.New(t)
-	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, 100)
+	dispatcher := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, defaultConcurrencyLimit, 100)
 	if withCaching {
 		cachingDispatcher, err := caching.NewCachingDispatcher(nil, false, "", &keys.CanonicalKeyHandler{})
 		require.NoError(err)
 
-		localDispatcher := graph.NewDispatcher(cachingDispatcher, graph.SharedConcurrencyLimits(10), 100)
+		localDispatcher := graph.NewDispatcher(cachingDispatcher, caveattypes.Default.TypeSet, graph.SharedConcurrencyLimits(10), 100)
 		t.Cleanup(func() {
 			err := localDispatcher.Close()
 			require.NoError(err)

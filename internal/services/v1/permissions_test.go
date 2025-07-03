@@ -14,10 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/authzed-go/pkg/requestmeta"
-	"github.com/authzed/authzed-go/pkg/responsemeta"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
 	"github.com/ccoveille/go-safecast"
 	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
@@ -29,6 +25,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/authzed/authzed-go/pkg/requestmeta"
+	"github.com/authzed/authzed-go/pkg/responsemeta"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -271,7 +272,7 @@ func TestCheckPermissions(t *testing.T) {
 							client := v1.NewPermissionsServiceClient(conn)
 							t.Cleanup(cleanup)
 
-							ctx := context.Background()
+							ctx := t.Context()
 							if debug {
 								ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 							}
@@ -329,7 +330,7 @@ func TestCheckPermissionWithWildcardSubject(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 	_, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
@@ -354,7 +355,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 	var trailer metadata.MD
@@ -417,7 +418,7 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 	_, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
@@ -652,7 +653,7 @@ func TestLookupResources(t *testing.T) {
 							t.Cleanup(cleanup)
 
 							var trailer metadata.MD
-							lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
+							lookupClient, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
 								ResourceObjectType: tc.objectType,
 								Permission:         tc.permission,
 								Subject:            tc.subject,
@@ -727,7 +728,7 @@ func TestExpand(t *testing.T) {
 					t.Cleanup(cleanup)
 
 					var trailer metadata.MD
-					expanded, err := client.ExpandPermissionTree(context.Background(), &v1.ExpandPermissionTreeRequest{
+					expanded, err := client.ExpandPermissionTree(t.Context(), &v1.ExpandPermissionTreeRequest{
 						Resource: &v1.ObjectReference{
 							ObjectType: tc.startObjectType,
 							ObjectId:   tc.startObjectID,
@@ -855,6 +856,36 @@ func TestTranslateExpansionTree(t *testing.T) {
 	}
 }
 
+func TestLookupSubjectsWithConcreteLimit(t *testing.T) {
+	conn, cleanup, _, revision := testserver.NewTestServer(require.New(t), testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := t.Context()
+
+	lsClient, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: "document",
+			ObjectId:   "masterplan",
+		},
+		Permission:        "view",
+		SubjectObjectType: "user",
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+			},
+		},
+		OptionalConcreteLimit: 2,
+	})
+	require.NoError(t, err)
+	for {
+		_, err := lsClient.Recv()
+		require.Error(t, err)
+		grpcutil.RequireStatus(t, codes.Unimplemented, err)
+		return
+	}
+}
+
 func TestLookupSubjects(t *testing.T) {
 	testCases := []struct {
 		resource        *v1.ObjectReference
@@ -970,7 +1001,7 @@ func TestLookupSubjects(t *testing.T) {
 					t.Cleanup(cleanup)
 
 					var trailer metadata.MD
-					lookupClient, err := client.LookupSubjects(context.Background(), &v1.LookupSubjectsRequest{
+					lookupClient, err := client.LookupSubjects(t.Context(), &v1.LookupSubjectsRequest{
 						Resource:                tc.resource,
 						Permission:              tc.permission,
 						SubjectObjectType:       tc.subjectType,
@@ -1020,7 +1051,7 @@ func TestCheckWithCaveats(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	request := &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
@@ -1094,7 +1125,7 @@ func TestCheckWithCaveatErrors(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tcs := []struct {
 		name          string
@@ -1181,7 +1212,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Run with empty context.
 	caveatContext, err := structpb.NewStruct(map[string]any{})
@@ -1300,7 +1331,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Call with empty context.
 	caveatContext, err := structpb.NewStruct(map[string]any{})
@@ -1464,7 +1495,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Call with empty context.
 	caveatContext, err := structpb.NewStruct(map[string]any{})
@@ -1572,14 +1603,14 @@ func TestGetCaveatContext(t *testing.T) {
 	strct, err := structpb.NewStruct(map[string]any{"foo": "bar"})
 	require.NoError(t, err)
 
-	_, err = v1svc.GetCaveatContext(context.Background(), strct, 1)
+	_, err = v1svc.GetCaveatContext(t.Context(), strct, 1)
 	require.ErrorContains(t, err, "request caveat context should have less than 1 bytes")
 
-	caveatMap, err := v1svc.GetCaveatContext(context.Background(), strct, 0)
+	caveatMap, err := v1svc.GetCaveatContext(t.Context(), strct, 0)
 	require.NoError(t, err)
 	require.Contains(t, caveatMap, "foo")
 
-	caveatMap, err = v1svc.GetCaveatContext(context.Background(), strct, -1)
+	caveatMap, err = v1svc.GetCaveatContext(t.Context(), strct, -1)
 	require.NoError(t, err)
 	require.Contains(t, caveatMap, "foo")
 }
@@ -1652,7 +1683,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 								var trailer metadata.MD
 								uintLimit, err := safecast.ToUint32(limit)
 								require.NoError(err)
-								lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
+								lookupClient, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
 									ResourceObjectType: tc.objectType,
 									Permission:         tc.permission,
 									Subject:            tc.subject,
@@ -1721,7 +1752,7 @@ func TestLookupResourcesDeduplication(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
+	lookupClient, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
 		ResourceObjectType: "document",
 		Permission:         "view",
 		Subject:            sub("user", "tom", ""),
@@ -1754,7 +1785,7 @@ func TestLookupResourcesBeyondAllowedLimit(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	resp, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
+	resp, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
 		ResourceObjectType: "document",
 		Permission:         "view",
 		Subject:            sub("user", "tom", ""),
@@ -2000,7 +2031,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 						}
 
 						if r.err != nil {
-							rewritten := shared.RewriteError(context.Background(), r.err, &shared.ConfigForErrors{})
+							rewritten := shared.RewriteError(t.Context(), r.err, &shared.ConfigForErrors{})
 							s, ok := status.FromError(rewritten)
 							require.True(t, ok, "expected provided error to be status")
 							pair.Response = &v1.CheckBulkPermissionsPair_Error{
@@ -2011,7 +2042,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 					}
 
 					var trailer metadata.MD
-					actual, err := client.CheckBulkPermissions(context.Background(), &req, grpc.Trailer(&trailer))
+					actual, err := client.CheckBulkPermissions(t.Context(), &req, grpc.Trailer(&trailer))
 					require.NoError(t, err)
 
 					if withTracing {
@@ -2076,7 +2107,7 @@ func TestImportBulkRelationships(t *testing.T) {
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
-					ctx := context.Background()
+					ctx := t.Context()
 
 					writer, err := client.ImportBulkRelationships(ctx)
 					require.NoError(err)
@@ -2087,7 +2118,8 @@ func TestImportBulkRelationships(t *testing.T) {
 						batch := make([]*v1.Relationship, 0, batchSize)
 
 						for i := uint64(0); i < batchSize; i++ {
-							if withTrait == "caveated_viewer" {
+							switch withTrait {
+							case "caveated_viewer":
 								batch = append(batch, mustRelWithCaveatAndContext(
 									tf.DocumentNS.Name,
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
@@ -2098,7 +2130,7 @@ func TestImportBulkRelationships(t *testing.T) {
 									"test",
 									map[string]any{"secret": strconv.FormatUint(i, 10)},
 								))
-							} else if withTrait == "expiring_viewer" {
+							case "expiring_viewer":
 								batch = append(batch, relWithExpiration(
 									tf.DocumentNS.Name,
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
@@ -2108,7 +2140,7 @@ func TestImportBulkRelationships(t *testing.T) {
 									"",
 									time.Date(2300, 1, 1, 0, 0, 0, 0, time.UTC),
 								))
-							} else {
+							default:
 								batch = append(batch, rel(
 									tf.DocumentNS.Name,
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
@@ -2151,12 +2183,13 @@ func TestImportBulkRelationships(t *testing.T) {
 							continue
 						}
 
-						if withTrait == "caveated_viewer" {
+						switch withTrait {
+						case "caveated_viewer":
 							require.NotNil(res.Relationship.OptionalCaveat)
 							require.Equal("test", res.Relationship.OptionalCaveat.CaveatName)
-						} else if withTrait == "expiring_viewer" {
+						case "expiring_viewer":
 							require.NotNil(res.Relationship.OptionalExpiresAt)
-						} else {
+						default:
 							require.Nil(res.Relationship.OptionalCaveat)
 						}
 					}
@@ -2174,7 +2207,7 @@ func TestExportBulkRelationshipsBeyondAllowedLimit(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	resp, err := client.ExportBulkRelationships(context.Background(), &v1.ExportBulkRelationshipsRequest{
+	resp, err := client.ExportBulkRelationships(t.Context(), &v1.ExportBulkRelationshipsRequest{
 		OptionalLimit: 10000005,
 	})
 	require.NoError(err)
@@ -2213,7 +2246,7 @@ func TestExportBulkRelationships(t *testing.T) {
 		expectedRels.Add(tuple.MustV1RelString(v1rel))
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	writer, err := client.ImportBulkRelationships(ctx)
 	require.NoError(t, err)
 
@@ -2375,7 +2408,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 
 			require.Equal(tc.expectedCount, expectedRels.Size())
 
-			ctx := context.Background()
+			ctx := t.Context()
 			writer, err := client.ImportBulkRelationships(ctx)
 			require.NoError(err)
 

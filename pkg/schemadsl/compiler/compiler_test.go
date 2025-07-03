@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/authzed/cel-go/cel"
+
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -163,9 +165,9 @@ func TestCompile(t *testing.T) {
 			}`,
 			"",
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"someparam": caveattypes.IntType,
+						"someparam": caveattypes.Default.IntType,
 					},
 				), "sometenant/somecaveat", "someparam == 42"),
 				namespace.Namespace("sometenant/simple",
@@ -670,9 +672,9 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"someParam": caveattypes.IntType,
+						"someParam": caveattypes.Default.IntType,
 					},
 				), "sometenant/foo", "someParam == 42"),
 			},
@@ -686,11 +688,11 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"someParam":    caveattypes.IntType,
-						"anotherParam": caveattypes.StringType,
-						"thirdParam":   caveattypes.MustListType(caveattypes.IntType),
+						"someParam":    caveattypes.Default.IntType,
+						"anotherParam": caveattypes.Default.StringType,
+						"thirdParam":   caveattypes.Default.MustListType(caveattypes.Default.IntType),
 					},
 				), "sometenant/foo",
 					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56 
@@ -705,9 +707,9 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"user_ip": caveattypes.IPAddressType,
+						"user_ip": caveattypes.Default.IPAddressType,
 					},
 				), "sometenant/has_allowed_ip",
 					`!user_ip.in_cidr('1.2.3.0')`),
@@ -721,10 +723,10 @@ func TestCompile(t *testing.T) {
 			}`,
 			``,
 			[]SchemaDefinition{
-				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
 					map[string]caveattypes.VariableType{
-						"someMap":    caveattypes.MustMapType(caveattypes.AnyType),
-						"anotherMap": caveattypes.MustMapType(caveattypes.AnyType),
+						"someMap":    caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
+						"anotherMap": caveattypes.Default.MustMapType(caveattypes.Default.AnyType),
 					},
 				), "sometenant/something",
 					`someMap.isSubtreeOf(anotherMap)`),
@@ -1007,6 +1009,19 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
+			"duplicate use pragmas",
+			withTenantPrefix,
+			`
+			use expiration
+			use expiration
+
+			definition simple {
+				relation viewer: user with expiration
+			}`,
+			`found duplicate use flag`,
+			[]SchemaDefinition{},
+		},
+		{
 			"relation with expiration trait and caveat",
 			withTenantPrefix,
 			`use expiration
@@ -1056,13 +1071,13 @@ func TestCompile(t *testing.T) {
 							testutil.RequireProtoEqual(t, expectedParam, foundParam, "mismatch type for parameter %s", expectedParamName)
 						}
 
-						parameterTypes, err := caveattypes.DecodeParameterTypes(caveatDef.ParameterTypes)
+						parameterTypes, err := caveattypes.DecodeParameterTypes(caveattypes.Default.TypeSet, caveatDef.ParameterTypes)
 						require.NoError(err)
 
-						expectedDecoded, err := caveats.DeserializeCaveat(expectedCaveatDef.SerializedExpression, parameterTypes)
+						expectedDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(expectedCaveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
-						foundDecoded, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression, parameterTypes)
+						foundDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(caveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
 						expectedExprString, err := expectedDecoded.ExprString()
@@ -1131,4 +1146,35 @@ func TestSuperLargeCaveatCompile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 29, len(compiled.ObjectDefinitions))
 	require.Equal(t, 1, len(compiled.CaveatDefinitions))
+}
+
+func TestCompileWithCustomCaveatTypeSet(t *testing.T) {
+	t.Parallel()
+
+	schema := `
+		caveat somecaveat(someparam int, somevar somecustomtype) {
+			someparam.isEven()
+		}
+	`
+
+	sts, err := caveattypes.NewStandardTypeSet()
+	require.NoError(t, err)
+
+	err = caveattypes.RegisterMethodOnDefinedType(sts.TypeSet, cel.IntType,
+		"isEven",
+		[]*cel.Type{},
+		cel.BoolType,
+		nil,
+	)
+	require.NoError(t, err)
+
+	_, err = caveattypes.RegisterBasicType(sts.TypeSet, "somecustomtype", cel.StringType, nil)
+	require.NoError(t, err)
+
+	sts.Freeze()
+
+	_, err = Compile(InputSchema{
+		input.Source("sometest"), schema,
+	}, AllowUnprefixedObjectType(), CaveatTypeSet(sts.TypeSet))
+	require.NoError(t, err)
 }

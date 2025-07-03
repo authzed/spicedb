@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/authzed/grpcutil"
 	"github.com/cenkalti/backoff/v4"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -56,7 +57,7 @@ func (hm *healthManager) HealthSvc() *grpcutil.AuthlessHealthServer {
 
 func (hm *healthManager) RegisterReportedService(serviceName string) {
 	hm.serviceNames[serviceName] = struct{}{}
-	hm.healthSvc.Server.SetServingStatus(serviceName, healthpb.HealthCheckResponse_NOT_SERVING)
+	hm.healthSvc.SetServingStatus(serviceName, healthpb.HealthCheckResponse_NOT_SERVING)
 }
 
 func (hm *healthManager) Checker(ctx context.Context) func() error {
@@ -83,7 +84,7 @@ func (hm *healthManager) Checker(ctx context.Context) func() error {
 			isReady := hm.checkIsReady(ctx)
 			if isReady {
 				for serviceName := range hm.serviceNames {
-					hm.healthSvc.Server.SetServingStatus(serviceName, healthpb.HealthCheckResponse_SERVING)
+					hm.healthSvc.SetServingStatus(serviceName, healthpb.HealthCheckResponse_SERVING)
 				}
 				return nil
 			}

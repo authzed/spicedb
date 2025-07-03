@@ -1,6 +1,7 @@
 package development
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,13 +9,14 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ReferenceType is the type of reference.
@@ -62,24 +64,15 @@ type SchemaReference struct {
 
 // Resolver resolves references to schema nodes from source positions.
 type Resolver struct {
-	schema      *compiler.CompiledSchema
-	typeSystems map[string]*typesystem.TypeSystem
+	schema     *compiler.CompiledSchema
+	typeSystem *schema.TypeSystem
 }
 
 // NewResolver creates a new resolver for the given schema.
-func NewResolver(schema *compiler.CompiledSchema) (*Resolver, error) {
-	typeSystems := make(map[string]*typesystem.TypeSystem, len(schema.ObjectDefinitions))
-	tsResolver := typesystem.ResolverForSchema(*schema)
-	for _, def := range schema.ObjectDefinitions {
-		ts, err := typesystem.NewNamespaceTypeSystem(def, tsResolver)
-		if err != nil {
-			return nil, err
-		}
-
-		typeSystems[def.Name] = ts
-	}
-
-	return &Resolver{schema: schema, typeSystems: typeSystems}, nil
+func NewResolver(compiledSchema *compiler.CompiledSchema) (*Resolver, error) {
+	resolver := schema.ResolverForCompiledSchema(*compiledSchema)
+	ts := schema.NewTypeSystem(resolver)
+	return &Resolver{schema: compiledSchema, typeSystem: ts}, nil
 }
 
 // ReferenceAtPosition returns the reference to the schema node at the given position in the source, if any.
@@ -93,7 +86,7 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		return nil, nil
 	}
 
-	relationReference := func(relation *core.Relation, ts *typesystem.TypeSystem) (*SchemaReference, error) {
+	relationReference := func(relation *core.Relation, def *schema.Definition) (*SchemaReference, error) {
 		// NOTE: zeroes are fine here to mean "unknown"
 		lineNumber, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
 		if err != nil {
@@ -108,12 +101,12 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			ColumnPosition: columnPosition,
 		}
 
-		targetSourceCode, err := generator.GenerateRelationSource(relation)
+		targetSourceCode, err := generator.GenerateRelationSource(relation, caveattypes.Default.TypeSet)
 		if err != nil {
 			return nil, err
 		}
 
-		if ts.IsPermission(relation.Name) {
+		if def.IsPermission(relation.Name) {
 			return &SchemaReference{
 				Source:   source,
 				Position: position,
@@ -263,11 +256,6 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 	return nil, nil
 }
 
-func (r *Resolver) lookupDefinition(defName string) (*typesystem.TypeSystem, bool) {
-	ts, ok := r.typeSystems[defName]
-	return ts, ok
-}
-
 func (r *Resolver) lookupCaveat(caveatName string) (*core.CaveatDefinition, bool) {
 	for _, caveatDef := range r.schema.CaveatDefinitions {
 		if caveatDef.Name == caveatName {
@@ -278,9 +266,9 @@ func (r *Resolver) lookupCaveat(caveatName string) (*core.CaveatDefinition, bool
 	return nil, false
 }
 
-func (r *Resolver) lookupRelation(defName, relationName string) (*core.Relation, *typesystem.TypeSystem, bool) {
-	ts, ok := r.typeSystems[defName]
-	if !ok {
+func (r *Resolver) lookupRelation(defName, relationName string) (*core.Relation, *schema.Definition, bool) {
+	ts, err := r.typeSystem.GetDefinition(context.Background(), defName)
+	if err != nil {
 		return nil, nil, false
 	}
 
@@ -364,7 +352,7 @@ func (r *Resolver) caveatTypeReferenceChain(nodeChain *compiler.NodeChain) (*cor
 	return r.lookupCaveat(caveatName)
 }
 
-func (r *Resolver) typeReferenceChain(nodeChain *compiler.NodeChain) (*typesystem.TypeSystem, *core.Relation, bool) {
+func (r *Resolver) typeReferenceChain(nodeChain *compiler.NodeChain) (*schema.Definition, *core.Relation, bool) {
 	if !nodeChain.HasHeadType(dslshape.NodeTypeSpecificTypeReference) {
 		return nil, nil, false
 	}
@@ -374,8 +362,8 @@ func (r *Resolver) typeReferenceChain(nodeChain *compiler.NodeChain) (*typesyste
 		return nil, nil, false
 	}
 
-	def, ok := r.lookupDefinition(defName)
-	if !ok {
+	def, err := r.typeSystem.GetDefinition(context.Background(), defName)
+	if err != nil {
 		return nil, nil, false
 	}
 
@@ -402,7 +390,7 @@ func (r *Resolver) typeReferenceChain(nodeChain *compiler.NodeChain) (*typesyste
 	return def, relation, true
 }
 
-func (r *Resolver) relationReferenceChain(nodeChain *compiler.NodeChain) (*core.Relation, *typesystem.TypeSystem, bool) {
+func (r *Resolver) relationReferenceChain(nodeChain *compiler.NodeChain) (*core.Relation, *schema.Definition, bool) {
 	if !nodeChain.HasHeadType(dslshape.NodeTypeIdentifier) {
 		return nil, nil, false
 	}

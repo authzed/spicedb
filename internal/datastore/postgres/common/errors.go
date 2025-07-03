@@ -18,6 +18,7 @@ const (
 	pgTransactionAborted        = "25P02"
 	pgReadOnlyTransaction       = "25006"
 	pgQueryCanceled             = "57014"
+	pgInvalidArgument           = "22023"
 )
 
 var (
@@ -43,6 +44,19 @@ func IsConstraintFailureError(err error) bool {
 func IsReadOnlyTransactionError(err error) bool {
 	var pgerr *pgconn.PgError
 	return errors.As(err, &pgerr) && pgerr.Code == pgReadOnlyTransaction
+}
+
+// IsSerializationFailureError returns true if the error is a Postgres error indicating a
+// revision replication error.
+func IsReplicationLagError(err error) bool {
+	var pgerr *pgconn.PgError
+	if errors.As(err, &pgerr) {
+		return (pgerr.Code == pgInvalidArgument && strings.Contains(pgerr.Message, "is in the future")) ||
+			strings.Contains(pgerr.Message, "replica missing revision") ||
+			IsSerializationError(err)
+	}
+
+	return false
 }
 
 // ConvertToWriteConstraintError converts the given Postgres error into a CreateRelationshipExistsError

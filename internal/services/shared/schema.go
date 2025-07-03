@@ -5,22 +5,24 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	caveatdiff "github.com/authzed/spicedb/pkg/diff/caveats"
 	nsdiff "github.com/authzed/spicedb/pkg/diff/namespace"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
 type ValidatedSchemaChanges struct {
 	compiled             *compiler.CompiledSchema
-	validatedTypeSystems map[string]*typesystem.ValidatedNamespaceTypeSystem
+	validatedTypeSystems map[string]*schema.ValidatedDefinition
 	newCaveatDefNames    *mapz.Set[string]
 	newObjectDefNames    *mapz.Set[string]
 	additiveOnly         bool
@@ -28,11 +30,11 @@ type ValidatedSchemaChanges struct {
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
-func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, additiveOnly bool) (*ValidatedSchemaChanges, error) {
+func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool) (*ValidatedSchemaChanges, error) {
 	// 1) Validate the caveats defined.
 	newCaveatDefNames := mapz.NewSet[string]()
 	for _, caveatDef := range compiled.CaveatDefinitions {
-		if err := namespace.ValidateCaveatDefinition(caveatDef); err != nil {
+		if err := namespace.ValidateCaveatDefinition(caveatTypeSet, caveatDef); err != nil {
 			return nil, err
 		}
 
@@ -41,19 +43,15 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 
 	// 2) Validate the namespaces defined.
 	newObjectDefNames := mapz.NewSet[string]()
-	validatedTypeSystems := make(map[string]*typesystem.ValidatedNamespaceTypeSystem, len(compiled.ObjectDefinitions))
+	validatedTypeSystems := make(map[string]*schema.ValidatedDefinition, len(compiled.ObjectDefinitions))
+	res := schema.ResolverForPredefinedDefinitions(schema.PredefinedElements{
+		Definitions: compiled.ObjectDefinitions,
+		Caveats:     compiled.CaveatDefinitions,
+	})
+	ts := schema.NewTypeSystem(res)
 
 	for _, nsdef := range compiled.ObjectDefinitions {
-		ts, err := typesystem.NewNamespaceTypeSystem(nsdef,
-			typesystem.ResolverForPredefinedDefinitions(typesystem.PredefinedElements{
-				Namespaces: compiled.ObjectDefinitions,
-				Caveats:    compiled.CaveatDefinitions,
-			}))
-		if err != nil {
-			return nil, err
-		}
-
-		vts, err := ts.Validate(ctx)
+		vts, err := ts.GetValidatedDefinition(ctx, nsdef.GetName())
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +90,7 @@ type AppliedSchemaChanges struct {
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
-func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
+func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
 	existingCaveats, err := rwt.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
@@ -103,7 +101,7 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 		return nil, err
 	}
 
-	return ApplySchemaChangesOverExisting(ctx, rwt, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
+	return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
 }
 
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against
@@ -111,6 +109,7 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 func ApplySchemaChangesOverExisting(
 	ctx context.Context,
 	rwt datastore.ReadWriteTransaction,
+	caveatTypeSet *caveattypes.TypeSet,
 	validated *ValidatedSchemaChanges,
 	existingCaveats []*core.CaveatDefinition,
 	existingObjectDefs []*core.NamespaceDefinition,
@@ -127,7 +126,7 @@ func ApplySchemaChangesOverExisting(
 	// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
 	caveatDefsWithChanges := make([]*core.CaveatDefinition, 0, len(validated.compiled.CaveatDefinitions))
 	for _, caveatDef := range validated.compiled.CaveatDefinitions {
-		diff, err := sanityCheckCaveatChanges(ctx, rwt, caveatDef, existingCaveatDefMap)
+		diff, err := sanityCheckCaveatChanges(ctx, rwt, caveatTypeSet, caveatDef, existingCaveatDefMap)
 		if err != nil {
 			return nil, err
 		}
@@ -179,11 +178,12 @@ func ApplySchemaChangesOverExisting(
 		Msg("validated namespace definitions")
 
 	// Ensure that deleting namespaces will not result in any relationships left without associated
-	// schema.
+	// schema. We only check the resource type as the subject type is handled by the schema validator,
+	// which will allow the deletion of the subject type if it is not used in any relation anyway.
 	removedObjectDefNames := existingObjectDefNames.Subtract(validated.newObjectDefNames)
 	if !validated.additiveOnly {
 		if err := removedObjectDefNames.ForEach(func(nsdefName string) error {
-			return ensureNoRelationshipsExist(ctx, rwt, nsdefName)
+			return ensureNoRelationshipsExistWithResourceType(ctx, rwt, nsdefName)
 		}); err != nil {
 			return nil, err
 		}
@@ -242,12 +242,13 @@ func ApplySchemaChangesOverExisting(
 func sanityCheckCaveatChanges(
 	_ context.Context,
 	_ datastore.ReadWriteTransaction,
+	caveatTypeSet *caveattypes.TypeSet,
 	caveatDef *core.CaveatDefinition,
 	existingDefs map[string]*core.CaveatDefinition,
 ) (*caveatdiff.Diff, error) {
 	// Ensure that the updated namespace does not break the existing tuple data.
 	existing := existingDefs[caveatDef.Name]
-	diff, err := caveatdiff.DiffCaveats(existing, caveatDef)
+	diff, err := caveatdiff.DiffCaveats(existing, caveatDef, caveatTypeSet)
 	if err != nil {
 		return nil, err
 	}
@@ -265,38 +266,22 @@ func sanityCheckCaveatChanges(
 	return diff, nil
 }
 
-// ensureNoRelationshipsExist ensures that no relationships exist within the namespace with the given name.
-func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTransaction, namespaceName string) error {
+// ensureNoRelationshipsExistWithResourceType ensures that no relationships exist within the namespace with the given name as a resource type.
+// NOTE: this does *not* check for use of the namespace as a subject type, as that should be handled by the caller.
+func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datastore.ReadWriteTransaction, namespaceName string) error {
 	qy, qyErr := rwt.QueryRelationships(
 		ctx,
 		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
 		options.WithLimit(options.LimitOne),
+		options.WithQueryShape(queryshape.FindResourceOfType),
 	)
-	if err := errorIfTupleIteratorReturnsTuples(
+	return errorIfTupleIteratorReturnsTuples(
 		ctx,
 		qy,
 		qyErr,
 		"cannot delete object definition `%s`, as a relationship exists under it",
 		namespaceName,
-	); err != nil {
-		return err
-	}
-
-	qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
-		SubjectType: namespaceName,
-	}, options.WithLimitForReverse(options.LimitOne))
-	err := errorIfTupleIteratorReturnsTuples(
-		ctx,
-		qy,
-		qyErr,
-		"cannot delete object definition `%s`, as a relationship references it",
-		namespaceName,
 	)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // sanityCheckNamespaceChanges ensures that a namespace definition being written does not result
@@ -353,11 +338,16 @@ func sanityCheckNamespaceChanges(
 				}
 			}
 
-			qy, qyErr := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				OptionalResourceType:      nsdef.Name,
-				OptionalResourceRelation:  delta.RelationName,
-				OptionalSubjectsSelectors: subjectSelectors,
-			}, options.WithLimit(options.LimitOne))
+			qy, qyErr := rwt.QueryRelationships(
+				ctx,
+				datastore.RelationshipsFilter{
+					OptionalResourceType:      nsdef.Name,
+					OptionalResourceRelation:  delta.RelationName,
+					OptionalSubjectsSelectors: subjectSelectors,
+				},
+				options.WithLimit(options.LimitOne),
+				options.WithQueryShape(queryshape.FindResourceOfTypeAndRelation),
+			)
 
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
@@ -369,12 +359,17 @@ func sanityCheckNamespaceChanges(
 			}
 
 			// Also check for right sides of tuples.
-			qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
-				SubjectType: nsdef.Name,
-				RelationFilter: datastore.SubjectRelationFilter{
-					NonEllipsisRelation: delta.RelationName,
+			qy, qyErr = rwt.ReverseQueryRelationships(
+				ctx,
+				datastore.SubjectsFilter{
+					SubjectType: nsdef.Name,
+					RelationFilter: datastore.SubjectRelationFilter{
+						NonEllipsisRelation: delta.RelationName,
+					},
 				},
-			}, options.WithLimitForReverse(options.LimitOne))
+				options.WithLimitForReverse(options.LimitOne),
+				options.WithQueryShapeForReverse(queryshape.FindSubjectOfTypeAndRelation),
+			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
 				qy,
@@ -387,7 +382,7 @@ func sanityCheckNamespaceChanges(
 		case nsdiff.RelationAllowedTypeRemoved:
 			var optionalSubjectIds []string
 			var relationFilter datastore.SubjectRelationFilter
-			optionalCaveatName := ""
+			var optionalCaveatNameFilter datastore.CaveatNameFilter
 
 			if delta.AllowedType.GetPublicWildcard() != nil {
 				optionalSubjectIds = []string{tuple.PublicWildcard}
@@ -397,8 +392,10 @@ func sanityCheckNamespaceChanges(
 				}
 			}
 
-			if delta.AllowedType.GetRequiredCaveat() != nil {
-				optionalCaveatName = delta.AllowedType.GetRequiredCaveat().CaveatName
+			if delta.AllowedType.GetRequiredCaveat() != nil && delta.AllowedType.GetRequiredCaveat().CaveatName != "" {
+				optionalCaveatNameFilter = datastore.WithCaveatName(delta.AllowedType.GetRequiredCaveat().CaveatName)
+			} else {
+				optionalCaveatNameFilter = datastore.WithNoCaveat()
 			}
 
 			expirationOption := datastore.ExpirationFilterOptionNoExpiration
@@ -418,17 +415,18 @@ func sanityCheckNamespaceChanges(
 							RelationFilter:      relationFilter,
 						},
 					},
-					OptionalCaveatName:       optionalCaveatName,
+					OptionalCaveatNameFilter: optionalCaveatNameFilter,
 					OptionalExpirationOption: expirationOption,
 				},
 				options.WithLimit(options.LimitOne),
+				options.WithQueryShape(queryshape.FindResourceRelationForSubjectRelation),
 			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
 				qyr,
 				qyrErr,
 				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
-				typesystem.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
+				schema.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
 			if err != nil {
 				return diff, err
 			}

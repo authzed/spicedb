@@ -7,19 +7,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/caveats"
-	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // CaveatNotFound tests to ensure that an unknown caveat returns the expected
@@ -30,7 +32,7 @@ func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
@@ -46,7 +48,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	skipIfNotCaveatStorer(t, ds)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Don't fail on writing empty caveat list
 	_, err = writeCaveats(ctx, ds)
 	req.NoError(err)
@@ -139,7 +141,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
 	anotherCoreCaveat := createCoreCaveat(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = writeCaveats(ctx, ds, coreCaveat, anotherCoreCaveat)
 	req.NoError(err)
 
@@ -186,9 +188,9 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	rel.OptionalCaveat.CaveatName = "rando"
 	rev, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationDelete, rel)
 	req.NoError(err)
-	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(rev).QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: rel.Resource.ObjectType,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	req.NoError(err)
 
 	for _, err := range iter {
@@ -215,7 +217,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
 	anotherCoreCaveat := createCoreCaveat(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = writeCaveats(ctx, ds, coreCaveat, anotherCoreCaveat)
 	req.NoError(err)
 
@@ -227,21 +229,28 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 
 	// filter by first caveat
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		OptionalResourceType: rel.Resource.ObjectType,
-		OptionalCaveatName:   coreCaveat.Name,
-	})
+		OptionalResourceType:     rel.Resource.ObjectType,
+		OptionalCaveatNameFilter: datastore.WithCaveatName(coreCaveat.Name),
+	}, options.WithQueryShape(queryshape.Varying))
 	req.NoError(err)
-
 	expectRel(req, iter, rel)
 
 	// filter by second caveat
 	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		OptionalResourceType: anotherTpl.Resource.ObjectType,
-		OptionalCaveatName:   anotherCoreCaveat.Name,
-	})
+		OptionalResourceType:     anotherTpl.Resource.ObjectType,
+		OptionalCaveatNameFilter: datastore.WithCaveatName(anotherCoreCaveat.Name),
+	}, options.WithQueryShape(queryshape.Varying))
 	req.NoError(err)
-
 	expectRel(req, iter, anotherTpl)
+
+	// filter by caveat required and ensure not found.
+	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType:     anotherTpl.Resource.ObjectType,
+		OptionalResourceIds:      []string{anotherTpl.Resource.ObjectID},
+		OptionalCaveatNameFilter: datastore.WithNoCaveat(),
+	}, options.WithQueryShape(queryshape.Varying))
+	req.NoError(err)
+	expectNoRel(req, iter)
 }
 
 func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
@@ -253,7 +262,7 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 
 	// Write an initial caveat
 	coreCaveat := createCoreCaveat(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	oldRev, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
 
@@ -283,7 +292,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	skipIfNotCaveatStorer(t, ds)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Write caveat and caveated relationship
@@ -338,7 +347,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 func expectRelChange(t *testing.T, ds datastore.Datastore, revBeforeWrite datastore.Revision, expectedRel tuple.Relationship) {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	chanRevisionChanges, chanErr := ds.Watch(ctx, revBeforeWrite, datastore.WatchJustRelationships())
@@ -361,10 +370,17 @@ func expectRel(req *require.Assertions, iter datastore.RelationshipIterator, rel
 	}
 }
 
+func expectNoRel(req *require.Assertions, iter datastore.RelationshipIterator) {
+	for _, err := range iter {
+		req.NoError(err)
+		req.Fail("expected no relationships to be found")
+	}
+}
+
 func assertRelCorrectlyStored(req *require.Assertions, ds datastore.Datastore, rev datastore.Revision, expected tuple.Relationship) {
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: expected.Resource.ObjectType,
-	})
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	req.NoError(err)
 
 	for found, err := range iter {
@@ -374,7 +390,7 @@ func assertRelCorrectlyStored(req *require.Assertions, ds datastore.Datastore, r
 }
 
 func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { // nolint: errcheck
 		_, _, err := transaction.ReadCaveatByName(ctx, uuid.NewString())
 		if !errors.As(err, &datastore.CaveatNameNotFoundError{}) {
@@ -418,12 +434,12 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 	cBytes, err := c.Serialize()
 	require.NoError(t, err)
 
-	env := caveats.NewEnvironment()
+	env := caveats.NewEnvironmentWithDefaultTypeSet()
 
-	err = env.AddVariable("foo", caveattypes.IntType)
+	err = env.AddVariable("foo", caveattypes.Default.IntType)
 	require.NoError(t, err)
 
-	err = env.AddVariable("bar", caveattypes.MustMapType(caveattypes.BytesType))
+	err = env.AddVariable("bar", caveattypes.Default.MustMapType(caveattypes.Default.BytesType))
 	require.NoError(t, err)
 
 	coreCaveat := &core.CaveatDefinition{
@@ -438,9 +454,9 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 
 func createCompiledCaveat(t *testing.T) *caveats.CompiledCaveat {
 	t.Helper()
-	env, err := caveats.EnvForVariables(map[string]caveattypes.VariableType{
-		"a": caveattypes.IntType,
-		"b": caveattypes.IntType,
+	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
+		"a": caveattypes.Default.IntType,
+		"b": caveattypes.Default.IntType,
 	})
 	require.NoError(t, err)
 

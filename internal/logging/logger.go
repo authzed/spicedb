@@ -2,15 +2,17 @@ package logging
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/go-logr/zerologr"
 	"github.com/rs/zerolog"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var Logger zerolog.Logger
 
 func init() {
 	SetGlobalLogger(zerolog.Nop())
+	logf.SetLogger(zerologr.New(&Logger))
 }
 
 func SetGlobalLogger(logger zerolog.Logger) {
@@ -39,11 +41,3 @@ func WithLevel(level zerolog.Level) *zerolog.Event { return Logger.WithLevel(lev
 func Log() *zerolog.Event { return Logger.Log() }
 
 func Ctx(ctx context.Context) *zerolog.Logger { return zerolog.Ctx(ctx) }
-
-func Print(v ...interface{}) {
-	Logger.Debug().CallerSkipFrame(1).Msg(fmt.Sprint(v...))
-}
-
-func Printf(format string, v ...interface{}) {
-	Logger.Debug().CallerSkipFrame(1).Msgf(format, v...)
-}

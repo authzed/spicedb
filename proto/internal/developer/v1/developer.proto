@@ -223,7 +223,6 @@ message FormatSchemaResult {
   string formatted_schema = 1;
 }
 
-
 // SchemaWarningsParameters are the parameters for a `schemaWarnings` operation.
 message SchemaWarningsParameters {
   // empty

@@ -1,7 +1,6 @@
 package memdb
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -12,17 +11,17 @@ func TestHeadRevision(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 0, 500*time.Millisecond)
 	require.NoError(t, err)
 
-	older, err := ds.HeadRevision(context.Background())
+	older, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
-	err = ds.CheckRevision(context.Background(), older)
+	err = ds.CheckRevision(t.Context(), older)
 	require.NoError(t, err)
 
 	time.Sleep(550 * time.Millisecond)
 
 	// GC window elapsed, last revision is returned even if outside GC window
-	newer, err := ds.HeadRevision(context.Background())
+	newer, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
-	err = ds.CheckRevision(context.Background(), newer)
+	err = ds.CheckRevision(t.Context(), newer)
 	require.NoError(t, err)
 }
 

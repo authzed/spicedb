@@ -1,8 +1,3 @@
-// Package telemetry implements a client for reporting telemetry data used to
-// prioritize development of SpiceDB.
-//
-// For more information, see:
-// https://github.com/authzed/spicedb/blob/main/TELEMETRY.md
 package telemetry
 
 import (
@@ -14,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	prompb "buf.build/gen/go/prometheus/prometheus/protocolbuffers/go"
@@ -139,7 +135,7 @@ func RemoteReporter(
 	if _, err := url.Parse(endpoint); err != nil {
 		return nil, fmt.Errorf("invalid telemetry endpoint: %w", err)
 	}
-	if interval < MinimumAllowedInterval {
+	if !strings.Contains(endpoint, "127.0.0.1") && interval < MinimumAllowedInterval {
 		return nil, fmt.Errorf("invalid telemetry reporting interval: %s < %s", interval, MinimumAllowedInterval)
 	}
 	if endpoint == DefaultEndpoint && interval != DefaultInterval {
@@ -164,10 +160,13 @@ func RemoteReporter(
 	}
 
 	return func(ctx context.Context) error {
-		// nolint:gosec
-		// G404 use of non cryptographically secure random number generator is not a security concern here,
-		// as this is only used to smear the startup delay out over 10% of the reporting interval
-		startupDelay := time.Duration(rand.Int63n(int64(interval.Seconds()/10))) * time.Second
+		var startupDelay time.Duration
+		if interval >= MinimumAllowedInterval {
+			// nolint:gosec
+			// G404 use of non cryptographically secure random number generator is not a security concern here,
+			// as this is only used to smear the startup delay out over 10% of the reporting interval
+			startupDelay = time.Duration(rand.Int63n(int64(interval.Seconds()/10))) * time.Second
+		}
 
 		log.Ctx(ctx).Info().
 			Stringer("interval", interval).

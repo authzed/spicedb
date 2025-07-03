@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -38,7 +39,7 @@ func TestPreconditions(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithData(uninitialized, require)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		require.NoError(checkPreconditions(ctx, rwt, []*v1.Precondition{
 			{

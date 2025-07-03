@@ -13,14 +13,16 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // dispatchVersion defines the "version" of this dispatcher. Must be incremented
@@ -28,13 +30,14 @@ import (
 // production.
 const dispatchVersion = 1
 
-func NewCursoredLookupResources2(dl dispatch.LookupResources2, dc dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredLookupResources2 {
-	return &CursoredLookupResources2{dl, dc, concurrencyLimit, dispatchChunkSize}
+func NewCursoredLookupResources2(dl dispatch.LookupResources2, dc dispatch.Check, caveatTypeSet *caveattypes.TypeSet, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredLookupResources2 {
+	return &CursoredLookupResources2{dl, dc, caveatTypeSet, concurrencyLimit, dispatchChunkSize}
 }
 
 type CursoredLookupResources2 struct {
 	dl                dispatch.LookupResources2
 	dc                dispatch.Check
+	caveatTypeSet     *caveattypes.TypeSet
 	concurrencyLimit  uint16
 	dispatchChunkSize uint16
 }
@@ -115,7 +118,8 @@ func (crr *CursoredLookupResources2) afterSameType(
 	req ValidatedLookupResources2Request,
 	parentStream dispatch.LookupResources2Stream,
 ) error {
-	ctx, span := tracer.Start(ctx, "lookupViaReachability")
+	reachabilityForString := req.ResourceRelation.Namespace + "#" + req.ResourceRelation.Relation
+	ctx, span := tracer.Start(ctx, "reachability: "+reachabilityForString)
 	defer span.End()
 
 	dispatched := NewSyncONRSet()
@@ -123,13 +127,14 @@ func (crr *CursoredLookupResources2) afterSameType(
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	ds := datastoremw.MustFromContext(ctx)
 	reader := ds.SnapshotReader(req.Revision)
-	_, typeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, req.ResourceRelation.Namespace, reader)
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+	vdef, err := ts.GetValidatedDefinition(ctx, req.ResourceRelation.Namespace)
 	if err != nil {
 		return err
 	}
 
-	rg := typesystem.ReachabilityGraphFor(typeSystem)
-	entrypoints, err := rg.OptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
+	rg := vdef.Reachability()
+	entrypoints, err := rg.FirstEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: req.SubjectRelation.Namespace,
 		Relation:  req.SubjectRelation.Relation,
 	}, req.ResourceRelation)
@@ -139,19 +144,17 @@ func (crr *CursoredLookupResources2) afterSameType(
 
 	// For each entrypoint, load the necessary data and re-dispatch if a subproblem was found.
 	return withParallelizedStreamingIterableInCursor(ctx, ci, entrypoints, parentStream, crr.concurrencyLimit,
-		func(ctx context.Context, ci cursorInformation, entrypoint typesystem.ReachabilityEntrypoint, stream dispatch.LookupResources2Stream) error {
+		func(ctx context.Context, ci cursorInformation, entrypoint schema.ReachabilityEntrypoint, stream dispatch.LookupResources2Stream) error {
 			ds, err := entrypoint.DebugString()
 			spiceerrors.DebugAssert(func() bool {
 				return err == nil
 			}, "Error in entrypoint.DebugString()")
-			ctx, span := tracer.Start(ctx, "entrypoint", trace.WithAttributes(
-				attribute.String("entrypoint", ds),
-			))
+			ctx, span := tracer.Start(ctx, "entrypoint: "+ds, trace.WithAttributes())
 			defer span.End()
 
 			switch entrypoint.EntrypointKind() {
 			case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-				return crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
+				return crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, ts, reader, req, stream, dispatched)
 
 			case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
 				containingRelation := entrypoint.ContainingRelationOrPermission()
@@ -176,7 +179,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 				)
 
 			case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-				return crr.lookupTTUEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
+				return crr.lookupTTUEntrypoint(ctx, ci, entrypoint, rg, ts, reader, req, stream, dispatched)
 
 			default:
 				return spiceerrors.MustBugf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind())
@@ -187,8 +190,9 @@ func (crr *CursoredLookupResources2) afterSameType(
 func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 	ctx context.Context,
 	ci cursorInformation,
-	entrypoint typesystem.ReachabilityEntrypoint,
-	rg *typesystem.ReachabilityGraph,
+	entrypoint schema.ReachabilityEntrypoint,
+	rg *schema.DefinitionReachability,
+	ts *schema.TypeSystem,
 	reader datastore.Reader,
 	req ValidatedLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
@@ -199,13 +203,13 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 		return err
 	}
 
-	_, relTypeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, relationReference.Namespace, reader)
+	relDefinition, err := ts.GetValidatedDefinition(ctx, relationReference.Namespace)
 	if err != nil {
 		return err
 	}
 
 	// Build the list of subjects to lookup based on the type information available.
-	isDirectAllowed, err := relTypeSystem.IsAllowedDirectRelation(
+	isDirectAllowed, err := relDefinition.IsAllowedDirectRelation(
 		relationReference.Relation,
 		req.SubjectRelation.Namespace,
 		req.SubjectRelation.Relation,
@@ -215,17 +219,17 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 	}
 
 	subjectIds := make([]string, 0, len(req.SubjectIds)+1)
-	if isDirectAllowed == typesystem.DirectRelationValid {
+	if isDirectAllowed == schema.DirectRelationValid {
 		subjectIds = append(subjectIds, req.SubjectIds...)
 	}
 
 	if req.SubjectRelation.Relation == tuple.Ellipsis {
-		isWildcardAllowed, err := relTypeSystem.IsAllowedPublicNamespace(relationReference.Relation, req.SubjectRelation.Namespace)
+		isWildcardAllowed, err := relDefinition.IsAllowedPublicNamespace(relationReference.Relation, req.SubjectRelation.Namespace)
 		if err != nil {
 			return err
 		}
 
-		if isWildcardAllowed == typesystem.PublicSubjectAllowed {
+		if isWildcardAllowed == schema.PublicSubjectAllowed {
 			subjectIds = append(subjectIds, "*")
 		}
 	}
@@ -251,6 +255,7 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 		ctx,
 		redispatchOverDatabaseConfig2{
 			ci:                 ci,
+			ts:                 ts,
 			reader:             reader,
 			subjectsFilter:     subjectsFilter,
 			sourceResourceType: relationReference,
@@ -268,14 +273,17 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 type redispatchOverDatabaseConfig2 struct {
 	ci cursorInformation
 
+	ts *schema.TypeSystem
+
+	// Direct reader for reverse ReverseQueryRelationships
 	reader datastore.Reader
 
 	subjectsFilter     datastore.SubjectsFilter
 	sourceResourceType *core.RelationReference
 	foundResourceType  *core.RelationReference
 
-	entrypoint typesystem.ReachabilityEntrypoint
-	rg         *typesystem.ReachabilityGraph
+	entrypoint schema.ReachabilityEntrypoint
+	rg         *schema.DefinitionReachability
 
 	concurrencyLimit uint16
 	parentStream     dispatch.LookupResources2Stream
@@ -295,6 +303,19 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 	))
 	defer span.End()
 
+	vts, err := config.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
+	if err != nil {
+		return err
+	}
+
+	possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.Relation, config.subjectsFilter.SubjectType)
+	if err != nil {
+		return err
+	}
+
+	skipCaveats := !possibleTraits.AllowsCaveats
+	skipExpiration := !possibleTraits.AllowsExpiration
+
 	return withDatastoreCursorInCursor(ctx, config.ci, config.parentStream, config.concurrencyLimit,
 		// Find the target resources for the subject.
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[dispatchableResourcesSubjectMap2], error) {
@@ -307,6 +328,9 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 				}),
 				options.WithSortForReverse(options.BySubject),
 				options.WithAfterForReverse(queryCursor),
+				options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
+				options.WithSkipCaveatsForReverse(skipCaveats),
+				options.WithSkipExpirationForReverse(skipExpiration),
 			)
 			if err != nil {
 				return nil, err
@@ -317,7 +341,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 			rsm := newResourcesSubjectMap2WithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap2], 0)
 			currentCursor := queryCursor
-			caveatRunner := caveats.NewCaveatRunner()
+			caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
 
 			for rel, err := range it {
 				if err != nil {
@@ -396,8 +420,9 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 
 func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 	ci cursorInformation,
-	entrypoint typesystem.ReachabilityEntrypoint,
-	rg *typesystem.ReachabilityGraph,
+	entrypoint schema.ReachabilityEntrypoint,
+	rg *schema.DefinitionReachability,
+	ts *schema.TypeSystem,
 	reader datastore.Reader,
 	req ValidatedLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
@@ -405,7 +430,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 ) error {
 	containingRelation := entrypoint.ContainingRelationOrPermission()
 
-	_, ttuTypeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
+	ttuDef, err := ts.GetValidatedDefinition(ctx, containingRelation.Namespace)
 	if err != nil {
 		return err
 	}
@@ -418,7 +443,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 	// Determine whether this TTU should be followed, which will be the case if the subject relation's namespace
 	// is allowed in any form on the relation; since arrows ignore the subject's relation (if any), we check
 	// for the subject namespace as a whole.
-	allowedRelations, err := ttuTypeSystem.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, req.SubjectRelation.Namespace)
+	allowedRelations, err := ttuDef.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, req.SubjectRelation.Namespace)
 	if err != nil {
 		return err
 	}
@@ -449,6 +474,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 		ctx,
 		redispatchOverDatabaseConfig2{
 			ci:                 ci,
+			ts:                 ts,
 			reader:             reader,
 			subjectsFilter:     subjectsFilter,
 			sourceResourceType: tuplesetRelationReference,
@@ -475,8 +501,8 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 	ci cursorInformation,
 	foundResourceType *core.RelationReference,
 	foundResources dispatchableResourcesSubjectMap2,
-	rg *typesystem.ReachabilityGraph,
-	entrypoint typesystem.ReachabilityEntrypoint,
+	rg *schema.DefinitionReachability,
+	entrypoint schema.ReachabilityEntrypoint,
 	parentStream dispatch.LookupResources2Stream,
 	parentRequest ValidatedLookupResources2Request,
 	dispatched *syncONRSet,
@@ -546,7 +572,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							checkHints = append(checkHints, checkHint)
 						}
 
-						resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, crr.dc, computed.CheckParameters{
+						resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, crr.dc, crr.caveatTypeSet, computed.CheckParameters{
 							ResourceType:  tuple.FromCoreRelationReference(parentRequest.ResourceRelation),
 							Subject:       tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
 							CaveatContext: parentRequest.Context.AsMap(),
@@ -662,6 +688,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				entrypoint,
 				crr.dl,
 				crr.dc,
+				crr.caveatTypeSet,
 				crr.concurrencyLimit,
 				crr.dispatchChunkSize,
 			)

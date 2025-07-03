@@ -115,7 +115,7 @@ func (r Relationship) Validate() error {
 		return errors.New("object and relation must not be empty")
 	}
 
-	if r.RelationshipReference.Resource.ObjectID == PublicWildcard {
+	if r.Resource.ObjectID == PublicWildcard {
 		return errors.New("invalid resource id")
 	}
 
@@ -178,6 +178,14 @@ func (rr RelationReference) ToCoreRR() *core.RelationReference {
 		Namespace: rr.ObjectType,
 		Relation:  rr.Relation,
 	}
+}
+
+func (rr RelationReference) RefString() string {
+	return JoinRelRef(rr.ObjectType, rr.Relation)
+}
+
+func (rr RelationReference) String() string {
+	return rr.RefString()
 }
 
 // ONR creates an ObjectAndRelation.

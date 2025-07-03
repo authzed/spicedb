@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/authzed/spicedb/internal/middleware/servicespecific"
-
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/middleware/servicespecific"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -25,6 +25,7 @@ type ServerConfig struct {
 	MaxPreconditionsCount      uint16
 	MaxRelationshipContextSize int
 	StreamingAPITimeout        time.Duration
+	CaveatTypeSet              *caveattypes.TypeSet
 }
 
 var DefaultTestServerConfig = ServerConfig{
@@ -34,12 +35,14 @@ var DefaultTestServerConfig = ServerConfig{
 	MaxRelationshipContextSize: 25000,
 }
 
+type DatastoreInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision)
+
 // NewTestServer creates a new test server, using defaults for the config.
 func NewTestServer(require *require.Assertions,
 	revisionQuantization time.Duration,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
-	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	return NewTestServerWithConfig(require, revisionQuantization, gcWindow, schemaPrefixRequired,
 		DefaultTestServerConfig,
@@ -52,7 +55,7 @@ func NewTestServerWithConfig(require *require.Assertions,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
 	config ServerConfig,
-	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(err)
@@ -66,14 +69,15 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	schemaPrefixRequired bool,
 	config ServerConfig,
 	emptyDS datastore.Datastore,
-	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(emptyDS, require)
 	ctx, cancel := context.WithCancel(context.Background())
+	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithEnableExperimentalRelationshipExpiration(true),
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10, 100)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(cts, 10, 100)),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),

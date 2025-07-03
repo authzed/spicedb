@@ -17,6 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -56,7 +57,7 @@ func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gc
 			OverrideLockWaitTimeout(1),
 		)
 		require.NoError(dst.t, err)
-		return ds
+		return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	})
 	_, err := ds.ReadyState(context.Background())
 	require.NoError(dst.t, err)
@@ -251,7 +252,11 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Run GC at the transaction and ensure no relationships are removed.
 	mds := ds.(*Datastore)
 
-	removed, err := mds.DeleteBeforeTx(ctx, writtenAt)
+	mgg, err := mds.BuildGarbageCollector(ctx)
+	req.NoError(err)
+	defer mgg.Close()
+
+	removed, err := mgg.DeleteBeforeTx(ctx, writtenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Zero(removed.Namespaces)
@@ -271,7 +276,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC to remove the old namespace
-	removed, err = mds.DeleteBeforeTx(ctx, writtenAt)
+	removed, err = mgg.DeleteBeforeTx(ctx, writtenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
@@ -283,14 +288,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
-	removed, err = mds.DeleteBeforeTx(ctx, relWrittenAt)
+	removed, err = mgg.DeleteBeforeTx(ctx, relWrittenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
 	req.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = mds.DeleteBeforeTx(ctx, relWrittenAt)
+	removed, err = mgg.DeleteBeforeTx(ctx, relWrittenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Zero(removed.Transactions)
@@ -306,14 +311,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
-	removed, err = mds.DeleteBeforeTx(ctx, relOverwrittenAt)
+	removed, err = mgg.DeleteBeforeTx(ctx, relOverwrittenAt)
 	req.NoError(err)
 	req.Equal(int64(1), removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
 	req.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = mds.DeleteBeforeTx(ctx, relOverwrittenAt)
+	removed, err = mgg.DeleteBeforeTx(ctx, relOverwrittenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Zero(removed.Transactions)
@@ -330,14 +335,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.NoRelationshipExists(ctx, crel, relDeletedAt)
 
 	// Run GC at the transaction and ensure the relationship is removed, as well as 1 transaction (the overwrite).
-	removed, err = mds.DeleteBeforeTx(ctx, relDeletedAt)
+	removed, err = mgg.DeleteBeforeTx(ctx, relDeletedAt)
 	req.NoError(err)
 	req.Equal(int64(1), removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
 	req.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = mds.DeleteBeforeTx(ctx, relDeletedAt)
+	removed, err = mgg.DeleteBeforeTx(ctx, relDeletedAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Zero(removed.Transactions)
@@ -358,7 +363,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
 	// as well as the 2 older write transactions and the older delete transaction.
-	removed, err = mds.DeleteBeforeTx(ctx, relLastWriteAt)
+	removed, err = mgg.DeleteBeforeTx(ctx, relLastWriteAt)
 	req.NoError(err)
 	req.Equal(int64(2), removed.Relationships)
 	req.Equal(int64(3), removed.Transactions)
@@ -391,6 +396,10 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 
 	mds := ds.(*Datastore)
 
+	mgg, err := mds.BuildGarbageCollector(ctx)
+	req.NoError(err)
+	defer mgg.Close()
+
 	// Sleep 1ms to ensure GC will delete the previous transaction.
 	time.Sleep(1 * time.Millisecond)
 
@@ -401,13 +410,13 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC and ensure only transactions were removed.
-	afterWrite, err := mds.Now(ctx)
+	afterWrite, err := mgg.Now(ctx)
 	req.NoError(err)
 
-	afterWriteTx, err := mds.TxIDBefore(ctx, afterWrite)
+	afterWriteTx, err := mgg.TxIDBefore(ctx, afterWrite)
 	req.NoError(err)
 
-	removed, err := mds.DeleteBeforeTx(ctx, afterWriteTx)
+	removed, err := mgg.DeleteBeforeTx(ctx, afterWriteTx)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.NotZero(removed.Transactions)
@@ -425,13 +434,13 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC and ensure the relationship is removed.
-	afterDelete, err := mds.Now(ctx)
+	afterDelete, err := mgg.Now(ctx)
 	req.NoError(err)
 
-	afterDeleteTx, err := mds.TxIDBefore(ctx, afterDelete)
+	afterDeleteTx, err := mgg.TxIDBefore(ctx, afterDelete)
 	req.NoError(err)
 
-	removed, err = mds.DeleteBeforeTx(ctx, afterDeleteTx)
+	removed, err = mgg.DeleteBeforeTx(ctx, afterDeleteTx)
 	req.NoError(err)
 	req.Equal(int64(1), removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
@@ -449,15 +458,19 @@ func EmptyGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 	req.True(r.IsReady)
 
-	gc := ds.(common.GarbageCollector)
+	gc := ds.(common.GarbageCollectableDatastore)
 
-	now, err := gc.Now(ctx)
+	mgg, err := gc.BuildGarbageCollector(ctx)
+	req.NoError(err)
+	defer mgg.Close()
+
+	now, err := mgg.Now(ctx)
 	req.NoError(err)
 
-	watermark, err := gc.TxIDBefore(ctx, now.Add(-1*time.Minute))
+	watermark, err := mgg.TxIDBefore(ctx, now.Add(-1*time.Minute))
 	req.NoError(err)
 
-	collected, err := gc.DeleteBeforeTx(ctx, watermark)
+	collected, err := mgg.DeleteBeforeTx(ctx, watermark)
 	req.NoError(err)
 
 	req.Equal(int64(0), collected.Relationships)
@@ -486,15 +499,19 @@ func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) 
 	})
 	req.NoError(err)
 
-	gc := ds.(common.GarbageCollector)
+	gc := ds.(common.GarbageCollectableDatastore)
 
-	now, err := gc.Now(ctx)
+	mgg, err := gc.BuildGarbageCollector(ctx)
+	req.NoError(err)
+	defer mgg.Close()
+
+	now, err := mgg.Now(ctx)
 	req.NoError(err)
 
-	watermark, err := gc.TxIDBefore(ctx, now.Add(-1*time.Minute))
+	watermark, err := mgg.TxIDBefore(ctx, now.Add(-1*time.Minute))
 	req.NoError(err)
 
-	collected, err := gc.DeleteBeforeTx(ctx, watermark)
+	collected, err := mgg.DeleteBeforeTx(ctx, watermark)
 	req.NoError(err)
 
 	req.Equal(int64(0), collected.Relationships)
@@ -525,6 +542,10 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	mds := ds.(*Datastore)
 
+	mgg, err := mds.BuildGarbageCollector(ctx)
+	req.NoError(err)
+	defer mgg.Close()
+
 	// Prepare relationships to write.
 	var rels []tuple.Relationship
 	for i := 0; i < chunkRelationshipCount; i++ {
@@ -543,13 +564,13 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	}
 
 	// Run GC and ensure only transactions were removed.
-	afterWrite, err := mds.Now(ctx)
+	afterWrite, err := mgg.Now(ctx)
 	req.NoError(err)
 
-	afterWriteTx, err := mds.TxIDBefore(ctx, afterWrite)
+	afterWriteTx, err := mgg.TxIDBefore(ctx, afterWrite)
 	req.NoError(err)
 
-	removed, err := mds.DeleteBeforeTx(ctx, afterWriteTx)
+	removed, err := mgg.DeleteBeforeTx(ctx, afterWriteTx)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.NotZero(removed.Transactions)
@@ -571,13 +592,13 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Run GC and ensure all the stale relationships are removed.
-	afterDelete, err := mds.Now(ctx)
+	afterDelete, err := mgg.Now(ctx)
 	req.NoError(err)
 
-	afterDeleteTx, err := mds.TxIDBefore(ctx, afterDelete)
+	afterDeleteTx, err := mgg.TxIDBefore(ctx, afterDelete)
 	req.NoError(err)
 
-	removed, err = mds.DeleteBeforeTx(ctx, afterDeleteTx)
+	removed, err = mgg.DeleteBeforeTx(ctx, afterDeleteTx)
 	req.NoError(err)
 	req.Equal(int64(chunkRelationshipCount), removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
@@ -586,39 +607,59 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	testCases := []struct {
-		testName         string
-		quantization     time.Duration
-		relativeTimes    []time.Duration
-		expectedRevision uint64
+		testName          string
+		quantization      time.Duration
+		relativeTimes     []time.Duration
+		followerReadDelay time.Duration
+		expectedRevision  uint64
 	}{
 		{
 			"DefaultRevision",
 			1 * time.Second,
 			[]time.Duration{},
+			0,
 			1,
 		},
 		{
 			"OnlyPastRevisions",
 			1 * time.Second,
 			[]time.Duration{-2 * time.Second},
+			0,
 			2,
 		},
 		{
 			"OnlyFutureRevisions",
 			1 * time.Second,
 			[]time.Duration{2 * time.Second},
+			0,
 			2,
 		},
 		{
 			"QuantizedLower",
 			1 * time.Second,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
+			0,
 			3,
+		},
+		{
+			"QuantizedRecentWithFollowerReadDelay",
+			500 * time.Millisecond,
+			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
+			2 * time.Second,
+			3,
+		},
+		{
+			"QuantizedRecentWithoutFollowerReadDelay",
+			500 * time.Millisecond,
+			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
+			0,
+			4,
 		},
 		{
 			"QuantizationDisabled",
 			1 * time.Nanosecond,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
+			0,
 			4,
 		},
 	}
@@ -643,7 +684,11 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			})
 			mds := ds.(*Datastore)
 
-			dbNow, err := mds.Now(ctx)
+			mgg, err := mds.BuildGarbageCollector(ctx)
+			require.NoError(err)
+			defer mgg.Close()
+
+			dbNow, err := mgg.Now(ctx)
 			require.NoError(err)
 
 			tx, err := mds.db.BeginTx(ctx, nil)
@@ -669,6 +714,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				mds.driver.RelationTupleTransaction(),
 				colTimestamp,
 				tc.quantization.Nanoseconds(),
+				tc.followerReadDelay.Nanoseconds(),
 			)
 
 			var revision uint64
@@ -699,7 +745,11 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 
 	// Get timestamp in UTC as reference
-	startTimeUTC, err := ds.(*Datastore).Now(ctx)
+	mgg, err := ds.(*Datastore).BuildGarbageCollector(ctx)
+	req.NoError(err)
+	defer mgg.Close()
+
+	startTimeUTC, err := mgg.Now(ctx)
 	req.NoError(err)
 
 	// Transaction timestamp should not be stored in system time zone

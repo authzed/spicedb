@@ -45,12 +45,15 @@ func (s *SchemaInformation) ToOption() SchemaInformationOption {
 		to.ColIntegrityKeyID = s.ColIntegrityKeyID
 		to.ColIntegrityHash = s.ColIntegrityHash
 		to.ColIntegrityTimestamp = s.ColIntegrityTimestamp
+		to.Indexes = s.Indexes
 		to.PaginationFilterType = s.PaginationFilterType
 		to.PlaceholderFormat = s.PlaceholderFormat
 		to.NowFunction = s.NowFunction
 		to.ColumnOptimization = s.ColumnOptimization
 		to.IntegrityEnabled = s.IntegrityEnabled
 		to.ExpirationDisabled = s.ExpirationDisabled
+		to.SortByResourceColumnOrder = s.SortByResourceColumnOrder
+		to.SortBySubjectColumnOrder = s.SortBySubjectColumnOrder
 	}
 }
 
@@ -71,12 +74,15 @@ func (s SchemaInformation) DebugMap() map[string]any {
 	debugMap["ColIntegrityKeyID"] = helpers.DebugValue(s.ColIntegrityKeyID, false)
 	debugMap["ColIntegrityHash"] = helpers.DebugValue(s.ColIntegrityHash, false)
 	debugMap["ColIntegrityTimestamp"] = helpers.DebugValue(s.ColIntegrityTimestamp, false)
+	debugMap["Indexes"] = helpers.DebugValue(s.Indexes, false)
 	debugMap["PaginationFilterType"] = helpers.DebugValue(s.PaginationFilterType, false)
 	debugMap["PlaceholderFormat"] = helpers.DebugValue(s.PlaceholderFormat, false)
 	debugMap["NowFunction"] = helpers.DebugValue(s.NowFunction, false)
 	debugMap["ColumnOptimization"] = helpers.DebugValue(s.ColumnOptimization, false)
 	debugMap["IntegrityEnabled"] = helpers.DebugValue(s.IntegrityEnabled, false)
 	debugMap["ExpirationDisabled"] = helpers.DebugValue(s.ExpirationDisabled, false)
+	debugMap["SortByResourceColumnOrder"] = helpers.DebugValue(s.SortByResourceColumnOrder, false)
+	debugMap["SortBySubjectColumnOrder"] = helpers.DebugValue(s.SortBySubjectColumnOrder, false)
 	return debugMap
 }
 
@@ -194,6 +200,20 @@ func WithColIntegrityTimestamp(colIntegrityTimestamp string) SchemaInformationOp
 	}
 }
 
+// WithIndexes returns an option that can append Indexess to SchemaInformation.Indexes
+func WithIndexes(indexes IndexDefinition) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.Indexes = append(s.Indexes, indexes)
+	}
+}
+
+// SetIndexes returns an option that can set Indexes on a SchemaInformation
+func SetIndexes(indexes []IndexDefinition) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.Indexes = indexes
+	}
+}
+
 // WithPaginationFilterType returns an option that can set PaginationFilterType on a SchemaInformation
 func WithPaginationFilterType(paginationFilterType PaginationFilterType) SchemaInformationOption {
 	return func(s *SchemaInformation) {
@@ -233,5 +253,33 @@ func WithIntegrityEnabled(integrityEnabled bool) SchemaInformationOption {
 func WithExpirationDisabled(expirationDisabled bool) SchemaInformationOption {
 	return func(s *SchemaInformation) {
 		s.ExpirationDisabled = expirationDisabled
+	}
+}
+
+// WithSortByResourceColumnOrder returns an option that can append SortByResourceColumnOrders to SchemaInformation.SortByResourceColumnOrder
+func WithSortByResourceColumnOrder(sortByResourceColumnOrder string) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.SortByResourceColumnOrder = append(s.SortByResourceColumnOrder, sortByResourceColumnOrder)
+	}
+}
+
+// SetSortByResourceColumnOrder returns an option that can set SortByResourceColumnOrder on a SchemaInformation
+func SetSortByResourceColumnOrder(sortByResourceColumnOrder []string) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.SortByResourceColumnOrder = sortByResourceColumnOrder
+	}
+}
+
+// WithSortBySubjectColumnOrder returns an option that can append SortBySubjectColumnOrders to SchemaInformation.SortBySubjectColumnOrder
+func WithSortBySubjectColumnOrder(sortBySubjectColumnOrder string) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.SortBySubjectColumnOrder = append(s.SortBySubjectColumnOrder, sortBySubjectColumnOrder)
+	}
+}
+
+// SetSortBySubjectColumnOrder returns an option that can set SortBySubjectColumnOrder on a SchemaInformation
+func SetSortBySubjectColumnOrder(sortBySubjectColumnOrder []string) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.SortBySubjectColumnOrder = sortBySubjectColumnOrder
 	}
 }

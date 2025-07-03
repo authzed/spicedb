@@ -4,18 +4,21 @@ on:  # yamllint disable-line rule:truthy
   push:
     tags:
       - "*"
+  workflow_dispatch:
 permissions:
-  contents: "write"
-  packages: "write"
+  contents: "read"
 jobs:
   goreleaser:
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-24.04-4"
+    permissions:
+      contents: "write"
+      packages: "write" # publish to GHCR
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         with:
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@main"
-      - uses: "nowsprinting/check-version-format-action@v4"
+      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+      - uses: "nowsprinting/check-version-format-action@c7180d5aa53d69af70c364c047482fc71e133f55" # v4.0.6
         id: "version"
         with:
           prefix: "v"
@@ -28,14 +31,14 @@ jobs:
           sudo snap install snapcraft --channel=8.x/stable --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages
-      - uses: "authzed/actions/docker-login@main"
+      - uses: "authzed/actions/docker-login@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
-      - uses: "docker/setup-qemu-action@v3"
-      - uses: "docker/setup-buildx-action@v3"
-      - uses: "goreleaser/goreleaser-action@v6"
+      - uses: "docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392" # v3.6.0
+      - uses: "docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2" # v3.10.0
+      - uses: "goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552" # v6.3.0
         with:
           distribution: "goreleaser-pro"
           # NOTE: keep in sync with goreleaser version in other job.
@@ -48,3 +51,23 @@ jobs:
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
           GEMFURY_PUSH_TOKEN: "${{ secrets.GEMFURY_PUSH_TOKEN }}"
           SNAPCRAFT_STORE_CREDENTIALS: "${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}"
+      - name: "Notify Slack of goreleaser status"
+        if: "always()"
+        uses: "slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52" # v2.1.0
+        with:
+          webhook: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          webhook-type: "incoming-webhook"
+          payload: |
+            text: "*Release Job Finished* with status: ${{ job.status }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: |
+                    *Goreleaser Job* finished with status: ${{ job.status }}
+                    *Repository:* <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>
+                    *Commit:* <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+                    *Job Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Run>
+                    *Actor:* ${{ github.actor }}
+                    *Ref:* ${{ github.ref }}
+                    *Workflow:* ${{ github.workflow }}

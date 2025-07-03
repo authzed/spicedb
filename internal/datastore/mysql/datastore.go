@@ -10,8 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/dlmiddlecote/sqlstats"
 	"github.com/go-sql-driver/mysql"
@@ -22,6 +20,7 @@ import (
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -132,12 +131,12 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	parsedURI, err := mysql.ParseDSN(uri)
+	mysqlConfig, err := mysql.ParseDSN(uri)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: could not parse connection URI", err, uri)
 	}
 
-	if !parsedURI.ParseTime {
+	if !mysqlConfig.ParseTime {
 		return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see https://spicedb.dev/d/parse-time-mysql for more details")
 	}
 
@@ -150,13 +149,16 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		}
 	}
 
-	err = mysqlCommon.MaybeAddCredentialsProviderHook(parsedURI, credentialsProvider)
+	err = mysqlCommon.MaybeAddCredentialsProviderHook(mysqlConfig, credentialsProvider)
 	if err != nil {
 		return nil, err
 	}
 
+	// Feed our logger through to the Connector
+	mysqlConfig.Logger = debugLogger{}
+
 	// Call NewConnector with the existing parsed configuration to preserve the BeforeConnect added by the CredentialsProvider
-	connector, err := mysql.NewConnector(parsedURI)
+	connector, err := mysql.NewConnector(mysqlConfig)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to create connector", err, uri)
 	}
@@ -227,12 +229,18 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		quantizationPeriodNanos = 1
 	}
 
+	followerReadDelayNanos := config.followerReadDelay.Nanoseconds()
+	if followerReadDelayNanos < 0 {
+		followerReadDelayNanos = 0
+	}
+
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,
 		colID,
 		driver.RelationTupleTransaction(),
 		colTimestamp,
 		quantizationPeriodNanos,
+		followerReadDelayNanos,
 	)
 
 	validTransactionQuery := fmt.Sprintf(
@@ -259,6 +267,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		common.WithNowFunction("NOW"),
 		common.WithColumnOptimization(config.columnOptimizationOption),
 		common.WithExpirationDisabled(config.expirationDisabled),
+		common.SetIndexes(indexes),
 	)
 
 	store := &Datastore{
@@ -272,6 +281,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		gcTimeout:               config.gcMaxOperationTime,
 		gcCtx:                   gcCtx,
 		cancelGc:                cancelGc,
+		watchEnabled:            !config.watchDisabled,
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		optimizedRevisionQuery:  revisionQuery,
@@ -322,6 +332,10 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	return store, nil
 }
 
+func (mds *Datastore) MetricsID() (string, error) {
+	return common.MetricsIDFromURL(mds.url)
+}
+
 func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
@@ -333,7 +347,7 @@ func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	}
 
 	executor := common.QueryRelationshipsExecutor{
-		Executor: newMySQLExecutor(mds.db),
+		Executor: newMySQLExecutor(mds.db, mds),
 	}
 
 	return &mysqlReader{
@@ -376,7 +390,7 @@ func (mds *Datastore) ReadWriteTx(
 			}
 
 			executor := common.QueryRelationshipsExecutor{
-				Executor: newMySQLExecutor(tx),
+				Executor: newMySQLExecutor(tx, mds),
 			}
 
 			rwt := &mysqlReadWriteTXN{
@@ -452,7 +466,7 @@ func (aqt asQueryableTx) QueryFunc(ctx context.Context, f func(context.Context, 
 	return f(ctx, rows)
 }
 
-func newMySQLExecutor(tx querier) common.ExecuteReadRelsQueryFunc {
+func newMySQLExecutor(tx querier, explainable datastore.Explainable) common.ExecuteReadRelsQueryFunc {
 	// This implementation does not create a transaction because it's redundant for single statements, and it avoids
 	// the network overhead and reduce contention on the connection pool. From MySQL docs:
 	//
@@ -469,7 +483,7 @@ func newMySQLExecutor(tx querier) common.ExecuteReadRelsQueryFunc {
 	// Prepared statements are also not used given they perform poorly on environments where connections have
 	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
 	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
-		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, builder, asQueryableTx{tx})
+		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, builder, asQueryableTx{tx}, explainable)
 	}
 }
 
@@ -488,6 +502,7 @@ type Datastore struct {
 	gcTimeout               time.Duration
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
+	watchEnabled            bool
 	maxRetries              uint8
 	filterMaximumIDCount    uint16
 	schema                  common.SchemaInformation
@@ -560,9 +575,14 @@ func (mds *Datastore) Features(_ context.Context) (*datastore.Features, error) {
 }
 
 func (mds *Datastore) OfflineFeatures() (*datastore.Features, error) {
+	watchSupported := datastore.FeatureUnsupported
+	if mds.watchEnabled {
+		watchSupported = datastore.FeatureSupported
+	}
+
 	return &datastore.Features{
 		Watch: datastore.Feature{
-			Status: datastore.FeatureSupported,
+			Status: watchSupported,
 		},
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
@@ -668,4 +688,10 @@ func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilter
 
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 	return original.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+}
+
+type debugLogger struct{}
+
+func (debugLogger) Print(v ...any) {
+	log.Logger.Debug().CallerSkipFrame(1).Str("datastore", "mysql").Msg(fmt.Sprint(v...))
 }

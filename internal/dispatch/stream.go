@@ -33,7 +33,7 @@ func WrapGRPCStream[R any, S grpcStream[R]](grpcStream S) Stream[R] {
 }
 
 type concurrentSafeStream[T any] struct {
-	grpcStream grpcStream[T]
+	grpcStream grpcStream[T] // GUARDED_BY(mu)
 	mu         sync.Mutex
 }
 
@@ -59,7 +59,7 @@ func NewCollectingDispatchStream[T any](ctx context.Context) *CollectingDispatch
 // CollectingDispatchStream is a dispatch stream that collects results in memory.
 type CollectingDispatchStream[T any] struct {
 	ctx     context.Context
-	results []T
+	results []T // GUARDED_BY(mu)
 	mu      sync.Mutex
 }
 
@@ -119,7 +119,7 @@ func StreamWithContext[T any](context context.Context, stream Stream[T]) Stream[
 // It uses an internal mutex to ensure it is thread safe.
 type HandlingDispatchStream[T any] struct {
 	ctx       context.Context
-	processor func(result T) error
+	processor func(result T) error // GUARDED_BY(mu)
 	mu        sync.Mutex
 }
 

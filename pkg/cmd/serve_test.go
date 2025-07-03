@@ -46,17 +46,8 @@ func RunServeTest(t *testing.T, args []string, assertConfig func(t *testing.T, m
 }
 
 func prepareTempConfigDir(t *testing.T) string {
-	workdir, err := os.Getwd()
-	require.Nil(t, err)
-
 	testdir := t.TempDir()
-	require.Nil(t, os.Chdir(testdir))
-
-	t.Cleanup(func() {
-		err = os.Chdir(workdir)
-		require.Nil(t, err)
-	})
-
+	t.Chdir(testdir)
 	return testdir
 }
 
