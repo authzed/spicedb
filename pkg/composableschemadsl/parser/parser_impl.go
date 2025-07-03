@@ -78,7 +78,7 @@ func (p *sourceParser) createNode(kind dslshape.NodeType) AstNode {
 }
 
 // createErrorNodef creates a new error node and returns it.
-func (p *sourceParser) createErrorNodef(format string, args ...interface{}) AstNode {
+func (p *sourceParser) createErrorNodef(format string, args ...any) AstNode {
 	message := fmt.Sprintf(format, args...)
 	node := p.startNode(dslshape.NodeTypeError).MustDecorate(dslshape.NodePredicateErrorMessage, message)
 	p.mustFinishNode()
@@ -171,7 +171,7 @@ func (p *sourceParser) isKeyword(keyword string) bool {
 
 // emitErrorf creates a new error node and attachs it as a child of the current
 // node.
-func (p *sourceParser) emitErrorf(format string, args ...interface{}) {
+func (p *sourceParser) emitErrorf(format string, args ...any) {
 	errorNode := p.createErrorNodef(format, args...)
 	if len(p.currentToken.Value) > 0 {
 		errorNode.MustDecorate(dslshape.NodePredicateErrorSource, p.currentToken.Value)

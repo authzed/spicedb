@@ -75,7 +75,7 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 
 // UnaryServerInterceptor returns a new unary server interceptor that sets a separate in-memory datastore per token
 func (m *MiddlewareForTesting) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		tokenDatastore, err := m.getOrCreateDatastore(ctx)
 		if err != nil {
 			return nil, err
@@ -92,7 +92,7 @@ func (m *MiddlewareForTesting) UnaryServerInterceptor() grpc.UnaryServerIntercep
 
 // StreamServerInterceptor returns a new stream server interceptor that sets a separate in-memory datastore per token
 func (m *MiddlewareForTesting) StreamServerInterceptor() grpc.StreamServerInterceptor {
-	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		tokenDatastore, err := m.getOrCreateDatastore(stream.Context())
 		if err != nil {
 			return err

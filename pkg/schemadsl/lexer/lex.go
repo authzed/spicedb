@@ -155,7 +155,7 @@ func (l *Lexer) emit(t TokenType) {
 
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating l.nexttoken.
-func (l *Lexer) errorf(currentRune rune, format string, args ...interface{}) stateFn {
+func (l *Lexer) errorf(currentRune rune, format string, args ...any) stateFn {
 	l.tokens <- Lexeme{TokenTypeError, l.start, string(currentRune), fmt.Sprintf(format, args...)}
 	return nil
 }

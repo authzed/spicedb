@@ -71,7 +71,7 @@ func (lt *lspTester) setFileContents(path string, contents string) {
 	})
 }
 
-func sendAndExpectError(lt *lspTester, method string, params interface{}) (*jsonrpc2.Error, serverState) {
+func sendAndExpectError(lt *lspTester, method string, params any) (*jsonrpc2.Error, serverState) {
 	paramsBytes, err := json.Marshal(params)
 	require.NoError(lt.t, err)
 
@@ -108,7 +108,7 @@ func sendAndExpectError(lt *lspTester, method string, params interface{}) (*json
 	return nil, serverStateNotInitialized
 }
 
-func sendAndReceive[T any](lt *lspTester, method string, params interface{}) (T, serverState) {
+func sendAndReceive[T any](lt *lspTester, method string, params any) (T, serverState) {
 	paramsBytes, err := json.Marshal(params)
 	require.NoError(lt.t, err)
 

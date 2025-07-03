@@ -50,7 +50,7 @@ type lineAndStart struct {
 	startPosition int
 }
 
-func inclusiveComparator(a, b interface{}) int {
+func inclusiveComparator(a, b any) int {
 	i1 := a.(inclusiveRange)
 	i2 := b.(inclusiveRange)
 

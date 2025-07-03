@@ -91,7 +91,7 @@ var (
 )
 
 type sqlFilter interface {
-	ToSql() (string, []interface{}, error)
+	ToSql() (string, []any, error)
 }
 
 // NewPostgresDatastore initializes a SpiceDB datastore that uses a PostgreSQL

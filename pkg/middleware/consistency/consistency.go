@@ -63,7 +63,7 @@ func RevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken,
 
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found
 // in the given request (if applicable).
-func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Datastore, serviceLabel string) error {
+func AddRevisionToContext(ctx context.Context, req any, ds datastore.Datastore, serviceLabel string) error {
 	switch req := req.(type) {
 	case hasConsistency:
 		return addRevisionToContextFromConsistency(ctx, req, ds, serviceLabel)
@@ -187,7 +187,7 @@ var bypassServiceWhitelist = map[string]struct{}{
 // UnaryServerInterceptor returns a new unary server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
 func UnaryServerInterceptor(serviceLabel string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
 				return handler(ctx, req)
@@ -206,7 +206,7 @@ func UnaryServerInterceptor(serviceLabel string) grpc.UnaryServerInterceptor {
 // StreamServerInterceptor returns a new stream server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
 func StreamServerInterceptor(serviceLabel string) grpc.StreamServerInterceptor {
-	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
 				return handler(srv, stream)
@@ -221,12 +221,12 @@ type recvWrapper struct {
 	grpc.ServerStream
 	ctx          context.Context
 	serviceLabel string
-	handler      func(ctx context.Context, req interface{}, ds datastore.Datastore, serviceLabel string) error
+	handler      func(ctx context.Context, req any, ds datastore.Datastore, serviceLabel string) error
 }
 
 func (s *recvWrapper) Context() context.Context { return s.ctx }
 
-func (s *recvWrapper) RecvMsg(m interface{}) error {
+func (s *recvWrapper) RecvMsg(m any) error {
 	if err := s.ServerStream.RecvMsg(m); err != nil {
 		return err
 	}
