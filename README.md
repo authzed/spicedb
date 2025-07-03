@@ -268,3 +268,4 @@ In addition, we'd like to highlight a few notable contributions:
 - <img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"> The GitHub Authorization Team for implementing and contributing the MySQL datastore
 - <img alt="netflix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/e64128f0-978f-4fd6-bdd7-1ce7cb6b34b9"> The Netflix Authorization Team for sponsoring and being a design partner for caveats
 - <img alt="equinix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/7bf706f9-910d-4902-8957-c914a7468eff"> The Equinix Metal Team for sponsoring our benchmarking hardware
+
