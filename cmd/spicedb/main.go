@@ -8,7 +8,7 @@ import (
 	mcobra "github.com/muesli/mango-cobra"
 	"github.com/muesli/roff"
 	"github.com/rs/zerolog"
-	"github.com/sercand/kuberesolver/v5"
+	"github.com/sercand/kuberesolver/v6"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/balancer"
 	_ "google.golang.org/grpc/xds"

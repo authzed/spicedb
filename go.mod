@@ -23,6 +23,7 @@ require (
 	github.com/Yiling-J/theine-go v0.6.1
 	github.com/authzed/authzed-go v1.4.0
 	github.com/authzed/consistent v0.1.0
+	github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
 	github.com/aws/aws-sdk-go-v2 v1.36.4
 	github.com/aws/aws-sdk-go-v2/config v1.29.16
@@ -88,7 +89,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/sean-/sysexits v1.0.0
-	github.com/sercand/kuberesolver/v5 v5.1.1
+	github.com/sercand/kuberesolver/v6 v6.0.1
 	github.com/shopspring/decimal v1.4.0
 	github.com/sourcegraph/go-lsp v0.0.0-20240223163137-f80c5dd31dfd
 	github.com/sourcegraph/jsonrpc2 v0.2.1
@@ -115,6 +116,7 @@ require (
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
+	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	resenje.org/singleflight v0.4.3
 	sigs.k8s.io/controller-runtime v0.21.0
 )
@@ -157,7 +159,6 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/ashanbrown/forbidigo v1.6.0 // indirect
 	github.com/ashanbrown/makezero v1.2.0 // indirect
-	github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.69 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.31 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.35 // indirect
@@ -209,7 +210,7 @@ require (
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/firefart/nonamedreturns v1.0.6 // indirect
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
 	github.com/gammazero/deque v0.2.1 // indirect
@@ -416,7 +417,6 @@ require (
 	k8s.io/client-go v0.33.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
-	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	mvdan.cc/gofumpt v0.8.0 // indirect
 	mvdan.cc/unparam v0.0.0-20250301125049-0df0534333a4 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
