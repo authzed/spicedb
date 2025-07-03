@@ -417,6 +417,123 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 	}
 }
 
+func TestTypeAnnotationsValidation(t *testing.T) {
+	t.Parallel()
+	type testcase struct {
+		name          string
+		schemaText    string
+		expectedError string
+	}
+	tcs := []testcase{
+		{
+			name: "valid type annotation",
+			schemaText: `use typechecking
+			definition user {}
+
+			definition document {
+				relation viewer: user
+				permission view: user = viewer
+			}`,
+			expectedError: "",
+		},
+		{
+			name: "incomplete type annotation",
+			schemaText: `use typechecking
+			definition user {}
+			definition team {}
+
+			definition document {
+				relation viewer: user | team
+				permission view: user = viewer
+			}`,
+			expectedError: "incomplete type annotation on relation `view` in definition `document`: `team` found as reachable type, but not contained in provided set [`user`]",
+		},
+		{
+			name: "complete type annotation with multiple types",
+			schemaText: `use typechecking
+			definition user {}
+			definition team {}
+
+			definition document {
+				relation viewer: user | team
+				permission view: user | team = viewer
+			}`,
+			expectedError: "",
+		},
+		{
+			name: "type annotation with arrow operation",
+			schemaText: `use typechecking
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition document {
+				relation org: organization
+				permission view: user = org->member
+			}`,
+			expectedError: "",
+		},
+		{
+			name: "incomplete type annotation with arrow operation",
+			schemaText: `use typechecking
+			definition user {}
+			definition admin {}
+
+			definition organization {
+				relation member: user | admin
+			}
+
+			definition document {
+				relation org: organization
+				permission view: user = org->member
+			}`,
+			expectedError: "incomplete type annotation on relation `view` in definition `document`: `admin` found as reachable type, but not contained in provided set [`user`]",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tc := tc
+			t.Parallel()
+
+			schema, err := compiler.Compile(compiler.InputSchema{
+				Source:       "",
+				SchemaString: tc.schemaText,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			res := ResolverForCompiledSchema(*schema)
+			ts := NewTypeSystem(res)
+
+			var foundError error
+			for _, resource := range schema.ObjectDefinitions {
+				def, err := ts.GetDefinition(t.Context(), resource.Name)
+				if err != nil {
+					foundError = err
+					break
+				}
+				_, verr := def.Validate(t.Context())
+				if verr != nil {
+					foundError = verr
+					break
+				}
+			}
+
+			if tc.expectedError == "" {
+				require.NoError(t, foundError)
+			} else {
+				if foundError == nil {
+					t.Errorf("Expected error containing '%s' but got no error", tc.expectedError)
+				} else {
+					require.Contains(t, foundError.Error(), tc.expectedError)
+				}
+			}
+		})
+	}
+}
+
 func TestIncompleteSchema(t *testing.T) {
 	// This test is a little redundant, as doing this type checking requires one to have the full schema, but it _may_ be pulled dynamically and fail.
 	// So until we operate in complete schema caching, there are fail points that can bubble up.

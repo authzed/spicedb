@@ -1,0 +1,56 @@
+NodeTypeFile
+  end-rune = 78
+  input-source = permission type annotation newline after colon test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = mydefinition
+      end-rune = 78
+      input-source = permission type annotation newline after colon test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 47
+          input-source = permission type annotation newline after colon test
+          relation-name = viewer
+          start-rune = 27
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 47
+              input-source = permission type annotation newline after colon test
+              start-rune = 44
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 47
+                  input-source = permission type annotation newline after colon test
+                  start-rune = 44
+                  type-name = user
+        NodeTypePermission
+          end-rune = 76
+          input-source = permission type annotation newline after colon test
+          relation-name = view
+          start-rune = 50
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 76
+              identifier-value = viewer
+              input-source = permission type annotation newline after colon test
+              start-rune = 71
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 65
+              input-source = permission type annotation newline after colon test
+              start-rune = 69
+              child-node =>
+                NodeTypeError
+                  end-rune = 65
+                  error-message = Expected identifier, found token TokenTypeEquals
+                  error-source = =
+                  input-source = permission type annotation newline after colon test
+                  start-rune = 69
+                NodeTypeError
+                  end-rune = 65
+                  error-message = Expected type identifier in type annotation
+                  error-source = =
+                  input-source = permission type annotation newline after colon test
+                  start-rune = 69

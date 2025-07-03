@@ -1,0 +1,183 @@
+NodeTypeFile
+  end-rune = 427
+  input-source = permission edge cases test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = mydefinition
+      end-rune = 427
+      input-source = permission edge cases test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 50
+          input-source = permission edge cases test
+          relation-name = viewer
+          start-rune = 30
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 50
+              input-source = permission edge cases test
+              start-rune = 47
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 50
+                  input-source = permission edge cases test
+                  start-rune = 47
+                  type-name = user
+        NodeTypePermission
+          end-rune = 111
+          input-source = permission edge cases test
+          relation-name = single
+          start-rune = 80
+          child-node =>
+            NodeTypeComment
+              comment-value = // Single type
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 111
+              identifier-value = viewer
+              input-source = permission edge cases test
+              start-rune = 106
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 102
+              input-source = permission edge cases test
+              start-rune = 99
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 102
+                  identifier-value = user
+                  input-source = permission edge cases test
+                  start-rune = 104
+        NodeTypePermission
+          end-rune = 180
+          input-source = permission edge cases test
+          relation-name = double
+          start-rune = 141
+          child-node =>
+            NodeTypeComment
+              comment-value = // Two types  
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 180
+              identifier-value = viewer
+              input-source = permission edge cases test
+              start-rune = 175
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 171
+              input-source = permission edge cases test
+              start-rune = 160
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 163
+                  identifier-value = user
+                  input-source = permission edge cases test
+                  start-rune = 165
+                NodeTypeIdentifier
+                  end-rune = 171
+                  identifier-value = admin
+                  input-source = permission edge cases test
+                  start-rune = 173
+        NodeTypePermission
+          end-rune = 257
+          input-source = permission edge cases test
+          relation-name = triple
+          start-rune = 210
+          child-node =>
+            NodeTypeComment
+              comment-value = // Three types
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 257
+              identifier-value = viewer
+              input-source = permission edge cases test
+              start-rune = 252
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 248
+              input-source = permission edge cases test
+              start-rune = 229
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 232
+                  identifier-value = user
+                  input-source = permission edge cases test
+                  start-rune = 234
+                NodeTypeIdentifier
+                  end-rune = 240
+                  identifier-value = admin
+                  input-source = permission edge cases test
+                  start-rune = 242
+                NodeTypeIdentifier
+                  end-rune = 248
+                  identifier-value = group
+                  input-source = permission edge cases test
+                  start-rune = 250
+        NodeTypePermission
+          end-rune = 365
+          input-source = permission edge cases test
+          relation-name = complex
+          start-rune = 305
+          child-node =>
+            NodeTypeComment
+              comment-value = // Complex expression with types
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 365
+              input-source = permission edge cases test
+              start-rune = 340
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 345
+                  identifier-value = viewer
+                  input-source = permission edge cases test
+                  start-rune = 340
+              right-expr =>
+                NodeTypeExclusionExpression
+                  end-rune = 364
+                  input-source = permission edge cases test
+                  start-rune = 350
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 355
+                      identifier-value = viewer
+                      input-source = permission edge cases test
+                      start-rune = 350
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 364
+                      identifier-value = viewer
+                      input-source = permission edge cases test
+                      start-rune = 359
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 336
+              input-source = permission edge cases test
+              start-rune = 325
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 328
+                  identifier-value = user
+                  input-source = permission edge cases test
+                  start-rune = 330
+                NodeTypeIdentifier
+                  end-rune = 336
+                  identifier-value = admin
+                  input-source = permission edge cases test
+                  start-rune = 338
+        NodeTypePermission
+          end-rune = 425
+          input-source = permission edge cases test
+          relation-name = none
+          start-rune = 402
+          child-node =>
+            NodeTypeComment
+              comment-value = // No type annotation
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 425
+              identifier-value = viewer
+              input-source = permission edge cases test
+              start-rune = 420

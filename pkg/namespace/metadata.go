@@ -107,3 +107,89 @@ func SetRelationKind(relation *core.Relation, kind iv1.RelationMetadata_Relation
 	metadata.MetadataMessage = append(metadata.MetadataMessage, encoded)
 	return nil
 }
+
+// GetTypeAnnotations returns the type annotations for a permission relation.
+func GetTypeAnnotations(relation *core.Relation) []string {
+	if relation.Metadata == nil {
+		return nil
+	}
+
+	for _, metadataAny := range relation.Metadata.MetadataMessage {
+		var relationMetadata iv1.RelationMetadata
+		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
+			// Skip if this metadata message is not RelationMetadata
+			continue
+		}
+
+		if relationMetadata.Kind == iv1.RelationMetadata_PERMISSION {
+			if relationMetadata.TypeAnnotations != nil {
+				return relationMetadata.TypeAnnotations.Types
+			}
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// SetTypeAnnotations sets the type annotations for a permission relation.
+// If typeAnnotations is nil, removes any existing type annotations.
+func SetTypeAnnotations(relation *core.Relation, typeAnnotations []string) error {
+	if relation.Metadata == nil {
+		if typeAnnotations == nil {
+			return nil // Nothing to remove
+		}
+		relation.Metadata = &core.Metadata{}
+	}
+
+	// Find existing PERMISSION RelationMetadata and update it, or create new one
+	for i, metadataAny := range relation.Metadata.MetadataMessage {
+		var relationMetadata iv1.RelationMetadata
+		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
+			continue // Skip if this is not RelationMetadata
+		}
+
+		// Only update if this is the PERMISSION metadata
+		if relationMetadata.Kind == iv1.RelationMetadata_PERMISSION {
+			if typeAnnotations == nil {
+				// Remove type annotations by setting to nil
+				relationMetadata.TypeAnnotations = nil
+			} else {
+				// Update existing RelationMetadata with type annotations
+				relationMetadata.TypeAnnotations = &iv1.TypeAnnotations{
+					Types: typeAnnotations,
+				}
+			}
+
+			// Re-encode and replace the existing message
+			updatedAny, err := anypb.New(&relationMetadata)
+			if err != nil {
+				return err
+			}
+
+			relation.Metadata.MetadataMessage[i] = updatedAny
+			return nil
+		}
+	}
+
+	// If no existing RelationMetadata found and typeAnnotations is nil, nothing to do
+	if typeAnnotations == nil {
+		return nil
+	}
+
+	// If no existing RelationMetadata found, create new one
+	relationMetadata := &iv1.RelationMetadata{
+		Kind: iv1.RelationMetadata_PERMISSION,
+		TypeAnnotations: &iv1.TypeAnnotations{
+			Types: typeAnnotations,
+		},
+	}
+
+	metadataAny, err := anypb.New(relationMetadata)
+	if err != nil {
+		return err
+	}
+
+	relation.Metadata.MetadataMessage = append(relation.Metadata.MetadataMessage, metadataAny)
+	return nil
+}
