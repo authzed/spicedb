@@ -91,9 +91,8 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 
 		case "otter":
 			return cache.NewOtterCache[K, V](&cache.Config{
-				MaxCost:     intMaxCost,
-				NumCounters: cc.NumCounters,
-				DefaultTTL:  cc.defaultTTL,
+				MaxCost:    intMaxCost,
+				DefaultTTL: cc.defaultTTL,
 			})
 
 		default:
@@ -141,8 +140,8 @@ func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix string, config, def
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaults.Enabled, "enable caching")
 
 	// Hidden flags.
-	flags.StringVar(&config.CacheKindForTesting, flagPrefix+"-cache-kind-for-testing", defaults.CacheKindForTesting, "choose a different kind of cache, for testing")
-	if err := flags.MarkHidden(flagPrefix + "-cache-kind-for-testing"); err != nil {
+	flags.StringVar(&config.CacheKindForTesting, flagPrefix+"-kind-for-testing", defaults.CacheKindForTesting, "choose a different kind of cache, for testing")
+	if err := flags.MarkHidden(flagPrefix + "-kind-for-testing"); err != nil {
 		panic(err)
 	}
 }
