@@ -69,6 +69,10 @@ message DocComment {
   string comment = 1;
 }
 
+message TypeAnnotations {
+  repeated string types = 1;
+}
+
 message RelationMetadata {
   enum RelationKind {
     UNKNOWN_KIND = 0;
@@ -77,6 +81,7 @@ message RelationMetadata {
   }
 
   RelationKind kind = 1;
+  TypeAnnotations type_annotations = 2;
 }
 
 message NamespaceAndRevision {

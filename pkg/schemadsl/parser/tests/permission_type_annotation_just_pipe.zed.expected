@@ -1,0 +1,69 @@
+NodeTypeFile
+  end-rune = 65
+  input-source = permission type annotation just pipe test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = mydefinition
+      end-rune = 65
+      input-source = permission type annotation just pipe test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 47
+          input-source = permission type annotation just pipe test
+          relation-name = viewer
+          start-rune = 27
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 47
+              input-source = permission type annotation just pipe test
+              start-rune = 44
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 47
+                  input-source = permission type annotation just pipe test
+                  start-rune = 44
+                  type-name = user
+        NodeTypePermission
+          end-rune = 65
+          input-source = permission type annotation just pipe test
+          relation-name = view
+          start-rune = 50
+          child-node =>
+            NodeTypeError
+              end-rune = 65
+              error-message = Expected one of: [TokenTypeEquals], found: TokenTypePipe
+              error-source = |
+              input-source = permission type annotation just pipe test
+              start-rune = 67
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 65
+              input-source = permission type annotation just pipe test
+              start-rune = 67
+              child-node =>
+                NodeTypeError
+                  end-rune = 65
+                  error-message = Expected identifier, found token TokenTypePipe
+                  error-source = |
+                  input-source = permission type annotation just pipe test
+                  start-rune = 67
+                NodeTypeError
+                  end-rune = 65
+                  error-message = Expected type identifier in type annotation
+                  error-source = |
+                  input-source = permission type annotation just pipe test
+                  start-rune = 67
+        NodeTypeError
+          end-rune = 65
+          error-message = Expected end of statement or definition, found: TokenTypePipe
+          error-source = |
+          input-source = permission type annotation just pipe test
+          start-rune = 67
+    NodeTypeError
+      end-rune = 65
+      error-message = Unexpected token at root level: TokenTypePipe
+      error-source = |
+      input-source = permission type annotation just pipe test
+      start-rune = 67

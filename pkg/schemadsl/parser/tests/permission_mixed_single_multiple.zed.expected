@@ -1,0 +1,119 @@
+NodeTypeFile
+  end-rune = 224
+  input-source = permission mixed single multiple test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = mydefinition
+      end-rune = 224
+      input-source = permission mixed single multiple test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 50
+          input-source = permission mixed single multiple test
+          relation-name = viewer
+          start-rune = 30
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 50
+              input-source = permission mixed single multiple test
+              start-rune = 47
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 50
+                  input-source = permission mixed single multiple test
+                  start-rune = 47
+                  type-name = user
+        NodeTypePermission
+          end-rune = 90
+          input-source = permission mixed single multiple test
+          relation-name = view
+          start-rune = 61
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 90
+              identifier-value = viewer
+              input-source = permission mixed single multiple test
+              start-rune = 85
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 81
+              input-source = permission mixed single multiple test
+              start-rune = 78
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 81
+                  identifier-value = user
+                  input-source = permission mixed single multiple test
+                  start-rune = 83
+        NodeTypePermission
+          end-rune = 140
+          input-source = permission mixed single multiple test
+          relation-name = edit
+          start-rune = 96
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 140
+              identifier-value = viewer
+              input-source = permission mixed single multiple test
+              start-rune = 135
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 131
+              input-source = permission mixed single multiple test
+              start-rune = 113
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 116
+                  identifier-value = user
+                  input-source = permission mixed single multiple test
+                  start-rune = 118
+                NodeTypeIdentifier
+                  end-rune = 131
+                  identifier-value = organization
+                  input-source = permission mixed single multiple test
+                  start-rune = 133
+        NodeTypePermission
+          end-rune = 170
+          input-source = permission mixed single multiple test
+          relation-name = admin
+          start-rune = 146
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 170
+              identifier-value = viewer
+              input-source = permission mixed single multiple test
+              start-rune = 165
+        NodeTypePermission
+          end-rune = 222
+          input-source = permission mixed single multiple test
+          relation-name = super
+          start-rune = 176
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 222
+              identifier-value = viewer
+              input-source = permission mixed single multiple test
+              start-rune = 217
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 213
+              input-source = permission mixed single multiple test
+              start-rune = 194
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 198
+                  identifier-value = admin
+                  input-source = permission mixed single multiple test
+                  start-rune = 200
+                NodeTypeIdentifier
+                  end-rune = 205
+                  identifier-value = user
+                  input-source = permission mixed single multiple test
+                  start-rune = 207
+                NodeTypeIdentifier
+                  end-rune = 213
+                  identifier-value = group
+                  input-source = permission mixed single multiple test
+                  start-rune = 215

@@ -1,0 +1,5 @@
+definition mydefinition {
+	relation viewer: user
+	permission view:
+		= viewer
+}

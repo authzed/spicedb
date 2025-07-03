@@ -1,0 +1,7 @@
+definition mydefinition {
+    relation viewer: user
+    
+    permission view: user = viewer
+    permission edit: user = viewer
+    permission admin: group = viewer
+}
