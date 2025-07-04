@@ -205,7 +205,7 @@ func producerMapperTestIterator(ctx context.Context, currentCursor Cursor) iter.
 		currentCursor,
 		intFromString,
 		stringToInt,
-		func(ctx context.Context, startIndex int) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
+		func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
 			chunks := []ChunkAndFollow[[]string, int]{
 				{Chunk: []string{"premapped-a", "premapped-b", "premapped-c"}, Follow: 0},
 				{Chunk: []string{"premapped-d", "premapped-e"}, Follow: 1},
