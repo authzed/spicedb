@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -616,9 +617,9 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	ctx := t.Context()
 
 	// Helper function to create a simple producer that yields chunks
-	simpleProducer := func(chunks []ChunkAndFollowCursor[[]string, int]) func(ctx context.Context, startIndex int) iter.Seq2[ChunkAndFollowCursor[[]string, int], error] {
-		return func(ctx context.Context, startIndex int) iter.Seq2[ChunkAndFollowCursor[[]string, int], error] {
-			return func(yield func(ChunkAndFollowCursor[[]string, int], error) bool) {
+	simpleProducer := func(chunks []ChunkAndFollow[[]string, int]) func(ctx context.Context, startIndex int) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
+		return func(ctx context.Context, startIndex int) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
+			return func(yield func(ChunkFollowOrHold[[]string, int], error) bool) {
 				for i := startIndex; i < len(chunks); i++ {
 					select {
 					case <-ctx.Done():
@@ -658,7 +659,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	}
 
 	t.Run("empty Cursor starts from beginning", func(t *testing.T) {
-		chunks := []ChunkAndFollowCursor[[]string, int]{
+		chunks := []ChunkAndFollow[[]string, int]{
 			{Chunk: []string{"ab", "cd"}, Follow: 1},
 			{Chunk: []string{"efg"}, Follow: 2},
 		}
@@ -679,7 +680,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	})
 
 	t.Run("cursor with head value starts from correct position", func(t *testing.T) {
-		chunks := []ChunkAndFollowCursor[[]string, int]{
+		chunks := []ChunkAndFollow[[]string, int]{
 			{Chunk: []string{"ab", "cd"}, Follow: 1},
 			{Chunk: []string{"efg"}, Follow: 2},
 			{Chunk: []string{"hi"}, Follow: 3},
@@ -699,7 +700,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	})
 
 	t.Run("invalid Cursor head returns error", func(t *testing.T) {
-		chunks := []ChunkAndFollowCursor[[]string, int]{
+		chunks := []ChunkAndFollow[[]string, int]{
 			{Chunk: []string{"item"}, Follow: 1},
 		}
 
@@ -716,8 +717,8 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	})
 
 	t.Run("empty producer yields no items", func(t *testing.T) {
-		emptyProducer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkAndFollowCursor[[]string, int], error] {
-			return func(yield func(ChunkAndFollowCursor[[]string, int], error) bool) {
+		emptyProducer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
+			return func(yield func(ChunkFollowOrHold[[]string, int], error) bool) {
 				// Yield nothing
 			}
 		}
@@ -732,13 +733,13 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 
 	t.Run("producer error handling", func(t *testing.T) {
 		producerError := fmt.Errorf("producer failed")
-		errorProducer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkAndFollowCursor[[]string, int], error] {
-			return func(yield func(ChunkAndFollowCursor[[]string, int], error) bool) {
-				chunk := ChunkAndFollowCursor[[]string, int]{Chunk: []string{"good"}, Follow: 1}
+		errorProducer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
+			return func(yield func(ChunkFollowOrHold[[]string, int], error) bool) {
+				chunk := ChunkAndFollow[[]string, int]{Chunk: []string{"good"}, Follow: 1}
 				if !yield(chunk, nil) {
 					return
 				}
-				if !yield(ChunkAndFollowCursor[[]string, int]{}, producerError) {
+				if !yield(ChunkAndFollow[[]string, int]{}, producerError) {
 					return
 				}
 			}
@@ -756,7 +757,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	})
 
 	t.Run("mapper function error handling", func(t *testing.T) {
-		chunks := []ChunkAndFollowCursor[[]string, int]{
+		chunks := []ChunkAndFollow[[]string, int]{
 			{Chunk: []string{"item1", "item2"}, Follow: 1},
 		}
 
@@ -786,7 +787,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	})
 
 	t.Run("cursor conversion error handling", func(t *testing.T) {
-		chunks := []ChunkAndFollowCursor[[]string, int]{
+		chunks := []ChunkAndFollow[[]string, int]{
 			{Chunk: []string{"item"}, Follow: 1},
 		}
 
@@ -809,10 +810,10 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	t.Run("context cancellation during producer execution", func(t *testing.T) {
 		ctxWithCancel, cancel := context.WithCancel(t.Context())
 
-		slowProducer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkAndFollowCursor[[]string, int], error] {
-			return func(yield func(ChunkAndFollowCursor[[]string, int], error) bool) {
+		slowProducer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
+			return func(yield func(ChunkFollowOrHold[[]string, int], error) bool) {
 				// First chunk succeeds
-				chunk1 := ChunkAndFollowCursor[[]string, int]{Chunk: []string{"item1"}, Follow: 1}
+				chunk1 := ChunkAndFollow[[]string, int]{Chunk: []string{"item1"}, Follow: 1}
 				if !yield(chunk1, nil) {
 					return
 				}
@@ -825,7 +826,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 				case <-ctx.Done():
 					return
 				default:
-					chunk2 := ChunkAndFollowCursor[[]string, int]{Chunk: []string{"item2"}, Follow: 2}
+					chunk2 := ChunkAndFollow[[]string, int]{Chunk: []string{"item2"}, Follow: 2}
 					if !yield(chunk2, nil) {
 						return
 					}
@@ -847,10 +848,10 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 		ctxWithCancel, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
-		slowProducer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkAndFollowCursor[[]string, int], error] {
-			return func(yield func(ChunkAndFollowCursor[[]string, int], error) bool) {
+		slowProducer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
+			return func(yield func(ChunkFollowOrHold[[]string, int], error) bool) {
 				// First chunk
-				chunk1 := ChunkAndFollowCursor[[]string, int]{Chunk: []string{"item1"}, Follow: 1}
+				chunk1 := ChunkAndFollow[[]string, int]{Chunk: []string{"item1"}, Follow: 1}
 				if !yield(chunk1, nil) {
 					return
 				}
@@ -863,7 +864,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 				case <-ctx.Done():
 					return
 				default:
-					chunk2 := ChunkAndFollowCursor[[]string, int]{Chunk: []string{"item2"}, Follow: 2}
+					chunk2 := ChunkAndFollow[[]string, int]{Chunk: []string{"item2"}, Follow: 2}
 					if !yield(chunk2, nil) {
 						return
 					}
@@ -892,7 +893,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 	})
 
 	t.Run("early termination with consumer stopping after error", func(t *testing.T) {
-		chunks := []ChunkAndFollowCursor[[]string, int]{
+		chunks := []ChunkAndFollow[[]string, int]{
 			{Chunk: []string{"item1", "item2"}, Follow: 1},
 		}
 
@@ -928,5 +929,91 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 		require.Len(t, items, 1)
 		require.Len(t, errs, 1)
 		require.Contains(t, errs[0].Error(), "mapper error")
+	})
+
+	t.Run("HoldForMappingComplete functionality", func(t *testing.T) {
+		// Test that HoldForMappingComplete causes the producer to wait
+		// for the mapper to complete its current chunk before continuing
+		processingOrder := make([]string, 0)
+		var mu sync.Mutex
+
+		producer := func(ctx context.Context, startIndex int) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
+			return func(yield func(ChunkFollowOrHold[[]string, int], error) bool) {
+				// First yield a normal chunk
+				chunk1 := ChunkAndFollow[[]string, int]{Chunk: []string{"item1"}, Follow: 1}
+				if !yield(chunk1, nil) {
+					return
+				}
+
+				mu.Lock()
+				processingOrder = append(processingOrder, "producer: yielded chunk1")
+				mu.Unlock()
+
+				// Then yield a hold signal
+				hold := HoldForMappingComplete[[]string, int]{}
+				if !yield(hold, nil) {
+					return
+				}
+
+				mu.Lock()
+				processingOrder = append(processingOrder, "producer: yielded hold")
+				mu.Unlock()
+
+				// Finally yield another chunk
+				chunk2 := ChunkAndFollow[[]string, int]{Chunk: []string{"item2"}, Follow: 2}
+				if !yield(chunk2, nil) {
+					return
+				}
+
+				mu.Lock()
+				processingOrder = append(processingOrder, "producer: yielded chunk2")
+				mu.Unlock()
+			}
+		}
+
+		mapper := func(ctx context.Context, remainingCursor Cursor, chunk []string) iter.Seq2[ItemAndCursor[int], error] {
+			return func(yield func(ItemAndCursor[int], error) bool) {
+				for i, item := range chunk {
+					mu.Lock()
+					processingOrder = append(processingOrder, fmt.Sprintf("mapper: processing %s", item))
+					mu.Unlock()
+
+					// Simulate some processing time
+					time.Sleep(5 * time.Millisecond)
+
+					cursorStr := fmt.Sprintf("mapped-%d", i)
+					value := len(item)
+					if !yield(ItemAndCursor[int]{Item: value, Cursor: Cursor{cursorStr}}, nil) {
+						return
+					}
+
+					mu.Lock()
+					processingOrder = append(processingOrder, fmt.Sprintf("mapper: completed %s", item))
+					mu.Unlock()
+				}
+			}
+		}
+
+		result := CursoredProducerMapperIterator(ctx, Cursor{}, intFromString, intToString, producer, mapper)
+		items := collectNoError(t, result)
+
+		// Verify the items were processed correctly
+		require.Len(t, items, 2)
+		require.Equal(t, 5, items[0].Item) // len("item1")
+		require.Equal(t, 5, items[1].Item) // len("item2")
+
+		// Verify the processing order shows that the hold functionality worked
+		mu.Lock()
+		order := make([]string, len(processingOrder))
+		copy(order, processingOrder)
+		mu.Unlock()
+
+		require.Contains(t, order, "producer: yielded chunk1")
+		require.Contains(t, order, "producer: yielded hold")
+		require.Contains(t, order, "producer: yielded chunk2")
+		require.Contains(t, order, "mapper: processing item1")
+		require.Contains(t, order, "mapper: completed item1")
+		require.Contains(t, order, "mapper: processing item2")
+		require.Contains(t, order, "mapper: completed item2")
 	})
 }

@@ -235,29 +235,47 @@ func CursoredParallelIterators[I any](
 	}
 }
 
-// ChunkAndFollowCursor is a struct that holds a chunk of items and the portion of the Cursor
+// ChunkFollowOrHold is an enum-like type that can hold one of three values:
+// - ChunkAndFollow: contains a chunk and the cursor position for the next chunk
+// - HoldForMappingComplete: signals that the producer should wait for mapper completion
+type ChunkFollowOrHold[K any, C any] interface {
+	chunkFollowOrHold()
+}
+
+// ChunkAndFollow holds a chunk of items and the portion of the Cursor
 // following the chunk, indicating where the next chunk should start.
-type ChunkAndFollowCursor[K any, C any] struct {
+type ChunkAndFollow[K any, C any] struct {
 	Chunk  K
 	Follow C
 }
 
+func (ChunkAndFollow[K, C]) chunkFollowOrHold() {}
+
+// HoldForMappingComplete signals that the producer should wait until
+// the mapper has completed processing its current chunk before producing more.
+type HoldForMappingComplete[K any, C any] struct{}
+
+func (HoldForMappingComplete[K, C]) chunkFollowOrHold() {}
+
 // chunkOrError is a struct that holds a chunk of items and an error, or indicates that the chunking has completed.
 type chunkOrError[P any, C any] struct {
-	chunk     ChunkAndFollowCursor[P, C]
+	chunk     ChunkFollowOrHold[P, C]
 	err       error
 	completed bool
+	hold      bool
 }
 
 // CursoredProducerMapperIterator is an iterator that takes a chunk of items produced
 // by a `producer` iterator and maps them to items of type `I` using a `mapper` function.
 // The `producer` function runs in parallel with the `mapper`.
+// If the producer yields HoldForMappingComplete, further calls to the producer will wait
+// until the mapper has completed its current chunk.
 func CursoredProducerMapperIterator[C any, P any, I any](
 	ctx context.Context,
 	currentCursor Cursor,
 	cursorFromStringConverter CursorFromStringConverter[C],
 	cursorToStringConverter func(C) (string, error),
-	producer func(ctx context.Context, currentIndex C) iter.Seq2[ChunkAndFollowCursor[P, C], error],
+	producer func(ctx context.Context, currentIndex C) iter.Seq2[ChunkFollowOrHold[P, C], error],
 	mapper func(ctx context.Context, remainingCursor Cursor, chunk P) iter.Seq2[ItemAndCursor[I], error],
 ) iter.Seq2[ItemAndCursor[I], error] {
 	ctx, cancel := context.WithCancel(ctx)
@@ -269,13 +287,28 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 	}
 
 	chunks := make(chan chunkOrError[P, C], producerChunksBufferSize)
+	mapperComplete := make(chan struct{}, 1)
+
+	// Helper function to check if a chunk is HoldForMappingComplete
+	isHoldForMappingComplete := func(chunk ChunkFollowOrHold[P, C]) bool {
+		_, ok := chunk.(HoldForMappingComplete[P, C])
+		return ok
+	}
+
+	// Helper function to extract ChunkAndFollow from the enum
+	getChunkAndFollow := func(chunk ChunkFollowOrHold[P, C]) (ChunkAndFollow[P, C], bool) {
+		if cf, ok := chunk.(ChunkAndFollow[P, C]); ok {
+			return cf, true
+		}
+		return ChunkAndFollow[P, C]{}, false
+	}
 	producerFunc := func() {
 		for p, err := range producer(ctx, headValue) {
 			select {
 			case <-ctx.Done():
 				return
 
-			case chunks <- chunkOrError[P, C]{chunk: p, err: err}:
+			case chunks <- chunkOrError[P, C]{chunk: p, err: err, hold: isHoldForMappingComplete(p)}:
 				if err != nil {
 					return
 				}
@@ -322,7 +355,26 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 					return
 				}
 
-				for r, err := range mapper(ctx, chunkRemainingCursor, chunkOrError.chunk.Chunk) {
+				// If this is a hold signal, wait for mapper to complete
+				if chunkOrError.hold {
+					// Signal that mapper should notify when complete
+					select {
+					case <-ctx.Done():
+						return
+					case <-mapperComplete:
+						// Mapper has completed, continue processing
+						continue
+					}
+				}
+
+				// Extract the actual chunk and follow cursor
+				chunkAndFollow, ok := getChunkAndFollow(chunkOrError.chunk)
+				if !ok {
+					// This shouldn't happen if hold logic is correct
+					continue
+				}
+
+				for r, err := range mapper(ctx, chunkRemainingCursor, chunkAndFollow.Chunk) {
 					if err != nil {
 						cancel()
 						if !yield(ItemAndCursor[I]{}, err) {
@@ -331,7 +383,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 						return
 					}
 
-					cursorStr, err := cursorToStringConverter(chunkOrError.chunk.Follow)
+					cursorStr, err := cursorToStringConverter(chunkAndFollow.Follow)
 					if err != nil {
 						cancel()
 						if !yield(ItemAndCursor[I]{}, err) {
@@ -346,6 +398,16 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 					}, nil) {
 						return
 					}
+				}
+
+				// Signal that mapper has completed processing this chunk
+				select {
+				case <-ctx.Done():
+					return
+
+				case mapperComplete <- struct{}{}:
+				default:
+					// Channel is full, which is fine
 				}
 
 				// Once the first chunk is processed, we set the remaining Cursor to nil, as it was
