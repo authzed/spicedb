@@ -33,6 +33,9 @@ func (ts *TypeSystem) GetFullRecursiveSubjectTypesForRelation(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
+	if set == nil {
+		return nil, nil
+	}
 	set.Merge(nonTerminals)
 	return set.AsSlice(), nil
 }
