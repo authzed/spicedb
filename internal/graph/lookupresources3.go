@@ -661,6 +661,22 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					}
 				}
 
+				// Determine whether we need to fetch caveats and/or expiration.
+				vts, err := lctx.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
+				if err != nil {
+					yieldError(err)
+					return
+				}
+
+				possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.Relation, config.subjectsFilter.SubjectType)
+				if err != nil {
+					yieldError(err)
+					return
+				}
+
+				skipCaveats := !possibleTraits.AllowsCaveats
+				skipExpiration := !possibleTraits.AllowsExpiration
+
 				// Continue by querying for relationships from the datastore, after the optional cursor.
 				it, err := lctx.reader.ReverseQueryRelationships(
 					ctx,
@@ -672,6 +688,8 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					options.WithSortForReverse(options.BySubject),
 					options.WithAfterForReverse(rm.afterCursor()),
 					options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
+					options.WithSkipCaveatsForReverse(skipCaveats),
+					options.WithSkipExpirationForReverse(skipExpiration),
 				)
 				if err != nil {
 					yieldError(err)
