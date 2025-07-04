@@ -45,11 +45,11 @@ const (
 func TestNilUnmarshal(t *testing.T) {
 	nsDef := (*core.NamespaceDefinition)(nil)
 	marshalled, err := nsDef.MarshalVT()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	var newDef *core.NamespaceDefinition
 	err = nsDef.UnmarshalVT(marshalled)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, nsDef, newDef)
 }
 
@@ -259,11 +259,11 @@ func TestRWTCacheWithWrites(t *testing.T) {
 			rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				// Cache the 404
 				_, _, err := tester.readSingleFunc(ctx, rwt, nsA)
-				require.Error(err, tester.notFoundErr)
+				require.ErrorIs(err, tester.notFoundErr)
 
 				// This will not call out the mock RWT again, the mock will panic if it does.
 				_, _, err = tester.readSingleFunc(ctx, rwt, nsA)
-				require.Error(err, tester.notFoundErr)
+				require.ErrorIs(err, tester.notFoundErr)
 
 				// Write nsA
 				def := tester.createDef(nsA)
@@ -488,7 +488,7 @@ func TestMixedCaching(t *testing.T) {
 			// Lookup A and B, which should only lookup B and use A from cache.
 			found, err := tester.lookupFunc(t.Context(), dsReader, []string{nsA, nsB})
 			require.NoError(err)
-			require.Equal(2, len(found))
+			require.Len(found, 2)
 
 			names := mapz.NewSet[string]()
 			for _, d := range found {
@@ -501,7 +501,7 @@ func TestMixedCaching(t *testing.T) {
 			// Lookup A and B, which should use both from cache.
 			foundAgain, err := tester.lookupFunc(t.Context(), dsReader, []string{nsA, nsB})
 			require.NoError(err)
-			require.Equal(2, len(foundAgain))
+			require.Len(foundAgain, 2)
 
 			namesAgain := mapz.NewSet[string]()
 			for _, d := range foundAgain {

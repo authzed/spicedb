@@ -25,7 +25,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	// Test a successful check
@@ -53,7 +53,7 @@ definition document {
 		Relationships: []*core.RelationTuple{},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	// Test a check that should return NOT_MEMBER
@@ -84,7 +84,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	// Test a check with a caveat context
@@ -115,7 +115,7 @@ definition document {
 		},
 	})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, devErrs)
 
 	// Test a check without caveat context should return CAVEATED_MEMBER

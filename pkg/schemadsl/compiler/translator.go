@@ -504,7 +504,7 @@ func translateExpressionDirect(tctx *translationContext, expressionNode *dslNode
 		}
 		leftOps := collapseOps(leftOperation, lookup)
 		rightOps := collapseOps(rightOperation, lookup)
-		ops := append(leftOps, rightOps...)
+		ops := append(leftOps, rightOps...) //nolint:gocritic
 		return builder(ops[0], ops[1:]...), nil
 	}
 

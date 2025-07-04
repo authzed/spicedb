@@ -169,19 +169,17 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 					Column:  columnPosition,
 				})
 			}
-		} else {
-			if len(expectedExcludedSubjects) > 0 {
-				failures = append(failures, &devinterface.DeveloperError{
-					Message: fmt.Sprintf("For object and permission/relation `%s`, found unexpected excluded subjects",
-						tuple.StringONR(onr),
-					),
-					Source:  devinterface.DeveloperError_VALIDATION_YAML,
-					Kind:    devinterface.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
-					Context: string(expectedSubject.ValidationString),
-					Line:    lineNumber,
-					Column:  columnPosition,
-				})
-			}
+		} else if len(expectedExcludedSubjects) > 0 {
+			failures = append(failures, &devinterface.DeveloperError{
+				Message: fmt.Sprintf("For object and permission/relation `%s`, found unexpected excluded subjects",
+					tuple.StringONR(onr),
+				),
+				Source:  devinterface.DeveloperError_VALIDATION_YAML,
+				Kind:    devinterface.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
+				Context: string(expectedSubject.ValidationString),
+				Line:    lineNumber,
+				Column:  columnPosition,
+			})
 		}
 
 		// Verify caveats.

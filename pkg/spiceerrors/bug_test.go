@@ -11,6 +11,6 @@ func TestMustBug(t *testing.T) {
 	require.True(t, IsInTests())
 	assert.Panics(t, func() {
 		err := MustBugf("some error")
-		require.NotNil(t, err)
+		require.Error(t, err)
 	}, "The code did not panic")
 }

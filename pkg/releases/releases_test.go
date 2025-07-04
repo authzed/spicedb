@@ -18,8 +18,9 @@ func TestGetSourceRepository(t *testing.T) {
 
 func TestGetLatestRelease(t *testing.T) {
 	t.Run("successful release fetch", func(t *testing.T) {
+		var receivedPath string
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, "/repos/authzed/spicedb/releases/latest", r.URL.Path)
+			receivedPath = r.URL.Path
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `{
 				"name": "v1.5.6",
@@ -38,6 +39,7 @@ func TestGetLatestRelease(t *testing.T) {
 		release, err := getLatestReleaseWithClient(t.Context(), httpClient)
 		require.NoError(t, err)
 		require.NotNil(t, release)
+		require.Equal(t, "/repos/authzed/spicedb/releases/latest", receivedPath)
 		require.Equal(t, "v1.5.6", release.Version)
 		require.Equal(t, "https://github.com/authzed/spicedb/releases/tag/v1.5.6", release.ViewURL)
 		require.True(t, release.PublishedAt.Equal(time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)))

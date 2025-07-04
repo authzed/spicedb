@@ -39,7 +39,7 @@ func RequireEqualEmptyNil(t *testing.T, expected, actual interface{}, msgAndArgs
 	}
 
 	msgAndArgs = append(msgAndArgs, cmp.Diff(expected, actual, opts...))
-	require.Truef(t, cmp.Equal(expected, actual, opts...), "Should be equal", msgAndArgs...)
+	require.Truef(t, cmp.Equal(expected, actual, opts...), "Should be equal: %v", msgAndArgs...)
 }
 
 // RequireWithin requires that the runner complete its execution within the specified duration.

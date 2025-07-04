@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 
@@ -95,16 +94,16 @@ func TestReadonlyMiddleware(t *testing.T) {
 func (s *readonlyMiddlewareTestSuite) TestUnaryInterceptor_BlocksReadWriteTx() {
 	// This should return an error from the readonly proxy, not panic
 	_, err := s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{})
-	require.Error(s.T(), err)
-	require.Contains(s.T(), err.Error(), "datastore is in read-only mode")
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "datastore is in read-only mode")
 }
 
 func (s *readonlyMiddlewareTestSuite) TestStreamInterceptor_BlocksReadWriteTx() {
 	// This should return an error from the readonly proxy, not panic
 	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	_, err = stream.Recv()
-	require.Error(s.T(), err)
-	require.Contains(s.T(), err.Error(), "datastore is in read-only mode")
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "datastore is in read-only mode")
 }

@@ -248,7 +248,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 		})))
 	}
 
-	require.Equal(tc, len(updates))
+	require.Len(updates, tc)
 
 	lastRevision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteRelationships(ctx, updates)

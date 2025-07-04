@@ -54,8 +54,7 @@ func walkRewriteChildren(so *core.SetOperation, handler WalkHandler) (interface{
 			return vle, nil
 		}
 
-		switch child := childOneof.ChildType.(type) {
-		case *core.SetOperation_Child_UsersetRewrite:
+		if child, ok := childOneof.ChildType.(*core.SetOperation_Child_UsersetRewrite); ok {
 			rvle, err := WalkRewrite(child.UsersetRewrite, handler)
 			if err != nil {
 				return nil, err

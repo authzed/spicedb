@@ -128,13 +128,14 @@ func (pgd *pgDatastore) Watch(
 		for {
 			newTxns, err := pgd.getNewRevisions(ctx, currentTxn)
 			if err != nil {
-				if errors.Is(ctx.Err(), context.Canceled) {
+				switch {
+				case errors.Is(ctx.Err(), context.Canceled):
 					errs <- datastore.NewWatchCanceledErr()
-				} else if common.IsCancellationError(err) {
+				case common.IsCancellationError(err):
 					errs <- datastore.NewWatchCanceledErr()
-				} else if common.IsResettableError(err) {
+				case common.IsResettableError(err):
 					errs <- datastore.NewWatchTemporaryErr(err)
-				} else {
+				default:
 					errs <- err
 				}
 				return
@@ -143,13 +144,14 @@ func (pgd *pgDatastore) Watch(
 			if len(newTxns) > 0 {
 				changesToWrite, err := pgd.loadChanges(ctx, newTxns, options)
 				if err != nil {
-					if errors.Is(ctx.Err(), context.Canceled) {
+					switch {
+					case errors.Is(ctx.Err(), context.Canceled):
 						errs <- datastore.NewWatchCanceledErr()
-					} else if common.IsCancellationError(err) {
+					case common.IsCancellationError(err):
 						errs <- datastore.NewWatchCanceledErr()
-					} else if common.IsResettableError(err) {
+					case common.IsResettableError(err):
 						errs <- datastore.NewWatchTemporaryErr(err)
-					} else {
+					default:
 						errs <- err
 					}
 					return

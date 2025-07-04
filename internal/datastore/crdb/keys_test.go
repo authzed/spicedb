@@ -65,7 +65,7 @@ func TestOverlapKeyAddition(t *testing.T) {
 			for _, n := range tt.namespaces {
 				tt.keyer.addKey(set, n)
 			}
-			require.EqualValues(t, tt.expected, set)
+			require.Equal(t, tt.expected, set)
 		})
 	}
 }

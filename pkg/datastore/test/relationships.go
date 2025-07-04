@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -457,7 +456,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		err = ds.CheckRevision(ctx, datastore.NoRevision)
 
 		revisionErr := datastore.InvalidRevisionError{}
-		require.True(errors.As(err, &revisionErr))
+		require.ErrorAs(err, &revisionErr)
 
 		newRel := makeTestRel("one", "one")
 		firstWrite, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, newRel)
@@ -480,7 +479,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 
 		// Check that we can no longer read the old revision (now allowed to expire)
 		err = ds.CheckRevision(ctx, firstWrite)
-		require.True(errors.As(err, &revisionErr))
+		require.ErrorAs(err, &revisionErr)
 		require.Equal(datastore.RevisionStale, revisionErr.Reason())
 	})
 }
@@ -2083,7 +2082,7 @@ func WriteAndReadInRWT(t *testing.T, tester DatastoreTester) {
 
 		found, err := datastore.IteratorToSlice(it)
 		require.NoError(err)
-		require.Equal(1, len(found))
+		require.Len(found, 1)
 		return nil
 	})
 	require.NoError(err)
@@ -2255,7 +2254,7 @@ func ensureReverseRelationshipsStatus(ctx context.Context, require *require.Asse
 		}
 
 		if mustExist {
-			require.Equal(1, len(found))
+			require.Len(found, 1)
 			require.Equal(tuple.MustString(rel), tuple.MustString(found[0]))
 		}
 	}
@@ -2299,7 +2298,7 @@ func ensureRelationshipsStatus(ctx context.Context, require *require.Assertions,
 		}
 
 		if mustExist {
-			require.Equal(1, len(found))
+			require.Len(found, 1)
 			require.Equal(tuple.MustString(rel), tuple.MustString(found[0]))
 		}
 	}
@@ -2318,7 +2317,7 @@ func ensureRelationshipWithFilter(ctx context.Context, require *require.Assertio
 	require.NoError(err)
 
 	require.NotEmpty(found, "expected relationship %s", tuple.MustString(rel))
-	require.Equal(1, len(found))
+	require.Len(found, 1)
 	require.Equal(tuple.MustString(rel), tuple.MustString(found[0]))
 }
 

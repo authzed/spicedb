@@ -229,5 +229,5 @@ func TestSubjectSetByResoureIDUnionWithBadMap(t *testing.T) {
 	err := ssr.UnionWith(map[string]*v1.FoundSubjects{
 		"isnil": nil,
 	})
-	require.NotNil(t, err)
+	require.Error(t, err)
 }

@@ -1440,7 +1440,7 @@ func TestSubjectSetGet(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "*", found.SubjectId)
 	require.Nil(t, found.CaveatExpression)
-	require.Equal(t, 2, len(found.ExcludedSubjects))
+	require.Len(t, found.ExcludedSubjects, 2)
 }
 
 var testSets = [][]*v1.FoundSubject{

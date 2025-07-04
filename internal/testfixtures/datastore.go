@@ -342,7 +342,7 @@ func (tc RelationshipChecker) VerifyOrderedIteratorResults(iter datastore.Relati
 		expectedStr := tuple.MustString(rel)
 
 		if index > len(expected)-1 {
-			tc.Require.Fail("expected %s, but found no additional results", expectedStr)
+			tc.Require.Fail("expected more results, but found no additional results", expectedStr)
 		}
 
 		foundStr := tuple.MustString(expected[index])

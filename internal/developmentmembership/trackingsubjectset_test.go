@@ -337,8 +337,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 
 					expectedExcluded := mapz.NewSet[string](fs.excludedSubjectStrings()...)
 					foundExcluded := mapz.NewSet[string](found.excludedSubjectStrings()...)
-					require.Len(expectedExcluded.Subtract(foundExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
-					require.Len(foundExcluded.Subtract(expectedExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
+					require.Empty(expectedExcluded.Subtract(foundExcluded).AsSlice(), "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
+					require.Empty(foundExcluded.Subtract(expectedExcluded).AsSlice(), "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
 				} else {
 					require.True(tc.set.Contains(fs.subject), "missing expected subject %s", fs.subject)
 				}
@@ -357,7 +357,7 @@ func TestTrackingSubjectSetResourceTracking(t *testing.T) {
 
 	found, ok := tss.Get(tuple.ONR("user", "tom", "..."))
 	require.True(t, ok)
-	require.Equal(t, 2, len(found.ParentResources()))
+	require.Len(t, found.ParentResources(), 2)
 
 	sss := NewTrackingSubjectSet()
 	sss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), tuple.ONR("resource", "baz", "viewer")))
@@ -367,7 +367,7 @@ func TestTrackingSubjectSetResourceTracking(t *testing.T) {
 
 	found, ok = intersection.Get(tuple.ONR("user", "tom", "..."))
 	require.True(t, ok)
-	require.Equal(t, 3, len(found.ParentResources()))
+	require.Len(t, found.ParentResources(), 3)
 }
 
 func TestTrackingSubjectSetResourceTrackingWithWildcard(t *testing.T) {
@@ -382,5 +382,5 @@ func TestTrackingSubjectSetResourceTrackingWithWildcard(t *testing.T) {
 
 	found, ok := intersection.Get(tuple.ONR("user", "tom", "..."))
 	require.True(t, ok)
-	require.Equal(t, 1, len(found.ParentResources()))
+	require.Len(t, found.ParentResources(), 1)
 }
