@@ -275,7 +275,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 	currentCursor Cursor,
 	cursorFromStringConverter CursorFromStringConverter[C],
 	cursorToStringConverter func(C) (string, error),
-	producer func(ctx context.Context, currentIndex C) iter.Seq2[ChunkFollowOrHold[P, C], error],
+	producer func(ctx context.Context, currentIndex C, remainingCursor Cursor) iter.Seq2[ChunkFollowOrHold[P, C], error],
 	mapper func(ctx context.Context, remainingCursor Cursor, chunk P) iter.Seq2[ItemAndCursor[I], error],
 ) iter.Seq2[ItemAndCursor[I], error] {
 	ctx, cancel := context.WithCancel(ctx)
@@ -303,7 +303,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 		return ChunkAndFollow[P, C]{}, false
 	}
 	producerFunc := func() {
-		for p, err := range producer(ctx, headValue) {
+		for p, err := range producer(ctx, headValue, remainingCursor) {
 			select {
 			case <-ctx.Done():
 				return

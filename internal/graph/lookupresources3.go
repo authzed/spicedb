@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -636,16 +637,16 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 	return cter.CursoredProducerMapperIterator(ctx, currentCursor,
 		datastoreCursorFromString,
 		datastoreCursorToString,
-		func(ctx context.Context, currentIndex *v1.DatastoreCursor) iter.Seq2[cter.ChunkAndFollowCursor[*relationshipsChunk, *v1.DatastoreCursor], error] {
+		func(ctx context.Context, currentIndex *v1.DatastoreCursor, remainingCursor cter.Cursor) iter.Seq2[cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error] {
 			ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterProducer)
 			defer span.End()
 
-			return func(yield func(cter.ChunkAndFollowCursor[*relationshipsChunk, *v1.DatastoreCursor], error) bool) {
+			return func(yield func(cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error) bool) {
 				ctx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
 				yieldError := func(err error) {
-					_ = yield(cter.ChunkAndFollowCursor[*relationshipsChunk, *v1.DatastoreCursor]{}, err)
+					_ = yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{}, err)
 				}
 
 				// Create a relationships map from the current index cursor, if any. The cursor will contain the *current*
@@ -653,11 +654,28 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 				// before continuing to query for more relationships.
 				rm := relationshipsChunkFromCursor(currentIndex)
 				if rm.isPopulated() {
-					if !yield(cter.ChunkAndFollowCursor[*relationshipsChunk, *v1.DatastoreCursor]{
+					// Yield the current chunk of relationships.
+					if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
 						Chunk:  rm,
 						Follow: currentIndex,
 					}, nil) {
 						return
+					}
+
+					// Check if the remaining cursor contains another datastore cursor. If so, we have this producer
+					// yield a "hold" to allow mapping/dispatching to process *before* we hit the datastore again.
+					//
+					// This handles the common case where the limited number of results requested is reached without having
+					// to load further information from the datastore, thus saving on unnecessary work.
+					//
+					// We only do so if there is a defined limit on the number of results to fetch, as otherwise, we need
+					// to run the full set of work anyway.
+					if lctx.req.OptionalLimit > 0 && containsDatastoreCursor(remainingCursor) {
+						// We have a remaining cursor, so we yield a hold to allow the mapper to process the current chunk
+						// before we continue fetching more relationships.
+						if !yield(cter.HoldForMappingComplete[*relationshipsChunk, *v1.DatastoreCursor]{}, nil) {
+							return
+						}
 					}
 				}
 
@@ -733,7 +751,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					relCount := rm.addRelationship(rel, missingContextParameters)
 					if relCount >= int(crr.dispatchChunkSize) {
 						// Yield the chunk of relationships for processing.
-						if !yield(cter.ChunkAndFollowCursor[*relationshipsChunk, *v1.DatastoreCursor]{
+						if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
 							Chunk:  rm,
 							Follow: rm.asCursor(),
 						}, nil) {
@@ -745,7 +763,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 
 				if rm.isPopulated() {
 					// Yield any remaining relationships in the chunk.
-					if !yield(cter.ChunkAndFollowCursor[*relationshipsChunk, *v1.DatastoreCursor]{
+					if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
 						Chunk:  rm,
 						Follow: rm.asCursor(),
 					}, nil) {
@@ -766,8 +784,6 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 	)
 }
 
-// checkedDispatchIter is a helper function that checks the subjects in the relationships chunk against the entrypoint
-// and dispatches the results. If the entrypoint is a direct result, it simply dispatches the results without checking.
 func (crr *CursoredLookupResources3) checkedDispatchIter(
 	ctx context.Context,
 	lctx lr3ctx,
@@ -1211,12 +1227,29 @@ func subjectIDsToRelationshipsChunk(
 	return rm
 }
 
+const dsCursorPrefix = "$dsc:"
+
+// containsDatastoreCursor checks if the given cursor contains a datastore cursor section.
+func containsDatastoreCursor(cursor cter.Cursor) bool {
+	for _, section := range cursor {
+		if strings.HasPrefix(section, dsCursorPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // datastoreCursorFromString converts a base64-encoded string representation of a datastore cursor
 // into a *v1.DatastoreCursor. If the string is empty, it returns nil.
 func datastoreCursorFromString(cursorStr string) (*v1.DatastoreCursor, error) {
 	// Convert the string from base64 to bytes.
+	if !strings.HasPrefix(cursorStr, dsCursorPrefix) {
+		return nil, fmt.Errorf("invalid datastore cursor prefix found in datastore cursor: %s", cursorStr)
+	}
+
+	cursorStr = strings.TrimPrefix(cursorStr, dsCursorPrefix)
 	if cursorStr == "" {
-		return nil, nil // no cursor to return
+		return nil, nil // empty string means no cursor
 	}
 
 	decodedBytes, err := base64.StdEncoding.DecodeString(cursorStr)
@@ -1237,11 +1270,11 @@ func datastoreCursorFromString(cursorStr string) (*v1.DatastoreCursor, error) {
 // If the cursor is nil or has no ordered relationships, it returns an empty string.
 func datastoreCursorToString(cursor *v1.DatastoreCursor) (string, error) {
 	if cursor == nil {
-		return "", nil
+		return dsCursorPrefix, nil
 	}
 
 	if len(cursor.OrderedRelationships) == 0 {
-		return "", nil // no cursor to return
+		return dsCursorPrefix, nil // no cursor to return
 	}
 
 	encodedBytes, err := cursor.MarshalVT()
@@ -1249,5 +1282,5 @@ func datastoreCursorToString(cursor *v1.DatastoreCursor) (string, error) {
 		return "", fmt.Errorf("failed to marshal datastore cursor: %w", err)
 	}
 
-	return base64.StdEncoding.EncodeToString(encodedBytes), nil
+	return dsCursorPrefix + base64.StdEncoding.EncodeToString(encodedBytes), nil
 }
