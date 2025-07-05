@@ -203,6 +203,7 @@ func producerMapperTestIterator(ctx context.Context, currentCursor Cursor) iter.
 	return CursoredProducerMapperIterator(
 		ctx,
 		currentCursor,
+		1, // concurrency
 		intFromString,
 		stringToInt,
 		func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
