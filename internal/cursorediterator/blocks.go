@@ -13,6 +13,8 @@ const (
 	completedHeaderValue              = -1
 	parallelIteratorResultsBufferSize = 1000
 	producerChunksBufferSize          = 1000
+	concurrentMapperResultsBufferSize = 1000
+	mapperItemsSize                   = 1000
 )
 
 // CursoredWithIntegerHeader is a function that takes a Cursor, a `header` iterator,
@@ -257,22 +259,34 @@ type HoldForMappingComplete[K any, C any] struct{}
 
 func (HoldForMappingComplete[K, C]) chunkFollowOrHold() {}
 
-// chunkOrError is a struct that holds a chunk of items and an error, or indicates that the chunking has completed.
-type chunkOrError[P any, C any] struct {
-	chunk     ChunkFollowOrHold[P, C]
-	err       error
-	completed bool
-	hold      bool
+// producerChunkOrError is a struct that holds a chunk of items and an error, or indicates that the chunking has completed.
+type producerChunkOrError[P any, C any, I any] struct {
+	chunkIndex int
+
+	chunkAndFollow ChunkAndFollow[P, C]
+	err            error
+	completed      bool
+
+	mappedResultChan        chan mapperResultOrError[I, C]
+	wereMappingsYieldedChan chan bool
+}
+
+// mapperResultOrError represents the result of mapper processing
+type mapperResultOrError[I any, C any] struct {
+	items []ItemAndCursor[I]
+	err   error
 }
 
 // CursoredProducerMapperIterator is an iterator that takes a chunk of items produced
 // by a `producer` iterator and maps them to items of type `I` using a `mapper` function.
 // The `producer` function runs in parallel with the `mapper`.
+// The `mapper` function runs with the specified concurrency level for parallel processing.
 // If the producer yields HoldForMappingComplete, further calls to the producer will wait
 // until the mapper has completed its current chunk.
 func CursoredProducerMapperIterator[C any, P any, I any](
 	ctx context.Context,
 	currentCursor Cursor,
+	concurrency uint16,
 	cursorFromStringConverter CursorFromStringConverter[C],
 	cursorToStringConverter func(C) (string, error),
 	producer func(ctx context.Context, currentIndex C, remainingCursor Cursor) iter.Seq2[ChunkFollowOrHold[P, C], error],
@@ -286,8 +300,8 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 		return YieldsError[ItemAndCursor[I]](err)
 	}
 
-	chunks := make(chan chunkOrError[P, C], producerChunksBufferSize)
-	mapperComplete := make(chan struct{}, 1)
+	orderedProducerChunks := make(chan *producerChunkOrError[P, C, I], producerChunksBufferSize)
+	producerChunksForMapping := make(chan *producerChunkOrError[P, C, I], producerChunksBufferSize)
 
 	// Helper function to check if a chunk is HoldForMappingComplete
 	isHoldForMappingComplete := func(chunk ChunkFollowOrHold[P, C]) bool {
@@ -295,124 +309,198 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 		return ok
 	}
 
-	// Helper function to extract ChunkAndFollow from the enum
-	getChunkAndFollow := func(chunk ChunkFollowOrHold[P, C]) (ChunkAndFollow[P, C], bool) {
-		if cf, ok := chunk.(ChunkAndFollow[P, C]); ok {
-			return cf, true
-		}
-		return ChunkAndFollow[P, C]{}, false
-	}
+	producerChunksByID := make(map[int]*producerChunkOrError[P, C, I], producerChunksBufferSize)
 	producerFunc := func() {
+		chunkIndex := 0
+
 		for p, err := range producer(ctx, headValue, remainingCursor) {
+			// If a HoldForMappingComplete is yielded, we need to wait for the *mapper* to complete
+			// *yielding* the previous chunk before yielding more chunks.
+			if isHoldForMappingComplete(p) {
+				if chunkIndex == 0 {
+					// This is an error state: we cannot yield a HoldForMappingComplete
+					// before yielding any chunks. We should return an error to the caller.
+					select {
+					case <-ctx.Done():
+						return
+
+					case orderedProducerChunks <- &producerChunkOrError[P, C, I]{err: spiceerrors.MustBugf("HoldForMappingComplete cannot be yielded before any chunks")}:
+						return
+					}
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+
+				case <-producerChunksByID[chunkIndex-1].wereMappingsYieldedChan:
+					continue
+				}
+			}
+
+			chunk := &producerChunkOrError[P, C, I]{
+				chunkIndex:     chunkIndex,
+				chunkAndFollow: p.(ChunkAndFollow[P, C]),
+				err:            err,
+
+				mappedResultChan:        make(chan mapperResultOrError[I, C], 1),
+				wereMappingsYieldedChan: make(chan bool, 1),
+			}
+			producerChunksByID[chunkIndex] = chunk
+
 			select {
 			case <-ctx.Done():
 				return
 
-			case chunks <- chunkOrError[P, C]{chunk: p, err: err, hold: isHoldForMappingComplete(p)}:
-				if err != nil {
-					return
-				}
+			case orderedProducerChunks <- chunk:
+				// Continue processing chunks.
 			}
+
+			select {
+			case <-ctx.Done():
+				return
+
+			case producerChunksForMapping <- chunk:
+				// Continue processing chunks for mapping.
+			}
+
+			chunkIndex++
+
+			// If an error occurred, we send it to the channel and stop producing further chunks.
+			if err != nil {
+				return
+			}
+		}
+
+		// If we reach here, the producer has completed yielding chunks.
+		// We need to signal that the last chunk has been completed.
+		chunk := &producerChunkOrError[P, C, I]{
+			chunkIndex: chunkIndex,
+			completed:  true,
+
+			mappedResultChan:        make(chan mapperResultOrError[I, C], 1),
+			wereMappingsYieldedChan: make(chan bool, 1),
+		}
+		producerChunksByID[chunkIndex] = chunk
+
+		select {
+		case <-ctx.Done():
+			return
+
+		case orderedProducerChunks <- chunk:
+			// Sent
 		}
 
 		select {
 		case <-ctx.Done():
 			return
 
-		case chunks <- chunkOrError[P, C]{completed: true}:
-			// nothing to do.
+		case producerChunksForMapping <- chunk:
+			// Sent
+		}
+	}
+
+	mapperFunc := func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case coe, ok := <-producerChunksForMapping:
+				if !ok {
+					return
+				}
+
+				if coe.completed {
+					return
+				}
+
+				if coe.err != nil {
+					return
+				}
+
+				chunkRemainingCursor := remainingCursor
+				if coe.chunkIndex > 0 {
+					chunkRemainingCursor = nil
+				}
+
+				items := make([]ItemAndCursor[I], 0, mapperItemsSize)
+				for r, err := range mapper(ctx, chunkRemainingCursor, coe.chunkAndFollow.Chunk) {
+					if err != nil {
+						coe.mappedResultChan <- mapperResultOrError[I, C]{err: err}
+						return
+					}
+					items = append(items, r)
+				}
+				coe.mappedResultChan <- mapperResultOrError[I, C]{items: items}
+			}
 		}
 	}
 
 	return func(yield func(ItemAndCursor[I], error) bool) {
 		defer cancel()
 
+		// Start the mapper function(s) in parallel.
+		for i := uint16(0); i < concurrency; i++ {
+			go mapperFunc()
+		}
+
 		// Start the producer in a goroutine.
 		go producerFunc()
 
-		chunkRemainingCursor := remainingCursor
-
-	outer:
 		for {
 			select {
 			case <-ctx.Done():
 				return
 
-			case chunkOrError, ok := <-chunks:
+			case chunk, ok := <-orderedProducerChunks:
 				if !ok {
 					return
 				}
 
-				if chunkOrError.completed {
-					break outer
-				}
-
-				if chunkOrError.err != nil {
-					cancel()
-					if !yield(ItemAndCursor[I]{}, chunkOrError.err) {
-						return
-					}
+				if chunk.completed {
 					return
 				}
 
-				// If this is a hold signal, wait for mapper to complete
-				if chunkOrError.hold {
-					// Signal that mapper should notify when complete
-					select {
-					case <-ctx.Done():
-						return
-					case <-mapperComplete:
-						// Mapper has completed, continue processing
-						continue
-					}
+				if chunk.err != nil {
+					_ = yield(ItemAndCursor[I]{}, chunk.err)
+					return
 				}
 
-				// Extract the actual chunk and follow cursor
-				chunkAndFollow, ok := getChunkAndFollow(chunkOrError.chunk)
-				if !ok {
-					// This shouldn't happen if hold logic is correct
-					continue
-				}
-
-				for r, err := range mapper(ctx, chunkRemainingCursor, chunkAndFollow.Chunk) {
-					if err != nil {
-						cancel()
-						if !yield(ItemAndCursor[I]{}, err) {
-							return
-						}
-						return
-					}
-
-					cursorStr, err := cursorToStringConverter(chunkAndFollow.Follow)
-					if err != nil {
-						cancel()
-						if !yield(ItemAndCursor[I]{}, err) {
-							return
-						}
-						return
-					}
-
-					if !yield(ItemAndCursor[I]{
-						Item:   r.Item,
-						Cursor: r.Cursor.withPrefix(cursorStr),
-					}, nil) {
-						return
-					}
-				}
-
-				// Signal that mapper has completed processing this chunk
 				select {
 				case <-ctx.Done():
 					return
 
-				case mapperComplete <- struct{}{}:
-				default:
-					// Channel is full, which is fine
-				}
+				case mappedResult := <-chunk.mappedResultChan:
+					if mappedResult.err != nil {
+						_ = yield(ItemAndCursor[I]{}, mappedResult.err)
+						return
+					}
 
-				// Once the first chunk is processed, we set the remaining Cursor to nil, as it was
-				// indexing into the first chunk.
-				chunkRemainingCursor = nil
+					cursorStr, err := cursorToStringConverter(chunk.chunkAndFollow.Follow)
+					if err != nil {
+						_ = yield(ItemAndCursor[I]{}, err)
+						return
+					}
+
+					for _, r := range mappedResult.items {
+						if !yield(ItemAndCursor[I]{
+							Item:   r.Item,
+							Cursor: r.Cursor.withPrefix(cursorStr),
+						}, nil) {
+							return
+						}
+					}
+
+					select {
+					case <-ctx.Done():
+						return
+
+					case chunk.wereMappingsYieldedChan <- true:
+						// We have yielded all mappings for this chunk, we can continue processing
+						// the next chunk.
+					}
+				}
 			}
 		}
 	}

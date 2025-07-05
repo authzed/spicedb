@@ -228,10 +228,11 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 	caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
 
 	lctx := lr3ctx{
-		req:          req,
-		reader:       reader,
-		ts:           ts,
-		caveatRunner: caveatRunner,
+		req:              req,
+		reader:           reader,
+		ts:               ts,
+		caveatRunner:     caveatRunner,
+		concurrencyLimit: crr.concurrencyLimit,
 	}
 
 	// Retrieve results from the unlimited iterator and publish them, respecting the limit,
@@ -292,6 +293,27 @@ type lr3ctx struct {
 
 	// caveatRunner is the caveat runner used to run caveats for the lookup resources operation.
 	caveatRunner *caveats.CaveatRunner
+
+	// concurrencyLimit is the maximum number of concurrent operations that can be performed.
+	concurrencyLimit uint16
+}
+
+func (lctx *lr3ctx) computeConcurrencyLimit() uint16 {
+	// If the request has a limit, we set the concurrency limit to 2 to avoid doing too much potentially
+	// expensive work in parallel that is likely to be discarded due to the limit. If there is no
+	// limit, we can use the configured concurrency limit for mapping, as we will have to fetch all
+	// results anyway.
+	//
+	// TODO(jschorr): We should use stats for this in the future, rather than a heuristic.
+	if lctx.req.OptionalLimit > 0 {
+		// Heuristic: if the limit is small, we can use a concurrency limit of 1 to avoid
+		// doing any parallel work, as it is likely that the first few results will be sufficient.
+		if lctx.req.OptionalLimit <= 25 {
+			return 1
+		}
+		return 2
+	}
+	return lctx.concurrencyLimit
 }
 
 // unlimitedLookupResourcesIter performs the actual lookup resources operation, returning an iterator
@@ -358,19 +380,13 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 // the entrypoints for the given subject IDs and yields results for each entrypoint.
 func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
-		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointsIter)
-		defer span.End()
+		concurrencyLimit := lctx.computeConcurrencyLimit()
 
-		// Determine the concurrency to use for this iteration. If any limit is requested,
-		// we set to a fixed concurrency of 2 to avoid overwhelming the server, as there is
-		// reasonable potential for only the first entrypoint to yield results before the limit
-		// is reached.
-		// In the case where OptionalLimit is 0, we can use the configured concurrency limit,
-		// as we'll have to fetch all results anyway.
-		var concurrency uint16 = 2
-		if lctx.req.OptionalLimit == 0 {
-			concurrency = crr.concurrencyLimit
-		}
+		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointsIter,
+			trace.WithAttributes(
+				attribute.Float64(otelconv.AttrDispatchLRConcurrencyLimit, float64(concurrencyLimit)),
+			))
+		defer span.End()
 
 		// Load the entrypoints that are reachable from the subject relation to the resource relation/permission.
 		entrypoints, err := crr.loadEntrypoints(ctx, lctx)
@@ -386,7 +402,7 @@ func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram
 		}
 
 		// Execute the iterators in parallel, yielding results for each entrypoint in the proper order.
-		return cter.CursoredParallelIterators(ctx, currentCursor, concurrency, cursorOverEntrypoints...)
+		return cter.CursoredParallelIterators(ctx, currentCursor, concurrencyLimit, cursorOverEntrypoints...)
 	}
 }
 
@@ -635,6 +651,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 	// The producer will yield chunks of relationships, maximum of the dispatchChunkSize, to be
 	// dispatched by the mapper in parallel.
 	return cter.CursoredProducerMapperIterator(ctx, currentCursor,
+		lctx.computeConcurrencyLimit(),
 		datastoreCursorFromString,
 		datastoreCursorToString,
 		func(ctx context.Context, currentIndex *v1.DatastoreCursor, remainingCursor cter.Cursor) iter.Seq2[cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error] {
