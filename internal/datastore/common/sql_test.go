@@ -1405,7 +1405,7 @@ func TestExecuteQuery(t *testing.T) {
 
 							colsToSelect, err := ColumnsToSelect(builder, &resourceObjectType, &resourceObjectID, &resourceRelation, &subjectObjectType, &subjectObjectID, &subjectRelation, &caveatName, &caveatCtx, &expiration, &integrityKeyID, &integrityHash, &timestamp)
 							require.NoError(t, err)
-							require.Equal(t, expectedColCount, len(colsToSelect))
+							require.Len(t, colsToSelect, expectedColCount)
 
 							return nil, nil
 						},

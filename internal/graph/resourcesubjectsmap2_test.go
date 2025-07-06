@@ -19,8 +19,8 @@ func TestResourcesSubjectsMap2Basic(t *testing.T) {
 		Relation:  "view",
 	})
 
-	require.Equal(t, rsm.resourceType.Namespace, "document")
-	require.Equal(t, rsm.resourceType.Relation, "view")
+	require.Equal(t, "document", rsm.resourceType.Namespace)
+	require.Equal(t, "view", rsm.resourceType.Relation)
 	require.Equal(t, 0, rsm.len())
 
 	rsm.addSubjectIDAsFoundResourceID("first")

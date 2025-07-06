@@ -1308,8 +1308,8 @@ func TestCompile(t *testing.T) {
 				require.Error(err)
 				require.Contains(err.Error(), test.expectedError)
 			} else {
-				require.Nil(err)
-				require.Equal(len(test.expectedProto), len(compiled.OrderedDefinitions))
+				require.NoError(err)
+				require.Len(compiled.OrderedDefinitions, len(test.expectedProto))
 				for index, def := range compiled.OrderedDefinitions {
 					filterSourcePositions(def.ProtoReflect())
 					expectedDef := test.expectedProto[index]
@@ -1318,7 +1318,7 @@ func TestCompile(t *testing.T) {
 						expectedCaveatDef, ok := expectedDef.(*core.CaveatDefinition)
 						require.True(ok, "definition is not a caveat def")
 						require.Equal(expectedCaveatDef.Name, caveatDef.Name)
-						require.Equal(len(expectedCaveatDef.ParameterTypes), len(caveatDef.ParameterTypes))
+						require.Len(caveatDef.ParameterTypes, len(expectedCaveatDef.ParameterTypes))
 
 						for expectedParamName, expectedParam := range expectedCaveatDef.ParameterTypes {
 							foundParam, ok := caveatDef.ParameterTypes[expectedParamName]
@@ -1353,24 +1353,23 @@ func TestCompile(t *testing.T) {
 
 func filterSourcePositions(m protoreflect.Message) {
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-		if fd.Kind() == protoreflect.MessageKind {
-			if fd.IsList() {
-				l := v.List()
-				for i := 0; i < l.Len(); i++ {
-					filterSourcePositions(l.Get(i).Message())
-				}
-			} else if fd.IsMap() {
-				m := v.Map()
-				m.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
-					filterSourcePositions(v.Message())
-					return true
-				})
+		switch {
+		case fd.Kind() == protoreflect.MessageKind && fd.IsList():
+			l := v.List()
+			for i := 0; i < l.Len(); i++ {
+				filterSourcePositions(l.Get(i).Message())
+			}
+		case fd.Kind() == protoreflect.MessageKind && fd.IsMap():
+			m := v.Map()
+			m.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
+				filterSourcePositions(v.Message())
+				return true
+			})
+		case fd.Kind() == protoreflect.MessageKind:
+			if string(fd.Message().Name()) == "SourcePosition" {
+				m.Clear(fd)
 			} else {
-				if string(fd.Message().Name()) == "SourcePosition" {
-					m.Clear(fd)
-				} else {
-					filterSourcePositions(v.Message())
-				}
+				filterSourcePositions(v.Message())
 			}
 		}
 		return true
@@ -1399,6 +1398,6 @@ func TestSuperLargeCaveatCompile(t *testing.T) {
 		"superlarge", string(b),
 	}, AllowUnprefixedObjectType())
 	require.NoError(t, err)
-	require.Equal(t, 29, len(compiled.ObjectDefinitions))
-	require.Equal(t, 1, len(compiled.CaveatDefinitions))
+	require.Len(t, compiled.ObjectDefinitions, 29)
+	require.Len(t, compiled.CaveatDefinitions, 1)
 }

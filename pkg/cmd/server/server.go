@@ -497,11 +497,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	var telemetryRegistry *prometheus.Registry
 
 	reporter := telemetry.DisabledReporter
-	if c.SilentlyDisableTelemetry {
+	switch {
+	case c.SilentlyDisableTelemetry:
 		reporter = telemetry.SilentlyDisabledReporter
-	} else if c.TelemetryEndpoint != "" && c.DatastoreConfig.DisableStats {
+	case c.TelemetryEndpoint != "" && c.DatastoreConfig.DisableStats:
 		reporter = telemetry.DisabledReporter
-	} else if c.TelemetryEndpoint != "" {
+	case c.TelemetryEndpoint != "":
 		log.Ctx(ctx).Debug().Msg("initializing telemetry collector")
 		registry, err := telemetry.RegisterTelemetryCollector(c.DatastoreConfig.Engine, ds)
 		if err != nil {

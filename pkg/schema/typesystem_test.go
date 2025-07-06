@@ -36,17 +36,26 @@ func TestTypeSystemConcurrency(t *testing.T) {
 	ctx := t.Context()
 	ts := NewTypeSystem(ResolverForPredefinedDefinitions(*setup))
 	require := require.New(t)
+	var mu sync.Mutex
+	var errs []error
+
 	for range 10 {
 		wg.Add(1)
 		go func() {
 			for range 20 {
 				for _, n := range []string{"document", "user", "team"} {
 					_, err := ts.GetValidatedDefinition(ctx, n)
-					require.NoError(err)
+					if err != nil {
+						mu.Lock()
+						errs = append(errs, err)
+						mu.Unlock()
+					}
 				}
 			}
 			wg.Done()
 		}()
 	}
 	wg.Wait()
+
+	require.Empty(errs, "expected no errors in concurrent GetValidatedDefinition calls")
 }

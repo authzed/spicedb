@@ -293,7 +293,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 							// Ensure that all the resource IDs are batched into a single frame.
 							found := findFrame(debugInfo.Check, "folder", "fview")
 							req.NotNil(found)
-							req.Equal(6, len(strings.Split(found.Resource.ObjectId, ",")))
+							req.Len(strings.Split(found.Resource.ObjectId, ","), 6)
 
 							// Ensure there are no more than 2 subframes, to verify we haven't
 							// accidentally fanned out.

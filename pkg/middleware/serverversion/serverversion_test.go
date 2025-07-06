@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -55,29 +54,29 @@ func (s *serverVersionMiddlewareTestSuite) TestUnaryInterceptor_WithVersionReque
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), string(requestmeta.RequestServerVersion), "true")
 
 	_, err := s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Check that response metadata contains server version
 	var header metadata.MD
 	_, err = s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{}, grpc.Header(&header))
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	serverVersion := header.Get(string(responsemeta.ServerVersion))
-	require.NotEmpty(s.T(), serverVersion)
+	s.Require().NotEmpty(serverVersion)
 }
 
 func (s *serverVersionMiddlewareTestSuite) TestUnaryInterceptor_WithoutVersionRequest() {
 	// Call without server version request header
 	_, err := s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Check that response metadata does not contain server version
 	var header metadata.MD
 	_, err = s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{}, grpc.Header(&header))
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	serverVersion := header.Get(string(responsemeta.ServerVersion))
-	require.Empty(s.T(), serverVersion)
+	s.Require().Empty(serverVersion)
 }
 
 func (s *serverVersionMiddlewareTestSuite) TestStreamInterceptor_WithVersionRequest() {
@@ -85,33 +84,33 @@ func (s *serverVersionMiddlewareTestSuite) TestStreamInterceptor_WithVersionRequ
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), string(requestmeta.RequestServerVersion), "true")
 
 	stream, err := s.Client.PingList(ctx, &testpb.PingListRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Check that response metadata contains server version
 	header, err := stream.Header()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	serverVersion := header.Get(string(responsemeta.ServerVersion))
-	require.NotEmpty(s.T(), serverVersion)
+	s.Require().NotEmpty(serverVersion)
 
 	// Receive the response
 	_, err = stream.Recv()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 }
 
 func (s *serverVersionMiddlewareTestSuite) TestStreamInterceptor_WithoutVersionRequest() {
 	// Call without server version request header
 	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Check that response metadata does not contain server version
 	header, err := stream.Header()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	serverVersion := header.Get(string(responsemeta.ServerVersion))
-	require.Empty(s.T(), serverVersion)
+	s.Require().Empty(serverVersion)
 
 	// Receive the response
 	_, err = stream.Recv()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 }

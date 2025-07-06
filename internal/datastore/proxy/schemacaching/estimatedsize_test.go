@@ -41,7 +41,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	require.NotEqual(t, 0, len(consistencyTestFiles))
+	require.NotEmpty(t, consistencyTestFiles)
 
 	for _, filePath := range consistencyTestFiles {
 		filePath := filePath

@@ -51,7 +51,7 @@ func TestDocumentNoDiagnostics(t *testing.T) {
 			TextDocument: TextDocument{URI: "file:///test"},
 		})
 	require.Equal(t, "full", resp.Kind)
-	require.Len(t, resp.Items, 0)
+	require.Empty(t, resp.Items)
 }
 
 func TestDocumentErrorDiagnostics(t *testing.T) {
@@ -80,7 +80,7 @@ func TestDocumentErrorDiagnostics(t *testing.T) {
 			TextDocument: TextDocument{URI: "file:///test"},
 		})
 	require.Equal(t, "full", resp.Kind)
-	require.Len(t, resp.Items, 0)
+	require.Empty(t, resp.Items)
 }
 
 func TestDocumentWarningDiagnostics(t *testing.T) {
@@ -319,7 +319,7 @@ func TestLogJSONPtr(t *testing.T) {
 	require.Equal(t, "nil", logJSONPtr(nil))
 
 	msg := json.RawMessage(`{"test": "value"}`)
-	require.Equal(t, `{"test": "value"}`, logJSONPtr(&msg))
+	require.JSONEq(t, `{"test": "value"}`, logJSONPtr(&msg))
 }
 
 func TestServerRunInvalidArgs(t *testing.T) {

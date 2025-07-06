@@ -187,29 +187,35 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 	wg := sync.WaitGroup{}
 	wg.Add(3)
+	errs := make(chan error, 3)
+
 	go func() {
 		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, req.CloneVT())
+		errs <- err
 		wg.Done()
-		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
 		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, req.CloneVT())
+		errs <- err
 		wg.Done()
-		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
 		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, req.CloneVT())
+		errs <- err
 		wg.Done()
-		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 
 	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	}
 	<-run
 	require.Equal(t, uint64(1), called.Load())
 }

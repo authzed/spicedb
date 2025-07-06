@@ -16,10 +16,8 @@ func subtree(map0 map[string]any, map1 map[string]any) bool {
 			if !nestedResult {
 				return false
 			}
-		} else {
-			if v != val {
-				return false
-			}
+		} else if v != val {
+			return false
 		}
 	}
 	return true

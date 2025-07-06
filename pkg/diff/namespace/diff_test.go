@@ -578,7 +578,7 @@ func TestNamespaceDiff(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			diff, err := DiffNamespaces(tc.existing, tc.updated)
-			require.Nil(err)
+			require.NoError(err)
 			require.Equal(tc.expectedDeltas, diff.Deltas())
 		})
 	}

@@ -2,6 +2,7 @@ package schemacaching
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -142,16 +143,24 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 	go (func() {
 		// Read somenamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "somenamespace")
-		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-		require.False(t, wcache.namespaceCache.inFallbackMode)
+		var nsNotFoundErr datastore.NamespaceNotFoundError
+		if err == nil || !errors.As(err, &nsNotFoundErr) {
+			t.Errorf("expected NamespaceNotFoundError, got: %v", err)
+		}
+		if wcache.namespaceCache.inFallbackMode {
+			t.Errorf("expected inFallbackMode to be false")
+		}
 
 		// Write somenamespace.
 		fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
 
 		// Read again (which should be found now)
 		nsDef, _, err := wcache.SnapshotReader(rev("2")).ReadNamespaceByName(t.Context(), "somenamespace")
-		require.NoError(t, err)
-		require.Equal(t, "somenamespace", nsDef.Name)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		} else if nsDef.Name != "somenamespace" {
+			t.Errorf("expected namespace name 'somenamespace', got: %s", nsDef.Name)
+		}
 
 		wg.Done()
 	})()
@@ -159,13 +168,22 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 	go (func() {
 		// Read anothernamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "anothernamespace")
-		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-		require.False(t, wcache.namespaceCache.inFallbackMode)
+		var nsNotFoundErr datastore.NamespaceNotFoundError
+		if err == nil || !errors.As(err, &nsNotFoundErr) {
+			t.Errorf("expected NamespaceNotFoundError, got: %T: %v - ", err, err)
+		}
+		if wcache.namespaceCache.inFallbackMode {
+			t.Errorf("expected inFallbackMode to be false")
+		}
 
 		// Read again (which should still not be found)
 		_, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(t.Context(), "anothernamespace")
-		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-		require.False(t, wcache.namespaceCache.inFallbackMode)
+		if err == nil || !errors.As(err, &nsNotFoundErr) {
+			t.Errorf("expected NamespaceNotFoundError, got: %T: %v - ", err, err)
+		}
+		if wcache.namespaceCache.inFallbackMode {
+			t.Errorf("expected inFallbackMode to be false")
+		}
 
 		wg.Done()
 	})()
@@ -212,11 +230,19 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 		// Start a loop to read a namespace a bunch of times.
 		for i := 0; i < 1000; i++ {
 			headRevision, err := fakeDS.HeadRevision(t.Context())
-			require.NoError(t, err)
+			if err != nil {
+				t.Errorf("unexpected error getting head revision: %v", err)
+				continue
+			}
 
 			nsDef, _, err := wcache.SnapshotReader(headRevision).ReadNamespaceByName(t.Context(), "somenamespace")
-			require.NoError(t, err)
-			require.Equal(t, "somenamespace", nsDef.Name)
+			if err != nil {
+				t.Errorf("unexpected error reading namespace: %v", err)
+				continue
+			}
+			if nsDef.Name != "somenamespace" {
+				t.Errorf("expected namespace name 'somenamespace', got: %s", nsDef.Name)
+			}
 		}
 
 		wg.Done()
@@ -259,7 +285,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	expectedKey := cache.StringKey("n:somenamespace@" + r.String())
 	entry, ok := c.Get(expectedKey)
 	require.True(t, ok)
-	require.NotNil(t, entry.notFound)
+	require.Error(t, entry.notFound)
 
 	// Disable reading and ensure it still works, via the fallback cache.
 	fakeDS.readsDisabled = true

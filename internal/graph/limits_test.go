@@ -22,10 +22,10 @@ func TestLimitsMarkAlreadyPublished(t *testing.T) {
 	limits := newLimitTracker(10)
 
 	err := limits.markAlreadyPublished(5)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = limits.markAlreadyPublished(5)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	require.Panics(t, func() {
 		_ = limits.markAlreadyPublished(1)

@@ -37,8 +37,7 @@ func (ipa IPAddress) SerializedString() string {
 }
 
 func (ipa IPAddress) ConvertToNative(typeDesc reflect.Type) (interface{}, error) {
-	switch typeDesc {
-	case reflect.TypeOf(""):
+	if typeDesc == reflect.TypeOf("") {
 		return ipa.ip.String(), nil
 	}
 	return nil, fmt.Errorf("type conversion error from 'IPAddress' to '%v'", typeDesc)

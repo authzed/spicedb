@@ -30,7 +30,7 @@ func TestSetOperations(t *testing.T) {
 
 	slice := set.AsSlice()
 	sort.Strings(slice)
-	require.Equal(t, slice, []string{"hello", "heyo", "hi"})
+	require.Equal(t, []string{"hello", "heyo", "hi"}, slice)
 
 	// Delete some items.
 	set.Delete("hi")
@@ -45,14 +45,14 @@ func TestSetOperations(t *testing.T) {
 
 	slice = set.AsSlice()
 	sort.Strings(slice)
-	require.Equal(t, slice, []string{"hello", "heyo"})
+	require.Equal(t, []string{"hello", "heyo"}, slice)
 
 	// Extend the set with a slice of values
 	set.Extend([]string{"1", "2", "3"})
 
 	slice = set.AsSlice()
 	sort.Strings(slice)
-	require.Equal(t, slice, []string{"1", "2", "3", "hello", "heyo"})
+	require.Equal(t, []string{"1", "2", "3", "hello", "heyo"}, slice)
 
 	// Create another set and remove its items.
 	otherSet := NewSet[string]()
@@ -62,7 +62,7 @@ func TestSetOperations(t *testing.T) {
 
 	slice = set.AsSlice()
 	sort.Strings(slice)
-	require.Equal(t, slice, []string{"hello", "heyo"})
+	require.Equal(t, []string{"hello", "heyo"}, slice)
 
 	// Create a third set and perform intersection difference.
 	thirdSet := NewSet[string]()
@@ -72,7 +72,7 @@ func TestSetOperations(t *testing.T) {
 
 	slice = set.AsSlice()
 	sort.Strings(slice)
-	require.Equal(t, slice, []string{"hello"})
+	require.Equal(t, []string{"hello"}, slice)
 }
 
 func TestSetIntersect(t *testing.T) {
