@@ -8,11 +8,11 @@ import (
 	mcobra "github.com/muesli/mango-cobra"
 	"github.com/muesli/roff"
 	"github.com/rs/zerolog"
-	"github.com/sercand/kuberesolver/v5"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/balancer"
 	_ "google.golang.org/grpc/xds"
 
+	"github.com/authzed/spicedb/internal/kuberesolver"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
