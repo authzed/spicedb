@@ -70,6 +70,6 @@ func PublishError(runFunc cobrautil.CobraRunFunc) cobrautil.CobraRunFunc {
 func RegisterFlags(flagset *flag.FlagSet) {
 	flagset.String(terminationLogFlagName,
 		"",
-		"define the path to the termination log file, which contains a JSON payload to surface as reason for termination - disabled by default",
+		"local path to the termination log file, which contains a JSON payload to surface as reason for termination",
 	)
 }

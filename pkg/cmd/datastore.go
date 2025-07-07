@@ -57,7 +57,7 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 	return &cobra.Command{
 		Use:     "gc",
 		Short:   "executes garbage collection",
-		Long:    "Executes garbage collection against the datastore",
+		Long:    "Executes garbage collection against the datastore. Deletes stale relationships, expired relationships, and stale transactions.",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
