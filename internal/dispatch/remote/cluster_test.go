@@ -129,6 +129,33 @@ func (fds *fakeDispatchSvc) DispatchLookupResources2(_ *v1.DispatchLookupResourc
 	return nil
 }
 
+func (fds *fakeDispatchSvc) DispatchLookupResources3(_ *v1.DispatchLookupResources3Request, srv v1.DispatchService_DispatchLookupResources3Server) error {
+	if fds.errorOnLR2 != nil {
+		return fds.errorOnLR2
+	}
+
+	if fds.resultCount == 0 {
+		fds.resultCount = 2
+	}
+
+	for i := range fds.resultCount {
+		time.Sleep(fds.sleepTime)
+		if err := srv.Send(&v1.DispatchLookupResources3Response{
+			Resource: &v1.PossibleResource{ResourceId: fmt.Sprintf("%d", i)},
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: fds.dispatchCount,
+			},
+			AfterResponseCursor: &v1.Cursor{
+				Sections:        nil,
+				DispatchVersion: 3,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func TestDispatchTimeout(t *testing.T) {
 	for _, tc := range []struct {
 		timeout   time.Duration

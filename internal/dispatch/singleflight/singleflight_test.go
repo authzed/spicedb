@@ -369,6 +369,10 @@ func (m mockDispatcher) DispatchLookupResources2(_ *v1.DispatchLookupResources2R
 	return nil
 }
 
+func (m mockDispatcher) DispatchLookupResources3(_ *v1.DispatchLookupResources3Request, _ dispatch.LookupResources3Stream) error {
+	return nil
+}
+
 func (m mockDispatcher) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, _ dispatch.LookupSubjectsStream) error {
 	return nil
 }
