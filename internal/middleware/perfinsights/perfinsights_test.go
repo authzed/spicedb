@@ -264,7 +264,7 @@ var TestServiceServiceDesc = grpc.ServiceDesc{
 	Metadata: "test.proto",
 }
 
-func ServiceUnaryCallHandlerForTesting(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func ServiceUnaryCallHandlerForTesting(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	in := new(TestRequest)
 	if err := dec(in); err != nil {
 		return nil, err
@@ -276,13 +276,13 @@ func ServiceUnaryCallHandlerForTesting(srv interface{}, ctx context.Context, dec
 		Server:     srv,
 		FullMethod: "/perfinsights.TestService/UnaryCall",
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return srv.(TestServiceServer).UnaryCall(ctx, req.(*TestRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func ServiceStreamCallHandlerForTesting(srv interface{}, stream grpc.ServerStream) error {
+func ServiceStreamCallHandlerForTesting(srv any, stream grpc.ServerStream) error {
 	return srv.(TestServiceServer).StreamCall(&testServiceStreamCallServer{stream})
 }
 
@@ -319,7 +319,7 @@ func TestUnaryRPCMetricReporting(t *testing.T) {
 	require.NotNil(t, interceptor)
 
 	// Create a handler that calls our service
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return service.UnaryCall(ctx, req.(*TestRequest))
 	}
 
@@ -352,7 +352,7 @@ func TestStreamRPCMetricReporting(t *testing.T) {
 	}
 
 	// Create a handler that calls our service
-	handler := func(srv interface{}, stream grpc.ServerStream) error {
+	handler := func(srv any, stream grpc.ServerStream) error {
 		return service.StreamCall(&testServiceStreamCallServer{stream})
 	}
 
@@ -384,14 +384,14 @@ func (m *fakeServerStream) Context() context.Context {
 	return m.ctx
 }
 
-func (m *fakeServerStream) SendMsg(msg interface{}) error {
+func (m *fakeServerStream) SendMsg(msg any) error {
 	if resp, ok := msg.(*TestResponse); ok {
 		m.sentMsgs = append(m.sentMsgs, resp)
 	}
 	return nil
 }
 
-func (m *fakeServerStream) RecvMsg(msg interface{}) error {
+func (m *fakeServerStream) RecvMsg(msg any) error {
 	if m.recvIdx >= len(m.recvMsgs) {
 		return io.EOF
 	}

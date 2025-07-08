@@ -8,12 +8,12 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/ccoveille/go-safecast"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 )
 
 type trackingRevisionFunction struct {
@@ -130,7 +130,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				require.Eventually(func() bool {
 					revision, err := or.OptimizedRevision(ctx)
 					require.NoError(err)
-					printableRevSet := lo.Map(expectedRevSet, func(val datastore.Revision, index int) string {
+					printableRevSet := slicez.Map(expectedRevSet, func(val datastore.Revision) string {
 						return val.String()
 					})
 					require.Contains(expectedRevSet, revision, "must return the proper revision, allowed set %#v, received %s", printableRevSet, revision)

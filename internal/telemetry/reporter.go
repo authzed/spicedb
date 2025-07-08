@@ -14,11 +14,11 @@ import (
 
 	prompb "buf.build/gen/go/prometheus/prometheus/protocolbuffers/go"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
+	"google.golang.org/protobuf/proto"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/x509util"
@@ -46,9 +46,7 @@ const (
 func writeTimeSeries(ctx context.Context, client *http.Client, endpoint string, ts []*prompb.TimeSeries) error {
 	// Reference upstream client:
 	// https://github.com/prometheus/prometheus/blob/6555cc68caf8d8f323056e497ae7bb1e32a81667/storage/remote/client.go#L191
-	pbBytes, err := proto.Marshal(&prompb.WriteRequest{
-		Timeseries: ts,
-	})
+	pbBytes, err := proto.Marshal(&prompb.WriteRequest{Timeseries: ts})
 	if err != nil {
 		return fmt.Errorf("failed to marshal Prometheus remote write protobuf: %w", err)
 	}

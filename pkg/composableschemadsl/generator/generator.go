@@ -3,10 +3,10 @@ package generator
 import (
 	"bufio"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -138,7 +138,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.append(caveat.Name)
 	sg.append("(")
 
-	parameterNames := maps.Keys(caveat.ParameterTypes)
+	parameterNames := slices.Collect(maps.Keys(caveat.ParameterTypes))
 	sort.Strings(parameterNames)
 
 	for index, paramName := range parameterNames {

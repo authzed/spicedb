@@ -40,7 +40,7 @@ type withQueryInterceptor struct {
 	explanations map[string]string
 }
 
-func (ql *withQueryInterceptor) InterceptExec(ctx context.Context, querier pgxcommon.Querier, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+func (ql *withQueryInterceptor) InterceptExec(ctx context.Context, querier pgxcommon.Querier, sql string, args ...any) (pgconn.CommandTag, error) {
 	if strings.HasPrefix(sql, "WITH") {
 		// Note, we disable seqscan here to ensure we get an index scan for testing.
 		_, err := querier.Exec(ctx, "set enable_seqscan = off;")
@@ -59,10 +59,10 @@ func (ql *withQueryInterceptor) InterceptExec(ctx context.Context, querier pgxco
 	return querier.Exec(ctx, sql, args...)
 }
 
-func (ql *withQueryInterceptor) InterceptQueryRow(ctx context.Context, querier pgxcommon.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row {
+func (ql *withQueryInterceptor) InterceptQueryRow(ctx context.Context, querier pgxcommon.Querier, sql string, optionsAndArgs ...any) pgx.Row {
 	return querier.QueryRow(ctx, sql, optionsAndArgs...)
 }
 
-func (ql *withQueryInterceptor) InterceptQuery(ctx context.Context, querier pgxcommon.Querier, sql string, args ...interface{}) (pgx.Rows, error) {
+func (ql *withQueryInterceptor) InterceptQuery(ctx context.Context, querier pgxcommon.Querier, sql string, args ...any) (pgx.Rows, error) {
 	return querier.Query(ctx, sql, args...)
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strconv"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 	"github.com/dustin/go-humanize"
-	"github.com/jzelinskie/stringz"
 	"github.com/pbnjay/memory"
 	"github.com/spf13/pflag"
 
@@ -133,7 +133,7 @@ func parsePercent(str string, freeMem uint64) (uint64, error) {
 // caches.
 func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix string, config, defaults *CacheConfig) {
 	config.Name = defaults.Name
-	flagPrefix = stringz.DefaultEmpty(flagPrefix, "cache")
+	flagPrefix = cmp.Or(flagPrefix, "cache")
 	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound cache size in bytes or percent of available memory")
 	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", defaults.NumCounters, "number of TinyLFU samples to track")
 	flags.BoolVar(&config.Metrics, flagPrefix+"-metrics", defaults.Metrics, "enable cache metrics")

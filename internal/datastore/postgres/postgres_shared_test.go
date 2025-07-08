@@ -1864,7 +1864,7 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 		rwt := drwt.(*pgReadWriteTXN)
 
 		createInserts := writeTuple
-		valuesToWrite := []interface{}{
+		valuesToWrite := []any{
 			"resource",
 			"someresourceid",
 			"somerelation",

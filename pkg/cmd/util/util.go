@@ -3,6 +3,7 @@ package util
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . GRPCServerConfig HTTPServerConfig
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -13,9 +14,7 @@ import (
 	"time"
 
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
-	"github.com/jzelinskie/stringz"
-	// Register Snappy S2 compression
-	_ "github.com/mostynb/go-grpc-compression/experimental/s2"
+	_ "github.com/mostynb/go-grpc-compression/experimental/s2" // Register Snappy S2 compression
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -25,8 +24,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
-	// Register cert watcher metrics
-	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
+	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics" // Register cert watcher metrics
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -58,9 +56,9 @@ type GRPCServerConfig struct {
 // - "$PREFIX-tls-key-path"
 // - "$PREFIX-max-conn-age"
 func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, flagPrefix, serviceName, defaultAddr string, defaultEnabled bool) {
-	flagPrefix = stringz.DefaultEmpty(flagPrefix, "grpc")
-	serviceName = stringz.DefaultEmpty(serviceName, "grpc")
-	defaultAddr = stringz.DefaultEmpty(defaultAddr, ":50051")
+	flagPrefix = cmp.Or(flagPrefix, "grpc")
+	serviceName = cmp.Or(serviceName, "grpc")
+	defaultAddr = cmp.Or(defaultAddr, ":50051")
 	config.flagPrefix = flagPrefix
 
 	flags.StringVar(&config.Address, flagPrefix+"-addr", defaultAddr, "address to listen on to serve "+serviceName)
@@ -403,9 +401,9 @@ func (c *completedHTTPServer) Close() {
 // - "$PREFIX-tls-key-path"
 // - "$PREFIX-enabled"
 func RegisterHTTPServerFlags(flags *pflag.FlagSet, config *HTTPServerConfig, flagPrefix, serviceName, defaultAddr string, defaultEnabled bool) {
-	flagPrefix = stringz.DefaultEmpty(flagPrefix, "http")
-	serviceName = stringz.DefaultEmpty(serviceName, "http")
-	defaultAddr = stringz.DefaultEmpty(defaultAddr, ":8443")
+	flagPrefix = cmp.Or(flagPrefix, "http")
+	serviceName = cmp.Or(serviceName, "http")
+	defaultAddr = cmp.Or(defaultAddr, ":8443")
 	config.flagPrefix = flagPrefix
 	flags.StringVar(&config.HTTPAddress, flagPrefix+"-addr", defaultAddr, "address to listen on to serve "+serviceName)
 	flags.StringVar(&config.HTTPTLSCertPath, flagPrefix+"-tls-cert-path", "", "local path to the TLS certificate used to serve "+serviceName)

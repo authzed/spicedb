@@ -5,10 +5,11 @@ package v1
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 
 	"github.com/cespare/xxhash/v2"
-	"golang.org/x/exp/maps"
 )
 
 func computeAPICallHash(apiName string, arguments map[string]string) (string, error) {
@@ -23,7 +24,7 @@ func computeAPICallHash(apiName string, arguments map[string]string) (string, er
 		return "", err
 	}
 
-	keys := maps.Keys(arguments)
+	keys := slices.Collect(maps.Keys(arguments))
 	sort.Strings(keys)
 
 	for _, key := range keys {

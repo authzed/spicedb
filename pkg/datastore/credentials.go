@@ -3,13 +3,14 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	rdsauth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
-	"golang.org/x/exp/maps"
 
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -41,7 +42,7 @@ var BuilderForCredentialProvider = map[string]credentialsProviderBuilderFunc{
 
 // CredentialsProviderOptions returns the full set of credential provider names, sorted and quoted into a string.
 func CredentialsProviderOptions() string {
-	ids := maps.Keys(BuilderForCredentialProvider)
+	ids := slices.Collect(maps.Keys(BuilderForCredentialProvider))
 	sort.Strings(ids)
 	quoted := make([]string, 0, len(ids))
 	for _, id := range ids {

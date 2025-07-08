@@ -16,7 +16,7 @@ import (
 
 type testNode struct {
 	nodeType   dslshape.NodeType
-	properties map[string]interface{}
+	properties map[string]any
 	children   map[string]*list.List
 }
 
@@ -53,7 +53,7 @@ func (pt *parserTest) writeTree(value string) {
 func createAstNode(_ input.Source, kind dslshape.NodeType) AstNode {
 	return &testNode{
 		nodeType:   kind,
-		properties: make(map[string]interface{}),
+		properties: make(map[string]any),
 		children:   make(map[string]*list.List),
 	}
 }

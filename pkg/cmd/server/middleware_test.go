@@ -340,7 +340,7 @@ type mockUnaryInterceptor struct {
 	val int
 }
 
-func (m mockUnaryInterceptor) unaryIntercept(_ context.Context, _ interface{}, _ *grpc.UnaryServerInfo, _ grpc.UnaryHandler) (resp interface{}, err error) {
+func (m mockUnaryInterceptor) unaryIntercept(_ context.Context, _ any, _ *grpc.UnaryServerInfo, _ grpc.UnaryHandler) (resp any, err error) {
 	return m.val, nil
 }
 
@@ -348,7 +348,7 @@ type mockStreamInterceptor struct {
 	val error
 }
 
-func (m mockStreamInterceptor) streamIntercept(_ interface{}, _ grpc.ServerStream, _ *grpc.StreamServerInfo, _ grpc.StreamHandler) error {
+func (m mockStreamInterceptor) streamIntercept(_ any, _ grpc.ServerStream, _ *grpc.StreamServerInfo, _ grpc.StreamHandler) error {
 	return m.val
 }
 
@@ -429,10 +429,10 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err)
-	noopUnary := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	noopUnary := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		return nil, nil
 	}
-	noopStreaming := func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	noopStreaming := func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		return handler(srv, ss)
 	}
 

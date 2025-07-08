@@ -1,13 +1,14 @@
 package v1
 
 import (
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -204,7 +205,7 @@ func TestGroupItems(t *testing.T) {
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 			} else {
-				ccp := maps.Values(ccpByHash)
+				ccp := slices.Collect(maps.Values(ccpByHash))
 				require.NoError(t, err)
 				require.Equal(t, len(tt.groupings), len(ccp))
 

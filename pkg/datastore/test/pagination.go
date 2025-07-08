@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ccoveille/go-safecast"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -15,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -406,11 +406,11 @@ func foreachTxType(
 }
 
 func sortedStandardData(resourceType string, order options.SortOrder) []tuple.Relationship {
-	asTuples := lo.Map(testfixtures.StandardRelationships, func(item string, _ int) tuple.Relationship {
+	asTuples := slicez.Map(testfixtures.StandardRelationships, func(item string) tuple.Relationship {
 		return tuple.MustParse(item)
 	})
 
-	filteredToType := lo.Filter(asTuples, func(item tuple.Relationship, _ int) bool {
+	filteredToType := slicez.Filter(asTuples, func(item tuple.Relationship) bool {
 		return item.Resource.ObjectType == resourceType
 	})
 
@@ -433,11 +433,11 @@ func sortedStandardData(resourceType string, order options.SortOrder) []tuple.Re
 }
 
 func sortedStandardDataBySubject(subjectType string, order options.SortOrder) []tuple.Relationship {
-	asTuples := lo.Map(testfixtures.StandardRelationships, func(item string, _ int) tuple.Relationship {
+	asTuples := slicez.Map(testfixtures.StandardRelationships, func(item string) tuple.Relationship {
 		return tuple.MustParse(item)
 	})
 
-	filteredToType := lo.Filter(asTuples, func(item tuple.Relationship, _ int) bool {
+	filteredToType := slicez.Filter(asTuples, func(item tuple.Relationship) bool {
 		if subjectType == "" {
 			return true
 		}

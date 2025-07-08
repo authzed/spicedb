@@ -15,7 +15,7 @@ import (
 
 // RequireEqualEmptyNil is a version of require.Equal, but considers nil
 // slices/maps to be equal to empty slices/maps.
-func RequireEqualEmptyNil(t *testing.T, expected, actual interface{}, msgAndArgs ...interface{}) {
+func RequireEqualEmptyNil(t *testing.T, expected, actual any, msgAndArgs ...any) {
 	opts := []cmp.Option{
 		cmpopts.IgnoreUnexported(
 			v0.RelationTuple{},

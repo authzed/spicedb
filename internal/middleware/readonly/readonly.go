@@ -12,7 +12,7 @@ import (
 
 // UnaryServerInterceptor returns a new unary server interceptor that sets the datastore to readonly
 func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if err := datastoremw.SetInContext(ctx, proxy.NewReadonlyDatastore(datastoremw.MustFromContext(ctx))); err != nil {
 			return nil, err
 		}
@@ -23,7 +23,7 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 
 // StreamServerInterceptor returns a new stream server interceptor  that sets the datastore to readonly
 func StreamServerInterceptor() grpc.StreamServerInterceptor {
-	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		wrapped := middleware.WrapServerStream(stream)
 		if err := datastoremw.SetInContext(wrapped.WrappedContext, proxy.NewReadonlyDatastore(datastoremw.MustFromContext(stream.Context()))); err != nil {
 			return err

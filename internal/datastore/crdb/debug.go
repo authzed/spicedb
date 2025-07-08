@@ -15,7 +15,7 @@ func (cds *crdbDatastore) PreExplainStatements() []string {
 	return nil
 }
 
-func (cds *crdbDatastore) BuildExplainQuery(sql string, args []interface{}) (string, []any, error) {
+func (cds *crdbDatastore) BuildExplainQuery(sql string, args []any) (string, []any, error) {
 	return "EXPLAIN  " + sql, args, nil
 }
 
