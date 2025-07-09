@@ -129,7 +129,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, err
 	}
 
-	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
+	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath, false)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
@@ -143,7 +143,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
 
-	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
+	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath /* disable health check tracing */, false)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}

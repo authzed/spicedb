@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -145,6 +146,33 @@ func requireSpanExists(t *testing.T, spanrecorder *tracetest.SpanRecorder, spanN
 	require.True(t, present, "missing trace for Streaming gRPC call")
 }
 
+func requireSpanExistsInSlice(t *testing.T, spans []trace.ReadOnlySpan, spanName string) {
+	t.Helper()
+
+	var present bool
+	for _, span := range spans {
+		if span.Name() == spanName {
+			present = true
+		}
+	}
+
+	require.True(t, present, "missing trace for span: %s", spanName)
+}
+
+func requireSpanNotExistsInSlice(t *testing.T, spanrecorder *tracetest.SpanRecorder, spanName string) {
+	t.Helper()
+
+	ended := spanrecorder.Ended()
+	var present bool
+	for _, span := range ended {
+		if span.Name() == spanName {
+			present = true
+		}
+	}
+
+	require.False(t, present, "unexpected trace for span: %s", spanName)
+}
+
 func setupSpanRecorder() (*tracetest.SpanRecorder, func()) {
 	defaultProvider := otel.GetTracerProvider()
 
@@ -231,7 +259,7 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, false, "testing", nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultUnaryMiddleware(opt)
@@ -259,7 +287,7 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, false, "testing", nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultStreamingMiddleware(opt)
@@ -366,6 +394,90 @@ func TestSupportOldAndNewReadReplicaConnectionPoolFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.opts.supportOldAndNewReadReplicaConnectionPoolFlags()
 			require.Equal(t, tt.expected, tt.opts.DatastoreConfig.ReadReplicaConnPool)
+		})
+	}
+}
+
+func TestDisableHealthCheckTracing(t *testing.T) {
+	tests := []struct {
+		name                          string
+		disableHealthCheckOTelTracing bool
+		description                   string
+	}{
+		{
+			name:                          "health check tracing disabled",
+			disableHealthCheckOTelTracing: true,
+			description:                   "health check gRPC calls should skip tracing when flag is true",
+		},
+		{
+			name:                          "health check tracing enabled",
+			disableHealthCheckOTelTracing: false,
+			description:                   "health check gRPC calls should be traced when flag is false",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+			spanrecorder, restoreOtel := setupSpanRecorder()
+			defer restoreOtel()
+
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+
+			ds, err := datastore.NewDatastore(ctx,
+				datastore.DefaultDatastoreConfig().ToOption(),
+				datastore.WithRequestHedgingEnabled(false),
+			)
+			require.NoError(t, err)
+
+			configOpts := []ConfigOption{
+				WithGRPCServer(util.GRPCServerConfig{
+					Network: util.BufferedNetwork,
+					Enabled: true,
+				}),
+				WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
+					return ctx, nil
+				}),
+				WithDatastore(ds),
+				WithDisableHealthCheckOTelTracingMiddleware(tt.disableHealthCheckOTelTracing),
+			}
+
+			srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+			require.NoError(t, err)
+
+			conn, err := srv.GRPCDialContext(ctx)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			go func() {
+				require.NoError(t, srv.Run(ctx))
+			}()
+
+			// Test health check gRPC call
+			healthClient := healthpb.NewHealthClient(conn)
+			_, err = healthClient.Check(ctx, &healthpb.HealthCheckRequest{})
+			require.NoError(t, err)
+
+			healthSpans := spanrecorder.Ended()
+			spanrecorder.Reset()
+
+			// Test regular gRPC call
+			schemaSrv := v1.NewSchemaServiceClient(conn)
+			_, err = schemaSrv.WriteSchema(ctx, &v1.WriteSchemaRequest{
+				Schema: `definition user {}`,
+			})
+			require.NoError(t, err)
+
+			regularSpans := spanrecorder.Ended()
+
+			if tt.disableHealthCheckOTelTracing {
+				requireSpanNotExistsInSlice(t, spanrecorder, "grpc.health.v1.Health/Check")
+				requireSpanExistsInSlice(t, regularSpans, "authzed.api.v1.SchemaService/WriteSchema")
+			} else {
+				requireSpanExistsInSlice(t, healthSpans, "grpc.health.v1.Health/Check")
+				requireSpanExistsInSlice(t, regularSpans, "authzed.api.v1.SchemaService/WriteSchema")
+			}
 		})
 	}
 }

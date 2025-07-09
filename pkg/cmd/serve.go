@@ -180,6 +180,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	// NOTE: cobraotel.New takes service name as an arg rather than command name.
 	otel := cobraotel.New("spicedb")
 	otel.RegisterFlags(tracingFlags)
+	tracingFlags.BoolVar(&config.DisableHealthCheckOTelTracingMiddleware, "otel-disable-healthcheck-tracing", false, "disables telemetry tracing for health check API calls to reduce trace volume")
 
 	loggingFlagSet := nfs.FlagSet(BoldBlue("Logging"))
 	loggingFlagSet.BoolVar(&config.EnableRequestLogs, "grpc-log-requests-enabled", false, "enable logging of API request payloads")

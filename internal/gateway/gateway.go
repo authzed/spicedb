@@ -18,12 +18,18 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/stats"
 
 	"github.com/authzed/authzed-go/proto"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
+)
+
+const (
+	healthCheckRoute    = "/grpc.health.v1.Health/Check"
+	healthCheckHTTPPath = "/healthz"
 )
 
 var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -35,14 +41,23 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 // NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream
 // configuration.
-func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (*CloserHandler, error) {
+func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string, disableHealthCheckTracing bool) (*CloserHandler, error) {
 	if upstreamAddr == "" {
 		return nil, fmt.Errorf("upstreamAddr must not be empty")
 	}
 
-	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	var opts []grpc.DialOption
+
+	if disableHealthCheckTracing {
+		opts = append(opts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(
+			otelgrpc.WithFilter(func(info *stats.RPCTagInfo) bool {
+				return info.FullMethodName != healthCheckRoute
+			}),
+		)))
+	} else {
+		opts = append(opts, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
 	}
+
 	if upstreamTLSCertPath == "" {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
@@ -85,7 +100,15 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	}))
 	mux.Handle("/", gwMux)
 
-	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway"))
+	var finalHandler http.Handler
+	if disableHealthCheckTracing {
+		// Only apply tracing to non-health check endpoints
+		finalHandler = promhttp.InstrumentHandlerDuration(histogram,
+			skipHealthCheckTracing(mux, otelhttp.NewHandler(mux, "gateway")))
+	} else {
+		finalHandler = promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway"))
+	}
+
 	return newCloserHandler(finalHandler, schemaConn, permissionsConn, watchConn, healthConn, experimentalConn), nil
 }
 
@@ -141,6 +164,19 @@ func registerHandler(ctx context.Context, mux *runtime.ServeMux, endpoint string
 	}
 
 	return conn, nil
+}
+
+// skipHealthCheckTracing creates an HTTP handler that skips OpenTelemetry tracing for health check endpoints
+func skipHealthCheckTracing(directHandler http.Handler, tracedHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == healthCheckHTTPPath {
+			// Skip tracing for health check endpoints
+			directHandler.ServeHTTP(w, r)
+		} else {
+			// Apply OpenTelemetry tracing for all other endpoints
+			tracedHandler.ServeHTTP(w, r)
+		}
+	})
 }
 
 var defaultOtelOpts = []otelgrpc.Option{

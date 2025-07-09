@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
+	"google.golang.org/grpc/stats"
 
 	"github.com/authzed/consistent"
 	"github.com/authzed/grpcutil"
@@ -137,6 +138,9 @@ type Config struct {
 	// Middleware for internal dispatch API
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor  `debugmap:"hidden"`
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor `debugmap:"hidden"`
+
+	// Observability
+	DisableHealthCheckOTelTracingMiddleware bool `debugmap:"visible"`
 
 	// Telemetry
 	SilentlyDisableTelemetry bool          `debugmap:"visible"`
@@ -400,6 +404,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		c.EnableRequestLogs,
 		c.EnableResponseLogs,
 		c.DisableGRPCLatencyHistogram,
+		c.DisableHealthCheckOTelTracingMiddleware,
 		serverName,
 		nil,
 		nil,
@@ -477,6 +482,14 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
 	closeables.AddWithoutError(grpcServer.GracefulStop)
+	grpcServer = grpcServer.WithOpts(
+		grpc.ChainUnaryInterceptor(unaryMiddleware...),
+		grpc.ChainStreamInterceptor(streamingMiddleware...),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(
+			otelgrpc.WithFilter(func(info *stats.RPCTagInfo) bool {
+				return !c.DisableHealthCheckOTelTracingMiddleware || info.FullMethodName != healthCheckRoute
+			}),
+		)))
 
 	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx)
 	if err != nil {
@@ -528,17 +541,15 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	log.Ctx(ctx).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
 
 	return &completedServerConfig{
-		ds:                  ds,
-		gRPCServer:          grpcServer,
-		dispatchGRPCServer:  dispatchGrpcServer,
-		gatewayServer:       gatewayServer,
-		metricsServer:       metricsServer,
-		unaryMiddleware:     unaryMiddleware,
-		streamingMiddleware: streamingMiddleware,
-		presharedKeys:       c.PresharedSecureKey,
-		telemetryReporter:   reporter,
-		healthManager:       healthManager,
-		closeFunc:           closeables.Close,
+		ds:                 ds,
+		gRPCServer:         grpcServer,
+		dispatchGRPCServer: dispatchGrpcServer,
+		gatewayServer:      gatewayServer,
+		metricsServer:      metricsServer,
+		presharedKeys:      c.PresharedSecureKey,
+		telemetryReporter:  reporter,
+		healthManager:      healthManager,
+		closeFunc:          closeables.Close,
 	}, nil
 }
 
@@ -634,7 +645,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	var gatewayHandler http.Handler
-	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, c.DisableHealthCheckOTelTracingMiddleware)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
@@ -681,10 +692,8 @@ type completedServerConfig struct {
 	telemetryReporter  telemetry.Reporter
 	healthManager      health.Manager
 
-	unaryMiddleware     []grpc.UnaryServerInterceptor
-	streamingMiddleware []grpc.StreamServerInterceptor
-	presharedKeys       []string
-	closeFunc           func() error
+	presharedKeys []string
+	closeFunc     func() error
 }
 
 func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -722,13 +731,8 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		}
 	}
 
-	grpcServer := c.gRPCServer.WithOpts(
-		grpc.ChainUnaryInterceptor(c.unaryMiddleware...),
-		grpc.ChainStreamInterceptor(c.streamingMiddleware...),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()))
-
 	g.Go(c.healthManager.Checker(ctx))
-	g.Go(grpcServer.Listen(ctx))
+	g.Go(c.gRPCServer.Listen(ctx))
 	g.Go(c.dispatchGRPCServer.Listen(ctx))
 	g.Go(c.gatewayServer.ListenAndServe)
 	g.Go(c.metricsServer.ListenAndServe)

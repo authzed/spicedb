@@ -182,14 +182,15 @@ const (
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.middlewareoption.go . MiddlewareOption
 type MiddlewareOption struct {
-	Logger                  zerolog.Logger      `debugmap:"hidden"`
-	AuthFunc                grpcauth.AuthFunc   `debugmap:"hidden"`
-	EnableVersionResponse   bool                `debugmap:"visible"`
-	DispatcherForMiddleware dispatch.Dispatcher `debugmap:"hidden"`
-	EnableRequestLog        bool                `debugmap:"visible"`
-	EnableResponseLog       bool                `debugmap:"visible"`
-	DisableGRPCHistogram    bool                `debugmap:"visible"`
-	MiddlewareServiceLabel  string              `debugmap:"visible"`
+	Logger                        zerolog.Logger      `debugmap:"hidden"`
+	AuthFunc                      grpcauth.AuthFunc   `debugmap:"hidden"`
+	EnableVersionResponse         bool                `debugmap:"visible"`
+	DispatcherForMiddleware       dispatch.Dispatcher `debugmap:"hidden"`
+	EnableRequestLog              bool                `debugmap:"visible"`
+	EnableResponseLog             bool                `debugmap:"visible"`
+	DisableGRPCHistogram          bool                `debugmap:"visible"`
+	DisableHealthCheckOTelTracing bool                `debugmap:"visible"`
+	MiddlewareServiceLabel        string              `debugmap:"visible"`
 
 	unaryDatastoreMiddleware  *ReferenceableMiddleware[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	streamDatastoreMiddleware *ReferenceableMiddleware[grpc.StreamServerInterceptor] `debugmap:"hidden"`
@@ -214,16 +215,17 @@ func (m MiddlewareOption) WithDatastoreMiddleware(middleware Middleware) Middlew
 		Done()
 
 	return MiddlewareOption{
-		Logger:                    m.Logger,
-		AuthFunc:                  m.AuthFunc,
-		EnableVersionResponse:     m.EnableVersionResponse,
-		DispatcherForMiddleware:   m.DispatcherForMiddleware,
-		EnableRequestLog:          m.EnableRequestLog,
-		EnableResponseLog:         m.EnableResponseLog,
-		DisableGRPCHistogram:      m.DisableGRPCHistogram,
-		MiddlewareServiceLabel:    m.MiddlewareServiceLabel,
-		unaryDatastoreMiddleware:  &unary,
-		streamDatastoreMiddleware: &stream,
+		Logger:                        m.Logger,
+		AuthFunc:                      m.AuthFunc,
+		EnableVersionResponse:         m.EnableVersionResponse,
+		DispatcherForMiddleware:       m.DispatcherForMiddleware,
+		EnableRequestLog:              m.EnableRequestLog,
+		EnableResponseLog:             m.EnableResponseLog,
+		DisableGRPCHistogram:          m.DisableGRPCHistogram,
+		DisableHealthCheckOTelTracing: m.DisableHealthCheckOTelTracing,
+		MiddlewareServiceLabel:        m.MiddlewareServiceLabel,
+		unaryDatastoreMiddleware:      &unary,
+		streamDatastoreMiddleware:     &stream,
 	}
 }
 
@@ -241,16 +243,17 @@ func (m MiddlewareOption) WithDatastore(ds datastore.Datastore) MiddlewareOption
 		Done()
 
 	return MiddlewareOption{
-		Logger:                    m.Logger,
-		AuthFunc:                  m.AuthFunc,
-		EnableVersionResponse:     m.EnableVersionResponse,
-		DispatcherForMiddleware:   m.DispatcherForMiddleware,
-		EnableRequestLog:          m.EnableRequestLog,
-		EnableResponseLog:         m.EnableResponseLog,
-		DisableGRPCHistogram:      m.DisableGRPCHistogram,
-		MiddlewareServiceLabel:    m.MiddlewareServiceLabel,
-		unaryDatastoreMiddleware:  &unary,
-		streamDatastoreMiddleware: &stream,
+		Logger:                        m.Logger,
+		AuthFunc:                      m.AuthFunc,
+		EnableVersionResponse:         m.EnableVersionResponse,
+		DispatcherForMiddleware:       m.DispatcherForMiddleware,
+		EnableRequestLog:              m.EnableRequestLog,
+		EnableResponseLog:             m.EnableResponseLog,
+		DisableGRPCHistogram:          m.DisableGRPCHistogram,
+		DisableHealthCheckOTelTracing: m.DisableHealthCheckOTelTracing,
+		MiddlewareServiceLabel:        m.MiddlewareServiceLabel,
+		unaryDatastoreMiddleware:      &unary,
+		streamDatastoreMiddleware:     &stream,
 	}
 }
 
@@ -285,9 +288,20 @@ func doesNotMatchRoute(route string) func(_ context.Context, c interceptors.Call
 	}
 }
 
+func disabledHealthCheckRoute(disableHealthCheckOTelTracing bool) func(_ context.Context, c interceptors.CallMeta) bool {
+	if disableHealthCheckOTelTracing {
+		return doesNotMatchRoute(healthCheckRoute)
+	} else {
+		return func(_ context.Context, c interceptors.CallMeta) bool {
+			return true
+		}
+	}
+}
+
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
 func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
 	grpcMetricsUnaryInterceptor, _ := GRPCMetrics(opts.DisableGRPCHistogram)
+
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -306,7 +320,9 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(otelgrpc.UnaryServerInterceptor()). // nolint: staticcheck
+			WithInterceptor(selector.UnaryServerInterceptor(
+				otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
+				selector.MatchFunc(disabledHealthCheckRoute(opts.DisableHealthCheckOTelTracing)))).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -366,6 +382,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 // DefaultStreamingMiddleware generates the default middleware chain used for the public SpiceDB Streaming gRPC methods
 func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
 	_, grpcMetricsStreamingInterceptor := GRPCMetrics(opts.DisableGRPCHistogram)
+
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -384,7 +401,9 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(otelgrpc.StreamServerInterceptor()). // nolint: staticcheck
+			WithInterceptor(selector.StreamServerInterceptor(
+				otelgrpc.StreamServerInterceptor(), // nolint: staticcheck
+				selector.MatchFunc(disabledHealthCheckRoute(opts.DisableHealthCheckOTelTracing)))).
 			Done(),
 
 		NewStreamMiddleware().

@@ -98,6 +98,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
+		to.DisableHealthCheckOTelTracingMiddleware = c.DisableHealthCheckOTelTracingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
@@ -166,6 +167,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
+	debugMap["DisableHealthCheckOTelTracingMiddleware"] = helpers.DebugValue(c.DisableHealthCheckOTelTracingMiddleware, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
 	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
@@ -672,6 +674,13 @@ func WithDispatchStreamingMiddleware(dispatchStreamingMiddleware grpc.StreamServ
 func SetDispatchStreamingMiddleware(dispatchStreamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
 	return func(c *Config) {
 		c.DispatchStreamingMiddleware = dispatchStreamingMiddleware
+	}
+}
+
+// WithDisableHealthCheckOTelTracingMiddleware returns an option that can set DisableHealthCheckOTelTracingMiddleware on a Config
+func WithDisableHealthCheckOTelTracingMiddleware(disableHealthCheckOTelTracingMiddleware bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableHealthCheckOTelTracingMiddleware = disableHealthCheckOTelTracingMiddleware
 	}
 }
 
