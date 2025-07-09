@@ -184,6 +184,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	otel := cobraotel.New("spicedb")
 	otel.RegisterFlags(observabilityFlags)
 	runtime.RegisterFlags(observabilityFlags)
+	observabilityFlags.BoolVar(&config.DisableHealthCheckOTelTracingMiddleware, "otel-disable-healthcheck-tracing", false, "disables telemetry tracing for health check API calls to reduce trace volume")
 
 	metricsFlags := nfs.FlagSet(BoldBlue("Metrics Server"))
 	// Flags for metrics
