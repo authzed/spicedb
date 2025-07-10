@@ -87,6 +87,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 				MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
 				DispatchChunkSize:               defaultMaxChunkSize,
 				ExpiringRelationshipsEnabled:    true,
+				DeprecatedRelationshipsEnabled:  true,
 				CaveatTypeSet:                   cts,
 			},
 			1*time.Second,

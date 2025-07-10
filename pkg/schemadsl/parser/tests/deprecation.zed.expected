@@ -1,0 +1,63 @@
+NodeTypeFile
+  end-rune = 169
+  input-source = deprecated relation test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 14
+      input-source = deprecated relation test
+      start-rune = 0
+      use-flag-name = deprecation
+    NodeTypeDefinition
+      definition-name = deprecated_relation
+      end-rune = 149
+      input-source = deprecated relation test
+      start-rune = 17
+      child-node =>
+        NodeTypeDeprecation
+          deprecated-relation-value = warn
+          end-rune = 71
+          input-source = deprecated relation test
+          start-rune = 55
+        NodeTypeRelation
+          end-rune = 97
+          input-source = deprecated relation test
+          relation-name = writer
+          start-rune = 77
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 97
+              input-source = deprecated relation test
+              start-rune = 94
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 97
+                  input-source = deprecated relation test
+                  start-rune = 94
+                  type-name = user
+        NodeTypeDeprecation
+          deprecated-relation-value = error
+          end-rune = 121
+          input-source = deprecated relation test
+          start-rune = 104
+        NodeTypeRelation
+          end-rune = 147
+          input-source = deprecated relation test
+          relation-name = reader
+          start-rune = 127
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 147
+              input-source = deprecated relation test
+              start-rune = 144
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 147
+                  input-source = deprecated relation test
+                  start-rune = 144
+                  type-name = user
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 169
+      input-source = deprecated relation test
+      start-rune = 152

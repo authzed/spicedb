@@ -308,6 +308,9 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		// relation ...
 		// permission ...
 		switch {
+		case p.isToken(lexer.TokenTypeAt):
+			defNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
+
 		case p.isKeyword("relation"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumeRelation())
 
@@ -320,7 +323,6 @@ func (p *sourceParser) consumeDefinition() AstNode {
 			break
 		}
 	}
-
 	return defNode
 }
 
@@ -349,6 +351,36 @@ func (p *sourceParser) consumeRelation() AstNode {
 	relNode.Connect(dslshape.NodeRelationPredicateAllowedTypes, p.consumeTypeReference())
 
 	return relNode
+}
+
+func (p *sourceParser) consumeDeprecation() AstNode {
+	depNode := p.startNode(dslshape.NodeTypeDeprecation)
+	defer p.mustFinishNode()
+
+	p.consume(lexer.TokenTypeAt)
+
+	ok := p.consumeKeyword("deprecated")
+	if !ok {
+		return depNode
+	}
+
+	_, ok = p.consume(lexer.TokenTypeLeftParen)
+	if !ok {
+		return depNode
+	}
+
+	deprecationType, ok := p.consumeIdentifier()
+	if !ok {
+		return depNode
+	}
+	depNode.MustDecorate(dslshape.NodeDeprecatedPredicateName, deprecationType)
+
+	_, ok = p.consume(lexer.TokenTypeRightParen)
+	if !ok {
+		return depNode
+	}
+
+	return depNode
 }
 
 // consumeTypeReference consumes a reference to a type or types of relations.

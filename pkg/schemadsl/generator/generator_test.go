@@ -395,6 +395,38 @@ definition document {
 	relation viewer: user
 }`,
 		},
+		{
+			"deprecation test",
+			`use deprecation
+
+			definition document {
+
+				@deprecated(warn)
+				relation viewer: user
+				
+				@deprecated(error)
+				relation editor: user
+			}`,
+			`use deprecation
+
+definition document {
+	@deprecated(warn)
+	relation viewer: user
+	@deprecated(error)
+	relation editor: user
+}`,
+		},
+		{
+			"unused deprecation flag",
+			`use deprecation
+			
+			definition document{
+				relation viewer: user
+		}`,
+			`definition document {
+	relation viewer: user
+}`,
+		},
 	}
 
 	for _, test := range tests {

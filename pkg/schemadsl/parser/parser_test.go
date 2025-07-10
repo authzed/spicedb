@@ -142,6 +142,8 @@ func TestParser(t *testing.T) {
 		{"permission type annotation double colon test", "permission_type_annotation_double_colon"},
 		{"permission type annotation newline after colon test", "permission_type_annotation_newline_after_colon"},
 		{"permission type annotation just pipe test", "permission_type_annotation_just_pipe"},
+		{"deprecated relation test", "deprecation"},
+		{"invalid deprecated relation test", "invalid-deprecation"},
 	}
 
 	for _, test := range parserTests {
