@@ -17,6 +17,12 @@ func TestGetSourceRepository(t *testing.T) {
 }
 
 func TestGetLatestRelease(t *testing.T) {
+	t.Run("creates default http client", func(t *testing.T) {
+		release, err := getLatestReleaseWithClient(t.Context(), nil)
+		require.NoError(t, err)
+		require.NotNil(t, release)
+	})
+
 	t.Run("successful release fetch", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, "/repos/authzed/spicedb/releases/latest", r.URL.Path)
