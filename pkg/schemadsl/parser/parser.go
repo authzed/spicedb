@@ -311,13 +311,15 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		case p.isToken(lexer.TokenTypeAt):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
 
+		case p.isToken(lexer.TokenTypeAt):
+			defNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
+
 		case p.isKeyword("relation"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumeRelation())
 
 		case p.isKeyword("permission"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumePermission())
 		}
-
 		ok := p.consumeStatementTerminator()
 		if !ok {
 			break

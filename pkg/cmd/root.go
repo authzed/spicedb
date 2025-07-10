@@ -36,7 +36,7 @@ func NewRootCommand(programName string) *cobra.Command {
 	return &cobra.Command{
 		Use:           programName,
 		Short:         "A modern permissions database",
-		Long:          "A database that stores, computes, and validates application permissions",
+		Long:          "A database that stores and computes permissions",
 		Example:       server.ServeExample(programName),
 		SilenceErrors: true,
 		SilenceUsage:  true,

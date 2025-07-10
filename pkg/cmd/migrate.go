@@ -159,7 +159,7 @@ func RegisterHeadFlags(cmd *cobra.Command) {
 func NewHeadCommand(programName string) *cobra.Command {
 	return &cobra.Command{
 		Use:     "head",
-		Short:   "compute the head database migration revision",
+		Short:   "compute the head (latest) database migration revision available",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			headRevision, err := HeadRevision(cobrautil.MustGetStringExpanded(cmd, "datastore-engine"))
