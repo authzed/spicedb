@@ -2,7 +2,9 @@ package crdb
 
 import (
 	"context"
+	"maps"
 	"net"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -10,7 +12,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -75,7 +76,7 @@ type testServer struct {
 }
 
 func (t testServer) Ping(ctx context.Context, _ *testpb.PingRequest) (*testpb.PingResponse, error) {
-	keys := maps.Keys(overlapKeysFromContext(ctx))
+	keys := slices.Collect(maps.Keys(overlapKeysFromContext(ctx)))
 	sort.Strings(keys)
 	return &testpb.PingResponse{Value: strings.Join(keys, ",")}, nil
 }

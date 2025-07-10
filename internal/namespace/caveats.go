@@ -2,8 +2,8 @@ package namespace
 
 import (
 	"fmt"
-
-	"golang.org/x/exp/maps"
+	"maps"
+	"slices"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -41,7 +41,7 @@ func ValidateCaveatDefinition(ts *caveattypes.TypeSet, caveat *core.CaveatDefini
 		)
 	}
 
-	referencedNames, err := deserialized.ReferencedParameters(maps.Keys(caveat.ParameterTypes))
+	referencedNames, err := deserialized.ReferencedParameters(slices.Collect(maps.Keys(caveat.ParameterTypes)))
 	if err != nil {
 		return err
 	}

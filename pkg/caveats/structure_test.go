@@ -1,11 +1,12 @@
 package caveats
 
 import (
+	"maps"
+	"slices"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 )
@@ -95,7 +96,7 @@ func TestReferencedParameters(t *testing.T) {
 
 			sort.Strings(tc.referencedParamNames)
 
-			found, err := compiled.ReferencedParameters(maps.Keys(tc.env.variables))
+			found, err := compiled.ReferencedParameters(slices.Collect(maps.Keys(tc.env.variables)))
 			require.NoError(t, err)
 
 			foundSlice := found.AsSlice()

@@ -16,6 +16,6 @@ func DebugAssertNotNil(obj any, format string, args ...any) {
 }
 
 // SetFinalizerForDebugging is a no-op in non-CI builds
-func SetFinalizerForDebugging[T any](obj interface{}, finalizer func(obj T)) {
+func SetFinalizerForDebugging[T any](obj any, finalizer func(obj T)) {
 	// Do nothing on purpose
 }

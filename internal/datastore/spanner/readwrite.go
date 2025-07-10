@@ -1,13 +1,13 @@
 package spanner
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast"
-	"github.com/jzelinskie/stringz"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -282,7 +282,7 @@ func deleteWithFilterAndNoLimit(ctx context.Context, rwt *spanner.ReadWriteTrans
 }
 
 type builder[T any] interface {
-	Where(pred interface{}, args ...interface{}) T
+	Where(pred any, args ...any) T
 }
 
 func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) (T, error) {
@@ -311,7 +311,7 @@ func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) (T
 			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+			query = query.Where(sq.Eq{colUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
 		}
 	}
 

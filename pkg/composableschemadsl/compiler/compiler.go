@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
-	"k8s.io/utils/strings/slices"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/parser"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -90,7 +90,7 @@ const expirationFlag = "expiration"
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
-		cfg.allowedFlags = slices.Filter([]string{}, cfg.allowedFlags, func(s string) bool {
+		cfg.allowedFlags = slicez.Filter(cfg.allowedFlags, func(s string) bool {
 			return s != expirationFlag
 		})
 	}

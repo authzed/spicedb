@@ -45,7 +45,6 @@ var Flags = map[string]transformer{
 
 		return lexeme, false
 	},
-
 	FlagDeprecation: func(lexeme Lexeme) (Lexeme, bool) {
 		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "deprecation" {
 			lexeme.Kind = TokenTypeKeyword
@@ -54,7 +53,6 @@ var Flags = map[string]transformer{
 
 		return lexeme, false
 	},
-
 	FlagTypeChecking: func(lexeme Lexeme) (Lexeme, bool) {
 		// `typechecking` becomes a keyword.
 		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "typechecking" {

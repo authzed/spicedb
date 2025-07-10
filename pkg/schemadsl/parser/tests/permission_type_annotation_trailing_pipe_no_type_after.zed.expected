@@ -1,0 +1,62 @@
+NodeTypeFile
+  end-rune = 83
+  input-source = permission type annotation trailing pipe no type after test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = mydefinition
+      end-rune = 83
+      input-source = permission type annotation trailing pipe no type after test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 47
+          input-source = permission type annotation trailing pipe no type after test
+          relation-name = viewer
+          start-rune = 27
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 47
+              input-source = permission type annotation trailing pipe no type after test
+              start-rune = 44
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 47
+                  input-source = permission type annotation trailing pipe no type after test
+                  start-rune = 44
+                  type-name = user
+        NodeTypePermission
+          end-rune = 81
+          input-source = permission type annotation trailing pipe no type after test
+          relation-name = view
+          start-rune = 50
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 81
+              identifier-value = viewer
+              input-source = permission type annotation trailing pipe no type after test
+              start-rune = 76
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 72
+              input-source = permission type annotation trailing pipe no type after test
+              start-rune = 67
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 70
+                  identifier-value = user
+                  input-source = permission type annotation trailing pipe no type after test
+                  start-rune = 72
+              child-node =>
+                NodeTypeError
+                  end-rune = 72
+                  error-message = Expected identifier, found token TokenTypeEquals
+                  error-source = =
+                  input-source = permission type annotation trailing pipe no type after test
+                  start-rune = 74
+                NodeTypeError
+                  end-rune = 72
+                  error-message = Expected type identifier after '|' in type annotation
+                  error-source = =
+                  input-source = permission type annotation trailing pipe no type after test
+                  start-rune = 74

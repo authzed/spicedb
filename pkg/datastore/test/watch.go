@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -165,8 +164,8 @@ func VerifyUpdates(
 			expectedChangeSet := setOfChanges(expected)
 			actualChangeSet := setOfChanges(change.RelationshipChanges)
 
-			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
-			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
+			missingExpected := expectedChangeSet.Difference(actualChangeSet)
+			unexpected := actualChangeSet.Difference(expectedChangeSet)
 
 			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
 			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
@@ -207,8 +206,8 @@ func VerifyUpdatesWithMetadata(
 			expectedChangeSet := setOfChanges(expected.updates)
 			actualChangeSet := setOfChanges(change.RelationshipChanges)
 
-			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
-			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
+			missingExpected := expectedChangeSet.Difference(actualChangeSet)
+			unexpected := actualChangeSet.Difference(expectedChangeSet)
 
 			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
 			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
@@ -224,8 +223,8 @@ func VerifyUpdatesWithMetadata(
 	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }
 
-func setOfChanges(changes []tuple.RelationshipUpdate) *strset.Set {
-	changeSet := strset.NewWithSize(len(changes))
+func setOfChanges(changes []tuple.RelationshipUpdate) *mapz.Set[string] {
+	changeSet := mapz.NewSet[string]()
 	for _, change := range changes {
 		changeSet.Add(change.DebugString())
 	}

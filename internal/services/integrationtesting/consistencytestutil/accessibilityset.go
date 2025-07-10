@@ -1,10 +1,11 @@
 package consistencytestutil
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/developmentmembership"
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -303,7 +304,7 @@ func (as *AccessibilitySet) SubjectTypes() []tuple.RelationReference {
 	for _, subject := range as.SubjectsByNamespace.Values() {
 		subjectTypes[tuple.StringRR(subject.RelationReference())] = subject.RelationReference()
 	}
-	return maps.Values(subjectTypes)
+	return slices.Collect(maps.Values(subjectTypes))
 }
 
 // AllSubjectsNoWildcards returns all *defined*, non-wildcard subjects found.

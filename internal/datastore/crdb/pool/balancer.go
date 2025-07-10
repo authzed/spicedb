@@ -3,6 +3,7 @@ package pool
 import (
 	"context"
 	"hash/maphash"
+	"maps"
 	"math"
 	"math/rand"
 	"slices"
@@ -13,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/semaphore"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -186,7 +186,7 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 	}
 	p.healthTracker.RUnlock()
 
-	nodes := maps.Keys(connectionCounts)
+	nodes := slices.Collect(maps.Keys(connectionCounts))
 	slices.Sort(nodes)
 
 	// Shuffle nodes in place deterministically based on the initial seed.

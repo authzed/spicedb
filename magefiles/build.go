@@ -9,10 +9,22 @@ import (
 
 type Build mg.Namespace
 
+// Binary builds the binary
+func (Build) Binary() error {
+	return sh.RunWithV(
+		map[string]string{},
+		"go", "build",
+		"-o", "./dist",
+		"./cmd/spicedb/main.go",
+	)
+}
+
 // Wasm Build the wasm bundle
 func (Build) Wasm() error {
 	return sh.RunWithV(map[string]string{"GOOS": "js", "GOARCH": "wasm"},
-		"go", "build", "-o", "dist/development.wasm", "./pkg/development/wasm/...")
+		// -s: Omit the symbol table.
+		// -w: Omit the DWARF debugging information.
+		"go", "build", "-ldflags=-s -w", "-o", "dist/development.wasm", "./pkg/development/wasm/...")
 }
 
 // Testimage Build the spicedb image for tests

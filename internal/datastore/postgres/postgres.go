@@ -8,7 +8,6 @@ import (
 	"math/rand/v2"
 	"os"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -92,7 +91,7 @@ var (
 )
 
 type sqlFilter interface {
-	ToSql() (string, []interface{}, error)
+	ToSql() (string, []any, error)
 }
 
 // NewPostgresDatastore initializes a SpiceDB datastore that uses a PostgreSQL
@@ -142,14 +141,14 @@ func newPostgresDatastore(
 	}
 
 	// Parse the DB URI into configuration.
-	parsedConfig, err := pgxpool.ParseConfig(pgURL)
+	pgConfig, err := pgxpool.ParseConfig(pgURL)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
 	// Setup the default custom plan setting, if applicable.
 	// Setup the default query execution mode setting, if applicable.
-	pgConfig := DefaultQueryExecMode(parsedConfig)
+	pgxcommon.ConfigureDefaultQueryExecMode(pgConfig.ConnConfig)
 
 	// Setup the credentials provider
 	var credentialsProvider datastore.CredentialsProvider
@@ -818,27 +817,6 @@ func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer
 
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 	return original.Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
-}
-
-// DefaultQueryExecMode parses a Postgres URI and determines if a default_query_exec_mode
-// has been specified. If not, it defaults to "exec".
-// SpiceDB queries have high variability of arguments and rarely benefit from using prepared statements.
-// The default and recommended query exec mode is 'exec', which has shown the best performance under various
-// synthetic workloads. See more in https://spicedb.dev/d/query-exec-mode.
-//
-// The docs for the different execution modes offered by pgx may be found
-// here: https://pkg.go.dev/github.com/jackc/pgx/v5#QueryExecMode
-func DefaultQueryExecMode(poolConfig *pgxpool.Config) *pgxpool.Config {
-	if !strings.Contains(poolConfig.ConnString(), "default_query_exec_mode") {
-		// the execution mode was not overridden by the user
-		poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
-		return poolConfig
-	}
-
-	log.Info().
-		Str("details-url", "https://spicedb.dev/d/query-exec-mode").
-		Msg("found default_query_exec_mode in DB URI; leaving as-is")
-	return poolConfig
 }
 
 var _ datastore.Datastore = &pgDatastore{}

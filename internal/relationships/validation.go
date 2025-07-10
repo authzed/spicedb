@@ -3,13 +3,12 @@ package relationships
 import (
 	"context"
 
-	"github.com/samber/lo"
-
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema"
@@ -25,7 +24,7 @@ func ValidateRelationshipUpdates(
 	caveatTypeSet *caveattypes.TypeSet,
 	updates []tuple.RelationshipUpdate,
 ) error {
-	rels := lo.Map(updates, func(item tuple.RelationshipUpdate, _ int) tuple.Relationship {
+	rels := slicez.Map(updates, func(item tuple.RelationshipUpdate) tuple.Relationship {
 		return item.Relationship
 	})
 

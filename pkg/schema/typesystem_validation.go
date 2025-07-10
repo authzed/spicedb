@@ -3,6 +3,7 @@ package schema
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/graph"
@@ -35,9 +36,25 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 
 func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, error) {
 	for _, relation := range def.relationMap {
-		relation := relation
+		// Validate type annotations first.
+		// If there's type annotation metadata, the annotated terminal types are a superset of the reachable ones.
+		if annotations := nspkg.GetTypeAnnotations(relation); len(annotations) != 0 {
+			tset, err := def.ts.GetRecursiveTerminalTypesForRelation(ctx, def.nsDef.GetName(), relation.GetName())
+			if err != nil {
+				return nil, err
+			}
+			for _, typ := range tset {
+				if !slices.Contains(annotations, typ) {
+					return nil, NewTypeWithSourceError(
+						fmt.Errorf("incomplete type annotation on relation `%s` in definition `%s`: `%s` found as reachable type, but not contained in provided set %v", relation.GetName(), def.nsDef.GetName(), typ, backtickNames(annotations)),
+						relation,
+						relation.GetName(),
+					)
+				}
+			}
+		}
 
-		// Validate the usersets's.
+		// Validate the usersets.
 		usersetRewrite := relation.GetUsersetRewrite()
 		rerr, err := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) (any, error) {
 			switch child := childOneof.ChildType.(type) {

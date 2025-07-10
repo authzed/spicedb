@@ -9,6 +9,8 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
+const letCockroachDBDecide = ""
+
 func TestIndexForFilter(t *testing.T) {
 	tests := []struct {
 		name                     string
@@ -19,14 +21,14 @@ func TestIndexForFilter(t *testing.T) {
 		{
 			name:                     "no filter",
 			filter:                   datastore.RelationshipsFilter{},
-			expectedWithoutIntegrity: "",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name:                     "filter by resource type",
 			filter:                   datastore.RelationshipsFilter{OptionalResourceType: "foo"},
 			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithIntegrity:    "ix_relation_tuple_with_integrity",
 		},
 		{
 			name: "filter by resource type and relation",
@@ -34,8 +36,8 @@ func TestIndexForFilter(t *testing.T) {
 				OptionalResourceType:     "foo",
 				OptionalResourceRelation: "bar",
 			},
-			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource type, resource ID and relation",
@@ -45,7 +47,7 @@ func TestIndexForFilter(t *testing.T) {
 				OptionalResourceRelation: "bar",
 			},
 			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithIntegrity:    "ix_relation_tuple_with_integrity",
 		},
 		{
 			name: "filter by subject type, subject ID and relation",
@@ -61,7 +63,7 @@ func TestIndexForFilter(t *testing.T) {
 				},
 			},
 			expectedWithoutIntegrity: "ix_relation_tuple_by_subject",
-			expectedWithIntegrity:    "",
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by subject type, subject ID",
@@ -74,7 +76,7 @@ func TestIndexForFilter(t *testing.T) {
 				},
 			},
 			expectedWithoutIntegrity: "ix_relation_tuple_by_subject",
-			expectedWithIntegrity:    "",
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by subject relation, subject ID",
@@ -88,8 +90,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "ix_relation_tuple_by_subject",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by subject type",
@@ -100,8 +102,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: "ix_relation_tuple_by_subject_relation",
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource type and subject type",
@@ -113,8 +115,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource type and subject object ID",
@@ -126,8 +128,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource type, relation and subject type and relation",
@@ -144,7 +146,7 @@ func TestIndexForFilter(t *testing.T) {
 				},
 			},
 			expectedWithoutIntegrity: "ix_relation_tuple_by_subject_relation",
-			expectedWithIntegrity:    "ix_relation_tuple_by_subject_relation",
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource type, relation and subject type",
@@ -157,8 +159,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource type, relation and subject relation",
@@ -173,8 +175,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource relation and subject type and relation",
@@ -189,8 +191,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource type, relation and subject type and relation, include ellipsis",
@@ -207,8 +209,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithoutIntegrity: "ix_relation_tuple_by_subject_relation",
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "filter by resource type and ID prefix",
@@ -217,7 +219,7 @@ func TestIndexForFilter(t *testing.T) {
 				OptionalResourceIDPrefix: "prefix",
 			},
 			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithIntegrity:    "ix_relation_tuple_with_integrity",
 		},
 		{
 			name: "filter by resource type, ID prefix and relation",
@@ -226,8 +228,8 @@ func TestIndexForFilter(t *testing.T) {
 				OptionalResourceIDPrefix: "prefix",
 				OptionalResourceRelation: "bar",
 			},
-			expectedWithoutIntegrity: "",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "multiple subject selectors with different depths",
@@ -245,8 +247,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "multiple subject selectors with same depth",
@@ -263,7 +265,7 @@ func TestIndexForFilter(t *testing.T) {
 				},
 			},
 			expectedWithoutIntegrity: "ix_relation_tuple_by_subject",
-			expectedWithIntegrity:    "",
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "multiple subject selectors with resource filter",
@@ -279,8 +281,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "subject IDs without subject type",
@@ -294,8 +296,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "ix_relation_tuple_by_subject",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "schema diff index with only non-ellipsis relations",
@@ -313,8 +315,8 @@ func TestIndexForFilter(t *testing.T) {
 					},
 				},
 			},
-			expectedWithoutIntegrity: "pk_relation_tuple",
-			expectedWithIntegrity:    "pk_relation_tuple",
+			expectedWithoutIntegrity: "ix_relation_tuple_by_subject_relation",
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 		{
 			name: "empty subject selector",
@@ -323,8 +325,66 @@ func TestIndexForFilter(t *testing.T) {
 					{},
 				},
 			},
-			expectedWithoutIntegrity: "",
-			expectedWithIntegrity:    "",
+			expectedWithoutIntegrity: letCockroachDBDecide,
+			expectedWithIntegrity:    letCockroachDBDecide,
+		},
+		{
+			name: "IndexRelationshipBySubjectRelation with ellipsis for subject relation",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "foo",
+				OptionalResourceRelation: "bar",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+						RelationFilter: datastore.SubjectRelationFilter{
+							IncludeEllipsisRelation: true,
+						},
+					},
+				},
+			},
+			expectedWithoutIntegrity: "ix_relation_tuple_by_subject_relation",
+			expectedWithIntegrity:    letCockroachDBDecide,
+		},
+		{
+			name: "IndexRelationshipBySubjectRelation with ellipsis and other relation for subject relation",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "foo",
+				OptionalResourceRelation: "bar",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation:     "baz",
+							IncludeEllipsisRelation: true,
+						},
+					},
+				},
+			},
+			expectedWithoutIntegrity: "ix_relation_tuple_by_subject_relation",
+			expectedWithIntegrity:    letCockroachDBDecide,
+		},
+		{
+			name: "IndexRelationshipBySubjectRelation with ellipsis and other relation as distinct filters on subject relation",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "foo",
+				OptionalResourceRelation: "bar",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+						RelationFilter: datastore.SubjectRelationFilter{
+							IncludeEllipsisRelation: true,
+						},
+					},
+					{
+						OptionalSubjectType: "foo2",
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: "baz",
+						},
+					},
+				},
+			},
+			expectedWithoutIntegrity: "ix_relation_tuple_by_subject_relation",
+			expectedWithIntegrity:    letCockroachDBDecide,
 		},
 	}
 
@@ -337,7 +397,9 @@ func TestIndexForFilter(t *testing.T) {
 		schema := Schema(common.ColumnOptimizationOptionNone, withIntegrity, false)
 		for _, test := range tests {
 			t.Run(test.name+integritySuffix, func(t *testing.T) {
-				index := IndexForFilter(*schema, test.filter)
+				index, err := IndexForFilter(*schema, test.filter)
+				require.NoError(t, err)
+
 				expected := test.expectedWithoutIntegrity
 				if withIntegrity {
 					expected = test.expectedWithIntegrity

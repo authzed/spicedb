@@ -913,6 +913,106 @@ var _ interface {
 	ErrorName() string
 } = DocCommentValidationError{}
 
+// Validate checks the field values on TypeAnnotations with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *TypeAnnotations) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on TypeAnnotations with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// TypeAnnotationsMultiError, or nil if none found.
+func (m *TypeAnnotations) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *TypeAnnotations) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return TypeAnnotationsMultiError(errors)
+	}
+
+	return nil
+}
+
+// TypeAnnotationsMultiError is an error wrapping multiple validation errors
+// returned by TypeAnnotations.ValidateAll() if the designated constraints
+// aren't met.
+type TypeAnnotationsMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m TypeAnnotationsMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m TypeAnnotationsMultiError) AllErrors() []error { return m }
+
+// TypeAnnotationsValidationError is the validation error returned by
+// TypeAnnotations.Validate if the designated constraints aren't met.
+type TypeAnnotationsValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e TypeAnnotationsValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e TypeAnnotationsValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e TypeAnnotationsValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e TypeAnnotationsValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e TypeAnnotationsValidationError) ErrorName() string { return "TypeAnnotationsValidationError" }
+
+// Error satisfies the builtin error interface
+func (e TypeAnnotationsValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sTypeAnnotations.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = TypeAnnotationsValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = TypeAnnotationsValidationError{}
+
 // Validate checks the field values on RelationMetadata with the rules defined
 // in the proto definition for this message. If any rules are violated, the
 // first error encountered is returned, or nil if there are no violations.
@@ -936,6 +1036,35 @@ func (m *RelationMetadata) validate(all bool) error {
 	var errors []error
 
 	// no validation rules for Kind
+
+	if all {
+		switch v := interface{}(m.GetTypeAnnotations()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RelationMetadataValidationError{
+					field:  "TypeAnnotations",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RelationMetadataValidationError{
+					field:  "TypeAnnotations",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTypeAnnotations()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RelationMetadataValidationError{
+				field:  "TypeAnnotations",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return RelationMetadataMultiError(errors)

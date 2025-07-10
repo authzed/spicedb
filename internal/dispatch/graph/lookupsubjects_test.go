@@ -906,18 +906,18 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				{
 					SubjectId: "tom",
 					CaveatExpression: caveatAnd(
-						caveatAndCtx("caveat1", map[string]interface{}{"someparam1": 42}),
-						caveatAndCtx("caveat2", map[string]interface{}{"someparam2": 43}),
+						caveatAndCtx("caveat1", map[string]any{"someparam1": 42}),
+						caveatAndCtx("caveat2", map[string]any{"someparam2": 43}),
 					),
 				},
 				{
 					SubjectId: "fred",
 					CaveatExpression: caveatAnd(
 						caveatAnd(
-							caveatAndCtx("caveat1", map[string]interface{}{"someparam1": 42}),
-							caveatAndCtx("caveat2", map[string]interface{}{"someparam2": 43}),
+							caveatAndCtx("caveat1", map[string]any{"someparam1": 42}),
+							caveatAndCtx("caveat2", map[string]any{"someparam2": 43}),
 						),
-						caveatAndCtx("anothercaveat", map[string]interface{}{"anotherparam": 43}),
+						caveatAndCtx("anothercaveat", map[string]any{"anotherparam": 43}),
 					),
 				},
 			},

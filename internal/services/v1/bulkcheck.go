@@ -1,12 +1,12 @@
 package v1
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"sync"
 	"time"
 
-	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -260,7 +260,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 						},
 						{
 							NamespaceName: group.params.Subject.ObjectType,
-							RelationName:  stringz.DefaultEmpty(group.params.Subject.Relation, graph.Ellipsis),
+							RelationName:  cmp.Or(group.params.Subject.Relation, graph.Ellipsis),
 							AllowEllipsis: true,
 						},
 					}, ds)

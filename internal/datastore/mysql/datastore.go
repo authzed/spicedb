@@ -92,7 +92,7 @@ func init() {
 }
 
 type sqlFilter interface {
-	ToSql() (string, []interface{}, error)
+	ToSql() (string, []any, error)
 }
 
 // NewMySQLDatastore creates a new mysql.Datastore value configured with the MySQL instance
@@ -446,7 +446,7 @@ func isErrorRetryable(err error) bool {
 }
 
 type querier interface {
-	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
 type asQueryableTx struct {

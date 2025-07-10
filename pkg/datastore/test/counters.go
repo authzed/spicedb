@@ -206,6 +206,48 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	require.Contains(t, err.Error(), "counter with name `document` not found")
 }
 
+func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+
+	// Register the filter.
+	updatedRev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		err := tx.RegisterCounter(ctx, "somefilter", &core.RelationshipFilter{
+			ResourceType: testfixtures.DocumentNS.Name,
+			OptionalSubjectFilter: &core.SubjectFilter{
+				SubjectType: testfixtures.UserNS.Name,
+			},
+		})
+		require.NoError(t, err)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Check the count using the filter.
+	reader := ds.SnapshotReader(updatedRev)
+
+	expectedCount := 0
+	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
+		OptionalResourceType: testfixtures.DocumentNS.Name,
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: testfixtures.UserNS.Name,
+			},
+		},
+	}, options.WithQueryShape(queryshape.Varying))
+	require.NoError(t, err)
+
+	for _, err := range iter {
+		expectedCount++
+		require.NoError(t, err)
+	}
+
+	count, err := reader.CountRelationships(t.Context(), "somefilter")
+	require.NoError(t, err)
+	require.Equal(t, expectedCount, count)
+}
+
 func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)

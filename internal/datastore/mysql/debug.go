@@ -25,7 +25,7 @@ func (mds *Datastore) PreExplainStatements() []string {
 	}
 }
 
-func (mds *Datastore) BuildExplainQuery(sql string, args []interface{}) (string, []any, error) {
+func (mds *Datastore) BuildExplainQuery(sql string, args []any) (string, []any, error) {
 	return "EXPLAIN FORMAT=JSON " + sql, args, nil
 }
 

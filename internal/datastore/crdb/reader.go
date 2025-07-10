@@ -101,8 +101,17 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 		return 0, err
 	}
 
-	index := schema.IndexForFilter(cr.schema, relFilter)
-	query := cr.addFromToQuery(countRels, cr.schema.RelationshipTableName, index.Name)
+	index, err := schema.IndexForFilter(cr.schema, relFilter)
+	if err != nil {
+		return 0, err
+	}
+
+	indexName := ""
+	if index != nil {
+		indexName = index.Name
+	}
+
+	query := cr.addFromToQuery(countRels, cr.schema.RelationshipTableName, indexName)
 	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(cr.schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err

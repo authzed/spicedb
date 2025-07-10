@@ -32,7 +32,7 @@ type SnapshotCodec struct {
 	pgtype.TextCodec
 }
 
-func (SnapshotCodec) DecodeValue(tm *pgtype.Map, oid uint32, format int16, src []byte) (interface{}, error) {
+func (SnapshotCodec) DecodeValue(tm *pgtype.Map, oid uint32, format int16, src []byte) (any, error) {
 	if src == nil {
 		return nil, nil
 	}

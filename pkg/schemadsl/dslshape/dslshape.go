@@ -18,8 +18,9 @@ const (
 	NodeTypeCaveatParameter  // A caveat parameter.
 	NodeTypeCaveatExpression // A caveat expression.
 
-	NodeTypeRelation   // A relation
-	NodeTypePermission // A permission
+	NodeTypeRelation       // A relation
+	NodeTypePermission     // A permission
+	NodeTypeTypeAnnotation // A type annotation for permissions
 
 	NodeTypeDeprecation           // A deprecated relation.
 	NodeTypeTypeReference         // A type reference
@@ -185,8 +186,18 @@ const (
 	// NodeTypePermission
 	//
 
+	// The type annotations for the permission.
+	NodePermissionPredicateTypeAnnotations = "type-annotations"
+
 	// The expression to compute the permission.
 	NodePermissionPredicateComputeExpression = "compute-expression"
+
+	//
+	// NodeTypeTypeAnnotation
+	//
+
+	// The type names in the type annotation.
+	NodeTypeAnnotationPredicateTypes = "annotation-types"
 
 	//
 	// NodeTypeArrowExpression
