@@ -62,6 +62,8 @@ func TestServerGracefulTermination(t *testing.T) {
 
 func TestOTelReporting(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	spanrecorder, restoreOtel := setupSpanRecorder()
+	defer restoreOtel()
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
@@ -102,9 +104,6 @@ func TestOTelReporting(t *testing.T) {
 	go func() {
 		require.NoError(t, srv.Run(ctx))
 	}()
-
-	spanrecorder, restoreOtel := setupSpanRecorder()
-	defer restoreOtel()
 
 	// test unary OTel middleware
 	_, err = schemaSrv.WriteSchema(ctx, &v1.WriteSchemaRequest{
