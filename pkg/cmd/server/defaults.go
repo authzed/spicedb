@@ -54,12 +54,14 @@ func ServeExample(programName string) string {
 		%[3]s serve --grpc-preshared-key "somerandomkeyhere"
 
 	%[2]s:
-		%[3]s serve --grpc-preshared-key "realkeyhere" --grpc-tls-cert-path path/to/tls/cert --grpc-tls-key-path path/to/tls/key \
-			--http-tls-cert-path path/to/tls/cert --http-tls-key-path path/to/tls/key \
-			--datastore-engine postgres --datastore-conn-uri "postgres-connection-string-here"
+		%[3]s serve --grpc-preshared-key "realkeyhere" \
+		--grpc-tls-cert-path path/to/tls/cert --grpc-tls-key-path path/to/tls/key \
+		--http-enabled http-tls-cert-path path/to/tls/cert --http-tls-key-path path/to/tls/key \
+		--datastore-engine postgres \
+		--datastore-conn-uri "postgres-connection-string-here"
 `,
-		color.YellowString("No TLS and in-memory"),
-		color.GreenString("TLS and a real datastore"),
+		color.YellowString("No TLS and in-memory datastore"),
+		color.GreenString("TLS and HTTP enabled, and a real datastore"),
 		programName,
 	)
 }
