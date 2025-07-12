@@ -33,6 +33,16 @@ func TestPopulateFromFiles(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:      "using schemafile",
+			filePaths: []string{"testdata/loader_using_schemafile.yaml"},
+			want: []string{
+				"example/project:pied_piper#owner@example/user:milburga",
+				"example/project:pied_piper#reader@example/user:tarben",
+				"example/project:pied_piper#writer@example/user:freyja",
+			},
+			expectedError: "",
+		},
+		{
 			name:      "with comment",
 			filePaths: []string{"testdata/loader_with_comment.yaml"},
 			want: []string{
@@ -73,6 +83,12 @@ func TestPopulateFromFiles(t *testing.T) {
 			filePaths:     []string{"testdata/just_rels.yaml"},
 			want:          nil,
 			expectedError: "object definition `example/project` not found",
+		},
+		{
+			name:          "both schema and schemaFile",
+			filePaths:     []string{"testdata/schema_and_schemafile.yaml"},
+			want:          nil,
+			expectedError: "only one of schema or schemaFile can be specified",
 		},
 		{
 			name:          "legacy file",
