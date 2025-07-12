@@ -1,0 +1,8 @@
+---
+schemaFile: "../../schemas/non_local_schemafile.zed"
+relationships: >-
+  example/project:pied_piper#owner@example/user:milburga
+assertions:
+  assertTrue: []
+  assertFalse: []
+validation: null
