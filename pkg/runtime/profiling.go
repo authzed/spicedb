@@ -14,8 +14,8 @@ import (
 // - "pprof-mutex-profile-rate"
 // - "pprof-block-profile-rate"
 func RegisterFlags(flags *pflag.FlagSet) {
-	flags.Int("pprof-mutex-profile-rate", 0, "sets the mutex profile sampling rate")
-	flags.Int("pprof-block-profile-rate", 0, "sets the block profile sampling rate")
+	flags.Int("pprof-mutex-profile-rate", 0, "sets the mutex profile sampling rate (between 0 and 1)")
+	flags.Int("pprof-block-profile-rate", 0, "sets the block profile sampling rate (between 0 and 1)")
 }
 
 // RunE returns a Cobra RunFunc that configures mutex and block profiles.

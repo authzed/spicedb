@@ -36,6 +36,9 @@ func GetLatestRelease(ctx context.Context) (*Release, error) {
 }
 
 func getLatestReleaseWithClient(ctx context.Context, httpClient *http.Client) (*Release, error) {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", githubNamespace, githubRepository)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
