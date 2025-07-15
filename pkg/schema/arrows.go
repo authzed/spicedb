@@ -107,6 +107,30 @@ func (as *ArrowSet) collectArrowInformationForRewrite(ctx context.Context, rewri
 	}
 }
 
+func (as *ArrowSet) registerTupleToUsersetArrows(ctx context.Context, ttu *core.TupleToUserset, def *ValidatedDefinition, relation *core.Relation, updatedPath string, tuplesetRelation string, computedUsersetRelation string) error {
+	as.add(ttu, updatedPath, def.Namespace().Name, relation.Name)
+	allowedSubjectTypes, err := def.AllowedSubjectRelations(tuplesetRelation)
+	if err != nil {
+		return err
+	}
+
+	for _, ast := range allowedSubjectTypes {
+		def, err := as.ts.GetValidatedDefinition(ctx, ast.Namespace)
+		if err != nil {
+			return err
+		}
+
+		// NOTE: this is explicitly added to the arrowsByComputedUsersetNamespaceAndRelation without
+		// checking if the relation/permission exists, because it's needed for schema diff tracking.
+		as.arrowsByComputedUsersetNamespaceAndRelation.Add(ast.Namespace+"#"+computedUsersetRelation, ArrowInformation{Path: updatedPath, Arrow: ttu, ParentRelationName: relation.Name})
+		if def.HasRelation(computedUsersetRelation) {
+			as.reachableComputedUsersetRelationsByTuplesetRelation.Add(ast.Namespace+"#"+tuplesetRelation, ast.Namespace+"#"+computedUsersetRelation)
+		}
+	}
+
+	return nil
+}
+
 func (as *ArrowSet) collectArrowInformationForSetOperation(ctx context.Context, so *core.SetOperation, def *ValidatedDefinition, relation *core.Relation, path string) error {
 	for index, childOneof := range so.Child {
 		updatedPath := path + "." + strconv.Itoa(index)
@@ -121,25 +145,24 @@ func (as *ArrowSet) collectArrowInformationForSetOperation(ctx context.Context, 
 			}
 
 		case *core.SetOperation_Child_TupleToUserset:
-			as.add(child.TupleToUserset, updatedPath, def.Namespace().Name, relation.Name)
-
-			allowedSubjectTypes, err := def.AllowedSubjectRelations(child.TupleToUserset.Tupleset.Relation)
+			err := as.registerTupleToUsersetArrows(ctx, child.TupleToUserset, def, relation, updatedPath, child.TupleToUserset.Tupleset.Relation, child.TupleToUserset.ComputedUserset.Relation)
 			if err != nil {
 				return err
 			}
 
-			for _, ast := range allowedSubjectTypes {
-				def, err := as.ts.GetValidatedDefinition(ctx, ast.Namespace)
-				if err != nil {
-					return err
-				}
+		case *core.SetOperation_Child_FunctionedTupleToUserset:
+			// Convert FunctionedTupleToUserset to regular TupleToUserset for arrow tracking
+			// since the arrow relationship structure is the same regardless of function type
+			ttu := &core.TupleToUserset{
+				Tupleset: &core.TupleToUserset_Tupleset{
+					Relation: child.FunctionedTupleToUserset.Tupleset.Relation,
+				},
+				ComputedUserset: child.FunctionedTupleToUserset.ComputedUserset,
+			}
 
-				// NOTE: this is explicitly added to the arrowsByComputedUsersetNamespaceAndRelation without
-				// checking if the relation/permission exists, because its needed for schema diff tracking.
-				as.arrowsByComputedUsersetNamespaceAndRelation.Add(ast.Namespace+"#"+child.TupleToUserset.ComputedUserset.Relation, ArrowInformation{Path: path, Arrow: child.TupleToUserset, ParentRelationName: relation.Name})
-				if def.HasRelation(child.TupleToUserset.ComputedUserset.Relation) {
-					as.reachableComputedUsersetRelationsByTuplesetRelation.Add(ast.Namespace+"#"+child.TupleToUserset.Tupleset.Relation, ast.Namespace+"#"+child.TupleToUserset.ComputedUserset.Relation)
-				}
+			err := as.registerTupleToUsersetArrows(ctx, ttu, def, relation, updatedPath, child.FunctionedTupleToUserset.Tupleset.Relation, child.FunctionedTupleToUserset.ComputedUserset.Relation)
+			if err != nil {
+				return err
 			}
 
 		case *core.SetOperation_Child_XThis:
