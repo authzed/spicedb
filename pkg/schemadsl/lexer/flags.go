@@ -13,6 +13,10 @@ const (
 	// FlagTypeChecking indicates that `typechecking` is supported as a first-class
 	// feature in the schema.
 	FlagTypeChecking = "typechecking"
+
+	// FlagDeprecation indicates that `deprecation` is supported as a first-class
+	// feature in the schema.
+	FlagDeprecation = "deprecation"
 )
 
 var AllUseFlags []string
@@ -35,6 +39,14 @@ var Flags = map[string]transformer{
 
 		// `and` becomes a keyword.
 		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "and" {
+			lexeme.Kind = TokenTypeKeyword
+			return lexeme, true
+		}
+
+		return lexeme, false
+	},
+	FlagDeprecation: func(lexeme Lexeme) (Lexeme, bool) {
+		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "deprecation" {
 			lexeme.Kind = TokenTypeKeyword
 			return lexeme, true
 		}

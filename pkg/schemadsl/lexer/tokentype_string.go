@@ -34,27 +34,28 @@ func _() {
 	_ = x[TokenTypeHash-23]
 	_ = x[TokenTypeEllipsis-24]
 	_ = x[TokenTypeStar-25]
-	_ = x[TokenTypeQuestionMark-26]
-	_ = x[TokenTypeConditionalOr-27]
-	_ = x[TokenTypeConditionalAnd-28]
-	_ = x[TokenTypeExclamationPoint-29]
-	_ = x[TokenTypeLeftBracket-30]
-	_ = x[TokenTypeRightBracket-31]
-	_ = x[TokenTypePeriod-32]
-	_ = x[TokenTypeComma-33]
-	_ = x[TokenTypePercent-34]
-	_ = x[TokenTypeLessThan-35]
-	_ = x[TokenTypeGreaterThan-36]
-	_ = x[TokenTypeLessThanOrEqual-37]
-	_ = x[TokenTypeGreaterThanOrEqual-38]
-	_ = x[TokenTypeEqualEqual-39]
-	_ = x[TokenTypeNotEqual-40]
-	_ = x[TokenTypeString-41]
+	_ = x[TokenTypeAt-26]
+	_ = x[TokenTypeQuestionMark-27]
+	_ = x[TokenTypeConditionalOr-28]
+	_ = x[TokenTypeConditionalAnd-29]
+	_ = x[TokenTypeExclamationPoint-30]
+	_ = x[TokenTypeLeftBracket-31]
+	_ = x[TokenTypeRightBracket-32]
+	_ = x[TokenTypePeriod-33]
+	_ = x[TokenTypeComma-34]
+	_ = x[TokenTypePercent-35]
+	_ = x[TokenTypeLessThan-36]
+	_ = x[TokenTypeGreaterThan-37]
+	_ = x[TokenTypeLessThanOrEqual-38]
+	_ = x[TokenTypeGreaterThanOrEqual-39]
+	_ = x[TokenTypeEqualEqual-40]
+	_ = x[TokenTypeNotEqual-41]
+	_ = x[TokenTypeString-42]
 }
 
-const _TokenType_name = "TokenTypeErrorTokenTypeSyntheticSemicolonTokenTypeEOFTokenTypeWhitespaceTokenTypeSinglelineCommentTokenTypeMultilineCommentTokenTypeNewlineTokenTypeKeywordTokenTypeIdentifierTokenTypeNumberTokenTypeLeftBraceTokenTypeRightBraceTokenTypeLeftParenTokenTypeRightParenTokenTypePipeTokenTypePlusTokenTypeMinusTokenTypeAndTokenTypeDivTokenTypeEqualsTokenTypeColonTokenTypeSemicolonTokenTypeRightArrowTokenTypeHashTokenTypeEllipsisTokenTypeStarTokenTypeQuestionMarkTokenTypeConditionalOrTokenTypeConditionalAndTokenTypeExclamationPointTokenTypeLeftBracketTokenTypeRightBracketTokenTypePeriodTokenTypeCommaTokenTypePercentTokenTypeLessThanTokenTypeGreaterThanTokenTypeLessThanOrEqualTokenTypeGreaterThanOrEqualTokenTypeEqualEqualTokenTypeNotEqualTokenTypeString"
+const _TokenType_name = "TokenTypeErrorTokenTypeSyntheticSemicolonTokenTypeEOFTokenTypeWhitespaceTokenTypeSinglelineCommentTokenTypeMultilineCommentTokenTypeNewlineTokenTypeKeywordTokenTypeIdentifierTokenTypeNumberTokenTypeLeftBraceTokenTypeRightBraceTokenTypeLeftParenTokenTypeRightParenTokenTypePipeTokenTypePlusTokenTypeMinusTokenTypeAndTokenTypeDivTokenTypeEqualsTokenTypeColonTokenTypeSemicolonTokenTypeRightArrowTokenTypeHashTokenTypeEllipsisTokenTypeStarTokenTypeAtTokenTypeQuestionMarkTokenTypeConditionalOrTokenTypeConditionalAndTokenTypeExclamationPointTokenTypeLeftBracketTokenTypeRightBracketTokenTypePeriodTokenTypeCommaTokenTypePercentTokenTypeLessThanTokenTypeGreaterThanTokenTypeLessThanOrEqualTokenTypeGreaterThanOrEqualTokenTypeEqualEqualTokenTypeNotEqualTokenTypeString"
 
-var _TokenType_index = [...]uint16{0, 14, 41, 53, 72, 98, 123, 139, 155, 174, 189, 207, 226, 244, 263, 276, 289, 303, 315, 327, 342, 356, 374, 393, 406, 423, 436, 457, 479, 502, 527, 547, 568, 583, 597, 613, 630, 650, 674, 701, 720, 737, 752}
+var _TokenType_index = [...]uint16{0, 14, 41, 53, 72, 98, 123, 139, 155, 174, 189, 207, 226, 244, 263, 276, 289, 303, 315, 327, 342, 356, 374, 393, 406, 423, 436, 447, 468, 490, 513, 538, 558, 579, 594, 608, 624, 641, 661, 685, 712, 731, 748, 763}
 
 func (i TokenType) String() string {
 	if i < 0 || i >= TokenType(len(_TokenType_index)-1) {
