@@ -40,6 +40,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.EnableRequestLog = m.EnableRequestLog
 		to.EnableResponseLog = m.EnableResponseLog
 		to.DisableGRPCHistogram = m.DisableGRPCHistogram
+		to.DisableHealthCheckOTelTracing = m.DisableHealthCheckOTelTracing
 		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.unaryDatastoreMiddleware = m.unaryDatastoreMiddleware
 		to.streamDatastoreMiddleware = m.streamDatastoreMiddleware
@@ -53,6 +54,7 @@ func (m MiddlewareOption) DebugMap() map[string]any {
 	debugMap["EnableRequestLog"] = helpers.DebugValue(m.EnableRequestLog, false)
 	debugMap["EnableResponseLog"] = helpers.DebugValue(m.EnableResponseLog, false)
 	debugMap["DisableGRPCHistogram"] = helpers.DebugValue(m.DisableGRPCHistogram, false)
+	debugMap["DisableHealthCheckOTelTracing"] = helpers.DebugValue(m.DisableHealthCheckOTelTracing, false)
 	debugMap["MiddlewareServiceLabel"] = helpers.DebugValue(m.MiddlewareServiceLabel, false)
 	return debugMap
 }
@@ -119,6 +121,13 @@ func WithEnableResponseLog(enableResponseLog bool) MiddlewareOptionOption {
 func WithDisableGRPCHistogram(disableGRPCHistogram bool) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.DisableGRPCHistogram = disableGRPCHistogram
+	}
+}
+
+// WithDisableHealthCheckOTelTracing returns an option that can set DisableHealthCheckOTelTracing on a MiddlewareOption
+func WithDisableHealthCheckOTelTracing(disableHealthCheckOTelTracing bool) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.DisableHealthCheckOTelTracing = disableHealthCheckOTelTracing
 	}
 }
 
