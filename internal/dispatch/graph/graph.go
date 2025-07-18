@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
@@ -178,10 +179,10 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	}
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithAttributes(
-		attribute.String("resource-type", resourceType),
-		attribute.StringSlice("resource-ids", req.ResourceIds),
-		attribute.String("subject", tuple.StringCoreONR(req.Subject)),
-		attribute.String("node-id", nodeID),
+		attribute.String(otelconv.AttrDispatchResourceType, resourceType),
+		attribute.StringSlice(otelconv.AttrDispatchResourceIds, req.ResourceIds),
+		attribute.String(otelconv.AttrDispatchSubject, tuple.StringCoreONR(req.Subject)),
+		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
 
@@ -274,8 +275,8 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 	}
 
 	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
-		attribute.String("start", tuple.StringCoreONR(req.ResourceAndRelation)),
-		attribute.String("node-id", nodeID),
+		attribute.String(otelconv.AttrDispatchStart, tuple.StringCoreONR(req.ResourceAndRelation)),
+		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
 
@@ -314,11 +315,11 @@ func (ld *localDispatcher) DispatchLookupResources2(
 	}
 
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
-		attribute.String("resource-type", tuple.StringCoreRR(req.ResourceRelation)),
-		attribute.String("subject-type", tuple.StringCoreRR(req.SubjectRelation)),
-		attribute.StringSlice("subject-ids", req.SubjectIds),
-		attribute.String("terminal-subject", tuple.StringCoreONR(req.TerminalSubject)),
-		attribute.String("node-id", nodeID),
+		attribute.String(otelconv.AttrDispatchResourceType, tuple.StringCoreRR(req.ResourceRelation)),
+		attribute.String(otelconv.AttrDispatchSubjectType, tuple.StringCoreRR(req.SubjectRelation)),
+		attribute.StringSlice(otelconv.AttrDispatchSubjectIDs, req.SubjectIds),
+		attribute.String(otelconv.AttrDispatchTerminalSubject, tuple.StringCoreONR(req.TerminalSubject)),
+		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
 
@@ -355,10 +356,10 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	spanName := "DispatchLookupSubjects → " + resourceType + "@" + subjectRelation
 
 	ctx, span := tracer.Start(stream.Context(), spanName, trace.WithAttributes(
-		attribute.String("resource-type", resourceType),
-		attribute.String("subject-type", subjectRelation),
-		attribute.StringSlice("resource-ids", req.ResourceIds),
-		attribute.String("node-id", nodeID),
+		attribute.String(otelconv.AttrDispatchResourceType, resourceType),
+		attribute.String(otelconv.AttrDispatchSubjectType, subjectRelation),
+		attribute.StringSlice(otelconv.AttrDispatchResourceIds, req.ResourceIds),
+		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
 

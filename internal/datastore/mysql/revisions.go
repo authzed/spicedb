@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/ccoveille/go-safecast"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -153,7 +156,10 @@ func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint
 		return false, false, fmt.Errorf(errCheckRevision, err)
 	}
 
-	span.AddEvent("DB returned validTransaction checks")
+	span.AddEvent(otelconv.EventDatastoreMySQLTransactionValidated, trace.WithAttributes(
+		attribute.Bool(otelconv.AttrDatastoreMySQLTransactionFresh, freshEnough.Bool),
+		attribute.Bool(otelconv.AttrDatastoreMySQLTransactionUnknown, unknown.Bool),
+	))
 
 	return freshEnough.Bool, unknown.Bool, nil
 }

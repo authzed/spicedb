@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	"github.com/authzed/spicedb/internal/taskrunner"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -110,7 +111,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 	}
 
 	ctx, span := tracer.Start(ctx, "lr2Check", trace.WithAttributes(
-		attribute.Int("resource-id-count", len(resourceIDsToCheck)),
+		attribute.Int(otelconv.AttrGraphResourceIDCount, len(resourceIDsToCheck)),
 	))
 	defer span.End()
 
@@ -205,7 +206,7 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 	rdc.lock.Unlock()
 
 	ctx, span := tracer.Start(ctx, "lr2Dispatch", trace.WithAttributes(
-		attribute.Int("resource-id-count", len(resourceIDsToDispatch)),
+		attribute.Int(otelconv.AttrGraphResourceIDCount, len(resourceIDsToDispatch)),
 	))
 	defer span.End()
 

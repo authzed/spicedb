@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -187,7 +188,6 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
 		return func(yield func(tuple.Relationship, error) bool) {
 			span := trace.SpanFromContext(ctx)
-			span.AddEvent("Query issued to database")
 
 			sql, args, err := builder.SelectSQL()
 			if err != nil {
@@ -197,12 +197,10 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 
 			iter := txSource().Query(ctx, statementFromSQL(sql, args))
 			defer iter.Stop()
-
-			span.AddEvent("start reading iterator")
-			defer span.AddEvent("finished reading iterator")
+			span.AddEvent(otelconv.EventDatastoreSpannerQueryIssued)
 
 			relCount := 0
-			defer span.SetAttributes(attribute.Int("count", relCount))
+			defer span.SetAttributes(attribute.Int(otelconv.AttrDatastoreRelationCount, relCount))
 
 			var resourceObjectType string
 			var resourceObjectID string
@@ -238,6 +236,8 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 				return
 			}
 
+			span.AddEvent(otelconv.EventDatastoreSpannerIteratorStarted)
+			defer span.AddEvent(otelconv.EventDatastoreSpannerIteratorFinished)
 			if err := iter.Do(func(row *spanner.Row) error {
 				err := row.Columns(colsToSelect...)
 				if err != nil {
@@ -362,7 +362,7 @@ func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames [
 
 func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.RevisionedNamespace, error) {
 	var allNamespaces []datastore.RevisionedNamespace
-	span.AddEvent("start reading iterator")
+	span.AddEvent(otelconv.EventDatastoreSpannerIteratorStarted)
 	if err := iter.Do(func(row *spanner.Row) error {
 		var serialized []byte
 		var updated time.Time
@@ -384,8 +384,8 @@ func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.
 	}); err != nil {
 		return nil, err
 	}
-	span.AddEvent("finished reading iterator", trace.WithAttributes(attribute.Int("namespaceCount", len(allNamespaces))))
-	span.SetAttributes(attribute.Int("count", len(allNamespaces)))
+	span.AddEvent(otelconv.EventDatastoreSpannerIteratorFinished, trace.WithAttributes(attribute.Int(otelconv.AttrDatastoreNamespaceCount, len(allNamespaces))))
+	span.SetAttributes(attribute.Int(otelconv.AttrDatastoreRelationCount, len(allNamespaces)))
 	return allNamespaces, nil
 }
 

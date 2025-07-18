@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -56,7 +57,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		if candidate.validThrough.After(adjustedNow) {
 			cor.RUnlock()
 			log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", candidate.validThrough).Msg("returning cached revision")
-			span.AddEvent("returning cached revision")
+			span.AddEvent(otelconv.EventDatastoreRevisionsCacheReturned)
 			return candidate.revision, nil
 		}
 	}
@@ -64,7 +65,6 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 
 	newQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (any, error) {
 		log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
-		span.AddEvent("computing new revision")
 
 		optimized, validFor, err := cor.optimizedFunc(ctx)
 		if err != nil {
@@ -88,6 +88,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		cor.candidates = append(cor.candidates, validRevision{optimized, rvt})
 		cor.Unlock()
 
+		span.AddEvent(otelconv.EventDatastoreRevisionsComputed)
 		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
 		return optimized, nil
 	})
