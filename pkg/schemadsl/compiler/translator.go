@@ -509,6 +509,7 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 	return permission, nil
 }
 
+
 func translateDeprecation(tctx *translationContext, depNode *dslNode) (*core.Deprecation, error) {
 	if !slices.Contains(tctx.allowedFlags, "deprecation") || !slices.Contains(tctx.enabledFlags, "deprecation") {
 		return nil, depNode.Errorf("deprecation not enabled")
