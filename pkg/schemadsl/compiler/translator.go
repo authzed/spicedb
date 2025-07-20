@@ -26,7 +26,7 @@ type translationContext struct {
 	enabledFlags       []string
 	caveatTypeSet      *caveattypes.TypeSet
 	deprecatedRelation bool
-	deprecatedType     string
+	deprecation        *core.Deprecation
 }
 
 func (tctx *translationContext) prefixedPath(definitionName string) (string, error) {
@@ -52,6 +52,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 	orderedDefinitions := make([]SchemaDefinition, 0, len(root.GetChildren()))
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
+	var deprecationDefinition []*core.Deprecation
 
 	nodes := make(map[string]*dslNode)
 
@@ -83,15 +84,23 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 
 			definition = def
 			objectDefinitions = append(objectDefinitions, def)
+
+		case dslshape.NodeTypeDeprecation:
+			def, err := translateDeprecation(tctx, definitionNode)
+			if err != nil {
+				return nil, err
+			}
+			deprecationDefinition = append(deprecationDefinition, def)
 		}
 
-		if _, ok := nodes[definition.GetName()]; ok {
-			return nil, definitionNode.WithSourceErrorf(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
+		if definition != nil {
+			if _, ok := nodes[definition.GetName()]; ok {
+				return nil, definitionNode.WithSourceErrorf(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
+			}
+			nodes[definition.GetName()] = definitionNode
+
+			orderedDefinitions = append(orderedDefinitions, definition)
 		}
-
-		nodes[definition.GetName()] = definitionNode
-
-		orderedDefinitions = append(orderedDefinitions, definition)
 	}
 
 	// Strip the type annotation metadata if typechecking isn't enabled.
@@ -103,6 +112,13 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 					return nil, err
 				}
 			}
+		}
+	}
+
+	if slices.Contains(tctx.allowedFlags, "deprecation") && slices.Contains(tctx.enabledFlags, "deprecation") {
+		err := deprecateRelationsAndObjects(deprecationDefinition, objectDefinitions)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -235,12 +251,14 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 
 		if relationOrPermissionNode.GetType() == dslshape.NodeTypeDeprecation {
 			if !slices.Contains(tctx.allowedFlags, "deprecation") || !slices.Contains(tctx.enabledFlags, "deprecation") {
-				return nil, relationOrPermissionNode.WithSourceErrorf(tctx.deprecatedType, "deprecation not enabled: %w", err)
+				return nil, relationOrPermissionNode.Errorf("deprecation not enabled")
 			}
+			// in case of a deprecation found in the definition, we mark the relation as deprecated with the help of a context bool
+			// which would help mark the immediately following relation as deprecated
 			tctx.deprecatedRelation = true
-			tctx.deprecatedType, err = relationOrPermissionNode.GetString(dslshape.NodeDeprecatedPredicateName)
+			tctx.deprecation, err = translateDeprecation(tctx, relationOrPermissionNode)
 			if err != nil {
-				return nil, relationOrPermissionNode.WithSourceErrorf(tctx.deprecatedType, "invalid deprecation type: %w", err)
+				return nil, relationOrPermissionNode.Errorf("invalid deprecation: %w", err)
 			}
 
 			continue
@@ -284,6 +302,44 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 	}
 
 	return ns, nil
+}
+
+func deprecateRelationsAndObjects(deprecations []*core.Deprecation, namespaces []*core.NamespaceDefinition) error {
+
+	objectMap := make(map[string]*core.NamespaceDefinition)
+	relationMap := make(map[string]*core.Relation)
+
+	for _, ns := range namespaces {
+		ns.Deprecation = &core.Deprecation{DeprecationType: core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED}
+		objectMap[ns.GetName()] = ns
+		for _, rel := range ns.GetRelation() {
+
+			// check if the relation already has a deprecation defined inside a definition
+			if rel.Deprecation == nil {
+				rel.Deprecation = &core.Deprecation{DeprecationType: core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED}
+			}
+			key := ns.GetName() + "#" + rel.GetName()
+			relationMap[key] = rel
+		}
+	}
+
+	// Apply deprecations
+	for _, dep := range deprecations {
+		if dep.Object != "" && dep.Relation != "" {
+			rel, ok := relationMap[dep.Object+"#"+dep.Relation]
+			if !ok {
+				return fmt.Errorf("warning: Deprecation for relation %s not found in relation map", dep.Object)
+			}
+			rel.Deprecation = dep
+		} else {
+			obj, ok := objectMap[dep.Object]
+			if !ok {
+				return fmt.Errorf("warning: Deprecation for object %s not found in object map", dep.Object)
+			}
+			obj.Deprecation = dep
+		}
+	}
+	return nil
 }
 
 func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.SourcePosition {
@@ -353,8 +409,9 @@ func translateRelationOrPermission(tctx *translationContext, relOrPermNode *dslN
 		}
 		rel.Metadata = addComments(rel.Metadata, relOrPermNode)
 		rel.SourcePosition = getSourcePosition(relOrPermNode, tctx.mapper)
+
 		if tctx.deprecatedRelation {
-			rel.DeprecationType = deprecationTypeFromString(tctx.deprecatedType)
+			rel.Deprecation = tctx.deprecation
 			tctx.deprecatedRelation = false
 		}
 		return rel, err
@@ -450,6 +507,38 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 	}
 
 	return permission, nil
+}
+
+func translateDeprecation(tctx *translationContext, depNode *dslNode) (*core.Deprecation, error) {
+	if !slices.Contains(tctx.allowedFlags, "deprecation") || !slices.Contains(tctx.enabledFlags, "deprecation") {
+		return nil, depNode.Errorf("deprecation not enabled")
+	}
+
+	deprecationType, err := depNode.GetString(dslshape.NodeDeprecatedType)
+	if err != nil {
+		return nil, depNode.Errorf("invalid deprecation type: %w", err)
+	}
+
+	object, objErr := depNode.GetString(dslshape.NodeDeprecatedObject)
+	rel, relErr := depNode.GetString(dslshape.NodeTypeDeprecatedRelation)
+	comments, commentsErr := depNode.GetString(dslshape.NodeDeprecatedComments)
+
+	deprecation := &core.Deprecation{
+		DeprecationType: deprecationTypeFromString(deprecationType),
+	}
+
+	// Conditionally add optional fields
+	if objErr == nil {
+		deprecation.Object = object
+	}
+	if relErr == nil {
+		deprecation.Relation = rel
+	}
+	if commentsErr == nil {
+		deprecation.Comments = comments
+	}
+
+	return deprecation, nil
 }
 
 // extractTypeAnnotations is a helper function to return the literal identifiers under the type annotation node

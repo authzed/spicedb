@@ -69,6 +69,9 @@ Loop:
 			hasSeenDefinition = true
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
 
+		case p.isToken(lexer.TokenTypeAt):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
+
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
 			break Loop
@@ -298,7 +301,7 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		return defNode
 	}
 
-	// Relations and permissions.
+	// Relations and permissions and associated deprecations for objects and relations.
 	for {
 		// }
 		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
@@ -355,6 +358,8 @@ func (p *sourceParser) consumeRelation() AstNode {
 	return relNode
 }
 
+// consumeDeprecation consumes a deprecation statement
+// ```@deprecated(type, object, relation)```
 func (p *sourceParser) consumeDeprecation() AstNode {
 	depNode := p.startNode(dslshape.NodeTypeDeprecation)
 	defer p.mustFinishNode()
@@ -366,22 +371,80 @@ func (p *sourceParser) consumeDeprecation() AstNode {
 		return depNode
 	}
 
-	_, ok = p.consume(lexer.TokenTypeLeftParen)
+	_, ok = p.tryConsume(lexer.TokenTypeLeftParen)
 	if !ok {
+		p.emitErrorf("Expected '(' after 'deprecated' keyword")
 		return depNode
 	}
 
-	deprecationType, ok := p.consumeIdentifier()
+	// Required: deprecation type
+	deprecationType, ok := p.tryConsume(lexer.TokenTypeIdentifier)
 	if !ok {
+		p.emitErrorf("Expected identifier for deprecation type")
 		return depNode
 	}
-	depNode.MustDecorate(dslshape.NodeDeprecatedPredicateName, deprecationType)
+	depNode.MustDecorate(dslshape.NodeDeprecatedType, deprecationType.Value)
 
-	_, ok = p.consume(lexer.TokenTypeRightParen)
-	if !ok {
+	// Try consume after every opt.
+	if p.isToken(lexer.TokenTypeRightParen) {
+		p.consume(lexer.TokenTypeRightParen)
 		return depNode
 	}
 
+	_, ok = p.tryConsume(lexer.TokenTypeComma)
+	if !ok {
+		p.emitErrorf("Expected ',' after deprecation type")
+		return depNode
+	}
+
+	// A comment
+	if p.isToken(lexer.TokenTypeString) {
+		commentTok, _ := p.tryConsume(lexer.TokenTypeString)
+		comment := strings.Trim(commentTok.Value, `"`)
+		depNode.MustDecorate(dslshape.NodeDeprecatedComments, comment)
+
+		p.consume(lexer.TokenTypeRightParen)
+		return depNode
+	}
+
+	if p.isToken(lexer.TokenTypeIdentifier) {
+		// Object
+		objectTok, _ := p.tryConsume(lexer.TokenTypeIdentifier)
+		depNode.MustDecorate(dslshape.NodeDeprecatedObject, objectTok.Value)
+
+		// Check if relation follows: #
+		if p.isToken(lexer.TokenTypeHash) {
+			p.consume(lexer.TokenTypeHash)
+			if !p.isToken(lexer.TokenTypeIdentifier) {
+				p.emitErrorf("Expected identifier for deprecation relation after '#'")
+			} else {
+				relTok, _ := p.tryConsume(lexer.TokenTypeIdentifier)
+				depNode.MustDecorate(dslshape.NodeTypeDeprecatedRelation, relTok.Value)
+			}
+		}
+
+		if p.isToken(lexer.TokenTypeRightParen) {
+			p.consume(lexer.TokenTypeRightParen)
+			return depNode
+		}
+
+		_, ok = p.tryConsume(lexer.TokenTypeComma)
+		if !ok {
+			p.emitErrorf("Expected ',' after deprecation object or object#relation")
+		} else if p.isToken(lexer.TokenTypeString) {
+			commentTok, _ := p.tryConsume(lexer.TokenTypeString)
+			comment := strings.Trim(commentTok.Value, `"`)
+			depNode.MustDecorate(dslshape.NodeDeprecatedComments, comment)
+		} else {
+			p.emitErrorf("Expected string value for deprecation comment")
+		}
+
+		p.consume(lexer.TokenTypeRightParen)
+		return depNode
+	}
+
+	// If it's neither string nor identifier, it's invalid
+	p.emitErrorf("Unexpected token after deprecation type: %s", p.currentToken.Value)
 	return depNode
 }
 

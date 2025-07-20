@@ -56,9 +56,14 @@ type DeprecationError struct {
 	error
 }
 
-func NewDeprecationError(namespace string, relation string) DeprecationError {
+func NewDeprecationError(namespace string, relation string, comments string) DeprecationError {
+	if relation == "" {
+		return DeprecationError{
+			error: fmt.Errorf("object %s is deprecated, comments:%s", namespace, comments),
+		}
+	}
 	return DeprecationError{
-		error: fmt.Errorf("relation %s#%s is deprecated", namespace, relation),
+		error: fmt.Errorf("relation %s#%s is deprecated, comments:%s", namespace, relation, comments),
 	}
 }
 

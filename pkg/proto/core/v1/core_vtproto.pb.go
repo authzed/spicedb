@@ -351,6 +351,7 @@ func (m *NamespaceDefinition) CloneVT() *NamespaceDefinition {
 	r.Name = m.Name
 	r.Metadata = m.Metadata.CloneVT()
 	r.SourcePosition = m.SourcePosition.CloneVT()
+	r.Deprecation = m.Deprecation.CloneVT()
 	if rhs := m.Relation; rhs != nil {
 		tmpContainer := make([]*Relation, len(rhs))
 		for k, v := range rhs {
@@ -369,6 +370,27 @@ func (m *NamespaceDefinition) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (m *Deprecation) CloneVT() *Deprecation {
+	if m == nil {
+		return (*Deprecation)(nil)
+	}
+	r := new(Deprecation)
+	r.DeprecationType = m.DeprecationType
+	r.Object = m.Object
+	r.Relation = m.Relation
+	r.Comments = m.Comments
+	r.SourcePosition = m.SourcePosition.CloneVT()
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *Deprecation) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
 func (m *Relation) CloneVT() *Relation {
 	if m == nil {
 		return (*Relation)(nil)
@@ -381,7 +403,7 @@ func (m *Relation) CloneVT() *Relation {
 	r.SourcePosition = m.SourcePosition.CloneVT()
 	r.AliasingRelation = m.AliasingRelation
 	r.CanonicalCacheKey = m.CanonicalCacheKey
-	r.DeprecationType = m.DeprecationType
+	r.Deprecation = m.Deprecation.CloneVT()
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -517,7 +539,7 @@ func (m *AllowedRelation) CloneVT() *AllowedRelation {
 	r.SourcePosition = m.SourcePosition.CloneVT()
 	r.RequiredCaveat = m.RequiredCaveat.CloneVT()
 	r.RequiredExpiration = m.RequiredExpiration.CloneVT()
-	r.DeprecationType = m.DeprecationType
+	r.Deprecation = m.Deprecation.CloneVT()
 	if m.RelationOrWildcard != nil {
 		r.RelationOrWildcard = m.RelationOrWildcard.(interface {
 			CloneVT() isAllowedRelation_RelationOrWildcard
@@ -1490,11 +1512,45 @@ func (this *NamespaceDefinition) EqualVT(that *NamespaceDefinition) bool {
 	if !this.SourcePosition.EqualVT(that.SourcePosition) {
 		return false
 	}
+	if !this.Deprecation.EqualVT(that.Deprecation) {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
 func (this *NamespaceDefinition) EqualMessageVT(thatMsg proto.Message) bool {
 	that, ok := thatMsg.(*NamespaceDefinition)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *Deprecation) EqualVT(that *Deprecation) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.DeprecationType != that.DeprecationType {
+		return false
+	}
+	if this.Object != that.Object {
+		return false
+	}
+	if this.Relation != that.Relation {
+		return false
+	}
+	if this.Comments != that.Comments {
+		return false
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Deprecation) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*Deprecation)
 	if !ok {
 		return false
 	}
@@ -1527,7 +1583,7 @@ func (this *Relation) EqualVT(that *Relation) bool {
 	if this.CanonicalCacheKey != that.CanonicalCacheKey {
 		return false
 	}
-	if this.DeprecationType != that.DeprecationType {
+	if !this.Deprecation.EqualVT(that.Deprecation) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1745,7 +1801,7 @@ func (this *AllowedRelation) EqualVT(that *AllowedRelation) bool {
 	if !this.RequiredExpiration.EqualVT(that.RequiredExpiration) {
 		return false
 	}
-	if this.DeprecationType != that.DeprecationType {
+	if !this.Deprecation.EqualVT(that.Deprecation) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -3374,6 +3430,16 @@ func (m *NamespaceDefinition) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.Deprecation != nil {
+		size, err := m.Deprecation.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x2a
+	}
 	if m.SourcePosition != nil {
 		size, err := m.SourcePosition.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -3416,6 +3482,75 @@ func (m *NamespaceDefinition) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *Deprecation) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Deprecation) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *Deprecation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.SourcePosition != nil {
+		size, err := m.SourcePosition.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.Comments) > 0 {
+		i -= len(m.Comments)
+		copy(dAtA[i:], m.Comments)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Comments)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.Relation) > 0 {
+		i -= len(m.Relation)
+		copy(dAtA[i:], m.Relation)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Relation)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Object) > 0 {
+		i -= len(m.Object)
+		copy(dAtA[i:], m.Object)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Object)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.DeprecationType != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DeprecationType))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *Relation) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -3446,10 +3581,15 @@ func (m *Relation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.DeprecationType != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DeprecationType))
+	if m.Deprecation != nil {
+		size, err := m.Deprecation.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x40
+		dAtA[i] = 0x42
 	}
 	if len(m.CanonicalCacheKey) > 0 {
 		i -= len(m.CanonicalCacheKey)
@@ -3838,10 +3978,15 @@ func (m *AllowedRelation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		}
 		i -= size
 	}
-	if m.DeprecationType != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DeprecationType))
+	if m.Deprecation != nil {
+		size, err := m.Deprecation.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x40
+		dAtA[i] = 0x42
 	}
 	if m.RequiredExpiration != nil {
 		size, err := m.RequiredExpiration.MarshalToSizedBufferVT(dAtA[:i])
@@ -5392,6 +5537,39 @@ func (m *NamespaceDefinition) SizeVT() (n int) {
 		l = m.SourcePosition.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.Deprecation != nil {
+		l = m.Deprecation.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *Deprecation) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.DeprecationType != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.DeprecationType))
+	}
+	l = len(m.Object)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Relation)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Comments)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.SourcePosition != nil {
+		l = m.SourcePosition.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -5430,8 +5608,9 @@ func (m *Relation) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.DeprecationType != 0 {
-		n += 1 + protohelpers.SizeOfVarint(uint64(m.DeprecationType))
+	if m.Deprecation != nil {
+		l = m.Deprecation.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -5576,8 +5755,9 @@ func (m *AllowedRelation) SizeVT() (n int) {
 		l = m.RequiredExpiration.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.DeprecationType != 0 {
-		n += 1 + protohelpers.SizeOfVarint(uint64(m.DeprecationType))
+	if m.Deprecation != nil {
+		l = m.Deprecation.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -8230,6 +8410,244 @@ func (m *NamespaceDefinition) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Deprecation", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Deprecation == nil {
+				m.Deprecation = &Deprecation{}
+			}
+			if err := m.Deprecation.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Deprecation) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Deprecation: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Deprecation: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeprecationType", wireType)
+			}
+			m.DeprecationType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DeprecationType |= DeprecationType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Object", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Object = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Relation", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Relation = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Comments", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Comments = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SourcePosition", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.SourcePosition == nil {
+				m.SourcePosition = &SourcePosition{}
+			}
+			if err := m.SourcePosition.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -8522,10 +8940,10 @@ func (m *Relation) UnmarshalVT(dAtA []byte) error {
 			m.CanonicalCacheKey = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 8:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DeprecationType", wireType)
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Deprecation", wireType)
 			}
-			m.DeprecationType = 0
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -8535,11 +8953,28 @@ func (m *Relation) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.DeprecationType |= DeprecationType(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Deprecation == nil {
+				m.Deprecation = &Deprecation{}
+			}
+			if err := m.Deprecation.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -9592,10 +10027,10 @@ func (m *AllowedRelation) UnmarshalVT(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 8:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DeprecationType", wireType)
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Deprecation", wireType)
 			}
-			m.DeprecationType = 0
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -9605,11 +10040,28 @@ func (m *AllowedRelation) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.DeprecationType |= DeprecationType(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Deprecation == nil {
+				m.Deprecation = &Deprecation{}
+			}
+			if err := m.Deprecation.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

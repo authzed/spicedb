@@ -132,6 +132,12 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		})
 	}
 
+	if existing.Deprecation != updated.Deprecation {
+		deltas = append(deltas, Delta{
+			Type: ChangedDeprecation,
+		})
+	}
+
 	// Collect up relations and check.
 	existingRels := map[string]*core.Relation{}
 	existingRelNames := mapz.NewSet[string]()
@@ -244,7 +250,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		}
 
 		// Compare deprecation status
-		if existingRel.DeprecationType != updatedRel.DeprecationType {
+		if existingRel.Deprecation != updatedRel.Deprecation {
 			deltas = append(deltas, Delta{
 				Type:         ChangedDeprecation,
 				RelationName: shared,

@@ -1,0 +1,19 @@
+use deprecation
+
+definition user {}
+definition testuser {}
+definition superuser{}
+
+definition deprecated_relation {
+
+    relation writer: user
+
+
+    @deprecated(warn, testuser, "oops deprecated!")
+    relation reader: testuser
+
+    relation editor: superuser
+}
+
+@deprecated(error, user, "obj user is deprecated, use superuser instead")
+@deprecated(warn, deprecated_relation#editor, "rel editor is deprecated")

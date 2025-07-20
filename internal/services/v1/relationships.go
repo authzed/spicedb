@@ -330,8 +330,10 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
 		// TODO(jschorr): Change to struct-based keys.
-		if err := checkForDeprecatedRelationships(ctx, update, ds, ps); err != nil {
-			return nil, ps.rewriteError(ctx, err)
+		if ps.config.DeprecatedRelationshipsEnabled {
+			if err := checkForDeprecatedRelationsAndObjects(ctx, update, ds); err != nil {
+				return nil, ps.rewriteError(ctx, err)
+			}
 		}
 
 		tupleStr := tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship)
@@ -631,7 +633,7 @@ func labelsForFilter(filter *v1.RelationshipFilter) perfinsights.APIShapeLabels 
 	}
 }
 
-func checkForDeprecatedRelationships(ctx context.Context, update *v1.RelationshipUpdate, ds datastore.Datastore, ps *permissionServer) error {
+func checkForDeprecatedRelationsAndObjects(ctx context.Context, update *v1.RelationshipUpdate, ds datastore.Datastore) error {
 	resource := update.Relationship.Resource
 	headRevision, err := ds.HeadRevision(ctx)
 	if err != nil {
@@ -643,22 +645,57 @@ func checkForDeprecatedRelationships(ctx context.Context, update *v1.Relationshi
 		return err
 	}
 
-	if !ps.config.DeprecatedRelationshipsEnabled && relDef.DeprecationType != corev1.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
-		return ps.rewriteError(
-			ctx,
-			fmt.Errorf("support for deprecated relationships is not enabled"),
-		)
+	if relDef.Deprecation != nil && relDef.Deprecation.DeprecationType != corev1.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+		// Check if the relation is deprecated
+		switch relDef.Deprecation.DeprecationType {
+		case corev1.DeprecationType_DEPRECATED_TYPE_WARNING:
+			log.Warn().
+				Str("namespace", update.Relationship.Resource.ObjectType).
+				Str("relation", update.Relationship.Relation).
+				Str("comments", relDef.Deprecation.Comments).
+				Msg("write to deprecated relation")
+
+		case corev1.DeprecationType_DEPRECATED_TYPE_ERROR:
+			return shared.NewDeprecationError(update.Relationship.Resource.ObjectType, update.Relationship.Relation, relDef.Deprecation.Comments)
+		}
+
+	}
+	nsdef, _, err := reader.ReadNamespaceByName(ctx, resource.ObjectType)
+	if err != nil {
+		return err
 	}
 
-	switch relDef.DeprecationType {
-	case corev1.DeprecationType_DEPRECATED_TYPE_WARNING:
-		log.Warn().
-			Str("namespace", update.Relationship.Resource.ObjectType).
-			Str("relation", update.Relationship.Relation).
-			Msg("write to deprecated relation")
+	// Check if the resource is deprecated
+	if nsdef.Deprecation != nil && nsdef.Deprecation.DeprecationType != corev1.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+		// Check if the namespace is deprecated
+		switch nsdef.Deprecation.DeprecationType {
+		case corev1.DeprecationType_DEPRECATED_TYPE_WARNING:
+			log.Warn().
+				Str("namespace", nsdef.Name).
+				Str("comments", nsdef.Deprecation.Comments).
+				Msg("write to deprecated object")
+		case corev1.DeprecationType_DEPRECATED_TYPE_ERROR:
+			return shared.NewDeprecationError(resource.ObjectType, "", nsdef.Deprecation.Comments)
+		}
+	}
 
-	case corev1.DeprecationType_DEPRECATED_TYPE_ERROR:
-		return shared.NewDeprecationError(update.Relationship.Resource.ObjectType, update.Relationship.Relation)
+	objectRef := update.Relationship.Subject
+	nsdef, _, err = reader.ReadNamespaceByName(ctx, objectRef.Object.ObjectType)
+	if err != nil {
+		return err
+	}
+
+	if nsdef.Deprecation != nil && nsdef.Deprecation.DeprecationType != corev1.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+		// Check if the subject is deprecated
+		switch nsdef.Deprecation.DeprecationType {
+		case corev1.DeprecationType_DEPRECATED_TYPE_WARNING:
+			log.Warn().
+				Str("namespace", nsdef.Name).
+				Str("comments", nsdef.Deprecation.Comments).
+				Msg("write to deprecated object")
+		case corev1.DeprecationType_DEPRECATED_TYPE_ERROR:
+			return shared.NewDeprecationError(resource.ObjectType, "", nsdef.Deprecation.Comments)
+		}
 	}
 
 	return nil

@@ -202,11 +202,11 @@ func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) er
 	sg.markNewScope()
 
 	for _, relation := range namespace.Relation {
-		if relation.DeprecationType != core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+		if relation.Deprecation != nil && relation.Deprecation.DeprecationType != core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
 			sg.flags.Add("deprecation")
 			sg.append("@deprecated(")
 
-			switch relation.DeprecationType {
+			switch relation.Deprecation.DeprecationType {
 			case core.DeprecationType_DEPRECATED_TYPE_WARNING:
 				sg.append("warn")
 			case core.DeprecationType_DEPRECATED_TYPE_ERROR:

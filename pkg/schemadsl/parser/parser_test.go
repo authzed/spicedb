@@ -156,6 +156,9 @@ func TestParser(t *testing.T) {
 		{"permission type annotation just pipe test", "permission_type_annotation_just_pipe"},
 		{"deprecated relation test", "deprecation"},
 		{"invalid deprecated relation test", "invalid-deprecation"},
+		{"deprecated options test", "deprecated_options"},
+		{"deprecation which is outside of a definition", "deprecation_outside_definition"},
+		{"multiple deprecations with comments", "multiple_deprecations"},
 	}
 
 	for _, test := range parserTests {

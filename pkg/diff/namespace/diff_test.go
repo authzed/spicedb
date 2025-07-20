@@ -575,11 +575,15 @@ func TestNamespaceDiff(t *testing.T) {
 			"deprecate relation with an error type",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("somerel", nil, ns.AllowedDeprecatedRelation("foo", "bar", core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED)),
+				ns.MustRelation("somerel", nil, ns.AllowedDeprecatedRelation("foo", "bar", &core.Deprecation{
+					DeprecationType: core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED,
+				})),
 			),
 			ns.Namespace(
 				"document",
-				ns.MustRelation("somerel", nil, ns.AllowedDeprecatedRelation("foo", "bar", core.DeprecationType_DEPRECATED_TYPE_ERROR)),
+				ns.MustRelation("somerel", nil, ns.AllowedDeprecatedRelation("foo", "bar", &core.Deprecation{
+					DeprecationType: core.DeprecationType_DEPRECATED_TYPE_ERROR,
+				})),
 			),
 			[]Delta{
 				{Type: ChangedDeprecation, RelationName: "somerel"},
@@ -589,7 +593,9 @@ func TestNamespaceDiff(t *testing.T) {
 			"remove deprecation",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("somerel", nil, ns.AllowedDeprecatedRelation("foo", "bar", core.DeprecationType_DEPRECATED_TYPE_ERROR)),
+				ns.MustRelation("somerel", nil, ns.AllowedDeprecatedRelation("foo", "bar", &core.Deprecation{
+					DeprecationType: core.DeprecationType_DEPRECATED_TYPE_ERROR,
+				})),
 			),
 			ns.Namespace(
 				"document",

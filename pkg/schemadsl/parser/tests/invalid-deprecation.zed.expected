@@ -16,7 +16,7 @@ NodeTypeFile
           child-node =>
             NodeTypeError
               end-rune = 48
-              error-message = Expected identifier, found token TokenTypeRightParen
+              error-message = Expected identifier for deprecation type
               error-source = )
               input-source = invalid deprecated relation test
               start-rune = 49

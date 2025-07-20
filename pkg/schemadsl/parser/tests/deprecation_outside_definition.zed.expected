@@ -1,0 +1,71 @@
+NodeTypeFile
+  end-rune = 218
+  input-source = deprecation which is outside of a definition
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 14
+      input-source = deprecation which is outside of a definition
+      start-rune = 0
+      use-flag-name = deprecation
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 34
+      input-source = deprecation which is outside of a definition
+      start-rune = 17
+    NodeTypeDefinition
+      definition-name = testuser
+      end-rune = 57
+      input-source = deprecation which is outside of a definition
+      start-rune = 36
+    NodeTypeDefinition
+      definition-name = deprecated_relation
+      end-rune = 181
+      input-source = deprecation which is outside of a definition
+      start-rune = 60
+      child-node =>
+        NodeTypeRelation
+          end-rune = 118
+          input-source = deprecation which is outside of a definition
+          relation-name = writer
+          start-rune = 98
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 118
+              input-source = deprecation which is outside of a definition
+              start-rune = 115
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 118
+                  input-source = deprecation which is outside of a definition
+                  start-rune = 115
+                  type-name = user
+        NodeTypeDeprecation
+          deprecation-object = testuser
+          deprecation-type = error
+          end-rune = 153
+          input-source = deprecation which is outside of a definition
+          start-rune = 126
+        NodeTypeRelation
+          end-rune = 179
+          input-source = deprecation which is outside of a definition
+          relation-name = reader
+          start-rune = 159
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 179
+              input-source = deprecation which is outside of a definition
+              start-rune = 176
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 179
+                  input-source = deprecation which is outside of a definition
+                  start-rune = 176
+                  type-name = user
+    NodeTypeDeprecation
+      deprecation-comments = comments
+      deprecation-object = user
+      deprecation-type = warn
+      end-rune = 218
+      input-source = deprecation which is outside of a definition
+      start-rune = 184

@@ -20,22 +20,23 @@ func _() {
 	_ = x[NodeTypePermission-9]
 	_ = x[NodeTypeTypeAnnotation-10]
 	_ = x[NodeTypeDeprecation-11]
-	_ = x[NodeTypeTypeReference-12]
-	_ = x[NodeTypeSpecificTypeReference-13]
-	_ = x[NodeTypeCaveatReference-14]
-	_ = x[NodeTypeTraitReference-15]
-	_ = x[NodeTypeUnionExpression-16]
-	_ = x[NodeTypeIntersectExpression-17]
-	_ = x[NodeTypeExclusionExpression-18]
-	_ = x[NodeTypeArrowExpression-19]
-	_ = x[NodeTypeIdentifier-20]
-	_ = x[NodeTypeNilExpression-21]
-	_ = x[NodeTypeCaveatTypeReference-22]
+	_ = x[NodeTypeDeprecationOptions-12]
+	_ = x[NodeTypeTypeReference-13]
+	_ = x[NodeTypeSpecificTypeReference-14]
+	_ = x[NodeTypeCaveatReference-15]
+	_ = x[NodeTypeTraitReference-16]
+	_ = x[NodeTypeUnionExpression-17]
+	_ = x[NodeTypeIntersectExpression-18]
+	_ = x[NodeTypeExclusionExpression-19]
+	_ = x[NodeTypeArrowExpression-20]
+	_ = x[NodeTypeIdentifier-21]
+	_ = x[NodeTypeNilExpression-22]
+	_ = x[NodeTypeCaveatTypeReference-23]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeAnnotationNodeTypeDeprecationNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeAnnotationNodeTypeDeprecationNodeTypeDeprecationOptionsNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 200, 219, 240, 269, 292, 314, 337, 364, 391, 414, 432, 453, 480}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 200, 219, 245, 266, 295, 318, 340, 363, 390, 417, 440, 458, 479, 506}
 
 func (i NodeType) String() string {
 	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {

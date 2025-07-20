@@ -1,0 +1,101 @@
+NodeTypeFile
+  end-rune = 408
+  input-source = multiple deprecations with comments
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 14
+      input-source = multiple deprecations with comments
+      start-rune = 0
+      use-flag-name = deprecation
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 34
+      input-source = multiple deprecations with comments
+      start-rune = 17
+    NodeTypeDefinition
+      definition-name = testuser
+      end-rune = 57
+      input-source = multiple deprecations with comments
+      start-rune = 36
+    NodeTypeDefinition
+      definition-name = superuser
+      end-rune = 80
+      input-source = multiple deprecations with comments
+      start-rune = 59
+    NodeTypeDefinition
+      definition-name = deprecated_relation
+      end-rune = 259
+      input-source = multiple deprecations with comments
+      start-rune = 83
+      child-node =>
+        NodeTypeRelation
+          end-rune = 141
+          input-source = multiple deprecations with comments
+          relation-name = writer
+          start-rune = 121
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 141
+              input-source = multiple deprecations with comments
+              start-rune = 138
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 141
+                  input-source = multiple deprecations with comments
+                  start-rune = 138
+                  type-name = user
+        NodeTypeDeprecation
+          deprecation-comments = oops deprecated!
+          deprecation-object = testuser
+          deprecation-type = warn
+          end-rune = 195
+          input-source = multiple deprecations with comments
+          start-rune = 149
+        NodeTypeRelation
+          end-rune = 225
+          input-source = multiple deprecations with comments
+          relation-name = reader
+          start-rune = 201
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 225
+              input-source = multiple deprecations with comments
+              start-rune = 218
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 225
+                  input-source = multiple deprecations with comments
+                  start-rune = 218
+                  type-name = testuser
+        NodeTypeRelation
+          end-rune = 257
+          input-source = multiple deprecations with comments
+          relation-name = editor
+          start-rune = 232
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 257
+              input-source = multiple deprecations with comments
+              start-rune = 249
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 257
+                  input-source = multiple deprecations with comments
+                  start-rune = 249
+                  type-name = superuser
+    NodeTypeDeprecation
+      deprecation-comments = obj user is deprecated, use superuser instead
+      deprecation-object = user
+      deprecation-type = error
+      end-rune = 334
+      input-source = multiple deprecations with comments
+      start-rune = 262
+    NodeTypeDeprecation
+      deprecation-comments = rel editor is deprecated
+      deprecation-object = deprecated_relation
+      deprecation-relation = editor
+      deprecation-type = warn
+      end-rune = 408
+      input-source = multiple deprecations with comments
+      start-rune = 336

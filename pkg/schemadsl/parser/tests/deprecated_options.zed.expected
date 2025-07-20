@@ -1,0 +1,71 @@
+NodeTypeFile
+  end-rune = 221
+  input-source = deprecated options test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 14
+      input-source = deprecated options test
+      start-rune = 0
+      use-flag-name = deprecation
+    NodeTypeDefinition
+      definition-name = deprecated_relation
+      end-rune = 178
+      input-source = deprecated options test
+      start-rune = 17
+      child-node =>
+        NodeTypeDeprecation
+          deprecation-comments = comments
+          deprecation-object = user
+          deprecation-type = warn
+          end-rune = 89
+          input-source = deprecated options test
+          start-rune = 55
+        NodeTypeRelation
+          end-rune = 115
+          input-source = deprecated options test
+          relation-name = writer
+          start-rune = 95
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 115
+              input-source = deprecated options test
+              start-rune = 112
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 115
+                  input-source = deprecated options test
+                  start-rune = 112
+                  type-name = user
+        NodeTypeDeprecation
+          deprecation-object = testuser
+          deprecation-type = error
+          end-rune = 150
+          input-source = deprecated options test
+          start-rune = 123
+        NodeTypeRelation
+          end-rune = 176
+          input-source = deprecated options test
+          relation-name = reader
+          start-rune = 156
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 176
+              input-source = deprecated options test
+              start-rune = 173
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 176
+                  input-source = deprecated options test
+                  start-rune = 173
+                  type-name = user
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 198
+      input-source = deprecated options test
+      start-rune = 181
+    NodeTypeDefinition
+      definition-name = testuser
+      end-rune = 221
+      input-source = deprecated options test
+      start-rune = 200

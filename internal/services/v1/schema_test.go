@@ -1649,15 +1649,20 @@ func TestSchemaChangeRelationDeprecation(t *testing.T) {
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
 
-	// Write a basic schema with deprecation type warning.
+	// Write a basic schema with deprecations.
 	originalSchema := `
 		use deprecation
 		definition user {}
+		definition testuser {}
 
 		definition document {
-			@deprecated(warn)
 			relation somerelation: user
-		}`
+			relation otherelation: testuser
+		}
+		
+		@deprecated(warn, document#somerelation, "This relation is deprecated, please use otherelation instead.")
+		@deprecated(error, testuser, "super deprecated")
+		`
 	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: originalSchema,
 	})
@@ -1672,36 +1677,24 @@ func TestSchemaChangeRelationDeprecation(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	deprecatedErrSchema := `
-		use deprecation
-		definition user {}
-
-		definition document {
-			@deprecated(error)
-			relation somerelation: user
-		}`
-
-	// Enforce deprecation over the relation in the new schema.
-	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
-		Schema: deprecatedErrSchema,
-	})
-	require.NoError(t, err)
-
-	// Attempt to write to a deprecated relation which should fail.
-	toWrite = tuple.MustParse("document:somedoc#somerelation@user:jerry")
+	// Attempt to write to a deprecated object which should fail.
+	toWrite = tuple.MustParse("document:somedoc#otherelation@testuser:jerry")
 	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			toWrite,
 		))},
 	})
-	require.Equal(t, "rpc error: code = Aborted desc = relation document#somerelation is deprecated", err.Error())
+	require.Equal(t, "rpc error: code = Aborted desc = object document is deprecated, comments:super deprecated", err.Error())
 
 	// Change the schema to remove the deprecation type.
 	newSchema := `
+		use deprecation
 		definition user {}
+		definition testuser {}
 
 		definition document {
 			relation somerelation: user
+			relation otherelation: testuser
 		}`
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,

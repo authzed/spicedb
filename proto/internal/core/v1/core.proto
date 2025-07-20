@@ -204,6 +204,9 @@ message NamespaceDefinition {
 
   /** source_position contains the position of the namespace in the source schema, if any */
   SourcePosition source_position = 4;
+
+  /** deprecation contains the deprecation information for the namespace, if any */
+  Deprecation deprecation = 5;
 }
 
 /**
@@ -213,6 +216,31 @@ enum DeprecationType {
   DEPRECATED_TYPE_UNSPECIFIED = 0;
   DEPRECATED_TYPE_WARNING = 1;
   DEPRECATED_TYPE_ERROR = 2;
+}
+/**
+ * Deprecation represents the deprecation information for a relation and object.
+ * It contains the type of deprecation, a comment to show when the relation is used,
+ * and the source position of the deprecation in the source schema, if any.
+ */
+
+message Deprecation {
+  /**
+   * deprecation_type is the type of deprecation for the relation.
+   * It can be either a warning or an error, defaults to unspecified.
+   */
+  DeprecationType deprecation_type = 1 [(validate.rules).enum.defined_only = true];
+
+  /** object is the object that is deprecated */
+  string object = 2;
+
+  /** relation is the relation that is deprecated */
+  string relation = 3;
+
+  /** comments are the comments to show when the relation is used */
+  string comments = 4 [(validate.rules).string = {max_bytes: 256}];
+
+  /** source_position contains the position of the deprecation in the source schema, if any */
+  SourcePosition source_position = 5;
 }
 
 /**
@@ -244,7 +272,7 @@ message Relation {
   string canonical_cache_key = 7;
 
   /** deprecation_type is the type of deprecation for the relation */
-  DeprecationType deprecation_type = 8;
+  Deprecation deprecation = 8;
 }
 
 /**
@@ -436,7 +464,7 @@ message AllowedRelation {
   /**
    * deprecation_type defines the type of deprecation for this relation.
    */
-  DeprecationType deprecation_type = 8;
+  Deprecation deprecation = 8;
 }
 
 /**

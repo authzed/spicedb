@@ -22,7 +22,9 @@ const (
 	NodeTypePermission     // A permission
 	NodeTypeTypeAnnotation // A type annotation for permissions
 
-	NodeTypeDeprecation           // A deprecated relation.
+	NodeTypeDeprecation        // A deprecated relation.
+	NodeTypeDeprecationOptions // Options for a deprecation.
+
 	NodeTypeTypeReference         // A type reference
 	NodeTypeSpecificTypeReference // A reference to a specific type.
 	NodeTypeCaveatReference       // A caveat reference under a type.
@@ -220,8 +222,26 @@ const (
 	NodeExpressionPredicateRightExpr = "right-expr"
 
 	//
-	// NodeTypeDeprecated
+	// NodeTypeDeprecatedOptions
 	//
-	// The value of a deprecated node
-	NodeDeprecatedPredicateName = "deprecated-relation-value"
+	// The type of deprecation
+	NodeDeprecatedType = "deprecation-type"
+
+	//
+	// NodeTypeDeprecatedObject
+	//
+	// The value of an object for a deprecation
+	NodeDeprecatedObject = "deprecation-object"
+
+	//
+	// NodeTypeDeprecatedRelation
+	//
+	// The value of a relation for depreaction
+	NodeTypeDeprecatedRelation = "deprecation-relation"
+
+	//
+	// NodeTypeDeprecatedOptions
+	//
+	// The value of an option for a deprecation
+	NodeDeprecatedComments = "deprecation-comments"
 )

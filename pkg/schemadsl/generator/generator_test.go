@@ -398,6 +398,7 @@ definition document {
 		{
 			"deprecation test",
 			`use deprecation
+			definition user{}
 
 			definition document {
 
@@ -408,6 +409,8 @@ definition document {
 				relation editor: user
 			}`,
 			`use deprecation
+
+definition user {}
 
 definition document {
 	@deprecated(warn)

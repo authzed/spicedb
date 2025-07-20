@@ -1,0 +1,14 @@
+use deprecation
+
+definition deprecated_relation {
+
+    @deprecated(warn, user, "comments")
+    relation writer: user
+
+
+    @deprecated(error, testuser)
+    relation reader: user
+}
+
+definition user {}
+definition testuser {}

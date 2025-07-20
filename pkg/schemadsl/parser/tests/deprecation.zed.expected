@@ -15,7 +15,7 @@ NodeTypeFile
       start-rune = 17
       child-node =>
         NodeTypeDeprecation
-          deprecated-relation-value = warn
+          deprecation-type = warn
           end-rune = 71
           input-source = deprecated relation test
           start-rune = 55
@@ -36,7 +36,7 @@ NodeTypeFile
                   start-rune = 94
                   type-name = user
         NodeTypeDeprecation
-          deprecated-relation-value = error
+          deprecation-type = error
           end-rune = 121
           input-source = deprecated relation test
           start-rune = 104
