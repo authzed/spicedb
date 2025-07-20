@@ -245,6 +245,68 @@ func TestRelationsReferencing(t *testing.T) {
 			},
 		},
 		{
+			name: "functioned arrow any",
+			schemaText: `
+			definition user {}
+		
+			definition organization {
+				relation direct_member: user
+				permission member = direct_member
+			}
+		
+			definition resource {
+				relation viewer: user
+				relation org: organization
+				permission view = org.any(member) + viewer
+			}`,
+			expected: map[string][]expectedRelation{
+				"organization#direct_member": {
+					{Namespace: "organization", Relation: "member", Type: RelationInExpression},
+				},
+				"organization#member": {
+					{Namespace: "organization", Relation: "org", Type: RelationIsComputedUsersetForArrow},
+				},
+				"resource#viewer": {
+					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+				},
+				"resource#org": {
+					{Namespace: "resource", Relation: "view", Type: RelationIsTuplesetForArrow},
+				},
+				"resource#view": {},
+			},
+		},
+		{
+			name: "functioned arrow all",
+			schemaText: `
+			definition user {}
+		
+			definition organization {
+				relation direct_member: user
+				permission member = direct_member
+			}
+		
+			definition resource {
+				relation viewer: user
+				relation org: organization
+				permission view = org.all(member) + viewer
+			}`,
+			expected: map[string][]expectedRelation{
+				"organization#direct_member": {
+					{Namespace: "organization", Relation: "member", Type: RelationInExpression},
+				},
+				"organization#member": {
+					{Namespace: "organization", Relation: "org", Type: RelationIsComputedUsersetForArrow},
+				},
+				"resource#viewer": {
+					{Namespace: "resource", Relation: "view", Type: RelationInExpression},
+				},
+				"resource#org": {
+					{Namespace: "resource", Relation: "view", Type: RelationIsTuplesetForArrow},
+				},
+				"resource#view": {},
+			},
+		},
+		{
 			name: "referencing permission",
 			schemaText: `
 			definition user {}

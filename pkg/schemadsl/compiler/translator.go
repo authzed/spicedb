@@ -103,6 +103,13 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 		}
 	}
 
+	if slices.Contains(tctx.allowedFlags, "deprecation") && slices.Contains(tctx.enabledFlags, "deprecation") {
+		err := deprecateRelationsAndObjects(deprecationDefinition, objectDefinitions)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Strip the type annotation metadata if typechecking isn't enabled.
 	if !slices.Contains(tctx.enabledFlags, "typechecking") {
 		for _, def := range objectDefinitions {
@@ -112,13 +119,6 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 					return nil, err
 				}
 			}
-		}
-	}
-
-	if slices.Contains(tctx.allowedFlags, "deprecation") && slices.Contains(tctx.enabledFlags, "deprecation") {
-		err := deprecateRelationsAndObjects(deprecationDefinition, objectDefinitions)
-		if err != nil {
-			return nil, err
 		}
 	}
 

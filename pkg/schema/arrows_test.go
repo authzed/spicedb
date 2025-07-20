@@ -44,6 +44,50 @@ func TestLookupTuplesetArrows(t *testing.T) {
 			},
 		},
 		{
+			name: "functioned arrow any",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation org: organization
+				relation viewer: user
+				permission view = org.any(member) + viewer
+			}
+		`,
+			expected: map[string][]string{
+				"organization#member": {},
+				"resource#viewer":     {},
+				"resource#org":        {"org->member"},
+				"resource#view":       {},
+			},
+		},
+		{
+			name: "functioned arrow all",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation org: organization
+				relation viewer: user
+				permission view = org.all(member) + viewer
+			}
+		`,
+			expected: map[string][]string{
+				"organization#member": {},
+				"resource#viewer":     {},
+				"resource#org":        {"org->member"},
+				"resource#view":       {},
+			},
+		},
+		{
 			name: "multiple arrows",
 			schemaText: `
 			definition user {}
@@ -132,6 +176,46 @@ func TestAllReachableRelations(t *testing.T) {
 				relation org: organization
 				relation viewer: user
 				permission view = org->member + viewer
+			}
+		`,
+			expected: []string{
+				"organization#member",
+				"resource#org",
+			},
+		},
+		{
+			name: "functioned arrow any",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation org: organization
+				relation viewer: user
+				permission view = org.any(member) + viewer
+			}
+		`,
+			expected: []string{
+				"organization#member",
+				"resource#org",
+			},
+		},
+		{
+			name: "functioned arrow all",
+			schemaText: `
+			definition user {}
+
+			definition organization {
+				relation member: user
+			}
+
+			definition resource {
+				relation org: organization
+				relation viewer: user
+				permission view = org.all(member) + viewer
 			}
 		`,
 			expected: []string{

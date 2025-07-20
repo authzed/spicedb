@@ -1406,6 +1406,9 @@ type Deprecation struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// *
+	// deprecation_type is the type of deprecation for the relation.
+	// It can be either a warning or an error, defaults to unspecified.
 	DeprecationType DeprecationType `protobuf:"varint,1,opt,name=deprecation_type,json=deprecationType,proto3,enum=core.v1.DeprecationType" json:"deprecation_type,omitempty"`
 	// * object is the object that is deprecated
 	Object string `protobuf:"bytes,2,opt,name=object,proto3" json:"object,omitempty"`
