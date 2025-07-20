@@ -658,7 +658,6 @@ func checkForDeprecatedRelationsAndObjects(ctx context.Context, update *v1.Relat
 		case corev1.DeprecationType_DEPRECATED_TYPE_ERROR:
 			return shared.NewDeprecationError(update.Relationship.Resource.ObjectType, update.Relationship.Relation, relDef.Deprecation.Comments)
 		}
-
 	}
 	nsdef, _, err := reader.ReadNamespaceByName(ctx, resource.ObjectType)
 	if err != nil {

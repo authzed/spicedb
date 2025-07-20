@@ -305,7 +305,6 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 }
 
 func deprecateRelationsAndObjects(deprecations []*core.Deprecation, namespaces []*core.NamespaceDefinition) error {
-
 	objectMap := make(map[string]*core.NamespaceDefinition)
 	relationMap := make(map[string]*core.Relation)
 
@@ -313,7 +312,6 @@ func deprecateRelationsAndObjects(deprecations []*core.Deprecation, namespaces [
 		ns.Deprecation = &core.Deprecation{DeprecationType: core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED}
 		objectMap[ns.GetName()] = ns
 		for _, rel := range ns.GetRelation() {
-
 			// check if the relation already has a deprecation defined inside a definition
 			if rel.Deprecation == nil {
 				rel.Deprecation = &core.Deprecation{DeprecationType: core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED}
@@ -508,7 +506,6 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 
 	return permission, nil
 }
-
 
 func translateDeprecation(tctx *translationContext, depNode *dslNode) (*core.Deprecation, error) {
 	if !slices.Contains(tctx.allowedFlags, "deprecation") || !slices.Contains(tctx.enabledFlags, "deprecation") {
