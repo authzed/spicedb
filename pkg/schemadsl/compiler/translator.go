@@ -25,6 +25,7 @@ type translationContext struct {
 	allowedFlags     []string
 	enabledFlags     []string
 	caveatTypeSet    *caveattypes.TypeSet
+	deprecationCtx   *core.Deprecation
 }
 
 func (tctx *translationContext) prefixedPath(definitionName string) (string, error) {
@@ -72,6 +73,15 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 
 			definition = def
 			caveatDefinitions = append(caveatDefinitions, def)
+
+		case dslshape.NodeTypeDeprecation:
+			deprecation, err := translateDeprecation(definitionNode)
+			if err != nil {
+				return nil, err
+			}
+
+			tctx.deprecationCtx = deprecation
+			continue
 
 		case dslshape.NodeTypeDefinition:
 			def, err := translateObjectDefinition(tctx, definitionNode)
@@ -225,9 +235,21 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		return nil, defNode.WithSourceErrorf(definitionName, "invalid definition name: %w", err)
 	}
 
+	deprecationForNamespace := checkForDeprecation(tctx)
+
 	relationsAndPermissions := []*core.Relation{}
 	for _, relationOrPermissionNode := range defNode.GetChildren() {
 		if relationOrPermissionNode.GetType() == dslshape.NodeTypeComment {
+			continue
+		}
+
+		if relationOrPermissionNode.GetType() == dslshape.NodeTypeDeprecation && slices.Contains(tctx.enabledFlags, "deprecation") && slices.Contains(tctx.allowedFlags, "deprecation") {
+			deprecation, err := translateDeprecation(relationOrPermissionNode)
+			if err != nil {
+				return nil, err
+			}
+
+			tctx.deprecationCtx = deprecation
 			continue
 		}
 
@@ -245,7 +267,12 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 	}
 
 	if len(relationsAndPermissions) == 0 {
-		ns := namespace.Namespace(nspath)
+		var ns *core.NamespaceDefinition
+		if slices.Contains(tctx.enabledFlags, "deprecation") && slices.Contains(tctx.allowedFlags, "deprecation") && (deprecationForNamespace != &core.Deprecation{}) {
+			ns = namespace.WithDeprecation(nspath, deprecationForNamespace)
+		} else {
+			ns = namespace.Namespace(nspath)
+		}
 		ns.Metadata = addComments(ns.Metadata, defNode)
 		ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
@@ -258,7 +285,12 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		return ns, nil
 	}
 
-	ns := namespace.Namespace(nspath, relationsAndPermissions...)
+	var ns *core.NamespaceDefinition
+	if slices.Contains(tctx.enabledFlags, "deprecation") && slices.Contains(tctx.allowedFlags, "deprecation") && (deprecationForNamespace != &core.Deprecation{}) {
+		ns = namespace.WithDeprecation(nspath, deprecationForNamespace, relationsAndPermissions...)
+	} else {
+		ns = namespace.Namespace(nspath, relationsAndPermissions...)
+	}
 	ns.Metadata = addComments(ns.Metadata, defNode)
 	ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
@@ -269,6 +301,16 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 	}
 
 	return ns, nil
+}
+
+func checkForDeprecation(tctx *translationContext) *core.Deprecation {
+	deprecation := &core.Deprecation{}
+	if tctx.deprecationCtx != nil {
+		deprecation = tctx.deprecationCtx
+		tctx.deprecationCtx = nil // Reset for next definition.
+	}
+
+	return deprecation
 }
 
 func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.SourcePosition {
@@ -349,6 +391,8 @@ func translateRelation(tctx *translationContext, relationNode *dslNode) (*core.R
 		return nil, relationNode.Errorf("invalid relation name: %w", err)
 	}
 
+	deprecationForRelation := checkForDeprecation(tctx)
+
 	allowedDirectTypes := []*core.AllowedRelation{}
 	for _, typeRef := range relationNode.List(dslshape.NodeRelationPredicateAllowedTypes) {
 		allowedRelations, err := translateAllowedRelations(tctx, typeRef)
@@ -359,9 +403,14 @@ func translateRelation(tctx *translationContext, relationNode *dslNode) (*core.R
 		allowedDirectTypes = append(allowedDirectTypes, allowedRelations...)
 	}
 
-	relation, err := namespace.Relation(relationName, nil, allowedDirectTypes...)
-	if err != nil {
-		return nil, err
+	var relation *core.Relation
+	if slices.Contains(tctx.enabledFlags, "deprecation") && slices.Contains(tctx.allowedFlags, "deprecation") && (deprecationForRelation != &core.Deprecation{}) {
+		relation = namespace.MustRelationWithDeprecation(relationName, deprecationForRelation, nil, allowedDirectTypes...)
+	} else {
+		relation, err = namespace.Relation(relationName, nil, allowedDirectTypes...)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if !tctx.skipValidate {
@@ -371,6 +420,26 @@ func translateRelation(tctx *translationContext, relationNode *dslNode) (*core.R
 	}
 
 	return relation, nil
+}
+
+// translateDeprecation parses a deprecation directive from a DSL node.
+func translateDeprecation(depNode *dslNode) (*core.Deprecation, error) {
+	deprecationTypeStr, err := depNode.GetString(dslshape.NodeDeprecatedType)
+	if err != nil {
+		return nil, depNode.Errorf("invalid deprecation type: %w", err)
+	}
+
+	comments, err := depNode.GetString(dslshape.NodeDeprecatedComments)
+	if err != nil {
+		comments = ""
+	}
+
+	deprecation := namespace.Deprecation(
+		parseDeprecationType(deprecationTypeStr),
+		comments,
+	)
+
+	return deprecation, nil
 }
 
 func translatePermission(tctx *translationContext, permissionNode *dslNode) (*core.Relation, error) {
@@ -664,6 +733,17 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 			return nil, typeRefNode.Errorf("invalid caveat: %w", err)
 		}
 
+		// Add the deprecation, if any.
+		if slices.Contains(tctx.enabledFlags, "deprecation") && slices.Contains(tctx.allowedFlags, "deprecation") {
+			if depChild, err := typeRefNode.Lookup(dslshape.NodeTypeReferenceDeprecatedType); err == nil && depChild.GetType() == dslshape.NodeTypeDeprecation {
+				dep, err := translateDeprecation(depChild)
+				if err != nil {
+					return nil, err
+				}
+				ref.RequiredDeprecation = dep
+			}
+		}
+
 		if !tctx.skipValidate {
 			if err := ref.Validate(); err != nil {
 				return nil, typeRefNode.Errorf("invalid type relation: %w", err)
@@ -713,6 +793,17 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 		ref.RequiredExpiration = &core.ExpirationTrait{}
 	}
 
+	// Add the deprecation, if any.
+	if slices.Contains(tctx.enabledFlags, "deprecation") && slices.Contains(tctx.allowedFlags, "deprecation") {
+		if depChild, err := typeRefNode.Lookup(dslshape.NodeTypeReferenceDeprecatedType); err == nil && depChild.GetType() == dslshape.NodeTypeDeprecation {
+			dep, err := translateDeprecation(depChild)
+			if err != nil {
+				return nil, err
+			}
+			ref.RequiredDeprecation = dep
+		}
+	}
+
 	if !tctx.skipValidate {
 		if err := ref.Validate(); err != nil {
 			return nil, typeRefNode.Errorf("invalid type relation: %w", err)
@@ -760,4 +851,16 @@ func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
 	}
 	tctx.enabledFlags = append(tctx.enabledFlags, flagName)
 	return nil
+}
+
+// helper function to convert a string to a deprecation type
+func parseDeprecationType(s string) core.DeprecationType {
+	switch strings.ToLower(s) {
+	case "warn":
+		return core.DeprecationType_DEPRECATED_TYPE_WARNING
+	case "error":
+		return core.DeprecationType_DEPRECATED_TYPE_ERROR
+	default:
+		return core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED
+	}
 }

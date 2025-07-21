@@ -808,7 +808,7 @@ type loadBulkAdapter struct {
 	err          error
 }
 
-func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
+func (a *loadBulkAdapter) Next(ctx context.Context) (*tuple.Relationship, error) {
 	for a.err == nil && a.numSent == len(a.currentBatch) {
 		// Load a new batch
 		batch, err := a.stream.Recv()

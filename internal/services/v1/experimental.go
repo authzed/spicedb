@@ -148,7 +148,7 @@ type bulkLoadAdapter struct {
 	err          error
 }
 
-func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
+func (a *bulkLoadAdapter) Next(ctx context.Context) (*tuple.Relationship, error) {
 	for a.err == nil && a.numSent == len(a.currentBatch) {
 		// Load a new batch
 		batch, err := a.stream.Recv()
