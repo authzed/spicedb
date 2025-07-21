@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -28,8 +29,9 @@ func ValidateRelationshipUpdates(
 		return item.Relationship
 	})
 
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 	// Load namespaces and caveats.
-	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, reader)
+	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, reader, ts)
 	if err != nil {
 		return err
 	}
@@ -52,6 +54,17 @@ func ValidateRelationshipUpdates(
 		}
 	}
 
+	// check if the relation is deprecated for create or touch operations
+	relsToCheck := make([]tuple.Relationship, 0, len(updates))
+	for _, update := range updates {
+		if update.Operation == tuple.UpdateOperationTouch || update.Operation == tuple.UpdateOperationCreate {
+			relsToCheck = append(relsToCheck, update.Relationship)
+		}
+	}
+	if err := CheckDeprecationsOnRelationships(ctx, relsToCheck, ts); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -65,8 +78,10 @@ func ValidateRelationshipsForCreateOrTouch(
 	caveatTypeSet *caveattypes.TypeSet,
 	rels ...tuple.Relationship,
 ) error {
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+
 	// Load namespaces and caveats.
-	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, reader)
+	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, reader, ts)
 	if err != nil {
 		return err
 	}
@@ -84,10 +99,15 @@ func ValidateRelationshipsForCreateOrTouch(
 		}
 	}
 
+	// Validate if the resource, relation or subject is deprecated
+	if err := CheckDeprecationsOnRelationships(ctx, rels, ts); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, reader datastore.Reader) (map[string]*schema.Definition, map[string]*core.CaveatDefinition, error) {
+func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, reader datastore.Reader, ts *schema.TypeSystem) (map[string]*schema.Definition, map[string]*core.CaveatDefinition, error) {
 	referencedNamespaceNames := mapz.NewSet[string]()
 	referencedCaveatNamesWithContext := mapz.NewSet[string]()
 	for _, rel := range rels {
@@ -106,7 +126,6 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 		if err != nil {
 			return nil, nil, err
 		}
-		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 
 		referencedNamespaceMap = make(map[string]*schema.Definition, len(foundNamespaces))
 		for _, nsDef := range foundNamespaces {
@@ -276,4 +295,25 @@ func hasNonEmptyCaveatContext(relationship tuple.Relationship) bool {
 		relationship.OptionalCaveat.CaveatName != "" &&
 		relationship.OptionalCaveat.Context != nil &&
 		len(relationship.OptionalCaveat.Context.GetFields()) > 0
+}
+
+// CheckDeprecationsOnRelationships checks the provided relationships for any deprecations, returning an error if applicable
+func CheckDeprecationsOnRelationships(
+	ctx context.Context,
+	relationships []tuple.Relationship,
+	ts *schema.TypeSystem,
+) error {
+	for _, rel := range relationships {
+		if err := checkForDeprecatedRelationsAndObjects(ctx, rel, ts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkForDeprecatedRelationsAndObjects(ctx context.Context, rel tuple.Relationship, ts *schema.TypeSystem) error {
+	if err := ts.CheckRelationshipDeprecation(ctx, rel); err != nil {
+		return shared.NewDeprecationError(err)
+	}
+	return nil
 }
