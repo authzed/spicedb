@@ -91,6 +91,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	require.NoError(err)
 
 	srv, err := server.NewConfigWithOptionsAndDefaults(
+		server.WithEnableExperimentalRelationshipDeprecation(true),
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithDispatchMaxDepth(50),

@@ -52,6 +52,7 @@ const (
 	TokenTypeStar       // *
 
 	// Additional tokens for CEL: https://github.com/google/cel-spec/blob/master/doc/langdef.md#syntax
+	TokenTypeAt                 // @
 	TokenTypeQuestionMark       // ?
 	TokenTypeConditionalOr      // ||
 	TokenTypeConditionalAnd     // &&
@@ -78,6 +79,7 @@ var keywords = map[string]struct{}{
 	"permission": {},
 	"nil":        {},
 	"with":       {},
+	"deprecated": {},
 }
 
 // IsKeyword returns whether the specified input string is a reserved keyword.
@@ -160,6 +162,9 @@ Loop:
 			} else {
 				l.emit(TokenTypeLessThan)
 			}
+
+		case r == '@':
+			l.emit(TokenTypeAt)
 
 		case r == '>':
 			if l.acceptString("=") {

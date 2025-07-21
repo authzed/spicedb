@@ -106,6 +106,12 @@ type PermissionsServerConfig struct {
 	// ExpiringRelationshipsEnabled defines whether or not expiring relationships are enabled.
 	ExpiringRelationshipsEnabled bool
 
+	// DeprecatedRelationshipsEnabled defines whether or not deprecated relationships are enabled.
+	DeprecatedRelationshipsAndObjectsEnabled bool
+
+	// DeprecatedRelationshipsEnabled defines whether or not deprecated relationships are enabled.
+	DeprecatedRelationshipsAndObjectsEnabled bool
+
 	// CaveatTypeSet is the set of caveat types to use for caveats. If not specified,
 	// the default type set is used.
 	CaveatTypeSet *caveattypes.TypeSet
@@ -144,6 +150,9 @@ func NewPermissionsServer(
 		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
+		DeprecatedRelationshipsAndObjectsEnabled: config.DeprecatedRelationshipsAndObjectsEnabled,
+		PerformanceInsightMetricsEnabled:         config.PerformanceInsightMetricsEnabled,
+		EnableExperimentalLookupResources3: 	  config.EnableExperimentalLookupResources3,
 	}
 
 	return &permissionServer{
@@ -346,6 +355,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
 		// TODO(jschorr): Change to struct-based keys.
+
 		tupleStr := tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
 			return nil, ps.rewriteError(

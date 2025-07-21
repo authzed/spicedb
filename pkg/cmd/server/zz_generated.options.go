@@ -94,6 +94,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.ExperimentalLookupResourcesVersion = c.ExperimentalLookupResourcesVersion
 		to.ExperimentalQueryPlan = c.ExperimentalQueryPlan
 		to.EnableRelationshipExpiration = c.EnableRelationshipExpiration
+		to.EnableExperimentalRelationshipDeprecation = c.EnableExperimentalRelationshipDeprecation
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 		to.EnablePerformanceInsightMetrics = c.EnablePerformanceInsightMetrics
 		to.MismatchZedTokenBehavior = c.MismatchZedTokenBehavior
@@ -168,8 +169,8 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
 	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
 	debugMap["ExperimentalLookupResourcesVersion"] = helpers.DebugValue(c.ExperimentalLookupResourcesVersion, false)
-	debugMap["ExperimentalQueryPlan"] = helpers.DebugValue(c.ExperimentalQueryPlan, false)
-	debugMap["EnableRelationshipExpiration"] = helpers.DebugValue(c.EnableRelationshipExpiration, false)
+	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
+	debugMap["EnableExperimentalRelationshipDeprecation"] = helpers.DebugValue(c.EnableExperimentalRelationshipDeprecation, false)
 	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
 	debugMap["MismatchZedTokenBehavior"] = helpers.DebugValue(c.MismatchZedTokenBehavior, false)
@@ -613,17 +614,17 @@ func WithExperimentalLookupResourcesVersion(experimentalLookupResourcesVersion s
 	}
 }
 
-// WithExperimentalQueryPlan returns an option that can set ExperimentalQueryPlan on a Config
-func WithExperimentalQueryPlan(experimentalQueryPlan string) ConfigOption {
+// WithEnableExperimentalRelationshipExpiration returns an option that can set EnableExperimentalRelationshipExpiration on a Config
+func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationshipExpiration bool) ConfigOption {
 	return func(c *Config) {
-		c.ExperimentalQueryPlan = experimentalQueryPlan
+		c.EnableExperimentalRelationshipExpiration = enableExperimentalRelationshipExpiration
 	}
 }
 
-// WithEnableRelationshipExpiration returns an option that can set EnableRelationshipExpiration on a Config
-func WithEnableRelationshipExpiration(enableRelationshipExpiration bool) ConfigOption {
+// WithEnableExperimentalRelationshipDeprecation returns an option that can set EnableExperimentalRelationshipDeprecation on a Config
+func WithEnableExperimentalRelationshipDeprecation(enableExperimentalRelationshipDeprecation bool) ConfigOption {
 	return func(c *Config) {
-		c.EnableRelationshipExpiration = enableRelationshipExpiration
+		c.EnableExperimentalRelationshipDeprecation = enableExperimentalRelationshipDeprecation
 	}
 }
 

@@ -706,11 +706,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						_, err = vts.PossibleTraitsForSubject("unknown", "user")
 						require.Error(t, err)
@@ -822,11 +824,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						_, err = vts.PossibleTraitsForSubject("unknown", "user")
 						require.Error(t, err)
@@ -937,11 +941,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						traits, err = vts.PossibleTraitsForSubject("member", "group")
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						traits, err = vts.PossibleTraitsForSubject("other", "user")
 						require.NoError(t, err)
@@ -952,11 +958,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						traits, err = vts.PossibleTraitsForSubject("three", "group")
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						_, err = vts.PossibleTraitsForSubject("unknown", "user")
 						require.Error(t, err)
@@ -1090,16 +1098,19 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
 						require.NoError(t, err)
 						require.True(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						traits, err = vts.PossibleTraitsForSubject("onlycaveated", "user")
 						require.NoError(t, err)
 						require.True(t, traits.AllowsCaveats)
 						require.False(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						_, err = vts.PossibleTraitsForSubject("unknown", "user")
 						require.Error(t, err)
@@ -1222,11 +1233,158 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
 						require.True(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
 
 						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
 						require.NoError(t, err)
 						require.True(t, traits.AllowsCaveats)
 						require.True(t, traits.AllowsExpiration)
+						require.False(t, traits.AllowsDeprecation)
+
+						_, err = vts.PossibleTraitsForSubject("unknown", "user")
+						require.Error(t, err)
+
+						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
+						require.Error(t, err)
+					})
+				},
+			},
+		},
+		{
+			"schema with deprecation and expiration",
+			`use expiration
+			 use deprecation
+
+			definition user {}
+			definition testuser {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			@deprecated(warn, "some comments here")
+			definition resource {
+				relation editor: user with expiration
+				relation viewer: user | user with somecaveat | @deprecated(error) user with expiration | user with somecaveat and expiration
+				relation auditor: @deprecated(warn, "migrate tester") testuser with somecaveat and expiration | @deprecated(error, "can't be expired") testuser with expiration
+				relation user_pool: @deprecated(warn) user:* 
+			}`,
+			map[string]tsTester{
+				"resource": func(t *testing.T, vts *ValidatedDefinition) {
+					t.Run("IsPermission", func(t *testing.T) {
+						require.False(t, vts.IsPermission("editor"))
+						require.False(t, vts.IsPermission("viewer"))
+						require.False(t, vts.IsPermission("auditor"))
+						require.False(t, vts.IsPermission("user_pool"))
+					})
+
+					t.Run("RelationDoesNotAllowCaveatsOrTraitsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.False(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.False(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("auditor", "testuser")
+						require.NoError(t, err)
+						require.False(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("user_pool", "user")
+						require.NoError(t, err)
+						require.False(t, ok)
+					})
+
+					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("editor", "user")))
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("viewer", "user")))
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("auditor", "testuser")))
+						require.Equal(t, PublicSubjectAllowed, noError(vts.IsAllowedPublicNamespace("user_pool", "user")))
+					})
+
+					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+						require.Equal(t, AllowedDefinitionValid, noError(vts.IsAllowedDirectNamespace("auditor", "testuser")))
+						require.Equal(t, AllowedDefinitionNotValid, noError(vts.IsAllowedDirectNamespace("user_pool", "user")))
+					})
+
+					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("editor", "user", "...")))
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("viewer", "user", "...")))
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("auditor", "testuser", "...")))
+						require.Equal(t, DirectRelationNotValid, noError(vts.IsAllowedDirectRelation("user_pool", "user", "...")))
+					})
+
+					t.Run("HasAllowedRelation", func(t *testing.T) {
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("editor", ns.AllowedRelationWithExpiration("user", "..."))))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("editor", ns.AllowedRelation("user", "..."))))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("editor", ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")))))
+
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelation("user", "..."))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithDeprecation(ns.AllowedRelationWithExpiration("user", "..."), ns.Deprecation(core.DeprecationType_DEPRECATED_TYPE_ERROR, "")))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithCaveatAndExpiration("user", "...", ns.AllowedCaveat("somecaveat")))))
+
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("auditor", ns.AllowedRelationWithDeprecation(ns.AllowedRelationWithExpiration("testuser", "..."), ns.Deprecation(core.DeprecationType_DEPRECATED_TYPE_ERROR, "can't be expired")))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("auditor", ns.AllowedRelationWithDeprecation(ns.AllowedRelationWithCaveatAndExpiration("testuser", "...", ns.AllowedCaveat("somecaveat")), ns.Deprecation(core.DeprecationType_DEPRECATED_TYPE_WARNING, "migrate tester")))))
+
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("user_pool", ns.AllowedPublicNamespaceWithDeprecation("user", ns.Deprecation(core.DeprecationType_DEPRECATED_TYPE_WARNING, "")))))
+					})
+
+					t.Run("AllowedDirectRelationsAndWildcards", func(t *testing.T) {
+						userDirect := ns.AllowedRelation("user", "...")
+						caveatedUser := ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))
+						expiringUser := ns.AllowedRelationWithExpiration("user", "...")
+						expiringCaveatedUser := ns.AllowedRelationWithCaveatAndExpiration("user", "...", ns.AllowedCaveat("somecaveat"))
+						deprecatedUser := ns.AllowedRelationWithDeprecation(ns.AllowedRelationWithExpiration("user", "..."), ns.Deprecation(core.DeprecationType_DEPRECATED_TYPE_ERROR, ""))
+
+						deprecatedPublicUser := ns.AllowedPublicNamespaceWithDeprecation("user", ns.Deprecation(core.DeprecationType_DEPRECATED_TYPE_WARNING, ""))
+
+						deprecatedCaveatedUser := ns.AllowedRelationWithDeprecation(ns.AllowedRelationWithCaveatAndExpiration("testuser", "...", ns.AllowedCaveat("somecaveat")), ns.Deprecation(core.DeprecationType_DEPRECATED_TYPE_WARNING, "migrate tester"))
+						deprecatedExpiredUser := ns.AllowedRelationWithDeprecation(ns.AllowedRelationWithExpiration("testuser", "..."), ns.Deprecation(core.DeprecationType_DEPRECATED_TYPE_ERROR, "can't be expired"))
+
+						allowed := noError(vts.AllowedDirectRelationsAndWildcards("editor"))
+						requireSameAllowedRelations(t, allowed, expiringUser)
+
+						allowed = noError(vts.AllowedDirectRelationsAndWildcards("viewer"))
+						requireSameAllowedRelations(t, allowed, userDirect, caveatedUser, deprecatedUser, expiringCaveatedUser)
+
+						allowed = noError(vts.AllowedDirectRelationsAndWildcards("auditor"))
+						requireSameAllowedRelations(t, allowed, deprecatedCaveatedUser, deprecatedExpiredUser)
+
+						allowed = noError(vts.AllowedDirectRelationsAndWildcards("user_pool"))
+						requireSameAllowedRelations(t, allowed, deprecatedPublicUser)
+					})
+
+					t.Run("AllowedSubjectRelations", func(t *testing.T) {
+						userDirect := ns.RelationReference("user", "...")
+
+						allowed := noError(vts.AllowedSubjectRelations("editor"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+
+						allowed = noError(vts.AllowedSubjectRelations("viewer"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+					})
+
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+						require.True(t, traits.AllowsDeprecation)
+
+						traits, err = vts.PossibleTraitsForSubject("auditor", "testuser")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+						require.True(t, traits.AllowsDeprecation)
 
 						_, err = vts.PossibleTraitsForSubject("unknown", "user")
 						require.Error(t, err)

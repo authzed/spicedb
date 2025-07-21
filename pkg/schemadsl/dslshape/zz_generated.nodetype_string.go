@@ -23,18 +23,20 @@ func _() {
 	_ = x[NodeTypeSpecificTypeReference-12]
 	_ = x[NodeTypeCaveatReference-13]
 	_ = x[NodeTypeTraitReference-14]
-	_ = x[NodeTypeUnionExpression-15]
-	_ = x[NodeTypeIntersectExpression-16]
-	_ = x[NodeTypeExclusionExpression-17]
-	_ = x[NodeTypeArrowExpression-18]
-	_ = x[NodeTypeIdentifier-19]
-	_ = x[NodeTypeNilExpression-20]
-	_ = x[NodeTypeCaveatTypeReference-21]
+	_ = x[NodeTypeDeprecation-15]
+	_ = x[NodeTypeDeprecationOptions-16]
+	_ = x[NodeTypeUnionExpression-17]
+	_ = x[NodeTypeIntersectExpression-18]
+	_ = x[NodeTypeExclusionExpression-19]
+	_ = x[NodeTypeArrowExpression-20]
+	_ = x[NodeTypeIdentifier-21]
+	_ = x[NodeTypeNilExpression-22]
+	_ = x[NodeTypeCaveatTypeReference-23]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeAnnotationNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeAnnotationNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeDeprecationNodeTypeDeprecationOptionsNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 200, 221, 250, 273, 295, 318, 345, 372, 395, 413, 434, 461}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 200, 221, 250, 273, 295, 314, 340, 363, 390, 417, 440, 458, 479, 506}
 
 func (i NodeType) String() string {
 	idx := int(i) - 0

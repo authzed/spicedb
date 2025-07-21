@@ -47,6 +47,78 @@ func NewSchemaWriteDataValidationError(message string, args []any, metadata map[
 	}
 }
 
+// DeprecationError is an error returned when a schema object or relation is deprecated.
+type DeprecationError struct {
+	error
+}
+
+func (err DeprecationError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.Aborted,
+		spiceerrors.ForReason(
+			// TODO: replace with a deprecation type error reason
+			v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR,
+			map[string]string{},
+		),
+	)
+}
+
+// NewDeprecationError wraps an error to indicate an attempted write to a deprecated object type, subject or allowed relation type.
+func NewDeprecationError(err error) DeprecationError {
+	return DeprecationError{
+		error: err,
+	}
+}
+
+// DeprecationError is an error returned when a schema object or relation is deprecated.
+type DeprecationError struct {
+	error
+}
+
+func (err DeprecationError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.Aborted,
+		spiceerrors.ForReason(
+			// TODO: replace with a deprecation type error reason
+			v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR,
+			map[string]string{},
+		),
+	)
+}
+
+// NewDeprecationError wraps an error to indicate an attempted write to a deprecated object type, subject or allowed relation type.
+func NewDeprecationError(err error) DeprecationError {
+	return DeprecationError{
+		error: err,
+	}
+}
+
+// DeprecationError is an error returned when a schema object or relation is deprecated.
+type DeprecationError struct {
+	error
+}
+
+func (err DeprecationError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.Aborted,
+		spiceerrors.ForReason(
+			// TODO: replace with a deprecation type error reason
+			v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR,
+			map[string]string{},
+		),
+	)
+}
+
+// NewDeprecationError wraps an error to indicate an attempted write to a deprecated object type, subject or allowed relation type.
+func NewDeprecationError(err error) DeprecationError {
+	return DeprecationError{
+		error: err,
+	}
+}
+
 // SchemaWriteDataValidationError occurs when a schema cannot be applied due to leaving data unreferenced.
 type SchemaWriteDataValidationError struct {
 	error

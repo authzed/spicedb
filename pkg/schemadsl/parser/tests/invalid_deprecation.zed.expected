@@ -1,0 +1,34 @@
+NodeTypeFile
+  end-rune = 48
+  input-source = invalid deprecation use
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = deprecated_relation
+      end-rune = 48
+      input-source = invalid deprecation use
+      start-rune = 0
+      child-node =>
+        NodeTypeDeprecation
+          end-rune = 48
+          input-source = invalid deprecation use
+          start-rune = 37
+          child-node =>
+            NodeTypeError
+              end-rune = 48
+              error-message = Expected identifier for deprecation type
+              error-source = )
+              input-source = invalid deprecation use
+              start-rune = 49
+        NodeTypeError
+          end-rune = 48
+          error-message = Expected end of statement or definition, found: TokenTypeRightParen
+          error-source = )
+          input-source = invalid deprecation use
+          start-rune = 49
+    NodeTypeError
+      end-rune = 48
+      error-message = Unexpected token at root level: TokenTypeRightParen
+      error-source = )
+      input-source = invalid deprecation use
+      start-rune = 49

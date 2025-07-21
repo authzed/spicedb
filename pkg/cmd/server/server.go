@@ -133,6 +133,7 @@ type Config struct {
 	EnableRevisionHeartbeat            bool          `debugmap:"visible"`
 	EnablePerformanceInsightMetrics    bool          `debugmap:"visible"`
 	MismatchZedTokenBehavior           string        `debugmap:"visible"`
+	EnableExperimentalRelationshipDeprecation bool          `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -500,6 +501,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		PerformanceInsightMetricsEnabled:   c.EnablePerformanceInsightMetrics,
 		EnableExperimentalLookupResources3: c.ExperimentalLookupResourcesVersion == "lr3",
 		ExperimentalQueryPlan:              c.ExperimentalQueryPlan == "check",
+		DeprecatedRelationshipsAndObjectsEnabled: c.EnableExperimentalRelationshipDeprecation,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)
