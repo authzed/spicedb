@@ -15,18 +15,23 @@ type Definition struct {
 }
 
 type Caveat struct {
-	parent *Schema
-	Name   string
+	parent          *Schema
+	Name            string
+	Expression      string
+	ParameterTypes  []string
 }
 
 type Relation struct {
-	parent *Definition
-	Name   string
+	parent             *Definition
+	Name               string
+	AllowedTypes       []string
+	AliasingRelation   string
 }
 
 type Permission struct {
-	parent *Definition
-	Name   string
+	parent    *Definition
+	Name      string
+	Operation Operation
 }
 
 func BuildSchemaFromCompiler(schema compiler.CompiledSchema) (*Schema, error) {
@@ -53,5 +58,5 @@ func BuildSchemaFromCompiler(schema compiler.CompiledSchema) (*Schema, error) {
 		out.Caveats[caveat.GetName()] = c
 	}
 
-	return &Schema{}, nil
+	return out, nil
 }
