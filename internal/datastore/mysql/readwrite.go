@@ -56,13 +56,19 @@ type mysqlReadWriteTXN struct {
 type structpbWrapper map[string]any
 
 func (cc *structpbWrapper) Scan(val any) error {
+	if val == nil {
+		clear(*cc)
+		*cc = nil
+		return nil
+	}
+
 	v, ok := val.([]byte)
 	if !ok {
 		return fmt.Errorf("unsupported type: %T", v)
 	}
 
 	clear(*cc)
-	return json.Unmarshal(v, &cc)
+	return json.Unmarshal(v, cc)
 }
 
 func (cc *structpbWrapper) Value() (driver.Value, error) {
