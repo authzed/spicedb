@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -116,17 +117,17 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 	var integrityHash []byte
 	var timestamp time.Time
 
-	span.AddEvent("Selecting columns")
+	span.AddEvent(otelconv.EventDatastoreColumnsSelected)
 	colsToSelect, err := ColumnsToSelect(builder, &resourceObjectType, &resourceObjectID, &resourceRelation, &subjectObjectType, &subjectObjectID, &subjectRelation, &caveatName, &caveatCtx, &expiration, &integrityKeyID, &integrityHash, &timestamp)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryRels, err)
 	}
 
-	span.AddEvent("Returning iterator", trace.WithAttributes(attribute.Int("column-count", len(colsToSelect))))
+	span.AddEvent(otelconv.EventDatastoreIteratorCreate, trace.WithAttributes(attribute.Int(otelconv.AttrDatastoreColumnCount, len(colsToSelect))))
 	return func(yield func(tuple.Relationship, error) bool) {
-		span.AddEvent("Issuing query to database")
+		span.AddEvent(otelconv.EventDatastoreExecuteIssued)
 		err := tx.QueryFunc(ctx, func(ctx context.Context, rows R) error {
-			span.AddEvent("Query issued to database")
+			span.AddEvent(otelconv.EventDatastoreExecuteStarted)
 
 			var r Rows = rows
 			if crwe, ok := r.(closeRowsWithError); ok {
@@ -138,7 +139,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 			relCount := 0
 			for rows.Next() {
 				if relCount == 0 {
-					span.AddEvent("First row returned")
+					span.AddEvent(otelconv.EventDatastoreRowsFirstReturned)
 				}
 
 				if err := rows.Scan(colsToSelect...); err != nil {
@@ -146,7 +147,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 				}
 
 				if relCount == 0 {
-					span.AddEvent("First row scanned")
+					span.AddEvent(otelconv.EventDatastoreRowsFirstScanned)
 				}
 
 				var caveat *corev1.ContextualizedCaveat
@@ -198,7 +199,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 				}
 			}
 
-			span.AddEvent("Relationships loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
+			span.AddEvent(otelconv.EventDatastoreRelationshipsLoaded, trace.WithAttributes(attribute.Int(otelconv.AttrDatastoreRelationshipsCount, relCount)))
 			if err := rows.Err(); err != nil {
 				return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("rows err: %w", err))
 			}

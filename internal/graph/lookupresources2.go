@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -296,10 +297,10 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 	config redispatchOverDatabaseConfig2,
 ) error {
 	ctx, span := tracer.Start(ctx, "datastorequery", trace.WithAttributes(
-		attribute.String("source-resource-type-namespace", config.sourceResourceType.Namespace),
-		attribute.String("source-resource-type-relation", config.sourceResourceType.Relation),
-		attribute.String("subjects-filter-subject-type", config.subjectsFilter.SubjectType),
-		attribute.Int("subjects-filter-subject-ids-count", len(config.subjectsFilter.OptionalSubjectIds)),
+		attribute.String(otelconv.AttrGraphSourceResourceTypeNamespace, config.sourceResourceType.Namespace),
+		attribute.String(otelconv.AttrGraphSourceResourceTypeRelation, config.sourceResourceType.Relation),
+		attribute.String(otelconv.AttrGraphSubjectsFilterSubjectType, config.subjectsFilter.SubjectType),
+		attribute.Int(otelconv.AttrGraphSubjectsFilterSubjectIdsCount, len(config.subjectsFilter.OptionalSubjectIds)),
 	))
 	defer span.End()
 
@@ -513,7 +514,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 	}
 
 	ctx, span := tracer.Start(ctx, "redispatchOrReport", trace.WithAttributes(
-		attribute.Int("found-resources-count", foundResources.len()),
+		attribute.Int(otelconv.AttrGraphFoundResourcesCount, foundResources.len()),
 	))
 	defer span.End()
 

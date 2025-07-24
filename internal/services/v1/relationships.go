@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -304,7 +305,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	ds := datastoremw.MustFromContext(ctx)
 
 	span := trace.SpanFromContext(ctx)
-	span.AddEvent("validating mutations")
 	// Ensure that the updates and preconditions are not over the configured limits.
 	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
 		return nil, ps.rewriteError(
@@ -345,30 +345,29 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			)
 		}
 	}
+	span.AddEvent(otelconv.EventRelationshipsMutationsValidated)
 
 	// Execute the write operation(s).
-	span.AddEvent("read write transaction")
 	relUpdates, err := tuple.UpdatesFromV1RelationshipUpdates(req.Updates)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		span.AddEvent("preconditions")
-
 		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
 			if err := validatePrecondition(ctx, precond, rwt); err != nil {
 				return err
 			}
 		}
+		span.AddEvent(otelconv.EventRelationshipsPreconditionsValidated)
 
 		// Validate the updates.
-		span.AddEvent("validate updates")
 		err := relationships.ValidateRelationshipUpdates(ctx, rwt, ps.config.CaveatTypeSet, relUpdates)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
+		span.AddEvent(otelconv.EventRelationshipsUpdatesValidated)
 
 		dispatchCount, err := genutil.EnsureUInt32(len(req.OptionalPreconditions) + 1)
 		if err != nil {
@@ -380,14 +379,16 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			DispatchCount: dispatchCount,
 		})
 
-		span.AddEvent("preconditions")
+		span.AddEvent(otelconv.EventRelationshipsPreconditionsValidated)
 		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
 			return err
 		}
 
-		span.AddEvent("write relationships")
-		return rwt.WriteRelationships(ctx, relUpdates)
+		errWrite := rwt.WriteRelationships(ctx, relUpdates)
+		span.AddEvent(otelconv.EventRelationshipsWritten)
+		return errWrite
 	}, options.WithMetadata(req.OptionalTransactionMetadata))
+	span.AddEvent(otelconv.EventRelationshipsReadWriteExecuted)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}

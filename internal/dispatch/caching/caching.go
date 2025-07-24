@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -176,11 +177,11 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 				}
 			}
 
-			span.SetAttributes(attribute.Bool("cached", true))
+			span.SetAttributes(attribute.Bool(otelconv.AttrDispatchCached, true))
 			return &response, nil
 		}
 	}
-	span.SetAttributes(attribute.Bool("cached", false))
+	span.SetAttributes(attribute.Bool(otelconv.AttrDispatchCached, false))
 	computed, err := cd.d.DispatchCheck(ctx, req)
 
 	// We only want to cache the result if there was no error

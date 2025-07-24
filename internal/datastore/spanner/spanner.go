@@ -30,6 +30,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -259,27 +260,27 @@ type traceableRTX struct {
 
 func (t *traceableRTX) ReadRow(ctx context.Context, table string, key spanner.Key, columns []string) (*spanner.Row, error) {
 	trace.SpanFromContext(ctx).SetAttributes(
-		attribute.String("spannerAPI", "ReadOnlyTransaction.ReadRow"),
-		attribute.String("table", table),
-		attribute.String("key", key.String()),
-		attribute.StringSlice("columns", columns))
+		attribute.String(otelconv.AttrDatastoreSpannerAPI, "ReadOnlyTransaction.ReadRow"),
+		attribute.String(otelconv.AttrDatastoreSpannerTable, table),
+		attribute.String(otelconv.AttrDatastoreSpannerKey, key.String()),
+		attribute.StringSlice(otelconv.AttrDatastoreSpannerColumns, columns))
 
 	return t.delegate.ReadRow(ctx, table, key, columns)
 }
 
 func (t *traceableRTX) Read(ctx context.Context, table string, keys spanner.KeySet, columns []string) *spanner.RowIterator {
 	trace.SpanFromContext(ctx).SetAttributes(
-		attribute.String("spannerAPI", "ReadOnlyTransaction.Read"),
-		attribute.String("table", table),
-		attribute.StringSlice("columns", columns))
+		attribute.String(otelconv.AttrDatastoreSpannerAPI, "ReadOnlyTransaction.Read"),
+		attribute.String(otelconv.AttrDatastoreSpannerTable, table),
+		attribute.StringSlice(otelconv.AttrDatastoreSpannerColumns, columns))
 
 	return t.delegate.Read(ctx, table, keys, columns)
 }
 
 func (t *traceableRTX) Query(ctx context.Context, statement spanner.Statement) *spanner.RowIterator {
 	trace.SpanFromContext(ctx).SetAttributes(
-		attribute.String("spannerAPI", "ReadOnlyTransaction.Query"),
-		attribute.String("statement", statement.SQL))
+		attribute.String(otelconv.AttrDatastoreSpannerAPI, "ReadOnlyTransaction.Query"),
+		attribute.String(otelconv.AttrDatastoreSpannerStatement, statement.SQL))
 
 	return t.delegate.Query(ctx, statement)
 }

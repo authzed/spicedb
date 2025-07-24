@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/tools/analyzers/nilvaluecheck"
 	"github.com/authzed/spicedb/tools/analyzers/paniccheck"
 	"github.com/authzed/spicedb/tools/analyzers/protomarshalcheck"
+	"github.com/authzed/spicedb/tools/analyzers/telemetryconvcheck"
 	"github.com/authzed/spicedb/tools/analyzers/zerologmarshalcheck"
 	"golang.org/x/tools/go/analysis/multichecker"
 )
@@ -22,5 +23,6 @@ func main() {
 		lendowncastcheck.Analyzer(),
 		protomarshalcheck.Analyzer(),
 		zerologmarshalcheck.Analyzer(),
+		telemetryconvcheck.Analyzer(),
 	)
 }

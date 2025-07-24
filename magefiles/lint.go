@@ -91,6 +91,7 @@ func (Lint) Analyzers() error {
 		"-zerologmarshalcheck",
 		"-zerologmarshalcheck.skip-files=_test,zz_",
 		"-protomarshalcheck",
+		"-telemetryconvcheck",
 		// Skip generated protobuf files for this check
 		// Also skip test where we're explicitly using proto.Marshal to assert
 		// that the proto.Marshal behavior matches foo.MarshalVT()
