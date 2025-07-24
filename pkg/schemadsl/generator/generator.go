@@ -188,6 +188,18 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 
 func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) error {
 	sg.emitComments(namespace.Metadata)
+	if namespace.Deprecation != nil && namespace.Deprecation.DeprecationType != core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+		sg.flags.Add("deprecation")
+		sg.append("@deprecated(")
+		sg.append(deprecationTypeString(namespace.Deprecation.DeprecationType))
+		if namespace.Deprecation.Comments != "" {
+			sg.append(", \"")
+			sg.append(namespace.Deprecation.Comments)
+			sg.append("\"")
+		}
+		sg.append(")")
+		sg.ensureBlankLineOrNewScope()
+	}
 	sg.append("definition ")
 	sg.append(namespace.Name)
 
@@ -202,6 +214,18 @@ func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) er
 	sg.markNewScope()
 
 	for _, relation := range namespace.Relation {
+		if relation.Deprecation != nil && relation.Deprecation.DeprecationType != core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+			sg.flags.Add("deprecation")
+			sg.append("@deprecated(")
+			sg.append(deprecationTypeString(relation.Deprecation.DeprecationType))
+			if relation.Deprecation.Comments != "" {
+				sg.append(", \"")
+				sg.append(relation.Deprecation.Comments)
+				sg.append("\"")
+			}
+			sg.append(")")
+			sg.ensureBlankLineOrNewScope()
+		}
 		err := sg.emitRelation(relation)
 		if err != nil {
 			return err
@@ -255,6 +279,20 @@ func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
 }
 
 func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRelation) {
+	if allowedRelation.GetRequiredDeprecation() != nil &&
+		allowedRelation.GetRequiredDeprecation().DeprecationType != core.DeprecationType_DEPRECATED_TYPE_UNSPECIFIED {
+		sg.flags.Add("deprecation")
+		sg.append("@deprecated(")
+		sg.append(deprecationTypeString(allowedRelation.GetRequiredDeprecation().DeprecationType))
+
+		if allowedRelation.GetRequiredDeprecation().Comments != "" {
+			sg.append(", \"")
+			sg.append(allowedRelation.GetRequiredDeprecation().Comments)
+			sg.append("\"")
+		}
+		sg.append(") ")
+	}
+
 	sg.append(allowedRelation.Namespace)
 	if allowedRelation.GetRelation() != "" && allowedRelation.GetRelation() != Ellipsis {
 		sg.append("#")
@@ -427,4 +465,14 @@ func (sg *sourceGenerator) appendComment(comment string) {
 		sg.append(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(comment), "//")))
 		sg.appendLine()
 	}
+}
+
+func deprecationTypeString(depType core.DeprecationType) string {
+	switch depType {
+	case core.DeprecationType_DEPRECATED_TYPE_ERROR:
+		return "error"
+	case core.DeprecationType_DEPRECATED_TYPE_WARNING:
+		return "warn"
+	}
+	return ""
 }

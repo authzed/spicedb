@@ -15,6 +15,12 @@ func Namespace(name string, relations ...*core.Relation) *core.NamespaceDefiniti
 	}
 }
 
+func WithDeprecation(name string, deprecation *core.Deprecation, relations ...*core.Relation) *core.NamespaceDefinition {
+	nd := Namespace(name, relations...)
+	nd.Deprecation = deprecation
+	return nd
+}
+
 // WithComment creates a namespace definition with one or more defined relations.
 func WithComment(name string, comment string, relations ...*core.Relation) *core.NamespaceDefinition {
 	nd := Namespace(name, relations...)
@@ -70,6 +76,13 @@ func Relation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations 
 func MustRelationWithComment(name string, comment string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
 	rel := MustRelation(name, rewrite, allowedDirectRelations...)
 	rel.Metadata, _ = AddComment(rel.Metadata, comment)
+	return rel
+}
+
+// MustRelationWithDeprecation creates a relation definition with an optional rewrite definition.
+func MustRelationWithDeprecation(name string, deprecation *core.Deprecation, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
+	rel := MustRelation(name, rewrite, allowedDirectRelations...)
+	rel.Deprecation = deprecation
 	return rel
 }
 
@@ -205,6 +218,14 @@ func RelationReference(namespaceName string, relationName string) *core.Relation
 	return &core.RelationReference{
 		Namespace: namespaceName,
 		Relation:  relationName,
+	}
+}
+
+// Deprecation creates a deprecation definition.
+func Deprecation(deprecationType core.DeprecationType, message string) *core.Deprecation {
+	return &core.Deprecation{
+		DeprecationType: deprecationType,
+		Comments:        message,
 	}
 }
 

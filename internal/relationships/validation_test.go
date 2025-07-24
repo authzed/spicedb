@@ -306,6 +306,63 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			core.RelationTupleUpdate_CREATE,
 			"subjects of type `user with somecaveat and expiration` are not allowed on relation `resource#viewer`",
 		},
+		{
+			"deprecation relation test",
+			`use deprecation
+			definition testuser {}
+			definition user {}
+
+			definition document {
+				@deprecated(error,"deprecated, migrate away")
+				relation editor: testuser
+				relation viewer: user
+			}`,
+			"document:foo#editor@testuser:tom",
+			core.RelationTupleUpdate_CREATE,
+			"the relation document#editor is deprecated: deprecated, migrate away",
+		},
+		{
+			"deprecated namespace test",
+			`use deprecation
+			@deprecated(error, "deprecated, migrate away")
+			definition testuser {}
+			definition user {}
+
+			definition document {
+				relation editor: testuser
+			}`,
+			"document:foo#editor@testuser:tom",
+			core.RelationTupleUpdate_CREATE,
+			"the object type testuser is deprecated: deprecated, migrate away",
+		},
+		{
+			"deprecated relation subject type",
+			`use deprecation
+			definition user {}
+			definition testuser {}
+
+			definition platform {
+				relation viewer: user | @deprecated(warn, "comments") testuser
+				relation auditor: user | @deprecated(error, "test") testuser
+			}`,
+			"platform:foo#auditor@testuser:test",
+			core.RelationTupleUpdate_CREATE,
+			"the object type testuser is deprecated: test",
+		},
+		{
+			"deprecated relation same subject type with wildcard",
+			`use deprecation
+			definition user {}
+			definition testuser {}
+
+			definition platform {
+				relation viewer: user | @deprecated(warn, "comments") testuser
+				relation auditor: testuser | @deprecated(error, "no wildcard please") testuser:*
+			}`,
+			"platform:foo#auditor@testuser:*",
+			core.RelationTupleUpdate_CREATE,
+			"the wildcard allowed type testuser:* is deprecated: no wildcard please",
+		},
 	}
 
 	for _, tc := range tcs {

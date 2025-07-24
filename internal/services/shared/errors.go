@@ -47,6 +47,54 @@ func NewSchemaWriteDataValidationError(message string, args ...any) SchemaWriteD
 	}
 }
 
+// DeprecationError is an error returned when a schema object or relation is deprecated.
+type DeprecationError struct {
+	error
+}
+
+func (err DeprecationError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.Aborted,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR,
+			map[string]string{},
+		),
+	)
+}
+
+func NewDeprecationError(namespace, relation, comments string) DeprecationError {
+	switch {
+	case relation == "*":
+		// Wildcard deprecation
+		if comments != "" {
+			return DeprecationError{
+				error: fmt.Errorf("the wildcard allowed type %s:* is deprecated: %s", namespace, comments),
+			}
+		}
+		return DeprecationError{
+			error: fmt.Errorf("the wildcard allowed type %s:* has been marked as deprecated", namespace),
+		}
+
+	case relation == "" && comments != "":
+		return DeprecationError{
+			error: fmt.Errorf("the object type %s is deprecated: %s", namespace, comments),
+		}
+	case relation == "":
+		return DeprecationError{
+			error: fmt.Errorf("the object type %s has been marked as deprecated", namespace),
+		}
+	case comments != "":
+		return DeprecationError{
+			error: fmt.Errorf("the relation %s#%s is deprecated: %s", namespace, relation, comments),
+		}
+	default:
+		return DeprecationError{
+			error: fmt.Errorf("the relation %s#%s has been marked as deprecated", namespace, relation),
+		}
+	}
+}
+
 // SchemaWriteDataValidationError occurs when a schema cannot be applied due to leaving data unreferenced.
 type SchemaWriteDataValidationError struct {
 	error

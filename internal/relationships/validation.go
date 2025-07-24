@@ -3,7 +3,9 @@ package relationships
 import (
 	"context"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -31,6 +33,19 @@ func ValidateRelationshipUpdates(
 	// Load namespaces and caveats.
 	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, reader)
 	if err != nil {
+		return err
+	}
+
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+
+	// check if the relation is deprecated for create or touch operations
+	var relsToCheck []tuple.Relationship
+	for _, update := range updates {
+		if update.Operation == tuple.UpdateOperationTouch || update.Operation == tuple.UpdateOperationCreate {
+			relsToCheck = append(relsToCheck, update.Relationship)
+		}
+	}
+	if err := CheckDeprecationsOnRelationships(ctx, relsToCheck, ts); err != nil {
 		return err
 	}
 
@@ -68,6 +83,13 @@ func ValidateRelationshipsForCreateOrTouch(
 	// Load namespaces and caveats.
 	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, reader)
 	if err != nil {
+		return err
+	}
+
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+
+	// Validate if the resource, relation or subject is deprecated
+	if err := CheckDeprecationsOnRelationships(ctx, rels, ts); err != nil {
 		return err
 	}
 
@@ -276,4 +298,105 @@ func hasNonEmptyCaveatContext(relationship tuple.Relationship) bool {
 		relationship.OptionalCaveat.CaveatName != "" &&
 		relationship.OptionalCaveat.Context != nil &&
 		len(relationship.OptionalCaveat.Context.GetFields()) > 0
+}
+
+func CheckDeprecationsOnRelationships(
+	ctx context.Context,
+	relationships []tuple.Relationship,
+	ts *schema.TypeSystem,
+) error {
+	for _, rel := range relationships {
+		if err := checkForDeprecatedRelationsAndObjects(ctx, rel, ts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkForDeprecatedRelationsAndObjects(ctx context.Context, rel tuple.Relationship, ts *schema.TypeSystem) error {
+	// Validate if the resource relation is deprecated
+	relDep, ok, err := ts.GetDeprecationForRelation(ctx, rel.Resource.ObjectType, rel.Resource.Relation)
+	if err != nil {
+		return err
+	}
+	if ok {
+		switch relDep.DeprecationType {
+		case core.DeprecationType_DEPRECATED_TYPE_WARNING:
+			log.Warn().
+				Str("namespace", rel.Resource.ObjectType).
+				Str("relation", rel.Resource.Relation).
+				Str("comments", relDep.Comments).
+				Msg("write to deprecated relation")
+		case core.DeprecationType_DEPRECATED_TYPE_ERROR:
+			return shared.NewDeprecationError(rel.Resource.ObjectType, rel.Resource.Relation, relDep.Comments)
+		}
+	}
+
+	// Validate if the resource namespace is deprecated
+	resDep, ok, err := ts.GetDeprecationForNamespace(ctx, rel.Resource.ObjectType)
+	if err != nil {
+		return err
+	}
+	if ok {
+		switch resDep.DeprecationType {
+		case core.DeprecationType_DEPRECATED_TYPE_WARNING:
+			log.Warn().
+				Str("namespace", rel.Resource.ObjectType).
+				Str("comments", resDep.Comments).
+				Msg("write to deprecated object")
+		case core.DeprecationType_DEPRECATED_TYPE_ERROR:
+			return shared.NewDeprecationError(rel.Resource.ObjectType, "", resDep.Comments)
+		}
+	}
+
+	// Validate if the subject namespace is deprecated
+	subDep, ok, err := ts.GetDeprecationForNamespace(ctx, rel.Subject.ObjectType)
+	if err != nil {
+		return err
+	}
+	if ok {
+		switch subDep.DeprecationType {
+		case core.DeprecationType_DEPRECATED_TYPE_WARNING:
+			log.Warn().
+				Str("namespace", rel.Subject.ObjectType).
+				Str("comments", subDep.Comments).
+				Msg("write to deprecated object")
+		case core.DeprecationType_DEPRECATED_TYPE_ERROR:
+			return shared.NewDeprecationError(rel.Subject.ObjectType, "", subDep.Comments)
+		}
+	}
+
+	// check deprecation for allowed relation types
+	dep, ok, err := ts.GetDeprecationForAllowedRelation(
+		ctx,
+		rel.Resource.ObjectType,
+		rel.Resource.Relation,
+		rel.Subject.ObjectType,
+		rel.Subject.Relation,
+		rel.Subject.ObjectID == tuple.PublicWildcard,
+	)
+	if err != nil {
+		return err
+	}
+
+	errMsg := ""
+	if rel.Subject.ObjectID == tuple.PublicWildcard {
+		errMsg = tuple.PublicWildcard
+	}
+
+	if ok {
+		switch dep.DeprecationType {
+		case core.DeprecationType_DEPRECATED_TYPE_WARNING:
+			log.Warn().
+				Str("namespace", rel.Resource.ObjectType).
+				Str("comments", dep.Comments).
+				Msg("write to deprecated relation")
+		case core.DeprecationType_DEPRECATED_TYPE_ERROR:
+			return shared.NewDeprecationError(
+				rel.Subject.ObjectType,
+				errMsg,
+				dep.Comments)
+		}
+	}
+	return nil
 }
