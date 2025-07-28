@@ -459,6 +459,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		PerformanceInsightMetricsEnabled: c.EnablePerformanceInsightMetrics,
 	}
 
+	watchServiceConfig := v1svc.WatchServerConfig{
+		HeartbeatDuration:   c.WatchHeartbeat,
+		StreamingAPITimeout: c.StreamingAPITimeout,
+	}
+
 	healthManager := health.NewHealthManager(dispatcher, ds)
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
@@ -469,7 +474,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				v1SchemaServiceOption,
 				watchServiceOption,
 				permSysConfig,
-				c.WatchHeartbeat,
+				watchServiceConfig,
 			)
 		},
 	)

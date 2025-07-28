@@ -89,7 +89,9 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 				ExpiringRelationshipsEnabled:    true,
 				CaveatTypeSet:                   cts,
 			},
-			1*time.Second,
+			v1svc.WatchServerConfig{
+				HeartbeatDuration: 1 * time.Second,
+			},
 		)
 	}
 

@@ -12,7 +12,9 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/middleware"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -26,16 +28,32 @@ type watchServer struct {
 	v1.UnimplementedWatchServiceServer
 	shared.WithStreamServiceSpecificInterceptor
 
-	heartbeatDuration time.Duration
+	config WatchServerConfig
+}
+
+// WatchServerConfig is configuration for the watch API server.
+type WatchServerConfig struct {
+	HeartbeatDuration time.Duration
+
+	// StreamingAPITimeout is the timeout for streaming APIs when no response has been
+	// recently received.
+	StreamingAPITimeout time.Duration
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(heartbeatDuration time.Duration) v1.WatchServiceServer {
+func NewWatchServer(config WatchServerConfig) v1.WatchServiceServer {
+	configWithDefaults := WatchServerConfig{
+		HeartbeatDuration:   config.HeartbeatDuration,
+		StreamingAPITimeout: defaultIfZero(config.StreamingAPITimeout, 30*time.Second), // same default as the permission server (which relies on the same flag)
+	}
 	s := &watchServer{
+		config: configWithDefaults,
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
-			Stream: grpcvalidate.StreamServerInterceptor(),
+			Stream: middleware.ChainStreamServer(
+				grpcvalidate.StreamServerInterceptor(),
+				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),
+			),
 		},
-		heartbeatDuration: heartbeatDuration,
 	}
 	return s
 }
@@ -83,7 +101,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 
 	updates, errchan := ds.Watch(ctx, afterRevision, datastore.WatchOptions{
 		Content:            convertWatchKindToContent(req.OptionalUpdateKinds),
-		CheckpointInterval: ws.heartbeatDuration,
+		CheckpointInterval: ws.config.HeartbeatDuration,
 	})
 	for {
 		select {

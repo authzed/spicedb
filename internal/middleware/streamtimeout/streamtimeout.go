@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // MustStreamServerInterceptor returns a new stream server interceptor that cancels the context
@@ -23,7 +21,9 @@ func MustStreamServerInterceptor(timeout time.Duration) grpc.StreamServerInterce
 		ctx := stream.Context()
 		withCancel, internalCancelFn := context.WithCancelCause(ctx)
 		timer := time.AfterFunc(timeout, func() {
-			internalCancelFn(spiceerrors.WithCodeAndDetailsAsError(fmt.Errorf("operation took longer than allowed %v to complete", timeout), codes.DeadlineExceeded))
+			err := fmt.Errorf("operation took longer than allowed %v to complete", timeout)
+			log.Warn().Msg(err.Error())
+			internalCancelFn(err)
 		})
 		wrapper := &sendWrapper{stream, withCancel, timer, timeout}
 		return handler(srv, wrapper)
