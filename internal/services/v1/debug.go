@@ -11,6 +11,7 @@ import (
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -162,12 +163,19 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 
 	// If there is more than a single result, mark the overall permissionship
 	// as unspecified if *all* results needed to be true and at least one is not.
+	permissionshipResult := permissionship
 	if len(ct.Request.ResourceIds) > 1 && ct.Request.ResultsSetting == dispatch.DispatchCheckRequest_REQUIRE_ALL_RESULTS {
+		permissionshipsFound := mapz.NewSet[dispatch.ResourceCheckResult_Membership]()
 		for _, resourceID := range ct.Request.ResourceIds {
-			if result, ok := ct.Results[resourceID]; !ok || result.Membership != dispatch.ResourceCheckResult_MEMBER {
-				permissionship = v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED
-				break
+			if result, ok := ct.Results[resourceID]; ok {
+				permissionshipsFound.Add(result.Membership)
+			} else {
+				permissionshipsFound.Add(dispatch.ResourceCheckResult_NOT_MEMBER)
 			}
+		}
+
+		if permissionshipsFound.Len() != 1 {
+			permissionshipResult = v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED
 		}
 	}
 
@@ -202,7 +210,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 				OptionalRelation: subRelation,
 			},
 			CaveatEvaluationInfo: caveatEvalInfo,
-			Result:               permissionship,
+			Result:               permissionshipResult,
 			Resolution: &v1.CheckDebugTrace_SubProblems_{
 				SubProblems: &v1.CheckDebugTrace_SubProblems{
 					Traces: subProblems,
@@ -229,7 +237,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 			OptionalRelation: subRelation,
 		},
 		CaveatEvaluationInfo: caveatEvalInfo,
-		Result:               permissionship,
+		Result:               permissionshipResult,
 		Resolution: &v1.CheckDebugTrace_WasCachedResult{
 			WasCachedResult: ct.IsCachedResult,
 		},
