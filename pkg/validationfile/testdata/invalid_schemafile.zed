@@ -1,0 +1,11 @@
+definition example/user {}
+
+definition example/project {
+  relation reader: example/user
+  relation writer: example/user
+  relation owner example/user
+
+  permission read = reader + write
+  permission write = writer + admin
+  permission admin = owner
+}
