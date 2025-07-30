@@ -575,7 +575,7 @@ func expectFrames(req *require.Assertions, frames []frameInfo, check *v1.CheckDe
 	req.Equal(frame.resourceType, check.Resource.ObjectType)
 	req.Equal(frame.resourceIDs, strings.Split(check.Resource.ObjectId, ","))
 	req.Equal(frame.permission, check.Permission)
-	req.Equal(frame.permissionship, check.Result)
+	req.Equal(frame.permissionship, check.Result, "frame: %s", prototext.Format(check))
 
 	remainingFrames := frames[1:]
 	if len(remainingFrames) > 0 {
@@ -813,13 +813,13 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 								resourceType:   "document",
 								resourceIDs:    []string{"first", "second", "third"},
 								permission:     "view",
-								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 							},
 							frameInfo{
 								resourceType:   "document",
 								resourceIDs:    []string{"first", "second", "third"},
 								permission:     "viewer",
-								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 							},
 						),
 					},
@@ -838,13 +838,13 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 								resourceType:   "document",
 								resourceIDs:    []string{"first", "second", "third"},
 								permission:     "view",
-								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 							},
 							frameInfo{
 								resourceType:   "document",
 								resourceIDs:    []string{"first", "second", "third"},
 								permission:     "viewer",
-								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 							},
 						),
 					},
@@ -863,13 +863,13 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 								resourceType:   "document",
 								resourceIDs:    []string{"first", "second", "third"},
 								permission:     "view",
-								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 							},
 							frameInfo{
 								resourceType:   "document",
 								resourceIDs:    []string{"first", "second", "third"},
 								permission:     "viewer",
-								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 							},
 						),
 					},
