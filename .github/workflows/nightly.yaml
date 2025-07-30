@@ -32,8 +32,7 @@ jobs:
       - uses: "goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552" # v6.3.0
         with:
           distribution: "goreleaser-pro"
-          # Pinned because of a regression in 2.3.0
-          version: "2.5.1"
+          version: "2.11.1"
           args: "release -f .goreleaser.nightly.yml --clean --nightly"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
