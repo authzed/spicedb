@@ -340,6 +340,16 @@ type ReachabilityEntrypoint struct {
 	parentRelation *core.RelationReference
 }
 
+// HashKey returns a unique key for the entrypoint. Note this is *not* stable across versions of SpiceDB,
+// and should not be stored for later comparison. It consists of the entrypoint's hash and a prefix.
+func (re ReachabilityEntrypoint) HashKey() (string, error) {
+	hash, err := re.Hash()
+	if err != nil {
+		return "", fmt.Errorf("failed to hash entrypoint: %w", err)
+	}
+	return "entrypoint:" + strconv.FormatUint(hash, 10), nil
+}
+
 // Hash returns a hash representing the data in the entrypoint, for comparison to other entrypoints.
 // This is ONLY stable within a single version of SpiceDB and should NEVER be stored for later
 // comparison outside of the process.

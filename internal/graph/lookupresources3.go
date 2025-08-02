@@ -15,6 +15,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/caveats"
 	cter "github.com/authzed/spicedb/internal/cursorediterator"
+	"github.com/authzed/spicedb/internal/digests"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
@@ -36,7 +37,14 @@ const lr3DispatchVersion = 3
 
 // NewCursoredLookupResources3 creates a new CursoredLookupResources3 instance with the given parameters.
 func NewCursoredLookupResources3(dl dispatch.LookupResources3, dc dispatch.Check, caveatTypeSet *caveattypes.TypeSet, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredLookupResources3 {
-	return &CursoredLookupResources3{dl, dc, caveatTypeSet, concurrencyLimit, dispatchChunkSize}
+	return &CursoredLookupResources3{
+		dl:                dl,
+		dc:                dc,
+		caveatTypeSet:     caveatTypeSet,
+		concurrencyLimit:  concurrencyLimit,
+		dispatchChunkSize: dispatchChunkSize,
+		digestMap:         digests.NewDigestMap(),
+	}
 }
 
 // CursoredLookupResources3 is a dispatch implementation for the LookupResources3 operation.
@@ -58,6 +66,9 @@ type CursoredLookupResources3 struct {
 	// dispatchChunkSize is the maximum number of relationships that can be dispatched
 	// in a single request.
 	dispatchChunkSize uint16
+
+	// digestMap is a map of digest keys to t-digests used for concurrency calculations.
+	digestMap *digests.DigestMap
 }
 
 // ValidatedLookupResources3Request is a wrapper around the DispatchLookupResources3Request
@@ -394,15 +405,17 @@ func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram
 			return cter.YieldsError[result](err)
 		}
 
-		// For each entrypoint, create a cursor iterator that will yield results for that entrypoint via
+		// For each entrypoint, create an iterator that will yield results for that entrypoint via
 		// the entrypointIter method.
-		cursorOverEntrypoints := make([]cter.Next[pram], 0, len(entrypoints))
+		entrypointIterators := make([]cter.Next[pram], 0, len(entrypoints))
 		for _, ep := range entrypoints {
-			cursorOverEntrypoints = append(cursorOverEntrypoints, crr.entrypointIter(lctx, ep))
+			entrypointIterators = append(entrypointIterators, crr.entrypointIter(lctx, ep))
 		}
 
 		// Execute the iterators in parallel, yielding results for each entrypoint in the proper order.
-		return cter.CursoredParallelIterators(ctx, currentCursor, concurrencyLimit, cursorOverEntrypoints...)
+		return estimatedConcurrencyLimit(crr, lctx, keyedEntrypoints(entrypoints), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
+			return cter.CursoredParallelIterators(ctx, currentCursor, computedConcurrencyLimit, entrypointIterators...)
+		})
 	}
 }
 
@@ -650,155 +663,157 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 	//
 	// The producer will yield chunks of relationships, maximum of the dispatchChunkSize, to be
 	// dispatched by the mapper in parallel.
-	return cter.CursoredProducerMapperIterator(ctx, currentCursor,
-		lctx.computeConcurrencyLimit(),
-		datastoreCursorFromString,
-		datastoreCursorToString,
-		func(ctx context.Context, currentIndex *v1.DatastoreCursor, remainingCursor cter.Cursor) iter.Seq2[cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error] {
-			ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterProducer)
-			defer span.End()
+	return estimatedConcurrencyLimit(crr, lctx, keyedEntrypoint(config.entrypoint), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
+		return cter.CursoredProducerMapperIterator(ctx, currentCursor,
+			computedConcurrencyLimit,
+			datastoreCursorFromString,
+			datastoreCursorToString,
+			func(ctx context.Context, currentIndex *v1.DatastoreCursor, remainingCursor cter.Cursor) iter.Seq2[cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error] {
+				ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterProducer)
+				defer span.End()
 
-			return func(yield func(cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error) bool) {
-				ctx, cancel := context.WithCancel(ctx)
-				defer cancel()
+				return func(yield func(cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error) bool) {
+					ctx, cancel := context.WithCancel(ctx)
+					defer cancel()
 
-				yieldError := func(err error) {
-					_ = yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{}, err)
-				}
-
-				// Create a relationships map from the current index cursor, if any. The cursor will contain the *current*
-				// chunk of relationships over which the process is iterating. If non-empty, then we first yield that chunk
-				// before continuing to query for more relationships.
-				rm := relationshipsChunkFromCursor(currentIndex)
-				if rm.isPopulated() {
-					// Yield the current chunk of relationships.
-					if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
-						Chunk:  rm,
-						Follow: currentIndex,
-					}, nil) {
-						return
+					yieldError := func(err error) {
+						_ = yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{}, err)
 					}
 
-					// Check if the remaining cursor contains another datastore cursor. If so, we have this producer
-					// yield a "hold" to allow mapping/dispatching to process *before* we hit the datastore again.
-					//
-					// This handles the common case where the limited number of results requested is reached without having
-					// to load further information from the datastore, thus saving on unnecessary work.
-					//
-					// We only do so if there is a defined limit on the number of results to fetch, as otherwise, we need
-					// to run the full set of work anyway.
-					if lctx.req.OptionalLimit > 0 && containsDatastoreCursor(remainingCursor) {
-						// We have a remaining cursor, so we yield a hold to allow the mapper to process the current chunk
-						// before we continue fetching more relationships.
-						if !yield(cter.HoldForMappingComplete[*relationshipsChunk, *v1.DatastoreCursor]{}, nil) {
+					// Create a relationships map from the current index cursor, if any. The cursor will contain the *current*
+					// chunk of relationships over which the process is iterating. If non-empty, then we first yield that chunk
+					// before continuing to query for more relationships.
+					rm := relationshipsChunkFromCursor(currentIndex)
+					if rm.isPopulated() {
+						// Yield the current chunk of relationships.
+						if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
+							Chunk:  rm,
+							Follow: currentIndex,
+						}, nil) {
 							return
 						}
+
+						// Check if the remaining cursor contains another datastore cursor. If so, we have this producer
+						// yield a "hold" to allow mapping/dispatching to process *before* we hit the datastore again.
+						//
+						// This handles the common case where the limited number of results requested is reached without having
+						// to load further information from the datastore, thus saving on unnecessary work.
+						//
+						// We only do so if there is a defined limit on the number of results to fetch, as otherwise, we need
+						// to run the full set of work anyway.
+						if lctx.req.OptionalLimit > 0 && containsDatastoreCursor(remainingCursor) {
+							// We have a remaining cursor, so we yield a hold to allow the mapper to process the current chunk
+							// before we continue fetching more relationships.
+							if !yield(cter.HoldForMappingComplete[*relationshipsChunk, *v1.DatastoreCursor]{}, nil) {
+								return
+							}
+						}
 					}
-				}
 
-				// Determine whether we need to fetch caveats and/or expiration.
-				vts, err := lctx.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
-				if err != nil {
-					yieldError(err)
-					return
-				}
-
-				possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.Relation, config.subjectsFilter.SubjectType)
-				if err != nil {
-					yieldError(err)
-					return
-				}
-
-				skipCaveats := !possibleTraits.AllowsCaveats
-				skipExpiration := !possibleTraits.AllowsExpiration
-
-				// Continue by querying for relationships from the datastore, after the optional cursor.
-				it, err := lctx.reader.ReverseQueryRelationships(
-					ctx,
-					config.subjectsFilter,
-					options.WithResRelation(&options.ResourceRelation{
-						Namespace: config.sourceResourceType.Namespace,
-						Relation:  config.sourceResourceType.Relation,
-					}),
-					options.WithSortForReverse(options.BySubject),
-					options.WithAfterForReverse(rm.afterCursor()),
-					options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
-					options.WithSkipCaveatsForReverse(skipCaveats),
-					options.WithSkipExpirationForReverse(skipExpiration),
-				)
-				if err != nil {
-					yieldError(err)
-					return
-				}
-
-				// Yield a subject map of chunks of relationships, based on the dispatchChunkSize.
-				rm = newRelationshipsChunk(int(crr.dispatchChunkSize))
-				for rel, err := range it {
+					// Determine whether we need to fetch caveats and/or expiration.
+					vts, err := lctx.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
 					if err != nil {
 						yieldError(err)
 						return
 					}
 
-					// If a caveat exists on the relationship, run it and filter the results, marking those that have missing context.
-					var missingContextParameters []string
-					if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
-						caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
-						runResult, err := lctx.caveatRunner.RunCaveatExpression(ctx, caveatExpr, lctx.req.Context.AsMap(), lctx.reader, caveats.RunCaveatExpressionNoDebugging)
+					possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.Relation, config.subjectsFilter.SubjectType)
+					if err != nil {
+						yieldError(err)
+						return
+					}
+
+					skipCaveats := !possibleTraits.AllowsCaveats
+					skipExpiration := !possibleTraits.AllowsExpiration
+
+					// Continue by querying for relationships from the datastore, after the optional cursor.
+					it, err := lctx.reader.ReverseQueryRelationships(
+						ctx,
+						config.subjectsFilter,
+						options.WithResRelation(&options.ResourceRelation{
+							Namespace: config.sourceResourceType.Namespace,
+							Relation:  config.sourceResourceType.Relation,
+						}),
+						options.WithSortForReverse(options.BySubject),
+						options.WithAfterForReverse(rm.afterCursor()),
+						options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
+						options.WithSkipCaveatsForReverse(skipCaveats),
+						options.WithSkipExpirationForReverse(skipExpiration),
+					)
+					if err != nil {
+						yieldError(err)
+						return
+					}
+
+					// Yield a subject map of chunks of relationships, based on the dispatchChunkSize.
+					rm = newRelationshipsChunk(int(crr.dispatchChunkSize))
+					for rel, err := range it {
 						if err != nil {
 							yieldError(err)
 							return
 						}
 
-						// If a partial result is returned, collect the missing context parameters.
-						if runResult.IsPartial() {
-							missingNames, err := runResult.MissingVarNames()
+						// If a caveat exists on the relationship, run it and filter the results, marking those that have missing context.
+						var missingContextParameters []string
+						if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
+							caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
+							runResult, err := lctx.caveatRunner.RunCaveatExpression(ctx, caveatExpr, lctx.req.Context.AsMap(), lctx.reader, caveats.RunCaveatExpressionNoDebugging)
 							if err != nil {
 								yieldError(err)
 								return
 							}
 
-							missingContextParameters = missingNames
-						} else if !runResult.Value() {
-							// If the run result shows the caveat does not apply, skip. This shears the tree of results early.
-							continue
+							// If a partial result is returned, collect the missing context parameters.
+							if runResult.IsPartial() {
+								missingNames, err := runResult.MissingVarNames()
+								if err != nil {
+									yieldError(err)
+									return
+								}
+
+								missingContextParameters = missingNames
+							} else if !runResult.Value() {
+								// If the run result shows the caveat does not apply, skip. This shears the tree of results early.
+								continue
+							}
+						}
+
+						// Add the relationship to the relationships chunk, marking it with any context parameters that were missing.
+						relCount := rm.addRelationship(rel, missingContextParameters)
+						if relCount >= int(crr.dispatchChunkSize) {
+							// Yield the chunk of relationships for processing.
+							if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
+								Chunk:  rm,
+								Follow: rm.asCursor(),
+							}, nil) {
+								return
+							}
+							rm = newRelationshipsChunk(int(crr.dispatchChunkSize))
 						}
 					}
 
-					// Add the relationship to the relationships chunk, marking it with any context parameters that were missing.
-					relCount := rm.addRelationship(rel, missingContextParameters)
-					if relCount >= int(crr.dispatchChunkSize) {
-						// Yield the chunk of relationships for processing.
+					if rm.isPopulated() {
+						// Yield any remaining relationships in the chunk.
 						if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
 							Chunk:  rm,
 							Follow: rm.asCursor(),
 						}, nil) {
 							return
 						}
-						rm = newRelationshipsChunk(int(crr.dispatchChunkSize))
 					}
 				}
+			},
+			func(ctx context.Context, remainingCursor cter.Cursor, rm *relationshipsChunk) iter.Seq2[result, error] {
+				ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterMapper)
+				defer span.End()
 
-				if rm.isPopulated() {
-					// Yield any remaining relationships in the chunk.
-					if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
-						Chunk:  rm,
-						Follow: rm.asCursor(),
-					}, nil) {
-						return
-					}
-				}
-			}
-		},
-		func(ctx context.Context, remainingCursor cter.Cursor, rm *relationshipsChunk) iter.Seq2[result, error] {
-			ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterMapper)
-			defer span.End()
-
-			// Return an iterator to continue finding resources by dispatching.
-			// NOTE(jschorr): Technically if we don't have any further entrypoints at this point, we could do checks locally,
-			// but that would require additional code just to save one dispatch hop, thus complicating the code base.
-			return crr.checkedDispatchIter(ctx, lctx, remainingCursor, rm, config.foundResourceType, config.entrypoint)
-		},
-	)
+				// Return an iterator to continue finding resources by dispatching.
+				// NOTE(jschorr): Technically if we don't have any further entrypoints at this point, we could do checks locally,
+				// but that would require additional code just to save one dispatch hop, thus complicating the code base.
+				return crr.checkedDispatchIter(ctx, lctx, remainingCursor, rm, config.foundResourceType, config.entrypoint)
+			},
+		)
+	})
 }
 
 func (crr *CursoredLookupResources3) checkedDispatchIter(
