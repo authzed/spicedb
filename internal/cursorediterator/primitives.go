@@ -45,3 +45,18 @@ func YieldsError[I any](err error) iter.Seq2[I, error] {
 func UncursoredEmpty[I any]() iter.Seq2[I, error] {
 	return func(yield func(I, error) bool) {}
 }
+
+// CountingIterator wraps a Seq2 iterator and counts the number of items yielded,
+// invoking the callback with the final count once the iterator completes.
+func CountingIterator[I any](source iter.Seq2[I, error], callback func(int)) iter.Seq2[I, error] {
+	return func(yield func(I, error) bool) {
+		count := 0
+		source(func(item I, err error) bool {
+			if err == nil {
+				count++
+			}
+			return yield(item, err)
+		})
+		callback(count)
+	}
+}
