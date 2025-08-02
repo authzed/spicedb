@@ -62,7 +62,7 @@ jobs:
           sudo snap install snapcraft --channel=8.x/stable --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages
-      - uses: "aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37" # master
+      - uses: "aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4" # master
         with:
           scan-type: "fs"
           ignore-unfixed: true
