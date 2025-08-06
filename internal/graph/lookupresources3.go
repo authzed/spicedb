@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -198,7 +199,7 @@ type ValidatedLookupResources3Request struct {
 // This allows the operation to resume at any point in the complex iteration hierarchy without
 // losing progress or re-processing completed work.
 func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResources3Request, stream dispatch.LookupResources3Stream) error {
-	ctx, span := tracer.Start(stream.Context(), "LookupResources3")
+	ctx, span := tracer.Start(stream.Context(), otelconv.EventDispatchLookupResources3)
 	defer span.End()
 
 	if req.TerminalSubject == nil {
@@ -299,7 +300,7 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 	ctx context.Context,
 	lctx lr3ctx,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, "unlimitedLookupResourcesIter")
+	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLR3UnlimitedResults)
 	defer span.End()
 
 	var cursor cter.Cursor
@@ -321,9 +322,9 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 				return cter.UncursoredEmpty[pram]()
 			}
 
-			_, span := tracer.Start(ctx, "unlimitedLookupResourcesIter::direct-subjects", trace.WithAttributes(
-				attribute.String("subject-resource-type", lctx.req.SubjectRelation.Namespace),
-				attribute.String("subject-resource-relation", lctx.req.SubjectRelation.Relation),
+			_, span := tracer.Start(ctx, otelconv.EventDispatchLR3UnlimitedResultsDirectSubjects, trace.WithAttributes(
+				attribute.String(otelconv.AttrDispatchSubjectType, lctx.req.SubjectRelation.Namespace),
+				attribute.String(otelconv.AttrDispatchSubjectRelation, lctx.req.SubjectRelation.Relation),
 			))
 			defer span.End()
 
@@ -356,7 +357,7 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 // the entrypoints for the given subject IDs and yields results for each entrypoint.
 func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
-		ctx, span := tracer.Start(ctx, "entrypointsIter")
+		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointsIter)
 		defer span.End()
 
 		// Determine the concurrency to use for this iteration. If any limit is requested,
@@ -409,9 +410,10 @@ func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, lctx l
 // for each entrypoint, dispatching further when necessary.
 func (crr *CursoredLookupResources3) entrypointIter(lctx lr3ctx, entrypoint schema.ReachabilityEntrypoint) cter.Next[pram] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
-		ctx, span := tracer.Start(ctx, "entrypointIter", trace.WithAttributes(
-			attribute.String("entrypoint", entrypoint.DebugStringOrEmpty()),
-		))
+		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointIter,
+			trace.WithAttributes(
+				attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
+			))
 		defer span.End()
 
 		switch entrypoint.EntrypointKind() {
@@ -461,9 +463,10 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 	entrypoint schema.ReachabilityEntrypoint,
 	currentCursor cter.Cursor,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, "relationEntrypointIter", trace.WithAttributes(
-		attribute.String("entrypoint", entrypoint.DebugStringOrEmpty()),
-	))
+	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationEntrypoint,
+		trace.WithAttributes(
+			attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
+		))
 	defer span.End()
 
 	// Build a subject filter for the subjects for which to lookup relationships.
@@ -542,9 +545,10 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 	entrypoint schema.ReachabilityEntrypoint,
 	currentCursor cter.Cursor,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, "ttuEntrypointIter", trace.WithAttributes(
-		attribute.String("entrypoint", entrypoint.DebugStringOrEmpty()),
-	))
+	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3ArrowEntrypoint,
+		trace.WithAttributes(
+			attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
+		))
 	defer span.End()
 
 	containingRelation := entrypoint.ContainingRelationOrPermission()
@@ -633,7 +637,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 		datastoreCursorFromString,
 		datastoreCursorToString,
 		func(ctx context.Context, currentIndex *v1.DatastoreCursor) iter.Seq2[cter.ChunkAndFollowCursor[*relationshipsChunk, *v1.DatastoreCursor], error] {
-			ctx, span := tracer.Start(ctx, "relationshipsIter::producer")
+			ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterProducer)
 			defer span.End()
 
 			return func(yield func(cter.ChunkAndFollowCursor[*relationshipsChunk, *v1.DatastoreCursor], error) bool) {
@@ -733,7 +737,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 			}
 		},
 		func(ctx context.Context, remainingCursor cter.Cursor, rm *relationshipsChunk) iter.Seq2[result, error] {
-			ctx, span := tracer.Start(ctx, "relationshipsIter::mapper")
+			ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterMapper)
 			defer span.End()
 
 			// Return an iterator to continue finding resources by dispatching.
@@ -754,9 +758,10 @@ func (crr *CursoredLookupResources3) checkedDispatchIter(
 	foundResourceType *core.RelationReference,
 	entrypoint schema.ReachabilityEntrypoint,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, "checkedDispatchIter", trace.WithAttributes(
-		attribute.String("entrypoint", entrypoint.DebugStringOrEmpty()),
-	))
+	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3CheckedDispatchIter,
+		trace.WithAttributes(
+			attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
+		))
 	defer span.End()
 
 	// If the entrypoint is a direct result, we can simply dispatch the results, as it means no intersection,
@@ -786,7 +791,7 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	foundResourceType *core.RelationReference,
 	metadata *v1.ResponseMeta,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, "dispatchIter")
+	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3DispatchIter)
 	defer span.End()
 
 	if !rm.isPopulated() {

@@ -355,11 +355,11 @@ func (ld *localDispatcher) DispatchLookupResources3(
 	}
 
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources3", trace.WithAttributes(
-		attribute.String("resource-type", tuple.StringCoreRR(req.ResourceRelation)),
-		attribute.String("subject-type", tuple.StringCoreRR(req.SubjectRelation)),
-		attribute.StringSlice("subject-ids", req.SubjectIds),
-		attribute.String("terminal-subject", tuple.StringCoreONR(req.TerminalSubject)),
-		attribute.String("node-id", nodeID),
+		attribute.String(otelconv.AttrDispatchResourceType, tuple.StringCoreRR(req.ResourceRelation)),
+		attribute.String(otelconv.AttrDispatchSubjectType, tuple.StringCoreRR(req.SubjectRelation)),
+		attribute.StringSlice(otelconv.AttrDispatchSubjectIDs, req.SubjectIds),
+		attribute.String(otelconv.AttrDispatchTerminalSubject, tuple.StringCoreONR(req.TerminalSubject)),
+		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
 
