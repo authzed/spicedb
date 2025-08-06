@@ -15,17 +15,25 @@ type Definition struct {
 }
 
 type Caveat struct {
-	parent          *Schema
-	Name            string
-	Expression      string
-	ParameterTypes  []string
+	parent         *Schema
+	Name           string
+	Expression     string
+	ParameterTypes []string
+}
+
+type BaseRelation struct {
+	Type        string
+	Subrelation string
+	Caveat      string
+	Expiration  bool
+	Wildcard    bool
 }
 
 type Relation struct {
-	parent             *Definition
-	Name               string
-	AllowedTypes       []string
-	AliasingRelation   string
+	parent           *Definition
+	Name             string
+	BaseRelations    []BaseRelation
+	AliasingRelation string
 }
 
 type Permission struct {
