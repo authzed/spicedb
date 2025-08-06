@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -85,22 +86,43 @@ func convertTypeInformation(typeinfo *corev1.TypeInformation) (Relation, error) 
 		return Relation{}, fmt.Errorf("type information is nil")
 	}
 
-	allowedTypes := make([]string, 0, len(typeinfo.GetAllowedDirectRelations()))
+	allowedTypes := make([]BaseRelation, 0, len(typeinfo.GetAllowedDirectRelations()))
 	for _, allowedRelation := range typeinfo.GetAllowedDirectRelations() {
+		// Extract caveat and expiration information
+		caveat := ""
+		if allowedRelation.GetRequiredCaveat() != nil {
+			caveat = allowedRelation.GetRequiredCaveat().GetCaveatName()
+		}
+		expiration := allowedRelation.GetRequiredExpiration() != nil
+
 		if allowedRelation.GetPublicWildcard() != nil {
-			allowedTypes = append(allowedTypes, allowedRelation.GetNamespace()+":*")
+			allowedTypes = append(allowedTypes, BaseRelation{
+				Type:       allowedRelation.GetNamespace(),
+				Wildcard:   true,
+				Caveat:     caveat,
+				Expiration: expiration,
+			})
 		} else {
 			relationName := allowedRelation.GetRelation()
-			if relationName == "" {
-				allowedTypes = append(allowedTypes, allowedRelation.GetNamespace())
+			if relationName == "" || relationName == "..." {
+				allowedTypes = append(allowedTypes, BaseRelation{
+					Type:       allowedRelation.GetNamespace(),
+					Caveat:     caveat,
+					Expiration: expiration,
+				})
 			} else {
-				allowedTypes = append(allowedTypes, allowedRelation.GetNamespace()+"#"+relationName)
+				allowedTypes = append(allowedTypes, BaseRelation{
+					Type:        allowedRelation.GetNamespace(),
+					Subrelation: relationName,
+					Caveat:      caveat,
+					Expiration:  expiration,
+				})
 			}
 		}
 	}
 
 	return Relation{
-		AllowedTypes: allowedTypes,
+		BaseRelations: allowedTypes,
 	}, nil
 }
 

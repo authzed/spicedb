@@ -11,7 +11,7 @@ import (
 
 func TestSchemaConversionFromCompiler(t *testing.T) {
 	t.Parallel()
-	
+
 	type testcase struct {
 		name                string
 		schemaText          string
@@ -20,7 +20,7 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 		expectedPermissions map[string][]string // definition -> permissions
 		expectedCaveats     []string
 	}
-	
+
 	tcs := []testcase{
 		{
 			name: "basic schema with relations and permissions",
@@ -277,15 +277,15 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 			for defName, expectedRelations := range tc.expectedRelations {
 				def, exists := v2Schema.Definitions[defName]
 				require.True(t, exists, "Definition %s should exist", defName)
-				
+
 				require.Len(t, def.Relations, len(expectedRelations))
-				
+
 				for _, relName := range expectedRelations {
 					rel, exists := def.Relations[relName]
 					require.True(t, exists, "Relation %s should exist in definition %s", relName, defName)
 					require.Equal(t, relName, rel.Name)
 					require.Equal(t, def, rel.parent)
-					require.NotEmpty(t, rel.AllowedTypes, "Relation %s should have allowed types", relName)
+					require.NotEmpty(t, rel.BaseRelations, "Relation %s should have allowed types", relName)
 				}
 			}
 
@@ -293,9 +293,9 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 			for defName, expectedPermissions := range tc.expectedPermissions {
 				def, exists := v2Schema.Definitions[defName]
 				require.True(t, exists, "Definition %s should exist", defName)
-				
+
 				require.Len(t, def.Permissions, len(expectedPermissions))
-				
+
 				for _, permName := range expectedPermissions {
 					perm, exists := def.Permissions[permName]
 					require.True(t, exists, "Permission %s should exist in definition %s", permName, defName)
@@ -314,7 +314,7 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 				v2Def, exists := v2Schema.Definitions[compiledDef.Name]
 				require.True(t, exists, "Compiled definition %s should exist in v2 schema", compiledDef.Name)
 				require.Equal(t, compiledDef.Name, v2Def.Name)
-				
+
 				// Count relations and permissions from compiled schema
 				compiledRelations := 0
 				compiledPermissions := 0
@@ -326,7 +326,7 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 						compiledPermissions++
 					}
 				}
-				
+
 				require.Equal(t, compiledRelations, len(v2Def.Relations))
 				require.Equal(t, compiledPermissions, len(v2Def.Permissions))
 			}
@@ -344,17 +344,17 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 
 func TestSchemaConversionEdgeCases(t *testing.T) {
 	t.Parallel()
-	
+
 	type testcase struct {
 		name        string
 		schemaText  string
 		expectError bool
 	}
-	
+
 	tcs := []testcase{
 		{
-			name: "empty schema",
-			schemaText: ``,
+			name:        "empty schema",
+			schemaText:  ``,
 			expectError: false,
 		},
 		{
@@ -395,36 +395,36 @@ func TestSchemaConversionEdgeCases(t *testing.T) {
 				Source:       input.Source("test"),
 				SchemaString: tc.schemaText,
 			}, compiler.AllowUnprefixedObjectType())
-			
+
 			if tc.expectError {
 				require.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 
 			// Build the v2 schema
 			v2Schema, err := BuildSchemaFromCompiler(*compiled)
 			require.NoError(t, err)
 			require.NotNil(t, v2Schema)
-			
+
 			// Basic validation that schema is well-formed
 			require.NotNil(t, v2Schema.Definitions)
 			require.NotNil(t, v2Schema.Caveats)
-			
+
 			// Verify parent relationships are set correctly
 			for _, def := range v2Schema.Definitions {
 				require.Equal(t, v2Schema, def.parent)
-				
+
 				for _, rel := range def.Relations {
 					require.Equal(t, def, rel.parent)
 				}
-				
+
 				for _, perm := range def.Permissions {
 					require.Equal(t, def, perm.parent)
 				}
 			}
-			
+
 			for _, caveat := range v2Schema.Caveats {
 				require.Equal(t, v2Schema, caveat.parent)
 			}
@@ -434,7 +434,7 @@ func TestSchemaConversionEdgeCases(t *testing.T) {
 
 func TestSchemaConversionOperationTypes(t *testing.T) {
 	t.Parallel()
-	
+
 	type testcase struct {
 		name         string
 		schemaText   string
@@ -442,7 +442,7 @@ func TestSchemaConversionOperationTypes(t *testing.T) {
 		permission   string
 		expectedType string // "union", "intersection", "exclusion", "relation"
 	}
-	
+
 	tcs := []testcase{
 		{
 			name: "union operation",
@@ -519,7 +519,7 @@ func TestSchemaConversionOperationTypes(t *testing.T) {
 			// Find the permission
 			def, exists := v2Schema.Definitions[tc.definition]
 			require.True(t, exists)
-			
+
 			perm, exists := def.Permissions[tc.permission]
 			require.True(t, exists)
 			require.NotNil(t, perm.Operation)
@@ -542,3 +542,4 @@ func TestSchemaConversionOperationTypes(t *testing.T) {
 		})
 	}
 }
+
