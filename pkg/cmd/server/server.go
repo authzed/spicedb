@@ -123,6 +123,7 @@ type Config struct {
 	MaxLookupResourcesLimit                  uint32        `debugmap:"visible"`
 	MaxBulkExportRelationshipsLimit          uint32        `debugmap:"visible"`
 	EnableExperimentalLookupResources        bool          `debugmap:"visible"`
+	ExperimentalLookupResourcesVersion       string        `debugmap:"visible"`
 	EnableExperimentalRelationshipExpiration bool          `debugmap:"visible"`
 	EnableRevisionHeartbeat                  bool          `debugmap:"visible"`
 	EnablePerformanceInsightMetrics          bool          `debugmap:"visible"`
@@ -457,7 +458,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		ExpiringRelationshipsEnabled:       c.EnableExperimentalRelationshipExpiration,
 		CaveatTypeSet:                      c.DatastoreConfig.CaveatTypeSet,
 		PerformanceInsightMetricsEnabled:   c.EnablePerformanceInsightMetrics,
-		EnableExperimentalLookupResources3: c.EnableExperimentalLookupResources,
+		EnableExperimentalLookupResources3: c.ExperimentalLookupResourcesVersion == "lr3",
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

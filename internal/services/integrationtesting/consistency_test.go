@@ -75,7 +75,11 @@ func TestConsistency(t *testing.T) {
 }
 
 func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool, chunkSize uint16) {
-	options := []server.ConfigOption{server.WithDispatchChunkSize(chunkSize), server.WithEnableExperimentalLookupResources(true)}
+	options := []server.ConfigOption{
+		server.WithDispatchChunkSize(chunkSize),
+		server.WithEnableExperimentalLookupResources(true),
+		server.WithExperimentalLookupResourcesVersion("lr3"),
+	}
 
 	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta, options...)
 

@@ -76,6 +76,12 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	ds, revision := dsInitFunc(emptyDS, require)
 	ctx, cancel := context.WithCancel(context.Background())
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
+
+	lrver := ""
+	if config.EnableExperimentalLookupResources3 {
+		lrver = "lr3"
+	}
+
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithEnableExperimentalRelationshipExpiration(true),
 		server.WithDatastore(ds),
@@ -86,7 +92,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 		server.WithStreamingAPITimeout(config.StreamingAPITimeout),
 		server.WithMaxCaveatContextSize(4096),
 		server.WithMaxRelationshipContextSize(config.MaxRelationshipContextSize),
-		server.WithEnableExperimentalLookupResources(config.EnableExperimentalLookupResources3),
+		server.WithExperimentalLookupResourcesVersion(lrver),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 			Enabled: true,
