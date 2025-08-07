@@ -20,7 +20,7 @@ func (i *Intersection) AddSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
-func (i *Intersection) Check(ctx Context, resource_ids []string, subject_id string) ([]Relation, error) {
+func (i *Intersection) Check(ctx *Context, resource_ids []string, subject_id string) ([]Relation, error) {
 	valid := resource_ids
 
 	var rels []Relation
@@ -44,11 +44,11 @@ func (i *Intersection) Check(ctx Context, resource_ids []string, subject_id stri
 	return rels, nil
 }
 
-func (i *Intersection) LookupSubjects(ctx Context, resource_id string) (iter.Seq2[Relation, error], error) {
+func (i *Intersection) LookupSubjects(ctx *Context, resource_id string) (iter.Seq2[Relation, error], error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (i *Intersection) LookupResources(ctx Context, subject_id string) (iter.Seq2[Relation, error], error) {
+func (i *Intersection) LookupResources(ctx *Context, subject_id string) (iter.Seq2[Relation, error], error) {
 	panic("not implemented") // TODO: Implement
 }
 
