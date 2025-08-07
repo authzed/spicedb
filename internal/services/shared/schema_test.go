@@ -430,6 +430,110 @@ func TestApplySchemaChanges(t *testing.T) {
 				NewObjectDefNames:     []string{"user2"},
 			},
 		},
+		{
+			name: "delete a direct subject type while indirect remains",
+			startingSchema: `
+				definition user {
+					relation foo: user
+				}
+
+				definition document {
+					relation reader: user | user#foo
+					permission view = reader
+				}
+			`,
+			relationships: []string{"document:firstdoc#reader@user:tom#foo"},
+			endingSchema: `
+				definition user {
+					relation foo: user
+				}
+
+				definition document {
+					relation reader: user#foo
+					permission view = reader
+				}
+			`,
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount: 2,
+			},
+		},
+		{
+			name: "attempt to delete a direct subject type while indirect remains",
+			startingSchema: `
+				definition user {
+					relation foo: user
+				}
+
+				definition document {
+					relation reader: user | user#foo
+					permission view = reader
+				}
+			`,
+			relationships: []string{"document:firstdoc#reader@user:tom"},
+			endingSchema: `
+				definition user {
+					relation foo: user
+				}
+
+				definition document {
+					relation reader: user#foo
+					permission view = reader
+				}
+			`,
+			expectedError: "cannot remove allowed type `user` from relation `reader` in object definition `document`, as a relationship exists with it",
+		},
+		{
+			name: "attempt to delete an indirect subject type while direct remains",
+			startingSchema: `
+				definition user {
+					relation foo: user
+				}
+
+				definition document {
+					relation reader: user | user#foo
+					permission view = reader
+				}
+			`,
+			relationships: []string{"document:firstdoc#reader@user:tom#foo"},
+			endingSchema: `
+				definition user {
+					relation foo: user
+				}
+
+				definition document {
+					relation reader: user
+					permission view = reader
+				}
+			`,
+			expectedError: "cannot remove allowed type `user#foo` from relation `reader` in object definition `document`, as a relationship exists with it",
+		},
+		{
+			name: "delete an indirect subject type while direct remains",
+			startingSchema: `
+				definition user {
+					relation foo: user
+				}
+
+				definition document {
+					relation reader: user | user#foo
+					permission view = reader
+				}
+			`,
+			relationships: []string{"document:firstdoc#reader@user:tom"},
+			endingSchema: `
+				definition user {
+					relation foo: user
+				}
+
+				definition document {
+					relation reader: user
+					permission view = reader
+				}
+			`,
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount: 2,
+			},
+		},
 	}
 
 	for _, tc := range tcs {

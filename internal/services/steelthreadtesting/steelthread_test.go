@@ -87,13 +87,16 @@ func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datas
 
 	t.Cleanup(cleanup)
 
-	psClient := v1.NewPermissionsServiceClient(clientConn)
+	clients := stClients{
+		PermissionsClient: v1.NewPermissionsServiceClient(clientConn),
+		SchemaClient:      v1.NewSchemaServiceClient(clientConn),
+	}
 	for _, operationInfo := range tc.operations {
 		t.Run(operationInfo.name, func(t *testing.T) {
 			handler, ok := operations[operationInfo.operationName]
 			require.True(t, ok, "operation not found: %s", operationInfo.name)
 
-			result, err := handler(operationInfo.arguments, psClient)
+			result, err := handler(operationInfo.arguments, clients)
 			require.NoError(t, err)
 
 			// Generate the actual results file.

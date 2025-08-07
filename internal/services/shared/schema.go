@@ -274,6 +274,7 @@ func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datasto
 		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
 		options.WithLimit(options.LimitOne),
 		options.WithQueryShape(queryshape.FindResourceOfType),
+		options.WithSkipCaveats(true),
 	)
 	return errorIfTupleIteratorReturnsTuples(
 		ctx,
@@ -321,21 +322,10 @@ func sanityCheckNamespaceChanges(
 
 			subjectSelectors := make([]datastore.SubjectsSelector, 0, len(previousRelation.TypeInformation.AllowedDirectRelations))
 			for _, allowedType := range previousRelation.TypeInformation.AllowedDirectRelations {
-				if allowedType.GetRelation() == datastore.Ellipsis {
-					subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
-						OptionalSubjectType: allowedType.Namespace,
-						RelationFilter: datastore.SubjectRelationFilter{
-							IncludeEllipsisRelation: true,
-						},
-					})
-				} else {
-					subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
-						OptionalSubjectType: allowedType.Namespace,
-						RelationFilter: datastore.SubjectRelationFilter{
-							NonEllipsisRelation: allowedType.GetRelation(),
-						},
-					})
-				}
+				subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
+					OptionalSubjectType: allowedType.Namespace,
+					RelationFilter:      subjectRelationFilterForAllowedType(allowedType),
+				})
 			}
 
 			qy, qyErr := rwt.QueryRelationships(
@@ -346,7 +336,8 @@ func sanityCheckNamespaceChanges(
 					OptionalSubjectsSelectors: subjectSelectors,
 				},
 				options.WithLimit(options.LimitOne),
-				options.WithQueryShape(queryshape.FindResourceOfTypeAndRelation),
+				options.WithQueryShape(queryshape.FindResourceAndSubjectWithRelations),
+				options.WithSkipCaveats(true),
 			)
 
 			err = errorIfTupleIteratorReturnsTuples(
@@ -362,13 +353,12 @@ func sanityCheckNamespaceChanges(
 			qy, qyErr = rwt.ReverseQueryRelationships(
 				ctx,
 				datastore.SubjectsFilter{
-					SubjectType: nsdef.Name,
-					RelationFilter: datastore.SubjectRelationFilter{
-						NonEllipsisRelation: delta.RelationName,
-					},
+					SubjectType:    nsdef.Name,
+					RelationFilter: subjectRelationFilterForAllowedType(delta.AllowedType),
 				},
 				options.WithLimitForReverse(options.LimitOne),
 				options.WithQueryShapeForReverse(queryshape.FindSubjectOfTypeAndRelation),
+				options.WithSkipCaveatsForReverse(true),
 			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
@@ -381,15 +371,9 @@ func sanityCheckNamespaceChanges(
 
 		case nsdiff.RelationAllowedTypeRemoved:
 			var optionalSubjectIds []string
-			var relationFilter datastore.SubjectRelationFilter
 			var optionalCaveatNameFilter datastore.CaveatNameFilter
-
 			if delta.AllowedType.GetPublicWildcard() != nil {
 				optionalSubjectIds = []string{tuple.PublicWildcard}
-			} else {
-				relationFilter = datastore.SubjectRelationFilter{
-					NonEllipsisRelation: delta.AllowedType.GetRelation(),
-				}
 			}
 
 			if delta.AllowedType.GetRequiredCaveat() != nil && delta.AllowedType.GetRequiredCaveat().CaveatName != "" {
@@ -412,7 +396,7 @@ func sanityCheckNamespaceChanges(
 						{
 							OptionalSubjectType: delta.AllowedType.Namespace,
 							OptionalSubjectIds:  optionalSubjectIds,
-							RelationFilter:      relationFilter,
+							RelationFilter:      subjectRelationFilterForAllowedType(delta.AllowedType),
 						},
 					},
 					OptionalCaveatNameFilter: optionalCaveatNameFilter,
@@ -433,6 +417,15 @@ func sanityCheckNamespaceChanges(
 		}
 	}
 	return diff, nil
+}
+
+func subjectRelationFilterForAllowedType(allowedType *core.AllowedRelation) datastore.SubjectRelationFilter {
+	rel := allowedType.GetRelation()
+	if allowedType.GetPublicWildcard() != nil {
+		// NOTE: wildcards are always stored as `...` in the relationship
+		rel = tuple.Ellipsis
+	}
+	return datastore.SubjectRelationFilter{}.WithRelation(rel)
 }
 
 // errorIfTupleIteratorReturnsTuples takes a tuple iterator and any error that was generated

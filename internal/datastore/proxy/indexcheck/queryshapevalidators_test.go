@@ -324,6 +324,421 @@ func TestValidateQueryShape(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:  "FindResourceAndSubjectWithRelations - valid",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:  "FindResourceAndSubjectWithRelations - missing resource type",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "optional resource type required",
+		},
+		{
+			name:  "FindResourceAndSubjectWithRelations - with resource ids",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceIds:      []string{"doc1"},
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "no optional resource ids allowed",
+		},
+		{
+			name:  "FindResourceAndSubjectWithRelations - missing resource relation",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "optional resource relation required",
+		},
+		{
+			name:  "FindResourceAndSubjectWithRelations - missing subjects selectors",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+			},
+			expectError: true,
+			errorMsg:    "optional subjects selectors required",
+		},
+		{
+			name:  "FindResourceAndSubjectWithRelations - multiple subjects selectors",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+					{
+						OptionalSubjectType: "group",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "exactly one subjects selector required",
+		},
+		{
+			name:  "FindResourceAndSubjectWithRelations - missing subject type",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "subject type required",
+		},
+		{
+			name:  "FindResourceAndSubjectWithRelations - with subject ids",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"user1"},
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "no optional subject ids allowed",
+		},
+		{
+			name:  "FindResourceAndSubjectWithRelations - missing subject relation",
+			shape: queryshape.FindResourceAndSubjectWithRelations,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter:      datastore.SubjectRelationFilter{},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "subject relation required",
+		},
+		{
+			name:  "FindSubjectOfTypeAndRelation - valid",
+			shape: queryshape.FindSubjectOfTypeAndRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:  "FindSubjectOfTypeAndRelation - with resource type",
+			shape: queryshape.FindSubjectOfTypeAndRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "no optional resource type allowed",
+		},
+		{
+			name:  "FindSubjectOfTypeAndRelation - with resource ids",
+			shape: queryshape.FindSubjectOfTypeAndRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceIds: []string{"doc1"},
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "no optional resource ids allowed",
+		},
+		{
+			name:  "FindSubjectOfTypeAndRelation - with resource relation",
+			shape: queryshape.FindSubjectOfTypeAndRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "no optional resource relation allowed",
+		},
+		{
+			name:        "FindSubjectOfTypeAndRelation - missing subjects selectors",
+			shape:       queryshape.FindSubjectOfTypeAndRelation,
+			filter:      datastore.RelationshipsFilter{},
+			expectError: true,
+			errorMsg:    "optional subjects selectors required",
+		},
+		{
+			name:  "FindSubjectOfTypeAndRelation - multiple subjects selectors",
+			shape: queryshape.FindSubjectOfTypeAndRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+					{
+						OptionalSubjectType: "group",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "exactly one subjects selector required",
+		},
+		{
+			name:  "FindSubjectOfTypeAndRelation - missing subject type",
+			shape: queryshape.FindSubjectOfTypeAndRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "subject type required",
+		},
+		{
+			name:  "FindSubjectOfTypeAndRelation - with subject ids",
+			shape: queryshape.FindSubjectOfTypeAndRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"user1"},
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "no optional subject ids allowed",
+		},
+		{
+			name:  "FindSubjectOfTypeAndRelation - missing subject relation",
+			shape: queryshape.FindSubjectOfTypeAndRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter:      datastore.SubjectRelationFilter{},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "subject relation required",
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - valid",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - missing resource type",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "optional resource type required",
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - missing resource relation",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "optional resource relation required",
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - missing subjects selectors",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+			},
+			expectError: true,
+			errorMsg:    "optional subjects selectors required",
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - multiple subjects selectors",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+					{
+						OptionalSubjectType: "group",
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "exactly one subjects selector required",
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - missing subject type",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "subject type required",
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - missing subject relation",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						RelationFilter:      datastore.SubjectRelationFilter{},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "subject relation required",
+		},
+		{
 			name:        "Unknown shape - error",
 			shape:       "unknown-shape",
 			filter:      datastore.RelationshipsFilter{},

@@ -18,7 +18,12 @@ type steelThreadOperationCase struct {
 	resultsFileName string
 }
 
-type stOperation func(parameters map[string]any, client v1.PermissionsServiceClient) (any, error)
+type stClients struct {
+	PermissionsClient v1.PermissionsServiceClient
+	SchemaClient      v1.SchemaServiceClient
+}
+
+type stOperation func(parameters map[string]any, clients stClients) (any, error)
 
 var steelThreadTestCases = []steelThreadTestCase{
 	{
@@ -445,6 +450,102 @@ var steelThreadTestCases = []steelThreadTestCase{
 						`document:thirddoc#view@user:tom[unused:{"somecondition": 42}]`,
 						`document:thirddoc#view@user:fred[unused:{"somecondition": 42}]`,
 					},
+				},
+			},
+		},
+	},
+	{
+		name:     "write schema removal",
+		datafile: "basic-schema-and-data.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "removes the group relation",
+				operationName: "writeSchema",
+				arguments: map[string]any{
+					"schema": `  definition user {}
+  definition user2 {}
+
+  definition group {
+    relation direct_member: user | group#member
+    relation admin: user
+    permission member = direct_member + admin
+  }
+
+  definition document {
+    relation editor: user2:*
+    relation viewer: user | user:*
+    permission view = viewer
+  }`,
+				},
+			},
+			{
+				name:          "removes the group type",
+				operationName: "writeSchema",
+				arguments: map[string]any{
+					"schema": `  definition user {}
+  definition user2 {}
+
+  definition document {
+    relation editor: user2:*
+    relation viewer: user | user:*
+    permission view = viewer
+  }`,
+				},
+			},
+			{
+				name:          "removes the wildcard on viewer",
+				operationName: "writeSchema",
+				arguments: map[string]any{
+					"schema": `definition user {}
+  definition user2 {}
+
+  definition document {
+    relation editor: user2:*
+    relation viewer: user
+    permission view = viewer
+  }`,
+				},
+			},
+			{
+				name:          "attempt to remove the user relation",
+				operationName: "writeSchema",
+				arguments: map[string]any{
+					"schema": `definition user {}
+  definition user2 {}
+
+  definition document {
+    relation editor: user2:*
+    relation viewer: user2
+    permission view = viewer
+  }`,
+				},
+			},
+			{
+				name:          "attempt to remove the user type",
+				operationName: "writeSchema",
+				arguments: map[string]any{
+					"schema": `definition user2 {}
+
+  definition document {
+    relation editor: user2:*
+    relation viewer: user
+    permission view = viewer
+  }
+					`,
+				},
+			},
+			{
+				name:          "attempt to remove the wildcard on the editor",
+				operationName: "writeSchema",
+				arguments: map[string]any{
+					"schema": `definition user {}
+  definition user2 {}
+
+  definition document {
+    relation editor: user2
+    relation viewer: user
+    permission view = viewer
+  }`,
 				},
 			},
 		},
