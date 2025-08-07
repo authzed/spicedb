@@ -36,8 +36,8 @@ jobs:
 
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
-      - uses: "authzed/actions/codeql@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main"
+      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/codeql@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main"
 
   trivy:
     name: "Analyze Code and Docker Image with Trivvy"
@@ -52,7 +52,7 @@ jobs:
           # this is used so goreleaser generates the right version out of the tags, which we need so that
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
