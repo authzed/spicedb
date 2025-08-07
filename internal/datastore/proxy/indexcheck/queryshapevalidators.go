@@ -16,9 +16,12 @@ func validateCaveatFilter(filter datastore.RelationshipsFilter, queryShapeName s
 	return nil
 }
 
-func validateResourceType(resourceType, queryShapeName string) error {
-	if resourceType == "" {
+func validateResourceType(resourceType, queryShapeName string, required bool) error {
+	if required && resourceType == "" {
 		return fmt.Errorf("optional resource type required for %s", queryShapeName)
+	}
+	if !required && resourceType != "" {
+		return fmt.Errorf("no optional resource type allowed for %s", queryShapeName)
 	}
 	return nil
 }
@@ -97,9 +100,22 @@ func validateSubjectType(subjectType, queryShapeName string) error {
 	return nil
 }
 
-func validateSubjectIDs(subjectIds []string, queryShapeName string) error {
-	if len(subjectIds) == 0 {
+func validateSubjectIDs(subjectIds []string, queryShapeName string, required bool) error {
+	if required && len(subjectIds) == 0 {
 		return fmt.Errorf("subject ids required for %s", queryShapeName)
+	}
+	if !required && len(subjectIds) != 0 {
+		return fmt.Errorf("no optional subject ids allowed for %s", queryShapeName)
+	}
+	return nil
+}
+
+func validateSubjectRelation(subjectRelation datastore.SubjectRelationFilter, queryShapeName string, required bool) error {
+	if required && subjectRelation.IsEmpty() {
+		return fmt.Errorf("subject relation required for %s", queryShapeName)
+	}
+	if !required && !subjectRelation.IsEmpty() {
+		return fmt.Errorf("no optional subject relation allowed for %s", queryShapeName)
 	}
 	return nil
 }
@@ -121,7 +137,7 @@ func validateCheckPermissionSelectCommon(filter datastore.RelationshipsFilter, q
 	if err := validateCaveatFilter(filter, queryShapeName); err != nil {
 		return err
 	}
-	if err := validateResourceType(filter.OptionalResourceType, queryShapeName); err != nil {
+	if err := validateResourceType(filter.OptionalResourceType, queryShapeName, true); err != nil {
 		return err
 	}
 	if err := validateResourceIDs(filter.OptionalResourceIds, queryShapeName, true); err != nil {
@@ -140,7 +156,7 @@ func validateCheckPermissionSelectCommon(filter datastore.RelationshipsFilter, q
 }
 
 func validateResourceTypeAndSubjectsCommon(filter datastore.RelationshipsFilter, queryShapeName string) error {
-	if err := validateResourceType(filter.OptionalResourceType, queryShapeName); err != nil {
+	if err := validateResourceType(filter.OptionalResourceType, queryShapeName, true); err != nil {
 		return err
 	}
 	if err := validateSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShapeName, false); err != nil {
@@ -198,6 +214,81 @@ func validateQueryShape(queryShape queryshape.Shape, filter datastore.Relationsh
 		}
 		return nil
 
+	case queryshape.FindResourceAndSubjectWithRelations:
+		if err := validateResourceType(filter.OptionalResourceType, queryShapeName, true); err != nil {
+			return err
+		}
+		if err := validateResourceIDs(filter.OptionalResourceIds, queryShapeName, false); err != nil {
+			return err
+		}
+		if err := validateResourceRelation(filter.OptionalResourceRelation, queryShapeName, true); err != nil {
+			return err
+		}
+		if err := validateSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShapeName, true); err != nil {
+			return err
+		}
+		if len(filter.OptionalSubjectsSelectors) != 1 {
+			return fmt.Errorf("exactly one subjects selector required for %s", queryShapeName)
+		}
+		if err := validateSubjectType(filter.OptionalSubjectsSelectors[0].OptionalSubjectType, queryShapeName); err != nil {
+			return err
+		}
+		if err := validateSubjectIDs(filter.OptionalSubjectsSelectors[0].OptionalSubjectIds, queryShapeName, false); err != nil {
+			return err
+		}
+		if err := validateSubjectRelation(filter.OptionalSubjectsSelectors[0].RelationFilter, queryShapeName, true); err != nil {
+			return err
+		}
+		return nil
+
+	case queryshape.FindSubjectOfTypeAndRelation:
+		if err := validateResourceType(filter.OptionalResourceType, queryShapeName, false); err != nil {
+			return err
+		}
+		if err := validateResourceIDs(filter.OptionalResourceIds, queryShapeName, false); err != nil {
+			return err
+		}
+		if err := validateResourceRelation(filter.OptionalResourceRelation, queryShapeName, false); err != nil {
+			return err
+		}
+		if err := validateSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShapeName, true); err != nil {
+			return err
+		}
+		if len(filter.OptionalSubjectsSelectors) != 1 {
+			return fmt.Errorf("exactly one subjects selector required for %s", queryShapeName)
+		}
+		if err := validateSubjectType(filter.OptionalSubjectsSelectors[0].OptionalSubjectType, queryShapeName); err != nil {
+			return err
+		}
+		if err := validateSubjectIDs(filter.OptionalSubjectsSelectors[0].OptionalSubjectIds, queryShapeName, false); err != nil {
+			return err
+		}
+		if err := validateSubjectRelation(filter.OptionalSubjectsSelectors[0].RelationFilter, queryShapeName, true); err != nil {
+			return err
+		}
+		return nil
+
+	case queryshape.FindResourceRelationForSubjectRelation:
+		if err := validateResourceType(filter.OptionalResourceType, queryShapeName, true); err != nil {
+			return err
+		}
+		if err := validateResourceRelation(filter.OptionalResourceRelation, queryShapeName, true); err != nil {
+			return err
+		}
+		if err := validateSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShapeName, true); err != nil {
+			return err
+		}
+		if len(filter.OptionalSubjectsSelectors) != 1 {
+			return fmt.Errorf("exactly one subjects selector required for %s", queryShapeName)
+		}
+		if err := validateSubjectType(filter.OptionalSubjectsSelectors[0].OptionalSubjectType, queryShapeName); err != nil {
+			return err
+		}
+		if err := validateSubjectRelation(filter.OptionalSubjectsSelectors[0].RelationFilter, queryShapeName, true); err != nil {
+			return err
+		}
+		return nil
+
 	case queryshape.Varying:
 		// Nothing to validate.
 		return nil
@@ -221,7 +312,7 @@ func validateReverseQueryShape(queryShape queryshape.Shape, subjectFilter datast
 		if err := validateSubjectType(subjectFilter.SubjectType, queryShapeName); err != nil {
 			return err
 		}
-		if err := validateSubjectIDs(subjectFilter.OptionalSubjectIds, queryShapeName); err != nil {
+		if err := validateSubjectIDs(subjectFilter.OptionalSubjectIds, queryShapeName, true); err != nil {
 			return err
 		}
 		if err := validateResRelation(queryOpts.ResRelation, queryShapeName); err != nil {

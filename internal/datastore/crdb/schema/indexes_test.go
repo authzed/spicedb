@@ -7,6 +7,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
 const letCockroachDBDecide = ""
@@ -413,5 +414,15 @@ func TestIndexForFilter(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestIndexingHintForAllSpecificShapes(t *testing.T) {
+	schema := Schema(common.ColumnOptimizationOptionNone, false, false)
+	for _, shape := range queryshape.AllSpecificQueryShapes {
+		t.Run(string(shape), func(t *testing.T) {
+			index := IndexingHintForQueryShape(*schema, shape)
+			require.NotEqual(t, NoIndexingHint, index, "expected an indexing hint for shape %s", shape)
+		})
 	}
 }

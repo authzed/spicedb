@@ -87,6 +87,15 @@ func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Sh
 	case queryshape.FindResourceOfType:
 		return forcedIndex{IndexPrimaryKey}
 
+	case queryshape.FindResourceAndSubjectWithRelations:
+		return forcedIndex{IndexRelationshipBySubjectRelation}
+
+	case queryshape.FindSubjectOfTypeAndRelation:
+		return forcedIndex{IndexRelationshipBySubjectRelation}
+
+	case queryshape.FindResourceRelationForSubjectRelation:
+		return forcedIndex{IndexRelationshipBySubjectRelation}
+
 	default:
 		return nil
 	}

@@ -1,0 +1,2 @@
+---
+error: 'failed to write schema: rpc error: code = FailedPrecondition desc = could not lookup definition `user` for relation `viewer`: object definition `user` not found'

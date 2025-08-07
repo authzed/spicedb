@@ -4,7 +4,7 @@ package queryshape
 type Shape string
 
 // Symbol guide:
-// *️⃣ - optional
+// *️⃣ - not specifeid
 // ✅ - required
 // 🆔 - has some sort of filter
 // 🅿️ - possibly specified
@@ -17,7 +17,7 @@ const (
 	// for queries whose shape is not known ahead of time.
 	//
 	// *️⃣ resource_type, *️⃣ resource_id, *️⃣ resource_relation, *️⃣ subject_type, *️⃣ subject_id, *️⃣ subject_relation, *️⃣ caveat, *️⃣ expiration
-	Varying = "varying"
+	Varying Shape = "varying"
 
 	// CheckPermissionSelectDirectSubjects indicates that the query is a permission check
 	// that selects direct subjects.
@@ -26,7 +26,7 @@ const (
 	// relationship fields (except the caveat name, context and expiration).
 	//
 	// ✅ resource_type, ✅ resource_id, ✅ resource_relation, ✅ subject_type, ✅ subject_id, ✅ subject_relation, *️⃣ caveat, *️⃣ expiration
-	CheckPermissionSelectDirectSubjects = "check-permission-select-direct-subjects"
+	CheckPermissionSelectDirectSubjects Shape = "check-permission-select-direct-subjects"
 
 	// CheckPermissionSelectIndirectSubjects indicates that the query is a permission check
 	// that selects indirect subjects.
@@ -37,7 +37,7 @@ const (
 	// set to match non-`...`.
 	//
 	// ✅ resource_type, ✅ resource_id, ✅ resource_relation, *️⃣ subject_type, *️⃣ subject_id, 🆔 subject_relation, *️⃣ caveat, *️⃣ expiration
-	CheckPermissionSelectIndirectSubjects = "check-permission-select-indirect-subjects"
+	CheckPermissionSelectIndirectSubjects Shape = "check-permission-select-indirect-subjects"
 
 	// AllSubjectsForResources indicates that the query is selecting all subjects for a
 	// given set of resources.
@@ -46,7 +46,7 @@ const (
 	// specified by providing the resource type, the resource ID(s) and the relation.
 	//
 	// ✅ resource_type, ✅ resource_id, ✅ resource_relation, *️⃣ subject_type, *️⃣ subject_id, *️⃣ subject_relation, *️⃣ caveat, *️⃣ expiration
-	AllSubjectsForResources = "all-subjects-for-resources"
+	AllSubjectsForResources Shape = "all-subjects-for-resources"
 
 	// MatchingResourcesForSubject indicates that the query is selecting all resources that
 	// match a given subject.
@@ -56,7 +56,7 @@ const (
 	// The resource type and relation are filled in, but the resource ID is never specified.
 	//
 	// ✅ resource_type, *️⃣ resource_id, ✅ resource_relation, ✅ subject_type, ✅ subject_id, 🅿️ subject_relation, *️⃣ caveat, *️⃣ expiration
-	MatchingResourcesForSubject = "matching-resources-for-subject"
+	MatchingResourcesForSubject Shape = "matching-resources-for-subject"
 
 	// FindResourceOfType indicates that the query is selecting a resource of
 	// a given type.
@@ -65,17 +65,14 @@ const (
 	// providing the resource type. The other fields are never specified.
 	//
 	// ✅ resource_type, *️⃣ resource_id, *️⃣ resource_relation, *️⃣ subject_type, *️⃣ subject_id, *️⃣ subject_relation, *️⃣ caveat, *️⃣ expiration
-	FindResourceOfType = "find-resource-of-type"
+	FindResourceOfType Shape = "find-resource-of-type"
 
-	// FindResourceOfTypeAndRelation indicates that the query is selecting a single
-	// resource of a given type and relation.
+	// FindResourceAndSubjectWithRelations indicates that the query is selecting a single
+	// resource of a given resource type and relation, with one (or more) subjects of a
+	// given type and relation.
 	//
-	// The query shape selects a resource of a given type and relation, which are
-	// specified by providing the resource type and relation. The other fields are never
-	// specified.
-	//
-	// ✅ resource_type, *️⃣ resource_id, ✅ resource_relation, *️⃣ subject_type, *️⃣ subject_id, *️⃣ subject_relation, *️⃣ caveat, *️⃣ expiration
-	FindResourceOfTypeAndRelation = "find-resource-of-type-and-relation"
+	// ✅ resource_type, *️⃣ resource_id, ✅ resource_relation, ✅ subject_type, *️⃣ subject_id, ✅ subject_relation, *️⃣ caveat, *️⃣ expiration
+	FindResourceAndSubjectWithRelations Shape = "find-resource-and-subject-with-relations"
 
 	// FindSubjectOfTypeAndRelation indicates that the query is selecting a single
 	// subject of a given type and relation.
@@ -85,7 +82,7 @@ const (
 	// specified.
 	//
 	// *️⃣ resource_type, *️⃣ resource_id, *️⃣ resource_relation, ✅ subject_type, *️⃣ subject_id, ✅ subject_relation, *️⃣ caveat, *️⃣ expiration
-	FindSubjectOfTypeAndRelation = "find-subject-of-type-and-relation"
+	FindSubjectOfTypeAndRelation Shape = "find-subject-of-type-and-relation"
 
 	// FindResourceRelationForSubjectRelation indicates that the query is selecting a single
 	// relationship type that matches a given relation type, i.e. `user` or
@@ -96,5 +93,17 @@ const (
 	// specified if a wildcard.
 	//
 	// ✅ resource_type, *️⃣ resource_id, ✅ resource_relation, ✅ subject_type, 🅿️ subject_id, ✅ subject_relation, *️⃣ caveat, *️⃣ expiration
-	FindResourceRelationForSubjectRelation = "find-resource-relation-for-subject-relation"
+	FindResourceRelationForSubjectRelation Shape = "find-resource-relation-for-subject-relation"
 )
+
+// AllSpecificQueryShapes is a list of all shapes that are not varying or unknown.
+var AllSpecificQueryShapes = []Shape{
+	CheckPermissionSelectDirectSubjects,
+	CheckPermissionSelectIndirectSubjects,
+	AllSubjectsForResources,
+	MatchingResourcesForSubject,
+	FindResourceOfType,
+	FindResourceAndSubjectWithRelations,
+	FindSubjectOfTypeAndRelation,
+	FindResourceRelationForSubjectRelation,
+}

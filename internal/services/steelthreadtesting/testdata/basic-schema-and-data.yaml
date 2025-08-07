@@ -1,0 +1,124 @@
+---
+schema: |+
+  definition user {}
+  definition user2 {}
+
+  definition group {
+    relation direct_member: user | group#member
+    relation admin: user
+    permission member = direct_member + admin
+  }
+
+  definition document {
+    relation editor: user2:*
+    relation viewer: user | user:* | group#member
+    permission view = viewer
+  }
+
+relationships: |
+  // A single user2:* on a document.
+  document:somedoc#editor@user2:*
+
+  // 100 direct users
+  // for userid in range(0, 100)
+  //    document:somedoc#viewer@user:user-{userid}
+  document:somedoc#viewer@user:user-0
+  document:somedoc#viewer@user:user-1
+  document:somedoc#viewer@user:user-2
+  document:somedoc#viewer@user:user-3
+  document:somedoc#viewer@user:user-4
+  document:somedoc#viewer@user:user-5
+  document:somedoc#viewer@user:user-6
+  document:somedoc#viewer@user:user-7
+  document:somedoc#viewer@user:user-8
+  document:somedoc#viewer@user:user-9
+  document:somedoc#viewer@user:user-10
+  document:somedoc#viewer@user:user-11
+  document:somedoc#viewer@user:user-12
+  document:somedoc#viewer@user:user-13
+  document:somedoc#viewer@user:user-14
+  document:somedoc#viewer@user:user-15
+  document:somedoc#viewer@user:user-16
+  document:somedoc#viewer@user:user-17
+  document:somedoc#viewer@user:user-18
+  document:somedoc#viewer@user:user-19
+  document:somedoc#viewer@user:user-20
+  document:somedoc#viewer@user:user-21
+  document:somedoc#viewer@user:user-22
+  document:somedoc#viewer@user:user-23
+  document:somedoc#viewer@user:user-24
+  document:somedoc#viewer@user:user-25
+  document:somedoc#viewer@user:user-26
+  document:somedoc#viewer@user:user-27
+  document:somedoc#viewer@user:user-28
+  document:somedoc#viewer@user:user-29
+  document:somedoc#viewer@user:user-30
+  document:somedoc#viewer@user:user-31
+  document:somedoc#viewer@user:user-32
+  document:somedoc#viewer@user:user-33
+  document:somedoc#viewer@user:user-34
+  document:somedoc#viewer@user:user-35
+  document:somedoc#viewer@user:user-36
+  document:somedoc#viewer@user:user-37
+  document:somedoc#viewer@user:user-38
+  document:somedoc#viewer@user:user-39
+  document:somedoc#viewer@user:user-40
+  document:somedoc#viewer@user:user-41
+  document:somedoc#viewer@user:user-42
+  document:somedoc#viewer@user:user-43
+  document:somedoc#viewer@user:user-44
+  document:somedoc#viewer@user:user-45
+  document:somedoc#viewer@user:user-46
+  document:somedoc#viewer@user:user-47
+  document:somedoc#viewer@user:user-48
+  document:somedoc#viewer@user:user-49
+  document:somedoc#viewer@user:user-50
+  document:somedoc#viewer@user:user-51
+  document:somedoc#viewer@user:user-52
+  document:somedoc#viewer@user:user-53
+  document:somedoc#viewer@user:user-54
+  document:somedoc#viewer@user:user-55
+  document:somedoc#viewer@user:user-56
+  document:somedoc#viewer@user:user-57
+  document:somedoc#viewer@user:user-58
+  document:somedoc#viewer@user:user-59
+  document:somedoc#viewer@user:user-60
+  document:somedoc#viewer@user:user-61
+  document:somedoc#viewer@user:user-62
+  document:somedoc#viewer@user:user-63
+  document:somedoc#viewer@user:user-64
+  document:somedoc#viewer@user:user-65
+  document:somedoc#viewer@user:user-66
+  document:somedoc#viewer@user:user-67
+  document:somedoc#viewer@user:user-68
+  document:somedoc#viewer@user:user-69
+  document:somedoc#viewer@user:user-70
+  document:somedoc#viewer@user:user-71
+  document:somedoc#viewer@user:user-72
+  document:somedoc#viewer@user:user-73
+  document:somedoc#viewer@user:user-74
+  document:somedoc#viewer@user:user-75
+  document:somedoc#viewer@user:user-76
+  document:somedoc#viewer@user:user-77
+  document:somedoc#viewer@user:user-78
+  document:somedoc#viewer@user:user-79
+  document:somedoc#viewer@user:user-80
+  document:somedoc#viewer@user:user-81
+  document:somedoc#viewer@user:user-82
+  document:somedoc#viewer@user:user-83
+  document:somedoc#viewer@user:user-84
+  document:somedoc#viewer@user:user-85
+  document:somedoc#viewer@user:user-86
+  document:somedoc#viewer@user:user-87
+  document:somedoc#viewer@user:user-88
+  document:somedoc#viewer@user:user-89
+  document:somedoc#viewer@user:user-90
+  document:somedoc#viewer@user:user-91
+  document:somedoc#viewer@user:user-92
+  document:somedoc#viewer@user:user-93
+  document:somedoc#viewer@user:user-94
+  document:somedoc#viewer@user:user-95
+  document:somedoc#viewer@user:user-96
+  document:somedoc#viewer@user:user-97
+  document:somedoc#viewer@user:user-98
+  document:somedoc#viewer@user:user-99

@@ -1,0 +1,2 @@
+---
+error: 'failed to write schema: rpc error: code = InvalidArgument desc = cannot remove allowed type `user2:*` from relation `editor` in object definition `document`, as a relationship exists with it'
