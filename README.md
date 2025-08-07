@@ -28,7 +28,7 @@
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/spicedb"><img alt="discord badge" src="https://img.shields.io/badge/discord-spicedb-7289da?style=flat-square"></a>
+  <a href="https://authzed.com/discord"><img alt="discord badge" src="https://img.shields.io/badge/discord-spicedb-7289da?style=flat-square"></a>
 	&nbsp;
     <a href="https://twitter.com/authzed"><img alt="twitter badge" src="https://img.shields.io/badge/twitter-@authzed-1d9bf0.svg?style=flat-square"></a>
     &nbsp;
