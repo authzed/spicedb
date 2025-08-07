@@ -78,7 +78,7 @@ func validateDirectSubjectsSelectors(selectors []datastore.SubjectsSelector, que
 func validateIndirectSubjectsSelectors(selectors []datastore.SubjectsSelector, queryShapeName string) error {
 	for _, subjectSelector := range selectors {
 		if subjectSelector.OptionalSubjectType != "" {
-			return fmt.Errorf("optional subject type required for %s", queryShapeName)
+			return fmt.Errorf("no optional subject type allowed for %s", queryShapeName)
 		}
 		if len(subjectSelector.OptionalSubjectIds) != 0 {
 			return fmt.Errorf("no optional subject ids allowed for %s", queryShapeName)

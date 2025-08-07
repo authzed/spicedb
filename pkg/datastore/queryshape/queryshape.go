@@ -33,7 +33,7 @@ const (
 	//
 	// The query shape selects a specific relationship based on filling in all fields
 	// on the resource (except the caveat name, context and expiration) and the relation
-	// name. The subject type nor ID is filled in and the optional subject relation is
+	// name. Neither the subject type nor the ID are filled in and the optional subject relation is
 	// set to match non-`...`.
 	//
 	// ✅ resource_type, ✅ resource_id, ✅ resource_relation, *️⃣ subject_type, *️⃣ subject_id, 🆔 subject_relation, *️⃣ caveat, *️⃣ expiration

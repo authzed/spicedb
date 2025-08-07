@@ -193,7 +193,7 @@ func TestValidateQueryShape(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "optional subject type required",
+			errorMsg:    "no optional subject type allowed",
 		},
 		{
 			name:  "CheckPermissionSelectIndirectSubjects - with subject ids",
