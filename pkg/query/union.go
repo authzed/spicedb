@@ -19,7 +19,7 @@ func (u *Union) AddSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
-func (u *Union) Check(ctx Context, resource_ids []string, subject_id string) ([]Relation, error) {
+func (u *Union) Check(ctx *Context, resource_ids []string, subject_id string) ([]Relation, error) {
 	remaining := resource_ids
 	var out []Relation
 	for _, it := range u.subIts {
@@ -44,11 +44,11 @@ func (u *Union) Check(ctx Context, resource_ids []string, subject_id string) ([]
 	return out, nil
 }
 
-func (u *Union) LookupSubjects(ctx Context, resource_id string) (iter.Seq2[Relation, error], error) {
+func (u *Union) LookupSubjects(ctx *Context, resource_id string) (iter.Seq2[Relation, error], error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (u *Union) LookupResources(ctx Context, subject_id string) (iter.Seq2[Relation, error], error) {
+func (u *Union) LookupResources(ctx *Context, subject_id string) (iter.Seq2[Relation, error], error) {
 	panic("not implemented") // TODO: Implement
 }
 
