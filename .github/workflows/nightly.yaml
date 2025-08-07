@@ -16,13 +16,13 @@ jobs:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         with:
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
       - name: "Install snapcraft"
         run: |
           sudo snap install snapcraft --channel=8.x/stable --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages
-      - uses: "authzed/actions/docker-login@391defc4658e3e4ac6e53ba66da5b90a3b3f80e2" # main
+      - uses: "authzed/actions/docker-login@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
