@@ -15,7 +15,7 @@ Proposals loosely follow an [RFC-style] process where anyone in the community is
 If you have any questions about this process, feel free [ask in our our Discord][discord].
 
 [RFC-style]: https://en.wikipedia.org/wiki/Request_for_Comments
-[discord]: https://discord.gg/spicedb
+[discord]: https://authzed.com/discord
 
 ### 🟣 Functionality not represented by proposals
 
