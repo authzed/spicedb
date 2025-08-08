@@ -138,7 +138,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaRequest) (*v1.WriteSchemaResponse, error) {
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
+	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Bool("dryRun", in.GetDryRun()).Msg("requested Schema to be written")
 
 	ds := datastoremw.MustFromContext(ctx)
 
@@ -165,7 +165,38 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	// Update the schema.
+	if in.GetDryRun() {
+		headRevision, err := ds.HeadRevision(ctx)
+		if err != nil {
+			return nil, ss.rewriteError(ctx, err)
+		}
+
+		reader := ds.SnapshotReader(headRevision)
+
+		applied, err := shared.ApplySchemaChangesDryRun(ctx, reader, ss.caveatTypeSet, validated)
+		if err != nil {
+			return nil, ss.rewriteError(ctx, err)
+		}
+
+		dispatchCount, err := genutil.EnsureUInt32(applied.TotalOperationCount)
+		if err != nil {
+			return nil, ss.rewriteError(ctx, err)
+		}
+
+		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+			DispatchCount: dispatchCount,
+		})
+
+		log.Ctx(ctx).Info().
+			Interface("appliedChanges", applied).
+			Msg("dry run validation completed successfully")
+
+		// Return the current head revision since we didn't actually write anything
+		return &v1.WriteSchemaResponse{
+			WrittenAt: zedtoken.MustNewFromRevision(headRevision),
+		}, nil
+	}
+
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		applied, err := shared.ApplySchemaChanges(ctx, rwt, ss.caveatTypeSet, validated)
 		if err != nil {
