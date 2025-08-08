@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/authzed/spicedb/tools/analyzers/closeafterusagecheck"
 	"github.com/authzed/spicedb/tools/analyzers/exprstatementcheck"
+	"github.com/authzed/spicedb/tools/analyzers/iferrafterrowclosecheck"
 	"github.com/authzed/spicedb/tools/analyzers/lendowncastcheck"
 	"github.com/authzed/spicedb/tools/analyzers/mutexcheck"
 	"github.com/authzed/spicedb/tools/analyzers/nilvaluecheck"
@@ -19,6 +20,7 @@ func main() {
 		nilvaluecheck.Analyzer(),
 		exprstatementcheck.Analyzer(),
 		closeafterusagecheck.Analyzer(),
+		iferrafterrowclosecheck.Analyzer(),
 		paniccheck.Analyzer(),
 		lendowncastcheck.Analyzer(),
 		protomarshalcheck.Analyzer(),

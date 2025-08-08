@@ -182,7 +182,7 @@ func (mds *Datastore) loadChanges(
 		}
 	}
 	rows.Close()
-	if err = rows.Err(); err != nil {
+	if rows.Err() != nil {
 		return
 	}
 
