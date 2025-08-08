@@ -293,6 +293,10 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 		}
 		rows.Close()
 
+		if rows.Err() != nil {
+			return handleWriteError(rows.Err())
+		}
+
 		// For each remaining TOUCH mutation, add a "DELETE" operation for the row such that if the caveat and/or
 		// context has changed, the row will be deleted. For ones in which the caveat name and/or context did cause
 		// the deletion (because of a change), the row will be re-inserted with the new caveat name and/or context.
@@ -390,6 +394,9 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 		touchWriteHasValues = true
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		return handleWriteError(rows.Err())
+	}
 
 	// If no INSERTs are necessary to update caveats, then nothing more to do.
 	if !touchWriteHasValues {
@@ -413,6 +420,10 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 func handleWriteError(err error) error {
 	if pgxcommon.IsSerializationError(err) {
 		return common.NewSerializationError(fmt.Errorf("unable to write relationships due to a serialization error: [%w]; this typically indicates that a number of write transactions are contending over the same relationships; either reduce the contention or scale this Postgres instance", err))
+	}
+
+	if err.Error() == "extended protocol limited to 65535 parameters" {
+		return common.NewWriteOverLimitError(fmt.Errorf("the specified write operation exceeds the maximum size supported by this datastore; please reduce the number of updates in the call"))
 	}
 
 	return fmt.Errorf(errUnableToWriteRelationships, err)

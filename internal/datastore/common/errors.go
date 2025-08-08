@@ -43,6 +43,30 @@ func NewSerializationError(err error) error {
 	return SerializationError{err}
 }
 
+type WriteOverLimitError struct {
+	error
+}
+
+func (err WriteOverLimitError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.Aborted,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_TOO_MANY_UPDATES_IN_REQUEST,
+			map[string]string{},
+		),
+	)
+}
+
+func (err WriteOverLimitError) Unwrap() error {
+	return err.error
+}
+
+// NewWriteOverLimitError creates a new WriteOverLimitError.
+func NewWriteOverLimitError(err error) error {
+	return WriteOverLimitError{err}
+}
+
 // ReadOnlyTransactionError is returned when an otherwise read-write
 // transaction fails on writes with an error indicating that the datastore
 // is currently in a read-only mode.

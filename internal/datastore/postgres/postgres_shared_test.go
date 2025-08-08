@@ -285,6 +285,16 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
 		))
+
+		t.Run("ExceedInsertQuerySizeTest", createDatastoreTest(
+			b,
+			ExceedInsertQuerySizeTest,
+			RevisionQuantization(0),
+			GCWindow(1*time.Millisecond),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(1),
+			MigrationPhase(config.migrationPhase),
+		))
 	})
 }
 
@@ -2028,6 +2038,38 @@ func ContinuousCheckpointTest(t *testing.T, ds datastore.Datastore) {
 			require.Fail("timed out waiting for checkpoint for out of band change")
 		}
 	}
+}
+
+func ExceedInsertQuerySizeTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		updates := make([]tuple.RelationshipUpdate, 0, 20_000)
+		for i := range 20_000 {
+			tpl := tuple.MustParse(fmt.Sprintf("resource:resource-%d#reader%d@user%d:user-%d", i, i, i, i))
+			t := time.Now().Add(24 * time.Hour).Add(time.Duration(i) * time.Minute)
+			tpl.OptionalExpiration = &t
+			updates = append(updates, tuple.Touch(tpl))
+		}
+		return rwt.WriteRelationships(ctx, updates)
+	})
+	require.Error(err)
+	require.ErrorContains(err, "exceeds the maximum size supported by this datastore")
+
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	iter, err := ds.SnapshotReader(headRev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		OptionalResourceType: "resource",
+	})
+	require.NoError(err)
+	count := 0
+	for range iter {
+		count++
+	}
+	require.Equal(0, count, "expected to have 0 relationships, but found %d", count)
 }
 
 const waitForChangesTimeout = 10 * time.Second
