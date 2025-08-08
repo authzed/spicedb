@@ -4,7 +4,7 @@ package queryshape
 type Shape string
 
 // Symbol guide:
-// *️⃣ - not specifeid
+// *️⃣ - not specified
 // ✅ - required
 // 🆔 - has some sort of filter
 // 🅿️ - possibly specified
