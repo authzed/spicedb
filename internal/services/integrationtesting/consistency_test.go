@@ -75,7 +75,11 @@ func TestConsistency(t *testing.T) {
 }
 
 func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool, chunkSize uint16) {
-	options := []server.ConfigOption{server.WithDispatchChunkSize(chunkSize)}
+	options := []server.ConfigOption{
+		server.WithDispatchChunkSize(chunkSize),
+		server.WithEnableExperimentalLookupResources(true),
+		server.WithExperimentalLookupResourcesVersion("lr3"),
+	}
 
 	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta, options...)
 
@@ -424,7 +428,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 								require.Equal(t,
 									expectedPermissionship,
 									permissionship,
-									"Found Check failure for relation %s:%s#%s and subject %s in lookup resources; expected %v, found %v",
+									"Found Check failure for relation %s:%s#%s and subject %s in lookup resources; LR permission %v, Check Permission %v",
 									resourceRelation.ObjectType,
 									resolvedResource.ResourceObjectId,
 									resourceRelation.Relation,
@@ -730,7 +734,9 @@ func runAssertions(t *testing.T, vctx validationContext) {
 									found, ok := resolvedIndirectResourcesMap[rel.Resource.ObjectID]
 									require.True(t, !ok || found.Permissionship != v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION) // LookupResources can be caveated, since we didn't rerun LookupResources with the context
 								} else if accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat {
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedIndirectResourcesMap[rel.Resource.ObjectID].Permissionship)
+									found, ok := resolvedIndirectResourcesMap[rel.Resource.ObjectID]
+									require.True(t, ok, "Missing expected object %s in indirect lookup for assertion %s", rel.Resource, rel)
+									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, found.Permissionship)
 								}
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:

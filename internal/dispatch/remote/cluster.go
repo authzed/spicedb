@@ -87,6 +87,7 @@ type ClusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
 	DispatchLookupResources2(ctx context.Context, in *v1.DispatchLookupResources2Request, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResources2Client, error)
+	DispatchLookupResources3(ctx context.Context, in *v1.DispatchLookupResources3Request, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResources3Client, error)
 	DispatchLookupSubjects(ctx context.Context, in *v1.DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupSubjectsClient, error)
 }
 
@@ -801,6 +802,28 @@ func (cr *clusterDispatcher) DispatchLookupResources2(
 	return dispatchStreamingRequest(ctx, cr, "lookupresources", req, stream,
 		func(ctx context.Context, client ClusterClient) (receiver[*v1.DispatchLookupResources2Response], error) {
 			return client.DispatchLookupResources2(ctx, req)
+		})
+}
+
+func (cr *clusterDispatcher) DispatchLookupResources3(
+	req *v1.DispatchLookupResources3Request,
+	stream dispatch.LookupResources3Stream,
+) error {
+	requestKey, err := cr.keyHandler.LookupResources3DispatchKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
+	stream = dispatch.StreamWithContext(ctx, stream)
+
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		return err
+	}
+
+	return dispatchStreamingRequest(ctx, cr, "lookupresources", req, stream,
+		func(ctx context.Context, client ClusterClient) (receiver[*v1.DispatchLookupResources3Response], error) {
+			return client.DispatchLookupResources3(ctx, req)
 		})
 }
 
