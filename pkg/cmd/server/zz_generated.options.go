@@ -91,6 +91,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
+		to.EnableExperimentalRelationshipDeprecation = c.EnableExperimentalRelationshipDeprecation
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 		to.EnablePerformanceInsightMetrics = c.EnablePerformanceInsightMetrics
 		to.MetricsAPI = c.MetricsAPI
@@ -163,6 +164,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
 	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
 	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
+	debugMap["EnableExperimentalRelationshipDeprecation"] = helpers.DebugValue(c.EnableExperimentalRelationshipDeprecation, false)
 	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
@@ -595,6 +597,13 @@ func WithEnableExperimentalLookupResources(enableExperimentalLookupResources boo
 func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationshipExpiration bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableExperimentalRelationshipExpiration = enableExperimentalRelationshipExpiration
+	}
+}
+
+// WithEnableExperimentalRelationshipDeprecation returns an option that can set EnableExperimentalRelationshipDeprecation on a Config
+func WithEnableExperimentalRelationshipDeprecation(enableExperimentalRelationshipDeprecation bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableExperimentalRelationshipDeprecation = enableExperimentalRelationshipDeprecation
 	}
 }
 
