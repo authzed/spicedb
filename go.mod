@@ -29,7 +29,7 @@ require (
 	github.com/authzed/authzed-go v1.4.1
 	github.com/authzed/consistent v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
-	github.com/aws/aws-sdk-go-v2 v1.36.4
+	github.com/aws/aws-sdk-go-v2 v1.37.1
 	github.com/aws/aws-sdk-go-v2/config v1.29.16
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.12
 	github.com/benbjohnson/clock v1.3.5
@@ -118,7 +118,15 @@ require (
 	sigs.k8s.io/controller-runtime v0.21.0
 )
 
-require golang.org/x/vuln v1.1.4 // indirect
+require (
+	github.com/aws/aws-sdk-go v1.55.8 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.1 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.8.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.45.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.27.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.1 // indirect
+	golang.org/x/vuln v1.1.4 // indirect
+)
 
 // Most tools are managed in the magefiles module. These tools are just
 // the ones that can't run from a submodule at the moment.
@@ -176,15 +184,15 @@ require (
 	github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.69 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.31 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.35 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.35 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.21 // indirect
-	github.com/aws/smithy-go v1.22.2 // indirect
+	github.com/aws/smithy-go v1.22.5 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
