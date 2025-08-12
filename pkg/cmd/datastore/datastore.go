@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb"
+	"github.com/authzed/spicedb/internal/datastore/dynamodb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/mysql"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
@@ -37,6 +38,7 @@ const (
 	CockroachEngine = "cockroachdb"
 	SpannerEngine   = "spanner"
 	MySQLEngine     = "mysql"
+	DynamoEngine    = "dynamodb"
 )
 
 var BuilderForEngine = map[string]engineBuilderFunc{
@@ -45,6 +47,7 @@ var BuilderForEngine = map[string]engineBuilderFunc{
 	MemoryEngine:    newMemoryDatstore,
 	SpannerEngine:   newSpannerDatastore,
 	MySQLEngine:     newMySQLDatastore,
+	DynamoEngine:    newDynamodbDatastore,
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.connpool.options.go . ConnPoolConfig
@@ -161,6 +164,11 @@ type Config struct {
 
 	// MySQL
 	TablePrefix string `debugmap:"visible"`
+
+	// DynamoDB
+	AwsRegion          string
+	AwsAccessKeyId     string
+	AwsScreteAccessKey string
 
 	// Relationship Integrity
 	RelationshipIntegrityEnabled     bool            `debugmap:"visible"`
@@ -286,6 +294,10 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyID, flagName("datastore-relationship-integrity-current-key-id"), "", "current key id for relationship integrity checks")
 	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyFilename, flagName("datastore-relationship-integrity-current-key-filename"), "", "current key filename for relationship integrity checks")
 	flagSet.StringArrayVar(&opts.RelationshipIntegrityExpiredKeys, flagName("datastore-relationship-integrity-expired-keys"), []string{}, "config for expired keys for relationship integrity checks")
+
+	flagSet.StringVar(&opts.AwsRegion, flagName("aws-region"), "", "config for AWS region for dynamodb")
+	flagSet.StringVar(&opts.AwsAccessKeyId, flagName("aws-access-key-id"), "", "config for AWS Access key Id")
+	flagSet.StringVar(&opts.AwsScreteAccessKey, flagName("aws-screte-access-key"), "", "config for AWS Screte Access Key")
 
 	// disabling stats is only for tests
 	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
@@ -567,6 +579,19 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithExpirationDisabled(!opts.EnableExperimentalRelationshipExpiration),
 		crdb.WithWatchDisabled(opts.DisableWatchSupport),
 	)
+}
+
+func newDynamodbDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	if len(opts.ReadReplicaURIs) > 0 {
+		return nil, errors.New("read replicas are not supported for the dynamodb datastore engine")
+	}
+
+	return dynamodb.NewDynamodbDatastore(ctx,
+		dynamodb.AwsUrl(opts.URI),
+		dynamodb.AwsAccessKeyId(opts.AwsAccessKeyId),
+		dynamodb.AwsScreteAccessKey(opts.AwsScreteAccessKey),
+		dynamodb.AwsRegion(opts.AwsRegion),
+	), nil
 }
 
 func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
