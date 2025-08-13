@@ -1,6 +1,9 @@
 package schema
 
-import "github.com/authzed/spicedb/pkg/schemadsl/compiler"
+import (
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+)
 
 type Schema struct {
 	Definitions map[string]*Definition
@@ -8,20 +11,21 @@ type Schema struct {
 }
 
 type Definition struct {
-	parent      *Schema
+	Parent      *Schema
 	Name        string
-	Relations   map[string]Relation
-	Permissions map[string]Permission
+	Relations   map[string]*Relation
+	Permissions map[string]*Permission
 }
 
 type Caveat struct {
-	parent         *Schema
+	Parent         *Schema
 	Name           string
 	Expression     string
 	ParameterTypes []string
 }
 
 type BaseRelation struct {
+	Parent      *Relation
 	Type        string
 	Subrelation string
 	Caveat      string
@@ -30,36 +34,40 @@ type BaseRelation struct {
 }
 
 type Relation struct {
-	parent           *Definition
+	Parent           *Definition
 	Name             string
-	BaseRelations    []BaseRelation
+	BaseRelations    []*BaseRelation
 	AliasingRelation string
 }
 
 type Permission struct {
-	parent    *Definition
+	Parent    *Definition
 	Name      string
 	Operation Operation
 }
 
 func BuildSchemaFromCompiler(schema compiler.CompiledSchema) (*Schema, error) {
+	return BuildSchemaFromDefinitions(schema.ObjectDefinitions, schema.CaveatDefinitions)
+}
+
+func BuildSchemaFromDefinitions(objectDefs []*corev1.NamespaceDefinition, caveatDefs []*corev1.CaveatDefinition) (*Schema, error) {
 	out := &Schema{
 		Definitions: make(map[string]*Definition),
 		Caveats:     make(map[string]*Caveat),
 	}
 
-	for _, def := range schema.ObjectDefinitions {
+	for _, def := range objectDefs {
 		d, err := convertDefinition(def)
-		d.parent = out
+		d.Parent = out
 		if err != nil {
 			return nil, err
 		}
 		out.Definitions[def.GetName()] = d
 	}
 
-	for _, caveat := range schema.CaveatDefinitions {
+	for _, caveat := range caveatDefs {
 		c, err := convertCaveat(caveat)
-		c.parent = out
+		c.Parent = out
 		if err != nil {
 			return nil, err
 		}
