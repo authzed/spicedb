@@ -20,14 +20,14 @@ func (i *Intersection) AddSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
-func (i *Intersection) Check(ctx *Context, resource_ids []string, subject_id string) ([]Relation, error) {
-	valid := resource_ids
+func (i *Intersection) Check(ctx *Context, resourceIds []string, subjectIds string) ([]Relation, error) {
+	valid := resourceIds
 
 	var rels []Relation
 	var err error
 
 	for _, it := range i.subIts {
-		rels, err = it.Check(ctx, valid, subject_id)
+		rels, err = it.Check(ctx, valid, subjectIds)
 		if err != nil {
 			return nil, err
 		}
@@ -37,18 +37,18 @@ func (i *Intersection) Check(ctx *Context, resource_ids []string, subject_id str
 		}
 
 		valid = slicez.Map(rels, func(r Relation) string {
-			return r.ResourceID
+			return r.Resource.ObjectID
 		})
 	}
 
 	return rels, nil
 }
 
-func (i *Intersection) LookupSubjects(ctx *Context, resource_id string) (iter.Seq2[Relation, error], error) {
+func (i *Intersection) LookupSubjects(ctx *Context, resourceId string) (iter.Seq2[Relation, error], error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (i *Intersection) LookupResources(ctx *Context, subject_id string) (iter.Seq2[Relation, error], error) {
+func (i *Intersection) LookupResources(ctx *Context, subjectId string) (iter.Seq2[Relation, error], error) {
 	panic("not implemented") // TODO: Implement
 }
 

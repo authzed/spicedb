@@ -9,8 +9,8 @@ import (
 func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 	out := &Definition{
 		Name:        def.GetName(),
-		Relations:   make(map[string]Relation),
-		Permissions: make(map[string]Permission),
+		Relations:   make(map[string]*Relation),
+		Permissions: make(map[string]*Permission),
 	}
 	for _, r := range def.GetRelation() {
 		if userset := r.GetUsersetRewrite(); userset != nil {
@@ -18,15 +18,15 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 			if err != nil {
 				return nil, err
 			}
-			perm.parent = out
+			perm.Parent = out
 			perm.Name = r.GetName()
-			out.Permissions[r.GetName()] = perm
+			out.Permissions[r.GetName()] = &perm
 		} else if typeinfo := r.GetTypeInformation(); typeinfo != nil {
 			rel, err := convertTypeInformation(typeinfo)
 			if err != nil {
 				return nil, err
 			}
-			rel.parent = out
+			rel.Parent = out
 			rel.Name = r.GetName()
 			out.Relations[r.GetName()] = rel
 		}
@@ -81,12 +81,14 @@ func convertUserset(userset *corev1.UsersetRewrite) (Permission, error) {
 	}, nil
 }
 
-func convertTypeInformation(typeinfo *corev1.TypeInformation) (Relation, error) {
+func convertTypeInformation(typeinfo *corev1.TypeInformation) (*Relation, error) {
 	if typeinfo == nil {
-		return Relation{}, fmt.Errorf("type information is nil")
+		return &Relation{}, fmt.Errorf("type information is nil")
 	}
 
-	allowedTypes := make([]BaseRelation, 0, len(typeinfo.GetAllowedDirectRelations()))
+	thisRelation := &Relation{}
+
+	thisRelation.BaseRelations = make([]*BaseRelation, 0, len(typeinfo.GetAllowedDirectRelations()))
 	for _, allowedRelation := range typeinfo.GetAllowedDirectRelations() {
 		// Extract caveat and expiration information
 		caveat := ""
@@ -96,7 +98,8 @@ func convertTypeInformation(typeinfo *corev1.TypeInformation) (Relation, error) 
 		expiration := allowedRelation.GetRequiredExpiration() != nil
 
 		if allowedRelation.GetPublicWildcard() != nil {
-			allowedTypes = append(allowedTypes, BaseRelation{
+			thisRelation.BaseRelations = append(thisRelation.BaseRelations, &BaseRelation{
+				Parent:     thisRelation,
 				Type:       allowedRelation.GetNamespace(),
 				Wildcard:   true,
 				Caveat:     caveat,
@@ -105,13 +108,15 @@ func convertTypeInformation(typeinfo *corev1.TypeInformation) (Relation, error) 
 		} else {
 			relationName := allowedRelation.GetRelation()
 			if relationName == "" || relationName == "..." {
-				allowedTypes = append(allowedTypes, BaseRelation{
+				thisRelation.BaseRelations = append(thisRelation.BaseRelations, &BaseRelation{
+					Parent:     thisRelation,
 					Type:       allowedRelation.GetNamespace(),
 					Caveat:     caveat,
 					Expiration: expiration,
 				})
 			} else {
-				allowedTypes = append(allowedTypes, BaseRelation{
+				thisRelation.BaseRelations = append(thisRelation.BaseRelations, &BaseRelation{
+					Parent:      thisRelation,
 					Type:        allowedRelation.GetNamespace(),
 					Subrelation: relationName,
 					Caveat:      caveat,
@@ -121,9 +126,7 @@ func convertTypeInformation(typeinfo *corev1.TypeInformation) (Relation, error) 
 		}
 	}
 
-	return Relation{
-		BaseRelations: allowedTypes,
-	}, nil
+	return thisRelation, nil
 }
 
 func convertSetOperation(setOp *corev1.SetOperation) (Operation, error) {

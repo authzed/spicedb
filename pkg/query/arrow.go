@@ -17,15 +17,15 @@ func NewArrow(left, right Iterator) *Arrow {
 	}
 }
 
-func (a *Arrow) Check(ctx *Context, resource_ids []string, subject_id string) ([]Relation, error) {
+func (a *Arrow) Check(ctx *Context, resourceIds []string, subjectId string) ([]Relation, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (a *Arrow) LookupSubjects(ctx *Context, resource_id string) (iter.Seq2[Relation, error], error) {
+func (a *Arrow) LookupSubjects(ctx *Context, resourceId string) (iter.Seq2[Relation, error], error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (a *Arrow) LookupResources(ctx *Context, subject_id string) (iter.Seq2[Relation, error], error) {
+func (a *Arrow) LookupResources(ctx *Context, subjectId string) (iter.Seq2[Relation, error], error) {
 	panic("not implemented") // TODO: Implement
 }
 
