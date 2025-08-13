@@ -33,6 +33,14 @@ type BaseRelation struct {
 	Wildcard    bool
 }
 
+func (b BaseRelation) DefinitionName() string {
+	return b.Parent.Parent.Name
+}
+
+func (b BaseRelation) RelationName() string {
+	return b.Parent.Name
+}
+
 type Relation struct {
 	Parent           *Definition
 	Name             string

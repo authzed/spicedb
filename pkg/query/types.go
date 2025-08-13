@@ -9,13 +9,14 @@ import (
 )
 
 type (
-	Relation = tuple.Relationship
+	Relation    = tuple.Relationship
+	RelationSeq iter.Seq2[Relation, error]
 )
 
 type Plan interface {
-	Check(ctx *Context, resourceIds []string, subjectId string) ([]Relation, error)
-	LookupSubjects(ctx *Context, resourceId string) (iter.Seq2[Relation, error], error)
-	LookupResources(ctx *Context, subjectId string) (iter.Seq2[Relation, error], error)
+	Check(ctx *Context, resourceIds []string, subjectId string) (RelationSeq, error)
+	LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error)
+	LookupResources(ctx *Context, subjectId string) (RelationSeq, error)
 	Explain() Explain
 }
 
@@ -32,4 +33,15 @@ type Context struct {
 	context.Context
 	Datastore datastore.ReadOnlyDatastore
 	Revision  datastore.Revision
+}
+
+func CollectAll(seq RelationSeq) ([]Relation, error) {
+	var out []Relation
+	for x, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, x)
+	}
+	return out, nil
 }

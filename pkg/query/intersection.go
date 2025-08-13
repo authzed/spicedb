@@ -1,8 +1,6 @@
 package query
 
 import (
-	"iter"
-
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 )
 
@@ -20,14 +18,17 @@ func (i *Intersection) AddSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
-func (i *Intersection) Check(ctx *Context, resourceIds []string, subjectIds string) ([]Relation, error) {
+func (i *Intersection) Check(ctx *Context, resourceIds []string, subjectIds string) (RelationSeq, error) {
 	valid := resourceIds
 
 	var rels []Relation
-	var err error
 
 	for _, it := range i.subIts {
-		rels, err = it.Check(ctx, valid, subjectIds)
+		relSeq, err := it.Check(ctx, valid, subjectIds)
+		if err != nil {
+			return nil, err
+		}
+		rels, err = CollectAll(relSeq)
 		if err != nil {
 			return nil, err
 		}
@@ -41,14 +42,20 @@ func (i *Intersection) Check(ctx *Context, resourceIds []string, subjectIds stri
 		})
 	}
 
-	return rels, nil
+	return func(yield func(Relation, error) bool) {
+		for _, rel := range rels {
+			if !yield(rel, nil) {
+				return
+			}
+		}
+	}, nil
 }
 
-func (i *Intersection) LookupSubjects(ctx *Context, resourceId string) (iter.Seq2[Relation, error], error) {
+func (i *Intersection) LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (i *Intersection) LookupResources(ctx *Context, subjectId string) (iter.Seq2[Relation, error], error) {
+func (i *Intersection) LookupResources(ctx *Context, subjectId string) (RelationSeq, error) {
 	panic("not implemented") // TODO: Implement
 }
 

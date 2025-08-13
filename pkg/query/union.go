@@ -1,7 +1,6 @@
 package query
 
 import (
-	"iter"
 	"slices"
 )
 
@@ -19,11 +18,15 @@ func (u *Union) AddSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
-func (u *Union) Check(ctx *Context, resourceIds []string, subjectIds string) ([]Relation, error) {
+func (u *Union) Check(ctx *Context, resourceIds []string, subjectIds string) (RelationSeq, error) {
 	remaining := resourceIds
 	var out []Relation
 	for _, it := range u.subIts {
-		rels, err := it.Check(ctx, remaining, subjectIds)
+		relSeq, err := it.Check(ctx, remaining, subjectIds)
+		if err != nil {
+			return nil, err
+		}
+		rels, err := CollectAll(relSeq)
 		if err != nil {
 			return nil, err
 		}
@@ -41,14 +44,20 @@ func (u *Union) Check(ctx *Context, resourceIds []string, subjectIds string) ([]
 			break
 		}
 	}
-	return out, nil
+	return func(yield func(Relation, error) bool) {
+		for _, rel := range out {
+			if !yield(rel, nil) {
+				return
+			}
+		}
+	}, nil
 }
 
-func (u *Union) LookupSubjects(ctx *Context, resourceId string) (iter.Seq2[Relation, error], error) {
+func (u *Union) LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (u *Union) LookupResources(ctx *Context, subjectId string) (iter.Seq2[Relation, error], error) {
+func (u *Union) LookupResources(ctx *Context, subjectId string) (RelationSeq, error) {
 	panic("not implemented") // TODO: Implement
 }
 
