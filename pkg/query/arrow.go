@@ -1,6 +1,5 @@
 package query
 
-import "iter"
 
 type Arrow struct {
 	left  Iterator
@@ -17,15 +16,15 @@ func NewArrow(left, right Iterator) *Arrow {
 	}
 }
 
-func (a *Arrow) Check(ctx *Context, resourceIds []string, subjectId string) ([]Relation, error) {
+func (a *Arrow) Check(ctx *Context, resourceIds []string, subjectId string) (RelationSeq, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (a *Arrow) LookupSubjects(ctx *Context, resourceId string) (iter.Seq2[Relation, error], error) {
+func (a *Arrow) LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (a *Arrow) LookupResources(ctx *Context, subjectId string) (iter.Seq2[Relation, error], error) {
+func (a *Arrow) LookupResources(ctx *Context, subjectId string) (RelationSeq, error) {
 	panic("not implemented") // TODO: Implement
 }
 
