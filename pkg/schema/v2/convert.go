@@ -222,8 +222,9 @@ func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 		}
 		return perm.Operation, nil
 	case *corev1.SetOperation_Child_TupleToUserset:
-		return &RelationReference{
-			RelationName: childType.TupleToUserset.GetTupleset().GetRelation() + "->" + childType.TupleToUserset.GetComputedUserset().GetRelation(),
+		return &ArrowReference{
+			Left:  childType.TupleToUserset.GetTupleset().GetRelation(),
+			Right: childType.TupleToUserset.GetComputedUserset().GetRelation(),
 		}, nil
 	case *corev1.SetOperation_Child_XNil:
 		return &RelationReference{
