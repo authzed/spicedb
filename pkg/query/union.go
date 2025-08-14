@@ -61,6 +61,16 @@ func (u *Union) LookupResources(ctx *Context, subjectId string) (RelationSeq, er
 	panic("not implemented") // TODO: Implement
 }
 
+func (u *Union) Clone() Iterator {
+	cloned := &Union{
+		subIts: make([]Iterator, len(u.subIts)),
+	}
+	for idx, subIt := range u.subIts {
+		cloned.subIts[idx] = subIt.Clone()
+	}
+	return cloned
+}
+
 func (u *Union) Explain() Explain {
 	var subs []Explain
 	for _, it := range u.subIts {
