@@ -1,2 +1,2 @@
 ---
-error: 'failed to write schema: rpc error: code = InvalidArgument desc = cannot remove allowed type `user` from relation `viewer` in object definition `document`, as a relationship exists with it'
+error: 'failed to write schema: rpc error: code = InvalidArgument desc = cannot remove allowed type `user` from relation `viewer` in object definition `document`, as a relationship exists with it: document:somedoc#viewer@user:user-0'

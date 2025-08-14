@@ -340,7 +340,7 @@ definition example/user {}`
 		Schema: newSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `example/user:*` from relation `somerelation` in object definition `example/document`, as a relationship exists with it", err.Error())
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `example/user:*` from relation `somerelation` in object definition `example/document`, as a relationship exists with it: example/document:somedoc#somerelation@example/user:*", err.Error())
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
@@ -500,7 +500,7 @@ definition user {}`
 		Schema: newSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with somecaveat` from relation `somerelation` in object definition `document`, as a relationship exists with it", err.Error())
+	require.ErrorContains(t, err, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with somecaveat` from relation `somerelation` in object definition `document`, as a relationship exists with it: document:somedoc#somerelation@user:tom[somecaveat", err.Error())
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
@@ -622,7 +622,7 @@ func TestSchemaChangeExpiration(t *testing.T) {
 		Schema: newSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with expiration` from relation `somerelation` in object definition `document`, as a relationship exists with it", err.Error())
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with expiration` from relation `somerelation` in object definition `document`, as a relationship exists with it: document:somedoc#somerelation@user:tom[expiration:2300-01-01T00:00:00Z]", err.Error())
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
@@ -657,7 +657,7 @@ func TestSchemaChangeExpiration(t *testing.T) {
 		Schema: originalSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user` from relation `somerelation` in object definition `document`, as a relationship exists with it", err.Error())
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user` from relation `somerelation` in object definition `document`, as a relationship exists with it: document:somedoc#somerelation@user:tom", err.Error())
 }
 
 func TestSchemaChangeExpirationAllowed(t *testing.T) {

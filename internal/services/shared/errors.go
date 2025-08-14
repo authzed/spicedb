@@ -41,15 +41,17 @@ func mustMakeStatusReadonly() error {
 
 // NewSchemaWriteDataValidationError creates a new error representing that a schema write cannot be
 // completed due to existing data that would be left unreferenced.
-func NewSchemaWriteDataValidationError(message string, args ...any) SchemaWriteDataValidationError {
+func NewSchemaWriteDataValidationError(message string, args []any, metadata map[string]string) SchemaWriteDataValidationError {
 	return SchemaWriteDataValidationError{
-		error: fmt.Errorf(message, args...),
+		error:    fmt.Errorf(message, args...),
+		metadata: metadata,
 	}
 }
 
 // SchemaWriteDataValidationError occurs when a schema cannot be applied due to leaving data unreferenced.
 type SchemaWriteDataValidationError struct {
 	error
+	metadata map[string]string
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
@@ -59,12 +61,15 @@ func (err SchemaWriteDataValidationError) MarshalZerologObject(e *zerolog.Event)
 
 // GRPCStatus implements retrieving the gRPC status for the error.
 func (err SchemaWriteDataValidationError) GRPCStatus() *status.Status {
+	if err.metadata == nil {
+		err.metadata = map[string]string{}
+	}
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR,
-			map[string]string{},
+			err.metadata,
 		),
 	)
 }

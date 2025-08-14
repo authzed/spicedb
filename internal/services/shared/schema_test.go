@@ -88,7 +88,7 @@ func TestApplySchemaChanges(t *testing.T) {
 				}
 
 				definition document {}`,
-			expectedError: "cannot delete relation `viewer` in object definition `document`, as a relationship exists under it",
+			expectedError: "cannot delete relation `viewer` in object definition `document`, as at least one relationship exists under it: document:somedoc#viewer@user:alice",
 		},
 		{
 			name: "attempt to remove a relation with indirect relationships",
@@ -119,7 +119,7 @@ func TestApplySchemaChanges(t *testing.T) {
 				}
 
 				definition document {}`,
-			expectedError: "cannot delete relation `viewer` in object definition `document`, as a relationship exists under it",
+			expectedError: "cannot delete relation `viewer` in object definition `document`, as at least one relationship exists under it: document:somedoc#viewer@group:somegroup#member",
 		},
 		{
 			name: "attempt to remove a relation with other indirect relationships",
@@ -150,7 +150,7 @@ func TestApplySchemaChanges(t *testing.T) {
 				}
 
 				definition document {}`,
-			expectedError: "cannot delete relation `viewer` in object definition `document`, as a relationship exists under it",
+			expectedError: "cannot delete relation `viewer` in object definition `document`, as at least one relationship exists under it: document:somedoc#viewer@org:someorg#admin",
 		},
 		{
 			name: "attempt to remove a relation with wildcard",
@@ -165,7 +165,7 @@ func TestApplySchemaChanges(t *testing.T) {
 				definition user {}
 
 				definition document {}`,
-			expectedError: "cannot delete relation `viewer` in object definition `document`, as a relationship exists under it",
+			expectedError: "cannot delete relation `viewer` in object definition `document`, as at least one relationship exists under it: document:somedoc#viewer@user:*",
 		},
 		{
 			name: "attempt to remove a relation with only indirect relationships",
@@ -196,7 +196,7 @@ func TestApplySchemaChanges(t *testing.T) {
 				}
 
 				definition document {}`,
-			expectedError: "cannot delete relation `viewer` in object definition `document`, as a relationship exists under it",
+			expectedError: "cannot delete relation `viewer` in object definition `document`, as at least one relationship exists under it: document:somedoc#viewer@org:someorg#admin",
 		},
 		{
 			name: "remove a relation with no relationships",
@@ -287,7 +287,7 @@ func TestApplySchemaChanges(t *testing.T) {
 					permission view = viewer
 				}
 			`,
-			expectedError: "cannot remove allowed type `group#member` from relation `viewer` in object definition `document`, as a relationship exists with it",
+			expectedError: "cannot remove allowed type `group#member` from relation `viewer` in object definition `document`, as a relationship exists with it: document:somedoc#viewer@group:somegroup#member",
 		},
 		{
 			name: "attempt to remove non-caveated type when only caveated relationship exists",
@@ -361,7 +361,7 @@ func TestApplySchemaChanges(t *testing.T) {
 					permission view = nil
 				}
 			`,
-			expectedError: "cannot delete relation `reader` in object definition `document`, as a relationship exists under it",
+			expectedError: "cannot delete relation `reader` in object definition `document`, as at least one relationship exists under it: document:firstdoc#reader@user:tom",
 		},
 		{
 			name: "delete a subject type with relation but no data",
@@ -403,7 +403,7 @@ func TestApplySchemaChanges(t *testing.T) {
 					permission view = reader
 				}
 			`,
-			expectedError: "cannot remove allowed type `user` from relation `reader` in object definition `document`, as a relationship exists with it",
+			expectedError: "cannot remove allowed type `user` from relation `reader` in object definition `document`, as a relationship exists with it: document:firstdoc#reader@user:tom",
 		},
 		{
 			name: "delete a subject type while adding a replacement",
@@ -480,7 +480,7 @@ func TestApplySchemaChanges(t *testing.T) {
 					permission view = reader
 				}
 			`,
-			expectedError: "cannot remove allowed type `user` from relation `reader` in object definition `document`, as a relationship exists with it",
+			expectedError: "cannot remove allowed type `user` from relation `reader` in object definition `document`, as a relationship exists with it: document:firstdoc#reader@user:tom",
 		},
 		{
 			name: "attempt to delete an indirect subject type while direct remains",
@@ -505,7 +505,7 @@ func TestApplySchemaChanges(t *testing.T) {
 					permission view = reader
 				}
 			`,
-			expectedError: "cannot remove allowed type `user#foo` from relation `reader` in object definition `document`, as a relationship exists with it",
+			expectedError: "cannot remove allowed type `user#foo` from relation `reader` in object definition `document`, as a relationship exists with it: document:firstdoc#reader@user:tom#foo",
 		},
 		{
 			name: "delete an indirect subject type while direct remains",
