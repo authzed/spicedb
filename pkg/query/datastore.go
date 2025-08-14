@@ -89,8 +89,14 @@ func (r *RelationIterator) LookupResources(ctx *Context, subjectId string) (Rela
 	panic("not implemented") // TODO: Implement
 }
 
+func (r *RelationIterator) Clone() Iterator {
+	return &RelationIterator{
+		base: r.base,
+	}
+}
+
 func (r *RelationIterator) Explain() Explain {
 	return Explain{
-		Info: fmt.Sprintf("Relation(%s:%s, \"%s\")", r.base.DefinitionName(), r.base.RelationName(), r.base.Subrelation),
+		Info: fmt.Sprintf("Relation(%s:%s, \"%s\", caveat: %v, expiration: %v)", r.base.DefinitionName(), r.base.RelationName(), r.base.Subrelation, r.base.Caveat != "", r.base.Expiration),
 	}
 }

@@ -59,6 +59,16 @@ func (i *Intersection) LookupResources(ctx *Context, subjectId string) (Relation
 	panic("not implemented") // TODO: Implement
 }
 
+func (i *Intersection) Clone() Iterator {
+	cloned := &Intersection{
+		subIts: make([]Iterator, len(i.subIts)),
+	}
+	for idx, subIt := range i.subIts {
+		cloned.subIts[idx] = subIt.Clone()
+	}
+	return cloned
+}
+
 func (i *Intersection) Explain() Explain {
 	var subs []Explain
 	for _, it := range i.subIts {

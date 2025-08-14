@@ -2,7 +2,9 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"iter"
+	"strings"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -22,11 +24,24 @@ type Plan interface {
 
 type Iterator interface {
 	Plan
+	Clone() Iterator
 }
 
 type Explain struct {
 	Info       string
 	SubExplain []Explain
+}
+
+func (e Explain) String() string {
+	return e.IndentString(0)
+}
+
+func (e Explain) IndentString(depth int) string {
+	var sb strings.Builder
+	for _, sub := range e.SubExplain {
+		sb.WriteString(sub.IndentString(depth + 1))
+	}
+	return fmt.Sprintf("%s%s\n%s", strings.Repeat("\t", depth), e.Info, sb.String())
 }
 
 type Context struct {
