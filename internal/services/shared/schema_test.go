@@ -534,6 +534,59 @@ func TestApplySchemaChanges(t *testing.T) {
 				TotalOperationCount: 2,
 			},
 		},
+		{
+			name: "delete a subject relation when another relationship references the resource type",
+			startingSchema: `use expiration
+
+  definition resource {
+    relation platform: platform
+    relation viewer: user | user:*
+  }
+  definition platform {
+    relation othersubject_thing_doer: othersubject
+    permission do_thing = othersubject_thing_doer
+  }
+  definition othersubject {}
+  definition user {}`,
+			relationships: []string{
+				"resource:oneresource#platform@platform:foo",
+				"resource:anotherresource#viewer@user:*",
+			},
+			endingSchema: `use expiration
+
+definition user {}
+definition platform {}
+definition resource {
+	relation platform: platform
+	relation viewer: user | user:*
+}`,
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount:   4,
+				RemovedObjectDefNames: []string{"othersubject"},
+			},
+		},
+		{
+			name: "attempt to delete a referenced subject relation",
+			startingSchema: `definition document {
+				relation viewer: user | user#foo
+			}
+
+			definition user {
+				relation foo: user
+				relation foo2: user
+			}`,
+			relationships: []string{
+				"document:firstdoc#viewer@user:tom#foo",
+			},
+			endingSchema: `definition document {
+				relation viewer: user
+			}
+			definition user {
+				relation foo2: user
+			}
+			`,
+			expectedError: "cannot remove allowed type `user#foo` from relation `viewer` in object definition `document`, as a relationship exists with it: document:firstdoc#viewer@user:tom#foo",
+		},
 	}
 
 	for _, tc := range tcs {

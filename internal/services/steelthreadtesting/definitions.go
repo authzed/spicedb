@@ -550,4 +550,29 @@ var steelThreadTestCases = []steelThreadTestCase{
 			},
 		},
 	},
+	{
+		// This case was found in the wild
+		name:     "remove relation on real schema",
+		datafile: "real-schema-and-data-with-many-relations.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				operationName: "writeSchema",
+				arguments: map[string]any{
+					"schema": `
+use expiration
+
+definition user {}
+
+definition platform {}
+
+definition resource {
+	relation platform: platform
+
+	relation viewer: user | user:*
+}
+					`,
+				},
+			},
+		},
+	},
 }

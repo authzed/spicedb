@@ -1,0 +1,21 @@
+schema: |+
+  use expiration
+
+  definition resource {
+    relation platform: platform
+
+    relation viewer: user | user:*
+  }
+
+  definition platform {
+    relation othersubject_thing_doer: othersubject
+
+    permission do_thing = othersubject_thing_doer
+  }
+
+  definition othersubject {}
+
+  definition user {}
+relationships: |
+  resource:oneresource#platform@platform:foo
+  resource:anotherresource#viewer@user:*
