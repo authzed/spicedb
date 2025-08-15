@@ -370,11 +370,15 @@ func sanityCheckNamespaceChanges(
 			}
 
 			// Also check for right sides of tuples.
+			spiceerrors.DebugAssert(func() bool {
+				return delta.RelationName != tuple.Ellipsis && delta.RelationName != ""
+			}, "relation name should not be empty or ellipsis when checking for reverse relationships")
+
 			qy, qyErr = rwt.ReverseQueryRelationships(
 				ctx,
 				datastore.SubjectsFilter{
 					SubjectType:    nsdef.Name,
-					RelationFilter: subjectRelationFilterForAllowedType(delta.AllowedType),
+					RelationFilter: datastore.SubjectRelationFilter{}.WithRelation(delta.RelationName),
 				},
 				options.WithLimitForReverse(options.LimitOne),
 				options.WithQueryShapeForReverse(queryshape.FindSubjectOfTypeAndRelation),
@@ -384,7 +388,7 @@ func sanityCheckNamespaceChanges(
 				ctx,
 				qy,
 				qyErr,
-				"cannot delete relation `%s` in object definition `%s`, as at least one relationship references it",
+				"cannot delete relation `%s` in object definition `%s`, as at least one relationship references it as part of a subject",
 				[]any{delta.RelationName, nsdef.Name},
 				map[string]string{
 					"resource_type": nsdef.Name,

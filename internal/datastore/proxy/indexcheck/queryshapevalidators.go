@@ -316,6 +316,15 @@ func validateReverseQueryShape(queryShape queryshape.Shape, subjectFilter datast
 		}
 		return nil
 
+	case queryshape.FindSubjectOfTypeAndRelation:
+		if err := validateSubjectType(subjectFilter.SubjectType, queryShape); err != nil {
+			return err
+		}
+		if err := validateSubjectRelation(subjectFilter.RelationFilter, queryShape, true); err != nil {
+			return err
+		}
+		return nil
+
 	case queryshape.Varying:
 		// Nothing to validate.
 		return nil

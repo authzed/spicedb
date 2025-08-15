@@ -555,7 +555,7 @@ var steelThreadTestCases = []steelThreadTestCase{
 		name:     "remove relation on real schema",
 		datafile: "real-schema-and-data-with-many-relations.yaml",
 		operations: []steelThreadOperationCase{
-{
+			{
 				operationName: "writeSchema",
 				arguments: map[string]any{
 					"schema": `
