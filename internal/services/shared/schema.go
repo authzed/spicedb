@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"maps"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -256,10 +257,18 @@ func sanityCheckCaveatChanges(
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case caveatdiff.RemovedParameter:
-			return diff, NewSchemaWriteDataValidationError("cannot remove parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
+			return diff, NewSchemaWriteDataValidationError("cannot remove parameter `%s` on caveat `%s`", []any{delta.ParameterName, caveatDef.Name}, map[string]string{
+				"caveat_name":    caveatDef.Name,
+				"parameter_name": delta.ParameterName,
+				"operation":      "remove_parameter",
+			})
 
 		case caveatdiff.ParameterTypeChanged:
-			return diff, NewSchemaWriteDataValidationError("cannot change the type of parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
+			return diff, NewSchemaWriteDataValidationError("cannot change the type of parameter `%s` on caveat `%s`", []any{delta.ParameterName, caveatDef.Name}, map[string]string{
+				"caveat_name":    caveatDef.Name,
+				"parameter_name": delta.ParameterName,
+				"operation":      "change_parameter_type",
+			})
 		}
 	}
 
@@ -280,8 +289,12 @@ func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datasto
 		ctx,
 		qy,
 		qyErr,
-		"cannot delete object definition `%s`, as a relationship exists under it",
-		namespaceName,
+		"cannot delete object definition `%s`, as at least one relationship exists under it",
+		[]any{namespaceName},
+		map[string]string{
+			"resource_type": namespaceName,
+			"operation":     "delete_object_definition",
+		},
 	)
 }
 
@@ -344,7 +357,14 @@ func sanityCheckNamespaceChanges(
 				ctx,
 				qy,
 				qyErr,
-				"cannot delete relation `%s` in object definition `%s`, as a relationship exists under it", delta.RelationName, nsdef.Name)
+				"cannot delete relation `%s` in object definition `%s`, as at least one relationship exists under it",
+				[]any{delta.RelationName, nsdef.Name},
+				map[string]string{
+					"resource_type": nsdef.Name,
+					"relation":      delta.RelationName,
+					"operation":     "delete_relation",
+				},
+			)
 			if err != nil {
 				return diff, err
 			}
@@ -364,7 +384,14 @@ func sanityCheckNamespaceChanges(
 				ctx,
 				qy,
 				qyErr,
-				"cannot delete relation `%s` in object definition `%s`, as a relationship references it", delta.RelationName, nsdef.Name)
+				"cannot delete relation `%s` in object definition `%s`, as at least one relationship references it",
+				[]any{delta.RelationName, nsdef.Name},
+				map[string]string{
+					"resource_type": nsdef.Name,
+					"relation":      delta.RelationName,
+					"operation":     "delete_relation_reverse_check",
+				},
+			)
 			if err != nil {
 				return diff, err
 			}
@@ -410,7 +437,14 @@ func sanityCheckNamespaceChanges(
 				qyr,
 				qyrErr,
 				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
-				schema.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
+				[]any{schema.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name},
+				map[string]string{
+					"resource_type": nsdef.Name,
+					"relation":      delta.RelationName,
+					"allowed_type":  schema.SourceForAllowedRelation(delta.AllowedType),
+					"operation":     "remove_allowed_type",
+				},
+			)
 			if err != nil {
 				return diff, err
 			}
@@ -430,16 +464,29 @@ func subjectRelationFilterForAllowedType(allowedType *core.AllowedRelation) data
 
 // errorIfTupleIteratorReturnsTuples takes a tuple iterator and any error that was generated
 // when the original iterator was created, and returns an error if iterator contains any tuples.
-func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.RelationshipIterator, qyErr error, message string, args ...any) error {
+func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.RelationshipIterator, qyErr error, message string, args []any, metadata map[string]string) error {
 	if qyErr != nil {
 		return qyErr
 	}
 
-	for _, err := range qy {
+	for rel, err := range qy {
 		if err != nil {
 			return err
 		}
-		return NewSchemaWriteDataValidationError(message, args...)
+
+		strValue, err := tuple.String(rel)
+		if err != nil {
+			return err
+		}
+
+		// Create metadata with relationship information
+		fullMetadata := maps.Clone(metadata)
+		if fullMetadata == nil {
+			fullMetadata = make(map[string]string)
+		}
+		fullMetadata["relationship"] = strValue
+		newArgs := append(args, strValue)
+		return NewSchemaWriteDataValidationError(message+": %s", newArgs, fullMetadata)
 	}
 
 	return nil
