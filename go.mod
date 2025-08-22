@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb
 
-go 1.24.0
+go 1.25.0
 
 // NOTE: We are using a *copy* of `cel-go` here to ensure there isn't a conflict
 // with the version used in Kubernetes. This is a temporary measure until we can
