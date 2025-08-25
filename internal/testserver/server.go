@@ -21,18 +21,20 @@ import (
 
 // ServerConfig is configuration for the test server.
 type ServerConfig struct {
-	MaxUpdatesPerWrite         uint16
-	MaxPreconditionsCount      uint16
-	MaxRelationshipContextSize int
-	StreamingAPITimeout        time.Duration
-	CaveatTypeSet              *caveattypes.TypeSet
+	MaxUpdatesPerWrite                 uint16
+	MaxPreconditionsCount              uint16
+	MaxRelationshipContextSize         int
+	StreamingAPITimeout                time.Duration
+	CaveatTypeSet                      *caveattypes.TypeSet
+	EnableExperimentalLookupResources3 bool
 }
 
 var DefaultTestServerConfig = ServerConfig{
-	MaxUpdatesPerWrite:         1000,
-	MaxPreconditionsCount:      1000,
-	StreamingAPITimeout:        30 * time.Second,
-	MaxRelationshipContextSize: 25000,
+	MaxUpdatesPerWrite:                 1000,
+	MaxPreconditionsCount:              1000,
+	StreamingAPITimeout:                30 * time.Second,
+	MaxRelationshipContextSize:         25000,
+	EnableExperimentalLookupResources3: true,
 }
 
 type DatastoreInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision)
@@ -74,6 +76,12 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	ds, revision := dsInitFunc(emptyDS, require)
 	ctx, cancel := context.WithCancel(context.Background())
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
+
+	lrver := ""
+	if config.EnableExperimentalLookupResources3 {
+		lrver = "lr3"
+	}
+
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithEnableExperimentalRelationshipExpiration(true),
 		server.WithDatastore(ds),
@@ -84,6 +92,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 		server.WithStreamingAPITimeout(config.StreamingAPITimeout),
 		server.WithMaxCaveatContextSize(4096),
 		server.WithMaxRelationshipContextSize(config.MaxRelationshipContextSize),
+		server.WithExperimentalLookupResourcesVersion(lrver),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 			Enabled: true,

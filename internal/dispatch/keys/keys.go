@@ -16,6 +16,9 @@ type Handler interface {
 	// LookupResources2CacheKey computes the caching key for a LookupResources2 operation.
 	LookupResources2CacheKey(ctx context.Context, req *v1.DispatchLookupResources2Request) (DispatchCacheKey, error)
 
+	// LookupResources3CacheKey computes the caching key for a LookupResources3 operation.
+	LookupResources3CacheKey(ctx context.Context, req *v1.DispatchLookupResources3Request) (DispatchCacheKey, error)
+
 	// LookupSubjectsCacheKey computes the caching key for a LookupSubjects operation.
 	LookupSubjectsCacheKey(ctx context.Context, req *v1.DispatchLookupSubjectsRequest) (DispatchCacheKey, error)
 
@@ -28,6 +31,9 @@ type Handler interface {
 	// LookupResources2DispatchKey computes the dispatch key for a LookupResources2 operation.
 	LookupResources2DispatchKey(ctx context.Context, req *v1.DispatchLookupResources2Request) ([]byte, error)
 
+	// LookupResources3DispatchKey computes the dispatch key for a LookupResources3 operation.
+	LookupResources3DispatchKey(ctx context.Context, req *v1.DispatchLookupResources3Request) ([]byte, error)
+
 	// LookupSubjectsDispatchKey computes the key for a LookupSubjects operation.
 	LookupSubjectsDispatchKey(ctx context.Context, req *v1.DispatchLookupSubjectsRequest) ([]byte, error)
 
@@ -39,6 +45,10 @@ type baseKeyHandler struct{}
 
 func (b baseKeyHandler) LookupResources2CacheKey(_ context.Context, req *v1.DispatchLookupResources2Request) (DispatchCacheKey, error) {
 	return lookupResourcesRequest2ToKey(req, computeBothHashes), nil
+}
+
+func (b baseKeyHandler) LookupResources3CacheKey(_ context.Context, req *v1.DispatchLookupResources3Request) (DispatchCacheKey, error) {
+	return lookupResourcesRequest3ToKey(req, computeBothHashes), nil
 }
 
 func (b baseKeyHandler) LookupSubjectsCacheKey(_ context.Context, req *v1.DispatchLookupSubjectsRequest) (DispatchCacheKey, error) {
@@ -55,6 +65,10 @@ func (b baseKeyHandler) CheckDispatchKey(_ context.Context, req *v1.DispatchChec
 
 func (b baseKeyHandler) LookupResources2DispatchKey(_ context.Context, req *v1.DispatchLookupResources2Request) ([]byte, error) {
 	return lookupResourcesRequest2ToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+}
+
+func (b baseKeyHandler) LookupResources3DispatchKey(_ context.Context, req *v1.DispatchLookupResources3Request) ([]byte, error) {
+	return lookupResourcesRequest3ToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
 func (b baseKeyHandler) LookupSubjectsDispatchKey(_ context.Context, req *v1.DispatchLookupSubjectsRequest) ([]byte, error) {

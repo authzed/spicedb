@@ -8,7 +8,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/telemetry"
@@ -158,22 +157,19 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	experimentalFlags := nfs.FlagSet(BoldBlue("Experimental"))
 	// Flags for experimental features
-	experimentalFlags.BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", true, "enables the experimental version of the lookup resources API")
-	if err := experimentalFlags.MarkDeprecated("enable-experimental-lookup-resources", "The old implementation of LookupResources has been removed and this flag is a no-op. This flag will be removed in the future."); err != nil {
-		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
-	}
-	if !config.EnableExperimentalLookupResources {
-		log.Warn().
-			Bool("value", false).
-			Msg("The old implementation of LookupResources is no longer available, and a `false` value is no longer valid. Please remove this flag.")
-	}
-
+	experimentalFlags.StringVar(&config.ExperimentalLookupResourcesVersion, "experimental-lookup-resources-version", "", "if non-empty, the version of the experimental lookup resources API to use: `lr3` or empty")
 	experimentalFlags.BoolVar(&config.EnableExperimentalRelationshipExpiration, "enable-experimental-relationship-expiration", false, "enables experimental support for relationship expiration")
 	experimentalFlags.BoolVar(&config.EnableExperimentalWatchableSchemaCache, "enable-experimental-watchable-schema-cache", false, "enables the experimental schema cache, which uses the Watch API to keep the schema up to date")
 	// TODO: these two could reasonably be put in either the Dispatch group or the Experimental group. Is there a preference?
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamExprs, "experimental-dispatch-secondary-upstream-exprs", nil, "map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryMaximumPrimaryHedgingDelays, "experimental-dispatch-secondary-maximum-primary-hedging-delays", nil, "maximum number of hedging delays to use for each request type to delay the primary request. default is 5ms")
+
+	// Deprecated flags for experimental features
+	experimentalFlags.BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", false, "do not use; this flag is unused and will be removed in a future version")
+	if err := experimentalFlags.MarkDeprecated("enable-experimental-lookup-resources", "do not use; this flag is unused and will be removed in a future version"); err != nil {
+		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+	}
 
 	tracingFlags := nfs.FlagSet(BoldBlue("Tracing"))
 	// Flags for tracing
