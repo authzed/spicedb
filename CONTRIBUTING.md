@@ -114,6 +114,10 @@ mage lint:all
 
 See `mage -l` to run specific linters.
 
+### Commit messages
+
+This project follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages.
+
 ### Adding dependencies
 
 This project does not use anything other than the standard [Go modules] toolchain for managing dependencies.
