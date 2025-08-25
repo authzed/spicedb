@@ -1,8 +1,9 @@
 package query_test
 
 import (
-	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -10,7 +11,6 @@ import (
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCheck(t *testing.T) {
@@ -38,7 +38,7 @@ func TestCheck(t *testing.T) {
 	it.AddSubIterator(edit)
 
 	ctx := &query.Context{
-		Context:   context.Background(),
+		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
 	}
@@ -68,7 +68,7 @@ func TestBaseLookupSubjects(t *testing.T) {
 	vande := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["viewer_and_editor"].BaseRelations[0])
 
 	ctx := &query.Context{
-		Context:   context.Background(),
+		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
 	}
@@ -101,7 +101,7 @@ func TestCheckArrow(t *testing.T) {
 	it := query.NewArrow(folders, view)
 
 	ctx := &query.Context{
-		Context:   context.Background(),
+		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
 	}

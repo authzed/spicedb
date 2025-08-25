@@ -18,11 +18,11 @@ func (u *Union) AddSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
-func (u *Union) Check(ctx *Context, resourceIds []string, subjectIds string) (RelationSeq, error) {
-	remaining := resourceIds
+func (u *Union) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+	remaining := resourceIDs
 	var out []Relation
 	for _, it := range u.subIts {
-		relSeq, err := it.Check(ctx, remaining, subjectIds)
+		relSeq, err := it.Check(ctx, remaining, subjectID)
 		if err != nil {
 			return nil, err
 		}
@@ -53,12 +53,12 @@ func (u *Union) Check(ctx *Context, resourceIds []string, subjectIds string) (Re
 	}, nil
 }
 
-func (u *Union) LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error) {
-	panic("not implemented") // TODO: Implement
+func (u *Union) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+	return nil, ErrUnimplemented
 }
 
-func (u *Union) LookupResources(ctx *Context, subjectId string) (RelationSeq, error) {
-	panic("not implemented") // TODO: Implement
+func (u *Union) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, ErrUnimplemented
 }
 
 func (u *Union) Clone() Iterator {
@@ -72,9 +72,9 @@ func (u *Union) Clone() Iterator {
 }
 
 func (u *Union) Explain() Explain {
-	var subs []Explain
-	for _, it := range u.subIts {
-		subs = append(subs, it.Explain())
+	subs := make([]Explain, len(u.subIts))
+	for i, it := range u.subIts {
+		subs[i] = it.Explain()
 	}
 	return Explain{
 		Info:       "Union",

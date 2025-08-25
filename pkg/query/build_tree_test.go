@@ -1,8 +1,9 @@
 package query_test
 
 import (
-	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -10,7 +11,6 @@ import (
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBuildTree(t *testing.T) {
@@ -33,7 +33,7 @@ func TestBuildTree(t *testing.T) {
 	t.Logf("\n%s", it.Explain().String())
 
 	ctx := &query.Context{
-		Context:   context.Background(),
+		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
 	}

@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"strings"
@@ -15,10 +16,12 @@ type (
 	RelationSeq iter.Seq2[Relation, error]
 )
 
+var ErrUnimplemented = errors.New("feature not yet implemented")
+
 type Plan interface {
-	Check(ctx *Context, resourceIds []string, subjectId string) (RelationSeq, error)
-	LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error)
-	LookupResources(ctx *Context, subjectId string) (RelationSeq, error)
+	Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error)
+	LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error)
+	LookupResources(ctx *Context, subjectID string) (RelationSeq, error)
 	Explain() Explain
 }
 
@@ -51,7 +54,7 @@ type Context struct {
 }
 
 func CollectAll(seq RelationSeq) ([]Relation, error) {
-	var out []Relation
+	out := make([]Relation, 0) // `prealloc` is overly aggressive. This should be `var out []Relation`
 	for x, err := range seq {
 		if err != nil {
 			return nil, err

@@ -30,15 +30,15 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation)
 }
 
-func (r *RelationIterator) Check(ctx *Context, resourceIds []string, subjectId string) (RelationSeq, error) {
+func (r *RelationIterator) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceIds:      resourceIds,
+		OptionalResourceIds:      resourceIDs,
 		OptionalResourceRelation: r.base.RelationName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
 				OptionalSubjectType: r.base.Type,
-				OptionalSubjectIds:  []string{subjectId},
+				OptionalSubjectIds:  []string{subjectID},
 				RelationFilter:      r.buildSubjectRelationFilter(),
 			},
 		},
@@ -58,10 +58,10 @@ func (r *RelationIterator) Check(ctx *Context, resourceIds []string, subjectId s
 	return RelationSeq(relIter), nil
 }
 
-func (r *RelationIterator) LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error) {
+func (r *RelationIterator) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceIds:      []string{resourceId},
+		OptionalResourceIds:      []string{resourceID},
 		OptionalResourceRelation: r.base.RelationName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
@@ -85,8 +85,8 @@ func (r *RelationIterator) LookupSubjects(ctx *Context, resourceId string) (Rela
 	return RelationSeq(relIter), nil
 }
 
-func (r *RelationIterator) LookupResources(ctx *Context, subjectId string) (RelationSeq, error) {
-	panic("not implemented") // TODO: Implement
+func (r *RelationIterator) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, ErrUnimplemented
 }
 
 func (r *RelationIterator) Clone() Iterator {

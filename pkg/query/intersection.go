@@ -18,13 +18,13 @@ func (i *Intersection) AddSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
-func (i *Intersection) Check(ctx *Context, resourceIds []string, subjectIds string) (RelationSeq, error) {
-	valid := resourceIds
+func (i *Intersection) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+	valid := resourceIDs
 
 	var rels []Relation
 
 	for _, it := range i.subIts {
-		relSeq, err := it.Check(ctx, valid, subjectIds)
+		relSeq, err := it.Check(ctx, valid, subjectID)
 		if err != nil {
 			return nil, err
 		}
@@ -51,12 +51,12 @@ func (i *Intersection) Check(ctx *Context, resourceIds []string, subjectIds stri
 	}, nil
 }
 
-func (i *Intersection) LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error) {
-	panic("not implemented") // TODO: Implement
+func (i *Intersection) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+	return nil, ErrUnimplemented
 }
 
-func (i *Intersection) LookupResources(ctx *Context, subjectId string) (RelationSeq, error) {
-	panic("not implemented") // TODO: Implement
+func (i *Intersection) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, ErrUnimplemented
 }
 
 func (i *Intersection) Clone() Iterator {
@@ -70,9 +70,9 @@ func (i *Intersection) Clone() Iterator {
 }
 
 func (i *Intersection) Explain() Explain {
-	var subs []Explain
-	for _, it := range i.subIts {
-		subs = append(subs, it.Explain())
+	subs := make([]Explain, len(i.subIts))
+	for i, it := range i.subIts {
+		subs[i] = it.Explain()
 	}
 	return Explain{
 		Info:       "Intersection",

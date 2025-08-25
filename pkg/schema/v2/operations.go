@@ -36,4 +36,3 @@ func (r *ArrowReference) isOperation()        {}
 func (u *UnionOperation) isOperation()        {}
 func (i *IntersectionOperation) isOperation() {}
 func (e *ExclusionOperation) isOperation()    {}
-

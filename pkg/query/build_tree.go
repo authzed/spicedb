@@ -22,7 +22,7 @@ func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, r
 func (b *IteratorBuilder) buildIteratorFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Iterator, error) {
 	id := fmt.Sprintf("%s#%s:%v", definitionName, relationName, withSubRelations)
 	if b.seen[id] {
-		return nil, fmt.Errorf("Recursive schema iterators are as yet unsupported")
+		return nil, fmt.Errorf("recursive schema iterators are as yet unsupported")
 	}
 	b.seen[id] = true
 
@@ -112,10 +112,10 @@ func (b *IteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		}
 		return inter, nil
 	case *schema.ExclusionOperation:
-		panic("unimplemented")
+		return nil, ErrUnimplemented
 	}
 
-	panic("uncovered schema permission operation")
+	return nil, fmt.Errorf("uncovered schema permission operation: %T", op)
 }
 
 func (b *IteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {

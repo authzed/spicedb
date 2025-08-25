@@ -18,7 +18,7 @@ func NewArrow(left, right Iterator) *Arrow {
 	}
 }
 
-func (a *Arrow) Check(ctx *Context, resourceIds []string, subjectId string) (RelationSeq, error) {
+func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
 	// TODO -- the ordering, directionality, batching, everything can depend on other statistics.
 	//
 	// There are three major strategies:
@@ -30,7 +30,7 @@ func (a *Arrow) Check(ctx *Context, resourceIds []string, subjectId string) (Rel
 	// This is going to be the crux of a lot of statistics optimizations. Many others are
 
 	return func(yield func(Relation, error) bool) {
-		for _, rid := range resourceIds {
+		for _, rid := range resourceIDs {
 			subit, err := a.left.LookupSubjects(ctx, rid)
 			if err != nil {
 				yield(Relation{}, err)
@@ -41,7 +41,7 @@ func (a *Arrow) Check(ctx *Context, resourceIds []string, subjectId string) (Rel
 					yield(Relation{}, err)
 					return
 				}
-				checkit, err := a.right.Check(ctx, []string{rel.Subject.ObjectID}, subjectId)
+				checkit, err := a.right.Check(ctx, []string{rel.Subject.ObjectID}, subjectID)
 				if err != nil {
 					yield(Relation{}, err)
 					return
@@ -56,8 +56,8 @@ func (a *Arrow) Check(ctx *Context, resourceIds []string, subjectId string) (Rel
 						OptionalExpiration: checkrel.OptionalExpiration,
 						OptionalIntegrity:  checkrel.OptionalIntegrity,
 						RelationshipReference: tuple.RelationshipReference{
-							Resource: rel.RelationshipReference.Resource,
-							Subject:  checkrel.RelationshipReference.Subject,
+							Resource: rel.Resource,
+							Subject:  checkrel.Subject,
 						},
 					}
 					if !yield(combinedrel, nil) {
@@ -69,12 +69,12 @@ func (a *Arrow) Check(ctx *Context, resourceIds []string, subjectId string) (Rel
 	}, nil
 }
 
-func (a *Arrow) LookupSubjects(ctx *Context, resourceId string) (RelationSeq, error) {
-	panic("not implemented")
+func (a *Arrow) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+	return nil, ErrUnimplemented
 }
 
-func (a *Arrow) LookupResources(ctx *Context, subjectId string) (RelationSeq, error) {
-	panic("not implemented")
+func (a *Arrow) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, ErrUnimplemented
 }
 
 func (a *Arrow) Clone() Iterator {
