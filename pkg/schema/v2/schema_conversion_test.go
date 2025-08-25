@@ -262,7 +262,7 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 				def, exists := v2Schema.Definitions[defName]
 				require.True(t, exists, "Definition %s should exist", defName)
 				require.Equal(t, defName, def.Name)
-				require.Equal(t, v2Schema, def.parent)
+				require.Equal(t, v2Schema, def.Parent)
 			}
 
 			// Verify each expected caveat exists
@@ -270,7 +270,7 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 				caveat, exists := v2Schema.Caveats[caveatName]
 				require.True(t, exists, "Caveat %s should exist", caveatName)
 				require.Equal(t, caveatName, caveat.Name)
-				require.Equal(t, v2Schema, caveat.parent)
+				require.Equal(t, v2Schema, caveat.Parent)
 			}
 
 			// Verify relations for each definition
@@ -284,7 +284,7 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 					rel, exists := def.Relations[relName]
 					require.True(t, exists, "Relation %s should exist in definition %s", relName, defName)
 					require.Equal(t, relName, rel.Name)
-					require.Equal(t, def, rel.parent)
+					require.Equal(t, def, rel.Parent)
 					require.NotEmpty(t, rel.BaseRelations, "Relation %s should have allowed types", relName)
 				}
 			}
@@ -300,7 +300,7 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 					perm, exists := def.Permissions[permName]
 					require.True(t, exists, "Permission %s should exist in definition %s", permName, defName)
 					require.Equal(t, permName, perm.Name)
-					require.Equal(t, def, perm.parent)
+					require.Equal(t, def, perm.Parent)
 					require.NotNil(t, perm.Operation, "Permission %s should have an operation", permName)
 				}
 			}
@@ -412,21 +412,21 @@ func TestSchemaConversionEdgeCases(t *testing.T) {
 			require.NotNil(t, v2Schema.Definitions)
 			require.NotNil(t, v2Schema.Caveats)
 
-			// Verify parent relationships are set correctly
+			// Verify Parent relationships are set correctly
 			for _, def := range v2Schema.Definitions {
-				require.Equal(t, v2Schema, def.parent)
+				require.Equal(t, v2Schema, def.Parent)
 
 				for _, rel := range def.Relations {
-					require.Equal(t, def, rel.parent)
+					require.Equal(t, def, rel.Parent)
 				}
 
 				for _, perm := range def.Permissions {
-					require.Equal(t, def, perm.parent)
+					require.Equal(t, def, perm.Parent)
 				}
 			}
 
 			for _, caveat := range v2Schema.Caveats {
-				require.Equal(t, v2Schema, caveat.parent)
+				require.Equal(t, v2Schema, caveat.Parent)
 			}
 		})
 	}
@@ -542,4 +542,3 @@ func TestSchemaConversionOperationTypes(t *testing.T) {
 		})
 	}
 }
-
