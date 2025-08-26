@@ -5,55 +5,42 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/testfixtures"
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/query"
-	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
 func TestArrowIterator(t *testing.T) {
 	t.Parallel()
 
 	require := require.New(t)
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
-	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	// Create test iterators using fixed helpers
+	// Left side: document parent relationships to folders
+	leftRels := NewFolderHierarchyFixedIterator()
 
-	objectDefs := []*corev1.NamespaceDefinition{testfixtures.UserNS.CloneVT(), testfixtures.FolderNS.CloneVT(), testfixtures.DocumentNS.CloneVT()}
-	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
-	require.NoError(err)
+	// Right side: folder viewer relationships
+	rightRels := NewDocumentAccessFixedIterator()
 
-	ctx := &query.Context{
-		Context:   t.Context(),
-		Datastore: ds,
-		Revision:  revision,
-	}
-
-	// Create an arrow iterator: document.parent -> folder.viewer
-	// This simulates permission parent_folder_viewer = parent->viewer
-	left := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["parent"].BaseRelations[0])
-	right := query.NewRelationIterator(dsSchema.Definitions["folder"].Relations["viewer"].BaseRelations[0])
-	arrow := query.NewArrow(left, right)
+	arrow := query.NewArrow(leftRels, rightRels)
 
 	t.Run("Check", func(t *testing.T) {
-		relSeq, err := arrow.Check(ctx, []string{"companyplan"}, "legal")
+		t.Parallel()
+
+		// Test arrow operation: find resources where left side connects to right side
+		// This looks for documents whose parent folder has viewers
+		relSeq, err := arrow.Check(nil, []string{"spec1", "spec2"}, "alice")
 		require.NoError(err)
 
 		rels, err := query.CollectAll(relSeq)
 		require.NoError(err)
 
-		// Should find relations where:
-		// 1. companyplan has parent relationship to some folder
-		// 2. That folder has legal as viewer
-		// Based on test fixtures, this should return results
 		t.Logf("Arrow Check results: %+v", rels)
+		// Results depend on the specific relations in our test data
 	})
 
 	t.Run("Check_EmptyResources", func(t *testing.T) {
-		relSeq, err := arrow.Check(ctx, []string{}, "legal")
+		t.Parallel()
+
+		relSeq, err := arrow.Check(nil, []string{}, "alice")
 		require.NoError(err)
 
 		rels, err := query.CollectAll(relSeq)
@@ -62,22 +49,40 @@ func TestArrowIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NonexistentResource", func(t *testing.T) {
-		relSeq, err := arrow.Check(ctx, []string{"nonexistent"}, "legal")
+		t.Parallel()
+
+		relSeq, err := arrow.Check(nil, []string{"nonexistent"}, "alice")
 		require.NoError(err)
 
 		rels, err := query.CollectAll(relSeq)
 		require.NoError(err)
-		// May be empty or not depending on test data, but should not error
-		t.Logf("Nonexistent resource results: %+v", rels)
+		// Should be empty since resource doesn't exist
+		require.Empty(rels, "nonexistent resource should return no results")
+	})
+
+	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
+		t.Parallel()
+
+		relSeq, err := arrow.Check(nil, []string{"spec1"}, "nonexistent")
+		require.NoError(err)
+
+		rels, err := query.CollectAll(relSeq)
+		require.NoError(err)
+		// Should be empty since subject doesn't exist
+		require.Empty(rels, "nonexistent subject should return no results")
 	})
 
 	t.Run("LookupSubjects_Unimplemented", func(t *testing.T) {
-		_, err := arrow.LookupSubjects(ctx, "companyplan")
+		t.Parallel()
+
+		_, err := arrow.LookupSubjects(nil, "spec1")
 		require.ErrorIs(err, query.ErrUnimplemented)
 	})
 
 	t.Run("LookupResources_Unimplemented", func(t *testing.T) {
-		_, err := arrow.LookupResources(ctx, "legal")
+		t.Parallel()
+
+		_, err := arrow.LookupResources(nil, "alice")
 		require.ErrorIs(err, query.ErrUnimplemented)
 	})
 }
@@ -86,24 +91,11 @@ func TestArrowIteratorClone(t *testing.T) {
 	t.Parallel()
 
 	require := require.New(t)
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
-	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-
-	objectDefs := []*corev1.NamespaceDefinition{testfixtures.UserNS.CloneVT(), testfixtures.FolderNS.CloneVT(), testfixtures.DocumentNS.CloneVT()}
-	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
-	require.NoError(err)
-
-	ctx := &query.Context{
-		Context:   t.Context(),
-		Datastore: ds,
-		Revision:  revision,
-	}
-
-	left := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["parent"].BaseRelations[0])
-	right := query.NewRelationIterator(dsSchema.Definitions["folder"].Relations["viewer"].BaseRelations[0])
-	original := query.NewArrow(left, right)
+	// Create test iterators using fixed helpers
+	leftRels := NewFolderHierarchyFixedIterator()
+	rightRels := NewDocumentAccessFixedIterator()
+	original := query.NewArrow(leftRels, rightRels)
 
 	cloned := original.Clone()
 	require.NotSame(original, cloned, "cloned iterator should be a different object")
@@ -115,17 +107,17 @@ func TestArrowIteratorClone(t *testing.T) {
 	require.Equal(len(originalExplain.SubExplain), len(clonedExplain.SubExplain))
 
 	// Test that both iterators produce the same results
-	resourceIDs := []string{"companyplan"}
-	subjectID := "legal"
+	resourceIDs := []string{"spec1"}
+	subjectID := "alice"
 
 	// Collect results from original iterator
-	originalSeq, err := original.Check(ctx, resourceIDs, subjectID)
+	originalSeq, err := original.Check(nil, resourceIDs, subjectID)
 	require.NoError(err)
 	originalResults, err := query.CollectAll(originalSeq)
 	require.NoError(err)
 
-	// Collect results from cloned iterator  
-	clonedSeq, err := cloned.Check(ctx, resourceIDs, subjectID)
+	// Collect results from cloned iterator
+	clonedSeq, err := cloned.Check(nil, resourceIDs, subjectID)
 	require.NoError(err)
 	clonedResults, err := query.CollectAll(clonedSeq)
 	require.NoError(err)
@@ -140,13 +132,9 @@ func TestArrowIteratorExplain(t *testing.T) {
 	t.Parallel()
 
 	require := require.New(t)
-	objectDefs := []*corev1.NamespaceDefinition{testfixtures.UserNS.CloneVT(), testfixtures.FolderNS.CloneVT(), testfixtures.DocumentNS.CloneVT()}
-	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
-	require.NoError(err)
-
-	left := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["parent"].BaseRelations[0])
-	right := query.NewRelationIterator(dsSchema.Definitions["folder"].Relations["viewer"].BaseRelations[0])
-	arrow := query.NewArrow(left, right)
+	leftRels := NewFolderHierarchyFixedIterator()
+	rightRels := NewDocumentAccessFixedIterator()
+	arrow := query.NewArrow(leftRels, rightRels)
 
 	explain := arrow.Explain()
 	require.Equal("Arrow", explain.Info)
@@ -162,32 +150,18 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	t.Parallel()
 
 	require := require.New(t)
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
-	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-
-	objectDefs := []*corev1.NamespaceDefinition{testfixtures.UserNS.CloneVT(), testfixtures.FolderNS.CloneVT(), testfixtures.DocumentNS.CloneVT()}
-	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
-	require.NoError(err)
-
-	ctx := &query.Context{
-		Context:   t.Context(),
-		Datastore: ds,
-		Revision:  revision,
-	}
-
-	left := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["parent"].BaseRelations[0])
-	right := query.NewRelationIterator(dsSchema.Definitions["folder"].Relations["viewer"].BaseRelations[0])
-	arrow := query.NewArrow(left, right)
+	leftRels := NewFolderHierarchyFixedIterator()
+	rightRels := NewDocumentAccessFixedIterator()
+	arrow := query.NewArrow(leftRels, rightRels)
 
 	// Test with multiple resource IDs
-	relSeq, err := arrow.Check(ctx, []string{"companyplan", "specialplan", "nonexistent"}, "legal")
+	relSeq, err := arrow.Check(nil, []string{"spec1", "spec2", "nonexistent"}, "alice")
 	require.NoError(err)
 
 	rels, err := query.CollectAll(relSeq)
 	require.NoError(err)
-	
+
 	t.Logf("Multiple resources results: %+v", rels)
 	// The result should include all valid arrow relationships found across all resources
 }

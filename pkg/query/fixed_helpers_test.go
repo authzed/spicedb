@@ -156,13 +156,13 @@ func NewLargeFixedIterator() *query.FixedIterator {
 	// Create 100 users with various permissions on 50 documents
 	for i := 0; i < 100; i++ {
 		userID := fmt.Sprintf("user%d", i)
-		
+
 		// Each user gets viewer access to multiple documents
 		for j := 0; j < 10; j++ {
 			docID := fmt.Sprintf("doc%d", j)
 			relations = append(relations, createRelation("document", docID, "viewer", "user", userID, "..."))
 		}
-		
+
 		// Some users get editor access
 		if i%5 == 0 {
 			for j := 0; j < 5; j++ {
@@ -170,7 +170,7 @@ func NewLargeFixedIterator() *query.FixedIterator {
 				relations = append(relations, createRelation("document", docID, "editor", "user", userID, "..."))
 			}
 		}
-		
+
 		// Few users get owner access
 		if i%10 == 0 {
 			docID := fmt.Sprintf("doc%d", i/10)

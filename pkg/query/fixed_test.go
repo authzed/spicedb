@@ -10,9 +10,8 @@ import (
 )
 
 func TestFixedIterator(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
+	t.Parallel()
 
 	// Create test relations
 	rel1 := tuple.Relationship{
@@ -64,6 +63,8 @@ func TestFixedIterator(t *testing.T) {
 	fixed := query.NewFixedIterator(rel1, rel2, rel3)
 
 	t.Run("Check", func(t *testing.T) {
+		t.Parallel()
+
 		// Test Check method
 		seq, err := fixed.Check(nil, []string{"doc1", "doc2"}, "alice")
 		require.NoError(err)
@@ -78,6 +79,8 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NoMatches", func(t *testing.T) {
+		t.Parallel()
+
 		seq, err := fixed.Check(nil, []string{"doc1"}, "nonexistent")
 		require.NoError(err)
 
@@ -87,6 +90,8 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("LookupSubjects", func(t *testing.T) {
+		t.Parallel()
+
 		seq, err := fixed.LookupSubjects(nil, "doc1")
 		require.NoError(err)
 
@@ -102,6 +107,8 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("LookupResources", func(t *testing.T) {
+		t.Parallel()
+
 		seq, err := fixed.LookupResources(nil, "alice")
 		require.NoError(err)
 
@@ -115,6 +122,8 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("Clone", func(t *testing.T) {
+		t.Parallel()
+
 		cloned := fixed.Clone()
 		require.NotSame(fixed, cloned)
 
@@ -133,6 +142,8 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("Explain", func(t *testing.T) {
+		t.Parallel()
+
 		explain := fixed.Explain()
 		require.Equal("Fixed(3 relations)", explain.Info)
 		require.Empty(explain.SubExplain)
