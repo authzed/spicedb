@@ -1,0 +1,140 @@
+package query_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/tuple"
+)
+
+func TestFixedIterator(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	// Create test relations
+	rel1 := tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: tuple.ObjectAndRelation{
+				ObjectType: "document",
+				ObjectID:   "doc1",
+				Relation:   "viewer",
+			},
+			Subject: tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "alice",
+				Relation:   "...",
+			},
+		},
+	}
+
+	rel2 := tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: tuple.ObjectAndRelation{
+				ObjectType: "document",
+				ObjectID:   "doc2",
+				Relation:   "editor",
+			},
+			Subject: tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "bob",
+				Relation:   "...",
+			},
+		},
+	}
+
+	rel3 := tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: tuple.ObjectAndRelation{
+				ObjectType: "document",
+				ObjectID:   "doc1",
+				Relation:   "editor",
+			},
+			Subject: tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "charlie",
+				Relation:   "...",
+			},
+		},
+	}
+
+	// Create fixed iterator
+	fixed := query.NewFixedIterator(rel1, rel2, rel3)
+
+	t.Run("Check", func(t *testing.T) {
+		// Test Check method
+		seq, err := fixed.Check(nil, []string{"doc1", "doc2"}, "alice")
+		require.NoError(err)
+
+		results, err := query.CollectAll(seq)
+		require.NoError(err)
+
+		// Should find rel1 (doc1 with alice as viewer)
+		require.Len(results, 1)
+		require.Equal("doc1", results[0].Resource.ObjectID)
+		require.Equal("alice", results[0].Subject.ObjectID)
+	})
+
+	t.Run("Check_NoMatches", func(t *testing.T) {
+		seq, err := fixed.Check(nil, []string{"doc1"}, "nonexistent")
+		require.NoError(err)
+
+		results, err := query.CollectAll(seq)
+		require.NoError(err)
+		require.Empty(results)
+	})
+
+	t.Run("LookupSubjects", func(t *testing.T) {
+		seq, err := fixed.LookupSubjects(nil, "doc1")
+		require.NoError(err)
+
+		results, err := query.CollectAll(seq)
+		require.NoError(err)
+
+		// Should find rel1 and rel3 (both have doc1 as resource)
+		require.Len(results, 2)
+
+		subjects := []string{results[0].Subject.ObjectID, results[1].Subject.ObjectID}
+		require.Contains(subjects, "alice")
+		require.Contains(subjects, "charlie")
+	})
+
+	t.Run("LookupResources", func(t *testing.T) {
+		seq, err := fixed.LookupResources(nil, "alice")
+		require.NoError(err)
+
+		results, err := query.CollectAll(seq)
+		require.NoError(err)
+
+		// Should find rel1 (alice is subject)
+		require.Len(results, 1)
+		require.Equal("doc1", results[0].Resource.ObjectID)
+		require.Equal("alice", results[0].Subject.ObjectID)
+	})
+
+	t.Run("Clone", func(t *testing.T) {
+		cloned := fixed.Clone()
+		require.NotSame(fixed, cloned)
+
+		// Both should produce the same results
+		originalSeq, err := fixed.Check(nil, []string{"doc1"}, "alice")
+		require.NoError(err)
+		originalResults, err := query.CollectAll(originalSeq)
+		require.NoError(err)
+
+		clonedSeq, err := cloned.Check(nil, []string{"doc1"}, "alice")
+		require.NoError(err)
+		clonedResults, err := query.CollectAll(clonedSeq)
+		require.NoError(err)
+
+		require.Equal(originalResults, clonedResults)
+	})
+
+	t.Run("Explain", func(t *testing.T) {
+		explain := fixed.Explain()
+		require.Equal("Fixed(3 relations)", explain.Info)
+		require.Empty(explain.SubExplain)
+	})
+}
