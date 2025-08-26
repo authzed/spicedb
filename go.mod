@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb
 
-go 1.24.0
+go 1.25.0
 
 // NOTE: We are using a *copy* of `cel-go` here to ensure there isn't a conflict
 // with the version used in Kubernetes. This is a temporary measure until we can
@@ -243,7 +243,7 @@ require (
 	github.com/go-toolsmith/astp v1.1.0 // indirect
 	github.com/go-toolsmith/strparse v1.1.0 // indirect
 	github.com/go-toolsmith/typep v1.1.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/go-xmlfmt/xmlfmt v1.1.3 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
