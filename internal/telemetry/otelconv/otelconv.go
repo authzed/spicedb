@@ -49,6 +49,18 @@ const (
 
 	EventDatastoreRevisionsCacheReturned = "spicedb.internal.datastore.revisions.cache_returned"
 	EventDatastoreRevisionsComputed      = "spicedb.internal.datastore.revisions.computed"
+
+	EventDispatchLookupResources3                          = "spicedb.internal.dispatch.lookupresources3"
+	EventDispatchLR3UnlimitedResults                       = "spicedb.internal.dispatch.lookupresources3.unlimited_results"
+	EventDispatchLR3UnlimitedResultsDirectSubjects         = "spicedb.internal.dispatch.lookupresources3.unlimited_results.direct_subjects"
+	EventDispatchLookupResources3EntrypointsIter           = "spicedb.internal.dispatch.lookupresources3.entrypoints_iter"
+	EventDispatchLookupResources3EntrypointIter            = "spicedb.internal.dispatch.lookupresources3.entrypoint_iter"
+	EventDispatchLookupResources3RelationEntrypoint        = "spicedb.internal.dispatch.lookupresources3.relation_entrypoint"
+	EventDispatchLookupResources3ArrowEntrypoint           = "spicedb.internal.dispatch.lookupresources3.arrow_entrypoint"
+	EventDispatchLookupResources3RelationshipsIterProducer = "spicedb.internal.dispatch.lookupresources3.relationships_iter"
+	EventDispatchLookupResources3RelationshipsIterMapper   = "spicedb.internal.dispatch.lookupresources3.relationships_iter.mapper"
+	EventDispatchLookupResources3CheckedDispatchIter       = "spicedb.internal.dispatch.lookupresources3.checked_dispatch_iter"
+	EventDispatchLookupResources3DispatchIter              = "spicedb.internal.dispatch.lookupresources3.checked_dispatch_iter"
 )
 
 // OpenTelemetry custom attribute names
@@ -71,7 +83,9 @@ const (
 	AttrDispatchStart           = "spicedb.internal.dispatch.start"
 	AttrDispatchSubjectType     = "spicedb.internal.dispatch.subject_type"
 	AttrDispatchSubjectIDs      = "spicedb.internal.dispatch.subject_ids"
+	AttrDispatchSubjectRelation = "spicedb.internal.dispatch.subject_relation"
 	AttrDispatchTerminalSubject = "spicedb.internal.dispatch.terminal_subject"
+	AttrDispatchLREntrypoint    = "spicedb.internal.dispatch.lookupresources3.entrypoint"
 
 	AttrDatastoreNames              = "spicedb.internal.datastore.shared.names"
 	AttrDatastoreValue              = "spicedb.internal.datastore.shared.value"
