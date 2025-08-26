@@ -186,10 +186,10 @@ func TestUnionIteratorExplain(t *testing.T) {
 
 	require := require.New(t)
 
-	union := query.NewUnion()
-
 	t.Run("EmptyUnion", func(t *testing.T) {
 		t.Parallel()
+
+		union := query.NewUnion()
 
 		explain := union.Explain()
 		require.Equal("Union", explain.Info)
@@ -198,6 +198,8 @@ func TestUnionIteratorExplain(t *testing.T) {
 
 	t.Run("UnionWithSubIterators", func(t *testing.T) {
 		t.Parallel()
+
+		union := query.NewUnion()
 
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
