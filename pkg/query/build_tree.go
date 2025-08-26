@@ -11,6 +11,8 @@ type IteratorBuilder struct {
 	seen   map[string]bool
 }
 
+// BuildIteratorFromSchema takes a schema and walks the schema tree for a given definition namespace and a relationship or
+// permission therein. From this, it generates an iterator tree, rooted on that relationship.
 func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (Iterator, error) {
 	builder := &IteratorBuilder{
 		schema: fullSchema,

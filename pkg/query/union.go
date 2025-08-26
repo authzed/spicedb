@@ -4,6 +4,8 @@ import (
 	"slices"
 )
 
+// Union the set of relations that are in any of underlying subiterators.
+// This is equivalent to `permission foo = bar | baz`
 type Union struct {
 	subIts []Iterator
 }

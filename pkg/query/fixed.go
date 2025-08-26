@@ -2,6 +2,12 @@ package query
 
 import "fmt"
 
+// FixedIterator represents a fixed set of pre-computed relations.
+// This is often useful for testing, but can also be used in rare situations
+// where we'd like to force a set of intermediate relations.
+
+// For example: document->folder->ownerGroup->user -- and we'd like to
+// find all documents (LookupResources) that traverse a known folder->ownerGroup relationship
 type FixedIterator struct {
 	rels []Relation
 }

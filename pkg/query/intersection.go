@@ -4,6 +4,8 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 )
 
+// Intersection the set of relations that are in all of underlying subiterators.
+// This is equivalent to `permission foo = bar & baz`
 type Intersection struct {
 	subIts []Iterator
 }

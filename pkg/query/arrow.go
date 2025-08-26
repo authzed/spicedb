@@ -4,6 +4,10 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// Arrow is an iterator that represents the set of relations that
+// follow from a walk in the graph.
+//
+// Ex: `folder->owner` and `left->right`
 type Arrow struct {
 	left  Iterator
 	right Iterator
@@ -27,7 +31,8 @@ func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 	// - LookupSubjects on left, LookupResources on right, and intersect the two iterators here (especially if they are known to be sorted)
 	//
 	// But for now, this is a proof-of-concept, so the first one, one-by-one (no batching).
-	// This is going to be the crux of a lot of statistics optimizations. Many others are
+	// This is going to be the crux of a lot of statistics optimizations -- statistics often
+	// don't restructure the tree, but can affect the best way to evaluate the tree, sometimes dynamically.
 
 	return func(yield func(Relation, error) bool) {
 		for _, rid := range resourceIDs {

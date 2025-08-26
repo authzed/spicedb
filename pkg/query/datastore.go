@@ -11,6 +11,11 @@ import (
 
 const NoSubRel = ""
 
+// RelationIterator is a common leaf iterator. It represents the set of all
+// relationships of the given schema.BaseRelation, ie, relations that have a
+// known resource and subject type and may contain caveats or expiration.
+//
+// The RelationIterator, being the leaf, generates this set by calling the datastore.
 type RelationIterator struct {
 	base *schema.BaseRelation
 }
