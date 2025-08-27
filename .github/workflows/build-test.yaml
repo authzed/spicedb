@@ -22,7 +22,7 @@ jobs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
       - uses: "dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36" # v3.0.2
         id: "code-filter"
         with:
@@ -52,8 +52,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
@@ -69,8 +69,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - name: "Unit tests with coverage"
         run: "go run mage.go test:unitCover"
       - name: "Coverage"
@@ -87,8 +87,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - name: "Steelthread tests"
         run: "go run mage.go test:steelthread"
 
@@ -99,8 +99,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
@@ -123,10 +123,10 @@ jobs:
       matrix:
         datastore: ["mysql", "spanner"]
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -157,10 +157,10 @@ jobs:
       matrix:
         datastore: ["mysql", "spanner"]
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -192,10 +192,10 @@ jobs:
         datastore: ["postgres", "pgbouncer"]
         pgversion: ["13.8", "14", "15", "16", "17"]
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -227,10 +227,10 @@ jobs:
         datastore: ["postgres"]
         pgversion: ["13.8", "14", "15", "16", "17"]
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -262,10 +262,10 @@ jobs:
         datastore: ["crdb"]
         crdbversion: ["24.3.6", "25.1.0", "25.2.0"]
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -297,10 +297,10 @@ jobs:
         datastore: ["crdb"]
         crdbversion: ["24.3.6", "25.1.0", "25.2.0"]
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
@@ -329,8 +329,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
         with:
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
@@ -362,8 +362,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
         with:
           go-version-file: "tools/analyzers/go.mod"
           cache-dependency-path: "tools/analyzers/go.sum"
@@ -376,8 +376,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - name: "WASM tests"
         run: "go run mage.go test:wasm"
 
@@ -388,8 +388,8 @@ jobs:
     if: |
       needs.paths-filter.outputs.protochange == 'true'
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
       - uses: "chainguard-dev/actions/nodiff@708219d4822f33611ac1a2653815cc10e1ab54a6" # main

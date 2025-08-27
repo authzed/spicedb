@@ -17,8 +17,8 @@ jobs:
     name: "License Check"
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - name: "Check Licenses"
         uses: "authzed/actions/go-license-check@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
         with:
@@ -28,8 +28,8 @@ jobs:
     name: "Lint Go"
     runs-on: "depot-ubuntu-24.04-4"
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - name: "Lint Go"
         run: "go run mage.go lint:go"
       - uses: "chainguard-dev/actions/nodiff@708219d4822f33611ac1a2653815cc10e1ab54a6" # main
@@ -41,8 +41,8 @@ jobs:
     name: "Lint YAML & Markdown"
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - name: "Lint Everything Else"
         run: "go run mage.go lint:extra"
       - uses: "chainguard-dev/actions/nodiff@708219d4822f33611ac1a2653815cc10e1ab54a6" # main
@@ -56,7 +56,7 @@ jobs:
     if: "github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened' || github.event.action == 'edited')"
     steps:
       - name: "Checkout repository"
-        uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+        uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         with:
           fetch-depth: 0
 

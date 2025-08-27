@@ -35,15 +35,15 @@ jobs:
         language: ["go"]
 
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - uses: "authzed/actions/codeql@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main"
 
   trivy:
     name: "Analyze Code and Docker Image with Trivvy"
     runs-on: "depot-ubuntu-24.04"
     steps:
-      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
         with:
           # Only a single commit is fetched by default, for the ref/SHA that triggered the workflow. Set fetch-depth: 0
           # to fetch all history for all branches and tags. Refer here to learn which commit $GITHUB_SHA
@@ -52,7 +52,7 @@ jobs:
           # this is used so goreleaser generates the right version out of the tags, which we need so that
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
       - uses: "docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772" # v3.4.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
