@@ -36,7 +36,7 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation)
 }
 
-func (r *RelationIterator) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (r *RelationIterator) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      resourceIDs,
@@ -64,7 +64,7 @@ func (r *RelationIterator) Check(ctx *Context, resourceIDs []string, subjectID s
 	return RelationSeq(relIter), nil
 }
 
-func (r *RelationIterator) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      []string{resourceID},
@@ -91,7 +91,7 @@ func (r *RelationIterator) IterSubjects(ctx *Context, resourceID string) (Relati
 	return RelationSeq(relIter), nil
 }
 
-func (r *RelationIterator) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+func (r *RelationIterator) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

@@ -23,7 +23,7 @@ func NewArrow(left, right Iterator) *Arrow {
 	}
 }
 
-func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (a *Arrow) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
 	// TODO -- the ordering, directionality, batching, everything can depend on other statistics.
 	//
 	// There are three major strategies:
@@ -37,7 +37,7 @@ func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 
 	return func(yield func(Relation, error) bool) {
 		for _, rid := range resourceIDs {
-			subit, err := a.left.IterSubjects(ctx, rid)
+			subit, err := ctx.IterSubjects(a.left, rid)
 			if err != nil {
 				yield(Relation{}, err)
 				return
@@ -47,7 +47,7 @@ func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 					yield(Relation{}, err)
 					return
 				}
-				checkit, err := a.right.Check(ctx, []string{rel.Subject.ObjectID}, subjectID)
+				checkit, err := ctx.Check(a.right, []string{rel.Subject.ObjectID}, subjectID)
 				if err != nil {
 					yield(Relation{}, err)
 					return
@@ -75,11 +75,11 @@ func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 	}, nil
 }
 
-func (a *Arrow) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+func (a *Arrow) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (a *Arrow) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+func (a *Arrow) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

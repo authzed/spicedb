@@ -20,7 +20,7 @@ func NewFixedIterator(rels ...Relation) *FixedIterator {
 	}
 }
 
-func (f *FixedIterator) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (f *FixedIterator) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
 			for _, resourceID := range resourceIDs {
@@ -38,7 +38,7 @@ func (f *FixedIterator) Check(ctx *Context, resourceIDs []string, subjectID stri
 	}, nil
 }
 
-func (f *FixedIterator) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
 			// Check if the relation's resource matches the requested resource ID
@@ -51,7 +51,7 @@ func (f *FixedIterator) IterSubjects(ctx *Context, resourceID string) (RelationS
 	}, nil
 }
 
-func (f *FixedIterator) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+func (f *FixedIterator) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
 			// Check if the relation's subject matches the requested subject ID

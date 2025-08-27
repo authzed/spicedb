@@ -21,13 +21,13 @@ func (i *Intersection) addSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
-func (i *Intersection) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (i *Intersection) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
 	valid := resourceIDs
 
 	var rels []Relation
 
 	for _, it := range i.subIts {
-		relSeq, err := it.Check(ctx, valid, subjectID)
+		relSeq, err := ctx.Check(it, valid, subjectID)
 		if err != nil {
 			return nil, err
 		}
@@ -54,11 +54,11 @@ func (i *Intersection) Check(ctx *Context, resourceIDs []string, subjectID strin
 	}, nil
 }
 
-func (i *Intersection) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+func (i *Intersection) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (i *Intersection) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+func (i *Intersection) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
