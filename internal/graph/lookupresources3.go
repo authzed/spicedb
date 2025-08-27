@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ccoveille/go-safecast"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -309,24 +310,6 @@ type lr3ctx struct {
 	concurrencyLimit uint16
 }
 
-func (lctx *lr3ctx) computeConcurrencyLimit() uint16 {
-	// If the request has a limit, we set the concurrency limit to 2 to avoid doing too much potentially
-	// expensive work in parallel that is likely to be discarded due to the limit. If there is no
-	// limit, we can use the configured concurrency limit for mapping, as we will have to fetch all
-	// results anyway.
-	//
-	// TODO(jschorr): We should use stats for this in the future, rather than a heuristic.
-	if lctx.req.OptionalLimit > 0 {
-		// Heuristic: if the limit is small, we can use a concurrency limit of 1 to avoid
-		// doing any parallel work, as it is likely that the first few results will be sufficient.
-		if lctx.req.OptionalLimit <= 25 {
-			return 1
-		}
-		return 2
-	}
-	return lctx.concurrencyLimit
-}
-
 // unlimitedLookupResourcesIter performs the actual lookup resources operation, returning an iterator
 // sequence of results. This iterator will yield results until all results are reached
 // or an error occurs. It is the responsibility of the caller to handle limits.
@@ -391,12 +374,7 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 // the entrypoints for the given subject IDs and yields results for each entrypoint.
 func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
-		concurrencyLimit := lctx.computeConcurrencyLimit()
-
-		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointsIter,
-			trace.WithAttributes(
-				attribute.Float64(otelconv.AttrDispatchLRConcurrencyLimit, float64(concurrencyLimit)),
-			))
+		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointsIter)
 		defer span.End()
 
 		// Load the entrypoints that are reachable from the subject relation to the resource relation/permission.
@@ -414,6 +392,16 @@ func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram
 
 		// Execute the iterators in parallel, yielding results for each entrypoint in the proper order.
 		return estimatedConcurrencyLimit(crr, lctx, keyedEntrypoints(entrypoints), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
+			ccl, err := safecast.ToInt64(computedConcurrencyLimit)
+			if err != nil {
+				return cter.YieldsError[result](err)
+			}
+
+			ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3ConcurrentEntrypointsIter,
+				trace.WithAttributes(
+					attribute.Int64(otelconv.AttrDispatchLRConcurrencyLimit, ccl),
+				))
+			defer span.End()
 			return cter.CursoredParallelIterators(ctx, currentCursor, computedConcurrencyLimit, entrypointIterators...)
 		})
 	}
@@ -450,7 +438,7 @@ func (crr *CursoredLookupResources3) entrypointIter(lctx lr3ctx, entrypoint sche
 		// If the entrypoint is a relation entrypoint, we need to iterate over the relation's relationships
 		// for the given subject IDs and yield results for dispatching for each. For example, given a relation
 		// of `relation viewer: user`, we would lookup all relationships for the current user(s) and find
-		// all the document(s) of which the user is a viewer.
+		// all the document(s) on which the user is a viewer.
 		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
 			return crr.relationEntrypointIter(ctx, lctx, entrypoint, currentCursor)
 
@@ -669,7 +657,15 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 			datastoreCursorFromString,
 			datastoreCursorToString,
 			func(ctx context.Context, currentIndex *v1.DatastoreCursor, remainingCursor cter.Cursor) iter.Seq2[cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error] {
-				ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterProducer)
+				ccl, err := safecast.ToInt64(computedConcurrencyLimit)
+				if err != nil {
+					return cter.YieldsError[cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor]](err)
+				}
+
+				ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterProducer,
+					trace.WithAttributes(
+						attribute.Int64(otelconv.AttrDispatchLRConcurrencyLimit, ccl),
+					))
 				defer span.End()
 
 				return func(yield func(cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error) bool) {

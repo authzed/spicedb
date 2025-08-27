@@ -61,6 +61,7 @@ const (
 	EventDispatchLookupResources3RelationshipsIterMapper   = "spicedb.internal.dispatch.lookupresources3.relationships_iter.mapper"
 	EventDispatchLookupResources3CheckedDispatchIter       = "spicedb.internal.dispatch.lookupresources3.checked_dispatch_iter"
 	EventDispatchLookupResources3DispatchIter              = "spicedb.internal.dispatch.lookupresources3.checked_dispatch_iter"
+	EventDispatchLookupResources3ConcurrentEntrypointsIter = "spicedb.internal.dispatch.lookupresources3.concurrent_entrypoints_iter"
 )
 
 // OpenTelemetry custom attribute names
