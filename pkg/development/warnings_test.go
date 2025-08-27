@@ -213,6 +213,46 @@ func TestWarnings(t *testing.T) {
 			`,
 			expectedWarning: nil,
 		},
+		{
+			// NOTE: this is a test of a schema that was printing the warning
+			// in the wrong place on `zed validate`. The purpose of this test is
+			// to isolate the problem to the zed repo.
+			name: "schema with multiline comments points warning to right place",
+			schema: `definition user {}
+
+definition organization {}
+
+definition platform {}
+
+definition resource {
+	/** platform is the platform to which the resource belongs */
+	relation platform: platform
+
+	/**
+	 * organization is the organization to which the resource belongs
+	 */
+	relation organization: organization
+
+	/** admin is a user that can administer the resource */
+	relation admin: user
+
+	/** viewer is a read-only viewer of the resource */
+	relation viewer: user
+
+	/** can_admin allows a user to administer the resource */
+	permission can_admin = admin
+
+	/** delete_resource allows a user to delete the resource. */
+	permission delete_resource = can_admin
+}
+`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"delete_resource\" references parent type \"resource\" in its name; it is recommended to drop the suffix (relation-name-references-parent)",
+				Line:       26,
+				Column:     2,
+				SourceCode: "delete_resource",
+			},
+		},
 	}
 
 	for _, tc := range tcs {
