@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 	"strings"
@@ -18,8 +17,6 @@ type (
 	RelationSeq iter.Seq2[Relation, error]
 )
 
-var ErrUnimplemented = errors.New("feature not yet implemented")
-
 // Plan is the external-facing notion of a query plan. These follow the general API for
 // querying anything in the database as well as describing the plan.
 type Plan interface {
@@ -28,11 +25,11 @@ type Plan interface {
 	// Returns the sequence of matching relations, if they exist, at most `len(resourceIDs)`.
 	Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error)
 
-	// LookupSubjects returns a sequence of all the relations in this set that match the given resourceID.
-	LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error)
+	// IterSubjects returns a sequence of all the relations in this set that match the given resourceID.
+	IterSubjects(ctx *Context, resourceID string) (RelationSeq, error)
 
-	// LookupResources returns a sequence of all the relations in this set that match the given subjectID.
-	LookupResources(ctx *Context, subjectID string) (RelationSeq, error)
+	// IterResources returns a sequence of all the relations in this set that match the given subjectID.
+	IterResources(ctx *Context, subjectID string) (RelationSeq, error)
 
 	// Explain generates a human-readable tree that describes each iterator and its state.
 	Explain() Explain

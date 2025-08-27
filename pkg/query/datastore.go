@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const NoSubRel = ""
@@ -63,7 +64,7 @@ func (r *RelationIterator) Check(ctx *Context, resourceIDs []string, subjectID s
 	return RelationSeq(relIter), nil
 }
 
-func (r *RelationIterator) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+func (r *RelationIterator) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      []string{resourceID},
@@ -90,8 +91,8 @@ func (r *RelationIterator) LookupSubjects(ctx *Context, resourceID string) (Rela
 	return RelationSeq(relIter), nil
 }
 
-func (r *RelationIterator) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
-	return nil, ErrUnimplemented
+func (r *RelationIterator) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
 func (r *RelationIterator) Clone() Iterator {

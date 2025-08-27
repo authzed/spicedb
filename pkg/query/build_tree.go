@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-type IteratorBuilder struct {
+type iteratorBuilder struct {
 	schema *schema.Schema
 	seen   map[string]bool
 }
@@ -14,14 +15,14 @@ type IteratorBuilder struct {
 // BuildIteratorFromSchema takes a schema and walks the schema tree for a given definition namespace and a relationship or
 // permission therein. From this, it generates an iterator tree, rooted on that relationship.
 func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (Iterator, error) {
-	builder := &IteratorBuilder{
+	builder := &iteratorBuilder{
 		schema: fullSchema,
 		seen:   make(map[string]bool),
 	}
 	return builder.buildIteratorFromSchemaInternal(definitionName, relationName, true)
 }
 
-func (b *IteratorBuilder) buildIteratorFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Iterator, error) {
+func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Iterator, error) {
 	id := fmt.Sprintf("%s#%s:%v", definitionName, relationName, withSubRelations)
 	if b.seen[id] {
 		return nil, fmt.Errorf("recursive schema iterators are as yet unsupported")
@@ -41,7 +42,7 @@ func (b *IteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find a relation or permission named `%s` in definition `%s`", relationName, definitionName)
 }
 
-func (b *IteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubRelations bool) (Iterator, error) {
+func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubRelations bool) (Iterator, error) {
 	if len(r.BaseRelations) == 1 {
 		return b.buildBaseRelationIterator(r.BaseRelations[0], withSubRelations)
 	}
@@ -51,16 +52,16 @@ func (b *IteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubR
 		if err != nil {
 			return nil, err
 		}
-		union.AddSubIterator(it)
+		union.addSubIterator(it)
 	}
 	return union, nil
 }
 
-func (b *IteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Iterator, error) {
+func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Iterator, error) {
 	return b.buildIteratorFromOperation(p, p.Operation)
 }
 
-func (b *IteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
+func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
 	switch perm := op.(type) {
 	case *schema.ArrowReference:
 		rel, ok := p.Parent.Relations[perm.Left]
@@ -78,15 +79,13 @@ func (b *IteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 				return nil, err
 			}
 			arrow := NewArrow(left, right)
-			union.AddSubIterator(arrow)
-		}
-		if len(union.subIts) == 1 {
-			// Clean up the tree a little
-			return union.subIts[0], nil
+			union.addSubIterator(arrow)
 		}
 		return union, nil
+
 	case *schema.RelationReference:
 		return b.buildIteratorFromSchemaInternal(p.Parent.Name, perm.RelationName, true)
+
 	case *schema.UnionOperation:
 		union := NewUnion()
 		for _, op := range perm.Children {
@@ -94,12 +93,10 @@ func (b *IteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 			if err != nil {
 				return nil, err
 			}
-			union.AddSubIterator(it)
-		}
-		if len(union.subIts) == 1 {
-			return union.subIts[0], nil
+			union.addSubIterator(it)
 		}
 		return union, nil
+
 	case *schema.IntersectionOperation:
 		inter := NewIntersection()
 		for _, op := range perm.Children {
@@ -107,35 +104,38 @@ func (b *IteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 			if err != nil {
 				return nil, err
 			}
-			inter.AddSubIterator(it)
-		}
-		if len(inter.subIts) == 1 {
-			return inter.subIts[0], nil
+			inter.addSubIterator(it)
 		}
 		return inter, nil
+
 	case *schema.ExclusionOperation:
-		return nil, ErrUnimplemented
+		return nil, spiceerrors.MustBugf("unimplemented")
 	}
 
 	return nil, fmt.Errorf("uncovered schema permission operation: %T", op)
 }
 
-func (b *IteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
+func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
 	base := NewRelationIterator(br)
+
 	if !withSubRelations {
 		return base, nil
 	}
+
 	if br.Subrelation == "" {
 		return base, nil
 	}
+
 	// We must check the effective arrow of a subrelation if we have one and subrelations are enabled
 	// (subrelations are disabled in cases of actual arrows)
 	union := NewUnion()
-	union.AddSubIterator(base)
+	union.addSubIterator(base)
+
 	rightside, err := b.buildIteratorFromSchemaInternal(br.Type, br.Subrelation, false)
 	if err != nil {
 		return nil, err
 	}
-	union.AddSubIterator(NewArrow(base.Clone(), rightside))
+
+	union.addSubIterator(NewArrow(base.Clone(), rightside))
 	return union, nil
 }

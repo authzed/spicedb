@@ -248,7 +248,7 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build the v2 schema from the compiled schema
-			v2Schema, err := BuildSchemaFromCompiler(*compiled)
+			v2Schema, err := BuildSchemaFromCompiledSchema(*compiled)
 			require.NoError(t, err)
 
 			// Test that we have the expected number of definitions
@@ -404,7 +404,7 @@ func TestSchemaConversionEdgeCases(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build the v2 schema
-			v2Schema, err := BuildSchemaFromCompiler(*compiled)
+			v2Schema, err := BuildSchemaFromCompiledSchema(*compiled)
 			require.NoError(t, err)
 			require.NotNil(t, v2Schema)
 
@@ -513,7 +513,7 @@ func TestSchemaConversionOperationTypes(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			v2Schema, err := BuildSchemaFromCompiler(*compiled)
+			v2Schema, err := BuildSchemaFromCompiledSchema(*compiled)
 			require.NoError(t, err)
 
 			// Find the permission

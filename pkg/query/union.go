@@ -2,6 +2,8 @@ package query
 
 import (
 	"slices"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Union the set of relations that are in any of underlying subiterators.
@@ -16,7 +18,7 @@ func NewUnion() *Union {
 	return &Union{}
 }
 
-func (u *Union) AddSubIterator(subIt Iterator) {
+func (u *Union) addSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
@@ -55,12 +57,12 @@ func (u *Union) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 	}, nil
 }
 
-func (u *Union) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
-	return nil, ErrUnimplemented
+func (u *Union) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (u *Union) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
-	return nil, ErrUnimplemented
+func (u *Union) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
 func (u *Union) Clone() Iterator {

@@ -1,11 +1,9 @@
-package query_test
+package query
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/pkg/query"
 )
 
 func TestArrowIterator(t *testing.T) {
@@ -20,7 +18,7 @@ func TestArrowIterator(t *testing.T) {
 	// Right side: folder viewer relationships
 	rightRels := NewDocumentAccessFixedIterator()
 
-	arrow := query.NewArrow(leftRels, rightRels)
+	arrow := NewArrow(leftRels, rightRels)
 
 	t.Run("Check", func(t *testing.T) {
 		t.Parallel()
@@ -30,10 +28,8 @@ func TestArrowIterator(t *testing.T) {
 		relSeq, err := arrow.Check(nil, []string{"spec1", "spec2"}, "alice")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		_, err = CollectAll(relSeq)
 		require.NoError(err)
-
-		t.Logf("Arrow Check results: %+v", rels)
 		// Results depend on the specific relations in our test data
 	})
 
@@ -43,7 +39,7 @@ func TestArrowIterator(t *testing.T) {
 		relSeq, err := arrow.Check(nil, []string{}, "alice")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 		require.Empty(rels, "empty resource list should return no results")
 	})
@@ -54,7 +50,7 @@ func TestArrowIterator(t *testing.T) {
 		relSeq, err := arrow.Check(nil, []string{"nonexistent"}, "alice")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 		// Should be empty since resource doesn't exist
 		require.Empty(rels, "nonexistent resource should return no results")
@@ -66,24 +62,26 @@ func TestArrowIterator(t *testing.T) {
 		relSeq, err := arrow.Check(nil, []string{"spec1"}, "nonexistent")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 		// Should be empty since subject doesn't exist
 		require.Empty(rels, "nonexistent subject should return no results")
 	})
 
-	t.Run("LookupSubjects_Unimplemented", func(t *testing.T) {
+	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := arrow.LookupSubjects(nil, "spec1")
-		require.ErrorIs(err, query.ErrUnimplemented)
+		require.Panics(func() {
+			_, _ = arrow.IterSubjects(nil, "spec1")
+		})
 	})
 
-	t.Run("LookupResources_Unimplemented", func(t *testing.T) {
+	t.Run("IterResources_Unimplemented", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := arrow.LookupResources(nil, "alice")
-		require.ErrorIs(err, query.ErrUnimplemented)
+		require.Panics(func() {
+			_, _ = arrow.IterResources(nil, "alice")
+		})
 	})
 }
 
@@ -95,7 +93,7 @@ func TestArrowIteratorClone(t *testing.T) {
 	// Create test iterators using fixed helpers
 	leftRels := NewFolderHierarchyFixedIterator()
 	rightRels := NewDocumentAccessFixedIterator()
-	original := query.NewArrow(leftRels, rightRels)
+	original := NewArrow(leftRels, rightRels)
 
 	cloned := original.Clone()
 	require.NotSame(original, cloned, "cloned iterator should be a different object")
@@ -113,19 +111,17 @@ func TestArrowIteratorClone(t *testing.T) {
 	// Collect results from original iterator
 	originalSeq, err := original.Check(nil, resourceIDs, subjectID)
 	require.NoError(err)
-	originalResults, err := query.CollectAll(originalSeq)
+	originalResults, err := CollectAll(originalSeq)
 	require.NoError(err)
 
 	// Collect results from cloned iterator
 	clonedSeq, err := cloned.Check(nil, resourceIDs, subjectID)
 	require.NoError(err)
-	clonedResults, err := query.CollectAll(clonedSeq)
+	clonedResults, err := CollectAll(clonedSeq)
 	require.NoError(err)
 
 	// Both iterators should produce identical results
 	require.Equal(originalResults, clonedResults, "original and cloned iterators should produce identical results")
-	t.Logf("Original results: %+v", originalResults)
-	t.Logf("Cloned results: %+v", clonedResults)
 }
 
 func TestArrowIteratorExplain(t *testing.T) {
@@ -134,7 +130,7 @@ func TestArrowIteratorExplain(t *testing.T) {
 	require := require.New(t)
 	leftRels := NewFolderHierarchyFixedIterator()
 	rightRels := NewDocumentAccessFixedIterator()
-	arrow := query.NewArrow(leftRels, rightRels)
+	arrow := NewArrow(leftRels, rightRels)
 
 	explain := arrow.Explain()
 	require.Equal("Arrow", explain.Info)
@@ -143,7 +139,6 @@ func TestArrowIteratorExplain(t *testing.T) {
 	explainStr := explain.String()
 	require.Contains(explainStr, "Arrow")
 	require.NotEmpty(explainStr)
-	t.Logf("Arrow explain: %s", explainStr)
 }
 
 func TestArrowIteratorMultipleResources(t *testing.T) {
@@ -151,17 +146,31 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 
 	require := require.New(t)
 
-	leftRels := NewFolderHierarchyFixedIterator()
-	rightRels := NewDocumentAccessFixedIterator()
-	arrow := query.NewArrow(leftRels, rightRels)
+	leftRels := NewFolderHierarchyFixedIterator()  // Documents -> Folders
+	rightRels := NewFolderHierarchyFixedIterator() // Folders -> Users (alice has access to project1)
+
+	arrow := NewArrow(leftRels, rightRels)
 
 	// Test with multiple resource IDs
 	relSeq, err := arrow.Check(nil, []string{"spec1", "spec2", "nonexistent"}, "alice")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	rels, err := CollectAll(relSeq)
 	require.NoError(err)
 
-	t.Logf("Multiple resources results: %+v", rels)
-	// The result should include all valid arrow relationships found across all resources
+	// The result should include valid arrow relationships found across all resources
+	// Arrow operation: for each document, find its parent folder, then check if alice has access to that folder
+	// Based on the test data:
+	// - spec1 parent folder:project1, alice has viewer access to project1 -> should match
+	// - spec2 parent folder:project2, alice does NOT have access to project2 -> should NOT match
+	// - nonexistent doesn't exist -> should NOT match
+
+	// We expect exactly 1 result: spec1 with alice as subject
+	require.Len(rels, 1, "should find exactly one arrow relationship")
+	require.Equal("document", rels[0].Resource.ObjectType)
+	require.Equal("spec1", rels[0].Resource.ObjectID)
+	require.Equal("parent", rels[0].Resource.Relation)
+	require.Equal("user", rels[0].Subject.ObjectType)
+	require.Equal("alice", rels[0].Subject.ObjectID)
+	require.Equal("...", rels[0].Subject.Relation)
 }

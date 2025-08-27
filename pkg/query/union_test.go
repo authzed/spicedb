@@ -1,11 +1,9 @@
-package query_test
+package query
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/pkg/query"
 )
 
 func TestUnionIterator(t *testing.T) {
@@ -17,21 +15,20 @@ func TestUnionIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create a union of different access patterns
-		union := query.NewUnion()
+		union := NewUnion()
 
 		// Add different iterators with distinct data sets
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
-		union.AddSubIterator(documentAccess)
-		union.AddSubIterator(multiRole)
+		union.addSubIterator(documentAccess)
+		union.addSubIterator(multiRole)
 
 		relSeq, err := union.Check(nil, []string{"doc1", "doc2"}, "alice")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
-		t.Logf("Union results: %+v", rels)
 
 		// The result should contain resources where either condition is met
 		require.NotEmpty(rels, "Union should find relations from either iterator")
@@ -40,13 +37,13 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EmptyUnion", func(t *testing.T) {
 		t.Parallel()
 
-		union := query.NewUnion()
+		union := NewUnion()
 
 		// Empty union should return empty results
 		relSeq, err := union.Check(nil, []string{"doc1"}, "alice")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 		require.Empty(rels, "empty union should return no results")
 	})
@@ -54,17 +51,16 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
 		t.Parallel()
 
-		union := query.NewUnion()
+		union := NewUnion()
 
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.AddSubIterator(documentAccess)
+		union.addSubIterator(documentAccess)
 
 		relSeq, err := union.Check(nil, []string{"doc1"}, "alice")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
-		t.Logf("Single sub-iterator union results: %+v", rels)
 
 		// Should return same results as the single iterator alone
 		require.NotEmpty(rels, "Single iterator union should return results")
@@ -73,15 +69,15 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
 		t.Parallel()
 
-		union := query.NewUnion()
+		union := NewUnion()
 
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.AddSubIterator(documentAccess)
+		union.addSubIterator(documentAccess)
 
 		relSeq, err := union.Check(nil, []string{}, "alice")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 		require.Empty(rels, "empty resource list should return no results")
 	})
@@ -91,21 +87,20 @@ func TestUnionIterator(t *testing.T) {
 
 		// Test the optimization where union stops checking remaining resources
 		// once all have been found by earlier sub-iterators
-		union := query.NewUnion()
+		union := NewUnion()
 
 		// Add iterators that might find the same resource
 		documentAccess := NewDocumentAccessFixedIterator()
 		singleUser := NewSingleUserFixedIterator("alice")
 
-		union.AddSubIterator(documentAccess)
-		union.AddSubIterator(singleUser)
+		union.addSubIterator(documentAccess)
+		union.addSubIterator(singleUser)
 
 		relSeq, err := union.Check(nil, []string{"doc1"}, "alice")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
-		t.Logf("Early termination union results: %+v", rels)
 
 		// The union should optimize by not checking already found resources
 		require.NotEmpty(rels, "Union should find results")
@@ -114,34 +109,36 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
 		t.Parallel()
 
-		union := query.NewUnion()
+		union := NewUnion()
 
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.AddSubIterator(documentAccess)
+		union.addSubIterator(documentAccess)
 
 		relSeq, err := union.Check(nil, []string{"doc1"}, "nonexistent")
 		require.NoError(err)
 
-		rels, err := query.CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 		// Should be empty since subject doesn't exist
 		require.Empty(rels, "nonexistent subject should return no results")
 	})
 
-	t.Run("LookupSubjects_Unimplemented", func(t *testing.T) {
+	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
 		t.Parallel()
 
-		union := query.NewUnion()
-		_, err := union.LookupSubjects(nil, "doc1")
-		require.ErrorIs(err, query.ErrUnimplemented)
+		union := NewUnion()
+		require.Panics(func() {
+			_, _ = union.IterSubjects(nil, "doc1")
+		})
 	})
 
-	t.Run("LookupResources_Unimplemented", func(t *testing.T) {
+	t.Run("IterResources_Unimplemented", func(t *testing.T) {
 		t.Parallel()
 
-		union := query.NewUnion()
-		_, err := union.LookupResources(nil, "alice")
-		require.ErrorIs(err, query.ErrUnimplemented)
+		union := NewUnion()
+		require.Panics(func() {
+			_, _ = union.IterResources(nil, "alice")
+		})
 	})
 }
 
@@ -150,14 +147,14 @@ func TestUnionIteratorClone(t *testing.T) {
 
 	require := require.New(t)
 
-	original := query.NewUnion()
+	original := NewUnion()
 
 	// Use non-overlapping helper iterators to avoid union optimization issues
 	singleUserAlice := NewSingleUserFixedIterator("alice")
 	singleUserBob := NewSingleUserFixedIterator("bob")
 
-	original.AddSubIterator(singleUserAlice)
-	original.AddSubIterator(singleUserBob)
+	original.addSubIterator(singleUserAlice)
+	original.addSubIterator(singleUserBob)
 
 	cloned := original.Clone()
 	require.NotSame(original, cloned, "cloned iterator should be a different object")
@@ -189,7 +186,7 @@ func TestUnionIteratorExplain(t *testing.T) {
 	t.Run("EmptyUnion", func(t *testing.T) {
 		t.Parallel()
 
-		union := query.NewUnion()
+		union := NewUnion()
 
 		explain := union.Explain()
 		require.Equal("Union", explain.Info)
@@ -199,13 +196,13 @@ func TestUnionIteratorExplain(t *testing.T) {
 	t.Run("UnionWithSubIterators", func(t *testing.T) {
 		t.Parallel()
 
-		union := query.NewUnion()
+		union := NewUnion()
 
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
-		union.AddSubIterator(documentAccess)
-		union.AddSubIterator(multiRole)
+		union.addSubIterator(documentAccess)
+		union.addSubIterator(multiRole)
 
 		explain := union.Explain()
 		require.Equal("Union", explain.Info)
@@ -214,7 +211,6 @@ func TestUnionIteratorExplain(t *testing.T) {
 		explainStr := explain.String()
 		require.Contains(explainStr, "Union")
 		require.NotEmpty(explainStr)
-		t.Logf("Union explain: %s", explainStr)
 	})
 }
 
@@ -226,21 +222,20 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 	// Create a union with overlapping sub-iterators
 	// This tests the deduplication logic where resources found by earlier
 	// iterators are removed from the remaining list
-	union := query.NewUnion()
+	union := NewUnion()
 
 	// Add iterators that may have overlapping data
 	documentAccess := NewDocumentAccessFixedIterator()
 	multiRole := NewMultiRoleFixedIterator()
 
-	union.AddSubIterator(documentAccess)
-	union.AddSubIterator(multiRole)
+	union.addSubIterator(documentAccess)
+	union.addSubIterator(multiRole)
 
 	relSeq, err := union.Check(nil, []string{"doc1"}, "alice")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	rels, err := CollectAll(relSeq)
 	require.NoError(err)
-	t.Logf("Duplicate elimination results: %+v", rels)
 
 	// The union should handle potential duplicates correctly through its
 	// resource elimination optimization
@@ -252,22 +247,21 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 
 	require := require.New(t)
 
-	union := query.NewUnion()
+	union := NewUnion()
 
 	documentAccess := NewDocumentAccessFixedIterator()
 	multiRole := NewMultiRoleFixedIterator()
 
-	union.AddSubIterator(documentAccess)
-	union.AddSubIterator(multiRole)
+	union.addSubIterator(documentAccess)
+	union.addSubIterator(multiRole)
 
 	// Test with multiple resource IDs
 	relSeq, err := union.Check(nil, []string{"doc1", "doc2", "nonexistent"}, "alice")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	rels, err := CollectAll(relSeq)
 	require.NoError(err)
 
-	t.Logf("Multiple resources union results: %+v", rels)
 	// The result should include all valid union relationships found across all resources
 	require.NotEmpty(rels, "Union should find relations from multiple resources")
 }

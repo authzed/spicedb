@@ -1,9 +1,8 @@
-package query_test
+package query
 
 import (
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -26,7 +25,7 @@ func createRelation(resourceType, resourceID, resourceRel, subjectType, subjectI
 }
 
 // NewDocumentAccessFixedIterator creates a FixedIterator with typical document access patterns
-func NewDocumentAccessFixedIterator() *query.FixedIterator {
+func NewDocumentAccessFixedIterator() *FixedIterator {
 	relations := []tuple.Relationship{
 		// Document viewers
 		createRelation("document", "doc1", "viewer", "user", "alice", "..."),
@@ -51,11 +50,11 @@ func NewDocumentAccessFixedIterator() *query.FixedIterator {
 		createRelation("document", "doc6", "viewer", "group", "all_staff", "member"),
 	}
 
-	return query.NewFixedIterator(relations...)
+	return NewFixedIterator(relations...)
 }
 
 // NewFolderHierarchyFixedIterator creates a FixedIterator with folder hierarchy relations
-func NewFolderHierarchyFixedIterator() *query.FixedIterator {
+func NewFolderHierarchyFixedIterator() *FixedIterator {
 	relations := []tuple.Relationship{
 		// Folder structure: root -> projects -> project1, project2
 		createRelation("folder", "root", "viewer", "user", "admin", "..."),
@@ -77,11 +76,11 @@ func NewFolderHierarchyFixedIterator() *query.FixedIterator {
 		createRelation("document", "readme", "parent", "folder", "root", "..."),
 	}
 
-	return query.NewFixedIterator(relations...)
+	return NewFixedIterator(relations...)
 }
 
 // NewMultiRoleFixedIterator creates a FixedIterator where users have multiple roles on the same resources
-func NewMultiRoleFixedIterator() *query.FixedIterator {
+func NewMultiRoleFixedIterator() *FixedIterator {
 	relations := []tuple.Relationship{
 		// Alice has multiple roles on doc1
 		createRelation("document", "doc1", "viewer", "user", "alice", "..."),
@@ -102,11 +101,11 @@ func NewMultiRoleFixedIterator() *query.FixedIterator {
 		createRelation("document", "doc4", "owner", "user", "diana", "..."),
 	}
 
-	return query.NewFixedIterator(relations...)
+	return NewFixedIterator(relations...)
 }
 
 // NewGroupMembershipFixedIterator creates a FixedIterator with group membership and nested groups
-func NewGroupMembershipFixedIterator() *query.FixedIterator {
+func NewGroupMembershipFixedIterator() *FixedIterator {
 	relations := []tuple.Relationship{
 		// Direct group memberships
 		createRelation("group", "engineers", "member", "user", "alice", "..."),
@@ -127,11 +126,11 @@ func NewGroupMembershipFixedIterator() *query.FixedIterator {
 		createRelation("document", "design_guide", "editor", "group", "designers", "member"),
 	}
 
-	return query.NewFixedIterator(relations...)
+	return NewFixedIterator(relations...)
 }
 
 // NewSingleUserFixedIterator creates a FixedIterator with relations for a single user across multiple resources
-func NewSingleUserFixedIterator(userID string) *query.FixedIterator {
+func NewSingleUserFixedIterator(userID string) *FixedIterator {
 	relations := []tuple.Relationship{
 		createRelation("document", "personal1", "owner", "user", userID, "..."),
 		createRelation("document", "personal2", "owner", "user", userID, "..."),
@@ -141,16 +140,16 @@ func NewSingleUserFixedIterator(userID string) *query.FixedIterator {
 		createRelation("folder", "shared_folder", "viewer", "user", userID, "..."),
 	}
 
-	return query.NewFixedIterator(relations...)
+	return NewFixedIterator(relations...)
 }
 
 // NewEmptyFixedIterator creates an empty FixedIterator for testing edge cases
-func NewEmptyFixedIterator() *query.FixedIterator {
-	return query.NewFixedIterator()
+func NewEmptyFixedIterator() *FixedIterator {
+	return NewFixedIterator()
 }
 
 // NewLargeFixedIterator creates a FixedIterator with many relations for performance testing
-func NewLargeFixedIterator() *query.FixedIterator {
+func NewLargeFixedIterator() *FixedIterator {
 	var relations []tuple.Relationship
 
 	// Create 100 users with various permissions on 50 documents
@@ -178,11 +177,11 @@ func NewLargeFixedIterator() *query.FixedIterator {
 		}
 	}
 
-	return query.NewFixedIterator(relations...)
+	return NewFixedIterator(relations...)
 }
 
 // NewConflictingPermissionsFixedIterator creates a FixedIterator with potential permission conflicts for testing
-func NewConflictingPermissionsFixedIterator() *query.FixedIterator {
+func NewConflictingPermissionsFixedIterator() *FixedIterator {
 	relations := []tuple.Relationship{
 		// Same user with different permission levels on same resource
 		createRelation("document", "conflicted", "viewer", "user", "alice", "..."),
@@ -199,5 +198,5 @@ func NewConflictingPermissionsFixedIterator() *query.FixedIterator {
 		createRelation("group", "team", "member", "user", "charlie", "..."),
 	}
 
-	return query.NewFixedIterator(relations...)
+	return NewFixedIterator(relations...)
 }

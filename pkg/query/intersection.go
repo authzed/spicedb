@@ -2,6 +2,7 @@ package query
 
 import (
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Intersection the set of relations that are in all of underlying subiterators.
@@ -16,7 +17,7 @@ func NewIntersection() *Intersection {
 	return &Intersection{}
 }
 
-func (i *Intersection) AddSubIterator(subIt Iterator) {
+func (i *Intersection) addSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
@@ -53,12 +54,12 @@ func (i *Intersection) Check(ctx *Context, resourceIDs []string, subjectID strin
 	}, nil
 }
 
-func (i *Intersection) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
-	return nil, ErrUnimplemented
+func (i *Intersection) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (i *Intersection) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
-	return nil, ErrUnimplemented
+func (i *Intersection) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
 func (i *Intersection) Clone() Iterator {

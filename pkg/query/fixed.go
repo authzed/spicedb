@@ -7,7 +7,7 @@ import "fmt"
 // where we'd like to force a set of intermediate relations.
 
 // For example: document->folder->ownerGroup->user -- and we'd like to
-// find all documents (LookupResources) that traverse a known folder->ownerGroup relationship
+// find all documents (IterResources) that traverse a known folder->ownerGroup relationship
 type FixedIterator struct {
 	rels []Relation
 }
@@ -38,7 +38,7 @@ func (f *FixedIterator) Check(ctx *Context, resourceIDs []string, subjectID stri
 	}, nil
 }
 
-func (f *FixedIterator) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+func (f *FixedIterator) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
 			// Check if the relation's resource matches the requested resource ID
@@ -51,7 +51,7 @@ func (f *FixedIterator) LookupSubjects(ctx *Context, resourceID string) (Relatio
 	}, nil
 }
 
-func (f *FixedIterator) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
+func (f *FixedIterator) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
 			// Check if the relation's subject matches the requested subject ID

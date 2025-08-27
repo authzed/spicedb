@@ -1,4 +1,4 @@
-package query_test
+package query
 
 import (
 	"testing"
@@ -8,8 +8,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
@@ -27,12 +27,10 @@ func TestBuildTree(t *testing.T) {
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
-	it, err := query.BuildIteratorFromSchema(dsSchema, "document", "edit")
+	it, err := BuildIteratorFromSchema(dsSchema, "document", "edit")
 	require.NoError(err)
 
-	t.Logf("\n%s", it.Explain().String())
-
-	ctx := &query.Context{
+	ctx := &Context{
 		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
@@ -41,7 +39,7 @@ func TestBuildTree(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	rels, err := CollectAll(relSeq)
 	require.NoError(err)
 	t.Log(rels)
 }
@@ -60,13 +58,13 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for edit permission which creates a union
-	it, err := query.BuildIteratorFromSchema(dsSchema, "document", "edit")
+	it, err := BuildIteratorFromSchema(dsSchema, "document", "edit")
 	require.NoError(err)
 
 	explain := it.Explain()
 	require.Contains(explain.String(), "Union", "edit permission should create a union iterator")
 
-	ctx := &query.Context{
+	ctx := &Context{
 		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
@@ -75,7 +73,7 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	rels, err := CollectAll(relSeq)
 	require.NoError(err)
 	require.NotEmpty(rels, "should find relations for edit permission")
 }
@@ -89,12 +87,12 @@ func TestBuildTreeInvalidDefinition(t *testing.T) {
 	require.NoError(err)
 
 	// Test with invalid definition name
-	_, err = query.BuildIteratorFromSchema(dsSchema, "nonexistent", "edit")
+	_, err = BuildIteratorFromSchema(dsSchema, "nonexistent", "edit")
 	require.Error(err)
 	require.Contains(err.Error(), "couldn't find a schema definition named `nonexistent`")
 
 	// Test with invalid relation/permission name
-	_, err = query.BuildIteratorFromSchema(dsSchema, "document", "nonexistent")
+	_, err = BuildIteratorFromSchema(dsSchema, "document", "nonexistent")
 	require.Error(err)
 	require.Contains(err.Error(), "couldn't find a relation or permission named `nonexistent`")
 }
@@ -113,14 +111,14 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for a relation with subrelations
-	it, err := query.BuildIteratorFromSchema(dsSchema, "document", "parent")
+	it, err := BuildIteratorFromSchema(dsSchema, "document", "parent")
 	require.NoError(err)
 
 	// Should have created a relation iterator
 	explain := it.Explain()
 	require.NotEmpty(explain.String())
 
-	ctx := &query.Context{
+	ctx := &Context{
 		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
@@ -130,7 +128,7 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"companyplan"}, "legal")
 	require.NoError(err)
 
-	_, err = query.CollectAll(relSeq)
+	_, err = CollectAll(relSeq)
 	require.NoError(err)
 }
 
@@ -142,36 +140,20 @@ func TestBuildTreeRecursion(t *testing.T) {
 	// Create a simple schema with potential recursion using group membership
 	userDef := testfixtures.UserNS.CloneVT()
 
-	groupDef := &corev1.NamespaceDefinition{
-		Name: "group",
-		Relation: []*corev1.Relation{
-			{
-				Name: "member",
-				UsersetRewrite: &corev1.UsersetRewrite{
-					RewriteOperation: &corev1.UsersetRewrite_Union{
-						Union: &corev1.SetOperation{
-							Child: []*corev1.SetOperation_Child{
-								{
-									ChildType: &corev1.SetOperation_Child_ComputedUserset{
-										ComputedUserset: &corev1.ComputedUserset{
-											Relation: "member",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	groupDef := namespace.Namespace("group",
+		namespace.MustRelation("member",
+			namespace.Union(
+				namespace.ComputedUserset("member"),
+			),
+		),
+	)
 
 	objectDefs := []*corev1.NamespaceDefinition{userDef, groupDef}
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
 	// This should detect recursion and return an error
-	_, err = query.BuildIteratorFromSchema(dsSchema, "group", "member")
+	_, err = BuildIteratorFromSchema(dsSchema, "group", "member")
 	require.Error(err)
 	require.Contains(err.Error(), "recursive schema iterators are as yet unsupported")
 }
@@ -214,7 +196,7 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for view_and_edit permission which uses intersection operations
-	it, err := query.BuildIteratorFromSchema(dsSchema, "document", "view_and_edit")
+	it, err := BuildIteratorFromSchema(dsSchema, "document", "view_and_edit")
 	require.NoError(err)
 
 	// Should create an intersection iterator
@@ -222,7 +204,7 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	require.NotEmpty(explain.String())
 	require.Contains(explain.String(), "Intersection", "should create intersection iterator")
 
-	ctx := &query.Context{
+	ctx := &Context{
 		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
@@ -232,9 +214,8 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	_, err = CollectAll(relSeq)
 	require.NoError(err)
-	t.Logf("Intersection operation results: %+v", rels)
 }
 
 func TestBuildTreeExclusionOperation(t *testing.T) {
@@ -246,36 +227,23 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	userDef := testfixtures.UserNS.CloneVT()
 
 	// Create a document with an exclusion operation
-	docDef := &corev1.NamespaceDefinition{
-		Name: "document",
-		Relation: []*corev1.Relation{
-			{
-				Name: "excluded_perm",
-				UsersetRewrite: &corev1.UsersetRewrite{
-					RewriteOperation: &corev1.UsersetRewrite_Exclusion{
-						Exclusion: &corev1.SetOperation{
-							Child: []*corev1.SetOperation_Child{
-								{
-									ChildType: &corev1.SetOperation_Child_XThis{},
-								},
-								{
-									ChildType: &corev1.SetOperation_Child_XThis{},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	docDef := namespace.Namespace("document",
+		namespace.MustRelation("excluded_perm",
+			namespace.Exclusion(
+				namespace.Nil(),
+				namespace.Nil(),
+			),
+		),
+	)
 
 	objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
-	// Test building iterator for exclusion permission - should return ErrUnimplemented
-	_, err = query.BuildIteratorFromSchema(dsSchema, "document", "excluded_perm")
-	require.ErrorIs(err, query.ErrUnimplemented)
+	// Test building iterator for exclusion permission - should panic
+	require.Panics(func() {
+		_, _ = BuildIteratorFromSchema(dsSchema, "document", "excluded_perm")
+	})
 }
 
 func TestBuildTreeArrowMissingLeftRelation(t *testing.T) {
@@ -286,41 +254,20 @@ func TestBuildTreeArrowMissingLeftRelation(t *testing.T) {
 	// Create a schema with an arrow that references a non-existent left relation
 	userDef := testfixtures.UserNS.CloneVT()
 
-	docDef := &corev1.NamespaceDefinition{
-		Name: "document",
-		Relation: []*corev1.Relation{
-			{
-				Name: "bad_arrow",
-				UsersetRewrite: &corev1.UsersetRewrite{
-					RewriteOperation: &corev1.UsersetRewrite_Union{
-						Union: &corev1.SetOperation{
-							Child: []*corev1.SetOperation_Child{
-								{
-									ChildType: &corev1.SetOperation_Child_TupleToUserset{
-										TupleToUserset: &corev1.TupleToUserset{
-											Tupleset: &corev1.TupleToUserset_Tupleset{
-												Relation: "nonexistent",
-											},
-											ComputedUserset: &corev1.ComputedUserset{
-												Relation: "view",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	docDef := namespace.Namespace("document",
+		namespace.MustRelation("bad_arrow",
+			namespace.Union(
+				namespace.TupleToUserset("nonexistent", "view"),
+			),
+		),
+	)
 
 	objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
 	// Test building iterator for arrow with missing left relation
-	_, err = query.BuildIteratorFromSchema(dsSchema, "document", "bad_arrow")
+	_, err = BuildIteratorFromSchema(dsSchema, "document", "bad_arrow")
 	require.Error(err)
 	require.Contains(err.Error(), "couldn't find left-hand relation for arrow")
 }
@@ -339,7 +286,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for a simple relation - should not create unnecessary unions
-	it, err := query.BuildIteratorFromSchema(dsSchema, "document", "owner")
+	it, err := BuildIteratorFromSchema(dsSchema, "document", "owner")
 	require.NoError(err)
 
 	// Should create a simple relation iterator without extra union wrappers
@@ -347,7 +294,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	require.NotEmpty(explain.String())
 	require.Contains(explain.String(), "Relation", "should create relation iterator")
 
-	ctx := &query.Context{
+	ctx := &Context{
 		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
@@ -357,7 +304,6 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"companyplan"}, "legal")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	_, err = CollectAll(relSeq)
 	require.NoError(err)
-	t.Logf("Single relation results: %+v", rels)
 }

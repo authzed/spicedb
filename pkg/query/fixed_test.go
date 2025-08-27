@@ -1,11 +1,10 @@
-package query_test
+package query
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -60,7 +59,7 @@ func TestFixedIterator(t *testing.T) {
 	}
 
 	// Create fixed iterator
-	fixed := query.NewFixedIterator(rel1, rel2, rel3)
+	fixed := NewFixedIterator(rel1, rel2, rel3)
 
 	t.Run("Check", func(t *testing.T) {
 		t.Parallel()
@@ -69,7 +68,7 @@ func TestFixedIterator(t *testing.T) {
 		seq, err := fixed.Check(nil, []string{"doc1", "doc2"}, "alice")
 		require.NoError(err)
 
-		results, err := query.CollectAll(seq)
+		results, err := CollectAll(seq)
 		require.NoError(err)
 
 		// Should find rel1 (doc1 with alice as viewer)
@@ -84,18 +83,18 @@ func TestFixedIterator(t *testing.T) {
 		seq, err := fixed.Check(nil, []string{"doc1"}, "nonexistent")
 		require.NoError(err)
 
-		results, err := query.CollectAll(seq)
+		results, err := CollectAll(seq)
 		require.NoError(err)
 		require.Empty(results)
 	})
 
-	t.Run("LookupSubjects", func(t *testing.T) {
+	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := fixed.LookupSubjects(nil, "doc1")
+		seq, err := fixed.IterSubjects(nil, "doc1")
 		require.NoError(err)
 
-		results, err := query.CollectAll(seq)
+		results, err := CollectAll(seq)
 		require.NoError(err)
 
 		// Should find rel1 and rel3 (both have doc1 as resource)
@@ -106,13 +105,13 @@ func TestFixedIterator(t *testing.T) {
 		require.Contains(subjects, "charlie")
 	})
 
-	t.Run("LookupResources", func(t *testing.T) {
+	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := fixed.LookupResources(nil, "alice")
+		seq, err := fixed.IterResources(nil, "alice")
 		require.NoError(err)
 
-		results, err := query.CollectAll(seq)
+		results, err := CollectAll(seq)
 		require.NoError(err)
 
 		// Should find rel1 (alice is subject)
@@ -130,12 +129,12 @@ func TestFixedIterator(t *testing.T) {
 		// Both should produce the same results
 		originalSeq, err := fixed.Check(nil, []string{"doc1"}, "alice")
 		require.NoError(err)
-		originalResults, err := query.CollectAll(originalSeq)
+		originalResults, err := CollectAll(originalSeq)
 		require.NoError(err)
 
 		clonedSeq, err := cloned.Check(nil, []string{"doc1"}, "alice")
 		require.NoError(err)
-		clonedResults, err := query.CollectAll(clonedSeq)
+		clonedResults, err := CollectAll(clonedSeq)
 		require.NoError(err)
 
 		require.Equal(originalResults, clonedResults)

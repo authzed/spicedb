@@ -1,6 +1,7 @@
 package query
 
 import (
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -26,9 +27,9 @@ func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 	// TODO -- the ordering, directionality, batching, everything can depend on other statistics.
 	//
 	// There are three major strategies:
-	// - LookupSubjects on the left, Check on the right (as per this implementation)
-	// - LookupResources on the right, Check on the left
-	// - LookupSubjects on left, LookupResources on right, and intersect the two iterators here (especially if they are known to be sorted)
+	// - IterSubjects on the left, Check on the right (as per this implementation)
+	// - IterResources on the right, Check on the left
+	// - IterSubjects on left, IterResources on right, and intersect the two iterators here (especially if they are known to be sorted)
 	//
 	// But for now, this is a proof-of-concept, so the first one, one-by-one (no batching).
 	// This is going to be the crux of a lot of statistics optimizations -- statistics often
@@ -36,7 +37,7 @@ func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 
 	return func(yield func(Relation, error) bool) {
 		for _, rid := range resourceIDs {
-			subit, err := a.left.LookupSubjects(ctx, rid)
+			subit, err := a.left.IterSubjects(ctx, rid)
 			if err != nil {
 				yield(Relation{}, err)
 				return
@@ -74,12 +75,12 @@ func (a *Arrow) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 	}, nil
 }
 
-func (a *Arrow) LookupSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
-	return nil, ErrUnimplemented
+func (a *Arrow) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (a *Arrow) LookupResources(ctx *Context, subjectID string) (RelationSeq, error) {
-	return nil, ErrUnimplemented
+func (a *Arrow) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
 func (a *Arrow) Clone() Iterator {

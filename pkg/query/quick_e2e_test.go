@@ -1,4 +1,4 @@
-package query_test
+package query
 
 import (
 	"testing"
@@ -9,7 +9,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
@@ -31,13 +30,13 @@ func TestCheck(t *testing.T) {
 	// by iterating through the relationships in the schema and then walking them.
 	//
 	// In this case, it's a little contrived.
-	vande := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["viewer_and_editor"].BaseRelations[0])
-	edit := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["editor"].BaseRelations[0])
-	it := query.NewIntersection()
-	it.AddSubIterator(vande)
-	it.AddSubIterator(edit)
+	vande := NewRelationIterator(dsSchema.Definitions["document"].Relations["viewer_and_editor"].BaseRelations[0])
+	edit := NewRelationIterator(dsSchema.Definitions["document"].Relations["editor"].BaseRelations[0])
+	it := NewIntersection()
+	it.addSubIterator(vande)
+	it.addSubIterator(edit)
 
-	ctx := &query.Context{
+	ctx := &Context{
 		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
@@ -46,12 +45,12 @@ func TestCheck(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	rels, err := CollectAll(relSeq)
 	require.NoError(err)
 	t.Log(rels)
 }
 
-func TestBaseLookupSubjects(t *testing.T) {
+func TestBaseIterSubjects(t *testing.T) {
 	t.Parallel()
 
 	require := require.New(t)
@@ -65,18 +64,18 @@ func TestBaseLookupSubjects(t *testing.T) {
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
-	vande := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["viewer_and_editor"].BaseRelations[0])
+	vande := NewRelationIterator(dsSchema.Definitions["document"].Relations["viewer_and_editor"].BaseRelations[0])
 
-	ctx := &query.Context{
+	ctx := &Context{
 		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
 	}
 
-	relSeq, err := vande.LookupSubjects(ctx, "specialplan")
+	relSeq, err := vande.IterSubjects(ctx, "specialplan")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	rels, err := CollectAll(relSeq)
 	require.NoError(err)
 	t.Log(rels)
 }
@@ -96,11 +95,11 @@ func TestCheckArrow(t *testing.T) {
 	require.NoError(err)
 
 	// This is effectively `permission foo = parent_folder->viewer`
-	folders := query.NewRelationIterator(dsSchema.Definitions["document"].Relations["parent"].BaseRelations[0])
-	view := query.NewRelationIterator(dsSchema.Definitions["folder"].Relations["viewer"].BaseRelations[0])
-	it := query.NewArrow(folders, view)
+	folders := NewRelationIterator(dsSchema.Definitions["document"].Relations["parent"].BaseRelations[0])
+	view := NewRelationIterator(dsSchema.Definitions["folder"].Relations["viewer"].BaseRelations[0])
+	it := NewArrow(folders, view)
 
-	ctx := &query.Context{
+	ctx := &Context{
 		Context:   t.Context(),
 		Datastore: ds,
 		Revision:  revision,
@@ -109,7 +108,7 @@ func TestCheckArrow(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"companyplan"}, "legal")
 	require.NoError(err)
 
-	rels, err := query.CollectAll(relSeq)
+	rels, err := CollectAll(relSeq)
 	require.NoError(err)
 	t.Log(rels)
 }
