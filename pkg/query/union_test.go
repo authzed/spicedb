@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,12 @@ func TestUnionIterator(t *testing.T) {
 	t.Parallel()
 
 	require := require.New(t)
+
+	// Create test context
+	ctx := &Context{
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+	}
 
 	t.Run("Check_Union", func(t *testing.T) {
 		t.Parallel()
@@ -26,7 +33,7 @@ func TestUnionIterator(t *testing.T) {
 		union.addSubIterator(documentAccess)
 		union.addSubIterator(multiRole)
 
-		relSeq, err := union.Check(nil, []string{"doc1", "doc2"}, "alice")
+		relSeq, err := ctx.Check(union, []string{"doc1", "doc2"}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -71,7 +78,7 @@ func TestUnionIterator(t *testing.T) {
 		union := NewUnion()
 
 		// Empty union should return empty results
-		relSeq, err := union.Check(nil, []string{"doc1"}, "alice")
+		relSeq, err := ctx.Check(union, []string{"doc1"}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -87,7 +94,7 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		union.addSubIterator(documentAccess)
 
-		relSeq, err := union.Check(nil, []string{"doc1"}, "alice")
+		relSeq, err := ctx.Check(union, []string{"doc1"}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -126,7 +133,7 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		union.addSubIterator(documentAccess)
 
-		relSeq, err := union.Check(nil, []string{}, "alice")
+		relSeq, err := ctx.Check(union, []string{}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -148,7 +155,7 @@ func TestUnionIterator(t *testing.T) {
 		union.addSubIterator(documentAccess)
 		union.addSubIterator(singleUser)
 
-		relSeq, err := union.Check(nil, []string{"doc1"}, "alice")
+		relSeq, err := ctx.Check(union, []string{"doc1"}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -166,7 +173,7 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		union.addSubIterator(documentAccess)
 
-		relSeq, err := union.Check(nil, []string{"doc1"}, "nonexistent")
+		relSeq, err := ctx.Check(union, []string{"doc1"}, "nonexistent")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -180,7 +187,7 @@ func TestUnionIterator(t *testing.T) {
 
 		union := NewUnion()
 		require.Panics(func() {
-			_, _ = union.IterSubjects(nil, "doc1")
+			_, _ = ctx.IterSubjects(union, "doc1")
 		})
 	})
 
@@ -189,7 +196,7 @@ func TestUnionIterator(t *testing.T) {
 
 		union := NewUnion()
 		require.Panics(func() {
-			_, _ = union.IterResources(nil, "alice")
+			_, _ = ctx.IterResources(union, "alice")
 		})
 	})
 }
@@ -270,6 +277,12 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 
 	require := require.New(t)
 
+	// Create test context
+	ctx := &Context{
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+	}
+
 	// Create a union with overlapping sub-iterators
 	// This tests the deduplication logic where resources found by earlier
 	// iterators are removed from the remaining list
@@ -282,7 +295,7 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 	union.addSubIterator(documentAccess)
 	union.addSubIterator(multiRole)
 
-	relSeq, err := union.Check(nil, []string{"doc1"}, "alice")
+	relSeq, err := ctx.Check(union, []string{"doc1"}, "alice")
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)
@@ -319,6 +332,12 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 
 	require := require.New(t)
 
+	// Create test context
+	ctx := &Context{
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+	}
+
 	union := NewUnion()
 
 	documentAccess := NewDocumentAccessFixedIterator()
@@ -328,7 +347,7 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 	union.addSubIterator(multiRole)
 
 	// Test with multiple resource IDs
-	relSeq, err := union.Check(nil, []string{"doc1", "doc2", "nonexistent"}, "alice")
+	relSeq, err := ctx.Check(union, []string{"doc1", "doc2", "nonexistent"}, "alice")
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)

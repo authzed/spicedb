@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,15 @@ func TestArrowIterator(t *testing.T) {
 	t.Run("Check", func(t *testing.T) {
 		t.Parallel()
 
+		// Create context with LocalExecutor
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
 		// Test arrow operation: find resources where left side connects to right side
 		// This looks for documents whose parent folder has viewers
-		relSeq, err := arrow.Check(nil, []string{"spec1", "spec2"}, "alice")
+		relSeq, err := ctx.Check(arrow, []string{"spec1", "spec2"}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -49,7 +56,13 @@ func TestArrowIterator(t *testing.T) {
 	t.Run("Check_EmptyResources", func(t *testing.T) {
 		t.Parallel()
 
-		relSeq, err := arrow.Check(nil, []string{}, "alice")
+		// Create context with LocalExecutor
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
+		relSeq, err := ctx.Check(arrow, []string{}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -60,7 +73,13 @@ func TestArrowIterator(t *testing.T) {
 	t.Run("Check_NonexistentResource", func(t *testing.T) {
 		t.Parallel()
 
-		relSeq, err := arrow.Check(nil, []string{"nonexistent"}, "alice")
+		// Create context with LocalExecutor
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
+		relSeq, err := ctx.Check(arrow, []string{"nonexistent"}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -72,7 +91,13 @@ func TestArrowIterator(t *testing.T) {
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
 		t.Parallel()
 
-		relSeq, err := arrow.Check(nil, []string{"spec1"}, "nonexistent")
+		// Create context with LocalExecutor
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
+		relSeq, err := ctx.Check(arrow, []string{"spec1"}, "nonexistent")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -84,16 +109,28 @@ func TestArrowIterator(t *testing.T) {
 	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
 		t.Parallel()
 
+		// Create context with LocalExecutor
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
 		require.Panics(func() {
-			_, _ = arrow.IterSubjects(nil, "spec1")
+			_, _ = ctx.IterSubjects(arrow, "spec1")
 		})
 	})
 
 	t.Run("IterResources_Unimplemented", func(t *testing.T) {
 		t.Parallel()
 
+		// Create context with LocalExecutor
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
 		require.Panics(func() {
-			_, _ = arrow.IterResources(nil, "alice")
+			_, _ = ctx.IterResources(arrow, "alice")
 		})
 	})
 }
@@ -117,18 +154,24 @@ func TestArrowIteratorClone(t *testing.T) {
 	require.Equal(originalExplain.Info, clonedExplain.Info)
 	require.Equal(len(originalExplain.SubExplain), len(clonedExplain.SubExplain))
 
+	// Create context with LocalExecutor
+	ctx := &Context{
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+	}
+
 	// Test that both iterators produce the same results
 	resourceIDs := []string{"spec1"}
 	subjectID := "alice"
 
 	// Collect results from original iterator
-	originalSeq, err := original.Check(nil, resourceIDs, subjectID)
+	originalSeq, err := ctx.Check(original, resourceIDs, subjectID)
 	require.NoError(err)
 	originalResults, err := CollectAll(originalSeq)
 	require.NoError(err)
 
 	// Collect results from cloned iterator
-	clonedSeq, err := cloned.Check(nil, resourceIDs, subjectID)
+	clonedSeq, err := ctx.Check(cloned, resourceIDs, subjectID)
 	require.NoError(err)
 	clonedResults, err := CollectAll(clonedSeq)
 	require.NoError(err)
@@ -164,8 +207,14 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 
 	arrow := NewArrow(leftRels, rightRels)
 
+	// Create context with LocalExecutor
+	ctx := &Context{
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+	}
+
 	// Test with multiple resource IDs
-	relSeq, err := arrow.Check(nil, []string{"spec1", "spec2", "nonexistent"}, "alice")
+	relSeq, err := ctx.Check(arrow, []string{"spec1", "spec2", "nonexistent"}, "alice")
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)
