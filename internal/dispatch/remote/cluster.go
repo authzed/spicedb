@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -737,12 +739,14 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 		return nil
 	}
 
-	// Otherwise return a combined error.
-	cerr := fmt.Errorf("no dispatcher returned results")
-	for name, err := range errorsByDispatcherName {
-		cerr = fmt.Errorf("%w; error in dispatcher %s: %w", cerr, name, err)
+	// If there is a primary dispatcher error, return it.
+	if primaryErr, ok := errorsByDispatcherName[primaryDispatcher]; ok {
+		log.Warn().Err(primaryErr).Errs("all-errors", slices.Collect(maps.Values(errorsByDispatcherName))).Msg("returning primary dispatcher error as no dispatchers returned results")
+		return primaryErr
 	}
-	return cerr
+
+	// Otherwise return a combined error.
+	return fmt.Errorf("no dispatcher returned results; please check the logs for more information")
 }
 
 func adjustMetadataForDispatch(metadata *v1.ResponseMeta) error {

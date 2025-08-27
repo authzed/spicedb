@@ -1179,6 +1179,61 @@ func TestDALCount(t *testing.T) {
 	require.Equal(t, 3*time.Millisecond, dal.getWaitTime(10*time.Millisecond))
 }
 
+func TestPrimaryDispatcherErrorReturned(t *testing.T) {
+	primaryError := fmt.Errorf("primary dispatcher error")
+	secondaryError := fmt.Errorf("secondary dispatcher error")
+
+	// Create fake dispatchers where both primary and secondary fail, but primary fails first
+	conn := connectionForDispatching(t, &fakeDispatchSvc{
+		dispatchCount: 1,
+		sleepTime:     1 * time.Millisecond, // Primary fails quickly
+		errorOnLR2:    primaryError,
+	})
+	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{
+		dispatchCount: 2,
+		sleepTime:     10 * time.Millisecond, // Secondary fails slower
+		errorOnLR2:    secondaryError,
+	})
+
+	parsed, err := ParseDispatchExpression("lookupresources", "['secondary']")
+	require.NoError(t, err)
+
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, map[string]SecondaryDispatch{
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 0}, // No delay so primary runs immediately
+	}, map[string]*DispatchExpr{
+		"lookupresources": parsed,
+	}, 0*time.Second)
+	require.NoError(t, err)
+	require.True(t, dispatcher.ReadyState().IsReady)
+
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](t.Context())
+	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+		ResourceRelation: &corev1.RelationReference{
+			Namespace: "somenamespace",
+			Relation:  "somerelation",
+		},
+		SubjectRelation: &corev1.RelationReference{
+			Namespace: "somenamespace",
+			Relation:  "somerelation",
+		},
+		SubjectIds: []string{"foo"},
+		TerminalSubject: &corev1.ObjectAndRelation{
+			Namespace: "foo",
+			ObjectId:  "bar",
+			Relation:  "...",
+		},
+		Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+	}, stream)
+
+	// Should get the primary dispatcher error when no dispatcher returns results
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "primary dispatcher error")
+	require.NotContains(t, err.Error(), "secondary dispatcher error")
+}
+
 func BenchmarkDAL(b *testing.B) {
 	digest, err := tdigest.New(tdigest.Compression(1000))
 	require.NoError(b, err)
