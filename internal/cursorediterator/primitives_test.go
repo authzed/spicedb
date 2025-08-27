@@ -440,3 +440,35 @@ func TestCountingIterator(t *testing.T) {
 		require.Equal(t, 2, finalCount)
 	})
 }
+
+func TestUncursoredEmpty(t *testing.T) {
+	t.Run("yields no items", func(t *testing.T) {
+		result := UncursoredEmpty[string]()
+
+		items, errs := collectAll(result)
+
+		require.Len(t, items, 0)
+		require.Len(t, errs, 0)
+	})
+
+	t.Run("works with different types", func(t *testing.T) {
+		result := UncursoredEmpty[int]()
+
+		items, errs := collectAll(result)
+
+		require.Len(t, items, 0)
+		require.Len(t, errs, 0)
+	})
+
+	t.Run("consumer function never called", func(t *testing.T) {
+		result := UncursoredEmpty[string]()
+
+		called := false
+		result(func(item string, err error) bool {
+			called = true
+			return true
+		})
+
+		require.False(t, called, "yield function should never be called for empty iterator")
+	})
+}

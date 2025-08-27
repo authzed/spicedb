@@ -13,6 +13,47 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestChunkFollowOrHold(t *testing.T) {
+	t.Run("ChunkAndFollow implements interface", func(t *testing.T) {
+		chunk := ChunkAndFollow[string, int]{
+			Chunk:  "test",
+			Follow: 42,
+		}
+
+		// Verify it implements the interface
+		var _ ChunkFollowOrHold[string, int] = chunk
+
+		// Call the method (even though it's empty, it should not panic)
+		chunk.chunkFollowOrHold()
+
+		// Verify the struct fields are accessible
+		require.Equal(t, "test", chunk.Chunk)
+		require.Equal(t, 42, chunk.Follow)
+	})
+
+	t.Run("HoldForMappingComplete implements interface", func(t *testing.T) {
+		hold := HoldForMappingComplete[string, int]{}
+
+		// Verify it implements the interface
+		var _ ChunkFollowOrHold[string, int] = hold
+
+		// Call the method (even though it's empty, it should not panic)
+		hold.chunkFollowOrHold()
+	})
+
+	t.Run("interface can hold either type", func(t *testing.T) {
+		var chunk ChunkFollowOrHold[string, int] = ChunkAndFollow[string, int]{
+			Chunk:  "test",
+			Follow: 42,
+		}
+		var hold ChunkFollowOrHold[string, int] = HoldForMappingComplete[string, int]{}
+
+		// Both should implement the interface
+		chunk.chunkFollowOrHold()
+		hold.chunkFollowOrHold()
+	})
+}
+
 func TestCursoredWithIntegerHeader(t *testing.T) {
 	ctx := t.Context()
 
