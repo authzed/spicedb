@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestUnionIterator(t *testing.T) {
@@ -30,8 +32,37 @@ func TestUnionIterator(t *testing.T) {
 		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 
-		// The result should contain resources where either condition is met
-		require.NotEmpty(rels, "Union should find relations from either iterator")
+		// Union should contain relations from both iterators for alice on doc1 and doc2
+		// DocumentAccess: alice viewer/editor/owner on doc1, alice viewer on doc2
+		// MultiRole: alice viewer/editor/owner on doc1
+		// Union should deduplicate, so we expect: viewer/editor/owner on doc1, viewer on doc2
+		expected := []tuple.Relationship{
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "viewer"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "editor"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "owner"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc2", "viewer"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+		}
+		require.ElementsMatch(expected, rels)
 	})
 
 	t.Run("Check_EmptyUnion", func(t *testing.T) {
@@ -62,8 +93,29 @@ func TestUnionIterator(t *testing.T) {
 		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 
-		// Should return same results as the single iterator alone
-		require.NotEmpty(rels, "Single iterator union should return results")
+		// Should return same results as DocumentAccess iterator for alice on doc1
+		// Alice has viewer, editor, and owner access to doc1
+		expected := []tuple.Relationship{
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "viewer"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "editor"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "owner"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+		}
+		require.ElementsMatch(expected, rels)
 	})
 
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
@@ -175,7 +227,6 @@ func TestUnionIteratorClone(t *testing.T) {
 
 	// Just test that both can execute operations without error
 	// The union's resource elimination optimization makes result comparison tricky
-	t.Log("Clone test passed - both iterators have same structure and can execute")
 }
 
 func TestUnionIteratorExplain(t *testing.T) {
@@ -238,8 +289,29 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 	require.NoError(err)
 
 	// The union should handle potential duplicates correctly through its
-	// resource elimination optimization
-	require.NotEmpty(rels, "Union should find relations")
+	// resource elimination optimization. Both iterators have alice with various
+	// permissions on doc1, and the union should deduplicate appropriately.
+	expected := []tuple.Relationship{
+		{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "viewer"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		},
+		{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "editor"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		},
+		{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "owner"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		},
+	}
+	require.ElementsMatch(expected, rels)
 }
 
 func TestUnionIteratorMultipleResources(t *testing.T) {

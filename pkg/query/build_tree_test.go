@@ -39,9 +39,8 @@ func TestBuildTree(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
-	rels, err := CollectAll(relSeq)
+	_, err = CollectAll(relSeq)
 	require.NoError(err)
-	t.Log(rels)
 }
 
 func TestBuildTreeMultipleRelations(t *testing.T) {

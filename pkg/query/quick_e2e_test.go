@@ -45,9 +45,8 @@ func TestCheck(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
-	rels, err := CollectAll(relSeq)
+	_, err = CollectAll(relSeq)
 	require.NoError(err)
-	t.Log(rels)
 }
 
 func TestBaseIterSubjects(t *testing.T) {
@@ -75,9 +74,8 @@ func TestBaseIterSubjects(t *testing.T) {
 	relSeq, err := vande.IterSubjects(ctx, "specialplan")
 	require.NoError(err)
 
-	rels, err := CollectAll(relSeq)
+	_, err = CollectAll(relSeq)
 	require.NoError(err)
-	t.Log(rels)
 }
 
 func TestCheckArrow(t *testing.T) {
@@ -108,7 +106,6 @@ func TestCheckArrow(t *testing.T) {
 	relSeq, err := it.Check(ctx, []string{"companyplan"}, "legal")
 	require.NoError(err)
 
-	rels, err := CollectAll(relSeq)
+	_, err = CollectAll(relSeq)
 	require.NoError(err)
-	t.Log(rels)
 }

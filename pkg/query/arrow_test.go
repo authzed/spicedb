@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestArrowIterator(t *testing.T) {
@@ -15,8 +17,8 @@ func TestArrowIterator(t *testing.T) {
 	// Left side: document parent relationships to folders
 	leftRels := NewFolderHierarchyFixedIterator()
 
-	// Right side: folder viewer relationships
-	rightRels := NewDocumentAccessFixedIterator()
+	// Right side: folder viewer relationships (same as left for folder access)
+	rightRels := NewFolderHierarchyFixedIterator()
 
 	arrow := NewArrow(leftRels, rightRels)
 
@@ -28,9 +30,20 @@ func TestArrowIterator(t *testing.T) {
 		relSeq, err := arrow.Check(nil, []string{"spec1", "spec2"}, "alice")
 		require.NoError(err)
 
-		_, err = CollectAll(relSeq)
+		rels, err := CollectAll(relSeq)
 		require.NoError(err)
-		// Results depend on the specific relations in our test data
+
+		// Expected: spec1 should match because alice has viewer access to project1 (spec1's parent)
+		// spec2 should NOT match because alice does not have access to project2 (spec2's parent)
+		expected := []tuple.Relationship{
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "spec1", "parent"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+		}
+		require.Equal(expected, rels)
 	})
 
 	t.Run("Check_EmptyResources", func(t *testing.T) {
@@ -166,11 +179,13 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	// - nonexistent doesn't exist -> should NOT match
 
 	// We expect exactly 1 result: spec1 with alice as subject
-	require.Len(rels, 1, "should find exactly one arrow relationship")
-	require.Equal("document", rels[0].Resource.ObjectType)
-	require.Equal("spec1", rels[0].Resource.ObjectID)
-	require.Equal("parent", rels[0].Resource.Relation)
-	require.Equal("user", rels[0].Subject.ObjectType)
-	require.Equal("alice", rels[0].Subject.ObjectID)
-	require.Equal("...", rels[0].Subject.Relation)
+	expected := []tuple.Relationship{
+		{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "spec1", "parent"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		},
+	}
+	require.Equal(expected, rels)
 }

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestIntersectionIterator(t *testing.T) {
@@ -30,8 +32,29 @@ func TestIntersectionIterator(t *testing.T) {
 		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 
-		// The result should only contain resources where both conditions are met
-		require.NotEmpty(rels, "Intersection should find matching relations")
+		// The intersection should find relations that exist in both iterators
+		// Both DocumentAccess and MultiRole have alice with viewer/editor/owner on doc1
+		expected := []tuple.Relationship{
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "viewer"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "editor"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+			{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ONR("document", "doc1", "owner"),
+					Subject:  tuple.ONR("user", "alice", "..."),
+				},
+			},
+		}
+		require.ElementsMatch(expected, rels)
 	})
 
 	t.Run("Check_EmptyIntersection", func(t *testing.T) {
@@ -55,8 +78,6 @@ func TestIntersectionIterator(t *testing.T) {
 			_, err := CollectAll(relSeq)
 			require.NoError(err)
 			// Should likely be empty since bob isn't in documentAccess
-		} else {
-			t.Log("Empty intersection returned nil sequence")
 		}
 	})
 
@@ -110,8 +131,6 @@ func TestIntersectionIterator(t *testing.T) {
 			rels, err := CollectAll(relSeq)
 			require.NoError(err)
 			require.Empty(rels, "Empty resource list should return no results")
-		} else {
-			t.Log("Empty resource list returned nil sequence")
 		}
 	})
 
@@ -263,7 +282,5 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 		require.NoError(err)
 		// Should be empty due to early termination
 		require.Empty(rels, "Early termination should return no results")
-	} else {
-		t.Log("Early termination returned nil sequence")
 	}
 }
