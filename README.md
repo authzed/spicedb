@@ -49,12 +49,11 @@
 SpiceDB is the most mature open source project inspired by Google's internal authorization system: [Zanzibar].
 
 As of 2021, [broken access control became the #1 threat to web security according to OWASP][owasp].
-With SpiceDB, platform teams are armed with the same techniques for stopping this threat that the hyperscale tech companies have been doing for years behind closed doors.
+With SpiceDB, platform and product teams can be be protected by answering this question easily: **"can subject X perform action Y on resource Z?"**
 
-Similar to a relational database, developers define a schema, write data to the database, and query that data in various ways.
-However, unlike relational databases that use general-purpose SQL, SpiceDB exposes a gRPC API specifcally optimized for authorizing actions in your systems.
+Similar to a relational database, developers define a **schema**, write data in the form of **relationships**, and then use SpiceDB's clients to issue **permission checks** in their application to determine what actions a user can take on a resource. Other queries are also possible, such as "What can `subject` do?" or "Who can access `resource`?".
 
-Because SpiceDB self-contains data and logic for used for authorization, it is often ran as a centralized service shared across product suites and microservice architectures.
+SpiceDB is often ran as a centralized service shared across product suites and microservice architectures.
 
 SpiceDB is focused purely on *authorization* and is designed to be fully agnostic to *authentication* solutions/identity providers.
 
@@ -102,47 +101,7 @@ Beyond the community, you can also read [customer stories][stories] for commerci
 
 [stories]: https://authzed.com/customers
 
-## Joining the Community
-
-Join our fellow contributors from companies such as <img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"> GitHub, <img alt="adobe logo" height="15px" src="https://github.com/user-attachments/assets/64007fa0-f342-4eba-bc81-0e078677e918"> Adobe, <img alt="google logo" height="15px" src="https://github.com/user-attachments/assets/15a144f4-4244-40af-be58-53ea3be46bc4"> Google, <img alt="fastly logo" height="15px" src="https://github.com/user-attachments/assets/57f042c3-e106-4524-95b8-167acc6be16e"> Fastly, <img alt="plaid logo" height="15px" src="https://github.com/user-attachments/assets/0678972d-b8ff-41e6-a507-7289a1ee1e94"> Plaid, <img alt="red hat logo" height="15px" src="https://github.com/user-attachments/assets/955a6c28-3a5c-4679-8e12-b50734024be2"> Red Hat, and <img alt="reddit logo" height="15px" src="https://github.com/user-attachments/assets/78d542f9-37f7-4d78-bf34-8aa0b0ddd12d"> Reddit.
-
-SpiceDB is a community project where everyone is invited to participate and [feel welcomed].
-While the project has a technical goal, participation is not restricted to those with code contributions.
-
-[CONTRIBUTING.md] documents communication, contribution flow, legal requirements, and common tasks when contributing to the project.
-
-You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
-There are also [good first issues].
-
-Our [documentation] is also [open source][oss-docs] if you'd like to clarify anything you find confusing.
-
-[feel welcomed]: CODE-OF-CONDUCT.md
-[CONTRIBUTING.md]: CONTRIBUTING.md
-[Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
-[High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
-[Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
-[Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
-[Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
-[good first issues]: https://github.com/authzed/spicedb/labels/hint%2Fgood%20first%20issue
-[documentation]: https://authzed.com/docs
-[oss-docs]: https://github.com/authzed/docs
-
 ## Getting Started
-
-### Familiarizing yourself with our learning materials
-
-- Ask questions via [GitHub Discussions] or our [Community Discord]
-- Read [blog posts] from the Authzed team describing the project and major announcements
-- Watch our [YouTube videos] about SpiceDB, modeling schemas, leveraging CNCF projects, and more
-- Explore the [SpiceDB Awesome List] that enumerates official and third-party projects built by the community
-- Reference [community examples] for demo environments, integration testing, CI pipelines, and writing schemas
-
-[GitHub Discussions]: https://github.com/orgs/authzed/discussions/new?category=q-a
-[Community Discord]: https://authzed.com/discord
-[blog posts]: https://authzed.com/blog
-[SpiceDB Awesome List]: https://github.com/authzed/awesome-spicedb
-[YouTube videos]: https://www.youtube.com/@authzed
-[community examples]: https://github.com/authzed/examples
 
 ### Installing the binary
 
@@ -191,8 +150,9 @@ Container images are available for AMD64 and ARM64 architectures on the followin
 
 [Docker] users can run the latest SpiceDB container with the following:
 
-```command
-docker run --rm -p 50051:50051 authzed/spicedb serve --grpc-preshared-key "somerandomkeyhere"
+```shell
+# expose grpc and http. http is used in the examples below.
+docker run --rm -p 50051:50051 -p 8443:8443 authzed/spicedb serve --http-enabled true --grpc-preshared-key "somerandomkeyhere"
 ```
 
 SpiceDB containers use [Chainguard Images] to ship the bare minimum userspace which is a huge boon to security, but can complicate debugging.
@@ -208,55 +168,176 @@ Containers are also available for each git commit to the `main` branch under `${
 
 [Docker]: https://docs.docker.com/get-docker/
 [Chainguard Images]: https://github.com/chainguard-images/images
+
+### Write your own schema and relationships
+
+Now that you have SpiceDB running, you must define your **schema** and write **relationships** that represent the permissions in your application. There are various way to do this:
+
+- Use the [client libraries].
+- Use the [hosted Playground] or [run it yourself locally]. The playground contains a set of example schemas and test data for different scenarios.
+- Use the [zed] CLI.
+- Use the [gRPC](https://buf.build/authzed/api/docs/main:authzed.api.v1) or the [HTTP](https://authzed.com/docs/spicedb/api/http-api) APIs. For example:
   
-### Deploying to Kubernetes
+```shell
+    # write a schema
+    curl --location 'http://localhost:8443/v1/schema/write' \
+    --header 'Content-Type: application/json' \
+    --header 'Accept: application/json' \
+    --header 'Authorization: Bearer somerandomkeyhere' \
+    --data '{
+        "schema": "definition user {} \n definition folder { \n relation parent: folder\n relation viewer: user \n permission view = viewer + parent->view \n } \n definition document {\n relation folder: folder \n relation viewer: user \n permission view = viewer + folder->view \n }"
+    }'
 
-Production Kubernetes users should be relying on a stable release of the [SpiceDB Operator].
-The Operator enforces not only best practices, but orchestrates SpiceDB updates without downtime.
+    # write a relationship
+    curl --location 'http://localhost:8443/v1/relationships/write' \
+    --header 'Content-Type: application/json' \
+    --header 'Accept: application/json' \
+    --header 'Authorization: Bearer somerandomkeyhere' \
+    --data '{
+        "updates": [
+            {
+                "operation": "OPERATION_TOUCH",
+                "relationship": {
+                    "resource": {
+                        "objectType": "folder",
+                        "objectId": "budget"
+                    },
+                    "relation": "viewer",
+                    "subject": {
+                        "object": {
+                            "objectType": "user",
+                            "objectId": "anne"
+                        }
+                    }
+                }
+            }
+        ]
+    }'
+```
 
-If you're only experimenting, feel free to try out one of our community-maintained [examples] for [testing SpiceDB on Kubernetes]:
+You can follow a [guide for developing a schema] or review the the schema language [design documentation].
+
+Finally, you can watch the [SpiceDB primer video on schema development](https://www.youtube.com/watch?v=AoK0LrkGFDY).
+
+[hosted Playground]: https://play.authzed.com
+[run it yourself locally]: https://github.com/authzed/playground
+[Playground]: https://github.com/authzed/playground
+[guide for developing a schema]: https://docs.authzed.com/guides/schema
+[design documentation]: https://docs.authzed.com/reference/schema-lang
+
+### Query the SpiceDB API
+
+You can use the [client libraries] or the [gRPC](https://buf.build/authzed/api/docs/main:authzed.api.v1) and [HTTP](https://authzed.com/docs/spicedb/api/http-api) APIs to query SpiceDB. For example,
+
+```shell
+curl --location 'http://localhost:8443/v1/permissions/check' \
+--header 'Content-Type: application/json' \
+--header 'Accept: application/json' \
+--header 'Authorization: Bearer somerandomkeyhere' \
+--data '{
+  "consistency": {
+    "minimizeLatency": true
+  },
+  "resource": {
+    "objectType": "folder",
+    "objectId": "budget"
+  },
+  "permission": "view",
+  "subject": {
+    "object": {
+      "objectType": "user",
+      "objectId": "anne"
+    }
+  }
+}'
+
+
+#{
+#    "checkedAt": {
+#        "token": "GhUKEzE3NTE1NjYwMjUwMDAwMDAwMDA="
+#    },
+#    "permissionship": "PERMISSIONSHIP_HAS_PERMISSION"
+#}
+
+'
+```
+
+You can also issue queries with [zed], the official command-line client.
+The [Playground] also has a tab for experimenting with `zed` all from within your browser.
+
+### Integrating SpiceDB into Your Application
+
+To get an understanding of integrating an application with SpiceDB, you can follow the [Protecting Your First App] guide or review API documentation on the [Buf Registry] or [Postman].
+
+[client libraries]: https://github.com/authzed/awesome-spicedb#clients
+[Protecting Your First App]: https://docs.authzed.com/guides/first-app
+[Buf Registry]: https://buf.build/authzed/api/docs
+[Postman]: https://www.postman.com/authzed/workspace/spicedb/overview
+
+### Deploying to Production
+
+The core SpiceDB service has been utilized in production by Authzed since 2021 so you can be confident that it is battle-tested. Moreover, it supports various datastores, including Google Cloud Spanner, CockroachDB, MySQL, and PostgreSQL. Read [this](https://authzed.com/docs/spicedb/concepts/operator) to learn the best practices for each.
+
+You can choose to self-host SpiceDB, or use [AuthZed Cloud], a fully managed service. See a [comparison of the various options](https://authzed.com/docs/authzed/guides/picking-a-product).
+
+If you choose to self-host, we recommend deploying SpiceDB using Kubernetes. If you're only experimenting, feel free to try out one of our community-maintained [examples] for [testing SpiceDB on Kubernetes]:
 
 ```command
 kubectl apply -f https://raw.githubusercontent.com/authzed/examples/main/kubernetes/example.yaml
 ```
 
+For a more detailed guide on the SpiceDB Kubernetes Operator, see [this](https://authzed.com/docs/spicedb/concepts/operator).
+
+For more best practices on deploying SpiceDB, read our [best practices guide].
+
 [examples]: https://github.com/authzed/examples
-[SpiceDB Operator]: https://github.com/authzed/spicedb-operator
 [testing SpiceDB on Kubernetes]: https://github.com/authzed/examples/tree/main/kubernetes
+[AuthZed Cloud]: https://authzed.com/cloud
+[best practices guide]: https://authzed.com/docs/best-practices
 
-### Developing your own schema
+#### Telemetry
 
-You can try both SpiceDB and zed entirely in your browser in the [hosted Playground] thanks to the power of WebAssembly.
-The [Playground app is open source] and can also be self-hosted.
+SpiceDB collects anonymous telemetry data to help us understand how the community is using SpiceDB and to help us prioritize features. This telemetry is opt-out and can be disabled via setting `--telemetry-endpoint=""`. For more information on the telemetry we collect, see [telemetry](./telemetry.md).
 
-If you don't want to start with the examples loadable from the Playground, you can follow a guide for [developing a schema] or review the the schema language [design documentation].
+## More Resources
 
-Watch the SpiceDB primer video to get started with schema development:
+- Ask questions via [GitHub Discussions] or our [Community Discord]
+- Read [blog posts] from the Authzed team describing the project and major announcements
+- Watch our [YouTube videos] about SpiceDB, modeling schemas, leveraging CNCF projects, and more
+- Explore the [SpiceDB Awesome List] that enumerates official and third-party projects built by the community
+- Reference [community examples] for demo environments, integration testing, CI pipelines, and writing schemas
 
-<a href="https://www.youtube.com/watch?v=AoK0LrkGFDY" target="_blank"><img width="600" alt="SpiceDB Primer YouTube Thumbnail" src="https://github.com/authzed/spicedb/assets/343539/7784dfa2-b330-4c5e-b32a-090759e48392"></a>
+[GitHub Discussions]: https://github.com/orgs/authzed/discussions/new?category=q-a
+[Community Discord]: https://authzed.com/discord
+[blog posts]: https://authzed.com/blog
+[SpiceDB Awesome List]: https://github.com/authzed/awesome-spicedb
+[YouTube videos]: https://www.youtube.com/@authzed
+[community examples]: https://github.com/authzed/examples
 
-[hosted Playground]: https://play.authzed.com
-[Playground app is open source]: https://github.com/authzed/playground
-[developing a schema]: https://docs.authzed.com/guides/schema
-[design documentation]: https://docs.authzed.com/reference/schema-lang
+## Join the Community
 
-### Trying out the API
+Join our fellow contributors from companies such as <img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"> GitHub, <img alt="adobe logo" height="15px" src="https://github.com/user-attachments/assets/64007fa0-f342-4eba-bc81-0e078677e918"> Adobe, <img alt="google logo" height="15px" src="https://github.com/user-attachments/assets/15a144f4-4244-40af-be58-53ea3be46bc4"> Google, <img alt="fastly logo" height="15px" src="https://github.com/user-attachments/assets/57f042c3-e106-4524-95b8-167acc6be16e"> Fastly, <img alt="plaid logo" height="15px" src="https://github.com/user-attachments/assets/0678972d-b8ff-41e6-a507-7289a1ee1e94"> Plaid, <img alt="red hat logo" height="15px" src="https://github.com/user-attachments/assets/955a6c28-3a5c-4679-8e12-b50734024be2"> Red Hat, and <img alt="reddit logo" height="15px" src="https://github.com/user-attachments/assets/78d542f9-37f7-4d78-bf34-8aa0b0ddd12d"> Reddit.
 
-For debugging or getting started, we recommend [installing zed], the official command-line client.
-The [Playground] also has a tab for experimenting with zed all from within your browser.
+SpiceDB is a community project where everyone is invited to participate and [feel welcomed].
+While the project has a technical goal, participation is not restricted to those with code contributions.
 
-When it's time to write code, we recommend using one of the [existing client libraries] whether it's official or community-maintained.
+[CONTRIBUTING.md] documents communication, contribution flow, legal requirements, and common tasks when contributing to the project.
 
-Because every millisecond counts, we recommend using libraries that leverage the gRPC API for production workloads.
+You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
+There are also [good first issues].
 
-To get an understanding of integrating an application with SpiceDB, you can follow the [Protecting Your First App] guide or review API documentation on the [Buf Registry] or [Postman].
+Our [documentation] is also [open source][oss-docs] if you'd like to clarify anything you find confusing.
 
-[installing zed]: https://authzed.com/docs/spicedb/getting-started/installing-zed
-[playground]: https://play.authzed.com
-[existing client libraries]: https://github.com/authzed/awesome-spicedb#clients
-[Protecting Your First App]: https://docs.authzed.com/guides/first-app
-[Buf Registry]: https://buf.build/authzed/api/docs
-[Postman]: https://www.postman.com/authzed/workspace/spicedb/overview
+[feel welcomed]: CODE-OF-CONDUCT.md
+[CONTRIBUTING.md]: CONTRIBUTING.md
+[Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
+[High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
+[Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
+[Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
+[Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
+[good first issues]: https://github.com/authzed/spicedb/labels/hint%2Fgood%20first%20issue
+[documentation]: https://authzed.com/docs
+[oss-docs]: https://github.com/authzed
 
 ## Acknowledgements
 
