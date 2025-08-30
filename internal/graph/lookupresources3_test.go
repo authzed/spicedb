@@ -300,9 +300,9 @@ func TestDatastoreCursorSerialization(t *testing.T) {
 	t.Run("nil cursor", func(t *testing.T) {
 		str, err := datastoreCursorToString(nil)
 		require.NoError(t, err)
-		require.Empty(t, str)
+		require.Equal(t, "$dsc:", str)
 
-		cursor, err := datastoreCursorFromString("")
+		cursor, err := datastoreCursorFromString("$dsc:")
 		require.NoError(t, err)
 		require.Nil(t, cursor)
 	})
@@ -315,7 +315,7 @@ func TestDatastoreCursorSerialization(t *testing.T) {
 
 		str, err := datastoreCursorToString(cursor)
 		require.NoError(t, err)
-		require.Empty(t, str)
+		require.Equal(t, "$dsc:", str)
 	})
 
 	t.Run("populated cursor round trip", func(t *testing.T) {
@@ -362,7 +362,13 @@ func TestDatastoreCursorSerialization(t *testing.T) {
 	t.Run("invalid cursor string", func(t *testing.T) {
 		_, err := datastoreCursorFromString("invalid-base64")
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid cursor string")
+		require.Contains(t, err.Error(), "invalid datastore cursor prefix found in datastore cursor")
+	})
+
+	t.Run("invalid cursor string with correct prefix", func(t *testing.T) {
+		_, err := datastoreCursorFromString("$dsc:invalid-base64")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "illegal base64 data")
 	})
 }
 

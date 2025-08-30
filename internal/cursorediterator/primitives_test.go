@@ -271,3 +271,204 @@ func TestYieldsError(t *testing.T) {
 		require.True(t, called, "yield should have been called")
 	})
 }
+
+func TestCountingIterator(t *testing.T) {
+	t.Run("counts items with no errors", func(t *testing.T) {
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", nil) {
+				return
+			}
+			if !yield("c", nil) {
+				return
+			}
+		}
+
+		var finalCount int
+		result := CountingIterator(source, func(count int) {
+			finalCount = count
+		})
+
+		items := collectNoError(t, result)
+
+		require.Equal(t, []string{"a", "b", "c"}, items)
+		require.Equal(t, 3, finalCount)
+	})
+
+	t.Run("does not count items with errors", func(t *testing.T) {
+		testError := errors.New("test error")
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", testError) {
+				return
+			}
+			if !yield("c", nil) {
+				return
+			}
+		}
+
+		var finalCount int
+		result := CountingIterator(source, func(count int) {
+			finalCount = count
+		})
+
+		items, errs := collectAll(result)
+
+		require.Equal(t, []string{"a", "b", "c"}, items)
+		require.Len(t, errs, 3)
+		require.NoError(t, errs[0])
+		require.Equal(t, testError, errs[1])
+		require.NoError(t, errs[2])
+		require.Equal(t, 2, finalCount) // Only counts items without errors
+	})
+
+	t.Run("callback receives correct count", func(t *testing.T) {
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", nil) {
+				return
+			}
+		}
+
+		var finalCount int
+		result := CountingIterator(source, func(count int) {
+			finalCount = count
+		})
+
+		items := collectNoError(t, result)
+
+		require.Equal(t, []string{"a", "b"}, items)
+		require.Equal(t, 2, finalCount)
+	})
+
+	t.Run("empty iterator results in zero count", func(t *testing.T) {
+		source := func(yield func(string, error) bool) {
+			// Empty iterator
+		}
+
+		var finalCount int
+		result := CountingIterator(source, func(count int) {
+			finalCount = count
+		})
+
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 0)
+		require.Equal(t, 0, finalCount)
+	})
+
+	t.Run("early termination by consumer", func(t *testing.T) {
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", nil) { // Should not be reached
+				return
+			}
+			if !yield("c", nil) { // Should not be reached
+				return
+			}
+		}
+
+		var finalCount int
+		result := CountingIterator(source, func(count int) {
+			finalCount = count
+		})
+
+		items := collectFirst(t, result, 1)
+
+		require.Equal(t, []string{"a"}, items)
+		require.Equal(t, 1, finalCount) // Only counts what was actually yielded before termination
+	})
+
+	t.Run("different types", func(t *testing.T) {
+		source := func(yield func(int, error) bool) {
+			if !yield(10, nil) {
+				return
+			}
+			if !yield(20, nil) {
+				return
+			}
+			if !yield(30, nil) {
+				return
+			}
+		}
+
+		var finalCount int
+		result := CountingIterator(source, func(count int) {
+			finalCount = count
+		})
+
+		items := collectNoError(t, result)
+
+		require.Equal(t, []int{10, 20, 30}, items)
+		require.Equal(t, 3, finalCount)
+	})
+
+	t.Run("callback is invoked after iteration completes", func(t *testing.T) {
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", nil) {
+				return
+			}
+		}
+
+		callbackInvoked := false
+		var finalCount int
+		result := CountingIterator(source, func(count int) {
+			callbackInvoked = true
+			finalCount = count
+		})
+
+		// Before iteration, callback should not be invoked
+		require.False(t, callbackInvoked)
+		require.Equal(t, 0, finalCount)
+
+		items := collectNoError(t, result)
+
+		// After iteration, callback should be invoked with correct count
+		require.True(t, callbackInvoked)
+		require.Equal(t, []string{"a", "b"}, items)
+		require.Equal(t, 2, finalCount)
+	})
+}
+
+func TestUncursoredEmpty(t *testing.T) {
+	t.Run("yields no items", func(t *testing.T) {
+		result := UncursoredEmpty[string]()
+
+		items, errs := collectAll(result)
+
+		require.Len(t, items, 0)
+		require.Len(t, errs, 0)
+	})
+
+	t.Run("works with different types", func(t *testing.T) {
+		result := UncursoredEmpty[int]()
+
+		items, errs := collectAll(result)
+
+		require.Len(t, items, 0)
+		require.Len(t, errs, 0)
+	})
+
+	t.Run("consumer function never called", func(t *testing.T) {
+		result := UncursoredEmpty[string]()
+
+		called := false
+		result(func(item string, err error) bool {
+			called = true
+			return true
+		})
+
+		require.False(t, called, "yield function should never be called for empty iterator")
+	})
+}
