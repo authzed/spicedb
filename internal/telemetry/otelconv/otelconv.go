@@ -61,6 +61,7 @@ const (
 	EventDispatchLookupResources3RelationshipsIterMapper   = "spicedb.internal.dispatch.lookupresources3.relationships_iter.mapper"
 	EventDispatchLookupResources3CheckedDispatchIter       = "spicedb.internal.dispatch.lookupresources3.checked_dispatch_iter"
 	EventDispatchLookupResources3DispatchIter              = "spicedb.internal.dispatch.lookupresources3.checked_dispatch_iter"
+	EventDispatchLookupResources3ConcurrentEntrypointsIter = "spicedb.internal.dispatch.lookupresources3.concurrent_entrypoints_iter"
 )
 
 // OpenTelemetry custom attribute names
@@ -76,16 +77,17 @@ const (
 	AttrGraphFoundResourcesCount           = "spicedb.internal.graph.found_resources_count"
 	AttrGraphResourceIDCount               = "spicedb.internal.graph.resource_id_count"
 
-	AttrDispatchResourceType    = "spicedb.internal.dispatch.resource_type"
-	AttrDispatchResourceIds     = "spicedb.internal.dispatch.resource_ids"
-	AttrDispatchSubject         = "spicedb.internal.dispatch.subject"
-	AttrDispatchNodeID          = "spicedb.internal.dispatch.node_id"
-	AttrDispatchStart           = "spicedb.internal.dispatch.start"
-	AttrDispatchSubjectType     = "spicedb.internal.dispatch.subject_type"
-	AttrDispatchSubjectIDs      = "spicedb.internal.dispatch.subject_ids"
-	AttrDispatchSubjectRelation = "spicedb.internal.dispatch.subject_relation"
-	AttrDispatchTerminalSubject = "spicedb.internal.dispatch.terminal_subject"
-	AttrDispatchLREntrypoint    = "spicedb.internal.dispatch.lookupresources3.entrypoint"
+	AttrDispatchResourceType       = "spicedb.internal.dispatch.resource_type"
+	AttrDispatchResourceIds        = "spicedb.internal.dispatch.resource_ids"
+	AttrDispatchSubject            = "spicedb.internal.dispatch.subject"
+	AttrDispatchNodeID             = "spicedb.internal.dispatch.node_id"
+	AttrDispatchStart              = "spicedb.internal.dispatch.start"
+	AttrDispatchSubjectType        = "spicedb.internal.dispatch.subject_type"
+	AttrDispatchSubjectIDs         = "spicedb.internal.dispatch.subject_ids"
+	AttrDispatchSubjectRelation    = "spicedb.internal.dispatch.subject_relation"
+	AttrDispatchTerminalSubject    = "spicedb.internal.dispatch.terminal_subject"
+	AttrDispatchLREntrypoint       = "spicedb.internal.dispatch.lookupresources3.entrypoint"
+	AttrDispatchLRConcurrencyLimit = "spicedb.internal.dispatch.lookupresources3.concurrency_limit"
 
 	AttrDatastoreNames              = "spicedb.internal.datastore.shared.names"
 	AttrDatastoreValue              = "spicedb.internal.datastore.shared.value"
