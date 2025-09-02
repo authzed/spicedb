@@ -240,6 +240,7 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for exclusion permission - should panic
+	// TODO: Remove when exclusion is supported
 	require.Panics(func() {
 		_, _ = BuildIteratorFromSchema(dsSchema, "document", "excluded_perm")
 	})

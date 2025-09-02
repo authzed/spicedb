@@ -5,6 +5,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type iteratorBuilder struct {
@@ -122,7 +123,7 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		return base, nil
 	}
 
-	if br.Subrelation == "" {
+	if br.Subrelation == tuple.Ellipsis {
 		return base, nil
 	}
 

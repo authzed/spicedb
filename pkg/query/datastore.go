@@ -8,9 +8,9 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const NoSubRel = ""
 
 // RelationIterator is a common leaf iterator. It represents the set of all
 // relationships of the given schema.BaseRelation, ie, relations that have a
@@ -30,7 +30,7 @@ func NewRelationIterator(base *schema.BaseRelation) *RelationIterator {
 }
 
 func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelationFilter {
-	if r.base.Subrelation == "" {
+	if r.base.Subrelation == tuple.Ellipsis {
 		return datastore.SubjectRelationFilter{}.WithEllipsisRelation()
 	}
 	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation)

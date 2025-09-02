@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
@@ -109,10 +110,11 @@ func convertTypeInformation(typeinfo *corev1.TypeInformation) (*Relation, error)
 			relationName := allowedRelation.GetRelation()
 			if relationName == "" || relationName == "..." {
 				thisRelation.BaseRelations = append(thisRelation.BaseRelations, &BaseRelation{
-					Parent:     thisRelation,
-					Type:       allowedRelation.GetNamespace(),
-					Caveat:     caveat,
-					Expiration: expiration,
+					Parent:      thisRelation,
+					Type:        allowedRelation.GetNamespace(),
+					Subrelation: tuple.Ellipsis,
+					Caveat:      caveat,
+					Expiration:  expiration,
 				})
 			} else {
 				thisRelation.BaseRelations = append(thisRelation.BaseRelations, &BaseRelation{
