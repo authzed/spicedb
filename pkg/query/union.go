@@ -23,7 +23,8 @@ func (u *Union) addSubIterator(subIt Iterator) {
 }
 
 func (u *Union) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
-	remaining := resourceIDs
+	remaining := make([]string, len(resourceIDs))
+	copy(remaining, resourceIDs)
 	var out []Relation
 	for _, it := range u.subIts {
 		relSeq, err := ctx.Check(it, remaining, subjectID)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/schema/v2"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -85,6 +84,9 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return union, nil
 
 	case *schema.RelationReference:
+		if perm.RelationName == "_nil" {
+			return NewEmptyFixedIterator(), nil
+		}
 		return b.buildIteratorFromSchemaInternal(p.Parent.Name, perm.RelationName, true)
 
 	case *schema.UnionOperation:
@@ -110,7 +112,17 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return inter, nil
 
 	case *schema.ExclusionOperation:
-		return nil, spiceerrors.MustBugf("unimplemented")
+		mainIt, err := b.buildIteratorFromOperation(p, perm.Left)
+		if err != nil {
+			return nil, err
+		}
+
+		excludedIt, err := b.buildIteratorFromOperation(p, perm.Right)
+		if err != nil {
+			return nil, err
+		}
+
+		return NewExclusion(mainIt, excludedIt), nil
 	}
 
 	return nil, fmt.Errorf("uncovered schema permission operation: %T", op)

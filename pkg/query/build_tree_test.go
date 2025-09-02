@@ -243,11 +243,20 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
-	// Test building iterator for exclusion permission - should panic
-	// TODO: Remove when exclusion is supported
-	require.Panics(func() {
-		_, _ = BuildIteratorFromSchema(dsSchema, "document", "excluded_perm")
-	})
+	// Test building iterator for exclusion permission - should succeed
+	it, err := BuildIteratorFromSchema(dsSchema, "document", "excluded_perm")
+	require.NoError(err)
+	require.NotNil(it)
+	require.IsType(&Exclusion{}, it)
+
+	// Verify the explain shows exclusion structure
+	explain := it.Explain()
+	require.Equal("Exclusion", explain.Info)
+	require.Len(explain.SubExplain, 2, "Should have main and excluded sub-iterators")
+
+	// Verify that at least one of the sub-iterators is a FixedIterator (representing _nil)
+	explainStr := explain.String()
+	require.Contains(explainStr, "Fixed")
 }
 
 func TestBuildTreeArrowMissingLeftRelation(t *testing.T) {
