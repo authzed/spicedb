@@ -11,7 +11,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-
 // RelationIterator is a common leaf iterator. It represents the set of all
 // relationships of the given schema.BaseRelation, ie, relations that have a
 // known resource and subject type and may contain caveats or expiration.

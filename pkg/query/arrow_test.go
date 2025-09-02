@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Create context with LocalExecutor
 		ctx := &Context{
-			Context:  context.Background(),
+			Context:  t.Context(),
 			Executor: LocalExecutor{},
 		}
 
@@ -58,7 +57,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Create context with LocalExecutor
 		ctx := &Context{
-			Context:  context.Background(),
+			Context:  t.Context(),
 			Executor: LocalExecutor{},
 		}
 
@@ -75,7 +74,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Create context with LocalExecutor
 		ctx := &Context{
-			Context:  context.Background(),
+			Context:  t.Context(),
 			Executor: LocalExecutor{},
 		}
 
@@ -93,7 +92,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Create context with LocalExecutor
 		ctx := &Context{
-			Context:  context.Background(),
+			Context:  t.Context(),
 			Executor: LocalExecutor{},
 		}
 
@@ -111,7 +110,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Create context with LocalExecutor
 		ctx := &Context{
-			Context:  context.Background(),
+			Context:  t.Context(),
 			Executor: LocalExecutor{},
 		}
 
@@ -125,7 +124,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Create context with LocalExecutor
 		ctx := &Context{
-			Context:  context.Background(),
+			Context:  t.Context(),
 			Executor: LocalExecutor{},
 		}
 
@@ -156,7 +155,7 @@ func TestArrowIteratorClone(t *testing.T) {
 
 	// Create context with LocalExecutor
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 
@@ -209,7 +208,7 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 
 	// Create context with LocalExecutor
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 

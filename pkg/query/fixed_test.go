@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,7 +14,7 @@ func TestFixedIterator(t *testing.T) {
 
 	// Create test context
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 

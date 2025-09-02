@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ func TestUnionIterator(t *testing.T) {
 
 	// Create test context
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 
@@ -279,7 +278,7 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 
 	// Create test context
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 
@@ -334,7 +333,7 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 
 	// Create test context
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 

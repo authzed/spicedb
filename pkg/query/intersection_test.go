@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ func TestIntersectionIterator(t *testing.T) {
 
 	// Create test context
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 
@@ -188,7 +187,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 
 	// Create test context
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 
@@ -276,7 +275,7 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 
 	// Create test context
 	ctx := &Context{
-		Context:  context.Background(),
+		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 
