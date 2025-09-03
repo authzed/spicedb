@@ -41,6 +41,52 @@ func (o Object) WithEllipses() ObjectAndRelation {
 	}
 }
 
+// NewObject creates a new Object with the given object ID and type.
+func NewObject(objectID, objectType string) Object {
+	return Object{
+		ObjectID:   objectID,
+		ObjectType: objectType,
+	}
+}
+
+// NewObjects creates a slice of Objects of the same type with the given object IDs.
+func NewObjects(objectType string, objectIDs ...string) []Object {
+	objects := make([]Object, len(objectIDs))
+	for i, objectID := range objectIDs {
+		objects[i] = Object{
+			ObjectID:   objectID,
+			ObjectType: objectType,
+		}
+	}
+	return objects
+}
+
+// NewObjectAndRelation creates a new ObjectAndRelation with the given object ID, type, and relation.
+func NewObjectAndRelation(objectID, objectType, relation string) ObjectAndRelation {
+	return ObjectAndRelation{
+		ObjectID:   objectID,
+		ObjectType: objectType,
+		Relation:   relation,
+	}
+}
+
+// NewObjectWithEllipsis creates a new ObjectAndRelation with the given object ID and type, using the ellipsis relation.
+func NewObjectWithEllipsis(objectID, objectType string) ObjectAndRelation {
+	return ObjectAndRelation{
+		ObjectID:   objectID,
+		ObjectType: objectType,
+		Relation:   tuple.Ellipsis,
+	}
+}
+
+// GetObject extracts the Object part from an ObjectAndRelation.
+func GetObject(oar ObjectAndRelation) Object {
+	return Object{
+		ObjectID:   oar.ObjectID,
+		ObjectType: oar.ObjectType,
+	}
+}
+
 // Plan is the external-facing notion of a query plan. These follow the general API for
 // querying anything in the database as well as describing the plan.
 type Plan interface {

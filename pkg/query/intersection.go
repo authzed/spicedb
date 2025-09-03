@@ -41,7 +41,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 		}
 
 		validResources = slicez.Map(rels, func(r Relation) Object {
-			return Object{ObjectID: r.Resource.ObjectID, ObjectType: r.Resource.ObjectType}
+			return GetObject(r.Resource)
 		})
 	}
 

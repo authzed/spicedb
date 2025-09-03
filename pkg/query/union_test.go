@@ -32,7 +32,7 @@ func TestUnionIterator(t *testing.T) {
 		union.addSubIterator(documentAccess)
 		union.addSubIterator(multiRole)
 
-		relSeq, err := ctx.Check(union, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -77,7 +77,7 @@ func TestUnionIterator(t *testing.T) {
 		union := NewUnion()
 
 		// Empty union should return empty results
-		relSeq, err := ctx.Check(union, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -93,7 +93,7 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		union.addSubIterator(documentAccess)
 
-		relSeq, err := ctx.Check(union, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -132,7 +132,7 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		union.addSubIterator(documentAccess)
 
-		relSeq, err := ctx.Check(union, []Object{}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(union, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -154,7 +154,7 @@ func TestUnionIterator(t *testing.T) {
 		union.addSubIterator(documentAccess)
 		union.addSubIterator(singleUser)
 
-		relSeq, err := ctx.Check(union, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -172,7 +172,7 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		union.addSubIterator(documentAccess)
 
-		relSeq, err := ctx.Check(union, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "nonexistent", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -186,7 +186,7 @@ func TestUnionIterator(t *testing.T) {
 
 		union := NewUnion()
 		require.Panics(func() {
-			_, _ = ctx.IterSubjects(union, Object{ObjectID: "doc1", ObjectType: "document"})
+			_, _ = ctx.IterSubjects(union, NewObject("doc1", "document"))
 		})
 	})
 
@@ -195,7 +195,7 @@ func TestUnionIterator(t *testing.T) {
 
 		union := NewUnion()
 		require.Panics(func() {
-			_, _ = ctx.IterResources(union, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+			_, _ = ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
 		})
 	})
 }
@@ -294,7 +294,7 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 	union.addSubIterator(documentAccess)
 	union.addSubIterator(multiRole)
 
-	relSeq, err := ctx.Check(union, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+	relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)
@@ -346,7 +346,7 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 	union.addSubIterator(multiRole)
 
 	// Test with multiple resource IDs
-	relSeq, err := ctx.Check(union, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}, {ObjectID: "nonexistent", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+	relSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2", "nonexistent"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)

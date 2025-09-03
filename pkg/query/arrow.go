@@ -47,7 +47,7 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 					yield(Relation{}, err)
 					return
 				}
-				checkResources := []Object{{ObjectID: rel.Subject.ObjectID, ObjectType: rel.Subject.ObjectType}}
+				checkResources := []Object{GetObject(rel.Subject)}
 				checkit, err := a.right.CheckImpl(ctx, checkResources, subject)
 				if err != nil {
 					yield(Relation{}, err)

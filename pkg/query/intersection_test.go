@@ -32,7 +32,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
-		relSeq, err := ctx.Check(intersect, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -77,7 +77,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(singleUser)
 
 		// Use a subject that doesn't exist in both
-		relSeq, err := ctx.Check(intersect, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "bob", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "bob").WithEllipses())
 		require.NoError(err)
 
 		if relSeq != nil {
@@ -93,7 +93,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect := NewIntersection()
 
 		// Empty intersection should return empty results
-		relSeq, err := ctx.Check(intersect, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		// Should return nil sequence since there are no sub-iterators
@@ -112,7 +112,7 @@ func TestIntersectionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect.addSubIterator(documentAccess)
 
-		relSeq, err := ctx.Check(intersect, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -128,7 +128,7 @@ func TestIntersectionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect.addSubIterator(documentAccess)
 
-		relSeq, err := ctx.Check(intersect, []Object{}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(intersect, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		// The behavior with empty resource list may vary by implementation
@@ -151,7 +151,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
-		relSeq, err := ctx.Check(intersect, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "nonexistent", ObjectType: "user", Relation: "..."})
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
 
 		if relSeq != nil {
@@ -166,7 +166,7 @@ func TestIntersectionIterator(t *testing.T) {
 
 		intersect := NewIntersection()
 		require.Panics(func() {
-			_, _ = ctx.IterSubjects(intersect, Object{ObjectID: "doc1", ObjectType: "document"})
+			_, _ = ctx.IterSubjects(intersect, NewObject("doc1", "document"))
 		})
 	})
 
@@ -175,7 +175,7 @@ func TestIntersectionIterator(t *testing.T) {
 
 		intersect := NewIntersection()
 		require.Panics(func() {
-			_, _ = ctx.IterResources(intersect, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+			_, _ = ctx.IterResources(intersect, NewObject("user", "alice").WithEllipses())
 		})
 	})
 }
@@ -213,7 +213,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	subjectID := "alice"
 
 	// Collect results from original iterator
-	originalSeq, err := ctx.Check(original, []Object{{ObjectID: resourceIDs[0], ObjectType: "document"}}, ObjectAndRelation{ObjectID: subjectID, ObjectType: "user", Relation: "..."})
+	originalSeq, err := ctx.Check(original, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
 	var originalResults []Relation
 	if originalSeq != nil {
@@ -222,7 +222,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	}
 
 	// Collect results from cloned iterator
-	clonedSeq, err := ctx.Check(cloned, []Object{{ObjectID: resourceIDs[0], ObjectType: "document"}}, ObjectAndRelation{ObjectID: subjectID, ObjectType: "user", Relation: "..."})
+	clonedSeq, err := ctx.Check(cloned, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
 	var clonedResults []Relation
 	if clonedSeq != nil {
@@ -291,7 +291,7 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 	intersect.addSubIterator(documentAccess)
 
 	// Use any subject - should get no results due to empty first iterator
-	relSeq, err := ctx.Check(intersect, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
+	relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 
 	// Should return empty results since first iterator has no results
