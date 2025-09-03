@@ -37,7 +37,7 @@ func TestBuildTree(t *testing.T) {
 		Revision:  revision,
 	}
 
-	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, []Object{{ObjectID: "specialplan", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "multiroleguy", ObjectType: "user", Relation: "..."})
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -71,7 +71,7 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 		Revision:  revision,
 	}
 
-	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, []Object{{ObjectID: "specialplan", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "multiroleguy", ObjectType: "user", Relation: "..."})
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)
@@ -127,7 +127,7 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	}
 
 	// Just test that the iterator can be executed without error
-	relSeq, err := ctx.Check(it, []string{"companyplan"}, "legal")
+	relSeq, err := ctx.Check(it, []Object{{ObjectID: "companyplan", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "legal", ObjectType: "user", Relation: "..."})
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -214,7 +214,7 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	}
 
 	// Test execution
-	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, []Object{{ObjectID: "specialplan", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "multiroleguy", ObjectType: "user", Relation: "..."})
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -522,7 +522,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	}
 
 	// Test execution
-	relSeq, err := ctx.Check(it, []string{"companyplan"}, "legal")
+	relSeq, err := ctx.Check(it, []Object{{ObjectID: "companyplan", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "legal", ObjectType: "user", Relation: "..."})
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)

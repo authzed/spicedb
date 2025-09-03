@@ -71,7 +71,7 @@ func TestFixedIterator(t *testing.T) {
 		t.Parallel()
 
 		// Test Check method
-		seq, err := ctx.Check(fixed, []string{"doc1", "doc2"}, "alice")
+		seq, err := ctx.Check(fixed, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -86,7 +86,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("Check_NoMatches", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := ctx.Check(fixed, []string{"doc1"}, "nonexistent")
+		seq, err := ctx.Check(fixed, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "nonexistent", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -97,7 +97,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := ctx.IterSubjects(fixed, "doc1")
+		seq, err := ctx.IterSubjects(fixed, Object{ObjectID: "doc1", ObjectType: "document"})
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -114,7 +114,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := ctx.IterResources(fixed, "alice")
+		seq, err := ctx.IterResources(fixed, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -133,12 +133,12 @@ func TestFixedIterator(t *testing.T) {
 		require.NotSame(fixed, cloned)
 
 		// Both should produce the same results
-		originalSeq, err := ctx.Check(fixed, []string{"doc1"}, "alice")
+		originalSeq, err := ctx.Check(fixed, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 		originalResults, err := CollectAll(originalSeq)
 		require.NoError(err)
 
-		clonedSeq, err := ctx.Check(cloned, []string{"doc1"}, "alice")
+		clonedSeq, err := ctx.Check(cloned, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 		clonedResults, err := CollectAll(clonedSeq)
 		require.NoError(err)

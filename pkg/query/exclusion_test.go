@@ -84,7 +84,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2", "doc3"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}, {ObjectID: "doc3", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -103,7 +103,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -121,7 +121,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -146,7 +146,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -165,7 +165,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -193,7 +193,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2", "doc3", "doc4"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}, {ObjectID: "doc3", ObjectType: "document"}, {ObjectID: "doc4", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -227,7 +227,7 @@ func TestExclusionIterator(t *testing.T) {
 		require.IsType(&Exclusion{}, cloned)
 
 		// Test that cloned exclusion works the same as original
-		relSeq, err := cloned.CheckImpl(ctx, []string{"doc1", "doc2"}, "alice")
+		relSeq, err := cloned.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}, {ObjectID: "doc2", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -278,7 +278,7 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -293,7 +293,7 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, []Object{{ObjectID: "doc1", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "alice", ObjectType: "user", Relation: "..."})
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)

@@ -43,7 +43,7 @@ func TestCheck(t *testing.T) {
 		Revision:  revision,
 	}
 
-	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, []Object{{ObjectID: "specialplan", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "multiroleguy", ObjectType: "user", Relation: "..."})
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -73,7 +73,7 @@ func TestBaseIterSubjects(t *testing.T) {
 		Revision:  revision,
 	}
 
-	relSeq, err := ctx.IterSubjects(vande, "specialplan")
+	relSeq, err := ctx.IterSubjects(vande, Object{ObjectID: "specialplan", ObjectType: "document"})
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -106,7 +106,7 @@ func TestCheckArrow(t *testing.T) {
 		Revision:  revision,
 	}
 
-	relSeq, err := ctx.Check(it, []string{"companyplan"}, "legal")
+	relSeq, err := ctx.Check(it, []Object{{ObjectID: "companyplan", ObjectType: "document"}}, ObjectAndRelation{ObjectID: "legal", ObjectType: "user", Relation: "..."})
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
