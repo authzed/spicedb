@@ -140,7 +140,7 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 
 		baseRel := result.BaseRelations[0]
 		require.Equal(t, "user", baseRel.Type)
-		require.Empty(t, baseRel.Subrelation)
+		require.Equal(t, "...", baseRel.Subrelation)
 	})
 
 	t.Run("type information with ellipsis relation", func(t *testing.T) {
@@ -160,7 +160,7 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 
 		baseRel := result.BaseRelations[0]
 		require.Equal(t, "user", baseRel.Type)
-		require.Empty(t, baseRel.Subrelation)
+		require.Equal(t, "...", baseRel.Subrelation)
 	})
 
 	t.Run("type information with specific subrelation", func(t *testing.T) {

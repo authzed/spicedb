@@ -12,6 +12,12 @@ func TestFixedIterator(t *testing.T) {
 	require := require.New(t)
 	t.Parallel()
 
+	// Create test context
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
 	// Create test relations
 	rel1 := tuple.Relationship{
 		RelationshipReference: tuple.RelationshipReference{
@@ -65,7 +71,7 @@ func TestFixedIterator(t *testing.T) {
 		t.Parallel()
 
 		// Test Check method
-		seq, err := fixed.Check(nil, []string{"doc1", "doc2"}, "alice")
+		seq, err := ctx.Check(fixed, []string{"doc1", "doc2"}, "alice")
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -80,7 +86,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("Check_NoMatches", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := fixed.Check(nil, []string{"doc1"}, "nonexistent")
+		seq, err := ctx.Check(fixed, []string{"doc1"}, "nonexistent")
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -91,7 +97,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := fixed.IterSubjects(nil, "doc1")
+		seq, err := ctx.IterSubjects(fixed, "doc1")
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -108,7 +114,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := fixed.IterResources(nil, "alice")
+		seq, err := ctx.IterResources(fixed, "alice")
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -127,12 +133,12 @@ func TestFixedIterator(t *testing.T) {
 		require.NotSame(fixed, cloned)
 
 		// Both should produce the same results
-		originalSeq, err := fixed.Check(nil, []string{"doc1"}, "alice")
+		originalSeq, err := ctx.Check(fixed, []string{"doc1"}, "alice")
 		require.NoError(err)
 		originalResults, err := CollectAll(originalSeq)
 		require.NoError(err)
 
-		clonedSeq, err := cloned.Check(nil, []string{"doc1"}, "alice")
+		clonedSeq, err := ctx.Check(cloned, []string{"doc1"}, "alice")
 		require.NoError(err)
 		clonedResults, err := CollectAll(clonedSeq)
 		require.NoError(err)

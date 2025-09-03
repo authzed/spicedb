@@ -1,12 +1,10 @@
 package query
 
 import (
-	"context"
 	"fmt"
 	"iter"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -20,16 +18,16 @@ type (
 // Plan is the external-facing notion of a query plan. These follow the general API for
 // querying anything in the database as well as describing the plan.
 type Plan interface {
-	// Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
+	// CheckImpl tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
 	// any of the `resourceIDs` are connected to `subjectID`.
 	// Returns the sequence of matching relations, if they exist, at most `len(resourceIDs)`.
-	Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error)
+	CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error)
 
-	// IterSubjects returns a sequence of all the relations in this set that match the given resourceID.
-	IterSubjects(ctx *Context, resourceID string) (RelationSeq, error)
+	// IterSubjectsImpl returns a sequence of all the relations in this set that match the given resourceID.
+	IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error)
 
-	// IterResources returns a sequence of all the relations in this set that match the given subjectID.
-	IterResources(ctx *Context, subjectID string) (RelationSeq, error)
+	// IterResourcesImpl returns a sequence of all the relations in this set that match the given subjectID.
+	IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error)
 
 	// Explain generates a human-readable tree that describes each iterator and its state.
 	Explain() Explain
@@ -68,15 +66,6 @@ func (e Explain) IndentString(depth int) string {
 		sb.WriteString(sub.IndentString(depth + 1))
 	}
 	return fmt.Sprintf("%s%s\n%s", strings.Repeat("\t", depth), e.Info, sb.String())
-}
-
-// Context represents a single execution of a query.
-// It is both a standard context.Context and all the query-time specific references needed to evaluate a query, such as which
-// datastore it is running against.
-type Context struct {
-	context.Context
-	Datastore datastore.ReadOnlyDatastore
-	Revision  datastore.Revision
 }
 
 // CollectAll is a helper function to build read a complete RelationSeq and turn it into a fully realized slice of Relations.

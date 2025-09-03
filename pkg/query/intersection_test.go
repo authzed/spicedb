@@ -13,6 +13,12 @@ func TestIntersectionIterator(t *testing.T) {
 
 	require := require.New(t)
 
+	// Create test context
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
 	t.Run("Check_Intersection", func(t *testing.T) {
 		t.Parallel()
 
@@ -26,7 +32,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
-		relSeq, err := intersect.Check(nil, []string{"doc1"}, "alice")
+		relSeq, err := ctx.Check(intersect, []string{"doc1"}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -71,7 +77,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(singleUser)
 
 		// Use a subject that doesn't exist in both
-		relSeq, err := intersect.Check(nil, []string{"doc1"}, "bob")
+		relSeq, err := ctx.Check(intersect, []string{"doc1"}, "bob")
 		require.NoError(err)
 
 		if relSeq != nil {
@@ -87,7 +93,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect := NewIntersection()
 
 		// Empty intersection should return empty results
-		relSeq, err := intersect.Check(nil, []string{"doc1"}, "alice")
+		relSeq, err := ctx.Check(intersect, []string{"doc1"}, "alice")
 		require.NoError(err)
 
 		// Should return nil sequence since there are no sub-iterators
@@ -106,7 +112,7 @@ func TestIntersectionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect.addSubIterator(documentAccess)
 
-		relSeq, err := intersect.Check(nil, []string{"doc1"}, "alice")
+		relSeq, err := ctx.Check(intersect, []string{"doc1"}, "alice")
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -122,7 +128,7 @@ func TestIntersectionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect.addSubIterator(documentAccess)
 
-		relSeq, err := intersect.Check(nil, []string{}, "alice")
+		relSeq, err := ctx.Check(intersect, []string{}, "alice")
 		require.NoError(err)
 
 		// The behavior with empty resource list may vary by implementation
@@ -145,7 +151,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
-		relSeq, err := intersect.Check(nil, []string{"doc1"}, "nonexistent")
+		relSeq, err := ctx.Check(intersect, []string{"doc1"}, "nonexistent")
 		require.NoError(err)
 
 		if relSeq != nil {
@@ -160,7 +166,7 @@ func TestIntersectionIterator(t *testing.T) {
 
 		intersect := NewIntersection()
 		require.Panics(func() {
-			_, _ = intersect.IterSubjects(nil, "doc1")
+			_, _ = ctx.IterSubjects(intersect, "doc1")
 		})
 	})
 
@@ -169,7 +175,7 @@ func TestIntersectionIterator(t *testing.T) {
 
 		intersect := NewIntersection()
 		require.Panics(func() {
-			_, _ = intersect.IterResources(nil, "alice")
+			_, _ = ctx.IterResources(intersect, "alice")
 		})
 	})
 }
@@ -178,6 +184,12 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	t.Parallel()
 
 	require := require.New(t)
+
+	// Create test context
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
 
 	original := NewIntersection()
 
@@ -201,7 +213,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	subjectID := "alice"
 
 	// Collect results from original iterator
-	originalSeq, err := original.Check(nil, resourceIDs, subjectID)
+	originalSeq, err := ctx.Check(original, resourceIDs, subjectID)
 	require.NoError(err)
 	var originalResults []Relation
 	if originalSeq != nil {
@@ -210,7 +222,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	}
 
 	// Collect results from cloned iterator
-	clonedSeq, err := cloned.Check(nil, resourceIDs, subjectID)
+	clonedSeq, err := ctx.Check(cloned, resourceIDs, subjectID)
 	require.NoError(err)
 	var clonedResults []Relation
 	if clonedSeq != nil {
@@ -261,6 +273,12 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 
 	require := require.New(t)
 
+	// Create test context
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
 	// Create an intersection where the first iterator returns no results
 	// This should cause early termination
 	intersect := NewIntersection()
@@ -273,7 +291,7 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 	intersect.addSubIterator(documentAccess)
 
 	// Use any subject - should get no results due to empty first iterator
-	relSeq, err := intersect.Check(nil, []string{"doc1"}, "alice")
+	relSeq, err := ctx.Check(intersect, []string{"doc1"}, "alice")
 	require.NoError(err)
 
 	// Should return empty results since first iterator has no results

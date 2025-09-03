@@ -38,11 +38,12 @@ func TestCheck(t *testing.T) {
 
 	ctx := &Context{
 		Context:   t.Context(),
+		Executor:  LocalExecutor{},
 		Datastore: ds,
 		Revision:  revision,
 	}
 
-	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -67,11 +68,12 @@ func TestBaseIterSubjects(t *testing.T) {
 
 	ctx := &Context{
 		Context:   t.Context(),
+		Executor:  LocalExecutor{},
 		Datastore: ds,
 		Revision:  revision,
 	}
 
-	relSeq, err := vande.IterSubjects(ctx, "specialplan")
+	relSeq, err := ctx.IterSubjects(vande, "specialplan")
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -99,11 +101,12 @@ func TestCheckArrow(t *testing.T) {
 
 	ctx := &Context{
 		Context:   t.Context(),
+		Executor:  LocalExecutor{},
 		Datastore: ds,
 		Revision:  revision,
 	}
 
-	relSeq, err := it.Check(ctx, []string{"companyplan"}, "legal")
+	relSeq, err := ctx.Check(it, []string{"companyplan"}, "legal")
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)

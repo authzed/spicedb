@@ -22,11 +22,11 @@ func (u *Union) addSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
-func (u *Union) Check(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (u *Union) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
 	remaining := resourceIDs
 	var out []Relation
 	for _, it := range u.subIts {
-		relSeq, err := it.Check(ctx, remaining, subjectID)
+		relSeq, err := ctx.Check(it, remaining, subjectID)
 		if err != nil {
 			return nil, err
 		}
@@ -57,11 +57,11 @@ func (u *Union) Check(ctx *Context, resourceIDs []string, subjectID string) (Rel
 	}, nil
 }
 
-func (u *Union) IterSubjects(ctx *Context, resourceID string) (RelationSeq, error) {
+func (u *Union) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (u *Union) IterResources(ctx *Context, subjectID string) (RelationSeq, error) {
+func (u *Union) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

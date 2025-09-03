@@ -32,11 +32,12 @@ func TestBuildTree(t *testing.T) {
 
 	ctx := &Context{
 		Context:   t.Context(),
+		Executor:  LocalExecutor{},
 		Datastore: ds,
 		Revision:  revision,
 	}
 
-	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -65,11 +66,12 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 
 	ctx := &Context{
 		Context:   t.Context(),
+		Executor:  LocalExecutor{},
 		Datastore: ds,
 		Revision:  revision,
 	}
 
-	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)
@@ -119,12 +121,13 @@ func TestBuildTreeSubRelations(t *testing.T) {
 
 	ctx := &Context{
 		Context:   t.Context(),
+		Executor:  LocalExecutor{},
 		Datastore: ds,
 		Revision:  revision,
 	}
 
 	// Just test that the iterator can be executed without error
-	relSeq, err := it.Check(ctx, []string{"companyplan"}, "legal")
+	relSeq, err := ctx.Check(it, []string{"companyplan"}, "legal")
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -205,12 +208,13 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 
 	ctx := &Context{
 		Context:   t.Context(),
+		Executor:  LocalExecutor{},
 		Datastore: ds,
 		Revision:  revision,
 	}
 
 	// Test execution
-	relSeq, err := it.Check(ctx, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -240,6 +244,7 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for exclusion permission - should panic
+	// TODO: Remove when exclusion is supported
 	require.Panics(func() {
 		_, _ = BuildIteratorFromSchema(dsSchema, "document", "excluded_perm")
 	})
@@ -295,12 +300,13 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 
 	ctx := &Context{
 		Context:   t.Context(),
+		Executor:  LocalExecutor{},
 		Datastore: ds,
 		Revision:  revision,
 	}
 
 	// Test execution
-	relSeq, err := it.Check(ctx, []string{"companyplan"}, "legal")
+	relSeq, err := ctx.Check(it, []string{"companyplan"}, "legal")
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
