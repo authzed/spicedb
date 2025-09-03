@@ -23,7 +23,7 @@ func NewArrow(left, right Iterator) *Arrow {
 	}
 }
 
-func (a *Arrow) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
 	// TODO -- the ordering, directionality, batching, everything can depend on other statistics.
 	//
 	// There are three major strategies:
@@ -36,8 +36,8 @@ func (a *Arrow) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) 
 	// don't restructure the tree, but can affect the best way to evaluate the tree, sometimes dynamically.
 
 	return func(yield func(Relation, error) bool) {
-		for _, rid := range resourceIDs {
-			subit, err := ctx.IterSubjects(a.left, rid)
+		for _, resource := range resources {
+			subit, err := a.left.IterSubjectsImpl(ctx, resource)
 			if err != nil {
 				yield(Relation{}, err)
 				return
@@ -47,7 +47,8 @@ func (a *Arrow) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) 
 					yield(Relation{}, err)
 					return
 				}
-				checkit, err := ctx.Check(a.right, []string{rel.Subject.ObjectID}, subjectID)
+				checkResources := []Object{{ObjectID: rel.Subject.ObjectID, ObjectType: rel.Subject.ObjectType}}
+				checkit, err := a.right.CheckImpl(ctx, checkResources, subject)
 				if err != nil {
 					yield(Relation{}, err)
 					return
@@ -75,11 +76,11 @@ func (a *Arrow) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) 
 	}, nil
 }
 
-func (a *Arrow) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (a *Arrow) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

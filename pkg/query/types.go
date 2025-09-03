@@ -13,7 +13,33 @@ type (
 	Relation = tuple.Relationship
 	// RelationSeq is the intermediate iter closure that any of the planning calls return.
 	RelationSeq iter.Seq2[Relation, error]
+	// ObjectAndRelation is both an entity and it's subrelation, imported from tuple.
+	ObjectAndRelation = tuple.ObjectAndRelation
 )
+
+// Object represents a single object, without specifying the relation.
+type Object struct {
+	ObjectID   string
+	ObjectType string
+}
+
+// WithRelation builds a full ObjectAndRelation out of the given Object.
+func (o Object) WithRelation(relation string) ObjectAndRelation {
+	return ObjectAndRelation{
+		ObjectID:   o.ObjectID,
+		ObjectType: o.ObjectType,
+		Relation:   relation,
+	}
+}
+
+// WithEllipses builds an ObjectAndRelation from an object with the default ellipses relation.
+func (o Object) WithEllipses() ObjectAndRelation {
+	return ObjectAndRelation{
+		ObjectID:   o.ObjectID,
+		ObjectType: o.ObjectType,
+		Relation:   tuple.Ellipsis,
+	}
+}
 
 // Plan is the external-facing notion of a query plan. These follow the general API for
 // querying anything in the database as well as describing the plan.
@@ -21,13 +47,13 @@ type Plan interface {
 	// CheckImpl tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
 	// any of the `resourceIDs` are connected to `subjectID`.
 	// Returns the sequence of matching relations, if they exist, at most `len(resourceIDs)`.
-	CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error)
+	CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error)
 
 	// IterSubjectsImpl returns a sequence of all the relations in this set that match the given resourceID.
-	IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error)
+	IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error)
 
 	// IterResourcesImpl returns a sequence of all the relations in this set that match the given subjectID.
-	IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error)
+	IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error)
 
 	// Explain generates a human-readable tree that describes each iterator and its state.
 	Explain() Explain

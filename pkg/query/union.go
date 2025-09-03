@@ -22,12 +22,12 @@ func (u *Union) addSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
-func (u *Union) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
-	remaining := make([]string, len(resourceIDs))
-	copy(remaining, resourceIDs)
+func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+	remaining := make([]Object, len(resources))
+	copy(remaining, resources)
 	var out []Relation
 	for _, it := range u.subIts {
-		relSeq, err := ctx.Check(it, remaining, subjectID)
+		relSeq, err := it.CheckImpl(ctx, remaining, subject)
 		if err != nil {
 			return nil, err
 		}
@@ -40,8 +40,11 @@ func (u *Union) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) 
 
 		// If some subset have already passed the check, no need to check them again.
 		for _, r := range rels {
-			if idx := slices.Index(remaining, r.Resource.ObjectID); idx != -1 {
-				remaining = slices.Delete(remaining, idx, idx+1)
+			for idx, res := range remaining {
+				if res.ObjectID == r.Resource.ObjectID && res.ObjectType == r.Resource.ObjectType {
+					remaining = slices.Delete(remaining, idx, idx+1)
+					break
+				}
 			}
 		}
 
@@ -58,11 +61,11 @@ func (u *Union) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) 
 	}, nil
 }
 
-func (u *Union) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (u *Union) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

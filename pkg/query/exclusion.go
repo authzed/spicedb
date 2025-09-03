@@ -20,9 +20,9 @@ func NewExclusion(mainSet, excluded Iterator) *Exclusion {
 	}
 }
 
-func (e *Exclusion) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
 	// Get all relations from the main set
-	mainSeq, err := ctx.Check(e.mainSet, resourceIDs, subjectID)
+	mainSeq, err := e.mainSet.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (e *Exclusion) CheckImpl(ctx *Context, resourceIDs []string, subjectID stri
 	}
 
 	// Get all relations from the excluded set
-	excludedSeq, err := ctx.Check(e.excluded, resourceIDs, subjectID)
+	excludedSeq, err := e.excluded.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +76,11 @@ func (e *Exclusion) CheckImpl(ctx *Context, resourceIDs []string, subjectID stri
 	}, nil
 }
 
-func (e *Exclusion) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (e *Exclusion) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
