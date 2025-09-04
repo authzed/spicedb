@@ -1,6 +1,7 @@
 package query
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,6 +11,47 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// FaultyIterator is a test helper that simulates iterator errors
+type FaultyIterator struct {
+	shouldFailOnCheck   bool
+	shouldFailOnCollect bool
+}
+
+var _ Iterator = &FaultyIterator{}
+
+func (f *FaultyIterator) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+	if f.shouldFailOnCheck {
+		return nil, fmt.Errorf("faulty iterator error")
+	}
+	// Return a sequence that will fail during collection
+	if f.shouldFailOnCollect {
+		return func(yield func(Relation, error) bool) {
+			yield(Relation{}, fmt.Errorf("faulty iterator collection error"))
+		}, nil
+	}
+	// Return empty sequence
+	return func(yield func(Relation, error) bool) {}, nil
+}
+
+func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+	return nil, fmt.Errorf("unimplemented")
+}
+
+func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+	return nil, fmt.Errorf("unimplemented")
+}
+
+func (f *FaultyIterator) Clone() Iterator {
+	return &FaultyIterator{
+		shouldFailOnCheck:   f.shouldFailOnCheck,
+		shouldFailOnCollect: f.shouldFailOnCollect,
+	}
+}
+
+func (f *FaultyIterator) Explain() Explain {
+	return Explain{Info: "FaultyIterator"}
+}
 
 func TestExclusionIterator(t *testing.T) {
 	t.Parallel()
@@ -258,5 +300,223 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 		require.NoError(err)
 		require.Len(rels, 1, "Should return main set when excluded set is empty")
 		require.Equal(rel1, rels[0])
+	})
+}
+
+func TestExclusionUnimplementedMethods(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	ctx := &Context{
+		Context:   t.Context(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
+	}
+
+	rel1 := tuple.MustParse("document:doc1#viewer@user:alice")
+	mainSet := NewFixedIterator(rel1)
+	excludedSet := NewFixedIterator()
+
+	exclusion := NewExclusion(mainSet, excludedSet)
+
+	t.Run("IterSubjectsImpl Unimplemented", func(t *testing.T) {
+		t.Parallel()
+		require.Panics(func() {
+			_, _ = exclusion.IterSubjectsImpl(ctx, "doc1")
+		}, "Should panic since method is unimplemented")
+	})
+
+	t.Run("IterResourcesImpl Unimplemented", func(t *testing.T) {
+		t.Parallel()
+		require.Panics(func() {
+			_, _ = exclusion.IterResourcesImpl(ctx, "alice")
+		}, "Should panic since method is unimplemented")
+	})
+}
+
+func TestExclusionErrorHandling(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	ctx := &Context{
+		Context:   t.Context(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
+	}
+
+	rel1 := tuple.MustParse("document:doc1#viewer@user:alice")
+
+	t.Run("Main Set Error Propagation", func(t *testing.T) {
+		t.Parallel()
+		// Create a faulty iterator for the main set
+		mainSet := &FaultyIterator{shouldFailOnCheck: true}
+		excludedSet := NewFixedIterator(rel1)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		require.Error(err)
+		require.Contains(err.Error(), "faulty iterator error")
+		require.Nil(relSeq)
+	})
+
+	t.Run("Excluded Set Error Propagation", func(t *testing.T) {
+		t.Parallel()
+		// Create a normal main set and faulty excluded set
+		mainSet := NewFixedIterator(rel1)
+		excludedSet := &FaultyIterator{shouldFailOnCheck: true}
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		require.Error(err)
+		require.Contains(err.Error(), "faulty iterator error")
+		require.Nil(relSeq)
+	})
+
+	t.Run("Main Set Collection Error", func(t *testing.T) {
+		t.Parallel()
+		// Create an iterator that fails during collection
+		mainSet := &FaultyIterator{shouldFailOnCollect: true}
+		excludedSet := NewFixedIterator(rel1)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		require.Error(err)
+		require.Contains(err.Error(), "faulty iterator collection error")
+		require.Nil(relSeq)
+	})
+
+	t.Run("Excluded Set Collection Error", func(t *testing.T) {
+		t.Parallel()
+		// Create an iterator that fails during collection
+		mainSet := NewFixedIterator(rel1)
+		excludedSet := &FaultyIterator{shouldFailOnCollect: true}
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		require.Error(err)
+		require.Contains(err.Error(), "faulty iterator collection error")
+		require.Nil(relSeq)
+	})
+}
+
+func TestExclusionWithComplexIteratorTypes(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	ctx := &Context{
+		Context:   t.Context(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
+	}
+
+	// Create test relations
+	rel1 := tuple.MustParse("document:doc1#viewer@user:alice")
+	rel2 := tuple.MustParse("document:doc2#viewer@user:alice")
+	rel3 := tuple.MustParse("document:doc3#viewer@user:alice")
+	rel4 := tuple.MustParse("document:doc4#viewer@user:alice")
+
+	t.Run("Exclusion with Union as Main Set", func(t *testing.T) {
+		t.Parallel()
+		// Create union iterator as main set
+		union := NewUnion()
+		union.addSubIterator(NewFixedIterator(rel1, rel2))
+		union.addSubIterator(NewFixedIterator(rel3))
+
+		excludedSet := NewFixedIterator(rel2) // Exclude rel2
+
+		exclusion := NewExclusion(union, excludedSet)
+
+		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2", "doc3"}, "alice")
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+		require.Len(rels, 2, "Should return rel1 and rel3, excluding rel2")
+
+		// Check which relations we got
+		foundRel1, foundRel3 := false, false
+		for _, rel := range rels {
+			if rel.Resource.ObjectID == "doc1" {
+				foundRel1 = true
+			}
+			if rel.Resource.ObjectID == "doc3" {
+				foundRel3 = true
+			}
+		}
+		require.True(foundRel1, "Should contain rel1")
+		require.True(foundRel3, "Should contain rel3")
+	})
+
+	t.Run("Exclusion with Union as Excluded Set", func(t *testing.T) {
+		t.Parallel()
+		mainSet := NewFixedIterator(rel1, rel2, rel3, rel4)
+
+		// Create union iterator as excluded set
+		union := NewUnion()
+		union.addSubIterator(NewFixedIterator(rel2))
+		union.addSubIterator(NewFixedIterator(rel4))
+
+		exclusion := NewExclusion(mainSet, union)
+
+		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2", "doc3", "doc4"}, "alice")
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+		require.Len(rels, 2, "Should return rel1 and rel3, excluding rel2 and rel4")
+
+		// Check which relations we got
+		foundRel1, foundRel3 := false, false
+		for _, rel := range rels {
+			if rel.Resource.ObjectID == "doc1" {
+				foundRel1 = true
+			}
+			if rel.Resource.ObjectID == "doc3" {
+				foundRel3 = true
+			}
+		}
+		require.True(foundRel1, "Should contain rel1")
+		require.True(foundRel3, "Should contain rel3")
+	})
+
+	t.Run("Nested Exclusion", func(t *testing.T) {
+		t.Parallel()
+		// Create a nested exclusion: (rel1 + rel2 + rel3) - rel2 - rel3
+		innerMainSet := NewFixedIterator(rel1, rel2, rel3)
+		innerExcludedSet := NewFixedIterator(rel2)
+		innerExclusion := NewExclusion(innerMainSet, innerExcludedSet)
+
+		outerExcludedSet := NewFixedIterator(rel3)
+		outerExclusion := NewExclusion(innerExclusion, outerExcludedSet)
+
+		relSeq, err := outerExclusion.CheckImpl(ctx, []string{"doc1", "doc2", "doc3"}, "alice")
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+		require.Len(rels, 1, "Should return only rel1 after nested exclusions")
+		require.Equal("doc1", rels[0].Resource.ObjectID)
 	})
 }

@@ -259,6 +259,213 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	require.Contains(explainStr, "Fixed")
 }
 
+func TestBuildTreeExclusionEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	ctx := &Context{
+		Context:   t.Context(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
+	}
+
+	userDef := testfixtures.UserNS.CloneVT()
+
+	t.Run("Exclusion with Relation Reference", func(t *testing.T) {
+		t.Parallel()
+		// Create schema with exclusion using relation references
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("can_view",
+				namespace.Exclusion(
+					namespace.ComputedUserset("viewer"),
+					namespace.ComputedUserset("owner"),
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "can_view")
+		require.NoError(err)
+		require.NotNil(it)
+		require.IsType(&Exclusion{}, it)
+
+		// Test execution doesn't crash
+		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		require.NoError(err)
+		_, err = CollectAll(relSeq)
+		require.NoError(err)
+	})
+
+	t.Run("Exclusion with Union Operations", func(t *testing.T) {
+		t.Parallel()
+		// Create schema with exclusion containing union operations
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("editor", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("restricted_viewers",
+				namespace.Exclusion(
+					namespace.Rewrite(
+						namespace.Union(
+							namespace.ComputedUserset("viewer"),
+							namespace.ComputedUserset("editor"),
+						),
+					),
+					namespace.ComputedUserset("owner"),
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "restricted_viewers")
+		require.NoError(err)
+		require.NotNil(it)
+		require.IsType(&Exclusion{}, it)
+
+		// Verify the structure includes union in main set
+		explain := it.Explain()
+		require.Equal("Exclusion", explain.Info)
+		require.Len(explain.SubExplain, 2)
+		explainStr := explain.String()
+		require.Contains(explainStr, "Union")
+	})
+
+	t.Run("Exclusion with Intersection Operations", func(t *testing.T) {
+		t.Parallel()
+		// Create schema with exclusion containing intersection operations
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("editor", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("restricted_view",
+				namespace.Exclusion(
+					namespace.Rewrite(
+						namespace.Intersection(
+							namespace.ComputedUserset("editor"),
+							namespace.ComputedUserset("owner"),
+						),
+					),
+					namespace.Nil(),
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "restricted_view")
+		require.NoError(err)
+		require.NotNil(it)
+		require.IsType(&Exclusion{}, it)
+
+		// Verify the structure includes intersection in main set
+		explain := it.Explain()
+		require.Equal("Exclusion", explain.Info)
+		require.Len(explain.SubExplain, 2)
+		explainStr := explain.String()
+		require.Contains(explainStr, "Intersection")
+	})
+
+	t.Run("Nested Exclusion Operations", func(t *testing.T) {
+		t.Parallel()
+		// Create schema with nested exclusions
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("all_users", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("banned_users", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("restricted_users", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("allowed_users",
+				namespace.Exclusion(
+					namespace.Rewrite(
+						namespace.Exclusion(
+							namespace.ComputedUserset("all_users"),
+							namespace.ComputedUserset("banned_users"),
+						),
+					),
+					namespace.ComputedUserset("restricted_users"),
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "allowed_users")
+		require.NoError(err)
+		require.NotNil(it)
+		require.IsType(&Exclusion{}, it)
+
+		// Verify nested structure
+		explain := it.Explain()
+		require.Equal("Exclusion", explain.Info)
+		require.Len(explain.SubExplain, 2)
+
+		// The first sub-explain should be another exclusion
+		mainSetExplain := explain.SubExplain[0]
+		require.Equal("Exclusion", mainSetExplain.Info)
+	})
+
+	t.Run("Exclusion with Error in Left Operation", func(t *testing.T) {
+		t.Parallel()
+		// Create schema with exclusion where left operation references non-existent relation
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("bad_exclusion",
+				namespace.Exclusion(
+					namespace.ComputedUserset("nonexistent_relation"),
+					namespace.ComputedUserset("viewer"),
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		// Building iterator should fail due to missing relation
+		_, err = BuildIteratorFromSchema(dsSchema, "document", "bad_exclusion")
+		require.Error(err)
+		require.Contains(err.Error(), "couldn't find a relation or permission named `nonexistent_relation`")
+	})
+
+	t.Run("Exclusion with Error in Right Operation", func(t *testing.T) {
+		t.Parallel()
+		// Create schema with exclusion where right operation references non-existent relation
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("bad_exclusion",
+				namespace.Exclusion(
+					namespace.ComputedUserset("viewer"),
+					namespace.ComputedUserset("nonexistent_relation"),
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		// Building iterator should fail due to missing relation
+		_, err = BuildIteratorFromSchema(dsSchema, "document", "bad_exclusion")
+		require.Error(err)
+		require.Contains(err.Error(), "couldn't find a relation or permission named `nonexistent_relation`")
+	})
+}
+
 func TestBuildTreeArrowMissingLeftRelation(t *testing.T) {
 	t.Parallel()
 
@@ -320,4 +527,177 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 
 	_, err = CollectAll(relSeq)
 	require.NoError(err)
+}
+
+func TestBuildTreeSubrelationHandling(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	ctx := &Context{
+		Context:   t.Context(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
+	}
+
+	userDef := testfixtures.UserNS.CloneVT()
+
+	t.Run("Base Relation with Ellipsis Subrelation", func(t *testing.T) {
+		t.Parallel()
+		// Test base relation with ellipsis - should return just the base relation
+		groupDef := namespace.Namespace("group",
+			namespace.MustRelation("member",
+				namespace.Union(
+					namespace.ComputedUserset("member"),
+				),
+			),
+		)
+
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("parent", nil, namespace.AllowedRelation("document", "...")),
+			namespace.MustRelation("viewer",
+				namespace.Union(
+					namespace.TupleToUserset("parent", "viewer"),
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, groupDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		_, err = BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.Error(err)
+		require.Contains(err.Error(), "recursive schema iterators are as yet unsupported", "Self-referential schema should be detected")
+	})
+
+	t.Run("Base Relation with Specific Subrelation", func(t *testing.T) {
+		t.Parallel()
+		// Create schema with specific subrelation that should create union with arrow
+		groupDef := namespace.Namespace("group",
+			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("admin", nil, namespace.AllowedRelation("user", "...")),
+		)
+
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("parent", nil, namespace.AllowedRelation("group", "...")),
+			namespace.MustRelation("viewer",
+				namespace.Union(
+					namespace.TupleToUserset("parent", "admin"), // This should create arrow from parent to admin
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, groupDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// Should create union with arrow for subrelation handling
+		explain := it.Explain()
+		explainStr := explain.String()
+		require.Contains(explainStr, "Union") // Should contain union for base relation + arrow
+
+		// Test execution doesn't crash
+		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		require.NoError(err)
+		_, err = CollectAll(relSeq)
+		require.NoError(err)
+	})
+
+	t.Run("Base Relation Without Subrelations Disabled", func(t *testing.T) {
+		t.Parallel()
+		// Test base relation iterator with withSubRelations = false
+		// This hits the buildBaseRelationIterator path where subrelations are disabled
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("parent", nil, namespace.AllowedRelation("document", "...")),
+			namespace.MustRelation("viewer",
+				namespace.Union(
+					namespace.TupleToUserset("parent", "viewer"), // Arrow operation disables subrelations
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		_, err = BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.Error(err)
+		require.Contains(err.Error(), "recursive schema iterators are as yet unsupported", "Self-referential schema should be detected")
+	})
+
+	t.Run("Base Relation with Missing Subrelation Definition", func(t *testing.T) {
+		t.Parallel()
+		// Create schema where base relation references a subrelation that doesn't exist in target
+		groupDef := namespace.Namespace("group",
+			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
+			// Missing "nonexistent" relation
+		)
+
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("parent", nil, namespace.AllowedRelation("group", "...")),
+			namespace.MustRelation("viewer",
+				namespace.Union(
+					namespace.TupleToUserset("parent", "nonexistent"), // References non-existent relation
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, groupDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		// Should fail when trying to build iterator due to missing subrelation
+		_, err = BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.Error(err)
+		require.Contains(err.Error(), "couldn't find a relation or permission named `nonexistent`")
+	})
+
+	t.Run("Multiple Base Relations with Different Subrelation Handling", func(t *testing.T) {
+		t.Parallel()
+		// Test relation with multiple base relations, some with subrelations, some without
+		groupDef := namespace.Namespace("group",
+			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
+			namespace.MustRelation("admin", nil, namespace.AllowedRelation("user", "...")),
+		)
+
+		docDef := namespace.Namespace("document",
+			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")), // Simple relation without subrelations
+			namespace.MustRelation("parent", nil, namespace.AllowedRelation("group", "...")),
+			namespace.MustRelation("viewer",
+				namespace.Union(
+					namespace.ComputedUserset("owner"),          // Direct relation
+					namespace.TupleToUserset("parent", "admin"), // Arrow with subrelation
+				),
+			),
+		)
+
+		objectDefs := []*corev1.NamespaceDefinition{userDef, groupDef, docDef}
+		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+		require.NoError(err)
+
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// Should create union with mixed relation types
+		explain := it.Explain()
+		explainStr := explain.String()
+		require.Contains(explainStr, "Union") // Should contain union for different relation types
+
+		// Test execution doesn't crash
+		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		require.NoError(err)
+		_, err = CollectAll(relSeq)
+		require.NoError(err)
+	})
 }
