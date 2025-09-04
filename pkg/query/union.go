@@ -40,7 +40,7 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	seen := make(map[string]bool)
 	var deduplicated []Relation
 	for _, rel := range out {
-		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID + "#" + rel.Resource.Relation + "@" + rel.Subject.ObjectType + ":" + rel.Subject.ObjectID + "#" + rel.Subject.Relation
+		key := rel.String()
 		if !seen[key] {
 			seen[key] = true
 			deduplicated = append(deduplicated, rel)

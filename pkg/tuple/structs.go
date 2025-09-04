@@ -68,6 +68,10 @@ type RelationshipReference struct {
 	Subject  ObjectAndRelation
 }
 
+func (rr RelationshipReference) String() string {
+	return fmt.Sprintf("%s@%s", rr.Resource.String(), rr.Subject.String())
+}
+
 // Relationship represents a relationship between two objects.
 type Relationship struct {
 	OptionalCaveat     *core.ContextualizedCaveat
