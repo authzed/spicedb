@@ -301,7 +301,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.IsType(&Exclusion{}, it)
 
 		// Test execution doesn't crash
-		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 		_, err = CollectAll(relSeq)
 		require.NoError(err)
@@ -607,7 +607,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		require.Contains(explainStr, "Union") // Should contain union for base relation + arrow
 
 		// Test execution doesn't crash
-		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 		_, err = CollectAll(relSeq)
 		require.NoError(err)
@@ -695,7 +695,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		require.Contains(explainStr, "Union") // Should contain union for different relation types
 
 		// Test execution doesn't crash
-		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 		_, err = CollectAll(relSeq)
 		require.NoError(err)

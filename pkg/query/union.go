@@ -1,8 +1,6 @@
 package query
 
 import (
-	"slices"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -23,11 +21,10 @@ func (u *Union) addSubIterator(subIt Iterator) {
 }
 
 func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
-	remaining := make([]Object, len(resources))
-	copy(remaining, resources)
 	var out []Relation
+	// Collect relations from all sub-iterators
 	for _, it := range u.subIts {
-		relSeq, err := it.CheckImpl(ctx, remaining, subject)
+		relSeq, err := it.CheckImpl(ctx, resources, subject)
 		if err != nil {
 			return nil, err
 		}
@@ -37,23 +34,21 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 		}
 
 		out = append(out, rels...)
+	}
 
-		// If some subset have already passed the check, no need to check them again.
-		for _, r := range rels {
-			for idx, res := range remaining {
-				if res.ObjectID == r.Resource.ObjectID && res.ObjectType == r.Resource.ObjectType {
-					remaining = slices.Delete(remaining, idx, idx+1)
-					break
-				}
-			}
-		}
-
-		if len(remaining) == 0 {
-			break
+	// Deduplicate relations
+	seen := make(map[string]bool)
+	var deduplicated []Relation
+	for _, rel := range out {
+		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID + "#" + rel.Resource.Relation + "@" + rel.Subject.ObjectType + ":" + rel.Subject.ObjectID + "#" + rel.Subject.Relation
+		if !seen[key] {
+			seen[key] = true
+			deduplicated = append(deduplicated, rel)
 		}
 	}
+
 	return func(yield func(Relation, error) bool) {
-		for _, rel := range out {
+		for _, rel := range deduplicated {
 			if !yield(rel, nil) {
 				return
 			}

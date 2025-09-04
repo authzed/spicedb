@@ -119,7 +119,7 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 
 							qctx := handle.buildContext(t)
 
-							seq, err := qctx.Check(it, []string{rel.Resource.ObjectID}, rel.Subject.ObjectID)
+							seq, err := qctx.Check(it, []query.Object{query.GetObject(rel.Resource)}, rel.Subject)
 							require.NoError(err)
 
 							rels, err := query.CollectAll(seq)

@@ -57,10 +57,8 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 
 			// Check if this relation exists in the excluded set (only compare endpoints: resource and subject object types/IDs)
 			for _, excludedRel := range excludedRels {
-				if mainRel.Resource.ObjectType == excludedRel.Resource.ObjectType &&
-					mainRel.Resource.ObjectID == excludedRel.Resource.ObjectID &&
-					mainRel.Subject.ObjectType == excludedRel.Subject.ObjectType &&
-					mainRel.Subject.ObjectID == excludedRel.Subject.ObjectID {
+				if GetObject(mainRel.Resource).Equals(GetObject(excludedRel.Resource)) &&
+					GetObject(mainRel.Subject).Equals(GetObject(excludedRel.Subject)) {
 					found = true
 					break
 				}

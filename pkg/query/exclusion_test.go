@@ -1,7 +1,6 @@
 package query
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,47 +10,6 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
-
-// FaultyIterator is a test helper that simulates iterator errors
-type FaultyIterator struct {
-	shouldFailOnCheck   bool
-	shouldFailOnCollect bool
-}
-
-var _ Iterator = &FaultyIterator{}
-
-func (f *FaultyIterator) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
-	if f.shouldFailOnCheck {
-		return nil, fmt.Errorf("faulty iterator error")
-	}
-	// Return a sequence that will fail during collection
-	if f.shouldFailOnCollect {
-		return func(yield func(Relation, error) bool) {
-			yield(Relation{}, fmt.Errorf("faulty iterator collection error"))
-		}, nil
-	}
-	// Return empty sequence
-	return func(yield func(Relation, error) bool) {}, nil
-}
-
-func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (f *FaultyIterator) Clone() Iterator {
-	return &FaultyIterator{
-		shouldFailOnCheck:   f.shouldFailOnCheck,
-		shouldFailOnCollect: f.shouldFailOnCollect,
-	}
-}
-
-func (f *FaultyIterator) Explain() Explain {
-	return Explain{Info: "FaultyIterator"}
-}
 
 func TestExclusionIterator(t *testing.T) {
 	t.Parallel()
@@ -328,14 +286,14 @@ func TestExclusionUnimplementedMethods(t *testing.T) {
 	t.Run("IterSubjectsImpl Unimplemented", func(t *testing.T) {
 		t.Parallel()
 		require.Panics(func() {
-			_, _ = exclusion.IterSubjectsImpl(ctx, "doc1")
+			_, _ = exclusion.IterSubjectsImpl(ctx, NewObject("document", "doc1"))
 		}, "Should panic since method is unimplemented")
 	})
 
 	t.Run("IterResourcesImpl Unimplemented", func(t *testing.T) {
 		t.Parallel()
 		require.Panics(func() {
-			_, _ = exclusion.IterResourcesImpl(ctx, "alice")
+			_, _ = exclusion.IterResourcesImpl(ctx, NewObject("user", "alice").WithEllipses())
 		}, "Should panic since method is unimplemented")
 	})
 }
@@ -361,12 +319,12 @@ func TestExclusionErrorHandling(t *testing.T) {
 	t.Run("Main Set Error Propagation", func(t *testing.T) {
 		t.Parallel()
 		// Create a faulty iterator for the main set
-		mainSet := &FaultyIterator{shouldFailOnCheck: true}
+		mainSet := NewFaultyIterator(true, false)
 		excludedSet := NewFixedIterator(rel1)
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
 		require.Contains(err.Error(), "faulty iterator error")
 		require.Nil(relSeq)
@@ -376,11 +334,11 @@ func TestExclusionErrorHandling(t *testing.T) {
 		t.Parallel()
 		// Create a normal main set and faulty excluded set
 		mainSet := NewFixedIterator(rel1)
-		excludedSet := &FaultyIterator{shouldFailOnCheck: true}
+		excludedSet := NewFaultyIterator(true, false)
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
 		require.Contains(err.Error(), "faulty iterator error")
 		require.Nil(relSeq)
@@ -389,12 +347,12 @@ func TestExclusionErrorHandling(t *testing.T) {
 	t.Run("Main Set Collection Error", func(t *testing.T) {
 		t.Parallel()
 		// Create an iterator that fails during collection
-		mainSet := &FaultyIterator{shouldFailOnCollect: true}
+		mainSet := NewFaultyIterator(false, true)
 		excludedSet := NewFixedIterator(rel1)
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
 		require.Contains(err.Error(), "faulty iterator collection error")
 		require.Nil(relSeq)
@@ -404,11 +362,11 @@ func TestExclusionErrorHandling(t *testing.T) {
 		t.Parallel()
 		// Create an iterator that fails during collection
 		mainSet := NewFixedIterator(rel1)
-		excludedSet := &FaultyIterator{shouldFailOnCollect: true}
+		excludedSet := NewFaultyIterator(false, true)
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
 		require.Contains(err.Error(), "faulty iterator collection error")
 		require.Nil(relSeq)
@@ -448,7 +406,7 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 
 		exclusion := NewExclusion(union, excludedSet)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2", "doc3"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -480,7 +438,7 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, union)
 
-		relSeq, err := exclusion.CheckImpl(ctx, []string{"doc1", "doc2", "doc3", "doc4"}, "alice")
+		relSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2", "doc3", "doc4"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -511,7 +469,7 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 		outerExcludedSet := NewFixedIterator(rel3)
 		outerExclusion := NewExclusion(innerExclusion, outerExcludedSet)
 
-		relSeq, err := outerExclusion.CheckImpl(ctx, []string{"doc1", "doc2", "doc3"}, "alice")
+		relSeq, err := outerExclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)

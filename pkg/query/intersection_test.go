@@ -166,7 +166,7 @@ func TestIntersectionIterator(t *testing.T) {
 
 		intersect := NewIntersection()
 		require.Panics(func() {
-			_, _ = ctx.IterSubjects(intersect, NewObject("doc1", "document"))
+			_, _ = ctx.IterSubjects(intersect, NewObject("document", "doc1"))
 		})
 	})
 

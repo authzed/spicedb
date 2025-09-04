@@ -73,7 +73,7 @@ func TestBaseIterSubjects(t *testing.T) {
 		Revision:  revision,
 	}
 
-	relSeq, err := ctx.IterSubjects(vande, NewObject("specialplan", "document"))
+	relSeq, err := ctx.IterSubjects(vande, NewObject("document", "specialplan"))
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)

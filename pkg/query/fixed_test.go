@@ -97,7 +97,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := ctx.IterSubjects(fixed, NewObject("doc1", "document"))
+		seq, err := ctx.IterSubjects(fixed, NewObject("document", "doc1"))
 		require.NoError(err)
 
 		results, err := CollectAll(seq)

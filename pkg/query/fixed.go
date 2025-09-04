@@ -24,12 +24,10 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject Obje
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
 			for _, resource := range resources {
-				if rel.Resource.ObjectID == resource.ObjectID && rel.Resource.ObjectType == resource.ObjectType {
-					if rel.Subject.ObjectID == subject.ObjectID && rel.Subject.ObjectType == subject.ObjectType && rel.Subject.Relation == subject.Relation {
-						ok := yield(rel, nil)
-						if !ok {
-							return
-						}
+				if GetObject(rel.Resource).Equals(resource) &&
+					GetObject(rel.Subject).Equals(GetObject(subject)) {
+					if !yield(rel, nil) {
+						return
 					}
 					break
 				}
@@ -42,7 +40,7 @@ func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (Relatio
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
 			// Check if the relation's resource matches the requested resource
-			if rel.Resource.ObjectID == resource.ObjectID && rel.Resource.ObjectType == resource.ObjectType {
+			if GetObject(rel.Resource).Equals(resource) {
 				if !yield(rel, nil) {
 					return
 				}

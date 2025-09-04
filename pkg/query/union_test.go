@@ -41,7 +41,7 @@ func TestUnionIterator(t *testing.T) {
 		// Union should contain relations from both iterators for alice on doc1 and doc2
 		// DocumentAccess: alice viewer/editor/owner on doc1, alice viewer on doc2
 		// MultiRole: alice viewer/editor/owner on doc1
-		// Union should deduplicate, so we expect: viewer/editor/owner on doc1, viewer on doc2
+		// Union should deduplicate, so we expect: viewer/editor/owner on doc1, viewer on doc2 (4 total)
 		expected := []tuple.Relationship{
 			{
 				RelationshipReference: tuple.RelationshipReference{
@@ -186,7 +186,7 @@ func TestUnionIterator(t *testing.T) {
 
 		union := NewUnion()
 		require.Panics(func() {
-			_, _ = ctx.IterSubjects(union, NewObject("doc1", "document"))
+			_, _ = ctx.IterSubjects(union, NewObject("document", "doc1"))
 		})
 	})
 

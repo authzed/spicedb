@@ -115,7 +115,7 @@ func TestArrowIterator(t *testing.T) {
 		}
 
 		require.Panics(func() {
-			_, _ = ctx.IterSubjects(arrow, NewObject("spec1", "document"))
+			_, _ = ctx.IterSubjects(arrow, NewObject("document", "spec1"))
 		})
 	})
 
