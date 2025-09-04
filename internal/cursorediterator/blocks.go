@@ -393,12 +393,29 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 	}
 
 	orderedProducerChunks := make(chan *producerChunkOrError[P, C, I], producerChunksBufferSize)
-	producerChunksForMapping := make(chan *producerChunkOrError[P, C, I], producerChunksBufferSize)
 
 	// Helper function to check if a chunk is HoldForMappingComplete
 	isHoldForMappingComplete := func(chunk ChunkFollowOrHold[P, C]) bool {
 		_, ok := chunk.(HoldForMappingComplete[P, C])
 		return ok
+	}
+
+	// Create a TaskRunner for managing mapper tasks
+	tr := taskrunner.NewTaskRunner(ctx, concurrency)
+
+	mapperTaskFunc := func(coe *producerChunkOrError[P, C, I], chunkRemainingCursor Cursor) taskrunner.TaskFunc {
+		return func(ctx context.Context) error {
+			items := make([]ItemAndCursor[I], 0, mapperItemsSize)
+			for r, err := range mapper(ctx, chunkRemainingCursor, coe.chunkAndFollow.Chunk) {
+				if err != nil {
+					coe.mappedResultChan <- mapperResultOrError[I, C]{err: err}
+					return err
+				}
+				items = append(items, r)
+			}
+			coe.mappedResultChan <- mapperResultOrError[I, C]{items: items}
+			return nil
+		}
 	}
 
 	producerChunksByID := make(map[int]*producerChunkOrError[P, C, I], producerChunksBufferSize)
@@ -448,17 +465,16 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 				// Continue processing chunks.
 			}
 
-			select {
-			case <-ctx.Done():
-				return
-
-			case producerChunksForMapping <- chunk:
-				// Continue processing chunks for mapping.
+			// Schedule the mapper task for this chunk
+			chunkRemainingCursor := remainingCursor
+			if chunkIndex > 0 {
+				chunkRemainingCursor = nil
 			}
+			tr.Schedule(mapperTaskFunc(chunk, chunkRemainingCursor))
 
 			chunkIndex++
 
-			// If an error occurred, we send it to the channel and stop producing further chunks.
+			// If an error occurred, we sent it to the channel and now we stop producing further chunks.
 			if err != nil {
 				return
 			}
@@ -483,59 +499,11 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 			// Sent
 		}
 
-		select {
-		case <-ctx.Done():
-			return
-
-		case producerChunksForMapping <- chunk:
-			// Sent
-		}
-	}
-
-	mapperFunc := func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-
-			case coe, ok := <-producerChunksForMapping:
-				if !ok {
-					return
-				}
-
-				if coe.completed {
-					return
-				}
-
-				if coe.err != nil {
-					return
-				}
-
-				chunkRemainingCursor := remainingCursor
-				if coe.chunkIndex > 0 {
-					chunkRemainingCursor = nil
-				}
-
-				items := make([]ItemAndCursor[I], 0, mapperItemsSize)
-				for r, err := range mapper(ctx, chunkRemainingCursor, coe.chunkAndFollow.Chunk) {
-					if err != nil {
-						coe.mappedResultChan <- mapperResultOrError[I, C]{err: err}
-						return
-					}
-					items = append(items, r)
-				}
-				coe.mappedResultChan <- mapperResultOrError[I, C]{items: items}
-			}
-		}
+		// No need to schedule a mapper task for the completion chunk
 	}
 
 	return func(yield func(ItemAndCursor[I], error) bool) {
 		defer cancel()
-
-		// Start the mapper function(s) in parallel.
-		for i := uint16(0); i < concurrency; i++ {
-			go mapperFunc()
-		}
 
 		// Start the producer in a goroutine.
 		go producerFunc()
