@@ -157,6 +157,42 @@ func CursoredParallelIterators[I any](
 
 	itersToRun := orderedIterators[currentStartingBranchIndex:]
 
+	// Special case for concurrency=1: execute sequentially without goroutines
+	if concurrency == 1 {
+		return func(yield func(ItemAndCursor[I], error) bool) {
+			defer cancel()
+
+			for collectorOffsetIndex, iter := range itersToRun {
+				iteratorRemainingCursor := remainingCursor
+				if collectorOffsetIndex > 0 {
+					iteratorRemainingCursor = nil
+				}
+
+				collectorIndex := currentStartingBranchIndex + collectorOffsetIndex
+				for r, err := range iter(ctx, iteratorRemainingCursor) {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						if err != nil {
+							if !yield(ItemAndCursor[I]{}, err) {
+								return
+							}
+							return
+						}
+
+						if !yield(ItemAndCursor[I]{
+							Item:   r.Item,
+							Cursor: r.Cursor.withPrefix(strconv.Itoa(collectorIndex)),
+						}, nil) {
+							return
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Build a task runner that will execute the iterators in parallel, collecting their results
 	// into channels.
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrency, len(itersToRun))
@@ -298,6 +334,62 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 	if err != nil {
 		cancel()
 		return YieldsError[ItemAndCursor[I]](err)
+	}
+
+	// Special case for concurrency=1: execute sequentially without goroutines
+	if concurrency == 1 {
+		return func(yield func(ItemAndCursor[I], error) bool) {
+			defer cancel()
+
+			for p, err := range producer(ctx, headValue, remainingCursor) {
+				if err != nil {
+					if !yield(ItemAndCursor[I]{}, err) {
+						return
+					}
+					return
+				}
+
+				// Skip HoldForMappingComplete in sequential mode since there's no parallelism to synchronize
+				if _, ok := p.(HoldForMappingComplete[P, C]); ok {
+					continue
+				}
+
+				chunk := p.(ChunkAndFollow[P, C])
+
+				// Process the chunk directly with the mapper
+				for r, err := range mapper(ctx, remainingCursor, chunk.Chunk) {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						if err != nil {
+							if !yield(ItemAndCursor[I]{}, err) {
+								return
+							}
+							return
+						}
+
+						cursorStr, err := cursorToStringConverter(chunk.Follow)
+						if err != nil {
+							if !yield(ItemAndCursor[I]{}, err) {
+								return
+							}
+							return
+						}
+
+						if !yield(ItemAndCursor[I]{
+							Item:   r.Item,
+							Cursor: r.Cursor.withPrefix(cursorStr),
+						}, nil) {
+							return
+						}
+					}
+				}
+
+				// Only use the remaining cursor for the first chunk
+				remainingCursor = nil
+			}
+		}
 	}
 
 	orderedProducerChunks := make(chan *producerChunkOrError[P, C, I], producerChunksBufferSize)
