@@ -350,44 +350,49 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 				}
 
 				// Skip HoldForMappingComplete in sequential mode since there's no parallelism to synchronize
-				if _, ok := p.(HoldForMappingComplete[P, C]); ok {
+				switch t := p.(type) {
+				case HoldForMappingComplete[P, C]:
 					continue
-				}
 
-				chunk := p.(ChunkAndFollow[P, C])
-
-				// Process the chunk directly with the mapper
-				for r, err := range mapper(ctx, remainingCursor, chunk.Chunk) {
-					select {
-					case <-ctx.Done():
+				case ChunkAndFollow[P, C]:
+					cursorStr, err := cursorToStringConverter(t.Follow)
+					if err != nil {
+						if !yield(ItemAndCursor[I]{}, err) {
+							return
+						}
 						return
-					default:
-						if err != nil {
-							if !yield(ItemAndCursor[I]{}, err) {
+					}
+
+					// Process the chunk directly with the mapper
+					for r, err := range mapper(ctx, remainingCursor, t.Chunk) {
+						select {
+						case <-ctx.Done():
+							return
+						default:
+							if err != nil {
+								if !yield(ItemAndCursor[I]{}, err) {
+									return
+								}
 								return
 							}
-							return
-						}
 
-						cursorStr, err := cursorToStringConverter(chunk.Follow)
-						if err != nil {
-							if !yield(ItemAndCursor[I]{}, err) {
+							if !yield(ItemAndCursor[I]{
+								Item:   r.Item,
+								Cursor: r.Cursor.withPrefix(cursorStr),
+							}, nil) {
 								return
 							}
-							return
-						}
-
-						if !yield(ItemAndCursor[I]{
-							Item:   r.Item,
-							Cursor: r.Cursor.withPrefix(cursorStr),
-						}, nil) {
-							return
 						}
 					}
-				}
 
-				// Only use the remaining cursor for the first chunk
-				remainingCursor = nil
+					// Only use the remaining cursor for the first chunk
+					remainingCursor = nil
+
+				default:
+					if !yield(ItemAndCursor[I]{}, spiceerrors.MustBugf("unknown ChunkFollowOrHold type: %T", t)) {
+						return
+					}
+				}
 			}
 		}
 	}
