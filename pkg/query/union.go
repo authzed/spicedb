@@ -1,8 +1,6 @@
 package query
 
 import (
-	"slices"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -22,12 +20,11 @@ func (u *Union) addSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
-func (u *Union) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
-	remaining := make([]string, len(resourceIDs))
-	copy(remaining, resourceIDs)
+func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
 	var out []Relation
+	// Collect relations from all sub-iterators
 	for _, it := range u.subIts {
-		relSeq, err := ctx.Check(it, remaining, subjectID)
+		relSeq, err := it.CheckImpl(ctx, resources, subject)
 		if err != nil {
 			return nil, err
 		}
@@ -37,20 +34,21 @@ func (u *Union) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) 
 		}
 
 		out = append(out, rels...)
+	}
 
-		// If some subset have already passed the check, no need to check them again.
-		for _, r := range rels {
-			if idx := slices.Index(remaining, r.Resource.ObjectID); idx != -1 {
-				remaining = slices.Delete(remaining, idx, idx+1)
-			}
-		}
-
-		if len(remaining) == 0 {
-			break
+	// Deduplicate relations
+	seen := make(map[string]bool)
+	var deduplicated []Relation
+	for _, rel := range out {
+		key := rel.String()
+		if !seen[key] {
+			seen[key] = true
+			deduplicated = append(deduplicated, rel)
 		}
 	}
+
 	return func(yield func(Relation, error) bool) {
-		for _, rel := range out {
+		for _, rel := range deduplicated {
 			if !yield(rel, nil) {
 				return
 			}
@@ -58,11 +56,11 @@ func (u *Union) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) 
 	}, nil
 }
 
-func (u *Union) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (u *Union) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

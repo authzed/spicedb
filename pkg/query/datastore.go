@@ -35,7 +35,12 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation)
 }
 
-func (r *RelationIterator) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+	resourceIDs := make([]string, len(resources))
+	for i, res := range resources {
+		resourceIDs[i] = res.ObjectID
+	}
+
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      resourceIDs,
@@ -43,7 +48,7 @@ func (r *RelationIterator) CheckImpl(ctx *Context, resourceIDs []string, subject
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
 				OptionalSubjectType: r.base.Type,
-				OptionalSubjectIds:  []string{subjectID},
+				OptionalSubjectIds:  []string{subject.ObjectID},
 				RelationFilter:      r.buildSubjectRelationFilter(),
 			},
 		},
@@ -63,10 +68,10 @@ func (r *RelationIterator) CheckImpl(ctx *Context, resourceIDs []string, subject
 	return RelationSeq(relIter), nil
 }
 
-func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceIds:      []string{resourceID},
+		OptionalResourceIds:      []string{resource.ObjectID},
 		OptionalResourceRelation: r.base.RelationName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
@@ -90,7 +95,7 @@ func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resourceID string) (Re
 	return RelationSeq(relIter), nil
 }
 
-func (r *RelationIterator) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

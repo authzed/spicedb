@@ -33,7 +33,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Test arrow operation: find resources where left side connects to right side
 		// This looks for documents whose parent folder has viewers
-		relSeq, err := ctx.Check(arrow, []string{"spec1", "spec2"}, "alice")
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -61,7 +61,7 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, []string{}, "alice")
+		relSeq, err := ctx.Check(arrow, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -78,7 +78,7 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, []string{"nonexistent"}, "alice")
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -96,7 +96,7 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, []string{"spec1"}, "nonexistent")
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
@@ -115,7 +115,7 @@ func TestArrowIterator(t *testing.T) {
 		}
 
 		require.Panics(func() {
-			_, _ = ctx.IterSubjects(arrow, "spec1")
+			_, _ = ctx.IterSubjects(arrow, NewObject("document", "spec1"))
 		})
 	})
 
@@ -129,7 +129,7 @@ func TestArrowIterator(t *testing.T) {
 		}
 
 		require.Panics(func() {
-			_, _ = ctx.IterResources(arrow, "alice")
+			_, _ = ctx.IterResources(arrow, NewObject("user", "alice").WithEllipses())
 		})
 	})
 }
@@ -164,13 +164,13 @@ func TestArrowIteratorClone(t *testing.T) {
 	subjectID := "alice"
 
 	// Collect results from original iterator
-	originalSeq, err := ctx.Check(original, resourceIDs, subjectID)
+	originalSeq, err := ctx.Check(original, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
 	originalResults, err := CollectAll(originalSeq)
 	require.NoError(err)
 
 	// Collect results from cloned iterator
-	clonedSeq, err := ctx.Check(cloned, resourceIDs, subjectID)
+	clonedSeq, err := ctx.Check(cloned, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
 	clonedResults, err := CollectAll(clonedSeq)
 	require.NoError(err)
@@ -213,7 +213,7 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	}
 
 	// Test with multiple resource IDs
-	relSeq, err := ctx.Check(arrow, []string{"spec1", "spec2", "nonexistent"}, "alice")
+	relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2", "nonexistent"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)

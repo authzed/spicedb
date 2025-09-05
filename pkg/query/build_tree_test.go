@@ -37,7 +37,7 @@ func TestBuildTree(t *testing.T) {
 		Revision:  revision,
 	}
 
-	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -71,7 +71,7 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 		Revision:  revision,
 	}
 
-	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
 
 	rels, err := CollectAll(relSeq)
@@ -127,7 +127,7 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	}
 
 	// Just test that the iterator can be executed without error
-	relSeq, err := ctx.Check(it, []string{"companyplan"}, "legal")
+	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -214,7 +214,7 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	}
 
 	// Test execution
-	relSeq, err := ctx.Check(it, []string{"specialplan"}, "multiroleguy")
+	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -301,7 +301,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.IsType(&Exclusion{}, it)
 
 		// Test execution doesn't crash
-		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 		_, err = CollectAll(relSeq)
 		require.NoError(err)
@@ -522,7 +522,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	}
 
 	// Test execution
-	relSeq, err := ctx.Check(it, []string{"companyplan"}, "legal")
+	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)
@@ -607,7 +607,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		require.Contains(explainStr, "Union") // Should contain union for base relation + arrow
 
 		// Test execution doesn't crash
-		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 		_, err = CollectAll(relSeq)
 		require.NoError(err)
@@ -695,7 +695,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		require.Contains(explainStr, "Union") // Should contain union for different relation types
 
 		// Test execution doesn't crash
-		relSeq, err := ctx.Check(it, []string{"test_doc"}, "alice")
+		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 		_, err = CollectAll(relSeq)
 		require.NoError(err)

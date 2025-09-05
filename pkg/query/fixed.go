@@ -20,16 +20,14 @@ func NewFixedIterator(rels ...Relation) *FixedIterator {
 	}
 }
 
-func (f *FixedIterator) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
-			for _, resourceID := range resourceIDs {
-				if rel.Resource.ObjectID == resourceID {
-					if rel.Subject.ObjectID == subjectID {
-						ok := yield(rel, nil)
-						if !ok {
-							return
-						}
+			for _, resource := range resources {
+				if GetObject(rel.Resource).Equals(resource) &&
+					GetObject(rel.Subject).Equals(GetObject(subject)) {
+					if !yield(rel, nil) {
+						return
 					}
 					break
 				}
@@ -38,11 +36,11 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resourceIDs []string, subjectID 
 	}, nil
 }
 
-func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
-			// Check if the relation's resource matches the requested resource ID
-			if rel.Resource.ObjectID == resourceID {
+			// Check if the relation's resource matches the requested resource
+			if GetObject(rel.Resource).Equals(resource) {
 				if !yield(rel, nil) {
 					return
 				}
@@ -51,11 +49,11 @@ func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resourceID string) (Relat
 	}, nil
 }
 
-func (f *FixedIterator) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+func (f *FixedIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
 	return func(yield func(Relation, error) bool) {
 		for _, rel := range f.rels {
-			// Check if the relation's subject matches the requested subject ID
-			if rel.Subject.ObjectID == subjectID {
+			// Check if the relation's subject matches the requested subject
+			if rel.Subject.ObjectID == subject.ObjectID && rel.Subject.ObjectType == subject.ObjectType && rel.Subject.Relation == subject.Relation {
 				if !yield(rel, nil) {
 					return
 				}

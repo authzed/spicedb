@@ -200,3 +200,52 @@ func NewConflictingPermissionsFixedIterator() *FixedIterator {
 
 	return NewFixedIterator(relations...)
 }
+
+// FaultyIterator is a test helper that simulates iterator errors
+type FaultyIterator struct {
+	shouldFailOnCheck   bool
+	shouldFailOnCollect bool
+}
+
+var _ Iterator = &FaultyIterator{}
+
+func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+	if f.shouldFailOnCheck {
+		return nil, fmt.Errorf("faulty iterator error")
+	}
+	// Return a sequence that will fail during collection
+	if f.shouldFailOnCollect {
+		return func(yield func(Relation, error) bool) {
+			yield(Relation{}, fmt.Errorf("faulty iterator collection error"))
+		}, nil
+	}
+	// Return empty sequence
+	return func(yield func(Relation, error) bool) {}, nil
+}
+
+func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+	return nil, fmt.Errorf("unimplemented")
+}
+
+func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+	return nil, fmt.Errorf("unimplemented")
+}
+
+func (f *FaultyIterator) Clone() Iterator {
+	return &FaultyIterator{
+		shouldFailOnCheck:   f.shouldFailOnCheck,
+		shouldFailOnCollect: f.shouldFailOnCollect,
+	}
+}
+
+func (f *FaultyIterator) Explain() Explain {
+	return Explain{Info: "FaultyIterator"}
+}
+
+// NewFaultyIterator creates a new FaultyIterator for testing error conditions
+func NewFaultyIterator(shouldFailOnCheck, shouldFailOnCollect bool) *FaultyIterator {
+	return &FaultyIterator{
+		shouldFailOnCheck:   shouldFailOnCheck,
+		shouldFailOnCollect: shouldFailOnCollect,
+	}
+}

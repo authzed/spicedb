@@ -13,6 +13,7 @@ type (
 	Relation = tuple.Relationship
 	// RelationSeq is the intermediate iter closure that any of the planning calls return.
 	RelationSeq iter.Seq2[Relation, error]
+	// ObjectAndRelation is both an entity and it's subrelation, imported from tuple.
 )
 
 // Plan is the external-facing notion of a query plan. These follow the general API for
@@ -21,13 +22,13 @@ type Plan interface {
 	// CheckImpl tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
 	// any of the `resourceIDs` are connected to `subjectID`.
 	// Returns the sequence of matching relations, if they exist, at most `len(resourceIDs)`.
-	CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error)
+	CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error)
 
 	// IterSubjectsImpl returns a sequence of all the relations in this set that match the given resourceID.
-	IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error)
+	IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error)
 
 	// IterResourcesImpl returns a sequence of all the relations in this set that match the given subjectID.
-	IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error)
+	IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error)
 
 	// Explain generates a human-readable tree that describes each iterator and its state.
 	Explain() Explain

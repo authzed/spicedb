@@ -20,9 +20,9 @@ func NewExclusion(mainSet, excluded Iterator) *Exclusion {
 	}
 }
 
-func (e *Exclusion) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
+func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
 	// Get all relations from the main set
-	mainSeq, err := ctx.Check(e.mainSet, resourceIDs, subjectID)
+	mainSeq, err := e.mainSet.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (e *Exclusion) CheckImpl(ctx *Context, resourceIDs []string, subjectID stri
 	}
 
 	// Get all relations from the excluded set
-	excludedSeq, err := ctx.Check(e.excluded, resourceIDs, subjectID)
+	excludedSeq, err := e.excluded.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -57,10 +57,8 @@ func (e *Exclusion) CheckImpl(ctx *Context, resourceIDs []string, subjectID stri
 
 			// Check if this relation exists in the excluded set (only compare endpoints: resource and subject object types/IDs)
 			for _, excludedRel := range excludedRels {
-				if mainRel.Resource.ObjectType == excludedRel.Resource.ObjectType &&
-					mainRel.Resource.ObjectID == excludedRel.Resource.ObjectID &&
-					mainRel.Subject.ObjectType == excludedRel.Subject.ObjectType &&
-					mainRel.Subject.ObjectID == excludedRel.Subject.ObjectID {
+				if GetObject(mainRel.Resource).Equals(GetObject(excludedRel.Resource)) &&
+					GetObject(mainRel.Subject).Equals(GetObject(excludedRel.Subject)) {
 					found = true
 					break
 				}
@@ -76,11 +74,11 @@ func (e *Exclusion) CheckImpl(ctx *Context, resourceIDs []string, subjectID stri
 	}, nil
 }
 
-func (e *Exclusion) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (e *Exclusion) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

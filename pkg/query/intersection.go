@@ -21,13 +21,13 @@ func (i *Intersection) addSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
-func (i *Intersection) CheckImpl(ctx *Context, resourceIDs []string, subjectID string) (RelationSeq, error) {
-	valid := resourceIDs
+func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+	validResources := resources
 
 	var rels []Relation
 
 	for _, it := range i.subIts {
-		relSeq, err := ctx.Check(it, valid, subjectID)
+		relSeq, err := it.CheckImpl(ctx, validResources, subject)
 		if err != nil {
 			return nil, err
 		}
@@ -37,11 +37,11 @@ func (i *Intersection) CheckImpl(ctx *Context, resourceIDs []string, subjectID s
 		}
 
 		if len(rels) == 0 {
-			return nil, nil
+			return func(yield func(Relation, error) bool) {}, nil
 		}
 
-		valid = slicez.Map(rels, func(r Relation) string {
-			return r.Resource.ObjectID
+		validResources = slicez.Map(rels, func(r Relation) Object {
+			return GetObject(r.Resource)
 		})
 	}
 
@@ -54,11 +54,11 @@ func (i *Intersection) CheckImpl(ctx *Context, resourceIDs []string, subjectID s
 	}, nil
 }
 
-func (i *Intersection) IterSubjectsImpl(ctx *Context, resourceID string) (RelationSeq, error) {
+func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (i *Intersection) IterResourcesImpl(ctx *Context, subjectID string) (RelationSeq, error) {
+func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
