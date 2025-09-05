@@ -331,8 +331,24 @@ func RelationshipsFilterFromCoreFilter(filter *core.RelationshipFilter) (Relatio
 // RelationshipsFilterFromPublicFilter constructs a datastore RelationshipsFilter from an API-defined RelationshipFilter.
 func RelationshipsFilterFromPublicFilter(filter *v1.RelationshipFilter) (RelationshipsFilter, error) {
 	var resourceIds []string
+
+	// Handle resource ID fields with mutual exclusion logic
+	resourceIdFieldsCount := 0
 	if filter.OptionalResourceId != "" {
+		resourceIdFieldsCount++
 		resourceIds = []string{filter.OptionalResourceId}
+	}
+	if filter.OptionalResourceIdPrefix != "" {
+		resourceIdFieldsCount++
+	}
+	if len(filter.OptionalResourceIds) > 0 {
+		resourceIdFieldsCount++
+		resourceIds = filter.OptionalResourceIds
+	}
+
+	// Ensure only one resource ID field type is set
+	if resourceIdFieldsCount > 1 {
+		return RelationshipsFilter{}, fmt.Errorf("cannot specify more than one of OptionalResourceId, OptionalResourceIdPrefix, or OptionalResourceIds")
 	}
 
 	var subjectsSelectors []SubjectsSelector
@@ -358,10 +374,6 @@ func RelationshipsFilterFromPublicFilter(filter *v1.RelationshipFilter) (Relatio
 			OptionalSubjectIds:  subjectIds,
 			RelationFilter:      relationFilter,
 		})
-	}
-
-	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
-		return RelationshipsFilter{}, fmt.Errorf("cannot specify both OptionalResourceId and OptionalResourceIDPrefix")
 	}
 
 	if filter.ResourceType == "" && filter.OptionalRelation == "" && len(resourceIds) == 0 && filter.OptionalResourceIdPrefix == "" && len(subjectsSelectors) == 0 {
