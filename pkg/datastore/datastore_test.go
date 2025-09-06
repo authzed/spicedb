@@ -131,6 +131,87 @@ func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 			},
 			"",
 		},
+		{
+			"bulk resource ids single",
+			&v1.RelationshipFilter{
+				ResourceType:        "sometype",
+				OptionalResourceIds: []string{"id1"},
+				OptionalRelation:    "somerel",
+			},
+			RelationshipsFilter{
+				OptionalResourceType:     "sometype",
+				OptionalResourceIds:      []string{"id1"},
+				OptionalResourceRelation: "somerel",
+			},
+			"",
+		},
+		{
+			"bulk resource ids multiple",
+			&v1.RelationshipFilter{
+				ResourceType:        "sometype",
+				OptionalResourceIds: []string{"id1", "id2", "id3"},
+				OptionalRelation:    "somerel",
+			},
+			RelationshipsFilter{
+				OptionalResourceType:     "sometype",
+				OptionalResourceIds:      []string{"id1", "id2", "id3"},
+				OptionalResourceRelation: "somerel",
+			},
+			"",
+		},
+		{
+			"bulk resource ids with subject filter",
+			&v1.RelationshipFilter{
+				ResourceType:        "sometype",
+				OptionalResourceIds: []string{"id1", "id2"},
+				OptionalRelation:    "somerel",
+				OptionalSubjectFilter: &v1.SubjectFilter{
+					SubjectType: "someothertype",
+				},
+			},
+			RelationshipsFilter{
+				OptionalResourceType:     "sometype",
+				OptionalResourceIds:      []string{"id1", "id2"},
+				OptionalResourceRelation: "somerel",
+				OptionalSubjectsSelectors: []SubjectsSelector{
+					{
+						OptionalSubjectType: "someothertype",
+					},
+				},
+			},
+			"",
+		},
+		{
+			"error: resource_id and resource_ids both set",
+			&v1.RelationshipFilter{
+				ResourceType:        "sometype",
+				OptionalResourceId:  "single_id",
+				OptionalResourceIds: []string{"id1", "id2"},
+			},
+			RelationshipsFilter{},
+			"cannot specify more than one of OptionalResourceId, OptionalResourceIdPrefix, or OptionalResourceIds",
+		},
+		{
+			"error: resource_id_prefix and resource_ids both set",
+			&v1.RelationshipFilter{
+				ResourceType:             "sometype",
+				OptionalResourceIdPrefix: "prefix_",
+				OptionalResourceIds:      []string{"id1", "id2"},
+			},
+			RelationshipsFilter{},
+			"cannot specify more than one of OptionalResourceId, OptionalResourceIdPrefix, or OptionalResourceIds",
+		},
+		{
+			"error: all three resource id fields set",
+			&v1.RelationshipFilter{
+				ResourceType:             "sometype",
+				OptionalResourceId:       "single_id",
+				OptionalResourceIdPrefix: "prefix_",
+				OptionalResourceIds:      []string{"id1", "id2"},
+			},
+			RelationshipsFilter{},
+			"cannot specify more than one of OptionalResourceId, OptionalResourceIdPrefix, or OptionalResourceIds",
+		},
 	}
 
 	for _, test := range tests {
