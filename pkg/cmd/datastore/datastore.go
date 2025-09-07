@@ -591,7 +591,7 @@ func newDynamodbDatastore(ctx context.Context, opts Config) (datastore.Datastore
 		dynamodb.AwsAccessKeyId(opts.AwsAccessKeyId),
 		dynamodb.AwsScreteAccessKey(opts.AwsScreteAccessKey),
 		dynamodb.AwsRegion(opts.AwsRegion),
-	), nil
+	)
 }
 
 func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
