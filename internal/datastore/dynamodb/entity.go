@@ -1,14 +1,15 @@
 package dynamodb
 
 import (
-	"fmt"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 type Attr struct {
-	Name string
-	Type string
+	Name  string
+	Type  string
+	Value *CompositeFields
 }
 
 type EntityAttr struct {
@@ -25,10 +26,12 @@ type EntityAttr struct {
 }
 
 const (
-	EntityNamespace     = "namespace"
-	EntityCaveat        = "caveat"
-	EntityRelationTuple = "relation_tuple"
-	ColEntity           = "entity"
+	EntityNamespace                = "namespace"
+	EntityCaveat                   = "caveat"
+	EntityRelationTuple            = "relation_tuple"
+	EntityRelationTupleTransaction = "relation_tuple_transaction"
+	EntityCounter                  = "relationship_counter"
+	ColEntity                      = "entity"
 
 	ColCreatedXid = "created_xid"
 	ColDeletedXid = "deleted_xid"
@@ -48,16 +51,24 @@ const (
 	ColCaveatContext     = "caveat_context"
 	ColExpiration        = "expiration"
 
-	ColSnapshot = "snapshot"
-
-	ColCounterName         = "name"
-	ColCounterFilter       = "serialized_filter"
+	ColSnapshot     = "snapshot"
+	ColMetadata     = "Metadata"
+	ColCounterName  = "name"
+	ColCurrentCount = "current_count"
+	// ColCounterFilter       = "serialized_filter"
 	ColCounterCurrentCount = "current_count"
 	ColCounterSnapshot     = "updated_revision_snapshot"
 
-	PREFIX_NS  = "NS"
-	PREFIX_CAV = "CAV"
-	PREFIX_REL = "REL"
+	PREFIX_NS      = "NS"
+	PREFIX_CAV     = "CAV"
+	PREFIX_REL     = "REL"
+	PREFIX_TXN     = "REL_TXN"
+	PREFIX_COUNTER = "COUNT"
+
+	TYPE_BINARY    = "B"
+	TYPE_STRING    = "S"
+	TYPE_COMPOSITE = "C"
+	TYPE_NUMBER    = "N"
 
 	PK     = "PK"
 	SK     = "SK"
@@ -75,139 +86,252 @@ const (
 )
 
 var (
-	sf        = fmt.Sprintf
 	Namespace = EntityAttr{
-		PK:     NewCompositeFields(sf("%s#${%s}", PREFIX_NS, ColNamespace)),
-		SK:     NewCompositeFields(sf("${%s}", ColCreatedXid)),
-		LSI1SK: NewCompositeFields(sf("${%s}", ColDeletedXid)),
-		GSI1PK: NewCompositeFields(sf("${%s}", ColEntity)),
-		GSI1SK: NewCompositeFields(sf("%s#${%s}", PREFIX_NS, ColNamespace)),
+		PK:     NewCompositeFields(PREFIX_NS, ColEntity),
+		SK:     NewCompositeFields(PREFIX_NS, ColNamespace),
+		LSI1SK: NewCompositeFields(PREFIX_NS, ColNamespace),
 		Entity: EntityNamespace,
 		ExtraAttrs: []Attr{
 			{
 				Name: ColSerialized,
-				Type: "B",
+				Type: TYPE_BINARY,
+			},
+			{
+				Name:  ColCreatedXid,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColCreatedXid),
 			},
 		},
 	}
 
 	Caveat = EntityAttr{
-		PK:     NewCompositeFields(sf("%s#${%s}", PREFIX_CAV, ColCaveat)),
-		SK:     NewCompositeFields(sf("${%s}", ColCreatedXid)),
-		LSI1SK: NewCompositeFields(sf("${%s}", ColDeletedXid)),
-		GSI1PK: NewCompositeFields(sf("${%s}", ColEntity)),
-		GSI1SK: NewCompositeFields(sf("%s#${%s}", PREFIX_CAV, ColCaveat)),
+		PK:     NewCompositeFields(PREFIX_CAV, ColEntity),
+		SK:     NewCompositeFields(PREFIX_CAV, ColCaveat),
+		LSI1SK: NewCompositeFields(PREFIX_CAV, ColCaveat),
 		Entity: EntityCaveat,
 		ExtraAttrs: []Attr{
 			{
 				Name: ColSerialized,
-				Type: "B",
+				Type: TYPE_BINARY,
 			},
 			{
 				Name: ColCreatedTxn,
-				Type: "S",
+				Type: TYPE_STRING,
 			},
 			{
 				Name: ColDeletedTxn,
-				Type: "S",
+				Type: TYPE_STRING,
+			},
+			{
+				Name:  ColCreatedXid,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColCreatedXid),
 			},
 		},
 	}
 
 	RelationTuple = EntityAttr{
-		PK: NewCompositeFields(sf("%s#${%s}#${%s}", PREFIX_REL, ColResourceType, ColObjectID)),
-		SK: NewCompositeFields(sf("${%s}#${%s}", ColCreatedXid, ColDeletedXid)),
-		LSI1SK: NewCompositeFields(
-			sf("${%s}#${%s}#${%s}",
-				ColRelation,
-				ColUsersetObjectID,
-				ColUsersetNamespace,
-			)),
-		LSI2SK: NewCompositeFields(sf("${%s}#${%s}#${%s}#${%s}",
+		PK: NewCompositeFields(
+			PREFIX_REL,
+			ColResourceType,
 			ColRelation,
-			ColUsersetNamespace,
-			ColUsersetObjectID,
-			ColUsersetRelation,
-		)),
-
-		GSI1PK: NewCompositeFields(sf("%s#${%s}#${%s}",
+			ColObjectID,
+		),
+		SK: NewCompositeFields(
 			PREFIX_REL,
 			ColUsersetNamespace,
 			ColUsersetObjectID,
-		)),
-		GSI1SK: NewCompositeFields(sf("${%s}#${%s}#${%s}#${%s}",
-			ColResourceType,
-			ColRelation,
 			ColUsersetRelation,
+		),
+		LSI1SK: NewCompositeFields(
+			PREFIX_REL,
+			ColUsersetObjectID,
+			ColUsersetNamespace,
+			ColUsersetRelation,
+		),
+		GSI1PK: NewCompositeFields(
+			PREFIX_REL,
+			ColResourceType,
+		),
+		GSI1SK: NewCompositeFields(
+			PREFIX_REL,
+			ColRelation,
+			ColUsersetNamespace,
 			ColObjectID,
-		)),
-		GSI2PK: NewCompositeFields(sf("${%s}", ColEntity)),
+			ColUsersetObjectID,
+		),
+		GSI2PK: NewCompositeFields(
+			PREFIX_REL,
+			ColUsersetNamespace,
+		),
+		GSI2SK: NewCompositeFields(
+			PREFIX_REL,
+			ColResourceType,
+			ColUsersetRelation,
+			ColRelation,
+			ColObjectID,
+		),
 		Entity: EntityRelationTuple,
 		ExtraAttrs: []Attr{
 			{
 				Name: ColCaveatContextName,
-				Type: "S",
+				Type: TYPE_STRING,
 			},
 			{
 				Name: ColCaveatContext,
-				Type: "S",
+				Type: TYPE_STRING,
 			},
 			{
 				Name: ColExpiration,
-				Type: "S",
+				Type: TYPE_STRING,
+			},
+			{
+				Name:  ColResourceType,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColResourceType),
+			},
+
+			{
+				Name:  ColRelation,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColRelation),
+			},
+			{
+				Name:  ColObjectID,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColObjectID),
+			},
+			{
+				Name:  ColUsersetNamespace,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColUsersetNamespace),
+			},
+			{
+				Name:  ColUsersetObjectID,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColUsersetObjectID),
+			},
+			{
+				Name:  ColUsersetRelation,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColUsersetRelation),
+			},
+			{
+				Name:  ColCreatedXid,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColCreatedXid),
+			},
+			{
+				Name: EntityRelationTuple,
+				Type: TYPE_COMPOSITE,
+				Value: NewCompositeFields(
+					PREFIX_REL,
+					ColNamespace,
+					ColRelation,
+					ColObjectID,
+					ColUsersetNamespace,
+					ColUsersetRelation,
+					ColUsersetObjectID,
+				),
+			},
+		},
+	}
+
+	Transaction = EntityAttr{
+		PK:     NewCompositeFields(PREFIX_TXN),
+		SK:     NewCompositeFieldsWithoutPrefix(ColCreatedXid),
+		Entity: EntityRelationTupleTransaction,
+		ExtraAttrs: []Attr{
+			{
+				Name: ColMetadata,
+				Type: TYPE_STRING,
+			},
+		},
+	}
+
+	Counter = EntityAttr{
+		PK:     NewCompositeFields(PREFIX_COUNTER),
+		SK:     NewCompositeFieldsWithoutPrefix(ColCounterName),
+		Entity: EntityCounter,
+		ExtraAttrs: []Attr{
+			{
+				Name: ColSerialized,
+				Type: TYPE_BINARY,
+			},
+			{
+				Name: ColCurrentCount,
+				Type: TYPE_NUMBER,
+			},
+			{
+				Name:  ColCreatedXid,
+				Type:  TYPE_COMPOSITE,
+				Value: NewCompositeFieldsWithoutPrefix(ColCreatedXid),
 			},
 		},
 	}
 )
 
+func (ea EntityAttr) GetExtraAttrField(field string) Attr {
+	i := slices.IndexFunc[[]Attr, Attr](ea.ExtraAttrs, func(e Attr) bool {
+		return e.Name == field
+	})
+
+	if i != -1 {
+		return ea.ExtraAttrs[i]
+	}
+
+	return Attr{}
+}
+
+type Item map[string]types.AttributeValue
+
+func addValueToItem(item Item, key string, comp *CompositeFields, kvp KeyValues) {
+	if comp != nil && len(comp.Build(kvp)) > 0 {
+		(item)[key] = &types.AttributeValueMemberS{
+			Value: comp.Build(kvp),
+		}
+	}
+}
+
 func (ea EntityAttr) GetPutItem(kvp KeyValues, extraAttr map[string]interface{}) *types.PutRequest {
 
 	kvp[ColEntity] = &ea.Entity
 
-	Item := map[string]types.AttributeValue{}
-	if ea.PK != nil && len(ea.PK.Build(kvp)) > 0 {
-		Item[PK] = &types.AttributeValueMemberS{
-			Value: ea.PK.Build(kvp),
-		}
-	}
-	if ea.SK != nil && len(ea.SK.Build(kvp)) > 0 {
-		Item[SK] = &types.AttributeValueMemberS{
-			Value: ea.SK.Build(kvp),
-		}
-	}
-	if ea.LSI1SK != nil && len(ea.LSI1SK.Build(kvp)) > 0 {
-		Item[LSI1SK] = &types.AttributeValueMemberS{
-			Value: ea.LSI1SK.Build(kvp),
-		}
-	}
-	if ea.LSI2SK != nil && len(ea.LSI2SK.Build(kvp)) > 0 {
-		Item[LSI2SK] = &types.AttributeValueMemberS{
-			Value: ea.LSI2SK.Build(kvp),
-		}
-	}
-	if ea.GSI1PK != nil && len(ea.GSI1PK.Build(kvp)) > 0 {
-		Item[GSI1PK] = &types.AttributeValueMemberS{
-			Value: ea.GSI1PK.Build(kvp),
-		}
-	}
-	if ea.GSI1SK != nil && len(ea.GSI1SK.Build(kvp)) > 0 {
-		Item[GSI1SK] = &types.AttributeValueMemberS{
-			Value: ea.GSI1SK.Build(kvp),
-		}
-	}
+	item := Item{}
+
+	addValueToItem(item, PK, ea.PK, kvp)
+	addValueToItem(item, SK, ea.SK, kvp)
+	addValueToItem(item, LSI1SK, ea.LSI1SK, kvp)
+	addValueToItem(item, LSI2SK, ea.LSI2SK, kvp)
+	addValueToItem(item, GSI1PK, ea.GSI1PK, kvp)
+	addValueToItem(item, GSI1SK, ea.GSI1SK, kvp)
 
 	for _, v := range ea.ExtraAttrs {
+		if v.Type == TYPE_COMPOSITE {
+			addValueToItem(item, v.Name, v.Value, kvp)
+		}
+
+		if extraAttr == nil {
+			continue
+		}
+
 		if value, exists := extraAttr[v.Name]; exists {
 			switch v.Type {
-			case "S":
+			case TYPE_STRING:
 				{
-					Item[v.Name] = &types.AttributeValueMemberS{
+					item[v.Name] = &types.AttributeValueMemberS{
 						Value: value.(string),
 					}
 				}
-			case "B":
+			case TYPE_NUMBER:
 				{
-					Item[v.Name] = &types.AttributeValueMemberB{
+					item[v.Name] = &types.AttributeValueMemberN{
+						Value: value.(string),
+					}
+				}
+			case TYPE_BINARY:
+				{
+					item[v.Name] = &types.AttributeValueMemberB{
 						Value: value.([]byte),
 					}
 				}
@@ -215,13 +339,11 @@ func (ea EntityAttr) GetPutItem(kvp KeyValues, extraAttr map[string]interface{})
 		}
 	}
 
-	Item[ColEntity] = &types.AttributeValueMemberS{
+	item[ColEntity] = &types.AttributeValueMemberS{
 		Value: ea.Entity,
 	}
 
-	fmt.Printf("%#v\n", Item)
-
 	return &types.PutRequest{
-		Item: Item,
+		Item: item,
 	}
 }
