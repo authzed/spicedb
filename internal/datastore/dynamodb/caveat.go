@@ -3,14 +3,15 @@ package dynamodb
 import (
 	"context"
 	"fmt"
-	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	ddbv2 "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/aws/aws-sdk-go/aws"
 )
 
 // WriteCaveats implements datastore.ReadWriteTransaction.
@@ -25,10 +26,10 @@ func (d DynamodbReadWriterTx) WriteCaveats(ctx context.Context, caveats []*corev
 
 		kvp := KeyValues{}
 
-		fmt.Printf("%#t\n", caveat)
+		// fmt.Printf("%#t\n", caveat)
 
 		kvp[ColCaveat] = &caveat.Name
-		kvp[ColCreatedXid] = aws.String(time.Now().String())
+		kvp[ColCreatedXid] = aws.String(d.xid.String())
 		kvp[ColDeletedXid] = aws.String("")
 
 		wr = append(wr, types.WriteRequest{
@@ -38,7 +39,7 @@ func (d DynamodbReadWriterTx) WriteCaveats(ctx context.Context, caveats []*corev
 		})
 
 	}
-	d.ds.DynamoDbClient.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+	d.ds.client.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
 		RequestItems: map[string][]types.WriteRequest{
 			TableName: wr,
 		},
@@ -49,7 +50,49 @@ func (d DynamodbReadWriterTx) WriteCaveats(ctx context.Context, caveats []*corev
 
 // ReadCaveatByName implements datastore.ReadWriteTransaction.
 func (d dynamodbReader) ReadCaveatByName(ctx context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
-	panic("unimplemented")
+
+	key := expression.KeyEqual(expression.Key(SK), expression.Value(Caveat.SK.Build(
+		KeyValues{
+			ColCaveat: &name,
+		})))
+
+	key = key.And(expression.KeyEqual(expression.Key(PK), expression.Value(Caveat.PK.Build(
+		KeyValues{
+			ColEntity: &Caveat.Entity,
+		}))))
+
+	expr, err := expression.NewBuilder().
+		WithKeyCondition(key).
+		Build()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	res, err := d.ds.QueryItem(ctx, &expr)
+
+	item, ok := res[0].(map[string]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("")
+	}
+
+	serializedAttr, exists := item[ColSerialized]
+	if !exists {
+		return nil, nil, fmt.Errorf("serialized attribute not found")
+	}
+
+	binaryAttr, ok := serializedAttr.([]byte)
+	if !ok {
+		return nil, nil, fmt.Errorf("serialized attribute is not binary type")
+	}
+
+	caveat = &corev1.CaveatDefinition{}
+
+	err = caveat.UnmarshalVT(binaryAttr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal protobuf: %w", err)
+	}
+
+	return caveat, nil, nil
 }
 
 // LookupCaveatsWithNames implements datastore.ReadWriteTransaction.
@@ -60,16 +103,18 @@ func (d dynamodbReader) LookupCaveatsWithNames(ctx context.Context, names []stri
 
 	values := []expression.OperandBuilder{}
 	for _, name := range names {
-		n := Caveat.PK.Build(KeyValues{
+		n := Caveat.LSI1SK.Build(KeyValues{
 			ColCaveat: &name,
 		})
 		values = append(values, expression.Value(n))
 	}
 	var filter expression.ConditionBuilder
 
-	filter = expression.Name(PK).In(values[0], values[1:]...)
+	filter = expression.Name(LSI1SK).In(values[0], values[1:]...)
 
-	key := expression.KeyEqual(expression.Key(GSI1PK), expression.Value(EntityCaveat))
+	key := expression.KeyEqual(expression.Key(PK), expression.Value(Caveat.PK.Build(KeyValues{
+		ColEntity: &Caveat.Entity,
+	})))
 
 	expr, err := expression.NewBuilder().
 		WithKeyCondition(key).
@@ -79,7 +124,7 @@ func (d dynamodbReader) LookupCaveatsWithNames(ctx context.Context, names []stri
 		return nil, err
 	}
 
-	res, err := d.ds.QueryItem(ctx, expr, IDX_GSI1)
+	res, err := d.ds.QueryItem(ctx, &expr)
 
 	resNs := []datastore.RevisionedCaveat{}
 
@@ -116,7 +161,9 @@ func (d dynamodbReader) LookupCaveatsWithNames(ctx context.Context, names []stri
 }
 
 func (d dynamodbReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	key := expression.KeyEqual(expression.Key(GSI1PK), expression.Value(EntityCaveat))
+	key := expression.KeyEqual(expression.Key(PK), expression.Value(Caveat.PK.Build(KeyValues{
+		ColEntity: &Caveat.Entity,
+	})))
 
 	expr, err := expression.NewBuilder().
 		WithKeyCondition(key).
@@ -125,7 +172,7 @@ func (d dynamodbReader) ListAllCaveats(ctx context.Context) ([]datastore.Revisio
 		return nil, err
 	}
 
-	res, err := d.ds.QueryItem(ctx, expr, IDX_GSI1)
+	res, err := d.ds.QueryItem(ctx, &expr)
 
 	resNs := []datastore.RevisionedCaveat{}
 
@@ -163,5 +210,40 @@ func (d dynamodbReader) ListAllCaveats(ctx context.Context) ([]datastore.Revisio
 
 // DeleteCaveats implements datastore.ReadWriteTransaction.
 func (d DynamodbReadWriterTx) DeleteCaveats(ctx context.Context, names []string) error {
-	panic("unimplemented")
+	statements := []types.BatchStatementRequest{}
+
+	for _, name := range names {
+		deleteCaveat := delete
+		query := deleteCaveat.
+			Where(sq.Eq{PK: Caveat.PK.Build(KeyValues{ColEntity: &Caveat.Entity})}).
+			Where(sq.Eq{SK: Caveat.SK.Build(KeyValues{ColCaveat: &name})})
+
+		sql, args, err := query.ToSql()
+		if err != nil {
+			return err
+		}
+		parameters := []types.AttributeValue{}
+		for _, v := range args {
+			parameters = append(parameters, &types.AttributeValueMemberS{
+				Value: v.(string),
+			})
+		}
+
+		statements = append(statements, types.BatchStatementRequest{
+			Statement:  aws.String(sql),
+			Parameters: parameters,
+		})
+	}
+
+	res, err := d.ds.client.BatchExecuteStatement(ctx, &ddbv2.BatchExecuteStatementInput{
+		Statements: statements,
+	})
+	if err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
+	fmt.Printf("output - %#v\n", res)
+
+	return nil
 }
