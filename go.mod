@@ -29,9 +29,13 @@ require (
 	github.com/authzed/authzed-go v1.4.1
 	github.com/authzed/consistent v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
+	github.com/aws/aws-sdk-go v1.55.8
 	github.com/aws/aws-sdk-go-v2 v1.37.1
 	github.com/aws/aws-sdk-go-v2/config v1.29.16
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.1
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.8.1
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.12
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.45.1
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bits-and-blooms/bloom/v3 v3.7.0
 	github.com/caio/go-tdigest/v4 v4.0.1
@@ -119,10 +123,6 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.1 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.45.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.27.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.1 // indirect
 	golang.org/x/vuln v1.1.4 // indirect
