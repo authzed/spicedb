@@ -103,7 +103,7 @@ func createMultiDatastoreTest(b testdatastore.RunningEngineForTest, tf multiData
 			ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
 			require.NoError(t, err)
 
-			ds2, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
+			ds2, err := newMySQLDatastore(ctx, uri, primaryInstanceID+1, options...)
 			require.NoError(t, err)
 
 			secondDS = ds2
@@ -133,10 +133,11 @@ func TestMySQLRevisionTimestamps(t *testing.T) {
 }
 
 func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
-	reg := prometheus.NewRegistry()
-	prometheus.DefaultGatherer = reg
-	prometheus.DefaultRegisterer = reg
-
+	{
+		reg := prometheus.NewRegistry()
+		prometheus.DefaultGatherer = reg
+		prometheus.DefaultRegisterer = reg
+	}
 	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest))
 	t.Run("PrometheusCollector", createDatastoreTest(
 		b,
@@ -152,6 +153,12 @@ func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 		QuantizedRevisionTest(t, b)
 	})
 	t.Run("Locking", createMultiDatastoreTest(b, LockingTest, defaultOptions...))
+	{
+		reg := prometheus.NewRegistry()
+		prometheus.DefaultGatherer = reg
+		prometheus.DefaultRegisterer = reg
+	}
+	t.Run("InstrumentedLocking", createMultiDatastoreTest(b, LockingTest, append(defaultOptions, WithEnablePrometheusStats(true))...))
 }
 
 func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) {
