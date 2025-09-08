@@ -36,6 +36,13 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 }
 
 func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+	// If the subject type doesn't match the base relation type, return no results
+	if subject.ObjectType != r.base.Type {
+		return func(yield func(Relation, error) bool) {
+			// Empty sequence
+		}, nil
+	}
+
 	resourceIDs := make([]string, len(resources))
 	for i, res := range resources {
 		resourceIDs[i] = res.ObjectID
@@ -107,6 +114,6 @@ func (r *RelationIterator) Clone() Iterator {
 
 func (r *RelationIterator) Explain() Explain {
 	return Explain{
-		Info: fmt.Sprintf("Relation(%s:%s, \"%s\", caveat: %v, expiration: %v)", r.base.DefinitionName(), r.base.RelationName(), r.base.Subrelation, r.base.Caveat != "", r.base.Expiration),
+		Info: fmt.Sprintf("Relation(%s:%s -> %s:\"%s\", caveat: %v, expiration: %v)", r.base.DefinitionName(), r.base.RelationName(), r.base.Type, r.base.Subrelation, r.base.Caveat != "", r.base.Expiration),
 	}
 }
