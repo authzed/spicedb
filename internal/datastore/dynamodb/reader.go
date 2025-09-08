@@ -6,7 +6,6 @@ import (
 	"math"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -19,23 +18,13 @@ import (
 )
 
 type dynamodbReader struct {
-	ds       DynamodbDatastore
-	query    common.Querier[Row]
-	executor common.QueryRelationshipsExecutor
+	ds DynamodbDatastore
 }
 
 func NewDynamodbReader(ds DynamodbDatastore) datastore.Reader {
-	query := QuerierFuncs[Row]{}
-	executor := common.QueryRelationshipsExecutor{
-		Executor: func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
-			return common.QueryRelationships[Row, map[string]any](ctx, builder, query, Explainable{})
-		},
-	}
 
 	return dynamodbReader{
 		ds,
-		query,
-		executor,
 	}
 }
 
