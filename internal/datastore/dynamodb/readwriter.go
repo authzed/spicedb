@@ -6,7 +6,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -34,8 +33,6 @@ func NewDynamodbReadWriterTx(ds DynamodbDatastore, xid revisions.HLCRevision) da
 	return DynamodbReadWriterTx{
 		&dynamodbReader{
 			ds,
-			nil,
-			common.QueryRelationshipsExecutor{},
 		},
 		ds,
 		xid,
