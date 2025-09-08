@@ -98,6 +98,11 @@ func NewHLCForTime(time time.Time) HLCRevision {
 	return HLCRevision{time.UnixNano(), logicalClockOffset}
 }
 
+// NewHLCForTime creates a new revision for the given time.
+func NewHLC(time int64, logicalclock uint32) HLCRevision {
+	return HLCRevision{time, logicalClockOffset + logicalclock}
+}
+
 func (hlc HLCRevision) ByteSortable() bool {
 	return true
 }
@@ -136,6 +141,10 @@ func (hlc HLCRevision) String() string {
 
 func (hlc HLCRevision) TimestampNanoSec() int64 {
 	return hlc.time
+}
+
+func (hlc HLCRevision) LogicalClock() uint32 {
+	return hlc.logicalclock
 }
 
 func (hlc HLCRevision) InexactFloat64() float64 {
