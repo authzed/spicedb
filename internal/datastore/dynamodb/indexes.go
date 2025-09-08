@@ -20,8 +20,8 @@ var (
 			queryshape.CheckPermissionSelectDirectSubjects,
 			queryshape.CheckPermissionSelectIndirectSubjects,
 			queryshape.AllSubjectsForResources,
-			queryshape.FindResourceOfTypeAndRelation,
 			queryshape.FindResourceRelationForSubjectRelation,
+			// queryshape.FindResourceOfTypeAndRelation,
 		},
 		RelationTuple.PK,
 		RelationTuple.SK,
@@ -43,7 +43,7 @@ var (
 		IDX_GSI1,
 		[]queryshape.Shape{
 			queryshape.FindResourceOfType,
-			queryshape.FindResourceOfTypeAndRelation,
+			// queryshape.FindResourceOfTypeAndRelation,
 		},
 		RelationTuple.GSI1PK,
 		RelationTuple.GSI1SK,
