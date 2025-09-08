@@ -137,13 +137,23 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 }
 
 func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
-	base := NewRelationIterator(br)
+	var base Iterator
+	if br.Wildcard {
+		base = NewWildcardIterator(br)
+	} else {
+		base = NewRelationIterator(br)
+	}
 
 	if !withSubRelations {
 		return base, nil
 	}
 
 	if br.Subrelation == tuple.Ellipsis {
+		return base, nil
+	}
+
+	// Wildcards represent direct access, so no subrelation processing needed
+	if br.Wildcard {
 		return base, nil
 	}
 
