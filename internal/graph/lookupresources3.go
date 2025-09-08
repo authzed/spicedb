@@ -383,6 +383,10 @@ func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram
 			return cter.YieldsError[result](err)
 		}
 
+		if len(entrypoints) == 0 {
+			return cter.UncursoredEmpty[result]()
+		}
+
 		// For each entrypoint, create an iterator that will yield results for that entrypoint via
 		// the entrypointIter method.
 		entrypointIterators := make([]cter.Next[pram], 0, len(entrypoints))
