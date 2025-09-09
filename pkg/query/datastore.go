@@ -114,6 +114,6 @@ func (r *RelationIterator) Clone() Iterator {
 
 func (r *RelationIterator) Explain() Explain {
 	return Explain{
-		Info: fmt.Sprintf("Relation(%s:%s -> %s:\"%s\", caveat: %v, expiration: %v)", r.base.DefinitionName(), r.base.RelationName(), r.base.Type, r.base.Subrelation, r.base.Caveat != "", r.base.Expiration),
+		Info: fmt.Sprintf("Relation(%s:%s -> %s:\"%s\", caveat: \"%v\", expiration: %v)", r.base.DefinitionName(), r.base.RelationName(), r.base.Type, r.base.Subrelation, r.base.Caveat, r.base.Expiration),
 	}
 }
