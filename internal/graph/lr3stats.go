@@ -15,14 +15,19 @@ const cdfThreshold = 0.1
 // cumulative distribution function (CDF) of the digest for the given item.
 func estimatedConcurrencyLimit[K UniquelyKeyed](
 	crr *CursoredLookupResources3,
-	lctx lr3ctx,
+	refs lr3refs,
 	item K,
 	fn func(computedConcurrencyLimit uint16) iter.Seq2[result, error],
 ) iter.Seq2[result, error] {
 	// If the optional limit is set to 0, then all results are returned, and therefore
 	// use the maximum concurrency limit that is available.
-	if lctx.req.OptionalLimit == 0 {
-		return fn(lctx.concurrencyLimit)
+	if refs.req.OptionalLimit == 0 {
+		return fn(refs.concurrencyLimit)
+	}
+
+	// If the concurrency limit is set to 1, then we always use that limit.
+	if refs.concurrencyLimit == 1 {
+		return fn(1)
 	}
 
 	// Otherwise, we use the digest (if any) to determine the estimated number of results
@@ -34,7 +39,7 @@ func estimatedConcurrencyLimit[K UniquelyKeyed](
 	}
 
 	var concurrencyLimit uint16 = 2
-	cdf, ok := crr.digestMap.CDF(uniqueKey, float64(lctx.req.OptionalLimit))
+	cdf, ok := crr.digestMap.CDF(uniqueKey, float64(refs.req.OptionalLimit))
 	if ok {
 		// CDF is the fraction in which all samples are less than or equal to the necessary limit
 		// of results. Therefore, if the CDF is less than or equal to the threshold (10%), we assume

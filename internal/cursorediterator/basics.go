@@ -17,10 +17,10 @@ type ItemAndCursor[I any] struct {
 	Cursor Cursor
 }
 
-func (i ItemAndCursor[I]) withCursorPrefix(prefix string) ItemAndCursor[I] {
+func (i ItemAndCursor[I]) withCursorHead(value string) ItemAndCursor[I] {
 	return ItemAndCursor[I]{
 		Item:   i.Item,
-		Cursor: i.Cursor.withPrefix(prefix),
+		Cursor: i.Cursor.withHead(value),
 	}
 }
 
@@ -29,5 +29,11 @@ type Next[I any] func(ctx context.Context, cursor Cursor) iter.Seq2[ItemAndCurso
 
 // Empty is a function that returns an empty iterator sequence.
 func Empty[I any](ctx context.Context, cursor Cursor) iter.Seq2[ItemAndCursor[I], error] {
-	return func(yield func(ItemAndCursor[I], error) bool) {}
+	return func(yield func(ItemAndCursor[I], error) bool) {
+		// Check for context cancellation even in empty iterator
+		if ctx.Err() != nil {
+			_ = yield(ItemAndCursor[I]{}, ctx.Err())
+			return
+		}
+	}
 }

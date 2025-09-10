@@ -2,15 +2,15 @@ package graph
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"iter"
-	"maps"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/ccoveille/go-safecast"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -45,6 +45,9 @@ func NewCursoredLookupResources3(dl dispatch.LookupResources3, dc dispatch.Check
 		concurrencyLimit:  concurrencyLimit,
 		dispatchChunkSize: dispatchChunkSize,
 		digestMap:         digests.NewDigestMap(),
+
+		// TODO: have a real cache config here.
+		relationshipsChunkCache: newRelationshipsChunkCache(),
 	}
 }
 
@@ -70,6 +73,9 @@ type CursoredLookupResources3 struct {
 
 	// digestMap is a map of digest keys to t-digests used for concurrency calculations.
 	digestMap *digests.DigestMap
+
+	// relationshipsChunkCache is a cache for storing relationships chunks across calls.
+	relationshipsChunkCache *relationshipsChunkCache
 }
 
 // ValidatedLookupResources3Request is a wrapper around the DispatchLookupResources3Request
@@ -232,14 +238,14 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 		sort.Strings(req.SubjectIds)
 	}
 
-	// Build context for the lookup resources operation. The lr3ctx holds references to shared
+	// Build refs for the lookup resources operation. The lr3refs holds references to shared
 	// interfaces used by various suboperations of the lookup resources operation.
 	ds := datastoremw.MustFromContext(stream.Context())
 	reader := ds.SnapshotReader(req.Revision)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 	caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
 
-	lctx := lr3ctx{
+	refs := lr3refs{
 		req:              req,
 		reader:           reader,
 		ts:               ts,
@@ -247,36 +253,43 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 		concurrencyLimit: crr.concurrencyLimit,
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	afterResponseCursor := &v1.Cursor{
+		DispatchVersion: lr3DispatchVersion,
+	}
+
+	resp := &v1.DispatchLookupResources3Response{
+		AfterResponseCursor: afterResponseCursor,
+	}
+
 	// Retrieve results from the unlimited iterator and publish them, respecting the limit,
 	// if any.
 	resultCount := uint32(0)
-	for result, err := range crr.unlimitedLookupResourcesIter(ctx, lctx) {
+	for result, err := range crr.unlimitedLookupResourcesIter(ctx, refs) {
 		if err != nil {
 			span.RecordError(err)
 			return err
 		}
 
-		afterResponseCursor := &v1.Cursor{
-			DispatchVersion: lr3DispatchVersion,
-			Sections:        result.Cursor,
-		}
+		spiceerrors.DebugAssertNotNil(result.Item.possibleResource, "expected possible resource to be non-nil")
+		spiceerrors.DebugAssertNotNil(result.Item.metadata, "expected metadata to be non-nil")
 
-		if result.Item.possibleResource == nil || result.Item.metadata == nil {
-			return spiceerrors.MustBugf("invalid result from lookup resources: missing possible resource or metadata")
-		}
+		afterResponseCursor.Sections = result.Cursor
+		resp.Resource = result.Item.possibleResource
+		resp.Metadata = addCallToResponseMetadata(result.Item.metadata)
 
-		if err := stream.Publish(&v1.DispatchLookupResources3Response{
-			Resource:            result.Item.possibleResource,
-			Metadata:            addCallToResponseMetadata(result.Item.metadata),
-			AfterResponseCursor: afterResponseCursor,
-		}); err != nil {
+		if err := stream.Publish(resp); err != nil {
 			span.RecordError(err)
 			return err
 		}
 
-		resultCount++
-		if req.OptionalLimit > 0 && resultCount >= req.OptionalLimit {
-			return nil
+		if req.OptionalLimit > 0 {
+			resultCount++
+			if resultCount >= req.OptionalLimit {
+				return nil
+			}
 		}
 	}
 	return nil
@@ -292,8 +305,8 @@ type pram struct {
 // as well as the cursor for the next iteration.
 type result = cter.ItemAndCursor[pram]
 
-// lr3ctx is a holder for various capabilities used by the LookupResources3 operation.
-type lr3ctx struct {
+// lr3refs is a holder for various capabilities used by the LookupResources3 operation.
+type lr3refs struct {
 	// req is the validated request for the LookupResources3 operation.
 	req ValidatedLookupResources3Request
 
@@ -315,17 +328,17 @@ type lr3ctx struct {
 // or an error occurs. It is the responsibility of the caller to handle limits.
 func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 	ctx context.Context,
-	lctx lr3ctx,
+	refs lr3refs,
 ) iter.Seq2[result, error] {
 	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLR3UnlimitedResults)
 	defer span.End()
 
 	var cursor cter.Cursor
-	if lctx.req.OptionalCursor != nil {
-		if lctx.req.OptionalCursor.DispatchVersion != lr3DispatchVersion {
-			return cter.YieldsError[result](fmt.Errorf("invalid dispatch version %d for lookup resources, expected %d", lctx.req.OptionalCursor.DispatchVersion, lr3DispatchVersion))
+	if refs.req.OptionalCursor != nil {
+		if refs.req.OptionalCursor.DispatchVersion != lr3DispatchVersion {
+			return cter.YieldsError[result](fmt.Errorf("invalid dispatch version %d for lookup resources, expected %d", refs.req.OptionalCursor.DispatchVersion, lr3DispatchVersion))
 		}
-		cursor = lctx.req.OptionalCursor.Sections
+		cursor = refs.req.OptionalCursor.Sections
 	}
 
 	// Portion #1: If the requested resource type+relation matches the subject type+relation, then we've immediately
@@ -334,24 +347,26 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 		func(ctx context.Context, startIndex int) iter.Seq2[pram, error] {
 			// If the subject relation does not match the resource relation, we cannot yield any results for this
 			// portion.
-			if lctx.req.SubjectRelation.Namespace != lctx.req.ResourceRelation.Namespace ||
-				lctx.req.SubjectRelation.Relation != lctx.req.ResourceRelation.Relation {
+			if refs.req.SubjectRelation.Namespace != refs.req.ResourceRelation.Namespace ||
+				refs.req.SubjectRelation.Relation != refs.req.ResourceRelation.Relation {
 				return cter.UncursoredEmpty[pram]()
 			}
 
 			_, span := tracer.Start(ctx, otelconv.EventDispatchLR3UnlimitedResultsDirectSubjects, trace.WithAttributes(
-				attribute.String(otelconv.AttrDispatchSubjectType, lctx.req.SubjectRelation.Namespace),
-				attribute.String(otelconv.AttrDispatchSubjectRelation, lctx.req.SubjectRelation.Relation),
+				attribute.String(otelconv.AttrDispatchSubjectType, refs.req.SubjectRelation.Namespace),
+				attribute.String(otelconv.AttrDispatchSubjectRelation, refs.req.SubjectRelation.Relation),
 			))
 			defer span.End()
 
 			// Return an iterator that yields results for all subject IDs starting from startIndex.
 			return func(yield func(pram, error) bool) {
-				for _, subjectID := range lctx.req.SubjectIds[startIndex:] {
+				singleSubjectID := make([]string, 1)
+				for _, subjectID := range refs.req.SubjectIds[startIndex:] {
+					singleSubjectID[0] = subjectID
 					if !yield(pram{
 						possibleResource: &v1.PossibleResource{
 							ResourceId:    subjectID,
-							ForSubjectIds: []string{subjectID},
+							ForSubjectIds: singleSubjectID,
 						},
 						metadata: emptyMetadata,
 					}, nil) {
@@ -366,19 +381,19 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 		// current subject type. For example, if the subject type is "user" and the target resource+permission is "document:read",
 		// the entrypoints could be "document#viewer" and "document#editor", as they are the relations that must walked
 		// *from* the user to reach the `read` permission on the `document`.
-		crr.entrypointsIter(lctx),
+		crr.entrypointsIter(refs),
 	)
 }
 
 // entrypointsIter is the second portion of the lookup resources iterator, which iterates over
 // the entrypoints for the given subject IDs and yields results for each entrypoint.
-func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram] {
+func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[pram] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
 		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointsIter)
 		defer span.End()
 
 		// Load the entrypoints that are reachable from the subject relation to the resource relation/permission.
-		entrypoints, err := crr.loadEntrypoints(ctx, lctx)
+		entrypoints, err := crr.loadEntrypoints(ctx, refs)
 		if err != nil {
 			return cter.YieldsError[result](err)
 		}
@@ -391,11 +406,11 @@ func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram
 		// the entrypointIter method.
 		entrypointIterators := make([]cter.Next[pram], 0, len(entrypoints))
 		for _, ep := range entrypoints {
-			entrypointIterators = append(entrypointIterators, crr.entrypointIter(lctx, ep))
+			entrypointIterators = append(entrypointIterators, crr.entrypointIter(refs, ep))
 		}
 
 		// Execute the iterators in parallel, yielding results for each entrypoint in the proper order.
-		return estimatedConcurrencyLimit(crr, lctx, keyedEntrypoints(entrypoints), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
+		return estimatedConcurrencyLimit(crr, refs, keyedEntrypoints(entrypoints), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
 			ccl, err := safecast.ToInt64(computedConcurrencyLimit)
 			if err != nil {
 				return cter.YieldsError[result](err)
@@ -412,25 +427,25 @@ func (crr *CursoredLookupResources3) entrypointsIter(lctx lr3ctx) cter.Next[pram
 }
 
 // loadEntrypoints loads the entrypoints for the given subject relation and resource relation found in the request.
-func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, lctx lr3ctx) ([]schema.ReachabilityEntrypoint, error) {
+func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, refs lr3refs) ([]schema.ReachabilityEntrypoint, error) {
 	// The entrypoints for a particular subject relation to a resource relation are defined by the reachability
 	// graph, which is built from the type system definition.
-	vdef, err := lctx.ts.GetValidatedDefinition(ctx, lctx.req.ResourceRelation.Namespace)
+	vdef, err := refs.ts.GetValidatedDefinition(ctx, refs.req.ResourceRelation.Namespace)
 	if err != nil {
 		return nil, err
 	}
 
 	rg := vdef.Reachability()
 	return rg.FirstEntrypointsForSubjectToResource(ctx, &core.RelationReference{
-		Namespace: lctx.req.SubjectRelation.Namespace,
-		Relation:  lctx.req.SubjectRelation.Relation,
-	}, lctx.req.ResourceRelation)
+		Namespace: refs.req.SubjectRelation.Namespace,
+		Relation:  refs.req.SubjectRelation.Relation,
+	}, refs.req.ResourceRelation)
 }
 
 // entrypointIter is the iterator for a single entrypoint, which will yield results for the given
 // entrypoint and the subject IDs in the request. It will return an iterator sequence of results
 // for each entrypoint, dispatching further when necessary.
-func (crr *CursoredLookupResources3) entrypointIter(lctx lr3ctx, entrypoint schema.ReachabilityEntrypoint) cter.Next[pram] {
+func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint schema.ReachabilityEntrypoint) cter.Next[pram] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
 		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointIter,
 			trace.WithAttributes(
@@ -444,7 +459,7 @@ func (crr *CursoredLookupResources3) entrypointIter(lctx lr3ctx, entrypoint sche
 		// of `relation viewer: user`, we would lookup all relationships for the current user(s) and find
 		// all the document(s) on which the user is a viewer.
 		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-			return crr.relationEntrypointIter(ctx, lctx, entrypoint, currentCursor)
+			return crr.relationEntrypointIter(ctx, refs, entrypoint, currentCursor)
 
 		// If the entrypoint is a computed user set entrypoint, we need to rewrite the subject relation
 		// to the containing relation or permission of the entrypoint. For example, given a permission
@@ -459,17 +474,17 @@ func (crr *CursoredLookupResources3) entrypointIter(lctx lr3ctx, entrypoint sche
 
 			// Since this is a structural rewriting, the *entire set* of subject IDs is provided as the basis for
 			// the rewritten subject relation.
-			rm := subjectIDsToRelationshipsChunk(lctx.req.SubjectRelation, lctx.req.SubjectIds, rewrittenSubjectRelation)
+			rm := subjectIDsToRelationshipsChunk(refs.req.SubjectRelation, refs.req.SubjectIds, rewrittenSubjectRelation)
 
 			// Dispatch the rewritten subjects, to further find resources up the tree.
-			return crr.checkedDispatchIter(ctx, lctx, currentCursor, rm, rewrittenSubjectRelation, entrypoint)
+			return crr.checkedDispatchIter(ctx, refs, currentCursor, rm, rewrittenSubjectRelation, entrypoint)
 
 		// If the entrypoint is a TTU entrypoint (arrow), we need to iterate over the tupleset's relationships
 		// for the given subject IDs and yield results for dispatching for each, rewriting based on the containing
 		// relation. For example, given an arrow of `parent->view`, we would lookup all relationships for the `parent`
 		// relation and then *dispatch* to the `view` permission for each.
 		case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-			return crr.ttuEntrypointIter(ctx, lctx, entrypoint, currentCursor)
+			return crr.ttuEntrypointIter(ctx, refs, entrypoint, currentCursor)
 
 		default:
 			return cter.YieldsError[result](spiceerrors.MustBugf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind()))
@@ -481,7 +496,7 @@ func (crr *CursoredLookupResources3) entrypointIter(lctx lr3ctx, entrypoint sche
 // found by traversing the relation for the given entrypoint and the subject IDs in the request.
 func (crr *CursoredLookupResources3) relationEntrypointIter(
 	ctx context.Context,
-	lctx lr3ctx,
+	refs lr3refs,
 	entrypoint schema.ReachabilityEntrypoint,
 	currentCursor cter.Cursor,
 ) iter.Seq2[result, error] {
@@ -497,7 +512,7 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 		return cter.YieldsError[result](err)
 	}
 
-	relDefinition, err := lctx.ts.GetValidatedDefinition(ctx, relationReference.Namespace)
+	relDefinition, err := refs.ts.GetValidatedDefinition(ctx, relationReference.Namespace)
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
@@ -505,26 +520,26 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 	// Build the list of subjects to lookup based on the type information available.
 	isDirectAllowed, err := relDefinition.IsAllowedDirectRelation(
 		relationReference.Relation,
-		lctx.req.SubjectRelation.Namespace,
-		lctx.req.SubjectRelation.Relation,
+		refs.req.SubjectRelation.Namespace,
+		refs.req.SubjectRelation.Relation,
 	)
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
 
-	subjectIds := make([]string, 0, len(lctx.req.SubjectIds)+1)
+	subjectIds := make([]string, 0, len(refs.req.SubjectIds)+1)
 
 	// If the subject relation is allowed directly on the relation, we can use the subject IDs
 	// directly, as they are valid subjects for the relation.
 	if isDirectAllowed == schema.DirectRelationValid {
-		subjectIds = append(subjectIds, lctx.req.SubjectIds...)
+		subjectIds = append(subjectIds, refs.req.SubjectIds...)
 	}
 
 	// If the subject relation is a terminal subject, check for a wildcard. For example,
 	// if the subject type is `user`, then `user:*` would also match any subjects of that
 	// type.
-	if lctx.req.SubjectRelation.Relation == tuple.Ellipsis {
-		isWildcardAllowed, err := relDefinition.IsAllowedPublicNamespace(relationReference.Relation, lctx.req.SubjectRelation.Namespace)
+	if refs.req.SubjectRelation.Relation == tuple.Ellipsis {
+		isWildcardAllowed, err := relDefinition.IsAllowedPublicNamespace(relationReference.Relation, refs.req.SubjectRelation.Namespace)
 		if err != nil {
 			return cter.YieldsError[result](err)
 		}
@@ -535,23 +550,23 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 	}
 
 	relationFilter := datastore.SubjectRelationFilter{
-		NonEllipsisRelation: lctx.req.SubjectRelation.Relation,
+		NonEllipsisRelation: refs.req.SubjectRelation.Relation,
 	}
 
-	if lctx.req.SubjectRelation.Relation == tuple.Ellipsis {
+	if refs.req.SubjectRelation.Relation == tuple.Ellipsis {
 		relationFilter = datastore.SubjectRelationFilter{
 			IncludeEllipsisRelation: true,
 		}
 	}
 
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType:        lctx.req.SubjectRelation.Namespace,
+		SubjectType:        refs.req.SubjectRelation.Namespace,
 		OptionalSubjectIds: subjectIds,
 		RelationFilter:     relationFilter,
 	}
 
 	// Lookup relationships for the given subjects and relation reference, dispatching over the results.
-	return crr.relationshipsIter(ctx, lctx, currentCursor, relationshipsIterConfig{
+	return crr.relationshipsIter(ctx, refs, currentCursor, relationshipsIterConfig{
 		subjectsFilter:     subjectsFilter,
 		sourceResourceType: relationReference,
 		foundResourceType:  relationReference,
@@ -563,7 +578,7 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 // found by traversing the tupleset for the given entrypoint and the subject IDs in the request.
 func (crr *CursoredLookupResources3) ttuEntrypointIter(
 	ctx context.Context,
-	lctx lr3ctx,
+	refs lr3refs,
 	entrypoint schema.ReachabilityEntrypoint,
 	currentCursor cter.Cursor,
 ) iter.Seq2[result, error] {
@@ -575,7 +590,7 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 
 	containingRelation := entrypoint.ContainingRelationOrPermission()
 
-	ttuDef, err := lctx.ts.GetValidatedDefinition(ctx, containingRelation.Namespace)
+	ttuDef, err := refs.ts.GetValidatedDefinition(ctx, containingRelation.Namespace)
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
@@ -588,7 +603,7 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 	// Determine whether this TTU should be followed, which will be the case if the subject relation's namespace
 	// is allowed in any form on the relation; since arrows ignore the subject's relation (if any), we check
 	// for the subject namespace as a whole.
-	allowedRelations, err := ttuDef.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, lctx.req.SubjectRelation.Namespace)
+	allowedRelations, err := ttuDef.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, refs.req.SubjectRelation.Namespace)
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
@@ -599,8 +614,8 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 
 	// Search for the resolved subjects in the tupleset of the TTU.
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType:        lctx.req.SubjectRelation.Namespace,
-		OptionalSubjectIds: lctx.req.SubjectIds,
+		SubjectType:        refs.req.SubjectRelation.Namespace,
+		OptionalSubjectIds: refs.req.SubjectIds,
 	}
 
 	// Optimization: if there is a single allowed relation, pass it as a subject relation filter to make things faster
@@ -616,7 +631,7 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 	}
 
 	// Lookup relationships for the given subjects and relation reference, dispatching over the results.
-	return crr.relationshipsIter(ctx, lctx, currentCursor, relationshipsIterConfig{
+	return crr.relationshipsIter(ctx, refs, currentCursor, relationshipsIterConfig{
 		subjectsFilter:     subjectsFilter,
 		sourceResourceType: tuplesetRelationReference,
 		foundResourceType:  containingRelation,
@@ -641,11 +656,13 @@ type relationshipsIterConfig struct {
 	entrypoint schema.ReachabilityEntrypoint
 }
 
+type coh = cter.ChunkOrHold[*relationshipsChunk, datastoreIndex]
+
 // relationshipsIter is an iterator that fetches relationships for the given subjects and processes them
 // by further dispatching the found resources as the next step's subjects.
 func (crr *CursoredLookupResources3) relationshipsIter(
 	ctx context.Context,
-	lctx lr3ctx,
+	refs lr3refs,
 	currentCursor cter.Cursor,
 	config relationshipsIterConfig,
 ) iter.Seq2[result, error] {
@@ -655,15 +672,15 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 	//
 	// The producer will yield chunks of relationships, maximum of the dispatchChunkSize, to be
 	// dispatched by the mapper in parallel.
-	return estimatedConcurrencyLimit(crr, lctx, keyedEntrypoint(config.entrypoint), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
+	return estimatedConcurrencyLimit(crr, refs, keyedEntrypoint(config.entrypoint), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
 		return cter.CursoredProducerMapperIterator(ctx, currentCursor,
 			computedConcurrencyLimit,
-			datastoreCursorFromString,
-			datastoreCursorToString,
-			func(ctx context.Context, currentIndex *v1.DatastoreCursor, remainingCursor cter.Cursor) iter.Seq2[cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error] {
+			datastoreIndexFromString,
+			mustDatastoreIndexToString,
+			func(ctx context.Context, currentIndex datastoreIndex, remainingCursor cter.Cursor) iter.Seq2[coh, error] {
 				ccl, err := safecast.ToInt64(computedConcurrencyLimit)
 				if err != nil {
-					return cter.YieldsError[cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor]](err)
+					return cter.YieldsError[coh](err)
 				}
 
 				ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterProducer,
@@ -672,28 +689,31 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					))
 				defer span.End()
 
-				return func(yield func(cter.ChunkFollowOrHold[*relationshipsChunk, *v1.DatastoreCursor], error) bool) {
-					ctx, cancel := context.WithCancel(ctx)
-					defer cancel()
-
+				return func(yield func(coh, error) bool) {
 					yieldError := func(err error) {
-						_ = yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{}, err)
+						_ = yield(cter.Chunk[*relationshipsChunk, datastoreIndex]{}, err)
 					}
+
+					dbCursor := currentIndex.toDatastoreCursor()
 
 					// Create a relationships map from the current index cursor, if any. The cursor will contain the *current*
 					// chunk of relationships over which the process is iterating. If non-empty, then we first yield that chunk
 					// before continuing to query for more relationships.
-					rm := relationshipsChunkFromCursor(currentIndex)
-					if rm.isPopulated() {
+					if crc, ok := currentIndex.lookupRelationshipsChunk(crr.relationshipsChunkCache); ok {
+						spiceerrors.DebugAssert(crc.isPopulated, "expected relationships chunk to be populated")
+
 						// Yield the current chunk of relationships.
-						if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
-							Chunk:  rm,
-							Follow: currentIndex,
+						if !yield(cter.Chunk[*relationshipsChunk, datastoreIndex]{
+							CurrentChunk:       crc,
+							CurrentChunkCursor: currentIndex,
 						}, nil) {
 							return
 						}
 
-						// Check if the remaining cursor contains another datastore cursor. If so, we have this producer
+						// Since the chunk was already processed, we move the cursor forward to the next position.
+						dbCursor = &crc.finalRelationship
+
+						// Check if the remaining cursor contains another datastore index. If so, we have this producer
 						// yield a "hold" to allow mapping/dispatching to process *before* we hit the datastore again.
 						//
 						// This handles the common case where the limited number of results requested is reached without having
@@ -701,17 +721,17 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						//
 						// We only do so if there is a defined limit on the number of results to fetch, as otherwise, we need
 						// to run the full set of work anyway.
-						if lctx.req.OptionalLimit > 0 && containsDatastoreCursor(remainingCursor) {
+						if refs.req.OptionalLimit > 0 && containsDatastoreIndex(remainingCursor) {
 							// We have a remaining cursor, so we yield a hold to allow the mapper to process the current chunk
 							// before we continue fetching more relationships.
-							if !yield(cter.HoldForMappingComplete[*relationshipsChunk, *v1.DatastoreCursor]{}, nil) {
+							if !yield(cter.HoldForMappingComplete[*relationshipsChunk, datastoreIndex]{}, nil) {
 								return
 							}
 						}
 					}
 
 					// Determine whether we need to fetch caveats and/or expiration.
-					vts, err := lctx.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
+					vts, err := refs.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
 					if err != nil {
 						yieldError(err)
 						return
@@ -727,7 +747,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					skipExpiration := !possibleTraits.AllowsExpiration
 
 					// Continue by querying for relationships from the datastore, after the optional cursor.
-					it, err := lctx.reader.ReverseQueryRelationships(
+					it, err := refs.reader.ReverseQueryRelationships(
 						ctx,
 						config.subjectsFilter,
 						options.WithResRelation(&options.ResourceRelation{
@@ -735,7 +755,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 							Relation:  config.sourceResourceType.Relation,
 						}),
 						options.WithSortForReverse(options.BySubject),
-						options.WithAfterForReverse(rm.afterCursor()),
+						options.WithAfterForReverse(dbCursor),
 						options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
 						options.WithSkipCaveatsForReverse(skipCaveats),
 						options.WithSkipExpirationForReverse(skipExpiration),
@@ -745,8 +765,9 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						return
 					}
 
-					// Yield a subject map of chunks of relationships, based on the dispatchChunkSize.
-					rm = newRelationshipsChunk(int(crr.dispatchChunkSize))
+					// Start the new relationships chunk that we will fill as we iterate over the results.
+					// It starts at the given dbCursor, which may be nil/empty if this is the first chunk.
+					rm := newRelationshipsChunk(int(crr.dispatchChunkSize), dbCursor)
 					for rel, err := range it {
 						if err != nil {
 							yieldError(err)
@@ -757,7 +778,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						var missingContextParameters []string
 						if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
 							caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
-							runResult, err := lctx.caveatRunner.RunCaveatExpression(ctx, caveatExpr, lctx.req.Context.AsMap(), lctx.reader, caveats.RunCaveatExpressionNoDebugging)
+							runResult, err := refs.caveatRunner.RunCaveatExpression(ctx, caveatExpr, refs.req.Context.AsMap(), refs.reader, caveats.RunCaveatExpressionNoDebugging)
 							if err != nil {
 								yieldError(err)
 								return
@@ -781,22 +802,29 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						// Add the relationship to the relationships chunk, marking it with any context parameters that were missing.
 						relCount := rm.addRelationship(rel, missingContextParameters)
 						if relCount >= int(crr.dispatchChunkSize) {
+							crr.relationshipsChunkCache.storeRelationshipsChunk(rm)
+
 							// Yield the chunk of relationships for processing.
-							if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
-								Chunk:  rm,
-								Follow: rm.asCursor(),
+							if !yield(cter.Chunk[*relationshipsChunk, datastoreIndex]{
+								CurrentChunk:       rm,
+								CurrentChunkCursor: rm.mustAsIndex(),
 							}, nil) {
 								return
 							}
-							rm = newRelationshipsChunk(int(crr.dispatchChunkSize))
+
+							// Create a new relationships chunk to continue processing, with its cursor set to the
+							// resume after the current relationship.
+							rm = newRelationshipsChunk(int(crr.dispatchChunkSize), &rel)
 						}
 					}
 
 					if rm.isPopulated() {
+						crr.relationshipsChunkCache.storeRelationshipsChunk(rm)
+
 						// Yield any remaining relationships in the chunk.
-						if !yield(cter.ChunkAndFollow[*relationshipsChunk, *v1.DatastoreCursor]{
-							Chunk:  rm,
-							Follow: rm.asCursor(),
+						if !yield(cter.Chunk[*relationshipsChunk, datastoreIndex]{
+							CurrentChunk:       rm,
+							CurrentChunkCursor: rm.mustAsIndex(),
 						}, nil) {
 							return
 						}
@@ -810,7 +838,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 				// Return an iterator to continue finding resources by dispatching.
 				// NOTE(jschorr): Technically if we don't have any further entrypoints at this point, we could do checks locally,
 				// but that would require additional code just to save one dispatch hop, thus complicating the code base.
-				return crr.checkedDispatchIter(ctx, lctx, remainingCursor, rm, config.foundResourceType, config.entrypoint)
+				return crr.checkedDispatchIter(ctx, refs, remainingCursor, rm, config.foundResourceType, config.entrypoint)
 			},
 		)
 	})
@@ -818,7 +846,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 
 func (crr *CursoredLookupResources3) checkedDispatchIter(
 	ctx context.Context,
-	lctx lr3ctx,
+	refs lr3refs,
 	currentCursor cter.Cursor,
 	rm *relationshipsChunk,
 	foundResourceType *core.RelationReference,
@@ -833,17 +861,17 @@ func (crr *CursoredLookupResources3) checkedDispatchIter(
 	// If the entrypoint is a direct result, we can simply dispatch the results, as it means no intersection,
 	// exclusion or intersection arrow was found "above" this entrypoint in the permission.
 	if entrypoint.IsDirectResult() {
-		return crr.dispatchIter(ctx, lctx, currentCursor, rm, foundResourceType, emptyMetadata)
+		return crr.dispatchIter(ctx, refs, currentCursor, rm, foundResourceType, emptyMetadata)
 	}
 
 	// Otherwise, we need to check them before dispatching. This shears the tree of results for intersections, exclusions
 	// and intersection arrows.
-	filteredChunk, checkMetadata, err := crr.filterSubjectsByCheck(ctx, lctx, rm, foundResourceType, entrypoint)
+	filteredChunk, checkMetadata, err := crr.filterSubjectsByCheck(ctx, refs, rm, foundResourceType, entrypoint)
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
 
-	return crr.dispatchIter(ctx, lctx, currentCursor, filteredChunk, foundResourceType, checkMetadata)
+	return crr.dispatchIter(ctx, refs, currentCursor, filteredChunk, foundResourceType, checkMetadata)
 }
 
 // dispatchIter is a helper function that dispatches the resources found in the relationships chunk,
@@ -851,7 +879,7 @@ func (crr *CursoredLookupResources3) checkedDispatchIter(
 // over the resources found in the `rm` chunk.
 func (crr *CursoredLookupResources3) dispatchIter(
 	ctx context.Context,
-	lctx lr3ctx,
+	refs lr3refs,
 	currentCursor cter.Cursor,
 	rm *relationshipsChunk,
 	foundResourceType *core.RelationReference,
@@ -874,22 +902,19 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	// Return an iterator that invokes the dispatch operation for the given resource relation and subject IDs,
 	// yielding results for each resource found.
 	return func(yield func(result, error) bool) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
 		stream := newYieldingStream(ctx, yield, rm, metadata)
 		err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
-			ResourceRelation: lctx.req.ResourceRelation,
+			ResourceRelation: refs.req.ResourceRelation,
 			SubjectRelation:  foundResourceType,
 			SubjectIds:       subjectIDs,
-			TerminalSubject:  lctx.req.TerminalSubject,
+			TerminalSubject:  refs.req.TerminalSubject,
 			Metadata: &v1.ResolverMeta{
-				AtRevision:     lctx.req.Revision.String(),
-				DepthRemaining: lctx.req.Metadata.DepthRemaining - 1,
+				AtRevision:     refs.req.Revision.String(),
+				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
 			},
 			OptionalCursor: currentDispatchCursor,
-			OptionalLimit:  lctx.req.OptionalLimit,
-			Context:        lctx.req.Context,
+			OptionalLimit:  refs.req.OptionalLimit,
+			Context:        refs.req.Context,
 		}, stream)
 		if err != nil && !stream.canceled {
 			_ = yield(result{}, err)
@@ -903,7 +928,7 @@ func (crr *CursoredLookupResources3) dispatchIter(
 // the tree where applicable.
 func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 	ctx context.Context,
-	lctx lr3ctx,
+	refs lr3refs,
 	rm *relationshipsChunk,
 	foundResourceType *core.RelationReference,
 	entrypoint schema.ReachabilityEntrypoint,
@@ -917,7 +942,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 		checkHint, err := hints.HintForEntrypoint(
 			entrypoint,
 			resourceIDToCheck,
-			tuple.FromCoreObjectAndRelation(lctx.req.TerminalSubject),
+			tuple.FromCoreObjectAndRelation(refs.req.TerminalSubject),
 			&v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
 			})
@@ -931,10 +956,10 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 	// the goal is to shear for the containing permission.
 	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, crr.dc, crr.caveatTypeSet, computed.CheckParameters{
 		ResourceType:  tuple.FromCoreRelationReference(foundResourceType),
-		Subject:       tuple.FromCoreObjectAndRelation(lctx.req.TerminalSubject),
-		CaveatContext: lctx.req.Context.AsMap(),
-		AtRevision:    lctx.req.Revision,
-		MaximumDepth:  lctx.req.Metadata.DepthRemaining - 1,
+		Subject:       tuple.FromCoreObjectAndRelation(refs.req.TerminalSubject),
+		CaveatContext: refs.req.Context.AsMap(),
+		AtRevision:    refs.req.Revision,
+		MaximumDepth:  refs.req.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
 	}, resourceIDsToCheck, crr.dispatchChunkSize)
@@ -943,7 +968,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 	}
 
 	// Dispatch any resources that are visible.
-	updatedChunk := newRelationshipsChunk(len(resourceIDsToCheck))
+	updatedChunk := newRelationshipsChunk(len(resourceIDsToCheck), nil)
 	for _, resourceID := range resourceIDsToCheck {
 		result, ok := resultsByResourceID[resourceID]
 		if !ok {
@@ -1034,11 +1059,8 @@ func (y *yieldingStream) Publish(resp *v1.DispatchLookupResources3Response) erro
 	}
 
 	// Check if the context is done before publishing, to avoid unnecessary work.
-	select {
-	case <-y.ctx.Done():
+	if y.ctx.Err() != nil {
 		return y.ctx.Err()
-	default:
-		// publish
 	}
 
 	// If this is the first publish call, we combine the response metadata with the initial metadata,
@@ -1079,43 +1101,53 @@ var _ dispatch.LookupResources3Stream = &yieldingStream{}
 // and the resources that are found in the relationships, along with any missing context parameters
 // that were found during the relationship processing.
 type relationshipsChunk struct {
-	// underlyingCursor is the protocol buffer representation of the relationships chunk.
-	underlyingCursor *v1.DatastoreCursor
+	uniqueID             string
+	dbCursor             *tuple.Relationship
+	finalRelationship    tuple.Relationship
+	subjectsByResourceID map[string]map[string]subjectIDAndMissingContext
+}
+
+type subjectIDAndMissingContext struct {
+	subjectID            string
+	missingContextParams *mapz.Set[string]
+}
+
+// newRelationshipsChunk creates a new relationships chunk with the specified capacity.
+func newRelationshipsChunk(capacity int, dbCursor options.Cursor) *relationshipsChunk {
+	return &relationshipsChunk{
+		uniqueID:             uuid.NewString(),
+		dbCursor:             dbCursor,
+		subjectsByResourceID: make(map[string]map[string]subjectIDAndMissingContext, capacity),
+	}
 }
 
 // isPopulated returns true if the relationships chunk contains any relationships.
 func (rm *relationshipsChunk) isPopulated() bool {
-	return len(rm.underlyingCursor.OrderedRelationships) > 0
+	return len(rm.subjectsByResourceID) > 0
 }
 
 // addRelationship adds a relationship to the relationships chunk, creating the necessary
 // resource and subject entries if they do not exist. It also collects any missing context parameters
 // that were found during the relationship processing.
 func (rm *relationshipsChunk) addRelationship(rel tuple.Relationship, missingContextParameters []string) int {
-	existingResource, ok := rm.underlyingCursor.Resources[rel.Resource.ObjectID]
+	resourceRef, ok := rm.subjectsByResourceID[rel.Resource.ObjectID]
 	if !ok {
-		existingResource = &v1.ResourceAndMissingContext{
-			ResourceId:                rel.Resource.ObjectID,
-			MissingContextBySubjectId: make(map[string]*v1.SubjectAndMissingContext, 1),
-		}
-		rm.underlyingCursor.Resources[rel.Resource.ObjectID] = existingResource
+		rm.subjectsByResourceID[rel.Resource.ObjectID] = make(map[string]subjectIDAndMissingContext, 1)
+		resourceRef = rm.subjectsByResourceID[rel.Resource.ObjectID]
 	}
 
-	existingSubject, ok := existingResource.MissingContextBySubjectId[rel.Subject.ObjectID]
+	subjectRef, ok := resourceRef[rel.Subject.ObjectID]
 	if !ok {
-		existingSubject = &v1.SubjectAndMissingContext{
-			SubjectId:            rel.Subject.ObjectID,
-			MissingContextParams: make([]string, 0, len(missingContextParameters)),
+		subjectRef = subjectIDAndMissingContext{
+			subjectID:            rel.Subject.ObjectID,
+			missingContextParams: mapz.NewSet[string](),
 		}
-		existingResource.MissingContextBySubjectId[rel.Subject.ObjectID] = existingSubject
+		resourceRef[rel.Subject.ObjectID] = subjectRef
 	}
 
-	mcpSet := mapz.NewSet(existingSubject.MissingContextParams...)
-	mcpSet.Extend(missingContextParameters)
-	existingSubject.MissingContextParams = mcpSet.AsSlice()
-
-	rm.underlyingCursor.OrderedRelationships = append(rm.underlyingCursor.OrderedRelationships, rel.ToCoreTuple())
-	return len(rm.underlyingCursor.Resources)
+	subjectRef.missingContextParams.Extend(missingContextParameters)
+	rm.finalRelationship = rel
+	return len(rm.subjectsByResourceID)
 }
 
 // copyRelationshipsFrom copies relationships from another relationships chunk for a specific resource ID,
@@ -1127,36 +1159,42 @@ func (rm *relationshipsChunk) copyRelationshipsFrom(src *relationshipsChunk, res
 		return
 	}
 
-	// Copy the relationships for the given resource ID from the source chunk.
-	for _, rel := range src.underlyingCursor.OrderedRelationships {
-		if rel.ResourceAndRelation.ObjectId == resourceID {
-			combinedMissingContextParameters := mapz.NewSet[string]()
-			combinedMissingContextParameters.Extend(missingContextParameters)
+	srcResourceInfo, ok := src.subjectsByResourceID[resourceID]
+	if !ok {
+		return
+	}
 
-			if existingResource, ok := src.underlyingCursor.Resources[resourceID]; ok {
-				if existingSubject, ok := existingResource.MissingContextBySubjectId[rel.Subject.ObjectId]; ok {
-					combinedMissingContextParameters.Extend(existingSubject.MissingContextParams)
-				}
+	destResourceInfo, ok := rm.subjectsByResourceID[resourceID]
+	if !ok {
+		destResourceInfo = make(map[string]subjectIDAndMissingContext, len(srcResourceInfo))
+		rm.subjectsByResourceID[resourceID] = destResourceInfo
+	}
+
+	for subjectID, srcSubjectInfo := range srcResourceInfo {
+		destSubjectInfo, ok := destResourceInfo[subjectID]
+		if !ok {
+			destSubjectInfo = subjectIDAndMissingContext{
+				subjectID:            subjectID,
+				missingContextParams: mapz.NewSet[string](),
 			}
-
-			rm.addRelationship(tuple.FromCoreRelationTuple(rel), combinedMissingContextParameters.AsSlice())
 		}
+
+		destSubjectInfo.missingContextParams.Merge(srcSubjectInfo.missingContextParams)
+		if len(missingContextParameters) > 0 {
+			destSubjectInfo.missingContextParams.Extend(missingContextParameters)
+		}
+
+		// Update the map with the modified destSubjectInfo
+		destResourceInfo[subjectID] = destSubjectInfo
 	}
 }
 
-// afterCursor returns the datastore cursor for the next chunk of relationships, if any.
-func (rm *relationshipsChunk) afterCursor() options.Cursor {
-	if len(rm.underlyingCursor.OrderedRelationships) == 0 {
-		return nil
+func (rm *relationshipsChunk) mustAsIndex() datastoreIndex {
+	spiceerrors.DebugAssert(rm.isPopulated, "cannot create index from empty relationships chunk")
+	return datastoreIndex{
+		dbCursor: rm.dbCursor,
+		chunkID:  rm.uniqueID,
 	}
-
-	lastRel := rm.underlyingCursor.OrderedRelationships[len(rm.underlyingCursor.OrderedRelationships)-1]
-	return options.ToCursor(tuple.FromCoreRelationTuple(lastRel))
-}
-
-// asCursor returns the Protocol Buffer representation of the relationships chunk.
-func (rm *relationshipsChunk) asCursor() *v1.DatastoreCursor {
-	return rm.underlyingCursor
 }
 
 // subjectIDsToDispatch returns the subject IDs that should be dispatched from the relationships chunk.
@@ -1164,7 +1202,12 @@ func (rm *relationshipsChunk) subjectIDsToDispatch() []string {
 	// NOTE: the method is called subjectIDsToDispatch, but we are returning the resource IDs
 	// here. This is because once we've collected resource IDs, they become the subject IDs for
 	// the *next* dispatch operation.
-	return slices.Collect(maps.Keys(rm.underlyingCursor.Resources))
+	resourceIDs := make([]string, 0, len(rm.subjectsByResourceID))
+	for resourceID := range rm.subjectsByResourceID {
+		resourceIDs = append(resourceIDs, resourceID)
+	}
+	sort.Strings(resourceIDs)
+	return resourceIDs
 }
 
 // mapPossibleResource maps a possible resource from the relationships chunk, collecting the subject IDs
@@ -1179,17 +1222,18 @@ func (rm *relationshipsChunk) mapPossibleResource(foundResource *v1.PossibleReso
 
 	for _, forSubjectID := range foundResource.ForSubjectIds {
 		// Map from the incoming subject ID to the subject ID(s) that caused the dispatch.
-		infos, ok := rm.underlyingCursor.Resources[forSubjectID]
+		infos, ok := rm.subjectsByResourceID[forSubjectID]
 		if !ok {
 			return nil, spiceerrors.MustBugf("missing for subject ID")
 		}
 
-		for _, info := range infos.MissingContextBySubjectId {
-			forSubjectIDs.Insert(info.SubjectId)
-			if len(info.MissingContextParams) == 0 {
-				nonCaveatedSubjectIDs.Insert(info.SubjectId)
+		for _, info := range infos {
+			forSubjectIDs.Insert(info.subjectID)
+
+			if info.missingContextParams.IsEmpty() {
+				nonCaveatedSubjectIDs.Insert(info.subjectID)
 			} else {
-				missingContextParameters.Extend(info.MissingContextParams)
+				missingContextParameters.Merge(info.missingContextParams)
 			}
 		}
 	}
@@ -1211,32 +1255,13 @@ func (rm *relationshipsChunk) mapPossibleResource(foundResource *v1.PossibleReso
 	}, nil
 }
 
-// relationshipsChunkFromCursor creates a new relationships chunk from the given datastore cursor.
-// If the cursor is nil or has no ordered relationships, it returns a new empty relationships chunk.
-func relationshipsChunkFromCursor(cursor *v1.DatastoreCursor) *relationshipsChunk {
-	if cursor == nil || len(cursor.OrderedRelationships) == 0 {
-		return newRelationshipsChunk(0)
-	}
-	return &relationshipsChunk{underlyingCursor: cursor}
-}
-
-// newRelationshipsChunk creates a new relationships chunk with the specified capacity.
-func newRelationshipsChunk(capacity int) *relationshipsChunk {
-	return &relationshipsChunk{
-		underlyingCursor: &v1.DatastoreCursor{
-			OrderedRelationships: make([]*core.RelationTuple, 0, capacity),
-			Resources:            make(map[string]*v1.ResourceAndMissingContext, capacity),
-		},
-	}
-}
-
 // subjectIDsToRelationshipsChunk creates a relationships chunk from the given subject IDs and the rewritten subject relation.
 func subjectIDsToRelationshipsChunk(
 	subjectRelation *core.RelationReference,
 	subjectIDs []string,
 	rewrittenSubjectRelation *core.RelationReference,
 ) *relationshipsChunk {
-	rm := newRelationshipsChunk(len(subjectIDs))
+	rm := newRelationshipsChunk(len(subjectIDs), nil)
 	for _, subjectID := range subjectIDs {
 		// Create a relationship for the subject ID with the rewritten relation.
 		rel := tuple.Relationship{
@@ -1259,60 +1284,111 @@ func subjectIDsToRelationshipsChunk(
 	return rm
 }
 
-const dsCursorPrefix = "$dsc:"
+type relationshipsChunkCache struct {
+	chunks map[string]*relationshipsChunk
+	lock   sync.RWMutex
+}
 
-// containsDatastoreCursor checks if the given cursor contains a datastore cursor section.
-func containsDatastoreCursor(cursor cter.Cursor) bool {
+func newRelationshipsChunkCache() *relationshipsChunkCache {
+	return &relationshipsChunkCache{
+		chunks: make(map[string]*relationshipsChunk),
+	}
+}
+
+func (crc *relationshipsChunkCache) storeRelationshipsChunk(rm *relationshipsChunk) {
+	crc.lock.Lock()
+	defer crc.lock.Unlock()
+	crc.chunks[rm.uniqueID] = rm
+}
+
+func (crc *relationshipsChunkCache) lookupChunkByID(chunkID string) (*relationshipsChunk, bool) {
+	crc.lock.RLock()
+	defer crc.lock.RUnlock()
+	rm, ok := crc.chunks[chunkID]
+	return rm, ok
+}
+
+const dsIndexPrefix = "$dsi:"
+
+// containsDatastoreIndex checks if the given cursor contains a datastore index section.
+func containsDatastoreIndex(cursor cter.Cursor) bool {
 	for _, section := range cursor {
-		if strings.HasPrefix(section, dsCursorPrefix) {
+		if strings.HasPrefix(section, dsIndexPrefix) {
 			return true
 		}
 	}
 	return false
 }
 
-// datastoreCursorFromString converts a base64-encoded string representation of a datastore cursor
-// into a *v1.DatastoreCursor. If the string is empty, it returns nil.
-func datastoreCursorFromString(cursorStr string) (*v1.DatastoreCursor, error) {
-	// Convert the string from base64 to bytes.
-	if !strings.HasPrefix(cursorStr, dsCursorPrefix) {
-		return nil, fmt.Errorf("invalid datastore cursor prefix found in datastore cursor: %s", cursorStr)
-	}
-
-	cursorStr = strings.TrimPrefix(cursorStr, dsCursorPrefix)
+// datastoreIndexFromString converts a string representation of a datastore cursor
+// into a datastoreIndex. If the string is empty, it returns nil.
+func datastoreIndexFromString(cursorStr string) (datastoreIndex, error) {
 	if cursorStr == "" {
-		return nil, nil // empty string means no cursor
+		return datastoreIndex{}, nil
 	}
 
-	decodedBytes, err := base64.StdEncoding.DecodeString(cursorStr)
+	if !strings.HasPrefix(cursorStr, dsIndexPrefix) {
+		return datastoreIndex{}, spiceerrors.MustBugf("invalid datastore index cursor: missing prefix")
+	}
+
+	withoutPrefix := strings.TrimPrefix(cursorStr, dsIndexPrefix)
+	if withoutPrefix == "" {
+		return datastoreIndex{}, spiceerrors.MustBugf("invalid datastore index cursor: missing encoded part")
+	}
+
+	pieces := strings.SplitN(withoutPrefix, ":", 2)
+	if len(pieces) > 2 || len(pieces) < 1 {
+		return datastoreIndex{}, spiceerrors.MustBugf("invalid datastore index cursor: missing parts")
+	}
+
+	chunkID := pieces[0]
+	if chunkID == "" {
+		return datastoreIndex{}, spiceerrors.MustBugf("invalid datastore index cursor: missing chunk ID")
+	}
+
+	if len(pieces) == 1 {
+		// No relationship part, so this is just the chunk ID with no cursor.
+		return datastoreIndex{
+			chunkID: chunkID,
+		}, nil
+	}
+
+	relString := pieces[1]
+	cursorRel, err := tuple.Parse(relString)
 	if err != nil {
-		return nil, fmt.Errorf("invalid cursor string: %w", err)
+		return datastoreIndex{}, spiceerrors.MustBugf("invalid datastore index cursor: malformed relationship")
 	}
 
-	decoded := &v1.DatastoreCursor{}
-	err = decoded.UnmarshalVT(decodedBytes)
-	if err != nil {
-		return nil, fmt.Errorf("invalid cursor data: %w", err)
-	}
-
-	return decoded, nil
+	return datastoreIndex{
+		chunkID:  chunkID,
+		dbCursor: &cursorRel,
+	}, nil
 }
 
-// datastoreCursorToString converts a *v1.DatastoreCursor into a base64-encoded string representation.
-// If the cursor is nil or has no ordered relationships, it returns an empty string.
-func datastoreCursorToString(cursor *v1.DatastoreCursor) (string, error) {
-	if cursor == nil {
-		return dsCursorPrefix, nil
+// mustDatastoreIndexToString converts a datastoreIndex into a string representation.
+func mustDatastoreIndexToString(index datastoreIndex) (string, error) {
+	spiceerrors.DebugAssert(func() bool { return index.chunkID != "" }, "chunk ID must be set")
+
+	if index.dbCursor == nil {
+		return dsIndexPrefix + index.chunkID, nil
 	}
 
-	if len(cursor.OrderedRelationships) == 0 {
-		return dsCursorPrefix, nil // no cursor to return
+	return dsIndexPrefix + index.chunkID + ":" + (*index.dbCursor).String(), nil
+}
+
+type datastoreIndex struct {
+	dbCursor options.Cursor
+	chunkID  string
+}
+
+func (di datastoreIndex) toDatastoreCursor() options.Cursor {
+	return di.dbCursor
+}
+
+func (di datastoreIndex) lookupRelationshipsChunk(crc *relationshipsChunkCache) (*relationshipsChunk, bool) {
+	if di.chunkID == "" {
+		return nil, false
 	}
 
-	encodedBytes, err := cursor.MarshalVT()
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal datastore cursor: %w", err)
-	}
-
-	return dsCursorPrefix + base64.StdEncoding.EncodeToString(encodedBytes), nil
+	return crc.lookupChunkByID(di.chunkID)
 }

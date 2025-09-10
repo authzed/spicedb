@@ -105,7 +105,7 @@ func TestSimpleLookupResources3(t *testing.T) {
 			ctx, dispatcher, revision := newLocalDispatcher(t)
 			defer dispatcher.Close()
 
-			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
+			stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
 			err := dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 				ResourceRelation: tc.start.ToCoreRR(),
 				SubjectRelation:  RR(tc.target.ObjectType, tc.target.Relation).ToCoreRR(),
@@ -131,7 +131,7 @@ func TestSimpleLookupResources3(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 
 			// Run again with the cache available.
-			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
+			stream = dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
 			err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 				ResourceRelation: tc.start.ToCoreRR(),
 				SubjectRelation:  RR(tc.target.ObjectType, tc.target.Relation).ToCoreRR(),
@@ -190,7 +190,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 
 			found := mapz.NewSet[string]()
 
-			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
+			stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
 			err := dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 				ResourceRelation: RR("document", "view").ToCoreRR(),
 				SubjectRelation:  RR("user", "...").ToCoreRR(),
@@ -213,7 +213,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 			cursor := stream.Results()[0].AfterResponseCursor
 			require.NotNil(cursor)
 
-			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
+			stream = dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
 			err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 				ResourceRelation: RR("document", "view").ToCoreRR(),
 				SubjectRelation:  RR("user", "...").ToCoreRR(),
@@ -241,59 +241,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 	}
 }
 
-func TestLookupResourcesCursorStability3(t *testing.T) {
-	t.Parallel()
-
-	require := require.New(t)
-	ctx, dispatcher, revision := newLocalDispatcher(t)
-	defer dispatcher.Close()
-
-	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
-
-	// Make the first first request.
-	err := dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
-		ResourceRelation: RR("document", "view").ToCoreRR(),
-		SubjectRelation:  RR("user", "...").ToCoreRR(),
-		SubjectIds:       []string{"owner"},
-		TerminalSubject:  ONR("user", "owner", "...").ToCoreONR(),
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     revision.String(),
-			DepthRemaining: 50,
-		},
-		OptionalLimit: 2,
-	}, stream)
-
-	require.NoError(err)
-	require.Equal(2, len(stream.Results()))
-
-	cursor := stream.Results()[1].AfterResponseCursor
-	require.NotNil(cursor)
-
-	// Make the same request and ensure the cursor has not changed.
-	stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
-	err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
-		ResourceRelation: RR("document", "view").ToCoreRR(),
-		SubjectRelation:  RR("user", "...").ToCoreRR(),
-		SubjectIds:       []string{"owner"},
-		TerminalSubject:  ONR("user", "owner", "...").ToCoreONR(),
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     revision.String(),
-			DepthRemaining: 50,
-		},
-		OptionalLimit: 2,
-	}, stream)
-
-	require.NoError(err)
-
-	require.NoError(err)
-	require.Equal(2, len(stream.Results()))
-
-	cursorAgain := stream.Results()[1].AfterResponseCursor
-	require.NotNil(cursor)
-	require.Equal(cursor, cursorAgain)
-}
-
-func processResults3(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookupResources3Response]) ([]*v1.PossibleResource, uint32, uint32, uint32) {
+func processResults3(stream *dispatch.CloningCollectingDispatchStream[*v1.DispatchLookupResources3Response]) ([]*v1.PossibleResource, uint32, uint32, uint32) {
 	foundResources := []*v1.PossibleResource{}
 	var maxDepthRequired uint32
 	var maxDispatchCount uint32
@@ -768,7 +716,7 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 					foundResourceIDs := mapz.NewSet[string]()
 					foundChunks := [][]*v1.DispatchLookupResources3Response{}
 					for {
-						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
+						stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
 
 						uintPageSize, err := safecast.ToUint32(pageSize)
 						require.NoError(err)
@@ -845,7 +793,7 @@ func TestLookupResources3WithError(t *testing.T) {
 	cancel()
 
 	require.NoError(datastoremw.SetInContext(cctx, ds))
-	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
+	stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
 
 	err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 		ResourceRelation: RR("document", "view").ToCoreRR(),
@@ -1323,7 +1271,7 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 			defer cancel()
 
 			require.NoError(datastoremw.SetInContext(cctx, checkingDS))
-			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
+			stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
 
 			err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 				ResourceRelation: tc.resourceRelation.ToCoreRR(),

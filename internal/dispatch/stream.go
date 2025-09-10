@@ -179,9 +179,54 @@ func (s *CountingDispatchStream[T]) Context() context.Context {
 	return s.Stream.Context()
 }
 
+// VTCloneable is an interface that requires a CloneVT method.
+type VTCloneable[T any] interface {
+	CloneVT() T
+}
+
+// NewCloningCollectingDispatchStream creates a new CloningCollectingDispatchStream.
+func NewCloningCollectingDispatchStream[T VTCloneable[T]](ctx context.Context) *CloningCollectingDispatchStream[T] {
+	return &CloningCollectingDispatchStream[T]{
+		ctx:     ctx,
+		results: nil,
+		mu:      sync.Mutex{},
+	}
+}
+
+// CloningCollectingDispatchStream is a dispatch stream that collects results in memory, cloning
+// when publishing to avoid mutation issues.
+type CloningCollectingDispatchStream[T VTCloneable[T]] struct {
+	ctx     context.Context
+	results []T // GUARDED_BY(mu)
+	mu      sync.Mutex
+}
+
+func (s *CloningCollectingDispatchStream[T]) Context() context.Context {
+	return s.ctx
+}
+
+func (s *CloningCollectingDispatchStream[T]) Results() []T {
+	return s.results
+}
+
+func (s *CloningCollectingDispatchStream[T]) Publish(result T) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.results = append(s.results, result.CloneVT())
+	return nil
+}
+
+type fakeMessage struct{}
+
+func (m *fakeMessage) CloneVT() *fakeMessage {
+	return &fakeMessage{}
+}
+
 // Ensure the streams implement the interface.
 var (
-	_ Stream[any] = &CollectingDispatchStream[any]{}
-	_ Stream[any] = &WrappedDispatchStream[any]{}
-	_ Stream[any] = &CountingDispatchStream[any]{}
+	_ Stream[any]          = &CollectingDispatchStream[any]{}
+	_ Stream[any]          = &WrappedDispatchStream[any]{}
+	_ Stream[any]          = &CountingDispatchStream[any]{}
+	_ Stream[any]          = &HandlingDispatchStream[any]{}
+	_ Stream[*fakeMessage] = &CloningCollectingDispatchStream[*fakeMessage]{}
 )

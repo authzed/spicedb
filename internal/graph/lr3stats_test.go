@@ -26,7 +26,7 @@ func TestEstimatedConcurrencyLimit_OptionalLimitZero(t *testing.T) {
 	crr := &CursoredLookupResources3{
 		digestMap: digests.NewDigestMap(),
 	}
-	lctx := lr3ctx{
+	refs := lr3refs{
 		req: ValidatedLookupResources3Request{
 			DispatchLookupResources3Request: &v1.DispatchLookupResources3Request{
 				OptionalLimit: 0, // No limit set
@@ -46,7 +46,7 @@ func TestEstimatedConcurrencyLimit_OptionalLimitZero(t *testing.T) {
 	}
 
 	// Execute
-	iterator := estimatedConcurrencyLimit(crr, lctx, item, fn)
+	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume the iterator to trigger the function call
 	for range iterator {
@@ -62,7 +62,7 @@ func TestEstimatedConcurrencyLimit_UniqueKeyError(t *testing.T) {
 	crr := &CursoredLookupResources3{
 		digestMap: digests.NewDigestMap(),
 	}
-	lctx := lr3ctx{
+	refs := lr3refs{
 		req: ValidatedLookupResources3Request{
 			DispatchLookupResources3Request: &v1.DispatchLookupResources3Request{
 				OptionalLimit: 100,
@@ -79,7 +79,7 @@ func TestEstimatedConcurrencyLimit_UniqueKeyError(t *testing.T) {
 	}
 
 	// Execute
-	iterator := estimatedConcurrencyLimit(crr, lctx, item, fn)
+	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Verify error is returned
 	var actualErr error
@@ -98,7 +98,7 @@ func TestEstimatedConcurrencyLimit_NoDigestAvailable(t *testing.T) {
 	crr := &CursoredLookupResources3{
 		digestMap: digests.NewDigestMap(),
 	}
-	lctx := lr3ctx{
+	refs := lr3refs{
 		req: ValidatedLookupResources3Request{
 			DispatchLookupResources3Request: &v1.DispatchLookupResources3Request{
 				OptionalLimit: 100,
@@ -118,7 +118,7 @@ func TestEstimatedConcurrencyLimit_NoDigestAvailable(t *testing.T) {
 	}
 
 	// Execute
-	iterator := estimatedConcurrencyLimit(crr, lctx, item, fn)
+	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume the iterator
 	for range iterator {
@@ -134,7 +134,7 @@ func TestEstimatedConcurrencyLimit_CDFBelowThreshold(t *testing.T) {
 	crr := &CursoredLookupResources3{
 		digestMap: digests.NewDigestMap(),
 	}
-	lctx := lr3ctx{
+	refs := lr3refs{
 		req: ValidatedLookupResources3Request{
 			DispatchLookupResources3Request: &v1.DispatchLookupResources3Request{
 				OptionalLimit: 100,
@@ -160,7 +160,7 @@ func TestEstimatedConcurrencyLimit_CDFBelowThreshold(t *testing.T) {
 	}
 
 	// Execute
-	iterator := estimatedConcurrencyLimit(crr, lctx, item, fn)
+	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume the iterator
 	for range iterator {
@@ -176,7 +176,7 @@ func TestEstimatedConcurrencyLimit_CDFAboveThreshold(t *testing.T) {
 	crr := &CursoredLookupResources3{
 		digestMap: digests.NewDigestMap(),
 	}
-	lctx := lr3ctx{
+	refs := lr3refs{
 		req: ValidatedLookupResources3Request{
 			DispatchLookupResources3Request: &v1.DispatchLookupResources3Request{
 				OptionalLimit: 100,
@@ -202,7 +202,7 @@ func TestEstimatedConcurrencyLimit_CDFAboveThreshold(t *testing.T) {
 	}
 
 	// Execute
-	iterator := estimatedConcurrencyLimit(crr, lctx, item, fn)
+	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume the iterator
 	for range iterator {
@@ -218,7 +218,7 @@ func TestEstimatedConcurrencyLimit_CountingIteratorTracksResults(t *testing.T) {
 	crr := &CursoredLookupResources3{
 		digestMap: digests.NewDigestMap(),
 	}
-	lctx := lr3ctx{
+	refs := lr3refs{
 		req: ValidatedLookupResources3Request{
 			DispatchLookupResources3Request: &v1.DispatchLookupResources3Request{
 				OptionalLimit: 100,
@@ -252,7 +252,7 @@ func TestEstimatedConcurrencyLimit_CountingIteratorTracksResults(t *testing.T) {
 	}
 
 	// Execute
-	iterator := estimatedConcurrencyLimit(crr, lctx, item, fn)
+	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume all results
 	count := 0
