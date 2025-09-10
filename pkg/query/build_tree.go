@@ -5,6 +5,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 type iteratorBuilder struct {
@@ -139,6 +140,15 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
 	base := NewRelationIterator(br)
 
+	// Wrap with caveat iterator if a caveat is specified
+	if br.Caveat != "" {
+		caveat := &core.ContextualizedCaveat{
+			CaveatName: br.Caveat,
+			// Context will be provided at query time through the Context.CaveatContext
+		}
+		base = NewCaveatIterator(base, caveat)
+	}
+
 	if !withSubRelations {
 		return base, nil
 	}
@@ -162,6 +172,7 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		return nil, err
 	}
 
-	union.addSubIterator(NewArrow(base.Clone(), rightside))
+	arrow := NewArrow(base.Clone(), rightside)
+	union.addSubIterator(arrow)
 	return union, nil
 }
