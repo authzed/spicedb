@@ -278,7 +278,11 @@ func (t *QuerierFuncs) QueryFunc(ctx context.Context, rowsFunc func(ctx context.
 		return err
 	}
 	defer rows.Close()
-	return rowsFunc(ctx, rows)
+	err = rowsFunc(ctx, rows)
+	if err != nil {
+		return err
+	}
+	return rows.Err()
 }
 
 func (t *QuerierFuncs) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {

@@ -59,7 +59,7 @@ func (q querierInterceptor) Exec(ctx context.Context, sql string, arguments ...a
 }
 
 func (q querierInterceptor) Query(ctx context.Context, sql string, arguments ...any) (pgx.Rows, error) {
-	return q.interceptor.InterceptQuery(ctx, q.delegate, sql, arguments...)
+	return q.interceptor.InterceptQuery(ctx, q.delegate, sql, arguments...) // nolint:rowserrcheck
 }
 
 func (q querierInterceptor) QueryRow(ctx context.Context, sql string, arguments ...any) pgx.Row {
@@ -119,7 +119,7 @@ func (t txInterceptor) Exec(ctx context.Context, sql string, args ...any) (comma
 }
 
 func (t txInterceptor) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	return t.interceptor.InterceptQuery(ctx, t.delegate, sql, args...)
+	return t.interceptor.InterceptQuery(ctx, t.delegate, sql, args...) // nolint:rowserrcheck
 }
 
 func (t txInterceptor) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
@@ -155,7 +155,7 @@ func (i InterceptorPooler) Exec(ctx context.Context, sql string, arguments ...an
 }
 
 func (i InterceptorPooler) Query(ctx context.Context, sql string, optionsAndArgs ...any) (pgx.Rows, error) {
-	return i.interceptingQuerier.Query(ctx, sql, optionsAndArgs...)
+	return i.interceptingQuerier.Query(ctx, sql, optionsAndArgs...) // nolint:rowserrcheck
 }
 
 func (i InterceptorPooler) QueryRow(ctx context.Context, sql string, optionsAndArgs ...any) pgx.Row {

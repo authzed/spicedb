@@ -48,8 +48,7 @@ linters:
           disabled: true
     rowserrcheck:
       packages:
-        - "github.com/jmoiron/sqlx"
-        - "github.com/jackc/pgx"
+        - "github.com/jackc/pgx/v5"
   exclusions:
     generated: "lax"
     presets:
