@@ -34,6 +34,9 @@ replace go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v1.36
 
 replace go.opentelemetry.io/otel/sdk/metric => go.opentelemetry.io/otel/sdk/metric v1.36.0
 
+// FIXME undo this
+replace github.com/ecordell/optgen => github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
+
 require (
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.6-20250320161912-af2aab87b1b3.1
 	cloud.google.com/go/spanner v1.85.0
