@@ -40,7 +40,6 @@ replace github.com/ecordell/optgen => github.com/ecordell/optgen v0.0.10-0.20230
 require (
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.6-20250320161912-af2aab87b1b3.1
 	cloud.google.com/go/spanner v1.85.0
-	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.2
 	github.com/KimMachineGun/automemlimit v0.7.2
 	github.com/Masterminds/semver v1.5.0
@@ -117,7 +116,6 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.7
 	github.com/stretchr/testify v1.11.1
-	go.opencensus.io v0.24.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
 	go.opentelemetry.io/otel v1.38.0
@@ -253,8 +251,6 @@ require (
 	github.com/ghostiam/protogetter v0.3.15 // indirect
 	github.com/go-critic/go-critic v0.13.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.2 // indirect
-	github.com/go-kit/log v0.2.1 // indirect
-	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
@@ -367,7 +363,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/polyfloyd/go-errorlint v1.8.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/quasilyte/go-ruleguard v0.4.4 // indirect
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22 // indirect
 	github.com/quasilyte/gogrep v0.5.0 // indirect
@@ -426,6 +421,7 @@ require (
 	go-simpler.org/sloglint v0.11.1 // indirect
 	go.augendre.info/arangolint v0.2.0 // indirect
 	go.augendre.info/fatcontext v0.8.0 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.38.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.20.0 // indirect

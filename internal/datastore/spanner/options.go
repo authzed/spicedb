@@ -29,12 +29,6 @@ const (
 	// OpenTelemetry collector.
 	// This option is enabled by default.
 	DatastoreMetricsOptionOpenTelemetry = "otel"
-
-	// DatastoreMetricsOptionLegacyPrometheus enables the legacy Prometheus metrics that are emitted
-	// by the Spanner datastore. These metrics are emitted to the configured
-	// Prometheus server.
-	// This option is deprecated and will be removed in a future release.
-	DatastoreMetricsOptionLegacyPrometheus = "deprecated-prometheus"
 )
 
 type spannerOptions struct {
