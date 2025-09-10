@@ -262,7 +262,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 		txidToRevision[rev.optionalTxID.Uint64] = rev
 
 		if len(rev.optionalMetadata) > 0 {
-			if err := tracked.SetRevisionMetadata(ctx, rev, rev.optionalMetadata); err != nil {
+			if err := tracked.AddRevisionMetadata(ctx, rev, rev.optionalMetadata); err != nil {
 				return nil, err
 			}
 		}

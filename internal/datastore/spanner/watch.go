@@ -182,7 +182,7 @@ func (sd *spannerDatastore) watch(
 
 	addMetadataForTransactionTag := func(ctx context.Context, tracked *common.Changes[revisions.TimestampRevision, int64], revision revisions.TimestampRevision, transactionTag string) error {
 		if metadata, ok := metadataForTransactionTag[transactionTag]; ok {
-			return tracked.SetRevisionMetadata(ctx, revision, metadata)
+			return tracked.AddRevisionMetadata(ctx, revision, metadata)
 		}
 
 		// Otherwise, load the metadata from the transactions metadata table.
@@ -192,7 +192,7 @@ func (sd *spannerDatastore) watch(
 		}
 
 		metadataForTransactionTag[transactionTag] = transactionMetadata
-		return tracked.SetRevisionMetadata(ctx, revision, transactionMetadata)
+		return tracked.AddRevisionMetadata(ctx, revision, transactionMetadata)
 	}
 
 	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
