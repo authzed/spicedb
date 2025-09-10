@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -13,9 +14,11 @@ import (
 // Context is the concrete type that contains the overall handles, and uses the executor as a strategy for continuing execution.
 type Context struct {
 	context.Context
-	Executor  Executor
-	Datastore datastore.ReadOnlyDatastore
-	Revision  datastore.Revision
+	Executor      Executor
+	Datastore     datastore.ReadOnlyDatastore
+	Revision      datastore.Revision
+	CaveatContext map[string]any
+	CaveatRunner  *caveats.CaveatRunner
 }
 
 // Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
