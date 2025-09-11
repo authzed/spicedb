@@ -22,6 +22,7 @@ func (u *Union) addSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
+
 func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	var out []*Path
 	// Collect paths from all sub-iterators
