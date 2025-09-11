@@ -76,10 +76,10 @@ func BuildSchemaFromDefinitions(objectDefs []*corev1.NamespaceDefinition, caveat
 
 	for _, def := range objectDefs {
 		d, err := convertDefinition(def)
-		d.Parent = out
 		if err != nil {
 			return nil, err
 		}
+		d.Parent = out
 		out.Definitions[def.GetName()] = d
 	}
 
