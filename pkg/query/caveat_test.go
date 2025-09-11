@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestCaveatIterator(t *testing.T) {
-	// Create test relations
+	// Create test relations using caveat helper functions
 	relWithCaveat := tuple.Relationship{
 		RelationshipReference: tuple.RelationshipReference{
 			Resource: tuple.ObjectAndRelation{
@@ -30,14 +31,9 @@ func TestCaveatIterator(t *testing.T) {
 				Relation:   "...",
 			},
 		},
-		OptionalCaveat: &core.ContextualizedCaveat{
-			CaveatName: "test_caveat",
-			Context: &structpb.Struct{
-				Fields: map[string]*structpb.Value{
-					"allowed": structpb.NewBoolValue(true),
-				},
-			},
-		},
+		OptionalCaveat: createTestCaveat("test_caveat", map[string]any{
+			"allowed": true,
+		}),
 	}
 
 	relWithoutCaveat := tuple.Relationship{
@@ -69,22 +65,17 @@ func TestCaveatIterator(t *testing.T) {
 				Relation:   "...",
 			},
 		},
-		OptionalCaveat: &core.ContextualizedCaveat{
-			CaveatName: "other_caveat",
-			Context: &structpb.Struct{
-				Fields: map[string]*structpb.Value{
-					"allowed": structpb.NewBoolValue(true),
-				},
-			},
-		},
+		OptionalCaveat: createTestCaveat("other_caveat", map[string]any{
+			"allowed": true,
+		}),
 	}
 
 	testCases := []struct {
-		name               string
-		caveat             *core.ContextualizedCaveat
-		relations          []Relation
-		caveatContext      map[string]any
-		expectedRelations  []Relation
+		name              string
+		caveat            *core.ContextualizedCaveat
+		relations         []Relation
+		caveatContext     map[string]any
+		expectedRelations []Relation
 	}{
 		{
 			name:   "no caveat iterator allows all relations",
@@ -102,53 +93,43 @@ func TestCaveatIterator(t *testing.T) {
 			},
 		},
 		{
-			name: "caveat iterator with matching caveat name filters correctly",
-			caveat: &core.ContextualizedCaveat{
-				CaveatName: "test_caveat",
-			},
+			name:   "caveat iterator with matching caveat name filters correctly",
+			caveat: createTestCaveat("test_caveat", nil),
 			relations: []Relation{
-				relWithCaveat,        // has test_caveat
-				relWithoutCaveat,     // has no caveat 
+				relWithCaveat,          // has test_caveat
+				relWithoutCaveat,       // has no caveat
 				relWithDifferentCaveat, // has other_caveat
 			},
-			caveatContext: map[string]*core.ContextualizedCaveat{
-				"test_caveat": {
-					CaveatName: "test_caveat",
-				},
+			caveatContext: map[string]any{
+				"allowed": true,
 			},
 			expectedRelations: []Relation{
 				// This will fail due to caveat not found, which is expected behavior
 			},
 		},
 		{
-			name: "caveat iterator filters out relations without matching caveat",
-			caveat: &core.ContextualizedCaveat{
-				CaveatName: "nonexistent_caveat",
-			},
+			name:   "caveat iterator filters out relations without matching caveat",
+			caveat: createTestCaveat("nonexistent_caveat", nil),
 			relations: []Relation{
 				relWithCaveat,
 				relWithoutCaveat,
 				relWithDifferentCaveat,
 			},
-			caveatContext: map[string]*core.ContextualizedCaveat{
-				"nonexistent_caveat": {
-					CaveatName: "nonexistent_caveat",
-				},
+			caveatContext: map[string]any{
+				"allowed": true,
 			},
 			expectedRelations: []Relation{
 				// No relations should match since none have the "nonexistent_caveat" caveat
 			},
 		},
 		{
-			name: "caveat iterator without context denies all caveated relations",
-			caveat: &core.ContextualizedCaveat{
-				CaveatName: "test_caveat",
-			},
+			name:   "caveat iterator without context denies all caveated relations",
+			caveat: createTestCaveat("test_caveat", nil),
 			relations: []Relation{
 				relWithCaveat,
 				relWithoutCaveat,
 			},
-			caveatContext: nil, // No caveat context provided
+			caveatContext:     nil, // No caveat context provided
 			expectedRelations: []Relation{
 				// No relations should pass since no context is provided
 			},
@@ -159,19 +140,19 @@ func TestCaveatIterator(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a fixed iterator with the test relations
 			fixedIter := NewFixedIterator(tc.relations...)
-			
+
 			// Create the caveat iterator
 			caveatIter := NewCaveatIterator(fixedIter, tc.caveat)
-			
+
 			// Create test datastore and context
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
-			
+
 			rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				return nil
 			})
 			require.NoError(t, err)
-			
+
 			queryCtx := &Context{
 				Context:       context.Background(),
 				Executor:      &LocalExecutor{},
@@ -184,7 +165,7 @@ func TestCaveatIterator(t *testing.T) {
 			// Test IterSubjectsImpl - this is more straightforward than CheckImpl
 			// as it returns all relations for a given resource
 			resource := NewObject("document", "doc1")
-			
+
 			seq, err := caveatIter.IterSubjectsImpl(queryCtx, resource)
 			require.NoError(t, err)
 
@@ -202,8 +183,12 @@ func TestCaveatIterator(t *testing.T) {
 			if tc.name == "no caveat iterator allows all relations" {
 				require.NoError(t, err)
 				require.Len(t, actualRelations, expectedCount, "Expected all matching relations to be returned")
-			} else if tc.name == "caveat iterator with matching caveat name filters correctly" {
-				// This test should fail with a caveat not found error since we don't have the caveat definition
+			} else if tc.name == "caveat iterator filters out relations without matching caveat" {
+				// This test should have no error since no relations match the caveat name - they get filtered out before evaluation
+				require.NoError(t, err)
+				require.Empty(t, actualRelations, "Expected no matching relations")
+			} else if tc.caveat != nil && tc.caveat.CaveatName != "" {
+				// Tests that attempt caveat evaluation should fail with "not found" since we don't have caveat definitions
 				// in the test datastore. This is expected and correct behavior.
 				if err != nil {
 					require.Contains(t, err.Error(), "not found", "Expected caveat not found error")
@@ -211,7 +196,7 @@ func TestCaveatIterator(t *testing.T) {
 					require.Fail(t, "Expected caveat evaluation to fail with caveat not found error")
 				}
 			} else {
-				// For other caveat tests without context, no errors should occur but relations should be filtered
+				// For other caveat tests, no errors should occur but relations should be filtered
 				require.NoError(t, err)
 				require.NotNil(t, actualRelations)
 			}
@@ -236,14 +221,9 @@ func TestCaveatIteratorClone(t *testing.T) {
 		},
 	}
 
-	testCaveat := &core.ContextualizedCaveat{
-		CaveatName: "test_caveat",
-		Context: &structpb.Struct{
-			Fields: map[string]*structpb.Value{
-				"allowed": structpb.NewBoolValue(true),
-			},
-		},
-	}
+	testCaveat := createTestCaveat("test_caveat", map[string]any{
+		"allowed": true,
+	})
 
 	// Create original iterator
 	fixedIter := NewFixedIterator(testRel)
@@ -254,24 +234,26 @@ func TestCaveatIteratorClone(t *testing.T) {
 
 	// Verify the clone is a different instance but has the same content
 	require.NotSame(t, originalIter, clonedIter)
-	
+
 	caveatIter, ok := clonedIter.(*CaveatIterator)
 	require.True(t, ok)
-	
+
 	require.Equal(t, originalIter.caveat, caveatIter.caveat)
 	require.NotSame(t, originalIter.subiterator, caveatIter.subiterator)
 }
 
 func TestCaveatIteratorExplain(t *testing.T) {
-	testCaveat := &core.ContextualizedCaveat{
-		CaveatName: "test_caveat",
-	}
+	testCaveat := createTestCaveat("test_caveat", map[string]any{
+		"param1": "value1",
+		"param2": 42,
+	})
 
 	fixedIter := NewFixedIterator()
 	caveatIter := NewCaveatIterator(fixedIter, testCaveat)
 
 	explanation := caveatIter.Explain()
-	require.Equal(t, "Caveat(test_caveat)", explanation.Info)
+	require.Contains(t, explanation.Info, "Caveat(test_caveat")
+	require.Contains(t, explanation.Info, "context: [")
 	require.Len(t, explanation.SubExplain, 1)
 	require.Equal(t, "Fixed(0 relations)", explanation.SubExplain[0].Info)
 }
@@ -281,6 +263,24 @@ func TestCaveatIteratorExplainNilCaveat(t *testing.T) {
 	caveatIter := NewCaveatIterator(fixedIter, nil)
 
 	explanation := caveatIter.Explain()
-	require.Equal(t, "Caveat()", explanation.Info)
+	require.Equal(t, "Caveat(none)", explanation.Info)
 	require.Len(t, explanation.SubExplain, 1)
 }
+
+// createTestCaveat creates a ContextualizedCaveat for testing purposes
+func createTestCaveat(name string, context map[string]any) *core.ContextualizedCaveat {
+	caveat := &core.ContextualizedCaveat{
+		CaveatName: name,
+	}
+
+	if len(context) > 0 {
+		contextStruct, err := structpb.NewStruct(context)
+		if err != nil {
+			panic(fmt.Sprintf("failed to create test caveat context: %v", err))
+		}
+		caveat.Context = contextStruct
+	}
+
+	return caveat
+}
+

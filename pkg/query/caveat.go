@@ -1,10 +1,23 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+)
+
+// CaveatEvaluation represents the result of evaluating a caveat
+type CaveatEvaluation int
+
+const (
+	// CaveatFalse means the caveat evaluated to false - don't yield the relation
+	CaveatFalse CaveatEvaluation = iota
+	// CaveatTrue means the caveat evaluated to true - yield the relation without caveat
+	CaveatTrue
+	// CaveatPartial means the caveat is partial/conditional - yield the relation with caveat
+	CaveatPartial
 )
 
 // CaveatIterator wraps another iterator and applies caveat evaluation to its results.
@@ -42,7 +55,7 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 			}
 
 			// Apply caveat evaluation to the relation
-			passed, err := c.evaluateCaveat(ctx, rel)
+			evaluation, err := c.evaluateCaveat(ctx, rel)
 			if err != nil {
 				if !yield(rel, err) {
 					return
@@ -50,10 +63,21 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 				continue
 			}
 			
-			if passed {
+			switch evaluation {
+			case CaveatTrue:
+				// Caveat evaluated to true - yield relation without caveat
+				modifiedRel := rel
+				modifiedRel.OptionalCaveat = nil
+				if !yield(modifiedRel, nil) {
+					return
+				}
+			case CaveatPartial:
+				// Caveat is partial - yield relation with caveat
 				if !yield(rel, nil) {
 					return
 				}
+			case CaveatFalse:
+				// Caveat evaluated to false - don't yield the relation
 			}
 		}
 	}, nil
@@ -75,7 +99,7 @@ func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (Relati
 			}
 
 			// Apply caveat evaluation to the relation
-			passed, err := c.evaluateCaveat(ctx, rel)
+			evaluation, err := c.evaluateCaveat(ctx, rel)
 			if err != nil {
 				if !yield(rel, err) {
 					return
@@ -83,10 +107,21 @@ func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (Relati
 				continue
 			}
 			
-			if passed {
+			switch evaluation {
+			case CaveatTrue:
+				// Caveat evaluated to true - yield relation without caveat
+				modifiedRel := rel
+				modifiedRel.OptionalCaveat = nil
+				if !yield(modifiedRel, nil) {
+					return
+				}
+			case CaveatPartial:
+				// Caveat is partial - yield relation with caveat
 				if !yield(rel, nil) {
 					return
 				}
+			case CaveatFalse:
+				// Caveat evaluated to false - don't yield the relation
 			}
 		}
 	}, nil
@@ -108,7 +143,7 @@ func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 			}
 
 			// Apply caveat evaluation to the relation
-			passed, err := c.evaluateCaveat(ctx, rel)
+			evaluation, err := c.evaluateCaveat(ctx, rel)
 			if err != nil {
 				if !yield(rel, err) {
 					return
@@ -116,71 +151,115 @@ func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 				continue
 			}
 			
-			if passed {
+			switch evaluation {
+			case CaveatTrue:
+				// Caveat evaluated to true - yield relation without caveat
+				modifiedRel := rel
+				modifiedRel.OptionalCaveat = nil
+				if !yield(modifiedRel, nil) {
+					return
+				}
+			case CaveatPartial:
+				// Caveat is partial - yield relation with caveat
 				if !yield(rel, nil) {
 					return
 				}
+			case CaveatFalse:
+				// Caveat evaluated to false - don't yield the relation
 			}
 		}
 	}, nil
 }
 
 // evaluateCaveat determines if the given relation satisfies the caveat conditions.
-func (c *CaveatIterator) evaluateCaveat(ctx *Context, rel Relation) (bool, error) {
+func (c *CaveatIterator) evaluateCaveat(ctx *Context, rel Relation) (CaveatEvaluation, error) {
+	
 	// If no caveat is specified, allow all relations
 	if c.caveat == nil {
-		return true, nil
+		return CaveatTrue, nil
 	}
 
 	// If the relation has no caveat, check if we expect one
 	if rel.OptionalCaveat == nil {
 		// No caveat on the relation - only allow if our caveat iterator expects no caveat
-		return false, nil
+		return CaveatFalse, nil
 	}
 
 	// Check if the caveat names match
 	if rel.OptionalCaveat.CaveatName != c.caveat.CaveatName {
-		return false, nil
+		return CaveatFalse, nil
 	}
 
-	// Get the caveat context from the query context
-	caveatContext, exists := ctx.CaveatContext[c.caveat.CaveatName]
-	if !exists {
-		// No context provided for this caveat - this means it cannot be evaluated
-		return false, nil
-	}
-
-	// Build the caveat expression for evaluation
-	caveatExpr := &core.CaveatExpression{
-		OperationOrCaveat: &core.CaveatExpression_Caveat{
-			Caveat: caveatContext,
-		},
-	}
+	// Build the caveat expression for evaluation using the relationship's caveat
+	caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
 
 	// Use the CaveatRunner from the context if available
 	if ctx.CaveatRunner == nil {
 		// No caveat runner available - cannot evaluate caveats
-		return false, fmt.Errorf("no caveat runner available for caveat evaluation")
+		return CaveatFalse, fmt.Errorf("no caveat runner available for caveat evaluation")
 	}
 
 	// Get a snapshot reader which should implement CaveatReader
 	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
 	
+	// Build the combined context map
+	contextMap := c.buildCaveatContext(ctx, rel.OptionalCaveat)
+	
 	// Use the caveat runner to evaluate the expression
 	result, err := ctx.CaveatRunner.RunCaveatExpression(
 		ctx,
 		caveatExpr,
-		nil, // No additional context beyond what's in the caveat
+		contextMap,
 		reader, // Caveat reader
 		caveats.RunCaveatExpressionNoDebugging,
 	)
 	if err != nil {
-		// If evaluation fails, return the error
-		return false, err
+		// Check if this is a specific caveat evaluation error and wrap it appropriately
+		var evalErr caveats.EvaluationError
+		var paramErr caveats.ParameterTypeError
+		
+		if errors.As(err, &evalErr) {
+			return CaveatFalse, fmt.Errorf("caveat evaluation failed for caveat %s: %w", rel.OptionalCaveat.CaveatName, evalErr)
+		}
+		if errors.As(err, &paramErr) {
+			return CaveatFalse, fmt.Errorf("caveat parameter error for caveat %s: %w", rel.OptionalCaveat.CaveatName, paramErr)
+		}
+		
+		// For other errors, provide context about which caveat failed
+		return CaveatFalse, fmt.Errorf("failed to evaluate caveat %s: %w", rel.OptionalCaveat.CaveatName, err)
 	}
 
-	// Return true only if the caveat evaluated to true and is not partial
-	return result.Value() && !result.IsPartial(), nil
+	// Handle the caveat evaluation result
+	if result.IsPartial() {
+		return CaveatPartial, nil
+	}
+	
+	if result.Value() {
+		return CaveatTrue, nil
+	} else {
+		return CaveatFalse, nil
+	}
+}
+
+// buildCaveatContext combines the relationship's caveat context with query-time context
+func (c *CaveatIterator) buildCaveatContext(ctx *Context, relationCaveat *core.ContextualizedCaveat) map[string]any {
+	contextMap := make(map[string]any)
+	
+	// Start with the relationship's context if available
+	if relationCaveat != nil && relationCaveat.Context != nil {
+		contextMap = relationCaveat.Context.AsMap()
+	}
+	
+	// Overlay query-time context if available
+	// Now ctx.CaveatContext is map[string]any, so we can directly use it
+	if ctx.CaveatContext != nil {
+		// Merge the global query-time context, with query context taking precedence over relationship context
+		for k, v := range ctx.CaveatContext {
+			contextMap[k] = v
+		}
+	}
+	
+	return contextMap
 }
 
 func (c *CaveatIterator) Clone() Iterator {
@@ -191,13 +270,32 @@ func (c *CaveatIterator) Clone() Iterator {
 }
 
 func (c *CaveatIterator) Explain() Explain {
-	caveatName := ""
-	if c.caveat != nil {
-		caveatName = c.caveat.CaveatName
-	}
+	caveatInfo := c.buildExplainInfo()
 	
 	return Explain{
-		Info:       fmt.Sprintf("Caveat(%s)", caveatName),
+		Info:       caveatInfo,
 		SubExplain: []Explain{c.subiterator.Explain()},
 	}
+}
+
+// buildExplainInfo creates detailed explanation information for the caveat iterator
+func (c *CaveatIterator) buildExplainInfo() string {
+	if c.caveat == nil {
+		return "Caveat(none)"
+	}
+	
+	// Build basic caveat information
+	info := fmt.Sprintf("Caveat(%s", c.caveat.CaveatName)
+	
+	// Add context information if available
+	if c.caveat.Context != nil && len(c.caveat.Context.GetFields()) > 0 {
+		contextInfo := make([]string, 0, len(c.caveat.Context.GetFields()))
+		for key := range c.caveat.Context.GetFields() {
+			contextInfo = append(contextInfo, key)
+		}
+		info += fmt.Sprintf(", context: [%v]", contextInfo)
+	}
+	
+	info += ")"
+	return info
 }
