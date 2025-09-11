@@ -1263,7 +1263,9 @@ func TestTypeSystemAccessors(t *testing.T) {
 			`use expiration
 
 			definition user {}
-			definition group {}
+			definition group {
+				relation member: user
+			}
 
 			caveat somecaveat(somecondition int) {
 				somecondition == 42
@@ -1274,6 +1276,12 @@ func TestTypeSystemAccessors(t *testing.T) {
 				relation caveated: user with somecaveat | group
 				relation expired: user with expiration | group
 				relation mixed: user | group with somecaveat and expiration
+				relation viewer: user | user:* with expiration
+				relation caveated_viewer: user | user:* with somecaveat
+				relation membered: group#member with somecaveat and expiration
+				relation membered_plain: group#member
+				relation caveated_membered: group#member with somecaveat | group#member
+				relation expired_membered: group#member with expiration | group#member
 			}`,
 			map[string]tsTester{
 				"resource": func(t *testing.T, vts *ValidatedDefinition) {
@@ -1296,6 +1304,36 @@ func TestTypeSystemAccessors(t *testing.T) {
 						traits, err = vts.PossibleTraitsForAnySubject("mixed")
 						require.NoError(t, err)
 						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("viewer")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("caveated_viewer")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("membered")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("membered_plain")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("caveated_membered")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("expired_membered")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
 						require.True(t, traits.AllowsExpiration)
 
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
