@@ -233,6 +233,6 @@ func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 			relationName: "_nil",
 		}, nil
 	default:
-		return nil, fmt.Errorf("unknown child type")
+		return nil, fmt.Errorf("unknown child type: %#v", child.GetChildType())
 	}
 }
