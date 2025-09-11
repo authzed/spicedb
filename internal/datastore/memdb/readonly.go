@@ -493,11 +493,11 @@ func newSubjectSortedIterator(now time.Time, it memdb.ResultIterator, limit *uin
 		}
 
 		if skipCaveats && rt.OptionalCaveat != nil {
-			return nil, spiceerrors.MustBugf("unexpected caveat in result for relationship: %v", rt)
+			continue
 		}
 
 		if skipExpiration && rt.OptionalExpiration != nil {
-			return nil, spiceerrors.MustBugf("unexpected expiration in result for relationship: %v", rt)
+			continue
 		}
 
 		results = append(results, rt)
@@ -558,13 +558,11 @@ func newMemdbTupleIterator(now time.Time, it memdb.ResultIterator, limit *uint64
 			}
 
 			if skipCaveats && rt.OptionalCaveat != nil {
-				yield(rt, fmt.Errorf("unexpected caveat in result for relationship: %v", rt))
-				return
+				continue
 			}
 
 			if skipExpiration && rt.OptionalExpiration != nil {
-				yield(rt, fmt.Errorf("unexpected expiration in result for relationship: %v", rt))
-				return
+				continue
 			}
 
 			if rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {
