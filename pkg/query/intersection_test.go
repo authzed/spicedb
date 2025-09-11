@@ -45,7 +45,17 @@ func TestIntersectionIterator(t *testing.T) {
 			MustPathFromString("document:doc1#editor@user:alice"),
 			MustPathFromString("document:doc1#owner@user:alice"),
 		}
-		require.ElementsMatch(expected, rels)
+		require.Len(rels, len(expected), "Should have expected number of paths")
+		for _, expectedPath := range expected {
+			found := false
+			for _, actualPath := range rels {
+				if expectedPath.Equals(actualPath) {
+					found = true
+					break
+				}
+			}
+			require.True(found, "Expected path %v should be found in results", expectedPath)
+		}
 	})
 
 	t.Run("Check_EmptyIntersection", func(t *testing.T) {
@@ -215,8 +225,18 @@ func TestIntersectionIteratorClone(t *testing.T) {
 		require.NoError(err)
 	}
 
-	// Both iterators should produce identical results
-	require.Equal(originalResults, clonedResults, "original and cloned iterators should produce identical results")
+	// Both iterators should produce identical results (order may vary)
+	require.Len(clonedResults, len(originalResults), "cloned iterator should produce same number of results")
+	for _, expectedPath := range originalResults {
+		found := false
+		for _, actualPath := range clonedResults {
+			if expectedPath.Equals(actualPath) {
+				found = true
+				break
+			}
+		}
+		require.True(found, "Expected path %v should be found in cloned results", expectedPath)
+	}
 }
 
 func TestIntersectionIteratorExplain(t *testing.T) {
@@ -373,10 +393,10 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		// Note: Checking exact caveat content would require parsing the CaveatExpression
 	})
 
-	t.Run("Different_Relations_Same_Resource", func(t *testing.T) {
+	t.Run("Different_Relations_Same_Endpoint", func(t *testing.T) {
 		t.Parallel()
 
-		// Two iterators with different relations on same resource - should intersect separately
+		// Two iterators with different relations on same endpoint - should merge into one path
 		pathViewer := MustPathFromString("document:doc1#viewer@user:alice")
 		pathViewer.Caveat = &core.CaveatExpression{
 			OperationOrCaveat: &core.CaveatExpression_Caveat{
@@ -409,24 +429,25 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 
-		require.Len(rels, 2, "Should return both relations since they exist in both iterators")
+		require.Len(rels, 1, "Should return one merged path since intersection works on endpoints, not individual relations")
 
-		// Both paths should have their caveats combined
-		relations := make(map[string]bool)
-		for _, path := range rels {
-			require.NotNil(path.Caveat, "Each path should have a caveat")
-			relations[path.Relation] = true
-		}
-		require.Contains(relations, "viewer")
-		require.Contains(relations, "editor")
+		// The merged path should combine both relations and caveats
+		path := rels[0]
+		require.NotNil(path.Caveat, "Merged path should have combined caveat")
+		require.Equal("document", path.Resource.ObjectType)
+		require.Equal("doc1", path.Resource.ObjectID)
+		require.Equal("user", path.Subject.ObjectType)
+		require.Equal("alice", path.Subject.ObjectID)
+		// The relation should be empty since different relations were merged (per Path.mergeFrom logic)
+		require.Equal("", path.Relation, "Different relations should result in empty relation")
 	})
 
-	t.Run("No_Common_Relations", func(t *testing.T) {
+	t.Run("No_Common_Endpoints", func(t *testing.T) {
 		t.Parallel()
 
-		// Iterators with no common paths - should return empty
-		pathViewer := MustPathFromString("document:doc1#viewer@user:alice")
-		pathViewer.Caveat = &core.CaveatExpression{
+		// Iterators with no common endpoints - should return empty
+		pathDoc1Alice := MustPathFromString("document:doc1#viewer@user:alice")
+		pathDoc1Alice.Caveat = &core.CaveatExpression{
 			OperationOrCaveat: &core.CaveatExpression_Caveat{
 				Caveat: &core.ContextualizedCaveat{
 					CaveatName: "caveat1",
@@ -434,8 +455,8 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		pathEditor := MustPathFromString("document:doc1#editor@user:alice")
-		pathEditor.Caveat = &core.CaveatExpression{
+		pathDoc2Bob := MustPathFromString("document:doc2#editor@user:bob")
+		pathDoc2Bob.Caveat = &core.CaveatExpression{
 			OperationOrCaveat: &core.CaveatExpression_Caveat{
 				Caveat: &core.ContextualizedCaveat{
 					CaveatName: "caveat2",
@@ -443,20 +464,20 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(pathViewer)
-		iter2 := NewFixedIterator(pathEditor)
+		iter1 := NewFixedIterator(pathDoc1Alice)
+		iter2 := NewFixedIterator(pathDoc2Bob)
 
 		intersect := NewIntersection()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 
-		require.Empty(rels, "No common relations should result in empty intersection")
+		require.Len(rels, 0, "Different endpoints should not intersect - should return empty")
 	})
 
 	t.Run("Three_Iterators_Mixed_Caveats", func(t *testing.T) {
