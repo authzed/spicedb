@@ -155,6 +155,6 @@ func OtelAnnotator(ctx context.Context, r *http.Request) metadata.MD {
 	metadataCopy := requestMetadata.Copy()
 
 	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header))
-	otelgrpc.Inject(ctx, &metadataCopy, defaultOtelOpts...)
+	otelgrpc.Inject(ctx, &metadataCopy, defaultOtelOpts...) // nolint:staticcheck
 	return metadataCopy
 }
