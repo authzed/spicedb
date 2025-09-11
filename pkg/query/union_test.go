@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestUnionIterator(t *testing.T) {
@@ -352,17 +351,15 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		// Create path without caveat
 		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
 
-		// Create path with caveat (need to manually construct since MustPathFromString doesn't support caveats)
-		relWithCaveat := tuple.Relationship{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("document", "doc1", "viewer"),
-				Subject:  tuple.ONR("user", "alice", "..."),
-			},
-			OptionalCaveat: &core.ContextualizedCaveat{
-				CaveatName: "test_caveat",
+		// Create path with caveat
+		pathWithCaveat := MustPathFromString("document:doc1#viewer@user:alice")
+		pathWithCaveat.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "test_caveat",
+				},
 			},
 		}
-		pathWithCaveat := FromRelationship(relWithCaveat)
 
 		// Test both orders to ensure preference is consistent
 		t.Run("NoCaveatFirst", func(t *testing.T) {
@@ -459,5 +456,181 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		require.Len(paths, 1, "Union should deduplicate relations to same resource")
 		require.Equal("doc1", paths[0].Resource.ObjectID)
 		require.Equal("alice", paths[0].Subject.ObjectID)
+	})
+}
+
+func TestUnionIteratorCaveatCombination(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	// Create test context
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("CombineTwoCaveats_OR_Logic", func(t *testing.T) {
+		t.Parallel()
+
+		// Both paths have different caveats - should combine with OR logic
+		pathWithCaveat1 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathWithCaveat1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+				},
+			},
+		}
+
+		pathWithCaveat2 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathWithCaveat2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+				},
+			},
+		}
+
+		iter1 := NewFixedIterator(pathWithCaveat1)
+		iter2 := NewFixedIterator(pathWithCaveat2)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Union should deduplicate to one relation")
+		require.NotNil(rels[0].Caveat, "Result should have combined caveat")
+		// The combination logic should preserve one of the caveats (implementation detail)
+	})
+
+	t.Run("NoCaveat_Wins_Over_Caveat", func(t *testing.T) {
+		t.Parallel()
+
+		// One path has no caveat, one has caveat - no caveat should win
+		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
+
+		pathWithCaveat := MustPathFromString("document:doc1#viewer@user:alice")
+		pathWithCaveat.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "test_caveat",
+				},
+			},
+		}
+
+		iter1 := NewFixedIterator(pathNoCaveat)
+		iter2 := NewFixedIterator(pathWithCaveat)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Union should deduplicate to one relation")
+		require.Nil(rels[0].Caveat, "No caveat should win in OR logic")
+	})
+
+	t.Run("Different_Resources_Not_Combined", func(t *testing.T) {
+		t.Parallel()
+
+		// Paths to different resources should not be combined
+		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathDoc1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+				},
+			},
+		}
+
+		pathDoc2 := MustPathFromString("document:doc2#viewer@user:alice")
+		pathDoc2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+				},
+			},
+		}
+
+		iter1 := NewFixedIterator(pathDoc1)
+		iter2 := NewFixedIterator(pathDoc2)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 2, "Different resources should not be combined")
+		
+		// Both paths should preserve their original caveats
+		caveatNames := make([]string, 2)
+		for i, path := range rels {
+			require.NotNil(path.Caveat, "Each path should keep its caveat")
+			// Extract caveat name - simplified check for test
+			if caveatExpr := path.Caveat.GetCaveat(); caveatExpr != nil {
+				caveatNames[i] = caveatExpr.CaveatName
+			}
+		}
+		require.ElementsMatch([]string{"caveat1", "caveat2"}, caveatNames)
+	})
+
+	t.Run("Three_Relations_Same_Resource_Mixed_Caveats", func(t *testing.T) {
+		t.Parallel()
+
+		// Mix of paths: no caveat, caveat1, caveat2 - no caveat should win
+		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
+
+		pathCaveat1 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathCaveat1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+				},
+			},
+		}
+
+		pathCaveat2 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathCaveat2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+				},
+			},
+		}
+
+		iter1 := NewFixedIterator(pathNoCaveat)
+		iter2 := NewFixedIterator(pathCaveat1)
+		iter3 := NewFixedIterator(pathCaveat2)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+		union.addSubIterator(iter3)
+
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Union should deduplicate to one relation")
+		require.Nil(rels[0].Caveat, "No caveat should win over any caveated relations")
 	})
 }
