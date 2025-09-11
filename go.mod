@@ -17,23 +17,6 @@ replace github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-contr
 // https://github.com/hdrodz/tdigest/commits/fix-oob-access
 replace github.com/influxdata/tdigest => github.com/hdrodz/tdigest v0.0.0-20230422191729-3d4528d8cfec
 
-// if anyone has the time/energy/know-how to get this upgraded, please do!
-replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
-
-replace go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp => go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
-
-replace go.opentelemetry.io/contrib/detectors/gcp => go.opentelemetry.io/contrib/detectors/gcp v1.36.0
-
-replace go.opentelemetry.io/otel => go.opentelemetry.io/otel v1.36.0
-
-replace go.opentelemetry.io/otel/sdk => go.opentelemetry.io/otel/sdk v1.36.0
-
-replace go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v1.36.0
-
-replace go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v1.36.0
-
-replace go.opentelemetry.io/otel/sdk/metric => go.opentelemetry.io/otel/sdk/metric v1.36.0
-
 // FIXME undo this
 replace github.com/ecordell/optgen => github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 

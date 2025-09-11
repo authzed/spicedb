@@ -24,7 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -169,7 +168,6 @@ const (
 	DefaultMiddlewareNodeID        = "nodeid"
 	DefaultMiddlewareLog           = "log"
 	DefaultMiddlewareGRPCLog       = "grpclog"
-	DefaultMiddlewareOTelGRPC      = "otelgrpc"
 	DefaultMiddlewareGRPCAuth      = "grpcauth"
 	DefaultMiddlewareGRPCProm      = "grpcprom"
 	DefaultMiddlewareServerVersion = "serverversion"
@@ -305,24 +303,19 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
-			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(otelgrpc.UnaryServerInterceptor()). // nolint: staticcheck
-			Done(),
-
-		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog + "-debug").
 			WithInterceptor(selector.UnaryServerInterceptor(
 				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, traceIDFieldOption),
-										selector.MatchFunc(matchesRoute(healthCheckRoute)))).
-			EnsureAlreadyExecuted(DefaultMiddlewareOTelGRPC). // dependency so that OTel traceID is injected in logs),
+				selector.MatchFunc(matchesRoute(healthCheckRoute)))).
+			EnsureAlreadyExecuted(DefaultMiddlewareNodeID).
 			Done(),
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
 			WithInterceptor(selector.UnaryServerInterceptor(
 				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
-										selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
-			EnsureAlreadyExecuted(DefaultMiddlewareOTelGRPC). // dependency so that OTel traceID is injected in logs),
+				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
+			EnsureAlreadyExecuted(DefaultMiddlewareNodeID).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -383,24 +376,19 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			Done(),
 
 		NewStreamMiddleware().
-			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(otelgrpc.StreamServerInterceptor()). // nolint: staticcheck
-			Done(),
-
-		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog + "-debug").
 			WithInterceptor(selector.StreamServerInterceptor(
 				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, traceIDFieldOption),
-											selector.MatchFunc(matchesRoute(healthCheckRoute)))).
-			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareOTelGRPC). // dependency so that OTel traceID is injected in logs),
+				selector.MatchFunc(matchesRoute(healthCheckRoute)))).
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareNodeID).
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
 			WithInterceptor(selector.StreamServerInterceptor(
 				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
-											selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
-			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareOTelGRPC). // dependency so that OTel traceID is injected in logs),
+				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareNodeID).
 			Done(),
 
 		NewStreamMiddleware().
