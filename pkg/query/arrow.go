@@ -1,6 +1,7 @@
 package query
 
 import (
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -58,12 +59,27 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 						return
 					}
 
+					// Combine caveats from both sides using Path-based approach
+					// For arrow operations (left->right), both conditions must be satisfied (AND logic)
+					var combinedCaveat *core.CaveatExpression
+					if path.Caveat != nil && checkPath.Caveat != nil {
+						// Both sides have caveats - create combined caveat expression
+						combinedCaveat = caveats.And(path.Caveat, checkPath.Caveat)
+					} else if path.Caveat != nil {
+						// Only left side has caveat
+						combinedCaveat = path.Caveat
+					} else if checkPath.Caveat != nil {
+						// Only right side has caveat
+						combinedCaveat = checkPath.Caveat
+					}
+					// else both are nil, combinedCaveat remains nil
+
 					// Create combined path with resource from left and subject from right
 					combinedPath := &Path{
 						Resource:   path.Resource,
 						Relation:   path.Relation,
 						Subject:    checkPath.Subject,
-						Caveat:     checkPath.Caveat,
+						Caveat:     combinedCaveat,
 						Expiration: checkPath.Expiration,
 						Integrity:  checkPath.Integrity,
 						Metadata:   make(map[string]any),
