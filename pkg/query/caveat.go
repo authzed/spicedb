@@ -39,159 +39,154 @@ func NewCaveatIterator(subiterator Iterator, caveat *core.ContextualizedCaveat) 
 	}
 }
 
-func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	subSeq, err := c.subiterator.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
 
-	return func(yield func(Relation, error) bool) {
-		for rel, err := range subSeq {
+	return func(yield func(*Path, error) bool) {
+		for path, err := range subSeq {
 			if err != nil {
-				if !yield(rel, err) {
+				if !yield(path, err) {
 					return
 				}
 				continue
 			}
 
-			// Apply caveat evaluation to the relation
-			evaluation, err := c.evaluateCaveat(ctx, rel)
+			// Apply caveat evaluation to the path
+			evaluation, err := c.evaluateCaveat(ctx, path)
 			if err != nil {
-				if !yield(rel, err) {
+				if !yield(path, err) {
 					return
 				}
 				continue
 			}
-			
+
 			switch evaluation {
 			case CaveatTrue:
-				// Caveat evaluated to true - yield relation without caveat
-				modifiedRel := rel
-				modifiedRel.OptionalCaveat = nil
-				if !yield(modifiedRel, nil) {
+				// Caveat evaluated to true - yield path without caveat
+				modifiedPath := *path  // Copy the path
+				modifiedPath.Caveat = nil
+				if !yield(&modifiedPath, nil) {
 					return
 				}
 			case CaveatPartial:
-				// Caveat is partial - yield relation with caveat
-				if !yield(rel, nil) {
+				// Caveat is partial - yield path with caveat
+				if !yield(path, nil) {
 					return
 				}
 			case CaveatFalse:
-				// Caveat evaluated to false - don't yield the relation
+				// Caveat evaluated to false - don't yield the path
 			}
 		}
 	}, nil
 }
 
-func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	subSeq, err := c.subiterator.IterSubjectsImpl(ctx, resource)
 	if err != nil {
 		return nil, err
 	}
 
-	return func(yield func(Relation, error) bool) {
-		for rel, err := range subSeq {
+	return func(yield func(*Path, error) bool) {
+		for path, err := range subSeq {
 			if err != nil {
-				if !yield(rel, err) {
+				if !yield(path, err) {
 					return
 				}
 				continue
 			}
 
-			// Apply caveat evaluation to the relation
-			evaluation, err := c.evaluateCaveat(ctx, rel)
+			// Apply caveat evaluation to the path
+			evaluation, err := c.evaluateCaveat(ctx, path)
 			if err != nil {
-				if !yield(rel, err) {
+				if !yield(path, err) {
 					return
 				}
 				continue
 			}
-			
+
 			switch evaluation {
 			case CaveatTrue:
-				// Caveat evaluated to true - yield relation without caveat
-				modifiedRel := rel
-				modifiedRel.OptionalCaveat = nil
-				if !yield(modifiedRel, nil) {
+				// Caveat evaluated to true - yield path without caveat
+				modifiedPath := *path  // Copy the path
+				modifiedPath.Caveat = nil
+				if !yield(&modifiedPath, nil) {
 					return
 				}
 			case CaveatPartial:
-				// Caveat is partial - yield relation with caveat
-				if !yield(rel, nil) {
+				// Caveat is partial - yield path with caveat
+				if !yield(path, nil) {
 					return
 				}
 			case CaveatFalse:
-				// Caveat evaluated to false - don't yield the relation
+				// Caveat evaluated to false - don't yield the path
 			}
 		}
 	}, nil
 }
 
-func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	subSeq, err := c.subiterator.IterResourcesImpl(ctx, subject)
 	if err != nil {
 		return nil, err
 	}
 
-	return func(yield func(Relation, error) bool) {
-		for rel, err := range subSeq {
+	return func(yield func(*Path, error) bool) {
+		for path, err := range subSeq {
 			if err != nil {
-				if !yield(rel, err) {
+				if !yield(path, err) {
 					return
 				}
 				continue
 			}
 
-			// Apply caveat evaluation to the relation
-			evaluation, err := c.evaluateCaveat(ctx, rel)
+			// Apply caveat evaluation to the path
+			evaluation, err := c.evaluateCaveat(ctx, path)
 			if err != nil {
-				if !yield(rel, err) {
+				if !yield(path, err) {
 					return
 				}
 				continue
 			}
-			
+
 			switch evaluation {
 			case CaveatTrue:
-				// Caveat evaluated to true - yield relation without caveat
-				modifiedRel := rel
-				modifiedRel.OptionalCaveat = nil
-				if !yield(modifiedRel, nil) {
+				// Caveat evaluated to true - yield path without caveat
+				modifiedPath := *path  // Copy the path
+				modifiedPath.Caveat = nil
+				if !yield(&modifiedPath, nil) {
 					return
 				}
 			case CaveatPartial:
-				// Caveat is partial - yield relation with caveat
-				if !yield(rel, nil) {
+				// Caveat is partial - yield path with caveat
+				if !yield(path, nil) {
 					return
 				}
 			case CaveatFalse:
-				// Caveat evaluated to false - don't yield the relation
+				// Caveat evaluated to false - don't yield the path
 			}
 		}
 	}, nil
 }
 
-// evaluateCaveat determines if the given relation satisfies the caveat conditions.
-func (c *CaveatIterator) evaluateCaveat(ctx *Context, rel Relation) (CaveatEvaluation, error) {
+// evaluateCaveat determines if the given path satisfies the caveat conditions.
+func (c *CaveatIterator) evaluateCaveat(ctx *Context, path *Path) (CaveatEvaluation, error) {
 	
 	// If no caveat is specified, allow all relations
 	if c.caveat == nil {
 		return CaveatTrue, nil
 	}
 
-	// If the relation has no caveat, check if we expect one
-	if rel.OptionalCaveat == nil {
-		// No caveat on the relation - only allow if our caveat iterator expects no caveat
+	// If the path has no caveat, check if we expect one
+	if path.Caveat == nil {
+		// No caveat on the path - only allow if our caveat iterator expects no caveat
 		return CaveatFalse, nil
 	}
 
-	// Check if the caveat names match
-	if rel.OptionalCaveat.CaveatName != c.caveat.CaveatName {
-		return CaveatFalse, nil
-	}
-
-	// Build the caveat expression for evaluation using the relationship's caveat
-	caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
+	// Build the caveat expression for evaluation using the path's caveat
+	caveatExpr := path.Caveat
 
 	// Use the CaveatRunner from the context if available
 	if ctx.CaveatRunner == nil {
@@ -202,8 +197,8 @@ func (c *CaveatIterator) evaluateCaveat(ctx *Context, rel Relation) (CaveatEvalu
 	// Get a snapshot reader which should implement CaveatReader
 	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
 	
-	// Build the combined context map
-	contextMap := c.buildCaveatContext(ctx, rel.OptionalCaveat)
+	// Build the combined context map - pass the caveat from path since we're using the Path's Caveat field directly
+	contextMap := c.buildCaveatContext(ctx, nil) // We'll use the context from the CaveatIterator instead
 	
 	// Use the caveat runner to evaluate the expression
 	result, err := ctx.CaveatRunner.RunCaveatExpression(
@@ -219,14 +214,14 @@ func (c *CaveatIterator) evaluateCaveat(ctx *Context, rel Relation) (CaveatEvalu
 		var paramErr caveats.ParameterTypeError
 		
 		if errors.As(err, &evalErr) {
-			return CaveatFalse, fmt.Errorf("caveat evaluation failed for caveat %s: %w", rel.OptionalCaveat.CaveatName, evalErr)
+			return CaveatFalse, fmt.Errorf("caveat evaluation failed: %w", evalErr)
 		}
 		if errors.As(err, &paramErr) {
-			return CaveatFalse, fmt.Errorf("caveat parameter error for caveat %s: %w", rel.OptionalCaveat.CaveatName, paramErr)
+			return CaveatFalse, fmt.Errorf("caveat parameter error: %w", paramErr)
 		}
-		
-		// For other errors, provide context about which caveat failed
-		return CaveatFalse, fmt.Errorf("failed to evaluate caveat %s: %w", rel.OptionalCaveat.CaveatName, err)
+
+		// For other errors, provide context about caveat failure
+		return CaveatFalse, fmt.Errorf("failed to evaluate caveat: %w", err)
 	}
 
 	// Handle the caveat evaluation result
