@@ -1,7 +1,6 @@
 package query
 
 import (
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -24,14 +23,15 @@ func (i *Intersection) addSubIterator(subIt Iterator) {
 func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	validResources := resources
 
-	var paths []*Path
+	// Track paths by resource key for combining with AND logic
+	pathsByKey := make(map[string]*Path)
 
-	for _, it := range i.subIts {
+	for iterIdx, it := range i.subIts {
 		pathSeq, err := it.CheckImpl(ctx, validResources, subject)
 		if err != nil {
 			return nil, err
 		}
-		paths, err = CollectAll(pathSeq)
+		paths, err := CollectAll(pathSeq)
 		if err != nil {
 			return nil, err
 		}
@@ -40,13 +40,43 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 			return func(yield func(*Path, error) bool) {}, nil
 		}
 
-		validResources = slicez.Map(paths, func(p *Path) Object {
-			return p.Resource
-		})
+		if iterIdx == 0 {
+			// First iterator - initialize pathsByKey
+			for _, path := range paths {
+				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID + "#" + path.Relation
+				pathsByKey[key] = path
+			}
+		} else {
+			// Subsequent iterators - intersect and combine caveats
+			newPathsByKey := make(map[string]*Path)
+			for _, path := range paths {
+				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID + "#" + path.Relation
+				if existing, exists := pathsByKey[key]; exists {
+					// Combine caveats using intersection logic (AND)
+					combined := *existing  // Copy the existing path
+					if err := combined.MergeAnd(path); err != nil {
+						return nil, err
+					}
+					newPathsByKey[key] = &combined
+				}
+				// If path not in previous results, it's filtered out (intersection)
+			}
+			pathsByKey = newPathsByKey
+
+			if len(pathsByKey) == 0 {
+				return func(yield func(*Path, error) bool) {}, nil
+			}
+		}
+
+		// Update valid resources for next iteration
+		validResources = make([]Object, 0, len(pathsByKey))
+		for _, path := range pathsByKey {
+			validResources = append(validResources, path.Resource)
+		}
 	}
 
 	return func(yield func(*Path, error) bool) {
-		for _, path := range paths {
+		for _, path := range pathsByKey {
 			if !yield(path, nil) {
 				return
 			}
