@@ -768,9 +768,6 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 	require.True(baseRel.Wildcard(), "BaseRelation should have Wildcard: true")
 	require.Equal("user", baseRel.Type())
 
-	// Print debug info
-	t.Logf("BaseRelation: Type=%s, Subrelation=%s, Wildcard=%v", baseRel.Type(), baseRel.Subrelation(), baseRel.Wildcard())
-
 	t.Run("Schema with wildcard creates WildcardIterator", func(t *testing.T) {
 		t.Parallel()
 		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")

@@ -578,7 +578,7 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(rels, 2, "Different resources should not be combined")
-		
+
 		// Both paths should preserve their original caveats
 		caveatNames := make([]string, 2)
 		for i, path := range rels {
