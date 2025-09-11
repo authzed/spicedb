@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const waitForChangesTimeout = 15 * time.Second
+const waitForChangesTimeout = 20 * time.Second // FIXME, for reasons unknown, tests against Spanner emulator time out if this is lower
 
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.
@@ -65,10 +66,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			setupDatastore(ds, require)
 
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-
-			lowestRevision, err := ds.HeadRevision(ctx)
+			lowestRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			opts := datastore.WatchOptions{
@@ -76,7 +74,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				WatchBufferLength:       50,
 				WatchBufferWriteTimeout: tc.bufferTimeout,
 			}
-			changes, errchan := ds.Watch(ctx, lowestRevision, opts)
+			changes, errchan := ds.Watch(t.Context(), lowestRevision, opts)
 			require.Empty(errchan)
 
 			var testUpdates [][]tuple.RelationshipUpdate
@@ -85,10 +83,9 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				newRelationship := makeTestRel(fmt.Sprintf("relation%d", i), "test_user")
 
 				newUpdate := tuple.Touch(newRelationship)
-				batch := []tuple.RelationshipUpdate{newUpdate}
-				testUpdates = append(testUpdates, batch)
+				testUpdates = append(testUpdates, []tuple.RelationshipUpdate{newUpdate})
 
-				_, err := common.UpdateRelationshipsInDatastore(ctx, ds, newUpdate)
+				_, err := common.UpdateRelationshipsInDatastore(t.Context(), ds, newUpdate)
 				require.NoError(err)
 
 				if i != 0 {
@@ -99,17 +96,16 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			updateUpdate := tuple.Touch(tuple.MustWithCaveat(makeTestRel("relation0", "test_user"), "somecaveat"))
 			createUpdate := tuple.Touch(makeTestRel("another_relation", "somestuff"))
 
-			batch := []tuple.RelationshipUpdate{updateUpdate, createUpdate}
-			_, err = common.UpdateRelationshipsInDatastore(ctx, ds, batch...)
+			_, err = common.UpdateRelationshipsInDatastore(t.Context(), ds, updateUpdate, createUpdate)
 			require.NoError(err)
 
 			deleteUpdate := tuple.Delete(makeTestRel("relation0", "test_user"))
-			_, err = common.UpdateRelationshipsInDatastore(ctx, ds, deleteUpdate)
+			_, err = common.UpdateRelationshipsInDatastore(t.Context(), ds, deleteUpdate)
 			require.NoError(err)
 
-			testUpdates = append(testUpdates, batch, []tuple.RelationshipUpdate{deleteUpdate})
+			testUpdates = append(testUpdates, []tuple.RelationshipUpdate{updateUpdate, createUpdate}, []tuple.RelationshipUpdate{deleteUpdate})
 
-			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 					ResourceType:     testResourceNamespace,
 					OptionalRelation: testReaderRelation,
@@ -130,7 +126,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			VerifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
 			// Test the catch-up case
-			changes, errchan = ds.Watch(ctx, lowestRevision, opts)
+			changes, errchan = ds.Watch(t.Context(), lowestRevision, opts)
 			VerifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 		})
 	}
@@ -430,6 +426,10 @@ type updateWithMetadata struct {
 }
 
 func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
+	if strings.Contains(t.Name(), "Spanner") {
+		t.Skip("Spanner emulator does not support transaction tags. See https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/issues/280")
+	}
+
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
