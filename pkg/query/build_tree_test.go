@@ -247,12 +247,17 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	it, err := BuildIteratorFromSchema(dsSchema, "document", "excluded_perm")
 	require.NoError(err)
 	require.NotNil(it)
-	require.IsType(&Exclusion{}, it)
+	// Should be wrapped in an Alias
+	alias, ok := it.(*Alias)
+	require.True(ok, "Expected Alias wrapper")
+	require.IsType(&Exclusion{}, alias.subIt)
 
-	// Verify the explain shows exclusion structure
+	// Verify the explain shows alias structure with exclusion underneath
 	explain := it.Explain()
-	require.Equal("Exclusion", explain.Info)
-	require.Len(explain.SubExplain, 2, "Should have main and excluded sub-iterators")
+	require.Contains(explain.Info, "Alias(excluded_perm)")
+	require.Len(explain.SubExplain, 1, "Should have one sub-iterator (the exclusion)")
+	require.Equal("Exclusion", explain.SubExplain[0].Info)
+	require.Len(explain.SubExplain[0].SubExplain, 2, "Should have main and excluded sub-iterators")
 
 	// Verify that at least one of the sub-iterators is a FixedIterator (representing _nil)
 	explainStr := explain.String()
@@ -298,7 +303,10 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		it, err := BuildIteratorFromSchema(dsSchema, "document", "can_view")
 		require.NoError(err)
 		require.NotNil(it)
-		require.IsType(&Exclusion{}, it)
+		// Should be wrapped in an Alias
+		alias, ok := it.(*Alias)
+		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Test execution doesn't crash
 		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
@@ -334,12 +342,17 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		it, err := BuildIteratorFromSchema(dsSchema, "document", "restricted_viewers")
 		require.NoError(err)
 		require.NotNil(it)
-		require.IsType(&Exclusion{}, it)
+		// Should be wrapped in an Alias
+		alias, ok := it.(*Alias)
+		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify the structure includes union in main set
 		explain := it.Explain()
-		require.Equal("Exclusion", explain.Info)
-		require.Len(explain.SubExplain, 2)
+		require.Contains(explain.Info, "Alias(restricted_viewers)")
+		require.Len(explain.SubExplain, 1, "Should have one sub-iterator (the exclusion)")
+		require.Equal("Exclusion", explain.SubExplain[0].Info)
+		require.Len(explain.SubExplain[0].SubExplain, 2)
 		explainStr := explain.String()
 		require.Contains(explainStr, "Union")
 	})
@@ -370,12 +383,17 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		it, err := BuildIteratorFromSchema(dsSchema, "document", "restricted_view")
 		require.NoError(err)
 		require.NotNil(it)
-		require.IsType(&Exclusion{}, it)
+		// Should be wrapped in an Alias
+		alias, ok := it.(*Alias)
+		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify the structure includes intersection in main set
 		explain := it.Explain()
-		require.Equal("Exclusion", explain.Info)
-		require.Len(explain.SubExplain, 2)
+		require.Contains(explain.Info, "Alias(restricted_view)")
+		require.Len(explain.SubExplain, 1, "Should have one sub-iterator (the exclusion)")
+		require.Equal("Exclusion", explain.SubExplain[0].Info)
+		require.Len(explain.SubExplain[0].SubExplain, 2)
 		explainStr := explain.String()
 		require.Contains(explainStr, "Intersection")
 	})
@@ -407,12 +425,17 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		it, err := BuildIteratorFromSchema(dsSchema, "document", "allowed_users")
 		require.NoError(err)
 		require.NotNil(it)
-		require.IsType(&Exclusion{}, it)
+		// Should be wrapped in an Alias
+		alias, ok := it.(*Alias)
+		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify nested structure
 		explain := it.Explain()
-		require.Equal("Exclusion", explain.Info)
-		require.Len(explain.SubExplain, 2)
+		require.Contains(explain.Info, "Alias(allowed_users)")
+		require.Len(explain.SubExplain, 1, "Should have one sub-iterator (the exclusion)")
+		require.Equal("Exclusion", explain.SubExplain[0].Info)
+		require.Len(explain.SubExplain[0].SubExplain, 2)
 
 		// The first sub-explain should be another exclusion
 		mainSetExplain := explain.SubExplain[0]

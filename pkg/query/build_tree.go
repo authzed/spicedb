@@ -44,7 +44,11 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 
 func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubRelations bool) (Iterator, error) {
 	if len(r.BaseRelations) == 1 {
-		return b.buildBaseRelationIterator(r.BaseRelations[0], withSubRelations)
+		baseIt, err := b.buildBaseRelationIterator(r.BaseRelations[0], withSubRelations)
+		if err != nil {
+			return nil, err
+		}
+		return NewAlias(r.Name, baseIt), nil
 	}
 	union := NewUnion()
 	for _, br := range r.BaseRelations {
@@ -54,11 +58,15 @@ func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubR
 		}
 		union.addSubIterator(it)
 	}
-	return union, nil
+	return NewAlias(r.Name, union), nil
 }
 
 func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Iterator, error) {
-	return b.buildIteratorFromOperation(p, p.Operation)
+	baseIt, err := b.buildIteratorFromOperation(p, p.Operation)
+	if err != nil {
+		return nil, err
+	}
+	return NewAlias(p.Name, baseIt), nil
 }
 
 func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
