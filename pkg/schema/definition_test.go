@@ -626,6 +626,21 @@ func TestTypeSystemAccessors(t *testing.T) {
 						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
 						require.Error(t, err)
 					})
+
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("editor")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("viewer")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
+						require.Error(t, err)
+					})
 				},
 			},
 		},
@@ -718,6 +733,21 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.Error(t, err)
 
 						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
+						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("editor")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("viewer")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
 					})
 				},
@@ -826,6 +856,26 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.Error(t, err)
 
 						_, err = vts.PossibleTraitsForSubject("member", "thirdtype")
+						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("member")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("other")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("three")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
 					})
 				},
@@ -944,6 +994,26 @@ func TestTypeSystemAccessors(t *testing.T) {
 						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
 						require.Error(t, err)
 					})
+
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("editor")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("viewer")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("onlycaveated")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
+						require.Error(t, err)
+					})
 				},
 			},
 		},
@@ -1042,6 +1112,193 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.Error(t, err)
 
 						_, err = vts.PossibleTraitsForSubject("editor", "unknown")
+						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("editor")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("viewer")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
+						require.Error(t, err)
+					})
+				},
+			},
+		},
+		{
+			"schema with traits only on subset of subject types",
+			`definition user {}
+			definition group {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation viewer: user | group | user with somecaveat
+			}`,
+			map[string]tsTester{
+				"resource": func(t *testing.T, vts *ValidatedDefinition) {
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("viewer", "group")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+					})
+
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("viewer")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
+						require.Error(t, err)
+					})
+				},
+			},
+		},
+		{
+			"schema with expiration only on subset of subject types",
+			`use expiration
+
+			definition user {}
+			definition group {}
+			definition team {}
+
+			definition resource {
+				relation editor: user | group with expiration | team
+			}`,
+			map[string]tsTester{
+				"resource": func(t *testing.T, vts *ValidatedDefinition) {
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("editor", "group")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("editor", "team")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+					})
+
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("editor")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
+						require.Error(t, err)
+					})
+				},
+			},
+		},
+		{
+			"schema with mixed traits on different subject types",
+			`use expiration
+
+			definition user {}
+			definition group {}
+			definition team {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation viewer: user | group with somecaveat | team with expiration | user with somecaveat and expiration
+			}`,
+			map[string]tsTester{
+				"resource": func(t *testing.T, vts *ValidatedDefinition) {
+					t.Run("PossibleTraitsForSubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("viewer", "group")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForSubject("viewer", "team")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+					})
+
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("viewer")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
+						require.Error(t, err)
+					})
+				},
+			},
+		},
+		{
+			"schema with traits only on some relations",
+			`use expiration
+
+			definition user {}
+			definition group {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation plain: user | group
+				relation caveated: user with somecaveat | group
+				relation expired: user with expiration | group
+				relation mixed: user | group with somecaveat and expiration
+			}`,
+			map[string]tsTester{
+				"resource": func(t *testing.T, vts *ValidatedDefinition) {
+					t.Run("PossibleTraitsForAnySubject", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnySubject("plain")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("caveated")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("expired")
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						traits, err = vts.PossibleTraitsForAnySubject("mixed")
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+
+						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
 					})
 				},

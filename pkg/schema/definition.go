@@ -404,3 +404,32 @@ func (def *Definition) PossibleTraitsForSubject(relationName string, subjectType
 
 	return foundTraits, nil
 }
+
+// PossibleTraitsForAnySubject returns the traits that are possible on *any* subject for the specified relation.
+// This returns the union of traits across all allowed subject types.
+func (def *Definition) PossibleTraitsForAnySubject(relationName string) (Traits, error) {
+	relation, ok := def.relationMap[relationName]
+	if !ok {
+		return Traits{}, NewRelationNotFoundErr(def.nsDef.Name, relationName)
+	}
+
+	typeInfo := relation.GetTypeInformation()
+	if typeInfo == nil {
+		return Traits{}, NewTypeWithSourceError(
+			fmt.Errorf("relation `%s` does not have type information", relationName),
+			relation, relationName,
+		)
+	}
+
+	foundTraits := Traits{}
+	for _, allowedRelation := range typeInfo.GetAllowedDirectRelations() {
+		if allowedRelation.GetRequiredCaveat() != nil && allowedRelation.GetRequiredCaveat().CaveatName != "" {
+			foundTraits.AllowsCaveats = true
+		}
+		if allowedRelation.GetRequiredExpiration() != nil {
+			foundTraits.AllowsExpiration = true
+		}
+	}
+
+	return foundTraits, nil
+}
