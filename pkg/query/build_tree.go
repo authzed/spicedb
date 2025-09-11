@@ -3,9 +3,9 @@ package query
 import (
 	"fmt"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 type iteratorBuilder struct {

@@ -2,6 +2,9 @@ package query
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -227,6 +230,30 @@ func NewConflictingPermissionsFixedIterator() *FixedIterator {
 		paths[i] = FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
+}
+
+// AssertRelationsMatchByResource compares two slices of relations by their resource and subject,
+// ignoring the specific relation names. This is useful for testing intersection behavior where
+// we care about which resources have matching subjects, not the specific relation types.
+func AssertRelationsMatchByResource(t *testing.T, expected, actual []tuple.Relationship, msgAndArgs ...any) {
+	t.Helper()
+
+	// Convert to resource+subject keys for comparison
+	expectedKeys := make(map[string]bool)
+	for _, rel := range expected {
+		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID + "@" +
+			rel.Subject.ObjectType + ":" + rel.Subject.ObjectID
+		expectedKeys[key] = true
+	}
+
+	actualKeys := make(map[string]bool)
+	for _, rel := range actual {
+		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID + "@" +
+			rel.Subject.ObjectType + ":" + rel.Subject.ObjectID
+		actualKeys[key] = true
+	}
+
+	require.Equal(t, expectedKeys, actualKeys, msgAndArgs...)
 }
 
 // FaultyIterator is a test helper that simulates iterator errors

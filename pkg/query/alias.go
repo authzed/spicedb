@@ -1,5 +1,9 @@
 package query
 
+import (
+	"fmt"
+)
+
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type Alias struct {
@@ -19,6 +23,7 @@ func NewAlias(relation string, subIt Iterator) *Alias {
 }
 
 func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	ctx.TraceEnterIterator(fmt.Sprintf("Alias[%s]", a.relation), resources, subject)
 	// First, check for self-edge: if the object with internal relation matches the subject
 	for _, resource := range resources {
 		resourceWithAlias := resource.WithRelation(a.relation)

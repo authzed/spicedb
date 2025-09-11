@@ -21,12 +21,16 @@ func (i *Intersection) addSubIterator(subIt Iterator) {
 }
 
 func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	ctx.TraceEnterIterator("Intersection", resources, subject)
+
 	validResources := resources
 
 	// Track paths by resource key for combining with AND logic
 	pathsByKey := make(map[string]*Path)
 
 	for iterIdx, it := range i.subIts {
+		ctx.TraceStep("Intersection", "processing sub-iterator %d with %d resources", iterIdx, len(validResources))
+
 		pathSeq, err := it.CheckImpl(ctx, validResources, subject)
 		if err != nil {
 			return nil, err
@@ -36,30 +40,57 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 			return nil, err
 		}
 
+		ctx.TraceStep("Intersection", "sub-iterator %d returned %d paths", iterIdx, len(paths))
+
 		if len(paths) == 0 {
+			ctx.TraceStep("Intersection", "sub-iterator %d returned empty, short-circuiting", iterIdx)
+			var emptyPaths []*Path
+			ctx.TraceExitIterator("Intersection", emptyPaths)
 			return func(yield func(*Path, error) bool) {}, nil
 		}
 
 		if iterIdx == 0 {
-			// First iterator - initialize pathsByKey
+			// First iterator - initialize pathsByKey using endpoint-based keys
 			for _, path := range paths {
-				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID + "#" + path.Relation
-				pathsByKey[key] = path
+				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID
+				if existing, exists := pathsByKey[key]; !exists {
+					pathsByKey[key] = path
+				} else {
+					// If multiple paths for same endpoint in first iterator, merge with OR
+					if err := existing.MergeOr(path); err != nil {
+						return nil, err
+					}
+				}
 			}
 		} else {
-			// Subsequent iterators - intersect and combine caveats
+			// Subsequent iterators - intersect based on endpoints and combine caveats
 			newPathsByKey := make(map[string]*Path)
+
+			// First collect all paths from this iterator by endpoint
+			currentIterPaths := make(map[string]*Path)
 			for _, path := range paths {
-				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID + "#" + path.Relation
+				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID
+				if existing, exists := currentIterPaths[key]; !exists {
+					currentIterPaths[key] = path
+				} else {
+					// Multiple paths for same endpoint in current iterator, merge with OR
+					if err := existing.MergeOr(path); err != nil {
+						return nil, err
+					}
+				}
+			}
+
+			// Now intersect: only keep endpoints that exist in both previous and current
+			for key, currentPath := range currentIterPaths {
 				if existing, exists := pathsByKey[key]; exists {
-					// Combine caveats using intersection logic (AND)
-					combined := *existing  // Copy the existing path
-					if err := combined.MergeAnd(path); err != nil {
+					// Combine using intersection logic (AND)
+					combined := *existing // Copy the existing path
+					if err := combined.MergeAnd(currentPath); err != nil {
 						return nil, err
 					}
 					newPathsByKey[key] = &combined
 				}
-				// If path not in previous results, it's filtered out (intersection)
+				// If endpoint not in previous results, it's filtered out (intersection)
 			}
 			pathsByKey = newPathsByKey
 
@@ -68,13 +99,24 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 			}
 		}
 
-		// Update valid resources for next iteration
-		validResources = make([]Object, 0, len(pathsByKey))
+		// Update valid resources for next iteration (extract unique resources from paths)
+		resourceSet := make(map[string]Object)
 		for _, path := range pathsByKey {
-			validResources = append(validResources, path.Resource)
+			resourceKey := path.Resource.ObjectType + ":" + path.Resource.ObjectID
+			resourceSet[resourceKey] = path.Resource
+		}
+		validResources = make([]Object, 0, len(resourceSet))
+		for _, obj := range resourceSet {
+			validResources = append(validResources, obj)
 		}
 	}
 
+	// Collect paths for tracing
+	currentPaths := make([]*Path, 0, len(pathsByKey))
+	for _, path := range pathsByKey {
+		currentPaths = append(currentPaths, path)
+	}
+	ctx.TraceExitIterator("Intersection", currentPaths)
 	return func(yield func(*Path, error) bool) {
 		for _, path := range pathsByKey {
 			if !yield(path, nil) {
