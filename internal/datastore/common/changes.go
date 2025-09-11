@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"maps"
+	"reflect"
 	"slices"
 	"sort"
 
@@ -38,7 +39,12 @@ type changeRecord[R datastore.Revision] struct {
 	definitionsChanged map[string]datastore.SchemaDefinition
 	namespacesDeleted  map[string]struct{}
 	caveatsDeleted     map[string]struct{}
-	metadata           map[string]any
+	metadatas          []map[string]any
+}
+
+// equalMetadata compares two metadata maps for deep equality
+func equalMetadata(a, b map[string]any) bool {
+	return reflect.DeepEqual(a, b)
 }
 
 // NewChanges creates a new Changes object for change tracking and de-duplication.
@@ -134,8 +140,8 @@ func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
 	return nil
 }
 
-// SetRevisionMetadata sets the metadata for the given revision.
-func (ch *Changes[R, K]) SetRevisionMetadata(ctx context.Context, rev R, metadata map[string]any) error {
+// AddRevisionMetadata adds the metadata for the given revision.
+func (ch *Changes[R, K]) AddRevisionMetadata(ctx context.Context, rev R, metadata map[string]any) error {
 	if len(metadata) == 0 {
 		return nil
 	}
@@ -145,13 +151,15 @@ func (ch *Changes[R, K]) SetRevisionMetadata(ctx context.Context, rev R, metadat
 		return err
 	}
 
-	if len(record.metadata) > 0 {
-		if !maps.Equal(record.metadata, metadata) {
-			return spiceerrors.MustBugf("different metadata already set for revision %v: %v vs %v", rev, record.metadata, metadata)
+	// Check if the metadata already exists on the record.
+	for _, existingMetadata := range record.metadatas {
+		if equalMetadata(existingMetadata, metadata) {
+			return nil
 		}
 	}
 
-	maps.Copy(record.metadata, metadata)
+	record.metadatas = append(record.metadatas, metadata)
+	ch.records[ch.keyFunc(rev)] = record
 	return nil
 }
 
@@ -166,7 +174,7 @@ func (ch *Changes[R, K]) recordForRevision(rev R) (changeRecord[R], error) {
 			make(map[string]datastore.SchemaDefinition),
 			make(map[string]struct{}),
 			make(map[string]struct{}),
-			make(map[string]any),
+			make([]map[string]any, 0),
 		}
 		ch.records[k] = revisionChanges
 	}
@@ -332,13 +340,17 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 		changes[i].DeletedNamespaces = slices.Collect(maps.Keys(revisionChangeRecord.namespacesDeleted))
 		changes[i].DeletedCaveats = slices.Collect(maps.Keys(revisionChangeRecord.caveatsDeleted))
 
-		if len(revisionChangeRecord.metadata) > 0 {
-			metadata, err := structpb.NewStruct(revisionChangeRecord.metadata)
-			if err != nil {
-				return nil, spiceerrors.MustBugf("failed to convert metadata to structpb: %v", err)
+		if len(revisionChangeRecord.metadatas) > 0 {
+			metadatas := make([]*structpb.Struct, 0, len(revisionChangeRecord.metadatas))
+			for _, metadata := range revisionChangeRecord.metadatas {
+				structpbMetadata, err := structpb.NewStruct(metadata)
+				if err != nil {
+					return nil, spiceerrors.MustBugf("failed to convert metadata to structpb: %v", err)
+				}
+				metadatas = append(metadatas, structpbMetadata)
 			}
 
-			changes[i].Metadata = metadata
+			changes[i].Metadatas = metadatas
 		}
 	}
 
