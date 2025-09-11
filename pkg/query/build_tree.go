@@ -138,7 +138,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 }
 
 func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
-	base := NewRelationIterator(br)
+	var base Iterator = NewRelationIterator(br)
 
 	// Wrap with caveat iterator if a caveat is specified
 	if br.Caveat != "" {

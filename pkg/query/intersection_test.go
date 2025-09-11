@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func TestIntersectionIterator(t *testing.T) {
@@ -284,4 +286,220 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 		// Should be empty due to early termination
 		require.Empty(rels, "Early termination should return no results")
 	}
+}
+
+func TestIntersectionIteratorCaveatCombination(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	// Create test context
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
+		t.Parallel()
+
+		// Both iterators return the same path but with different caveats
+		// Should combine with AND logic
+		pathWithCaveat1 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathWithCaveat1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+				},
+			},
+		}
+
+		pathWithCaveat2 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathWithCaveat2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+				},
+			},
+		}
+
+		iter1 := NewFixedIterator(pathWithCaveat1)
+		iter2 := NewFixedIterator(pathWithCaveat2)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Intersection should return one combined relation")
+		require.NotNil(rels[0].Caveat, "Result should have combined caveat")
+		// The combination logic should combine both caveats with AND logic
+	})
+
+	t.Run("OneCaveat_One_NoCaveat_AND_Logic", func(t *testing.T) {
+		t.Parallel()
+
+		// One path has caveat, one doesn't - caveat should be preserved (AND logic)
+		pathWithCaveat := MustPathFromString("document:doc1#viewer@user:alice")
+		pathWithCaveat.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "test_caveat",
+				},
+			},
+		}
+
+		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
+
+		iter1 := NewFixedIterator(pathWithCaveat)
+		iter2 := NewFixedIterator(pathNoCaveat)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Intersection should return one relation")
+		require.NotNil(rels[0].Caveat, "Caveat should be preserved in AND logic")
+		// Note: Checking exact caveat content would require parsing the CaveatExpression
+	})
+
+	t.Run("Different_Relations_Same_Resource", func(t *testing.T) {
+		t.Parallel()
+
+		// Two iterators with different relations on same resource - should intersect separately
+		pathViewer := MustPathFromString("document:doc1#viewer@user:alice")
+		pathViewer.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+				},
+			},
+		}
+
+		pathEditor := MustPathFromString("document:doc1#editor@user:alice")
+		pathEditor.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+				},
+			},
+		}
+
+		// Create iterators that return both paths
+		iter1 := NewFixedIterator(pathViewer, pathEditor)
+		iter2 := NewFixedIterator(pathViewer, pathEditor)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 2, "Should return both relations since they exist in both iterators")
+
+		// Both paths should have their caveats combined
+		relations := make(map[string]bool)
+		for _, path := range rels {
+			require.NotNil(path.Caveat, "Each path should have a caveat")
+			relations[path.Relation] = true
+		}
+		require.Contains(relations, "viewer")
+		require.Contains(relations, "editor")
+	})
+
+	t.Run("No_Common_Relations", func(t *testing.T) {
+		t.Parallel()
+
+		// Iterators with no common paths - should return empty
+		pathViewer := MustPathFromString("document:doc1#viewer@user:alice")
+		pathViewer.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+				},
+			},
+		}
+
+		pathEditor := MustPathFromString("document:doc1#editor@user:alice")
+		pathEditor.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+				},
+			},
+		}
+
+		iter1 := NewFixedIterator(pathViewer)
+		iter2 := NewFixedIterator(pathEditor)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Empty(rels, "No common relations should result in empty intersection")
+	})
+
+	t.Run("Three_Iterators_Mixed_Caveats", func(t *testing.T) {
+		t.Parallel()
+
+		// Three iterators with the same path but different caveat combinations
+		pathCaveat1 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathCaveat1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+				},
+			},
+		}
+
+		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
+
+		pathCaveat2 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathCaveat2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+				},
+			},
+		}
+
+		iter1 := NewFixedIterator(pathCaveat1)
+		iter2 := NewFixedIterator(pathNoCaveat)
+		iter3 := NewFixedIterator(pathCaveat2)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+		intersect.addSubIterator(iter3)
+
+		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Should return one intersected path")
+		require.NotNil(rels[0].Caveat, "Final result should have combined caveat")
+		// The final caveat should be some combination of caveat1 and caveat2 (implementation detail)
+	})
 }
