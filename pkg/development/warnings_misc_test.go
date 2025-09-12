@@ -175,3 +175,37 @@ func TestWrappedTTU(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "parent->member", arrowString)
 }
+
+func TestWarningForPositionWithCastingErrors(t *testing.T) {
+	// Test with extremely large line/column numbers to trigger casting errors
+	sourcePos := &core.SourcePosition{
+		ZeroIndexedLineNumber:     4294967296, // Larger than uint32 max (2^32)
+		ZeroIndexedColumnPosition: 4294967296, // Larger than uint32 max (2^32)
+	}
+
+	warning := warningForPosition("cast-error", "test message", "source code", sourcePos)
+	require.NotNil(t, warning)
+	require.Equal(t, "test message (cast-error)", warning.Message)
+	require.Equal(t, "source code", warning.SourceCode)
+	require.Equal(t, uint32(1), warning.Line)   // Should be 1 due to zero fallback + 1
+	require.Equal(t, uint32(1), warning.Column) // Should be 1 due to zero fallback + 1
+}
+
+func TestWrappedFunctionedTTUUnknownFunction(t *testing.T) {
+	fttu := &core.FunctionedTupleToUserset{
+		Tupleset: &core.FunctionedTupleToUserset_Tupleset{
+			Relation: "parent",
+		},
+		ComputedUserset: &core.ComputedUserset{
+			Relation: "member",
+		},
+		Function: core.FunctionedTupleToUserset_Function(999), // Unknown function type
+	}
+
+	wrapped := wrappedFunctionedTTU{fttu}
+
+	// Test GetArrowString with unknown function - should panic
+	require.Panics(t, func() {
+		_, _ = wrapped.GetArrowString()
+	})
+}
