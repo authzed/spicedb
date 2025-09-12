@@ -172,7 +172,11 @@ func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Con
 			return err
 		}
 		defer rows.Close()
-		return rowsFunc(ctx, rows)
+		err = rowsFunc(ctx, rows)
+		if err != nil {
+			return err
+		}
+		return rows.Err()
 	})
 }
 

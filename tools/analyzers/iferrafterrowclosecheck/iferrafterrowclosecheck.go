@@ -3,7 +3,6 @@ package iferrafterrowclosecheck
 import (
 	"flag"
 	"go/ast"
-	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -11,11 +10,6 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
-
-type nodeAndStack struct {
-	node  ast.Node
-	stack []ast.Node
-}
 
 func Analyzer() *analysis.Analyzer {
 	flagSet := flag.NewFlagSet("iferrafterrowclosecheck", flag.ExitOnError)
@@ -128,41 +122,4 @@ func hasImmediateErrorCheck(closeStmt *ast.ExprStmt, rowsName string, stack []as
 	}
 
 	return false
-}
-
-func isStatementRightAfter(first nodeAndStack, second nodeAndStack) bool {
-	containingStatement, firstIndex, secondIndex := findSharedContainingStatement(
-		append(slices.Clone(first.stack), first.node),
-		append(slices.Clone(second.stack), second.node),
-	)
-
-	if containingStatement == nil {
-		return false
-	}
-
-	return secondIndex == firstIndex+1
-}
-
-func findSharedContainingStatement(first []ast.Node, second []ast.Node) (ast.Node, int, int) {
-	for i := 0; i < min(len(first), len(second)); i++ {
-		if i > 0 && first[i] != second[i] {
-			for j := i - 1; j >= 0; j-- {
-				if block, ok := first[j].(*ast.BlockStmt); ok {
-					return block, stIndex(block.List, first[j+1]), stIndex(block.List, second[j+1])
-				}
-
-				if cse, ok := first[j].(*ast.CaseClause); ok {
-					return cse, stIndex(cse.Body, first[j+1]), stIndex(cse.Body, second[j+1])
-				}
-			}
-		}
-	}
-
-	return nil, -1, -1
-}
-
-func stIndex(statements []ast.Stmt, node ast.Node) int {
-	return slices.IndexFunc(statements, func(current ast.Stmt) bool {
-		return current == node
-	})
 }
