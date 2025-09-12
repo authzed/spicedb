@@ -56,6 +56,7 @@ func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 		Datastore:    q.ds,
 		Revision:     q.revision,
 		CaveatRunner: caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
+		TraceLogger:  query.NewTraceLogger(), // Enable tracing for debugging
 	}
 }
 
@@ -130,6 +131,15 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 							rels, err := query.CollectAll(seq)
 							require.NoError(err)
 
+							// Print trace if test fails
+							if qctx.TraceLogger != nil {
+								defer func() {
+									if t.Failed() {
+										t.Logf("Trace for %s:\n%s", entry.name, qctx.TraceLogger.DumpTrace())
+									}
+								}()
+							}
+
 							switch entry.expectedPermissionship {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
 								require.Len(rels, 1)
@@ -138,6 +148,9 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 								require.Len(rels, 1)
 								require.Nil(rels[0].Caveat)
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
+								if len(rels) != 0 && qctx.TraceLogger != nil {
+									t.Logf("Expected 0 relations but got %d. Trace:\n%s", len(rels), qctx.TraceLogger.DumpTrace())
+								}
 								require.Len(rels, 0)
 							}
 						})
