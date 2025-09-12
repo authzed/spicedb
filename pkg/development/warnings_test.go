@@ -213,6 +213,42 @@ func TestWarnings(t *testing.T) {
 			`,
 			expectedWarning: nil,
 		},
+		{
+			name: "union operation with nested rewrite",
+			schema: `definition user {}
+			
+			definition document {
+				relation viewer: user
+				relation editor: user
+				permission view = viewer + (editor + viewer)
+			}
+			`,
+			expectedWarning: nil,
+		},
+		{
+			name: "intersection operation",
+			schema: `definition user {}
+			
+			definition document {
+				relation viewer: user
+				relation editor: user
+				permission view = viewer & editor
+			}
+			`,
+			expectedWarning: nil,
+		},
+		{
+			name: "exclusion operation",
+			schema: `definition user {}
+			
+			definition document {
+				relation viewer: user
+				relation editor: user
+				permission view = viewer - editor
+			}
+			`,
+			expectedWarning: nil,
+		},
 	}
 
 	for _, tc := range tcs {
