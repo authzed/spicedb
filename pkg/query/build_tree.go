@@ -77,20 +77,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		if !ok {
 			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), p.Parent().Name())
 		}
-		union := NewUnion()
-		for _, br := range rel.BaseRelations() {
-			left, err := b.buildBaseRelationIterator(br, false)
-			if err != nil {
-				return nil, err
-			}
-			right, err := b.buildIteratorFromSchemaInternal(br.Type(), perm.Right(), false)
-			if err != nil {
-				return nil, err
-			}
-			arrow := NewArrow(left, right)
-			union.addSubIterator(arrow)
-		}
-		return union, nil
+		return b.buildArrowIterators(rel, perm.Right())
 
 	case *schema.RelationReference:
 		if perm.RelationName() == "_nil" {
@@ -132,6 +119,25 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		}
 
 		return NewExclusion(mainIt, excludedIt), nil
+
+	case *schema.FunctionedTuplesetOperation:
+		rel, ok := p.Parent().Relations()[perm.TuplesetRelation()]
+		if !ok {
+			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find tupleset relation `%s` for functioned tupleset `%s.%s(%s)` for permission `%s` in definition `%s`", perm.TuplesetRelation(), perm.TuplesetRelation(), functionTypeString(perm.Function()), perm.ComputedRelation(), p.Name(), p.Parent().Name())
+		}
+
+		switch perm.Function() {
+		case schema.FunctionTypeAny:
+			// any() functions just like an arrow
+			return b.buildArrowIterators(rel, perm.ComputedRelation())
+
+		case schema.FunctionTypeAll:
+			// all() requires intersection arrow - user must have permission on ALL left subjects
+			return b.buildIntersectionArrowIterators(rel, perm.ComputedRelation())
+
+		default:
+			return nil, fmt.Errorf("unknown function type: %v", perm.Function())
+		}
 	}
 
 	return nil, fmt.Errorf("uncovered schema permission operation: %T", op)
@@ -141,9 +147,9 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 	var base Iterator = NewRelationIterator(br)
 
 	// Wrap with caveat iterator if a caveat is specified
-	if br.Caveat != "" {
+	if br.Caveat() != "" {
 		caveat := &core.ContextualizedCaveat{
-			CaveatName: br.Caveat,
+			CaveatName: br.Caveat(),
 			// Context will be provided at query time through the Context.CaveatContext
 		}
 		base = NewCaveatIterator(base, caveat)
@@ -175,4 +181,51 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 	arrow := NewArrow(base.Clone(), rightside)
 	union.addSubIterator(arrow)
 	return union, nil
+}
+
+// buildArrowIterators creates a union of arrow iterators for the given relation and right-hand side
+func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
+	union := NewUnion()
+	for _, br := range rel.BaseRelations() {
+		left, err := b.buildBaseRelationIterator(br, false)
+		if err != nil {
+			return nil, err
+		}
+		right, err := b.buildIteratorFromSchemaInternal(br.Type(), rightSide, false)
+		if err != nil {
+			return nil, err
+		}
+		arrow := NewArrow(left, right)
+		union.addSubIterator(arrow)
+	}
+	return union, nil
+}
+
+// buildIntersectionArrowIterators creates a union of intersection arrow iterators for the given relation and right-hand side
+func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
+	union := NewUnion()
+	for _, br := range rel.BaseRelations() {
+		left, err := b.buildBaseRelationIterator(br, false)
+		if err != nil {
+			return nil, err
+		}
+		right, err := b.buildIteratorFromSchemaInternal(br.Type(), rightSide, false)
+		if err != nil {
+			return nil, err
+		}
+		intersectionArrow := NewIntersectionArrow(left, right)
+		union.addSubIterator(intersectionArrow)
+	}
+	return union, nil
+}
+
+func functionTypeString(ft schema.FunctionType) string {
+	switch ft {
+	case schema.FunctionTypeAny:
+		return "any"
+	case schema.FunctionTypeAll:
+		return "all"
+	default:
+		return "unknown"
+	}
 }
