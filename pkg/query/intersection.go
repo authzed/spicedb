@@ -21,17 +21,15 @@ func (i *Intersection) addSubIterator(subIt Iterator) {
 }
 
 func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	ctx.TraceEnterIterator("Intersection", resources, subject)
-
 	validResources := resources
 
 	// Track paths by resource key for combining with AND logic
 	pathsByKey := make(map[string]*Path)
 
 	for iterIdx, it := range i.subIts {
-		ctx.TraceStep("Intersection", "processing sub-iterator %d with %d resources", iterIdx, len(validResources))
+		ctx.TraceStep(i, "processing sub-iterator %d with %d resources", iterIdx, len(validResources))
 
-		pathSeq, err := it.CheckImpl(ctx, validResources, subject)
+		pathSeq, err := ctx.Check(it, validResources, subject)
 		if err != nil {
 			return nil, err
 		}
@@ -40,12 +38,10 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 			return nil, err
 		}
 
-		ctx.TraceStep("Intersection", "sub-iterator %d returned %d paths", iterIdx, len(paths))
+		ctx.TraceStep(i, "sub-iterator %d returned %d paths", iterIdx, len(paths))
 
 		if len(paths) == 0 {
-			ctx.TraceStep("Intersection", "sub-iterator %d returned empty, short-circuiting", iterIdx)
-			var emptyPaths []*Path
-			ctx.TraceExitIterator("Intersection", emptyPaths)
+			ctx.TraceStep(i, "sub-iterator %d returned empty, short-circuiting", iterIdx)
 			return func(yield func(*Path, error) bool) {}, nil
 		}
 
@@ -111,12 +107,6 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 		}
 	}
 
-	// Collect paths for tracing
-	currentPaths := make([]*Path, 0, len(pathsByKey))
-	for _, path := range pathsByKey {
-		currentPaths = append(currentPaths, path)
-	}
-	ctx.TraceExitIterator("Intersection", currentPaths)
 	return func(yield func(*Path, error) bool) {
 		for _, path := range pathsByKey {
 			if !yield(path, nil) {
@@ -150,6 +140,7 @@ func (i *Intersection) Explain() Explain {
 		subs[i] = it.Explain()
 	}
 	return Explain{
+		Name:       "Intersection",
 		Info:       "Intersection",
 		SubExplain: subs,
 	}

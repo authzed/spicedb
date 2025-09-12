@@ -37,28 +37,42 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	// don't restructure the tree, but can affect the best way to evaluate the tree, sometimes dynamically.
 
 	return func(yield func(*Path, error) bool) {
-		for _, resource := range resources {
-			subit, err := a.left.IterSubjectsImpl(ctx, resource)
+		ctx.TraceStep(a, "processing %d resources", len(resources))
+
+		totalResultPaths := 0
+		for resourceIdx, resource := range resources {
+			ctx.TraceStep(a, "processing resource %d: %s:%s", resourceIdx, resource.ObjectType, resource.ObjectID)
+
+			subit, err := ctx.IterSubjects(a.left, resource)
 			if err != nil {
 				yield(nil, err)
 				return
 			}
+
+			leftPathCount := 0
 			for path, err := range subit {
 				if err != nil {
 					yield(nil, err)
 					return
 				}
+				leftPathCount++
+
 				checkResources := []Object{GetObject(path.Subject)}
-				checkit, err := a.right.CheckImpl(ctx, checkResources, subject)
+				ctx.TraceStep(a, "checking right side for subject %s:%s", path.Subject.ObjectType, path.Subject.ObjectID)
+
+				checkit, err := ctx.Check(a.right, checkResources, subject)
 				if err != nil {
 					yield(nil, err)
 					return
 				}
+
+				rightPathCount := 0
 				for checkPath, err := range checkit {
 					if err != nil {
 						yield(nil, err)
 						return
 					}
+					rightPathCount++
 
 					// Combine caveats from both sides using Path-based approach
 					// For arrow operations (left->right), both conditions must be satisfied (AND logic)
@@ -85,12 +99,20 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 						Integrity:  checkPath.Integrity,
 						Metadata:   make(map[string]any),
 					}
+
+					totalResultPaths++
 					if !yield(combinedPath, nil) {
 						return
 					}
 				}
+
+				ctx.TraceStep(a, "right side returned %d paths for subject %s:%s", rightPathCount, path.Subject.ObjectType, path.Subject.ObjectID)
 			}
+
+			ctx.TraceStep(a, "left side returned %d paths for resource %s:%s", leftPathCount, resource.ObjectType, resource.ObjectID)
 		}
+
+		ctx.TraceStep(a, "arrow completed with %d total result paths", totalResultPaths)
 	}, nil
 }
 
@@ -111,6 +133,7 @@ func (a *Arrow) Clone() Iterator {
 
 func (a *Arrow) Explain() Explain {
 	return Explain{
+		Name:       "Arrow",
 		Info:       "Arrow",
 		SubExplain: []Explain{a.left.Explain(), a.right.Explain()},
 	}

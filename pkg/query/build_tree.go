@@ -9,18 +9,30 @@ import (
 )
 
 type iteratorBuilder struct {
-	schema *schema.Schema
-	seen   map[string]bool
+	schema           *schema.Schema
+	seen             map[string]bool
+	collectedCaveats []*core.ContextualizedCaveat // Collect caveats to combine with AND logic
 }
 
 // BuildIteratorFromSchema takes a schema and walks the schema tree for a given definition namespace and a relationship or
 // permission therein. From this, it generates an iterator tree, rooted on that relationship.
 func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (Iterator, error) {
 	builder := &iteratorBuilder{
-		schema: fullSchema,
-		seen:   make(map[string]bool),
+		schema:           fullSchema,
+		seen:             make(map[string]bool),
+		collectedCaveats: make([]*core.ContextualizedCaveat, 0),
 	}
-	return builder.buildIteratorFromSchemaInternal(definitionName, relationName, true)
+	iterator, err := builder.buildIteratorFromSchemaInternal(definitionName, relationName, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply collected caveats at top level as individual caveat iterators
+	result := iterator
+	for _, caveat := range builder.collectedCaveats {
+		result = NewCaveatIterator(result, caveat)
+	}
+	return result, nil
 }
 
 func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Iterator, error) {
@@ -125,16 +137,16 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		if !ok {
 			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find tupleset relation `%s` for functioned tupleset `%s.%s(%s)` for permission `%s` in definition `%s`", perm.TuplesetRelation, perm.TuplesetRelation, functionTypeString(perm.Function), perm.ComputedRelation, p.Name, p.Parent.Name)
 		}
-		
+
 		switch perm.Function {
 		case schema.FunctionTypeAny:
 			// any() functions just like an arrow
 			return b.buildArrowIterators(rel, perm.ComputedRelation)
-			
+
 		case schema.FunctionTypeAll:
 			// all() requires intersection arrow - user must have permission on ALL left subjects
 			return b.buildIntersectionArrowIterators(rel, perm.ComputedRelation)
-			
+
 		default:
 			return nil, fmt.Errorf("unknown function type: %v", perm.Function)
 		}
@@ -146,13 +158,13 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
 	var base Iterator = NewRelationIterator(br)
 
-	// Wrap with caveat iterator if a caveat is specified
+	// Collect caveat to apply at top level instead of wrapping immediately
 	if br.Caveat != "" {
 		caveat := &core.ContextualizedCaveat{
 			CaveatName: br.Caveat,
 			// Context will be provided at query time through the Context.CaveatContext
 		}
-		base = NewCaveatIterator(base, caveat)
+		b.collectedCaveats = append(b.collectedCaveats, caveat)
 	}
 
 	if !withSubRelations {

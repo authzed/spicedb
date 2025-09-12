@@ -2,9 +2,8 @@ package query
 
 import (
 	"github.com/authzed/spicedb/internal/caveats"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/tuple"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // IntersectionArrow is an iterator that represents the set of relations that
@@ -26,139 +25,168 @@ func NewIntersectionArrow(left, right Iterator) *IntersectionArrow {
 	}
 }
 
-func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
-	ctx.TraceEnterIterator("IntersectionArrow", resources, subject)
-	
-	return func(yield func(Relation, error) bool) {
-		var finalResults []Relation
-		defer func() {
-			ctx.TraceExitIterator("IntersectionArrow", finalResults)
-		}()
-		
+func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	return func(yield func(*Path, error) bool) {
+		var finalResults []*Path
 		for _, resource := range resources {
-			ctx.TraceStep("IntersectionArrow", "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
-			
-			subit, err := ia.left.IterSubjectsImpl(ctx, resource)
+			ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
+
+			subit, err := ctx.IterSubjects(ia.left, resource)
 			if err != nil {
-				yield(Relation{}, err)
+				yield(nil, err)
 				return
 			}
-			
+
 			// For intersection arrow, we need to track:
 			// 1. All left subjects that actually exist (after caveat evaluation)
 			// 2. Which ones satisfy the right condition
 			// 3. Only yield results if ALL existing left subjects satisfy the right condition
-			
-			var validResults []Relation
+			// 4. Combine all left-side caveats with AND logic
+
+			var validResults []*Path
+			var leftSideCaveats []*core.CaveatExpression
 			leftSubjectCount := 0
 			satisfiedCount := 0
-			
-			for rel, err := range subit {
+
+			for path, err := range subit {
 				if err != nil {
-					yield(Relation{}, err)
+					yield(nil, err)
 					return
 				}
-				
+
 				// This is a valid left subject (passed its own caveats)
 				leftSubjectCount++
-				ctx.TraceStep("IntersectionArrow", "found left subject %s:%s (caveat: %v)", 
-					rel.Subject.ObjectType, rel.Subject.ObjectID, rel.OptionalCaveat != nil)
-				
-				checkResources := []Object{GetObject(rel.Subject)}
-				checkit, err := ia.right.CheckImpl(ctx, checkResources, subject)
+				ctx.TraceStep(ia, "found left subject %s:%s (caveat: %v)",
+					path.Subject.ObjectType, path.Subject.ObjectID, path.Caveat != nil)
+
+				// Collect left-side caveats for AND combination
+				if path.Caveat != nil {
+					ctx.TraceStep(ia, "left subject %s:%s has caveat",
+						path.Subject.ObjectType, path.Subject.ObjectID)
+					leftSideCaveats = append(leftSideCaveats, path.Caveat)
+				}
+
+				checkResources := []Object{GetObject(path.Subject)}
+				checkit, err := ctx.Check(ia.right, checkResources, subject)
 				if err != nil {
-					yield(Relation{}, err)
+					yield(nil, err)
 					return
 				}
-				
+
 				// Check if this left subject satisfies the right condition
 				rightSatisfied := false
 				rightResultCount := 0
-				for checkrel, err := range checkit {
+				for checkPath, err := range checkit {
 					if err != nil {
-						yield(Relation{}, err)
+						yield(nil, err)
 						return
 					}
-					
+
 					rightResultCount++
 					// This left subject satisfies the right condition
 					rightSatisfied = true
 					satisfiedCount++
-					
-					ctx.TraceStep("IntersectionArrow", "left subject %s:%s satisfied right condition", 
-						rel.Subject.ObjectType, rel.Subject.ObjectID)
-					
-					// Combine caveats from both sides (AND logic)
-					var combinedCaveat *core.ContextualizedCaveat
-					if rel.OptionalCaveat != nil && checkrel.OptionalCaveat != nil {
-						leftExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
-						rightExpr := caveats.CaveatAsExpr(checkrel.OptionalCaveat)
-						combinedExpr := caveats.And(leftExpr, rightExpr)
-						if combinedExpr != nil && combinedExpr.GetCaveat() != nil {
-							combinedCaveat = combinedExpr.GetCaveat()
-						} else {
-							combinedCaveat = rel.OptionalCaveat
-						}
-					} else if rel.OptionalCaveat != nil {
-						combinedCaveat = rel.OptionalCaveat
-					} else if checkrel.OptionalCaveat != nil {
-						combinedCaveat = checkrel.OptionalCaveat
+
+					ctx.TraceStep(ia, "left subject %s:%s satisfied right condition",
+						path.Subject.ObjectType, path.Subject.ObjectID)
+
+					// Store the right-side caveat for later combination
+					var rightSideCaveat *core.CaveatExpression
+					if checkPath.Caveat != nil {
+						rightSideCaveat = checkPath.Caveat
 					}
-					
-					combinedrel := Relation{
-						OptionalCaveat:     combinedCaveat,
-						OptionalExpiration: checkrel.OptionalExpiration,
-						OptionalIntegrity:  checkrel.OptionalIntegrity,
-						RelationshipReference: tuple.RelationshipReference{
-							Resource: rel.Resource,
-							Subject:  checkrel.Subject,
-						},
+
+					combinedPath := &Path{
+						Resource:   path.Resource,
+						Relation:   path.Relation,
+						Subject:    checkPath.Subject,
+						Caveat:     rightSideCaveat, // Will be combined with left-side caveats later
+						Expiration: checkPath.Expiration,
+						Integrity:  checkPath.Integrity,
+						Metadata:   checkPath.Metadata,
 					}
-					validResults = append(validResults, combinedrel)
+					validResults = append(validResults, combinedPath)
 					break // Only need one match per left subject for intersection logic
 				}
-				
+
 				if rightResultCount == 0 {
-					ctx.TraceStep("IntersectionArrow", "left subject %s:%s did NOT satisfy right condition", 
-						rel.Subject.ObjectType, rel.Subject.ObjectID)
+					ctx.TraceStep(ia, "left subject %s:%s did NOT satisfy right condition",
+						path.Subject.ObjectType, path.Subject.ObjectID)
 				}
-				
+
 				// If this left subject doesn't satisfy the right condition, break early
 				// since intersection requires ALL subjects to satisfy
 				if !rightSatisfied {
-					ctx.TraceStep("IntersectionArrow", "intersection FAILED - not all subjects satisfied (got %d/%d)", 
+					ctx.TraceStep(ia, "intersection FAILED - not all subjects satisfied (got %d/%d)",
 						satisfiedCount, leftSubjectCount)
 					// Early exit - not all subjects satisfied, so intersection fails
 					leftSubjectCount = -1 // Signal failure
 					break
 				}
 			}
-			
-			ctx.TraceStep("IntersectionArrow", "intersection check complete - %d left subjects, %d satisfied", 
+
+			ctx.TraceStep(ia, "intersection check complete - %d left subjects, %d satisfied",
 				leftSubjectCount, satisfiedCount)
-			
+
 			// Only yield results if ALL existing left subjects were satisfied
 			// (leftSubjectCount > 0 means there were subjects, satisfiedCount == leftSubjectCount means all satisfied)
 			if leftSubjectCount > 0 && satisfiedCount == leftSubjectCount {
-				ctx.TraceStep("IntersectionArrow", "intersection SUCCESS - yielding %d results", len(validResults))
+				ctx.TraceStep(ia, "intersection SUCCESS - combining %d left-side caveats", len(leftSideCaveats))
+
+				// Combine all left-side caveats with AND logic
+				// We need to create a single caveat expression that represents all left-side constraints
+				var combinedLeftCaveat *core.CaveatExpression
+				if len(leftSideCaveats) > 0 {
+					// Build the combined expression using the existing AND logic
+					var leftExpr *core.CaveatExpression
+					for i, caveatExpr := range leftSideCaveats {
+						if i == 0 {
+							leftExpr = caveatExpr
+						} else {
+							leftExpr = caveats.And(leftExpr, caveatExpr)
+						}
+					}
+					combinedLeftCaveat = leftExpr
+				}
+
+				// Now combine the combined left caveat with each result's right-side caveat
 				for _, result := range validResults {
-					finalResults = append(finalResults, result)
-					if !yield(result, nil) {
+					finalCaveat := combinedLeftCaveat
+					if result.Caveat != nil {
+						if combinedLeftCaveat != nil {
+							finalCaveat = caveats.And(combinedLeftCaveat, result.Caveat)
+						} else {
+							finalCaveat = result.Caveat
+						}
+					}
+
+					finalResult := &Path{
+						Resource:   result.Resource,
+						Relation:   result.Relation,
+						Subject:    result.Subject,
+						Caveat:     finalCaveat,
+						Expiration: result.Expiration,
+						Integrity:  result.Integrity,
+						Metadata:   result.Metadata,
+					}
+
+					finalResults = append(finalResults, finalResult)
+					if !yield(finalResult, nil) {
 						return
 					}
 				}
 			} else {
-				ctx.TraceStep("IntersectionArrow", "intersection FAILED - no results yielded")
+				ctx.TraceStep(ia, "intersection FAILED - no results yielded")
 			}
 		}
 	}, nil
 }
 
-func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
@@ -171,6 +199,7 @@ func (ia *IntersectionArrow) Clone() Iterator {
 
 func (ia *IntersectionArrow) Explain() Explain {
 	return Explain{
+		Name:       "IntersectionArrow",
 		Info:       "IntersectionArrow",
 		SubExplain: []Explain{ia.left.Explain(), ia.right.Explain()},
 	}
