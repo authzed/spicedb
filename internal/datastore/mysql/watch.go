@@ -176,7 +176,7 @@ func (mds *Datastore) loadChanges(
 		}
 
 		if len(metadata) > 0 {
-			if err := stagedChanges.SetRevisionMetadata(ctx, revisions.NewForTransactionID(txnID), metadata); err != nil {
+			if err := stagedChanges.AddRevisionMetadata(ctx, revisions.NewForTransactionID(txnID), metadata); err != nil {
 				return nil, 0, err
 			}
 		}

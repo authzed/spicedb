@@ -42,7 +42,7 @@ func EngineOptions() string {
 // hand side of a tuple.
 const Ellipsis = "..."
 
-// RevisionChanges represents the changes in a single transaction.
+// RevisionChanges represents the changes in a single revision.
 type RevisionChanges struct {
 	Revision Revision
 
@@ -63,8 +63,8 @@ type RevisionChanges struct {
 	// have occurred before this point.
 	IsCheckpoint bool
 
-	// Metadata is the metadata associated with the revision, if any.
-	Metadata *structpb.Struct
+	// Metadatas is the list of metadata associated with the revision, if any.
+	Metadatas []*structpb.Struct
 }
 
 func (rc RevisionChanges) DebugString() string {

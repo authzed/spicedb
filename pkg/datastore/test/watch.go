@@ -212,7 +212,12 @@ func VerifyUpdatesWithMetadata(
 			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
 			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
 
-			require.Equal(expected.metadata, change.Metadata.AsMap(), "metadata mismatch")
+			if len(expected.metadata) == 0 {
+				require.Empty(change.Metadatas, "expected no metadata, but found some: %v", change.Metadatas)
+			} else {
+				require.NotNil(change.Metadatas, "expected metadata, but found none")
+				require.Len(change.Metadatas, 1, "expected single metadata entry, but found: %v", change.Metadatas)
+			}
 
 			time.Sleep(1 * time.Millisecond)
 		case <-changeWait.C:
@@ -879,8 +884,8 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 				continue // we expect each change to come in individual change event
 			}
 
-			if change.Metadata != nil {
-				require.Contains(change.Metadata.AsMap(), "foo")
+			if len(change.Metadatas) == 1 {
+				require.Contains(change.Metadatas[0].AsMap(), "foo")
 				metadataEmitted = true
 				changeCount++
 				require.True(targetRev.Equal(change.Revision))

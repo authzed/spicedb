@@ -230,7 +230,7 @@ type changeTracker[R datastore.Revision, K comparable] interface {
 	AddChangedDefinition(ctx context.Context, rev R, def datastore.SchemaDefinition) error
 	AddDeletedNamespace(ctx context.Context, rev R, namespaceName string) error
 	AddDeletedCaveat(ctx context.Context, rev R, caveatName string) error
-	SetRevisionMetadata(ctx context.Context, rev R, metadata map[string]any) error
+	AddRevisionMetadata(ctx context.Context, rev R, metadata map[string]any) error
 }
 
 // streamingChangeProvider is a changeTracker that streams changes as they are processed. Instead of accumulating
@@ -310,7 +310,7 @@ func (s streamingChangeProvider) AddDeletedCaveat(_ context.Context, rev revisio
 	return s.sendChange(changes)
 }
 
-func (s streamingChangeProvider) SetRevisionMetadata(_ context.Context, rev revisions.HLCRevision, metadata map[string]any) error {
+func (s streamingChangeProvider) AddRevisionMetadata(_ context.Context, rev revisions.HLCRevision, metadata map[string]any) error {
 	if len(metadata) > 0 {
 		parsedMetadata, err := structpb.NewStruct(metadata)
 		if err != nil {
@@ -318,8 +318,8 @@ func (s streamingChangeProvider) SetRevisionMetadata(_ context.Context, rev revi
 		}
 
 		changes := datastore.RevisionChanges{
-			Revision: rev,
-			Metadata: parsedMetadata,
+			Revision:  rev,
+			Metadatas: []*structpb.Struct{parsedMetadata},
 		}
 
 		return s.sendChange(changes)
@@ -392,7 +392,7 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 				//    transaction.
 				// 2) No other operations besides DELETE will be performed by the TTL cleanup.
 				// 3) Only filter rows that had an expires_at that are before the current time.
-				if _, ok := revChange.Metadata.AsMap()[spicedbTransactionKey]; !ok {
+				if len(revChange.Metadatas) == 0 {
 					if len(revChange.ChangedDefinitions) == 0 && len(revChange.DeletedNamespaces) == 0 &&
 						len(revChange.DeletedCaveats) == 0 {
 						hasNonTTLEvent := false
@@ -615,7 +615,7 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 
 				adjustedMetadata := details.After.Metadata
 				delete(adjustedMetadata, spicedbTransactionKey)
-				if err := tracked.SetRevisionMetadata(ctx, rev, adjustedMetadata); err != nil {
+				if err := tracked.AddRevisionMetadata(ctx, rev, adjustedMetadata); err != nil {
 					sendError(err)
 					return
 				}

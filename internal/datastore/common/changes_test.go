@@ -390,12 +390,12 @@ func TestFilteredSchemaChanges(t *testing.T) {
 	require.True(t, ch.IsEmpty())
 }
 
-func TestSetMetadata(t *testing.T) {
+func TestAddMetadata(t *testing.T) {
 	ctx := t.Context()
 	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 	require.True(t, ch.IsEmpty())
 
-	err := ch.SetRevisionMetadata(ctx, rev1, map[string]any{"foo": "bar"})
+	err := ch.AddRevisionMetadata(ctx, rev1, map[string]any{"foo": "bar"})
 	require.NoError(t, err)
 	require.False(t, ch.IsEmpty())
 
@@ -404,7 +404,211 @@ func TestSetMetadata(t *testing.T) {
 	require.Equal(t, 1, len(results))
 	require.True(t, ch.IsEmpty())
 
-	require.Equal(t, map[string]any{"foo": "bar"}, results[0].Metadata.AsMap())
+	require.Equal(t, 1, len(results[0].Metadatas))
+	require.Equal(t, map[string]any{"foo": "bar"}, results[0].Metadatas[0].AsMap())
+}
+
+func TestAddRevisionMetadataComprehensive(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("empty metadata is ignored", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+		require.True(t, ch.IsEmpty())
+
+		err := ch.AddRevisionMetadata(ctx, rev1, map[string]any{})
+		require.NoError(t, err)
+		require.True(t, ch.IsEmpty())
+
+		err = ch.AddRevisionMetadata(ctx, rev1, nil)
+		require.NoError(t, err)
+		require.True(t, ch.IsEmpty())
+	})
+
+	t.Run("deduplication - exact same metadata", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+
+		metadata := map[string]any{"operation": "create", "user_id": "123"}
+
+		err := ch.AddRevisionMetadata(ctx, rev1, metadata)
+		require.NoError(t, err)
+		require.False(t, ch.IsEmpty())
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, map[string]any{"operation": "create", "user_id": "123"})
+		require.NoError(t, err)
+
+		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(results))
+		require.Equal(t, 1, len(results[0].Metadatas))
+		require.Equal(t, metadata, results[0].Metadatas[0].AsMap())
+	})
+
+	t.Run("different metadata are not deduplicated", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+
+		metadata1 := map[string]any{"operation": "create", "user_id": "123"}
+		metadata2 := map[string]any{"operation": "update", "user_id": "123"}
+		metadata3 := map[string]any{"operation": "create", "user_id": "456"}
+
+		err := ch.AddRevisionMetadata(ctx, rev1, metadata1)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata2)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata3)
+		require.NoError(t, err)
+
+		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(results))
+		require.Equal(t, 3, len(results[0].Metadatas))
+
+		resultMaps := make([]map[string]any, 3)
+		for i, meta := range results[0].Metadatas {
+			resultMaps[i] = meta.AsMap()
+		}
+
+		require.Contains(t, resultMaps, metadata1)
+		require.Contains(t, resultMaps, metadata2)
+		require.Contains(t, resultMaps, metadata3)
+	})
+
+	t.Run("nested metadata deduplication", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+
+		nestedMetadata := map[string]any{
+			"operation": "bulk_update",
+			"details": map[string]any{
+				"count":  5,
+				"status": "pending",
+			},
+			"timestamp": "2023-01-01T00:00:00Z",
+		}
+
+		err := ch.AddRevisionMetadata(ctx, rev1, nestedMetadata)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, map[string]any{
+			"operation": "bulk_update",
+			"details": map[string]any{
+				"count":  5,
+				"status": "pending",
+			},
+			"timestamp": "2023-01-01T00:00:00Z",
+		})
+		require.NoError(t, err)
+
+		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(results))
+		require.Equal(t, 1, len(results[0].Metadatas))
+	})
+
+	t.Run("metadata across different revisions", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+
+		metadata1 := map[string]any{"operation": "create", "revision": "1"}
+		metadata2 := map[string]any{"operation": "update", "revision": "2"}
+
+		err := ch.AddRevisionMetadata(ctx, rev1, metadata1)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev2, metadata2)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev2, metadata2)
+		require.NoError(t, err)
+
+		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(results))
+
+		require.Equal(t, 1, len(results[0].Metadatas))
+		require.Equal(t, metadata1, results[0].Metadatas[0].AsMap())
+
+		require.Equal(t, 1, len(results[1].Metadatas))
+		require.Equal(t, metadata2, results[1].Metadatas[0].AsMap())
+	})
+
+	t.Run("deduplication with different value types", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+
+		metadata1 := map[string]any{"count": 42}
+		metadata2 := map[string]any{"count": "42"}
+
+		err := ch.AddRevisionMetadata(ctx, rev1, metadata1)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata2)
+		require.NoError(t, err)
+
+		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(results))
+		require.Equal(t, 2, len(results[0].Metadatas))
+	})
+
+	t.Run("deduplication edge cases", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+
+		metadata1 := map[string]any{"key": nil}
+		metadata2 := map[string]any{"key": ""}
+		metadata4 := map[string]any{"key": []any{}}
+		metadata5 := map[string]any{"key": map[string]any{}}
+
+		err := ch.AddRevisionMetadata(ctx, rev1, metadata1)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata2)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata1)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata4)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata5)
+		require.NoError(t, err)
+
+		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(results))
+		require.Equal(t, 4, len(results[0].Metadatas))
+	})
+
+	t.Run("metadata ordering preservation", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+
+		metadata1 := map[string]any{"step": "1"}
+		metadata2 := map[string]any{"step": "2"}
+		metadata3 := map[string]any{"step": "3"}
+
+		err := ch.AddRevisionMetadata(ctx, rev1, metadata1)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata2)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata3)
+		require.NoError(t, err)
+
+		err = ch.AddRevisionMetadata(ctx, rev1, metadata1)
+		require.NoError(t, err)
+
+		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(results))
+		require.Equal(t, 3, len(results[0].Metadatas))
+
+		require.Equal(t, metadata1, results[0].Metadatas[0].AsMap())
+		require.Equal(t, metadata2, results[0].Metadatas[1].AsMap())
+		require.Equal(t, metadata3, results[0].Metadatas[2].AsMap())
+	})
 }
 
 func TestFilteredRelationshipChanges(t *testing.T) {

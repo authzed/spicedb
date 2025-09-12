@@ -40,7 +40,7 @@ func TestOtelForwarding(t *testing.T) {
 	md := OtelAnnotator(outCtx, r)
 
 	// Assert the context was injected into the gRPC context.
-	_, spanCtx := otelgrpc.Extract(outCtx, &md, defaultOtelOpts...)
+	_, spanCtx := otelgrpc.Extract(outCtx, &md, defaultOtelOpts...) // nolint:staticcheck
 	require.True(t, spanCtx.HasTraceID())
 	require.Equal(t, traceID, spanCtx.TraceID())
 }

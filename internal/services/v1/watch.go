@@ -9,6 +9,7 @@ import (
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -89,6 +90,11 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		select {
 		case update, ok := <-updates:
 			if ok {
+				var metadata *structpb.Struct
+				if len(update.Metadatas) == 1 {
+					metadata = update.Metadatas[0]
+				}
+
 				filteredRelationshipUpdates := filterRelationshipUpdates(objectTypes, filters, update.RelationshipChanges)
 				if len(filteredRelationshipUpdates) > 0 {
 					converted, err := tuple.UpdatesToV1RelationshipUpdates(filteredRelationshipUpdates)
@@ -99,7 +105,8 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 					if err := stream.Send(&v1.WatchResponse{
 						Updates:                     converted,
 						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
-						OptionalTransactionMetadata: update.Metadata,
+						OptionalTransactionMetadata: metadata,
+						FullRevisionMetadata:        update.Metadatas,
 					}); err != nil {
 						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 					}
@@ -108,7 +115,8 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 					if err := stream.Send(&v1.WatchResponse{
 						SchemaUpdated:               true,
 						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
-						OptionalTransactionMetadata: update.Metadata,
+						OptionalTransactionMetadata: metadata,
+						FullRevisionMetadata:        update.Metadatas,
 					}); err != nil {
 						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 					}
@@ -117,7 +125,8 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 					if err := stream.Send(&v1.WatchResponse{
 						IsCheckpoint:                update.IsCheckpoint,
 						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
-						OptionalTransactionMetadata: update.Metadata,
+						OptionalTransactionMetadata: metadata,
+						FullRevisionMetadata:        update.Metadatas,
 					}); err != nil {
 						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 					}

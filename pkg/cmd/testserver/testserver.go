@@ -7,6 +7,7 @@ import (
 
 	helpers "github.com/ecordell/optgen/helpers"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
@@ -93,10 +94,11 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		)
 	}
 
-	opts := *server.NewMiddlewareOptionWithOptions(server.WithAuthFunc(func(ctx context.Context) (context.Context, error) {
+	noAuth := server.WithAuthFunc(func(ctx context.Context) (context.Context, error) {
 		// Turn off the default auth system.
 		return ctx, nil
-	}))
+	})
+	opts := *server.NewMiddlewareOptionWithOptions(noAuth, server.WithLogger(log.Logger))
 	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
 
 	unaryMiddleware, err := server.DefaultUnaryMiddleware(opts)
@@ -112,6 +114,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,
 		grpc.ChainUnaryInterceptor(unaryMiddleware.ToGRPCInterceptors()...),
 		grpc.ChainStreamInterceptor(streamMiddleware.ToGRPCInterceptors()...),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 	if err != nil {
 		return nil, err
@@ -124,6 +127,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		grpc.ChainStreamInterceptor(
 			append(streamMiddleware.ToGRPCInterceptors(), readonly.StreamServerInterceptor())...,
 		),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 	if err != nil {
 		return nil, err
