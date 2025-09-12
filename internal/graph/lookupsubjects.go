@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -77,12 +78,14 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 		return err
 	}
 
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+
 	if relation.UsersetRewrite == nil {
 		// Direct lookup of subjects.
-		return cl.lookupDirectSubjects(ctx, req, stream, relation, reader)
+		return cl.lookupDirectSubjects(ctx, req, stream, ts, reader)
 	}
 
-	return cl.lookupViaRewrite(ctx, req, stream, relation.UsersetRewrite)
+	return cl.lookupViaRewrite(ctx, req, stream, ts, relation.UsersetRewrite)
 }
 
 func subjectsForConcreteIds(subjectIds []string) map[string]*v1.FoundSubjects {
@@ -100,24 +103,52 @@ func subjectsForConcreteIds(subjectIds []string) map[string]*v1.FoundSubjects {
 	return foundSubjects
 }
 
+func (cl *ConcurrentLookupSubjects) queryOptionsForRelation(
+	ctx context.Context,
+	ts *schema.TypeSystem,
+	namespaceName string,
+	relationName string,
+) ([]options.QueryOptionsOption, error) {
+	opts := make([]options.QueryOptionsOption, 0, 3)
+	opts = append(opts, options.WithQueryShape(queryshape.AllSubjectsForResources))
+
+	// Lookup the traits for the relation.
+	vts, err := ts.GetValidatedDefinition(ctx, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	possibleTraits, err := vts.PossibleTraitsForAnySubject(relationName)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, options.WithSkipCaveats(!possibleTraits.AllowsCaveats))
+	opts = append(opts, options.WithSkipExpiration(!possibleTraits.AllowsExpiration))
+	return opts, nil
+}
+
 func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 	ctx context.Context,
 	req ValidatedLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
-	_ *core.Relation,
+	ts *schema.TypeSystem,
 	reader datastore.Reader,
 ) error {
-	// TODO(jschorr): use type information to skip subject relations that cannot reach the subject type.
-
 	toDispatchByType := datasets.NewSubjectByTypeSet()
 	foundSubjectsByResourceID := datasets.NewSubjectSetByResourceID()
 	relationshipsBySubjectONR := mapz.NewMultiMap[tuple.ObjectAndRelation, tuple.Relationship]()
+
+	opts, err := cl.queryOptionsForRelation(ctx, ts, req.ResourceRelation.Namespace, req.ResourceRelation.Relation)
+	if err != nil {
+		return err
+	}
 
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     req.ResourceRelation.Namespace,
 		OptionalResourceRelation: req.ResourceRelation.Relation,
 		OptionalResourceIds:      req.ResourceIds,
-	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
+	}, opts...)
 	if err != nil {
 		return err
 	}
@@ -160,6 +191,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 	ctx context.Context,
 	parentRequest ValidatedLookupSubjectsRequest,
 	parentStream dispatch.LookupSubjectsStream,
+	ts *schema.TypeSystem,
 	cu *core.ComputedUserset,
 ) error {
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
@@ -215,14 +247,20 @@ func lookupViaIntersectionTupleToUserset(
 	cl *ConcurrentLookupSubjects,
 	parentRequest ValidatedLookupSubjectsRequest,
 	parentStream dispatch.LookupSubjectsStream,
+	ts *schema.TypeSystem,
 	ttu *core.FunctionedTupleToUserset,
 ) error {
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	opts, err := cl.queryOptionsForRelation(ctx, ts, parentRequest.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	if err != nil {
+		return err
+	}
+
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 		OptionalResourceIds:      parentRequest.ResourceIds,
-	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
+	}, opts...)
 	if err != nil {
 		return err
 	}
@@ -381,17 +419,23 @@ func lookupViaTupleToUserset[T relation](
 	cl *ConcurrentLookupSubjects,
 	parentRequest ValidatedLookupSubjectsRequest,
 	parentStream dispatch.LookupSubjectsStream,
+	ts *schema.TypeSystem,
 	ttu ttu[T],
 ) error {
 	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
 	relationshipsBySubjectONR := mapz.NewMultiMap[tuple.ObjectAndRelation, tuple.Relationship]()
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	opts, err := cl.queryOptionsForRelation(ctx, ts, parentRequest.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	if err != nil {
+		return err
+	}
+
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 		OptionalResourceIds:      parentRequest.ResourceIds,
-	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
+	}, opts...)
 	if err != nil {
 		return err
 	}
@@ -438,18 +482,19 @@ func (cl *ConcurrentLookupSubjects) lookupViaRewrite(
 	ctx context.Context,
 	req ValidatedLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
+	ts *schema.TypeSystem,
 	usr *core.UsersetRewrite,
 ) error {
 	switch rw := usr.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
 		log.Ctx(ctx).Trace().Msg("union")
-		return cl.lookupSetOperation(ctx, req, rw.Union, newLookupSubjectsUnion(stream))
+		return cl.lookupSetOperation(ctx, req, rw.Union, ts, newLookupSubjectsUnion(stream))
 	case *core.UsersetRewrite_Intersection:
 		log.Ctx(ctx).Trace().Msg("intersection")
-		return cl.lookupSetOperation(ctx, req, rw.Intersection, newLookupSubjectsIntersection(stream))
+		return cl.lookupSetOperation(ctx, req, rw.Intersection, ts, newLookupSubjectsIntersection(stream))
 	case *core.UsersetRewrite_Exclusion:
 		log.Ctx(ctx).Trace().Msg("exclusion")
-		return cl.lookupSetOperation(ctx, req, rw.Exclusion, newLookupSubjectsExclusion(stream))
+		return cl.lookupSetOperation(ctx, req, rw.Exclusion, ts, newLookupSubjectsExclusion(stream))
 	default:
 		return fmt.Errorf("unknown kind of rewrite in lookup subjects")
 	}
@@ -459,6 +504,7 @@ func (cl *ConcurrentLookupSubjects) lookupSetOperation(
 	ctx context.Context,
 	req ValidatedLookupSubjectsRequest,
 	so *core.SetOperation,
+	ts *schema.TypeSystem,
 	reducer lookupSubjectsReducer,
 ) error {
 	cancelCtx, checkCancel := context.WithCancel(ctx)
@@ -476,29 +522,29 @@ func (cl *ConcurrentLookupSubjects) lookupSetOperation(
 
 		case *core.SetOperation_Child_ComputedUserset:
 			g.Go(func() error {
-				return cl.lookupViaComputed(subCtx, req, stream, child.ComputedUserset)
+				return cl.lookupViaComputed(subCtx, req, stream, ts, child.ComputedUserset)
 			})
 
 		case *core.SetOperation_Child_UsersetRewrite:
 			g.Go(func() error {
-				return cl.lookupViaRewrite(subCtx, req, stream, child.UsersetRewrite)
+				return cl.lookupViaRewrite(subCtx, req, stream, ts, child.UsersetRewrite)
 			})
 
 		case *core.SetOperation_Child_TupleToUserset:
 			g.Go(func() error {
-				return lookupViaTupleToUserset(subCtx, cl, req, stream, child.TupleToUserset)
+				return lookupViaTupleToUserset(subCtx, cl, req, stream, ts, child.TupleToUserset)
 			})
 
 		case *core.SetOperation_Child_FunctionedTupleToUserset:
 			switch child.FunctionedTupleToUserset.Function {
 			case core.FunctionedTupleToUserset_FUNCTION_ANY:
 				g.Go(func() error {
-					return lookupViaTupleToUserset(subCtx, cl, req, stream, child.FunctionedTupleToUserset)
+					return lookupViaTupleToUserset(subCtx, cl, req, stream, ts, child.FunctionedTupleToUserset)
 				})
 
 			case core.FunctionedTupleToUserset_FUNCTION_ALL:
 				g.Go(func() error {
-					return lookupViaIntersectionTupleToUserset(subCtx, cl, req, stream, child.FunctionedTupleToUserset)
+					return lookupViaIntersectionTupleToUserset(subCtx, cl, req, stream, ts, child.FunctionedTupleToUserset)
 				})
 
 			default:
