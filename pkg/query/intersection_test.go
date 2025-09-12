@@ -39,10 +39,10 @@ func TestIntersectionIterator(t *testing.T) {
 		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 
-		// The intersection should find resources that exist in both iterators
-		// Both DocumentAccess and MultiRole have alice with access to doc1
-		// The intersection combines these into a single path using AND logic
-		require.Len(rels, 1, "Should have exactly 1 combined path for the intersected endpoint")
+		// The intersection should merge relations that exist in both iterators for the same endpoint
+		// Both DocumentAccess and MultiRole have alice with viewer/editor/owner on doc1
+		// These get merged into a single path with no specific relation (since relations differ)
+		require.Len(rels, 1, "Should return one merged path for the endpoint")
 
 		// Verify the combined path has the correct endpoint
 		path := rels[0]

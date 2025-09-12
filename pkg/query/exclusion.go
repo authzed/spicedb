@@ -66,11 +66,9 @@ func combineExclusionCaveats(mainPath, excludedPath *Path) *Path {
 }
 
 func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	ctx.TraceEnterIterator("Exclusion", resources, subject)
-
 	// Get all paths from the main set
-	ctx.TraceStep("Exclusion", "getting paths from main set")
-	mainSeq, err := e.mainSet.CheckImpl(ctx, resources, subject)
+	ctx.TraceStep(e, "getting paths from main set")
+	mainSeq, err := ctx.Check(e.mainSet, resources, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -80,18 +78,17 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 		return nil, err
 	}
 
-	ctx.TraceStep("Exclusion", "main set returned %d paths", len(mainPaths))
+	ctx.TraceStep(e, "main set returned %d paths", len(mainPaths))
 
 	// If main set is empty, return empty result
 	if len(mainPaths) == 0 {
-		ctx.TraceStep("Exclusion", "main set empty, returning empty")
-		ctx.TraceExitIterator("Exclusion", []*Path{})
+		ctx.TraceStep(e, "main set empty, returning empty")
 		return EmptyPathSeq(), nil
 	}
 
 	// Get all paths from the excluded set
-	ctx.TraceStep("Exclusion", "getting paths from excluded set")
-	excludedSeq, err := e.excluded.CheckImpl(ctx, resources, subject)
+	ctx.TraceStep(e, "getting paths from excluded set")
+	excludedSeq, err := ctx.Check(e.excluded, resources, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +98,7 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 		return nil, err
 	}
 
-	ctx.TraceStep("Exclusion", "excluded set returned %d paths", len(excludedPaths))
+	ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
 
 	// Filter main set by excluding paths that are in the excluded set
 	// Now with proper caveat combination logic
@@ -114,7 +111,7 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 			if mainPath.Resource.Equals(excludedPath.Resource) &&
 				GetObject(mainPath.Subject).Equals(GetObject(excludedPath.Subject)) {
 				// Found matching path in excluded set - combine caveats
-				ctx.TraceStep("Exclusion", "found matching excluded path, combining caveats")
+				ctx.TraceStep(e, "found matching excluded path, combining caveats")
 				resultPath = combineExclusionCaveats(mainPath, excludedPath)
 				break
 			}
@@ -124,11 +121,10 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 		if resultPath != nil {
 			finalPaths = append(finalPaths, resultPath)
 		} else {
-			ctx.TraceStep("Exclusion", "path completely excluded")
+			ctx.TraceStep(e, "path completely excluded")
 		}
 	}
 
-	ctx.TraceExitIterator("Exclusion", finalPaths)
 	return func(yield func(*Path, error) bool) {
 		for _, path := range finalPaths {
 			if !yield(path, nil) {
@@ -155,6 +151,7 @@ func (e *Exclusion) Clone() Iterator {
 
 func (e *Exclusion) Explain() Explain {
 	return Explain{
+		Name: "Exclusion",
 		Info: "Exclusion",
 		SubExplain: []Explain{
 			e.mainSet.Explain(),

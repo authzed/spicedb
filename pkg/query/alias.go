@@ -1,9 +1,5 @@
 package query
 
-import (
-	"fmt"
-)
-
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type Alias struct {
@@ -23,7 +19,6 @@ func NewAlias(relation string, subIt Iterator) *Alias {
 }
 
 func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	ctx.TraceEnterIterator(fmt.Sprintf("Alias[%s]", a.relation), resources, subject)
 	// First, check for self-edge: if the object with internal relation matches the subject
 	for _, resource := range resources {
 		resourceWithAlias := resource.WithRelation(a.relation)
@@ -39,7 +34,7 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 			}
 
 			// Also get relations from sub-iterator
-			subSeq, err := a.subIt.CheckImpl(ctx, resources, subject)
+			subSeq, err := ctx.Check(a.subIt, resources, subject)
 			if err != nil {
 				return nil, err
 			}
@@ -67,7 +62,7 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	}
 
 	// No self-edge detected, just rewrite paths from sub-iterator
-	subSeq, err := a.subIt.CheckImpl(ctx, resources, subject)
+	subSeq, err := ctx.Check(a.subIt, resources, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +83,7 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 }
 
 func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	subSeq, err := a.subIt.IterSubjectsImpl(ctx, resource)
+	subSeq, err := ctx.IterSubjects(a.subIt, resource)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +104,7 @@ func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 }
 
 func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	subSeq, err := a.subIt.IterResourcesImpl(ctx, subject)
+	subSeq, err := ctx.IterResources(a.subIt, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +133,7 @@ func (a *Alias) Clone() Iterator {
 
 func (a *Alias) Explain() Explain {
 	return Explain{
+		Name:       "Alias",
 		Info:       "Alias(" + a.relation + ")",
 		SubExplain: []Explain{a.subIt.Explain()},
 	}

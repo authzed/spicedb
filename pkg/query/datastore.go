@@ -57,11 +57,9 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 }
 
 func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	ctx.TraceEnterIterator(fmt.Sprintf("RelationIterator[%s:%s]", r.base.Type(), r.base.RelationName()), resources, subject)
 	// If the subject type doesn't match the base relation type, return no results
 	if subject.ObjectType != r.base.Type() {
-		ctx.TraceStep("RelationIterator", "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
-		ctx.TraceExitIterator("RelationIterator", []*Path{})
+		ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
 		return EmptyPathSeq(), nil
 	}
 
@@ -92,7 +90,7 @@ func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, sub
 
 	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
 
-	ctx.TraceStep("RelationIterator", "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), resourceIDs)
+	ctx.TraceStep(r, "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), resourceIDs)
 
 	relIter, err := reader.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(r.base.Caveat() == ""),

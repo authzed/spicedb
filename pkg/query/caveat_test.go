@@ -133,6 +133,7 @@ func TestCaveatIterator(t *testing.T) {
 			// Create test context with CaveatRunner and datastore
 			queryCtx := &Context{
 				Context:       context.Background(),
+				Executor:      LocalExecutor{},
 				Datastore:     ds,
 				Revision:      rev,
 				CaveatContext: tc.caveatContext,
@@ -143,7 +144,7 @@ func TestCaveatIterator(t *testing.T) {
 			// as it returns all paths for a given resource
 			resource := NewObject("document", "doc1")
 
-			seq, err := caveatIter.IterSubjectsImpl(queryCtx, resource)
+			seq, err := queryCtx.IterSubjects(caveatIter, resource)
 
 			// Count expected paths that match this resource
 			var expectedMatchingPaths []*Path
