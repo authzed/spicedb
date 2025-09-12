@@ -41,7 +41,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -60,7 +60,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -78,7 +78,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -103,7 +103,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -122,7 +122,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -150,7 +150,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2", "doc3", "doc4"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2", "doc3", "doc4"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -184,7 +184,7 @@ func TestExclusionIterator(t *testing.T) {
 		require.IsType(&Exclusion{}, cloned)
 
 		// Test that cloned exclusion works the same as original
-		pathSeq, err := cloned.CheckImpl(ctx, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(cloned, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -235,7 +235,7 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -250,7 +250,7 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -285,14 +285,14 @@ func TestExclusionUnimplementedMethods(t *testing.T) {
 	t.Run("IterSubjectsImpl Unimplemented", func(t *testing.T) {
 		t.Parallel()
 		require.Panics(func() {
-			_, _ = exclusion.IterSubjectsImpl(ctx, NewObject("document", "doc1"))
+			_, _ = ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
 		}, "Should panic since method is unimplemented")
 	})
 
 	t.Run("IterResourcesImpl Unimplemented", func(t *testing.T) {
 		t.Parallel()
 		require.Panics(func() {
-			_, _ = exclusion.IterResourcesImpl(ctx, NewObject("user", "alice").WithEllipses())
+			_, _ = ctx.IterResources(exclusion, NewObject("user", "alice").WithEllipses())
 		}, "Should panic since method is unimplemented")
 	})
 }
@@ -323,7 +323,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
 		require.Contains(err.Error(), "faulty iterator error")
 		require.Nil(pathSeq)
@@ -337,7 +337,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
 		require.Contains(err.Error(), "faulty iterator error")
 		require.Nil(pathSeq)
@@ -351,7 +351,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
 		require.Contains(err.Error(), "faulty iterator collection error")
 		require.Nil(pathSeq)
@@ -365,7 +365,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
 		require.Contains(err.Error(), "faulty iterator collection error")
 		require.Nil(pathSeq)
@@ -405,7 +405,7 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 
 		exclusion := NewExclusion(union, excludedSet)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -437,7 +437,7 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, union)
 
-		pathSeq, err := exclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2", "doc3", "doc4"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2", "doc3", "doc4"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -468,7 +468,7 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 		outerExcludedSet := NewFixedIterator(path3)
 		outerExclusion := NewExclusion(innerExclusion, outerExcludedSet)
 
-		pathSeq, err := outerExclusion.CheckImpl(ctx, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(outerExclusion, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)

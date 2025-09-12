@@ -1,12 +1,14 @@
 package query
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestIntersectionArrowIterator(t *testing.T) {
@@ -18,57 +20,50 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		t.Parallel()
 
 		// Left side: document has teams team1 and team2
-		leftPath1 := &Path{
-			Resource: NewObject("document", "doc1"),
-			Relation: "team",
-			Subject:  tuple.ONR("team", "team1", "..."),
-			Metadata: make(map[string]any),
-		}
-		leftPath2 := &Path{
-			Resource: NewObject("document", "doc1"),
-			Relation: "team",
-			Subject:  tuple.ONR("team", "team2", "..."),
-			Metadata: make(map[string]any),
-		}
+		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
+		leftPath2 := MustPathFromString("document:doc1#team@team:team2")
 
 		// Right side: alice is member of both team1 and team2
-		rightPath1 := &Path{
-			Resource: NewObject("team", "team1"),
-			Relation: "member",
-			Subject:  tuple.ONR("user", "alice", "..."),
-			Metadata: make(map[string]any),
-		}
-		rightPath2 := &Path{
-			Resource: NewObject("team", "team2"),
-			Relation: "member",
-			Subject:  tuple.ONR("user", "alice", "..."),
-			Metadata: make(map[string]any),
-		}
+		rightPath1 := MustPathFromString("team:team1#member@user:alice")
+		rightPath2 := MustPathFromString("team:team2#member@user:alice")
 
 		leftIter := NewFixedIterator(leftPath1, leftPath2)
 		rightIter := NewFixedIterator(rightPath1, rightPath2)
 
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		// Create context with LocalExecutor
+		// Create test context
+		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+		require.NoError(err)
+
+		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			return nil
+		})
+		require.NoError(err)
+
 		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
+			Context:   context.Background(),
+			Executor:  LocalExecutor{},
+			Datastore: ds,
+			Revision:  revision,
 		}
 
 		// Test: alice should have access because she's a member of ALL teams (team1 and team2)
-		relSeq, err := ctx.Check(intersectionArrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		resources := []Object{NewObject("document", "doc1")}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
 
 		// Should return results since alice is in ALL teams
-		require.Len(rels, 2, "Should return relations for both teams since alice is in all of them")
+		require.Len(paths, 2, "Should return paths for both teams since alice is in all of them")
 
 		// Verify the results - all results should have alice as the subject
-		for _, rel := range rels {
-			require.Equal("alice", rel.Subject.ObjectID, "All results should have alice as the subject")
+		for _, path := range paths {
+			require.Equal("alice", path.Subject.ObjectID, "All results should have alice as the subject")
 		}
 	})
 
@@ -76,26 +71,11 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		t.Parallel()
 
 		// Left side: document has teams team1 and team2
-		leftPath1 := &Path{
-			Resource: NewObject("document", "doc1"),
-			Relation: "team",
-			Subject:  tuple.ONR("team", "team1", "..."),
-			Metadata: make(map[string]any),
-		}
-		leftPath2 := &Path{
-			Resource: NewObject("document", "doc1"),
-			Relation: "team",
-			Subject:  tuple.ONR("team", "team2", "..."),
-			Metadata: make(map[string]any),
-		}
+		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
+		leftPath2 := MustPathFromString("document:doc1#team@team:team2")
 
 		// Right side: alice is member of team1 but NOT team2
-		rightPath1 := &Path{
-			Resource: NewObject("team", "team1"),
-			Relation: "member",
-			Subject:  tuple.ONR("user", "alice", "..."),
-			Metadata: make(map[string]any),
-		}
+		rightPath1 := MustPathFromString("team:team1#member@user:alice")
 		// Note: no rightPath2 for team2, so alice is not in team2
 
 		leftIter := NewFixedIterator(leftPath1, leftPath2)
@@ -103,63 +83,79 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		// Create context with LocalExecutor
+		// Create test context
+		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+		require.NoError(err)
+
+		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			return nil
+		})
+		require.NoError(err)
+
 		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
+			Context:   context.Background(),
+			Executor:  LocalExecutor{},
+			Datastore: ds,
+			Revision:  revision,
 		}
 
 		// Test: alice should NOT have access because she's not a member of ALL teams
-		relSeq, err := ctx.Check(intersectionArrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		resources := []Object{NewObject("document", "doc1")}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
 
 		// Should return empty since alice is not in ALL teams
-		require.Empty(rels, "Should return no results since alice is not in all teams")
+		require.Empty(paths, "Should return no results since alice is not in all teams")
 	})
 
 	t.Run("SingleSubjectSatisfiesCondition", func(t *testing.T) {
 		t.Parallel()
 
 		// Left side: document has only team1
-		leftPath1 := &Path{
-			Resource: NewObject("document", "doc1"),
-			Relation: "team",
-			Subject:  tuple.ONR("team", "team1", "..."),
-			Metadata: make(map[string]any),
-		}
+		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
 
 		// Right side: alice is member of team1
-		rightPath1 := &Path{
-			Resource: NewObject("team", "team1"),
-			Relation: "member",
-			Subject:  tuple.ONR("user", "alice", "..."),
-			Metadata: make(map[string]any),
-		}
+		rightPath1 := MustPathFromString("team:team1#member@user:alice")
 
 		leftIter := NewFixedIterator(leftPath1)
 		rightIter := NewFixedIterator(rightPath1)
 
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		// Create context with LocalExecutor
+		// Create test context
+		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+		require.NoError(err)
+
+		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			return nil
+		})
+		require.NoError(err)
+
 		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
+			Context:   context.Background(),
+			Executor:  LocalExecutor{},
+			Datastore: ds,
+			Revision:  revision,
 		}
 
 		// Test: alice should have access because she's a member of the only team
-		relSeq, err := ctx.Check(intersectionArrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		resources := []Object{NewObject("document", "doc1")}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
 
 		// Should return result since alice is in the only team
-		require.Len(rels, 1, "Should return one result since alice is in the single team")
-		require.Equal("alice", rels[0].Subject.ObjectID)
+		require.Len(paths, 1, "Should return one result since alice is in the single team")
+		require.Equal("alice", paths[0].Subject.ObjectID)
 	})
 
 	t.Run("NoLeftSubjects", func(t *testing.T) {
@@ -169,102 +165,89 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		leftIter := NewFixedIterator() // Empty
 
 		// Right side: alice is member of some team
-		rightPath1 := &Path{
-			Resource: NewObject("team", "team1"),
-			Relation: "member",
-			Subject:  tuple.ONR("user", "alice", "..."),
-			Metadata: make(map[string]any),
-		}
+		rightPath1 := MustPathFromString("team:team1#member@user:alice")
 		rightIter := NewFixedIterator(rightPath1)
 
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		// Create context with LocalExecutor
-		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
-		}
-
-		relSeq, err := ctx.Check(intersectionArrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		// Create test context
+		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			return nil
+		})
+		require.NoError(err)
+
+		ctx := &Context{
+			Context:   context.Background(),
+			Executor:  LocalExecutor{},
+			Datastore: ds,
+			Revision:  revision,
+		}
+
+		resources := []Object{NewObject("document", "doc1")}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
 
 		// Should return empty since there are no left subjects
-		require.Empty(rels, "Should return no results when there are no left subjects")
+		require.Empty(paths, "Should return no results when there are no left subjects")
 	})
 
 	t.Run("ThreeTeamsAllSatisfied", func(t *testing.T) {
 		t.Parallel()
 
 		// Left side: document has teams team1, team2, and team3
-		leftPaths := []*Path{
-			{
-				Resource: NewObject("document", "doc1"),
-				Relation: "team",
-				Subject:  tuple.ONR("team", "team1", "..."),
-				Metadata: make(map[string]any),
-			},
-			{
-				Resource: NewObject("document", "doc1"),
-				Relation: "team",
-				Subject:  tuple.ONR("team", "team2", "..."),
-				Metadata: make(map[string]any),
-			},
-			{
-				Resource: NewObject("document", "doc1"),
-				Relation: "team",
-				Subject:  tuple.ONR("team", "team3", "..."),
-				Metadata: make(map[string]any),
-			},
-		}
+		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
+		leftPath2 := MustPathFromString("document:doc1#team@team:team2")
+		leftPath3 := MustPathFromString("document:doc1#team@team:team3")
 
 		// Right side: alice is member of all three teams
-		rightPaths := []*Path{
-			{
-				Resource: NewObject("team", "team1"),
-				Relation: "member",
-				Subject:  tuple.ONR("user", "alice", "..."),
-				Metadata: make(map[string]any),
-			},
-			{
-				Resource: NewObject("team", "team2"),
-				Relation: "member",
-				Subject:  tuple.ONR("user", "alice", "..."),
-				Metadata: make(map[string]any),
-			},
-			{
-				Resource: NewObject("team", "team3"),
-				Relation: "member",
-				Subject:  tuple.ONR("user", "alice", "..."),
-				Metadata: make(map[string]any),
-			},
-		}
+		rightPath1 := MustPathFromString("team:team1#member@user:alice")
+		rightPath2 := MustPathFromString("team:team2#member@user:alice")
+		rightPath3 := MustPathFromString("team:team3#member@user:alice")
 
-		leftIter := NewFixedIterator(leftPaths...)
-		rightIter := NewFixedIterator(rightPaths...)
+		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
+		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
 
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		// Create context with LocalExecutor
-		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
-		}
-
-		relSeq, err := ctx.Check(intersectionArrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		// Create test context
+		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			return nil
+		})
+		require.NoError(err)
+
+		ctx := &Context{
+			Context:   context.Background(),
+			Executor:  LocalExecutor{},
+			Datastore: ds,
+			Revision:  revision,
+		}
+
+		resources := []Object{NewObject("document", "doc1")}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
 
 		// Should return results for all three teams
-		require.Len(rels, 3, "Should return relations for all three teams")
+		require.Len(paths, 3, "Should return paths for all three teams")
 
 		// Verify all results have alice as the subject
-		for _, rel := range rels {
-			require.Equal("alice", rel.Subject.ObjectID, "All results should have alice as the subject")
+		for _, path := range paths {
+			require.Equal("alice", path.Subject.ObjectID, "All results should have alice as the subject")
 		}
 	})
 
@@ -275,18 +258,31 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		rightIter := NewFixedIterator()
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		// Create context with LocalExecutor
+		// Create test context
+		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+		require.NoError(err)
+
+		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			return nil
+		})
+		require.NoError(err)
+
 		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
+			Context:   context.Background(),
+			Executor:  LocalExecutor{},
+			Datastore: ds,
+			Revision:  revision,
 		}
 
-		relSeq, err := ctx.Check(intersectionArrow, []Object{}, NewObject("user", "alice").WithEllipses())
+		resources := []Object{}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
-		require.Empty(rels, "empty resource list should return no results")
+		require.Empty(paths, "empty resource list should return no results")
 	})
 }
 
@@ -296,72 +292,42 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(err)
+
 	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
+		Context:   context.Background(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
 	}
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()
 
 		// Left side path with caveat
-		leftPath := FromRelationship(tuple.Relationship{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("document", "doc1", "team"),
-				Subject:  tuple.ONR("team", "team1", "..."),
+		leftPath := MustPathFromString("document:doc1#team@team:team1")
+		leftPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat",
+				},
 			},
-			OptionalCaveat: &core.ContextualizedCaveat{
-				CaveatName: "left_caveat",
-			},
-		})
+		}
 
 		// Right side path with different caveat
-		rightPath := FromRelationship(tuple.Relationship{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("team", "team1", "member"),
-				Subject:  tuple.ONR("user", "alice", "..."),
+		rightPath := MustPathFromString("team:team1#member@user:alice")
+		rightPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat",
+				},
 			},
-			OptionalCaveat: &core.ContextualizedCaveat{
-				CaveatName: "right_caveat",
-			},
-		})
-
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
-
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
-
-		relSeq, err := ctx.Check(intersectionArrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "IntersectionArrow should return one combined relation")
-		require.NotNil(rels[0].Caveat, "Result should have combined caveat")
-		// The combination logic should combine both caveats with AND logic
-	})
-
-	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {
-		t.Parallel()
-
-		// Left side path with caveat
-		leftPath := FromRelationship(tuple.Relationship{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("document", "doc1", "team"),
-				Subject:  tuple.ONR("team", "team1", "..."),
-			},
-			OptionalCaveat: &core.ContextualizedCaveat{
-				CaveatName: "left_caveat",
-			},
-		})
-
-		// Right side path with no caveat
-		rightPath := &Path{
-			Resource: NewObject("team", "team1"),
-			Relation: "member",
-			Subject:  tuple.ONR("user", "alice", "..."),
-			Metadata: make(map[string]any),
 		}
 
 		leftIter := NewFixedIterator(leftPath)
@@ -369,16 +335,54 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		relSeq, err := ctx.Check(intersectionArrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		resources := []Object{NewObject("document", "doc1")}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
 
-		require.Len(rels, 1, "IntersectionArrow should return one relation")
-		require.NotNil(rels[0].Caveat, "Left caveat should be preserved")
-		require.NotNil(rels[0].Caveat.GetCaveat(), "Should have caveat expression")
-		require.Equal("left_caveat", rels[0].Caveat.GetCaveat().CaveatName)
+		require.Len(paths, 1, "IntersectionArrow should return one combined path")
+		require.NotNil(paths[0].Caveat, "Result should have combined caveat")
+		// The combination logic should combine both caveats with AND logic
+	})
+
+	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {
+		t.Parallel()
+
+		// Left side path with caveat
+		leftPath := MustPathFromString("document:doc1#team@team:team1")
+		leftPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat",
+				},
+			},
+		}
+
+		// Right side path with no caveat
+		rightPath := MustPathFromString("team:team1#member@user:alice")
+		rightPath.Caveat = nil
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		resources := []Object{NewObject("document", "doc1")}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "IntersectionArrow should return one path")
+		require.NotNil(paths[0].Caveat, "Left caveat should be preserved")
+		require.Equal("left_caveat", paths[0].Caveat.GetCaveat().CaveatName)
 	})
 }
 
@@ -387,19 +391,9 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create test iterators
-	leftPath := &Path{
-		Resource: NewObject("document", "doc1"),
-		Relation: "team",
-		Subject:  tuple.ONR("team", "team1", "..."),
-		Metadata: make(map[string]any),
-	}
-	rightPath := &Path{
-		Resource: NewObject("team", "team1"),
-		Relation: "member",
-		Subject:  tuple.ONR("user", "alice", "..."),
-		Metadata: make(map[string]any),
-	}
+	// Create test paths
+	leftPath := MustPathFromString("document:doc1#team@team:team1")
+	rightPath := MustPathFromString("team:team1#member@user:alice")
 
 	leftIter := NewFixedIterator(leftPath)
 	rightIter := NewFixedIterator(rightPath)
@@ -414,20 +408,33 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	require.Equal(originalExplain.Info, clonedExplain.Info)
 	require.Equal(len(originalExplain.SubExplain), len(clonedExplain.SubExplain))
 
-	// Create context with LocalExecutor
+	// Create test context
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(err)
+
 	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
+		Context:   context.Background(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
 	}
 
 	// Test that both iterators produce the same results
-	originalSeq, err := ctx.Check(original, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+	resources := []Object{NewObject("document", "doc1")}
+	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+	originalSeq, err := ctx.Check(original, resources, subject)
 	require.NoError(err)
 	originalResults, err := CollectAll(originalSeq)
 	require.NoError(err)
 
 	// Collect results from cloned iterator
-	clonedSeq, err := ctx.Check(cloned, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+	clonedSeq, err := ctx.Check(cloned, resources, subject)
 	require.NoError(err)
 	clonedResults, err := CollectAll(clonedSeq)
 	require.NoError(err)
@@ -441,18 +448,8 @@ func TestIntersectionArrowIteratorExplain(t *testing.T) {
 
 	require := require.New(t)
 
-	leftPath := &Path{
-		Resource: NewObject("document", "doc1"),
-		Relation: "team",
-		Subject:  tuple.ONR("team", "team1", "..."),
-		Metadata: make(map[string]any),
-	}
-	rightPath := &Path{
-		Resource: NewObject("team", "team1"),
-		Relation: "member",
-		Subject:  tuple.ONR("user", "alice", "..."),
-		Metadata: make(map[string]any),
-	}
+	leftPath := MustPathFromString("document:doc1#team@team:team1")
+	rightPath := MustPathFromString("team:team1#member@user:alice")
 
 	leftIter := NewFixedIterator(leftPath)
 	rightIter := NewFixedIterator(rightPath)
@@ -476,10 +473,20 @@ func TestIntersectionArrowIteratorUnimplementedMethods(t *testing.T) {
 	rightIter := NewFixedIterator()
 	intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-	// Create context with LocalExecutor
+	// Create test context
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(err)
+
 	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
+		Context:   context.Background(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
 	}
 
 	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
@@ -494,7 +501,7 @@ func TestIntersectionArrowIteratorUnimplementedMethods(t *testing.T) {
 		t.Parallel()
 
 		require.Panics(func() {
-			_, _ = ctx.IterResources(intersectionArrow, NewObject("user", "alice").WithEllipses())
+			_, _ = ctx.IterResources(intersectionArrow, ObjectAndRelation{ObjectType: "user", ObjectID: "alice"})
 		})
 	})
 }

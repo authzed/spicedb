@@ -37,7 +37,7 @@ func TestRelationIterator(t *testing.T) {
 
 		// Test with mismatched subject type - this should return empty due to the bug fix
 		// without hitting the datastore (early return)
-		relSeq, err := relationIter.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("group", "engineers").WithEllipses())
+		relSeq, err := ctx.Check(relationIter, NewObjects("document", "doc1"), NewObject("group", "engineers").WithEllipses())
 		require.NoError(err, "CheckImpl should not error on type mismatch")
 
 		rels, err := CollectAll(relSeq)
@@ -45,7 +45,7 @@ func TestRelationIterator(t *testing.T) {
 		require.Empty(rels, "Subject type mismatch should return empty results")
 
 		// Test with another mismatched subject type
-		relSeq, err = relationIter.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("organization", "company").WithEllipses())
+		relSeq, err = ctx.Check(relationIter, NewObjects("document", "doc1"), NewObject("organization", "company").WithEllipses())
 		require.NoError(err, "CheckImpl should not error on type mismatch")
 
 		rels, err = CollectAll(relSeq)
@@ -199,7 +199,7 @@ func TestRelationIteratorSubjectTypeMismatchScenarios(t *testing.T) {
 			subject := NewObject(tc.actualSubjectType, "test_id").WithEllipses()
 
 			// All test cases are mismatched types that should return empty without hitting datastore
-			relSeq, err := relationIter.CheckImpl(ctx, NewObjects("document", "doc1"), subject)
+			relSeq, err := ctx.Check(relationIter, NewObjects("document", "doc1"), subject)
 			require.NoError(err, "CheckImpl should not error on type mismatch for case %s", tc.name)
 
 			rels, err := CollectAll(relSeq)
@@ -228,7 +228,7 @@ func TestRelationIteratorWildcard(t *testing.T) {
 		relationIter := NewRelationIterator(baseRel)
 
 		// Test with mismatched subject type - should return empty due to early return
-		relSeq, err := relationIter.CheckImpl(ctx, NewObjects("document", "doc1"), NewObject("group", "engineers").WithEllipses())
+		relSeq, err := ctx.Check(relationIter, NewObjects("document", "doc1"), NewObject("group", "engineers").WithEllipses())
 		require.NoError(err, "CheckImpl should not error on type mismatch")
 
 		rels, err := CollectAll(relSeq)
@@ -347,7 +347,7 @@ func TestRelationIteratorWildcardSubjectTypeMismatchScenarios(t *testing.T) {
 			subject := NewObject(tc.actualSubjectType, "test_id").WithEllipses()
 
 			// All test cases are mismatched types that should return empty without hitting datastore
-			relSeq, err := relationIter.CheckImpl(ctx, NewObjects("document", "doc1"), subject)
+			relSeq, err := ctx.Check(relationIter, NewObjects("document", "doc1"), subject)
 			require.NoError(err, "CheckImpl should not error on type mismatch for case %s", tc.name)
 
 			rels, err := CollectAll(relSeq)
