@@ -297,7 +297,7 @@ For more best practices on deploying SpiceDB, read our [best practices guide].
 
 #### Telemetry
 
-SpiceDB collects anonymous telemetry data to help us understand how the community is using SpiceDB and to help us prioritize features. This telemetry is opt-out and can be disabled via setting `--telemetry-endpoint=""`. For more information on the telemetry we collect, see [telemetry](./telemetry.md).
+SpiceDB collects anonymous telemetry data to help us understand how the community is using SpiceDB and to help us prioritize features. This telemetry is opt-out and can be disabled via setting `--telemetry-endpoint=""`. For more information on the telemetry we collect, see [telemetry](./TELEMETRY.md).
 
 ## More Resources
 
