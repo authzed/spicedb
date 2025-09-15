@@ -137,12 +137,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 }
 
 func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
-	var base Iterator
-	if br.Wildcard {
-		base = NewWildcardIterator(br)
-	} else {
-		base = NewRelationIterator(br)
-	}
+	base := NewRelationIterator(br)
 
 	if !withSubRelations {
 		return base, nil

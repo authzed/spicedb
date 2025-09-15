@@ -777,15 +777,15 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 
-		// Verify it's an Alias wrapping a WildcardIterator
+		// Verify it's an Alias wrapping a RelationIterator with wildcard support
 		require.IsType(&Alias{}, it)
 		alias := it.(*Alias)
-		require.IsType(&WildcardIterator{}, alias.subIt)
+		require.IsType(&RelationIterator{}, alias.subIt)
 
 		// Check the explain output contains wildcard information
 		explain := it.Explain()
 		explainStr := explain.String()
-		require.Contains(explainStr, "Wildcard")
+		require.Contains(explainStr, "Relation")
 		require.Contains(explainStr, "user:*")
 	})
 
@@ -813,11 +813,11 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		alias := it.(*Alias)
 		require.IsType(&Union{}, alias.subIt)
 
-		// Check explain contains both relation and wildcard info
+		// Check explain contains both relation types (regular and wildcard)
 		explain := it.Explain()
 		explainStr := explain.String()
 		require.Contains(explainStr, "Union")
-		require.Contains(explainStr, "Wildcard")
-		require.Contains(explainStr, "Relation")
+		require.Contains(explainStr, "user:...", "should contain regular relation")
+		require.Contains(explainStr, "user:*", "should contain wildcard relation")
 	})
 }
