@@ -20,45 +20,45 @@ func NewExclusion(mainSet, excluded Iterator) *Exclusion {
 	}
 }
 
-func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
-	// Get all relations from the main set
+func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	// Get all paths from the main set
 	mainSeq, err := e.mainSet.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
 
-	mainRels, err := CollectAll(mainSeq)
+	mainPaths, err := CollectAll(mainSeq)
 	if err != nil {
 		return nil, err
 	}
 
 	// If main set is empty, return empty result
-	if len(mainRels) == 0 {
-		return func(yield func(Relation, error) bool) {
+	if len(mainPaths) == 0 {
+		return func(yield func(*Path, error) bool) {
 			// Empty sequence - never yield anything
 		}, nil
 	}
 
-	// Get all relations from the excluded set
+	// Get all paths from the excluded set
 	excludedSeq, err := e.excluded.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
 
-	excludedRels, err := CollectAll(excludedSeq)
+	excludedPaths, err := CollectAll(excludedSeq)
 	if err != nil {
 		return nil, err
 	}
 
-	// Filter main set by excluding relations that are in the excluded set
-	return func(yield func(Relation, error) bool) {
-		for _, mainRel := range mainRels {
+	// Filter main set by excluding paths that are in the excluded set
+	return func(yield func(*Path, error) bool) {
+		for _, mainPath := range mainPaths {
 			found := false
 
-			// Check if this relation exists in the excluded set (only compare endpoints: resource and subject object types/IDs)
-			for _, excludedRel := range excludedRels {
-				if GetObject(mainRel.Resource).Equals(GetObject(excludedRel.Resource)) &&
-					GetObject(mainRel.Subject).Equals(GetObject(excludedRel.Subject)) {
+			// Check if this path exists in the excluded set (only compare endpoints: resource and subject object types/IDs)
+			for _, excludedPath := range excludedPaths {
+				if mainPath.Resource.Equals(excludedPath.Resource) &&
+					GetObject(mainPath.Subject).Equals(GetObject(excludedPath.Subject)) {
 					found = true
 					break
 				}
@@ -66,7 +66,7 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 
 			// Only yield if not found in excluded set
 			if !found {
-				if !yield(mainRel, nil) {
+				if !yield(mainPath, nil) {
 					return
 				}
 			}
@@ -74,11 +74,11 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 	}, nil
 }
 
-func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

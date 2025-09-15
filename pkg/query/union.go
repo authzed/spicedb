@@ -6,7 +6,7 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// Union the set of relations that are in any of underlying subiterators.
+// Union the set of paths that are in any of underlying subiterators.
 // This is equivalent to `permission foo = bar | baz`
 type Union struct {
 	subIts []Iterator
@@ -22,35 +22,35 @@ func (u *Union) addSubIterator(subIt Iterator) {
 	u.subIts = append(u.subIts, subIt)
 }
 
-func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
-	var out []Relation
-	// Collect relations from all sub-iterators
+func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	var out []*Path
+	// Collect paths from all sub-iterators
 	for _, it := range u.subIts {
-		relSeq, err := it.CheckImpl(ctx, resources, subject)
+		pathSeq, err := it.CheckImpl(ctx, resources, subject)
 		if err != nil {
 			return nil, err
 		}
-		rels, err := CollectAll(relSeq)
+		paths, err := CollectAll(pathSeq)
 		if err != nil {
 			return nil, err
 		}
 
-		out = append(out, rels...)
+		out = append(out, paths...)
 	}
 
-	// Deduplicate relations based on resource for CheckImpl
+	// Deduplicate paths based on resource for CheckImpl
 	// Since the subject is fixed in CheckImpl, we only need to deduplicate by resource
-	seen := make(map[string]Relation)
-	for _, rel := range out {
+	seen := make(map[string]*Path)
+	for _, path := range out {
 		// Use resource object (type + id) as key for deduplication, not the full resource with relation
-		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID
+		key := path.Resource.ObjectType + ":" + path.Resource.ObjectID
 		if existing, exists := seen[key]; !exists {
-			seen[key] = rel
+			seen[key] = path
 		} else {
-			// If we already have a relationship for this resource,
-			// prefer one without caveats (cleaner permission grant)
-			if rel.OptionalCaveat == nil && existing.OptionalCaveat != nil {
-				seen[key] = rel
+			// If we already have a path for this resource,
+			// merge it with the new one using OR semantics
+			if err := existing.MergeOr(path); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -58,20 +58,20 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	// Convert map to slice
 	deduplicated := maps.Values(seen)
 
-	return func(yield func(Relation, error) bool) {
-		for rel := range deduplicated {
-			if !yield(rel, nil) {
+	return func(yield func(*Path, error) bool) {
+		for path := range deduplicated {
+			if !yield(path, nil) {
 				return
 			}
 		}
 	}, nil
 }
 
-func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
