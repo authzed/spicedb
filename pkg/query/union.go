@@ -1,6 +1,8 @@
 package query
 
 import (
+	"maps"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -36,19 +38,28 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 		out = append(out, rels...)
 	}
 
-	// Deduplicate relations
-	seen := make(map[string]bool)
-	var deduplicated []Relation
+	// Deduplicate relations based on resource for CheckImpl
+	// Since the subject is fixed in CheckImpl, we only need to deduplicate by resource
+	seen := make(map[string]Relation)
 	for _, rel := range out {
-		key := rel.String()
-		if !seen[key] {
-			seen[key] = true
-			deduplicated = append(deduplicated, rel)
+		// Use resource object (type + id) as key for deduplication, not the full resource with relation
+		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID
+		if existing, exists := seen[key]; !exists {
+			seen[key] = rel
+		} else {
+			// If we already have a relationship for this resource,
+			// prefer one without caveats (cleaner permission grant)
+			if rel.OptionalCaveat == nil && existing.OptionalCaveat != nil {
+				seen[key] = rel
+			}
 		}
 	}
 
+	// Convert map to slice
+	deduplicated := maps.Values(seen)
+
 	return func(yield func(Relation, error) bool) {
-		for _, rel := range deduplicated {
+		for rel := range deduplicated {
 			if !yield(rel, nil) {
 				return
 			}

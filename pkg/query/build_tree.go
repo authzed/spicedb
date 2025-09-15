@@ -147,6 +147,11 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		return base, nil
 	}
 
+	// Wildcards represent direct access, so no subrelation processing needed
+	if br.Wildcard {
+		return base, nil
+	}
+
 	// We must check the effective arrow of a subrelation if we have one and subrelations are enabled
 	// (subrelations are disabled in cases of actual arrows)
 	union := NewUnion()

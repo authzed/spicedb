@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -41,34 +42,19 @@ func TestUnionIterator(t *testing.T) {
 		// Union should contain relations from both iterators for alice on doc1 and doc2
 		// DocumentAccess: alice viewer/editor/owner on doc1, alice viewer on doc2
 		// MultiRole: alice viewer/editor/owner on doc1
-		// Union should deduplicate, so we expect: viewer/editor/owner on doc1, viewer on doc2 (4 total)
-		expected := []tuple.Relationship{
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "viewer"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "editor"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "owner"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc2", "viewer"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
+		// With the new deduplication fix, we deduplicate by resource (type + id), not by full relation
+		// So we expect only one relation per resource: 1 for doc1, 1 for doc2 (2 total)
+		require.Len(rels, 2, "Union should deduplicate to one relation per resource")
+
+		// Check that we have relations for both doc1 and doc2
+		resourceIDs := make(map[string]bool)
+		for _, rel := range rels {
+			require.Equal("alice", rel.Subject.ObjectID, "All relations should be for alice")
+			require.Equal("document", rel.Resource.ObjectType, "All relations should be for documents")
+			resourceIDs[rel.Resource.ObjectID] = true
 		}
-		require.ElementsMatch(expected, rels)
+		require.Contains(resourceIDs, "doc1", "Should have relation for doc1")
+		require.Contains(resourceIDs, "doc2", "Should have relation for doc2")
 	})
 
 	t.Run("Check_EmptyUnion", func(t *testing.T) {
@@ -99,29 +85,12 @@ func TestUnionIterator(t *testing.T) {
 		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 
-		// Should return same results as DocumentAccess iterator for alice on doc1
-		// Alice has viewer, editor, and owner access to doc1
-		expected := []tuple.Relationship{
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "viewer"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "editor"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "owner"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
-		}
-		require.ElementsMatch(expected, rels)
+		// Even with a single sub-iterator, union applies deduplication logic
+		// DocumentAccess iterator has alice with viewer, editor, and owner access to doc1
+		// But union deduplication by resource (type + id) means only 1 relation for doc1
+		require.Len(rels, 1, "Union should deduplicate to one relation per resource")
+		require.Equal("doc1", rels[0].Resource.ObjectID)
+		require.Equal("alice", rels[0].Subject.ObjectID)
 	})
 
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
@@ -302,28 +271,11 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 
 	// The union should handle potential duplicates correctly through its
 	// resource elimination optimization. Both iterators have alice with various
-	// permissions on doc1, and the union should deduplicate appropriately.
-	expected := []tuple.Relationship{
-		{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("document", "doc1", "viewer"),
-				Subject:  tuple.ONR("user", "alice", "..."),
-			},
-		},
-		{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("document", "doc1", "editor"),
-				Subject:  tuple.ONR("user", "alice", "..."),
-			},
-		},
-		{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("document", "doc1", "owner"),
-				Subject:  tuple.ONR("user", "alice", "..."),
-			},
-		},
-	}
-	require.ElementsMatch(expected, rels)
+	// permissions on doc1, but with the new deduplication fix, we deduplicate by
+	// resource (type + id), so we expect only 1 relation for doc1.
+	require.Len(rels, 1, "Union should deduplicate to one relation per resource")
+	require.Equal("doc1", rels[0].Resource.ObjectID)
+	require.Equal("alice", rels[0].Subject.ObjectID)
 }
 
 func TestUnionIteratorMultipleResources(t *testing.T) {
@@ -354,4 +306,195 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 
 	// The result should include all valid union relationships found across all resources
 	require.NotEmpty(rels, "Union should find relations from multiple resources")
+}
+
+func TestUnionDeduplicationBugFix(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("DeduplicatesByResourceKey", func(t *testing.T) {
+		t.Parallel()
+
+		// Create relations that would create duplicates under the old string-based deduplication
+		// but should be properly deduplicated by resource key (type + id)
+		rel1 := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "viewer"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		}
+
+		rel2 := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "viewer"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		}
+
+		// Create iterators that return the same resource-subject pair
+		iter1 := NewFixedIterator(rel1)
+		iter2 := NewFixedIterator(rel2)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		// Should be deduplicated to only one relation
+		require.Len(rels, 1, "Union should deduplicate identical relations")
+		require.Equal("doc1", rels[0].Resource.ObjectID)
+		require.Equal("alice", rels[0].Subject.ObjectID)
+	})
+
+	t.Run("PreferNoCaveatRelations", func(t *testing.T) {
+		t.Parallel()
+
+		// Create relation without caveat
+		relNoCaveat := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "viewer"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		}
+
+		// Create relation with caveat
+		relWithCaveat := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "viewer"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+			OptionalCaveat: &core.ContextualizedCaveat{
+				CaveatName: "test_caveat",
+			},
+		}
+
+		// Test both orders to ensure preference is consistent
+		t.Run("NoCaveatFirst", func(t *testing.T) {
+			t.Parallel()
+
+			iter1 := NewFixedIterator(relNoCaveat)
+			iter2 := NewFixedIterator(relWithCaveat)
+
+			union := NewUnion()
+			union.addSubIterator(iter1)
+			union.addSubIterator(iter2)
+
+			relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+			require.NoError(err)
+
+			rels, err := CollectAll(relSeq)
+			require.NoError(err)
+
+			require.Len(rels, 1, "Union should deduplicate to one relation")
+			require.Nil(rels[0].OptionalCaveat, "Union should prefer relation without caveat")
+		})
+
+		t.Run("CaveatFirst", func(t *testing.T) {
+			t.Parallel()
+
+			iter1 := NewFixedIterator(relWithCaveat)
+			iter2 := NewFixedIterator(relNoCaveat)
+
+			union := NewUnion()
+			union.addSubIterator(iter1)
+			union.addSubIterator(iter2)
+
+			relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+			require.NoError(err)
+
+			rels, err := CollectAll(relSeq)
+			require.NoError(err)
+
+			require.Len(rels, 1, "Union should deduplicate to one relation")
+			require.Nil(rels[0].OptionalCaveat, "Union should prefer relation without caveat")
+		})
+	})
+
+	t.Run("DeduplicationWithDifferentResources", func(t *testing.T) {
+		t.Parallel()
+
+		// Relations to different resources should not be deduplicated
+		relDoc1 := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "viewer"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		}
+
+		relDoc2 := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc2", "viewer"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		}
+
+		iter1 := NewFixedIterator(relDoc1)
+		iter2 := NewFixedIterator(relDoc2)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		// Both relations should be kept since they are for different resources
+		require.Len(rels, 2, "Union should keep relations to different resources")
+
+		resourceIDs := []string{rels[0].Resource.ObjectID, rels[1].Resource.ObjectID}
+		require.Contains(resourceIDs, "doc1")
+		require.Contains(resourceIDs, "doc2")
+	})
+
+	t.Run("DeduplicationSameResourceDifferentRelations", func(t *testing.T) {
+		t.Parallel()
+
+		// Relations with different relation names on the same resource should be deduplicated
+		// because the fix deduplicates by resource (type + id), not by full relation
+		relViewer := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "viewer"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		}
+
+		relEditor := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "doc1", "editor"),
+				Subject:  tuple.ONR("user", "alice", "..."),
+			},
+		}
+
+		iter1 := NewFixedIterator(relViewer)
+		iter2 := NewFixedIterator(relEditor)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		// Should be deduplicated to only one relation since same resource
+		require.Len(rels, 1, "Union should deduplicate relations to same resource")
+		require.Equal("doc1", rels[0].Resource.ObjectID)
+		require.Equal("alice", rels[0].Subject.ObjectID)
+	})
 }

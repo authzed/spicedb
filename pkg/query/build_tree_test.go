@@ -724,3 +724,100 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		require.NoError(err)
 	})
 }
+
+func TestBuildTreeWildcardIterator(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	// Create a simple schema with a wildcard relation using core types directly
+	docDef := &corev1.NamespaceDefinition{
+		Name: "document",
+		Relation: []*corev1.Relation{
+			{
+				Name: "viewer",
+				TypeInformation: &corev1.TypeInformation{
+					AllowedDirectRelations: []*corev1.AllowedRelation{
+						{
+							Namespace: "user",
+							RelationOrWildcard: &corev1.AllowedRelation_PublicWildcard_{
+								PublicWildcard: &corev1.AllowedRelation_PublicWildcard{},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	userDef := &corev1.NamespaceDefinition{
+		Name: "user",
+	}
+
+	objectDefs := []*corev1.NamespaceDefinition{userDef, docDef}
+	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+	require.NoError(err)
+
+	// Verify the schema has the wildcard BaseRelation
+	documentDef := dsSchema.Definitions["document"]
+	require.NotNil(documentDef)
+	viewerRelation := documentDef.Relations["viewer"]
+	require.NotNil(viewerRelation)
+	require.Len(viewerRelation.BaseRelations, 1)
+	baseRel := viewerRelation.BaseRelations[0]
+	require.True(baseRel.Wildcard, "BaseRelation should have Wildcard: true")
+	require.Equal("user", baseRel.Type)
+
+	// Print debug info
+	t.Logf("BaseRelation: Type=%s, Subrelation=%s, Wildcard=%v", baseRel.Type, baseRel.Subrelation, baseRel.Wildcard)
+
+	t.Run("Schema with wildcard creates WildcardIterator", func(t *testing.T) {
+		t.Parallel()
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// Verify it's an Alias wrapping a RelationIterator with wildcard support
+		require.IsType(&Alias{}, it)
+		alias := it.(*Alias)
+		require.IsType(&RelationIterator{}, alias.subIt)
+
+		// Check the explain output contains wildcard information
+		explain := it.Explain()
+		explainStr := explain.String()
+		require.Contains(explainStr, "Relation")
+		require.Contains(explainStr, "user:*")
+	})
+
+	t.Run("Mixed wildcard and regular relations", func(t *testing.T) {
+		t.Parallel()
+		// Create a schema with both wildcard and regular relations
+		mixedDocDef := namespace.Namespace(
+			"document",
+			namespace.MustRelation("viewer", nil,
+				namespace.AllowedRelation("user", ""),    // Regular relation
+				namespace.AllowedPublicNamespace("user"), // Wildcard relation
+			),
+		)
+
+		mixedObjectDefs := []*corev1.NamespaceDefinition{userDef, mixedDocDef}
+		mixedSchema, err := schema.BuildSchemaFromDefinitions(mixedObjectDefs, nil)
+		require.NoError(err)
+
+		it, err := BuildIteratorFromSchema(mixedSchema, "document", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// Should create an alias with a union containing both regular and wildcard iterators
+		require.IsType(&Alias{}, it)
+		alias := it.(*Alias)
+		require.IsType(&Union{}, alias.subIt)
+
+		// Check explain contains both relation types (regular and wildcard)
+		explain := it.Explain()
+		explainStr := explain.String()
+		require.Contains(explainStr, "Union")
+		require.Contains(explainStr, "user:...", "should contain regular relation")
+		require.Contains(explainStr, "user:*", "should contain wildcard relation")
+	})
+}
