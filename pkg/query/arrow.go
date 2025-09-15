@@ -2,10 +2,9 @@ package query
 
 import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// Arrow is an iterator that represents the set of relations that
+// Arrow is an iterator that represents the set of paths that
 // follow from a walk in the graph.
 //
 // Ex: `folder->owner` and `left->right`
@@ -23,7 +22,7 @@ func NewArrow(left, right Iterator) *Arrow {
 	}
 }
 
-func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// TODO -- the ordering, directionality, batching, everything can depend on other statistics.
 	//
 	// There are three major strategies:
@@ -35,39 +34,41 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	// This is going to be the crux of a lot of statistics optimizations -- statistics often
 	// don't restructure the tree, but can affect the best way to evaluate the tree, sometimes dynamically.
 
-	return func(yield func(Relation, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for _, resource := range resources {
 			subit, err := a.left.IterSubjectsImpl(ctx, resource)
 			if err != nil {
-				yield(Relation{}, err)
+				yield(nil, err)
 				return
 			}
-			for rel, err := range subit {
+			for path, err := range subit {
 				if err != nil {
-					yield(Relation{}, err)
+					yield(nil, err)
 					return
 				}
-				checkResources := []Object{GetObject(rel.Subject)}
+				checkResources := []Object{GetObject(path.Subject)}
 				checkit, err := a.right.CheckImpl(ctx, checkResources, subject)
 				if err != nil {
-					yield(Relation{}, err)
+					yield(nil, err)
 					return
 				}
-				for checkrel, err := range checkit {
+				for checkPath, err := range checkit {
 					if err != nil {
-						yield(Relation{}, err)
+						yield(nil, err)
 						return
 					}
-					combinedrel := Relation{
-						OptionalCaveat:     checkrel.OptionalCaveat,
-						OptionalExpiration: checkrel.OptionalExpiration,
-						OptionalIntegrity:  checkrel.OptionalIntegrity,
-						RelationshipReference: tuple.RelationshipReference{
-							Resource: rel.Resource,
-							Subject:  checkrel.Subject,
-						},
+
+					// Create combined path with resource from left and subject from right
+					combinedPath := &Path{
+						Resource:   path.Resource,
+						Relation:   path.Relation,
+						Subject:    checkPath.Subject,
+						Caveat:     checkPath.Caveat,
+						Expiration: checkPath.Expiration,
+						Integrity:  checkPath.Integrity,
+						Metadata:   make(map[string]any),
 					}
-					if !yield(combinedrel, nil) {
+					if !yield(combinedPath, nil) {
 						return
 					}
 				}
@@ -76,11 +77,11 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	}, nil
 }
 
-func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

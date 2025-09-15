@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestArrowIterator(t *testing.T) {
@@ -33,21 +32,16 @@ func TestArrowIterator(t *testing.T) {
 
 		// Test arrow operation: find resources where left side connects to right side
 		// This looks for documents whose parent folder has viewers
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 
 		// Expected: spec1 should match because alice has viewer access to project1 (spec1's parent)
 		// spec2 should NOT match because alice does not have access to project2 (spec2's parent)
-		expected := []tuple.Relationship{
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "spec1", "parent"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
+		expected := []*Path{
+			MustPathFromString("document:spec1#parent@user:alice"),
 		}
 		require.Equal(expected, rels)
 	})
@@ -61,10 +55,10 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, []Object{}, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(arrow, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 		require.Empty(rels, "empty resource list should return no results")
 	})
@@ -78,10 +72,10 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(arrow, NewObjects("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 		// Should be empty since resource doesn't exist
 		require.Empty(rels, "nonexistent resource should return no results")
@@ -96,10 +90,10 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
+		pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 		// Should be empty since subject doesn't exist
 		require.Empty(rels, "nonexistent subject should return no results")
@@ -213,10 +207,10 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	}
 
 	// Test with multiple resource IDs
-	relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2", "nonexistent"), NewObject("user", "alice").WithEllipses())
+	pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2", "nonexistent"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 
-	rels, err := CollectAll(relSeq)
+	rels, err := CollectAll(pathSeq)
 	require.NoError(err)
 
 	// The result should include valid arrow relationships found across all resources
@@ -227,13 +221,8 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	// - nonexistent doesn't exist -> should NOT match
 
 	// We expect exactly 1 result: spec1 with alice as subject
-	expected := []tuple.Relationship{
-		{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("document", "spec1", "parent"),
-				Subject:  tuple.ONR("user", "alice", "..."),
-			},
-		},
+	expected := []*Path{
+		MustPathFromString("document:spec1#parent@user:alice"),
 	}
 	require.Equal(expected, rels)
 }

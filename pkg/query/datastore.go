@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"iter"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -10,6 +11,26 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// convertRelationSeqToPathSeq converts an iter.Seq2[tuple.Relationship, error] from the datastore
+// into a PathSeq by transforming each tuple.Relationship into a Path using FromRelationship.
+func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) PathSeq {
+	return func(yield func(*Path, error) bool) {
+		for rel, err := range relSeq {
+			if err != nil {
+				if !yield(nil, err) {
+					return
+				}
+				continue
+			}
+
+			path := FromRelationship(rel)
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}
+}
 
 // RelationIterator is a common leaf iterator. It represents the set of all
 // relationships of the given schema.BaseRelation, ie, relations that have a
@@ -35,10 +56,10 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation)
 }
 
-func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// If the subject type doesn't match the base relation type, return no results
 	if subject.ObjectType != r.base.Type {
-		return func(yield func(Relation, error) bool) {
+		return func(yield func(*Path, error) bool) {
 			// Empty sequence
 		}, nil
 	}
@@ -49,7 +70,7 @@ func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject O
 	return r.checkNormalImpl(ctx, resources, subject)
 }
 
-func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	resourceIDs := make([]string, len(resources))
 	for i, res := range resources {
 		resourceIDs[i] = res.ObjectID
@@ -79,10 +100,10 @@ func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, sub
 		return nil, err
 	}
 
-	return RelationSeq(relIter), nil
+	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
 }
 
-func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Query the datastore for wildcard relationships (subject ObjectID = "*")
 	resourceIDs := make([]string, len(resources))
 	for i, res := range resources {
@@ -114,10 +135,10 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 	}
 
 	// Transform the wildcard relationships to use the concrete subject
-	return func(yield func(Relation, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for rel, err := range relIter {
 			if err != nil {
-				if !yield(rel, err) {
+				if !yield(nil, err) {
 					return
 				}
 				continue
@@ -127,21 +148,23 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 			concreteRel := rel
 			concreteRel.Subject = subject
 
-			if !yield(concreteRel, nil) {
+			// Convert to Path
+			path := FromRelationship(concreteRel)
+			if !yield(path, nil) {
 				return
 			}
 		}
 	}, nil
 }
 
-func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	if r.base.Wildcard {
 		return r.iterSubjectsWildcardImpl(ctx, resource)
 	}
 	return r.iterSubjectsNormalImpl(ctx, resource)
 }
 
-func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      []string{resource.ObjectID},
@@ -165,10 +188,10 @@ func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object)
 		return nil, err
 	}
 
-	return RelationSeq(relIter), nil
+	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
 }
 
-func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      []string{resource.ObjectID},
@@ -193,10 +216,10 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 		return nil, err
 	}
 
-	return RelationSeq(relIter), nil
+	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
 }
 
-func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

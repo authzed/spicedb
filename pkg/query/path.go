@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"iter"
 	"maps"
 	"time"
 
@@ -9,6 +10,9 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// PathSeq is the intermediate iter closure that any of the planning calls return.
+type PathSeq iter.Seq2[*Path, error]
 
 // Path is an abstract notion of an individual relation. While tuple.Relation is what is stored under the hood,
 type Path struct {
@@ -66,11 +70,27 @@ func (p *Path) mergeFrom(other *Path, mergeOp pathMergeOp) error {
 	// Combine caveats based on merge operation
 	switch mergeOp {
 	case pathMergeOpOr:
-		p.Caveat = caveats.Or(p.Caveat, other.Caveat)
+		if p.Caveat != nil {
+			if other.Caveat == nil {
+				p.Caveat = nil
+			} else {
+				p.Caveat = caveats.Or(p.Caveat, other.Caveat)
+			}
+		}
 	case pathMergeOpAnd:
-		p.Caveat = caveats.And(p.Caveat, other.Caveat)
+		if other.Caveat != nil {
+			if p.Caveat != nil {
+				p.Caveat = caveats.And(p.Caveat, other.Caveat)
+			} else {
+				p.Caveat = other.Caveat
+			}
+		}
+		// Otherwise, p.Caveat remains the same
 	case pathMergeOpAndNot:
-		p.Caveat = caveats.Subtract(p.Caveat, other.Caveat)
+		if other.Caveat != nil {
+			p.Caveat = caveats.Subtract(p.Caveat, other.Caveat)
+		}
+		// p.Caveat already nil, stays nil, other.Caveat is nil, stays p.Caveat
 	default:
 		return fmt.Errorf("unknown merge operation: %d", mergeOp)
 	}
@@ -172,4 +192,24 @@ func (p *Path) ToRelationship() (tuple.Relationship, error) {
 		OptionalExpiration: p.Expiration,
 		OptionalIntegrity:  integrity,
 	}, nil
+}
+
+// MustPathFromString is a helper function for tests that creates a Path from a relationship string.
+// It uses tuple.MustParse to parse the string and then converts it to a Path using FromRelationship.
+// Example: MustPathFromString("document:doc1#viewer@user:alice")
+func MustPathFromString(relationshipStr string) *Path {
+	rel := tuple.MustParse(relationshipStr)
+	return FromRelationship(rel)
+}
+
+// CollectAll is a helper function to build read a complete PathSeq and turn it into a fully realized slice of Paths.
+func CollectAll(seq PathSeq) ([]*Path, error) {
+	out := make([]*Path, 0) // `prealloc` is overly aggressive. This should be `var out []*Path`
+	for x, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, x)
+	}
+	return out, nil
 }
