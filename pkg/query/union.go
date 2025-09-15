@@ -1,6 +1,8 @@
 package query
 
 import (
+	"maps"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -54,13 +56,10 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	}
 
 	// Convert map to slice
-	deduplicated := make([]Relation, 0)
-	for _, rel := range seen {
-		deduplicated = append(deduplicated, rel)
-	}
+	deduplicated := maps.Values(seen)
 
 	return func(yield func(Relation, error) bool) {
-		for _, rel := range deduplicated {
+		for rel := range deduplicated {
 			if !yield(rel, nil) {
 				return
 			}
