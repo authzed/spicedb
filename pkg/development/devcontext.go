@@ -141,12 +141,19 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		return nil, nil, verr
 	}
 
+	params := graph.DispatcherParameters{
+		ConcurrencyLimits:      graph.SharedConcurrencyLimits(10),
+		DispatchChunkSize:      100,
+		TypeSet:                caveattypes.Default.TypeSet,
+		RelationshipChunkCache: nil, // Disable caching for devcontext
+	}
+
 	return &DevContext{
 		Ctx:            ctx,
 		Datastore:      ds,
 		CompiledSchema: compiled,
 		Revision:       currentRevision,
-		Dispatcher:     graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100),
+		Dispatcher:     graph.MustNewLocalOnlyDispatcher(params),
 	}, nil, nil
 }
 

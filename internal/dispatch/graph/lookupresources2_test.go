@@ -18,11 +18,11 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -101,7 +101,7 @@ func TestSimpleLookupResources2(t *testing.T) {
 
 		tc := tc
 		t.Run(name, func(t *testing.T) {
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+			defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 			require := require.New(t)
 			ctx, dispatcher, revision := newLocalDispatcher(t)
@@ -319,7 +319,8 @@ func TestMaxDepthLookup2(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(err)
 	defer dispatcher.Close()
 
 	ctx := datastoremw.ContextWithHandle(t.Context())
@@ -756,7 +757,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 					t.Parallel()
 					require := require.New(t)
 
-					dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+					dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+					require.NoError(err)
 
 					ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 					require.NoError(err)
@@ -839,7 +841,8 @@ func TestLookupResources2ImmediateTimeout(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(err)
 	defer dispatcher.Close()
 
 	ctx := datastoremw.ContextWithHandle(t.Context())
@@ -874,7 +877,8 @@ func TestLookupResources2WithError(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(err)
 	defer dispatcher.Close()
 
 	ctx := datastoremw.ContextWithHandle(t.Context())
@@ -1354,7 +1358,8 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 
 			checkingDS := disallowedWrapper{ds, tc.disallowedQueries}
 
-			dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+			dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+			require.NoError(err)
 			defer dispatcher.Close()
 
 			ctx := datastoremw.ContextWithHandle(t.Context())

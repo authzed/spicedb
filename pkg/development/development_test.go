@@ -10,12 +10,13 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
 func TestDevelopment(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
@@ -47,7 +48,7 @@ definition document {
 }
 
 func TestDevelopmentInvalidRelationship(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	_, _, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
@@ -77,7 +78,7 @@ definition document {
 }
 
 func TestDevelopmentCaveatedExpectedRels(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}
@@ -112,7 +113,7 @@ definition document {
 }
 
 func TestDevContextV1Service(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	devCtx, devErrs, err := NewDevContext(t.Context(), &devinterface.RequestContext{
 		Schema: `definition user {}

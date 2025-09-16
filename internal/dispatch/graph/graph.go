@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
@@ -17,6 +18,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
+	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
@@ -80,37 +82,96 @@ func SharedConcurrencyLimits(concurrencyLimit uint16) ConcurrencyLimits {
 	}
 }
 
-// NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
-func NewLocalOnlyDispatcher(typeSet *caveattypes.TypeSet, concurrencyLimit uint16, dispatchChunkSize uint16) dispatch.Dispatcher {
-	return NewLocalOnlyDispatcherWithLimits(typeSet, SharedConcurrencyLimits(concurrencyLimit), dispatchChunkSize)
+// DispatcherParameters are the parameters for a dispatcher.
+type DispatcherParameters struct {
+	ConcurrencyLimits      ConcurrencyLimits
+	DispatchChunkSize      uint16
+	TypeSet                *caveattypes.TypeSet
+	RelationshipChunkCache cache.Cache[cache.StringKey, any]
 }
 
-// NewLocalOnlyDispatcherWithLimits creates a dispatcher thatg consults with the graph to formulate a response
-// and has the defined concurrency limits per dispatch type.
-func NewLocalOnlyDispatcherWithLimits(typeSet *caveattypes.TypeSet, concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
+func (dp *DispatcherParameters) validate() error {
+	if dp.TypeSet == nil {
+		return fmt.Errorf("TypeSet must be provided")
+	}
+
+	if dp.DispatchChunkSize == 0 {
+		return fmt.Errorf("DispatchChunkSize must be greater than zero")
+	}
+
+	return nil
+}
+
+// MustNewLocalOnlyDispatcher is a helper that panics on error, for use in initialization where error handling is not practical.
+func MustNewLocalOnlyDispatcher(params DispatcherParameters) dispatch.Dispatcher {
+	dispatcher, err := NewLocalOnlyDispatcher(params)
+	if err != nil {
+		panic(err)
+	}
+	return dispatcher
+}
+
+// NewDefaultDispatcherParametersForTesting returns default dispatcher parameters suitable for testing.
+func NewDefaultDispatcherParametersForTesting() (DispatcherParameters, error) {
+	cacheConfig := &cache.Config{
+		NumCounters: 1e4,     // 10k
+		MaxCost:     1 << 20, // 1MB
+		DefaultTTL:  30 * time.Second,
+	}
+	chunkCache, err := cache.NewStandardCache[cache.StringKey, any](cacheConfig)
+	if err != nil {
+		return DispatcherParameters{}, fmt.Errorf("failed to create test cache: %w", err)
+	}
+
+	return DispatcherParameters{
+		ConcurrencyLimits:      SharedConcurrencyLimits(10),
+		TypeSet:                caveattypes.Default.TypeSet,
+		DispatchChunkSize:      100,
+		RelationshipChunkCache: chunkCache,
+	}, nil
+}
+
+// MustNewDefaultDispatcherParametersForTesting is a helper that panics on error, for use in initialization where error handling is not practical.
+func MustNewDefaultDispatcherParametersForTesting() DispatcherParameters {
+	params, err := NewDefaultDispatcherParametersForTesting()
+	if err != nil {
+		panic(err)
+	}
+	return params
+}
+
+// NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
+func NewLocalOnlyDispatcher(parameters DispatcherParameters) (dispatch.Dispatcher, error) {
+	if err := parameters.validate(); err != nil {
+		return nil, err
+	}
+
 	d := &localDispatcher{}
 
-	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
-	chunkSize := dispatchChunkSize
-	if chunkSize == 0 {
-		chunkSize = 100
-		log.Warn().Msgf("LocalOnlyDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
-	}
+	typeSet := parameters.TypeSet
+	concurrencyLimits := limitsOrDefaults(parameters.ConcurrencyLimits, defaultConcurrencyLimit)
+	chunkSize := parameters.DispatchChunkSize
 
 	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check, chunkSize)
 	d.expander = graph.NewConcurrentExpander(d)
 	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects, chunkSize)
 	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, typeSet, concurrencyLimits.LookupResources, chunkSize)
-	d.lookupResourcesHandler3 = graph.NewCursoredLookupResources3(d, d, typeSet, concurrencyLimits.LookupResources, chunkSize)
 
-	return d
+	lr3, err := graph.NewCursoredLookupResources3(d, d, typeSet, concurrencyLimits.LookupResources, chunkSize, parameters.RelationshipChunkCache)
+	if err != nil {
+		return nil, err
+	}
+
+	d.lookupResourcesHandler3 = lr3
+	return d, nil
 }
 
 // NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
 // the provided redispatcher.
-func NewDispatcher(redispatcher dispatch.Dispatcher, typeSet *caveattypes.TypeSet, concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
-	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
-	chunkSize := dispatchChunkSize
+func NewDispatcher(redispatcher dispatch.Dispatcher, parameters DispatcherParameters) (dispatch.Dispatcher, error) {
+	typeSet := parameters.TypeSet
+	concurrencyLimits := limitsOrDefaults(parameters.ConcurrencyLimits, defaultConcurrencyLimit)
+	chunkSize := parameters.DispatchChunkSize
 	if chunkSize == 0 {
 		chunkSize = 100
 		log.Warn().Msgf("Dispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
@@ -120,15 +181,18 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, typeSet *caveattypes.TypeSe
 	expander := graph.NewConcurrentExpander(redispatcher)
 	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects, chunkSize)
 	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, typeSet, concurrencyLimits.LookupResources, chunkSize)
-	lookupResourcesHandler3 := graph.NewCursoredLookupResources3(redispatcher, redispatcher, typeSet, concurrencyLimits.ReachableResources, chunkSize)
+	lr3, err := graph.NewCursoredLookupResources3(redispatcher, redispatcher, typeSet, concurrencyLimits.ReachableResources, chunkSize, parameters.RelationshipChunkCache)
+	if err != nil {
+		return nil, err
+	}
 
 	return &localDispatcher{
 		checker:                 checker,
 		expander:                expander,
 		lookupSubjectsHandler:   lookupSubjectsHandler,
 		lookupResourcesHandler2: lookupResourcesHandler2,
-		lookupResourcesHandler3: lookupResourcesHandler3,
-	}
+		lookupResourcesHandler3: lr3,
+	}, nil
 }
 
 type localDispatcher struct {

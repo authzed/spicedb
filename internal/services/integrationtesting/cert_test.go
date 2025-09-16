@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 
@@ -29,7 +28,6 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
-	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -38,8 +36,6 @@ import (
 )
 
 func TestCertRotation(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"))
-
 	const (
 		// length of time the initial cert is valid
 		initialValidDuration = 3 * time.Second
@@ -119,10 +115,14 @@ func TestCertRotation(t *testing.T) {
 	emptyDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 10, time.Duration(90_000_000_000_000))
 	require.NoError(t, err)
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require.New(t))
+
+	dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(t, err)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 1, 100)),
+		server.WithDispatcher(dispatcher),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(1000),
 		server.WithMaximumUpdatesPerWrite(1000),

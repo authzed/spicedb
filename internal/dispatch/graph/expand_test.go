@@ -19,7 +19,6 @@ import (
 	expand "github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -295,7 +294,8 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.NoError(err)
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	dispatch := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(err)
 
 	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 		ResourceAndRelation: tuple.CoreONR("folder", "oops", "view"),

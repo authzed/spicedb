@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -16,13 +17,15 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	metricsEnabled        bool
-	prometheusSubsystem   string
-	cache                 cache.Cache[keys.DispatchCacheKey, any]
-	concurrencyLimits     graph.ConcurrencyLimits
-	remoteDispatchTimeout time.Duration
-	dispatchChunkSize     uint16
-	caveatTypeSet         *caveattypes.TypeSet
+	metricsEnabled               bool
+	prometheusSubsystem          string
+	cache                        cache.Cache[keys.DispatchCacheKey, any]
+	concurrencyLimits            graph.ConcurrencyLimits
+	remoteDispatchTimeout        time.Duration
+	dispatchChunkSize            uint16
+	caveatTypeSet                *caveattypes.TypeSet
+	relationshipChunkCacheConfig *cache.Config
+	relationshipChunkCache       cache.Cache[cache.StringKey, any]
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -68,6 +71,20 @@ func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
 	}
 }
 
+// RelationshipChunkCacheConfig sets the cache config for LR3 relationship chunks.
+func RelationshipChunkCacheConfig(config *cache.Config) Option {
+	return func(state *optionState) {
+		state.relationshipChunkCacheConfig = config
+	}
+}
+
+// RelationshipChunkCache sets the cache for LR3 relationship chunks.
+func RelationshipChunkCache(cache cache.Cache[cache.StringKey, any]) Option {
+	return func(state *optionState) {
+		state.relationshipChunkCache = cache
+	}
+}
+
 // CaveatTypeSet sets the type set to use for caveats. If not specified, the default
 // type set is used.
 func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
@@ -92,7 +109,40 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 	}
 
 	cts := caveattypes.TypeSetOrDefault(opts.caveatTypeSet)
-	clusterDispatch := graph.NewDispatcher(dispatch, cts, opts.concurrencyLimits, opts.dispatchChunkSize)
+
+	// Use provided cache or create one from config
+	var relationshipChunkCache cache.Cache[cache.StringKey, any]
+	if opts.relationshipChunkCache != nil {
+		relationshipChunkCache = opts.relationshipChunkCache
+	} else {
+		// Default RelationshipChunkCacheConfig if not provided
+		relationshipChunkCacheConfig := opts.relationshipChunkCacheConfig
+		if relationshipChunkCacheConfig == nil {
+			relationshipChunkCacheConfig = &cache.Config{
+				NumCounters: 1e4,     // 10k
+				MaxCost:     1 << 20, // 1MB
+				DefaultTTL:  30 * time.Second,
+			}
+		}
+
+		// Create cache from config
+		var err error
+		relationshipChunkCache, err = cache.NewStandardCache[cache.StringKey, any](relationshipChunkCacheConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create relationship chunk cache: %w", err)
+		}
+	}
+
+	params := graph.DispatcherParameters{
+		ConcurrencyLimits:      opts.concurrencyLimits,
+		TypeSet:                cts,
+		DispatchChunkSize:      opts.dispatchChunkSize,
+		RelationshipChunkCache: relationshipChunkCache,
+	}
+	clusterDispatch, err := graph.NewDispatcher(dispatch, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cluster dispatcher: %w", err)
+	}
 
 	if opts.prometheusSubsystem == "" {
 		opts.prometheusSubsystem = "dispatch"

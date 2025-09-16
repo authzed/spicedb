@@ -808,7 +808,8 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+			dispatch, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
+			require.NoError(t, err)
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -859,7 +860,8 @@ func TestComputeCheckError(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatch, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(t, err)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -883,7 +885,8 @@ func TestComputeBulkCheck(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatch, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(t, err)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 

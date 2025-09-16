@@ -107,8 +107,9 @@ type Config struct {
 	DispatchSecondaryMaximumPrimaryHedgingDelays map[string]string `debugmap:"visible"`
 	DispatchPrimaryDelayForTesting               time.Duration     `debugmap:"hidden"`
 
-	DispatchCacheConfig        CacheConfig `debugmap:"visible"`
-	ClusterDispatchCacheConfig CacheConfig `debugmap:"visible"`
+	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
+	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
+	LR3ResourceChunkCacheConfig CacheConfig `debugmap:"visible"`
 
 	// API Behavior
 	DisableV1SchemaAPI                       bool          `debugmap:"visible"`
@@ -263,6 +264,14 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	specificConcurrencyLimits := c.DispatchConcurrencyLimits
 	concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
 
+	// Create LR3 resource chunk cache (used by both dispatcher types)
+	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](&c.LR3ResourceChunkCacheConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LR3 resource chunk cache: %w", err)
+	}
+	closeables.AddWithoutError(lr3ChunkCache.Close)
+	log.Ctx(ctx).Info().EmbedObject(lr3ChunkCache).Msg("configured LR3 resource chunk cache")
+
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
 		cc, err := CompleteCache[keys.DispatchCacheKey, any](c.DispatchCacheConfig.WithRevisionParameters(
@@ -311,6 +320,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimits(concurrencyLimits),
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
+			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
 		)
 		if err != nil {
@@ -350,6 +360,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			clusterdispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
 			clusterdispatch.DispatchChunkSize(c.DispatchChunkSize),
+			clusterdispatch.RelationshipChunkCache(lr3ChunkCache),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)

@@ -7,7 +7,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/ccoveille/go-safecast"
 	"github.com/google/uuid"
@@ -22,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph/hints"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
+	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -37,18 +37,27 @@ import (
 const lr3DispatchVersion = 3
 
 // NewCursoredLookupResources3 creates a new CursoredLookupResources3 instance with the given parameters.
-func NewCursoredLookupResources3(dl dispatch.LookupResources3, dc dispatch.Check, caveatTypeSet *caveattypes.TypeSet, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredLookupResources3 {
-	return &CursoredLookupResources3{
-		dl:                dl,
-		dc:                dc,
-		caveatTypeSet:     caveatTypeSet,
-		concurrencyLimit:  concurrencyLimit,
-		dispatchChunkSize: dispatchChunkSize,
-		digestMap:         digests.NewDigestMap(),
-
-		// TODO: have a real cache config here.
-		relationshipsChunkCache: newRelationshipsChunkCache(),
+func NewCursoredLookupResources3(
+	dl dispatch.LookupResources3,
+	dc dispatch.Check,
+	caveatTypeSet *caveattypes.TypeSet,
+	concurrencyLimit uint16,
+	dispatchChunkSize uint16,
+	chunkCache cache.Cache[cache.StringKey, any],
+) (*CursoredLookupResources3, error) {
+	rcc := &relationshipsChunkCache{
+		cache: chunkCache,
 	}
+
+	return &CursoredLookupResources3{
+		dl:                      dl,
+		dc:                      dc,
+		caveatTypeSet:           caveatTypeSet,
+		concurrencyLimit:        concurrencyLimit,
+		dispatchChunkSize:       dispatchChunkSize,
+		digestMap:               digests.NewDigestMap(),
+		relationshipsChunkCache: rcc,
+	}, nil
 }
 
 // CursoredLookupResources3 is a dispatch implementation for the LookupResources3 operation.
@@ -1126,6 +1135,20 @@ func (rm *relationshipsChunk) isPopulated() bool {
 	return len(rm.subjectsByResourceID) > 0
 }
 
+// estimatedSize returns an estimate of the size of the relationships chunk. Used for the cost
+// portion of the cache.
+func (rm *relationshipsChunk) estimatedSize() int {
+	estimatedCost := 100 // estimated base cost
+	for resourceID, subjects := range rm.subjectsByResourceID {
+		estimatedCost += len(resourceID)
+		for subjectID, info := range subjects {
+			estimatedCost += len(subjectID)
+			estimatedCost += info.missingContextParams.Len() * 10
+		}
+	}
+	return estimatedCost
+}
+
 // addRelationship adds a relationship to the relationships chunk, creating the necessary
 // resource and subject entries if they do not exist. It also collects any missing context parameters
 // that were found during the relationship processing.
@@ -1285,27 +1308,32 @@ func subjectIDsToRelationshipsChunk(
 }
 
 type relationshipsChunkCache struct {
-	chunks map[string]*relationshipsChunk
-	lock   sync.RWMutex
-}
-
-func newRelationshipsChunkCache() *relationshipsChunkCache {
-	return &relationshipsChunkCache{
-		chunks: make(map[string]*relationshipsChunk),
-	}
+	cache cache.Cache[cache.StringKey, any]
 }
 
 func (crc *relationshipsChunkCache) storeRelationshipsChunk(rm *relationshipsChunk) {
-	crc.lock.Lock()
-	defer crc.lock.Unlock()
-	crc.chunks[rm.uniqueID] = rm
+	if crc.cache == nil {
+		return // caching is disabled
+	}
+	crc.cache.Set(cache.StringKey(rm.uniqueID), rm, int64(rm.estimatedSize()))
 }
 
 func (crc *relationshipsChunkCache) lookupChunkByID(chunkID string) (*relationshipsChunk, bool) {
-	crc.lock.RLock()
-	defer crc.lock.RUnlock()
-	rm, ok := crc.chunks[chunkID]
-	return rm, ok
+	if crc.cache == nil {
+		return nil, false // caching is disabled
+	}
+
+	value, found := crc.cache.Get(cache.StringKey(chunkID))
+	if !found {
+		return nil, false
+	}
+
+	chunk, ok := value.(*relationshipsChunk)
+	if !ok {
+		return nil, false
+	}
+
+	return chunk, true
 }
 
 const dsIndexPrefix = "$dsi:"
