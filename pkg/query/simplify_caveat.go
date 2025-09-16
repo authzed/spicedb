@@ -30,6 +30,47 @@ func mergeContexts(expr *core.CaveatExpression, queryContext map[string]any) map
 	return fullContext
 }
 
+// mergeContextsForExpression recursively merges contexts for complex expressions
+// For AND/OR expressions, it collects all relationship contexts from all children
+func mergeContextsForExpression(expr *core.CaveatExpression, queryContext map[string]any) map[string]any {
+	fullContext := make(map[string]any)
+
+	// Collect all relationship contexts from the expression tree
+	collectRelationshipContexts(expr, fullContext)
+
+	// Overlay with query-time context (takes precedence)
+	if queryContext != nil {
+		for k, v := range queryContext {
+			fullContext[k] = v
+		}
+	}
+
+	return fullContext
+}
+
+// collectRelationshipContexts recursively collects relationship contexts from a caveat expression tree
+func collectRelationshipContexts(expr *core.CaveatExpression, contextMap map[string]any) {
+	if expr == nil {
+		return
+	}
+
+	// If this is a leaf caveat, collect its context
+	if expr.GetCaveat() != nil && expr.GetCaveat().Context != nil {
+		for k, v := range expr.GetCaveat().Context.AsMap() {
+			if _, exists := contextMap[k]; !exists {
+				contextMap[k] = v
+			}
+		}
+	}
+
+	// If this is an operation, recursively collect from children
+	if expr.GetOperation() != nil {
+		for _, child := range expr.GetOperation().Children {
+			collectRelationshipContexts(child, contextMap)
+		}
+	}
+}
+
 // SimplifyCaveatExpression simplifies a caveat expression by applying AND/OR logic:
 // - For AND: if a caveat evaluates to true, remove it from the expression
 // - For OR: if a caveat evaluates to true, the entire expression becomes true
@@ -47,6 +88,7 @@ func SimplifyCaveatExpression(
 	if err := runner.PopulateCaveatDefinitionsForExpr(ctx, expr, reader); err != nil {
 		return nil, false, err
 	}
+
 
 	return simplifyCaveatExpressionInternal(ctx, runner, expr, context, reader)
 }
@@ -79,8 +121,15 @@ func evaluateLeaf(
 	context map[string]any,
 	reader datastore.CaveatReader,
 ) (*core.CaveatExpression, bool, error) {
-	// Merge relationship context with query context
-	fullContext := mergeContexts(expr, context)
+	// For complex expressions (AND/OR), we need to collect contexts from the entire expression tree
+	var fullContext map[string]any
+	if expr.GetOperation() != nil {
+		// Complex expression - collect all relationship contexts
+		fullContext = mergeContextsForExpression(expr, context)
+	} else {
+		// Simple leaf caveat - use simple context merging
+		fullContext = mergeContexts(expr, context)
+	}
 
 	result, err := runner.RunCaveatExpression(ctx, expr, fullContext, reader, caveats.RunCaveatExpressionNoDebugging)
 	if err != nil {

@@ -58,13 +58,11 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
 
-		// Should return results since alice is in ALL teams
-		require.Len(paths, 2, "Should return paths for both teams since alice is in all of them")
+		// Should return a single result since alice is in ALL teams (intersection semantics)
+		require.Len(paths, 1, "Should return single path representing the intersection")
 
-		// Verify the results - all results should have alice as the subject
-		for _, path := range paths {
-			require.Equal("alice", path.Subject.ObjectID, "All results should have alice as the subject")
-		}
+		// Verify the result has alice as the subject
+		require.Equal("alice", paths[0].Subject.ObjectID, "Result should have alice as the subject")
 	})
 
 	t.Run("NotAllSubjectsSatisfyCondition", func(t *testing.T) {
@@ -242,13 +240,11 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		paths, err := CollectAll(pathSeq)
 		require.NoError(err)
 
-		// Should return results for all three teams
-		require.Len(paths, 3, "Should return paths for all three teams")
+		// Should return a single result representing the intersection of all three teams
+		require.Len(paths, 1, "Should return single path representing the intersection")
 
-		// Verify all results have alice as the subject
-		for _, path := range paths {
-			require.Equal("alice", path.Subject.ObjectID, "All results should have alice as the subject")
-		}
+		// Verify the result has alice as the subject
+		require.Equal("alice", paths[0].Subject.ObjectID, "Result should have alice as the subject")
 	})
 
 	t.Run("EmptyResources", func(t *testing.T) {
