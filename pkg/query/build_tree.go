@@ -180,6 +180,12 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		return base, nil
 	}
 
+	// For relation references in schema definitions (like group#member in "relation member: user | group#member"),
+	// we always need to resolve what the referenced relation means, even if withSubRelations=false.
+	// The withSubRelations flag controls whether we build arrows for nested traversal, but relation
+	// references in the schema definition itself must always be resolved.
+	// However, we still need to prevent infinite recursion.
+
 	// We must check the effective arrow of a subrelation if we have one and subrelations are enabled
 	// (subrelations are disabled in cases of actual arrows)
 	union := NewUnion()

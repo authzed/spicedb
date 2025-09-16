@@ -57,7 +57,10 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 }
 
 func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	// If the subject type doesn't match the base relation type, return no results
+	// RelationIterator always enforces strict type matching at the leaf level.
+	// Type bridging through subrelations (e.g., group#member) is handled by the Arrow iterator
+	// that wraps this RelationIterator, not by the RelationIterator itself.
+	// See buildBaseRelationIterator in build_tree.go - it creates Union(base, Arrow(base, subrel))
 	if subject.ObjectType != r.base.Type() {
 		ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
 		return EmptyPathSeq(), nil
