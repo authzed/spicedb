@@ -143,25 +143,44 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 					combinedLeftCaveat = leftExpr
 				}
 
-				// Now combine the combined left caveat with each result's right-side caveat
-				for _, result := range validResults {
-					finalCaveat := combinedLeftCaveat
-					if result.Caveat != nil {
-						if combinedLeftCaveat != nil {
-							finalCaveat = caveats.And(combinedLeftCaveat, result.Caveat)
-						} else {
-							finalCaveat = result.Caveat
-						}
+				// For intersection semantics, we need to create a single path that represents
+				// the AND of all individual conditions: each (leftCaveat AND rightCaveat) must be AND'd together
+				var intersectionCaveat *core.CaveatExpression
+
+				for i, result := range validResults {
+					// Combine this result's left and right caveats
+					var resultCaveat *core.CaveatExpression
+					if combinedLeftCaveat != nil && result.Caveat != nil {
+						resultCaveat = caveats.And(combinedLeftCaveat, result.Caveat)
+					} else if combinedLeftCaveat != nil {
+						resultCaveat = combinedLeftCaveat
+					} else if result.Caveat != nil {
+						resultCaveat = result.Caveat
 					}
 
+					// For intersection (ALL), we AND each result's combined caveat
+					if i == 0 {
+						intersectionCaveat = resultCaveat
+					} else if resultCaveat != nil {
+						if intersectionCaveat != nil {
+							intersectionCaveat = caveats.And(intersectionCaveat, resultCaveat)
+						} else {
+							intersectionCaveat = resultCaveat
+						}
+					}
+				}
+
+				// Return a single path representing the intersection
+				if len(validResults) > 0 {
+					firstResult := validResults[0]
 					finalResult := &Path{
-						Resource:   result.Resource,
-						Relation:   result.Relation,
-						Subject:    result.Subject,
-						Caveat:     finalCaveat,
-						Expiration: result.Expiration,
-						Integrity:  result.Integrity,
-						Metadata:   result.Metadata,
+						Resource:   firstResult.Resource,
+						Relation:   firstResult.Relation,
+						Subject:    firstResult.Subject,
+						Caveat:     intersectionCaveat,
+						Expiration: firstResult.Expiration,
+						Integrity:  firstResult.Integrity,
+						Metadata:   firstResult.Metadata,
 					}
 
 					finalResults = append(finalResults, finalResult)
