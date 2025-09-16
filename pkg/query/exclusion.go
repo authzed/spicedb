@@ -1,6 +1,7 @@
 package query
 
 import (
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -43,22 +44,19 @@ func combineExclusionCaveats(mainPath, excludedPath *Path) *Path {
 	// Main applies unconditionally, excluded applies conditionally
 	// Result: main path with caveat NOT(excluded_caveat)
 	if mainPath.Caveat == nil && excludedPath.Caveat != nil {
-		// For now, return main with excluded caveat negated
-		// This is complex because we'd need to negate the caveat expression
-		// For simplicity, let's return the main path with the excluded caveat
-		// This represents "main applies, but only when excluded caveat is false"
+		// Return main path with negated excluded caveat
+		// This represents "main applies when excluded caveat is false"
 		result := *mainPath
-		result.Caveat = excludedPath.Caveat
+		result.Caveat = caveats.Invert(excludedPath.Caveat)
 		return &result
 	}
 
 	// Case 4: Main has caveat, excluded has caveat
 	// Result should be: main_caveat AND NOT(excluded_caveat)
-	// This is complex to implement properly, so for now return main caveat
 	if mainPath.Caveat != nil && excludedPath.Caveat != nil {
-		// For now, return main with main caveat (simplified approach)
-		// TODO: Implement proper caveat negation and combination
+		// Return main path with combined caveat: main_caveat AND NOT(excluded_caveat)
 		result := *mainPath
+		result.Caveat = caveats.And(mainPath.Caveat, caveats.Invert(excludedPath.Caveat))
 		return &result
 	}
 
