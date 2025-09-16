@@ -8,6 +8,28 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+// mergeContexts combines relationship context from a caveat expression with query context
+// Query context takes precedence over relationship context
+func mergeContexts(expr *core.CaveatExpression, queryContext map[string]any) map[string]any {
+	fullContext := make(map[string]any)
+
+	// Start with the relationship context from the caveat expression
+	if expr.GetCaveat() != nil && expr.GetCaveat().Context != nil {
+		for k, v := range expr.GetCaveat().Context.AsMap() {
+			fullContext[k] = v
+		}
+	}
+
+	// Overlay with query-time context (takes precedence)
+	if queryContext != nil {
+		for k, v := range queryContext {
+			fullContext[k] = v
+		}
+	}
+
+	return fullContext
+}
+
 // SimplifyCaveatExpression simplifies a caveat expression by applying AND/OR logic:
 // - For AND: if a caveat evaluates to true, remove it from the expression
 // - For OR: if a caveat evaluates to true, the entire expression becomes true
@@ -57,7 +79,10 @@ func evaluateLeaf(
 	context map[string]any,
 	reader datastore.CaveatReader,
 ) (*core.CaveatExpression, bool, error) {
-	result, err := runner.RunCaveatExpression(ctx, expr, context, reader, caveats.RunCaveatExpressionNoDebugging)
+	// Merge relationship context with query context
+	fullContext := mergeContexts(expr, context)
+
+	result, err := runner.RunCaveatExpression(ctx, expr, fullContext, reader, caveats.RunCaveatExpressionNoDebugging)
 	if err != nil {
 		return nil, false, err
 	}
