@@ -167,10 +167,6 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		b.collectedCaveats = append(b.collectedCaveats, caveat)
 	}
 
-	if !withSubRelations {
-		return base, nil
-	}
-
 	if br.Subrelation == tuple.Ellipsis {
 		return base, nil
 	}
@@ -180,15 +176,27 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		return base, nil
 	}
 
-	// We must check the effective arrow of a subrelation if we have one and subrelations are enabled
-	// (subrelations are disabled in cases of actual arrows)
-	union := NewUnion()
-	union.addSubIterator(base)
+	// For relation references in schema definitions (like group#member in "relation member: user | group#member"),
+	// we always need to resolve what the referenced relation means, even if withSubRelations=false.
+	// The withSubRelations flag controls whether we build arrows for nested traversal, but relation
+	// references in the schema definition itself must always be resolved.
+	// However, we still need to prevent infinite recursion.
 
 	rightside, err := b.buildIteratorFromSchemaInternal(br.Type, br.Subrelation, false)
 	if err != nil {
 		return nil, err
 	}
+
+	// If withSubRelations is false, we only return the rightside (direct relation lookup)
+	// If withSubRelations is true, we create an arrow for traversal
+	if !withSubRelations {
+		return rightside, nil
+	}
+
+	// We must check the effective arrow of a subrelation if we have one and subrelations are enabled
+	// (subrelations are disabled in cases of actual arrows)
+	union := NewUnion()
+	union.addSubIterator(base)
 
 	arrow := NewArrow(base.Clone(), rightside)
 	union.addSubIterator(arrow)

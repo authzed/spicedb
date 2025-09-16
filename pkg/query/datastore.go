@@ -57,8 +57,16 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 }
 
 func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	// If the subject type doesn't match the base relation type, return no results
-	if subject.ObjectType != r.base.Type {
+	// For subrelations, we need to allow type mismatches because the subrelation might bridge different types
+	// For example, group:member -> group:member should find group:everyone#member@group:engineering#member
+	// and then that relationship should be used by the Arrow to check group:engineering#member for user subjects
+	if subject.ObjectType != r.base.Type && r.base.Subrelation != "" {
+		// For subrelations, we proceed with the query even if types don't match
+		// This allows finding intermediate relationships that bridge type gaps
+		ctx.TraceStep(r, "subject type %s doesn't match base type %s, but proceeding due to subrelation %s",
+			subject.ObjectType, r.base.Type, r.base.Subrelation)
+	} else if subject.ObjectType != r.base.Type {
+		// For non-subrelations, strict type checking still applies
 		ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type)
 		return EmptyPathSeq(), nil
 	}
