@@ -238,15 +238,9 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatE
 		return nil, true, nil
 	}
 
-	// Check if the path's caveat name matches the iterator's caveat name
-	pathCaveatName := ""
-	if path.Caveat.GetCaveat() != nil {
-		pathCaveatName = path.Caveat.GetCaveat().CaveatName
-	}
-
-	// If caveat names don't match, filter out the path
-	if pathCaveatName != c.caveat.CaveatName {
-		return nil, false, nil // Path doesn't match caveat name, so it doesn't pass
+	// For complex caveat expressions, check if any leaf caveat matches the expected name
+	if !c.containsExpectedCaveat(path.Caveat) {
+		return nil, false, nil // Path doesn't contain the expected caveat name, so it doesn't pass
 	}
 
 	// Use the CaveatRunner from the context if available
@@ -291,22 +285,51 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatE
 
 // buildCaveatContext combines the path's caveat context with query-time context
 func (c *CaveatIterator) buildCaveatContext(ctx *Context, pathCaveat *core.CaveatExpression) map[string]any {
+	// For complex caveat expressions (OR, AND, etc.), we should only pass the query context
+	// The SimplifyCaveatExpression will handle merging relationship contexts for each leaf
 	contextMap := make(map[string]any)
 
-	// Start with the path's caveat context if available
-	if pathCaveat != nil && pathCaveat.GetCaveat() != nil && pathCaveat.GetCaveat().Context != nil {
-		contextMap = pathCaveat.GetCaveat().Context.AsMap()
-	}
-
-	// Overlay query-time context if available
+	// Only use query-time context - let SimplifyCaveatExpression handle relationship contexts
 	if ctx.CaveatContext != nil {
-		// Merge the global query-time context, with query context taking precedence over relationship context
 		for k, v := range ctx.CaveatContext {
 			contextMap[k] = v
 		}
 	}
 
 	return contextMap
+}
+
+// containsExpectedCaveat checks if a caveat expression contains the expected caveat name
+// This works for both simple caveats and complex expressions (AND/OR)
+func (c *CaveatIterator) containsExpectedCaveat(expr *core.CaveatExpression) bool {
+	if c.caveat == nil {
+		return true // No expected caveat, so any expression passes
+	}
+
+	return c.containsCaveatName(expr, c.caveat.CaveatName)
+}
+
+// containsCaveatName recursively checks if a caveat expression contains a specific caveat name
+func (c *CaveatIterator) containsCaveatName(expr *core.CaveatExpression, expectedName string) bool {
+	if expr == nil {
+		return false
+	}
+
+	// Check if this is a leaf caveat
+	if expr.GetCaveat() != nil {
+		return expr.GetCaveat().CaveatName == expectedName
+	}
+
+	// Check if this is an operation with children
+	if expr.GetOperation() != nil {
+		for _, child := range expr.GetOperation().Children {
+			if c.containsCaveatName(child, expectedName) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (c *CaveatIterator) Clone() Iterator {
