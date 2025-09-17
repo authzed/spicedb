@@ -47,6 +47,15 @@ var (
 		MaxCost:             "70%",
 		CacheKindForTesting: "",
 	}
+
+	lr3ChunkCacheDefaults = &server.CacheConfig{
+		Name:                "lr3_chunk",
+		Enabled:             true,
+		Metrics:             false,
+		NumCounters:         10_000,
+		MaxCost:             "50MiB",
+		CacheKindForTesting: "",
+	}
 )
 
 func BoldBlue(name string) string {
@@ -170,6 +179,8 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	if err := experimentalFlags.MarkDeprecated("enable-experimental-lookup-resources", "do not use; this flag is unused and will be removed in a future version"); err != nil {
 		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
+
+	server.MustRegisterCacheFlags(experimentalFlags, "lookup-resources-chunk-cache", &config.LR3ResourceChunkCacheConfig, lr3ChunkCacheDefaults)
 
 	tracingFlags := nfs.FlagSet(BoldBlue("Tracing"))
 	// Flags for tracing

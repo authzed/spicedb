@@ -23,8 +23,6 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-const defaultConcurrencyLimit = 10
-
 // ConsistencyClusterAndData holds a connection to a SpiceDB "cluster" (size 1)
 // running the V1 API for the given data.
 type ConsistencyClusterAndData struct {
@@ -79,12 +77,20 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 // caching enabled.
 func CreateDispatcherForTesting(t *testing.T, withCaching bool) dispatch.Dispatcher {
 	require := require.New(t)
-	dispatcher := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, defaultConcurrencyLimit, 100)
+	params, err := graph.NewDefaultDispatcherParametersForTesting()
+	require.NoError(err)
+	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
+	require.NoError(err)
 	if withCaching {
 		cachingDispatcher, err := caching.NewCachingDispatcher(nil, false, "", &keys.CanonicalKeyHandler{})
 		require.NoError(err)
 
-		localDispatcher := graph.NewDispatcher(cachingDispatcher, caveattypes.Default.TypeSet, graph.SharedConcurrencyLimits(10), 100)
+		params2, err := graph.NewDefaultDispatcherParametersForTesting()
+		require.NoError(err)
+		params := params2
+		params.ConcurrencyLimits = graph.SharedConcurrencyLimits(10)
+		localDispatcher, err := graph.NewDispatcher(cachingDispatcher, params)
+		require.NoError(err)
 		t.Cleanup(func() {
 			err := localDispatcher.Close()
 			require.NoError(err)

@@ -78,6 +78,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
+		to.LR3ResourceChunkCacheConfig = c.LR3ResourceChunkCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
 		to.V1SchemaAdditiveOnly = c.V1SchemaAdditiveOnly
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
@@ -151,6 +152,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = helpers.DebugValue(c.DispatchSecondaryMaximumPrimaryHedgingDelays, false)
 	debugMap["DispatchCacheConfig"] = helpers.DebugValue(c.DispatchCacheConfig, false)
 	debugMap["ClusterDispatchCacheConfig"] = helpers.DebugValue(c.ClusterDispatchCacheConfig, false)
+	debugMap["LR3ResourceChunkCacheConfig"] = helpers.DebugValue(c.LR3ResourceChunkCacheConfig, false)
 	debugMap["DisableV1SchemaAPI"] = helpers.DebugValue(c.DisableV1SchemaAPI, false)
 	debugMap["V1SchemaAdditiveOnly"] = helpers.DebugValue(c.V1SchemaAdditiveOnly, false)
 	debugMap["MaximumUpdatesPerWrite"] = helpers.DebugValue(c.MaximumUpdatesPerWrite, false)
@@ -506,6 +508,13 @@ func WithDispatchCacheConfig(dispatchCacheConfig CacheConfig) ConfigOption {
 func WithClusterDispatchCacheConfig(clusterDispatchCacheConfig CacheConfig) ConfigOption {
 	return func(c *Config) {
 		c.ClusterDispatchCacheConfig = clusterDispatchCacheConfig
+	}
+}
+
+// WithLR3ResourceChunkCacheConfig returns an option that can set LR3ResourceChunkCacheConfig on a Config
+func WithLR3ResourceChunkCacheConfig(lR3ResourceChunkCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.LR3ResourceChunkCacheConfig = lR3ResourceChunkCacheConfig
 	}
 }
 

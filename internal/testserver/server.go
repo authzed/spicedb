@@ -82,10 +82,18 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 		lrver = "lr3"
 	}
 
+	params, err := graph.NewDefaultDispatcherParametersForTesting()
+	require.NoError(err)
+
+	params.TypeSet = cts
+
+	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
+	require.NoError(err)
+
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithEnableExperimentalRelationshipExpiration(true),
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(cts, 10, 100)),
+		server.WithDispatcher(dispatcher),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),

@@ -33,27 +33,27 @@ func TestCursorIntHeadValue(t *testing.T) {
 		{
 			name:              "multiple values",
 			cursor:            Cursor{"123", "456", "789"},
-			expectedValue:     123,
-			expectedRemaining: Cursor{"456", "789"},
+			expectedValue:     789,
+			expectedRemaining: Cursor{"123", "456"},
 			expectedError:     false,
 		},
 		{
 			name:              "negative integer",
-			cursor:            Cursor{"-99", "positive"},
+			cursor:            Cursor{"positive", "-99"},
 			expectedValue:     -99,
 			expectedRemaining: Cursor{"positive"},
 			expectedError:     false,
 		},
 		{
 			name:              "zero value",
-			cursor:            Cursor{"0", "next"},
+			cursor:            Cursor{"next", "0"},
 			expectedValue:     0,
 			expectedRemaining: Cursor{"next"},
 			expectedError:     false,
 		},
 		{
 			name:              "invalid integer",
-			cursor:            Cursor{"not-a-number", "456"},
+			cursor:            Cursor{"456", "not-a-number"},
 			expectedValue:     0,
 			expectedRemaining: nil,
 			expectedError:     true,
@@ -101,8 +101,8 @@ func TestCursorCustomHeadValue(t *testing.T) {
 		c := Cursor{"hello", "world"}
 		value, remaining, err := CursorCustomHeadValue(c, stringConverter)
 		require.NoError(t, err)
-		require.Equal(t, "hello", value)
-		require.Equal(t, Cursor{"world"}, remaining)
+		require.Equal(t, "world", value)
+		require.Equal(t, Cursor{"hello"}, remaining)
 	})
 
 	// Test with custom converter that fails
@@ -114,7 +114,7 @@ func TestCursorCustomHeadValue(t *testing.T) {
 	}
 
 	t.Run("failing converter", func(t *testing.T) {
-		c := Cursor{"fail", "other"}
+		c := Cursor{"other", "fail"}
 		value, remaining, err := CursorCustomHeadValue(c, failingConverter)
 		require.Error(t, err)
 		require.Equal(t, 0, value)
@@ -126,8 +126,8 @@ func TestCursorCustomHeadValue(t *testing.T) {
 		c := Cursor{"hello", "world"}
 		value, remaining, err := CursorCustomHeadValue(c, failingConverter)
 		require.NoError(t, err)
-		require.Equal(t, 5, value) // length of "hello"
-		require.Equal(t, Cursor{"world"}, remaining)
+		require.Equal(t, 5, value) // length of "world"
+		require.Equal(t, Cursor{"hello"}, remaining)
 	})
 
 	// Test with float converter
@@ -139,8 +139,8 @@ func TestCursorCustomHeadValue(t *testing.T) {
 		c := Cursor{"3.14", "2.71"}
 		value, remaining, err := CursorCustomHeadValue(c, floatConverter)
 		require.NoError(t, err)
-		require.Equal(t, 3.14, value)
-		require.Equal(t, Cursor{"2.71"}, remaining)
+		require.Equal(t, 2.71, value)
+		require.Equal(t, Cursor{"3.14"}, remaining)
 	})
 
 	t.Run("float converter with empty Cursor", func(t *testing.T) {
@@ -159,12 +159,12 @@ func TestCursorCustomHeadValue(t *testing.T) {
 		c := Cursor{"true", "false"}
 		value, remaining, err := CursorCustomHeadValue(c, boolConverter)
 		require.NoError(t, err)
-		require.Equal(t, true, value)
-		require.Equal(t, Cursor{"false"}, remaining)
+		require.Equal(t, false, value)
+		require.Equal(t, Cursor{"true"}, remaining)
 	})
 
 	t.Run("bool converter failure", func(t *testing.T) {
-		c := Cursor{"maybe", "false"}
+		c := Cursor{"false", "maybe"}
 		value, remaining, err := CursorCustomHeadValue(c, boolConverter)
 		require.Error(t, err)
 		require.Equal(t, false, value)
@@ -194,5 +194,30 @@ func TestCursorType(t *testing.T) {
 		var nilCursor Cursor
 		require.Len(t, nilCursor, 0)
 		require.True(t, len(nilCursor) == 0)
+	})
+}
+
+func TestCursorWithHead(t *testing.T) {
+	t.Run("withHead creates different cursors with expected values", func(t *testing.T) {
+		// Start with an initial cursor
+		originalCursor := Cursor{"initial", "value"}
+
+		// Call withHead twice with different values
+		cursor1 := originalCursor.withHead("first")
+		cursor2 := originalCursor.withHead("second")
+
+		// Verify all three cursors are different
+		require.NotEqual(t, originalCursor, cursor1, "original and cursor1 should be different")
+		require.NotEqual(t, originalCursor, cursor2, "original and cursor2 should be different")
+		require.NotEqual(t, cursor1, cursor2, "cursor1 and cursor2 should be different")
+
+		// Verify each cursor equals what is expected
+		expectedOriginal := Cursor{"initial", "value"}
+		expectedCursor1 := Cursor{"initial", "value", "first"}
+		expectedCursor2 := Cursor{"initial", "value", "second"}
+
+		require.Equal(t, expectedOriginal, originalCursor, "original cursor should match expected")
+		require.Equal(t, expectedCursor1, cursor1, "cursor1 should match expected")
+		require.Equal(t, expectedCursor2, cursor2, "cursor2 should match expected")
 	})
 }

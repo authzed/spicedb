@@ -19,7 +19,6 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -171,7 +170,8 @@ func TestMaxDepth(t *testing.T) {
 	revision, err := common.UpdateRelationshipsInDatastore(ctx, ds, mutation)
 	require.NoError(err)
 
-	dispatch := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(err)
 
 	_, err = dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("folder", "view").ToCoreRR(),
@@ -1419,7 +1419,8 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+			dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+			require.NoError(err)
 
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
@@ -1924,7 +1925,8 @@ func TestCheckWithHints(t *testing.T) {
 
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+			dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+			require.NoError(err)
 
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
@@ -1964,7 +1966,8 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(err)
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -2010,7 +2013,8 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	dispatcher := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(err)
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -2063,7 +2067,8 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 
-	dispatch := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, concurrencyLimit, 100)
+	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(t, err)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
 	require.NoError(t, err)
@@ -2085,7 +2090,8 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schema, rels, require.New(t))
 
-	dispatch := NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, 10, 100)
+	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(t, err)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
 	require.NoError(t, err)

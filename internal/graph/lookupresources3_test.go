@@ -13,14 +13,14 @@ import (
 )
 
 func TestRelationshipsChunkEmpty(t *testing.T) {
-	rm := newRelationshipsChunk(0)
+	rm := newRelationshipsChunk(0, nil)
 	require.False(t, rm.isPopulated())
 	require.Empty(t, rm.subjectIDsToDispatch())
-	require.Nil(t, rm.afterCursor())
+	// afterCursor functionality is not available in the new implementation
 }
 
 func TestRelationshipsChunkAddRelationship(t *testing.T) {
-	rm := newRelationshipsChunk(5)
+	rm := newRelationshipsChunk(5, nil)
 
 	rel1 := tuple.MustParse("document:doc1#viewer@user:alice")
 	rel2 := tuple.MustParse("document:doc2#viewer@user:bob")
@@ -42,12 +42,16 @@ func TestRelationshipsChunkAddRelationship(t *testing.T) {
 	require.Equal(t, 2, count) // Still 2 resources
 	require.ElementsMatch(t, []string{"doc1", "doc2"}, rm.subjectIDsToDispatch())
 
-	// Verify relationship count
-	require.Len(t, rm.underlyingCursor.OrderedRelationships, 3)
+	// Verify that we have relationships for doc1 with 2 subjects (alice, charlie)
+	// and doc2 with 1 subject (bob)
+	require.Contains(t, rm.subjectsByResourceID, "doc1")
+	require.Contains(t, rm.subjectsByResourceID, "doc2")
+	require.Len(t, rm.subjectsByResourceID["doc1"], 2) // alice and charlie
+	require.Len(t, rm.subjectsByResourceID["doc2"], 1) // bob
 }
 
 func TestRelationshipsChunkAddRelationshipWithMissingContext(t *testing.T) {
-	rm := newRelationshipsChunk(5)
+	rm := newRelationshipsChunk(5, nil)
 
 	rel := tuple.MustParse("document:doc1#viewer@user:alice")
 	missingParams := []string{"param1", "param2"}
@@ -58,15 +62,14 @@ func TestRelationshipsChunkAddRelationshipWithMissingContext(t *testing.T) {
 	require.Equal(t, []string{"doc1"}, rm.subjectIDsToDispatch())
 
 	// Check that missing context parameters were stored
-	resource := rm.underlyingCursor.Resources["doc1"]
-	require.NotNil(t, resource)
-	subject := resource.MissingContextBySubjectId["alice"]
-	require.NotNil(t, subject)
-	require.ElementsMatch(t, missingParams, subject.MissingContextParams)
+	require.Contains(t, rm.subjectsByResourceID, "doc1")
+	require.Contains(t, rm.subjectsByResourceID["doc1"], "alice")
+	subjectInfo := rm.subjectsByResourceID["doc1"]["alice"]
+	require.ElementsMatch(t, missingParams, subjectInfo.missingContextParams.AsSlice())
 }
 
 func TestRelationshipsChunkAddRelationshipMergesMissingContext(t *testing.T) {
-	rm := newRelationshipsChunk(5)
+	rm := newRelationshipsChunk(5, nil)
 
 	rel := tuple.MustParse("document:doc1#viewer@user:alice")
 
@@ -77,14 +80,15 @@ func TestRelationshipsChunkAddRelationshipMergesMissingContext(t *testing.T) {
 	rm.addRelationship(rel, []string{"param2", "param3"})
 
 	// Verify merged missing context
-	resource := rm.underlyingCursor.Resources["doc1"]
-	subject := resource.MissingContextBySubjectId["alice"]
-	require.ElementsMatch(t, []string{"param1", "param2", "param3"}, subject.MissingContextParams)
+	require.Contains(t, rm.subjectsByResourceID, "doc1")
+	require.Contains(t, rm.subjectsByResourceID["doc1"], "alice")
+	subjectInfo := rm.subjectsByResourceID["doc1"]["alice"]
+	require.ElementsMatch(t, []string{"param1", "param2", "param3"}, subjectInfo.missingContextParams.AsSlice())
 }
 
 func TestRelationshipsChunkCopyRelationshipsFrom(t *testing.T) {
 	// Create source chunk
-	src := newRelationshipsChunk(5)
+	src := newRelationshipsChunk(5, nil)
 	rel1 := tuple.MustParse("document:doc1#viewer@user:alice")
 	rel2 := tuple.MustParse("document:doc2#viewer@user:bob")
 	rel3 := tuple.MustParse("document:doc1#editor@user:charlie")
@@ -96,46 +100,40 @@ func TestRelationshipsChunkCopyRelationshipsFrom(t *testing.T) {
 	// Validate source chunk is populated
 	require.True(t, src.isPopulated())
 	require.ElementsMatch(t, []string{"doc1", "doc2"}, src.subjectIDsToDispatch())
-	require.Len(t, src.underlyingCursor.OrderedRelationships, 3)
+	require.Contains(t, src.subjectsByResourceID, "doc1")
+	require.Contains(t, src.subjectsByResourceID, "doc2")
+	require.Len(t, src.subjectsByResourceID["doc1"], 2) // alice and charlie
+	require.Len(t, src.subjectsByResourceID["doc2"], 1) // bob
 
 	// Verify missing context in source
-	resource := src.underlyingCursor.Resources["doc1"]
-	require.NotNil(t, resource)
+	aliceSubjectInfo := src.subjectsByResourceID["doc1"]["alice"]
+	require.ElementsMatch(t, []string{"param1"}, aliceSubjectInfo.missingContextParams.AsSlice())
 
-	aliceSubject := resource.MissingContextBySubjectId["alice"]
-	require.NotNil(t, aliceSubject)
-	require.ElementsMatch(t, []string{"param1"}, aliceSubject.MissingContextParams)
-
-	charlieSubject := resource.MissingContextBySubjectId["charlie"]
-	require.NotNil(t, charlieSubject)
-	require.ElementsMatch(t, []string{"param2"}, charlieSubject.MissingContextParams)
+	charlieSubjectInfo := src.subjectsByResourceID["doc1"]["charlie"]
+	require.ElementsMatch(t, []string{"param2"}, charlieSubjectInfo.missingContextParams.AsSlice())
 
 	// Create destination chunk
-	dest := newRelationshipsChunk(5)
+	dest := newRelationshipsChunk(5, nil)
 
 	// Copy relationships for doc1 only
 	dest.copyRelationshipsFrom(src, "doc1", []string{"param3"})
 
 	require.True(t, dest.isPopulated())
 	require.Equal(t, []string{"doc1"}, dest.subjectIDsToDispatch())
-	require.Len(t, dest.underlyingCursor.OrderedRelationships, 2) // rel1 and rel3
+	require.Contains(t, dest.subjectsByResourceID, "doc1")
+	require.Len(t, dest.subjectsByResourceID["doc1"], 2) // alice and charlie subjects
 
 	// Verify missing context was copied and merged
-	resource = dest.underlyingCursor.Resources["doc1"]
-	require.NotNil(t, resource)
+	aliceSubjectInfo = dest.subjectsByResourceID["doc1"]["alice"]
+	require.ElementsMatch(t, []string{"param1", "param3"}, aliceSubjectInfo.missingContextParams.AsSlice())
 
-	aliceSubject = resource.MissingContextBySubjectId["alice"]
-	require.NotNil(t, aliceSubject)
-	require.ElementsMatch(t, []string{"param1", "param3"}, aliceSubject.MissingContextParams)
-
-	charlieSubject = resource.MissingContextBySubjectId["charlie"]
-	require.NotNil(t, charlieSubject)
-	require.ElementsMatch(t, []string{"param2", "param3"}, charlieSubject.MissingContextParams)
+	charlieSubjectInfo = dest.subjectsByResourceID["doc1"]["charlie"]
+	require.ElementsMatch(t, []string{"param2", "param3"}, charlieSubjectInfo.missingContextParams.AsSlice())
 }
 
 func TestRelationshipsChunkCopyRelationshipsFromEmptySource(t *testing.T) {
-	src := newRelationshipsChunk(0) // Empty source
-	dest := newRelationshipsChunk(5)
+	src := newRelationshipsChunk(0, nil) // Empty source
+	dest := newRelationshipsChunk(5, nil)
 
 	dest.copyRelationshipsFrom(src, "doc1", nil)
 
@@ -143,7 +141,7 @@ func TestRelationshipsChunkCopyRelationshipsFromEmptySource(t *testing.T) {
 }
 
 func TestRelationshipsChunkCopyRelationshipsFromNilSource(t *testing.T) {
-	dest := newRelationshipsChunk(5)
+	dest := newRelationshipsChunk(5, nil)
 
 	dest.copyRelationshipsFrom(nil, "doc1", nil)
 
@@ -151,22 +149,22 @@ func TestRelationshipsChunkCopyRelationshipsFromNilSource(t *testing.T) {
 }
 
 func TestRelationshipsChunkAfterCursor(t *testing.T) {
-	rm := newRelationshipsChunk(5)
+	rm := newRelationshipsChunk(5, nil)
 
-	// Empty chunk should return nil cursor
-	require.Nil(t, rm.afterCursor())
+	// Empty chunk should have no populated state
+	require.False(t, rm.isPopulated())
 
 	// Add a relationship
 	rel := tuple.MustParse("document:doc1#viewer@user:alice")
 	rm.addRelationship(rel, nil)
 
-	// Should return cursor for last relationship
-	cursor := rm.afterCursor()
-	require.NotNil(t, cursor)
+	// Should be populated after adding a relationship
+	require.True(t, rm.isPopulated())
+	require.Equal(t, []string{"doc1"}, rm.subjectIDsToDispatch())
 }
 
 func TestRelationshipsChunkMapPossibleResource(t *testing.T) {
-	rm := newRelationshipsChunk(5)
+	rm := newRelationshipsChunk(5, nil)
 
 	// Add relationships for mapping
 	rel1 := tuple.MustParse("document:resource1#viewer@user:subject1")
@@ -207,7 +205,7 @@ func TestRelationshipsChunkMapPossibleResource(t *testing.T) {
 }
 
 func TestRelationshipsChunkAsCursor(t *testing.T) {
-	rm := newRelationshipsChunk(5)
+	rm := newRelationshipsChunk(5, nil)
 
 	// Add some relationships
 	rel1 := tuple.MustParse("document:doc1#viewer@user:alice")
@@ -216,55 +214,19 @@ func TestRelationshipsChunkAsCursor(t *testing.T) {
 	rm.addRelationship(rel1, []string{"param1"})
 	rm.addRelationship(rel2, nil)
 
-	cursor := rm.asCursor()
-	require.NotNil(t, cursor)
-	require.Len(t, cursor.OrderedRelationships, 2)
-	require.Len(t, cursor.Resources, 2)
+	// Verify the chunk contains the expected relationships
+	require.True(t, rm.isPopulated())
+	require.Contains(t, rm.subjectsByResourceID, "doc1")
+	require.Contains(t, rm.subjectsByResourceID, "doc2")
+	require.Len(t, rm.subjectsByResourceID, 2)
 
-	// Verify the cursor contains the expected data
-	require.Contains(t, cursor.Resources, "doc1")
-	require.Contains(t, cursor.Resources, "doc2")
-}
+	// Verify alice is in doc1 with param1
+	aliceInfo := rm.subjectsByResourceID["doc1"]["alice"]
+	require.ElementsMatch(t, []string{"param1"}, aliceInfo.missingContextParams.AsSlice())
 
-func TestRelationshipsChunkFromCursor(t *testing.T) {
-	t.Run("nil cursor", func(t *testing.T) {
-		rm := relationshipsChunkFromCursor(nil)
-		require.NotNil(t, rm)
-		require.False(t, rm.isPopulated())
-	})
-
-	t.Run("empty cursor", func(t *testing.T) {
-		cursor := &v1.DatastoreCursor{
-			OrderedRelationships: []*core.RelationTuple{},
-			Resources:            map[string]*v1.ResourceAndMissingContext{},
-		}
-		rm := relationshipsChunkFromCursor(cursor)
-		require.NotNil(t, rm)
-		require.False(t, rm.isPopulated())
-	})
-
-	t.Run("populated cursor", func(t *testing.T) {
-		rel := tuple.MustParse("document:doc1#viewer@user:alice")
-		cursor := &v1.DatastoreCursor{
-			OrderedRelationships: []*core.RelationTuple{rel.ToCoreTuple()},
-			Resources: map[string]*v1.ResourceAndMissingContext{
-				"doc1": {
-					ResourceId: "doc1",
-					MissingContextBySubjectId: map[string]*v1.SubjectAndMissingContext{
-						"alice": {
-							SubjectId:            "alice",
-							MissingContextParams: []string{"param1"},
-						},
-					},
-				},
-			},
-		}
-
-		rm := relationshipsChunkFromCursor(cursor)
-		require.NotNil(t, rm)
-		require.True(t, rm.isPopulated())
-		require.Equal(t, []string{"doc1"}, rm.subjectIDsToDispatch())
-	})
+	// Verify bob is in doc2 with no missing context
+	bobInfo := rm.subjectsByResourceID["doc2"]["bob"]
+	require.Empty(t, bobInfo.missingContextParams.AsSlice())
 }
 
 func TestSubjectIDsToRelationshipsChunk(t *testing.T) {
@@ -282,94 +244,28 @@ func TestSubjectIDsToRelationshipsChunk(t *testing.T) {
 
 	require.True(t, rm.isPopulated())
 	require.ElementsMatch(t, subjectIDs, rm.subjectIDsToDispatch())
-	require.Len(t, rm.underlyingCursor.OrderedRelationships, 3)
+	require.Len(t, rm.subjectsByResourceID, 3) // 3 resource IDs (alice, bob, charlie)
 
-	// Verify each relationship was created correctly
-	for _, rel := range rm.underlyingCursor.OrderedRelationships {
-		require.Equal(t, "document", rel.ResourceAndRelation.Namespace)
-		require.Equal(t, "viewer", rel.ResourceAndRelation.Relation)
-		require.Equal(t, "user", rel.Subject.Namespace)
-		require.Equal(t, "...", rel.Subject.Relation)
-		require.Contains(t, subjectIDs, rel.ResourceAndRelation.ObjectId)
-		require.Contains(t, subjectIDs, rel.Subject.ObjectId)
-		require.Equal(t, rel.ResourceAndRelation.ObjectId, rel.Subject.ObjectId)
+	// Verify each subject has a relationship with itself
+	for _, subjectID := range subjectIDs {
+		require.Contains(t, rm.subjectsByResourceID, subjectID)
+		require.Contains(t, rm.subjectsByResourceID[subjectID], subjectID)
+
+		// Verify the subject info is correct
+		subjectInfo := rm.subjectsByResourceID[subjectID][subjectID]
+		require.Equal(t, subjectID, subjectInfo.subjectID)
+		require.Empty(t, subjectInfo.missingContextParams.AsSlice()) // no missing context for direct lookup
 	}
-}
 
-func TestDatastoreCursorSerialization(t *testing.T) {
-	t.Run("nil cursor", func(t *testing.T) {
-		str, err := datastoreCursorToString(nil)
-		require.NoError(t, err)
-		require.Equal(t, "$dsc:", str)
-
-		cursor, err := datastoreCursorFromString("$dsc:")
-		require.NoError(t, err)
-		require.Nil(t, cursor)
-	})
-
-	t.Run("empty cursor", func(t *testing.T) {
-		cursor := &v1.DatastoreCursor{
-			OrderedRelationships: []*core.RelationTuple{},
-			Resources:            map[string]*v1.ResourceAndMissingContext{},
-		}
-
-		str, err := datastoreCursorToString(cursor)
-		require.NoError(t, err)
-		require.Equal(t, "$dsc:", str)
-	})
-
-	t.Run("populated cursor round trip", func(t *testing.T) {
-		rel := tuple.MustParse("document:doc1#viewer@user:alice")
-		originalCursor := &v1.DatastoreCursor{
-			OrderedRelationships: []*core.RelationTuple{rel.ToCoreTuple()},
-			Resources: map[string]*v1.ResourceAndMissingContext{
-				"doc1": {
-					ResourceId: "doc1",
-					MissingContextBySubjectId: map[string]*v1.SubjectAndMissingContext{
-						"alice": {
-							SubjectId:            "alice",
-							MissingContextParams: []string{"param1"},
-						},
-					},
-				},
-			},
-		}
-
-		// Serialize
-		str, err := datastoreCursorToString(originalCursor)
-		require.NoError(t, err)
-		require.NotEmpty(t, str)
-
-		// Deserialize
-		reconstructedCursor, err := datastoreCursorFromString(str)
-		require.NoError(t, err)
-		require.NotNil(t, reconstructedCursor)
-
-		// Verify data integrity
-		require.Len(t, reconstructedCursor.OrderedRelationships, 1)
-		require.Len(t, reconstructedCursor.Resources, 1)
-		require.Contains(t, reconstructedCursor.Resources, "doc1")
-
-		resource := reconstructedCursor.Resources["doc1"]
-		require.Equal(t, "doc1", resource.ResourceId)
-		require.Contains(t, resource.MissingContextBySubjectId, "alice")
-
-		subject := resource.MissingContextBySubjectId["alice"]
-		require.Equal(t, "alice", subject.SubjectId)
-		require.Equal(t, []string{"param1"}, subject.MissingContextParams)
-	})
-
-	t.Run("invalid cursor string", func(t *testing.T) {
-		_, err := datastoreCursorFromString("invalid-base64")
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid datastore cursor prefix found in datastore cursor")
-	})
-
-	t.Run("invalid cursor string with correct prefix", func(t *testing.T) {
-		_, err := datastoreCursorFromString("$dsc:invalid-base64")
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "illegal base64 data")
-	})
+	// Verify the final relationship matches one of the expected patterns
+	rel := rm.finalRelationship
+	require.Equal(t, "document", rel.Resource.ObjectType)
+	require.Equal(t, "viewer", rel.Resource.Relation)
+	require.Equal(t, "user", rel.Subject.ObjectType)
+	require.Equal(t, "...", rel.Subject.Relation)
+	require.Contains(t, subjectIDs, rel.Resource.ObjectID)
+	require.Contains(t, subjectIDs, rel.Subject.ObjectID)
+	require.Equal(t, rel.Resource.ObjectID, rel.Subject.ObjectID)
 }
 
 func TestNewYieldingStream(t *testing.T) {
@@ -380,7 +276,7 @@ func TestNewYieldingStream(t *testing.T) {
 		return true
 	}
 
-	rm := newRelationshipsChunk(1)
+	rm := newRelationshipsChunk(1, nil)
 	rel := tuple.MustParse("document:doc1#viewer@user:alice")
 	rm.addRelationship(rel, nil)
 
@@ -404,7 +300,7 @@ func TestNewYieldingStream(t *testing.T) {
 func TestYieldingStreamContext(t *testing.T) {
 	ctx := t.Context()
 	yieldFunc := func(result, error) bool { return true }
-	rm := newRelationshipsChunk(0)
+	rm := newRelationshipsChunk(0, nil)
 	metadata := &v1.ResponseMeta{}
 
 	stream := newYieldingStream(ctx, yieldFunc, rm, metadata)
@@ -425,7 +321,7 @@ func TestYieldingStreamPublishSuccess(t *testing.T) {
 		return true
 	}
 
-	rm := newRelationshipsChunk(1)
+	rm := newRelationshipsChunk(1, nil)
 	rel := tuple.MustParse("document:doc1#viewer@user:alice")
 	rm.addRelationship(rel, nil)
 
@@ -464,7 +360,7 @@ func TestYieldingStreamPublishSuccess(t *testing.T) {
 func TestYieldingStreamPublishNilResponse(t *testing.T) {
 	ctx := t.Context()
 	yieldFunc := func(result, error) bool { return true }
-	rm := newRelationshipsChunk(0)
+	rm := newRelationshipsChunk(0, nil)
 	metadata := &v1.ResponseMeta{}
 
 	stream := newYieldingStream(ctx, yieldFunc, rm, metadata)
@@ -477,7 +373,7 @@ func TestYieldingStreamPublishNilResponse(t *testing.T) {
 func TestYieldingStreamPublishInvalidResponse(t *testing.T) {
 	ctx := t.Context()
 	yieldFunc := func(result, error) bool { return true }
-	rm := newRelationshipsChunk(0)
+	rm := newRelationshipsChunk(0, nil)
 	metadata := &v1.ResponseMeta{}
 
 	stream := newYieldingStream(ctx, yieldFunc, rm, metadata)
@@ -513,7 +409,7 @@ func TestYieldingStreamPublishInvalidResponse(t *testing.T) {
 func TestYieldingStreamPublishCanceled(t *testing.T) {
 	ctx := t.Context()
 	yieldFunc := func(result, error) bool { return true }
-	rm := newRelationshipsChunk(0)
+	rm := newRelationshipsChunk(0, nil)
 	metadata := &v1.ResponseMeta{}
 
 	stream := newYieldingStream(ctx, yieldFunc, rm, metadata)
@@ -541,7 +437,7 @@ func TestYieldingStreamPublishYieldReturnsFalse(t *testing.T) {
 		return false // Indicate no more results wanted
 	}
 
-	rm := newRelationshipsChunk(1)
+	rm := newRelationshipsChunk(1, nil)
 	rel := tuple.MustParse("document:doc1#viewer@user:alice")
 	rm.addRelationship(rel, nil)
 
@@ -575,7 +471,7 @@ func TestYieldingStreamPublishContextCanceled(t *testing.T) {
 	cancel() // Cancel the context immediately
 
 	yieldFunc := func(result, error) bool { return true }
-	rm := newRelationshipsChunk(0)
+	rm := newRelationshipsChunk(0, nil)
 	metadata := &v1.ResponseMeta{}
 
 	stream := newYieldingStream(ctx, yieldFunc, rm, metadata)
@@ -605,7 +501,7 @@ func TestYieldingStreamPublishMetadataCombination(t *testing.T) {
 		return true
 	}
 
-	rm := newRelationshipsChunk(1)
+	rm := newRelationshipsChunk(1, nil)
 	rel := tuple.MustParse("document:doc1#viewer@user:alice")
 	rm.addRelationship(rel, nil)
 

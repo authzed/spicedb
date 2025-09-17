@@ -48,43 +48,43 @@ func TestCursoredIterators(t *testing.T) {
 		},
 		{
 			name:          "into parallel iterators, with limit",
-			cursor:        Cursor{"-1", "5"},
+			cursor:        Cursor{"5", "-1"},
 			limit:         8,
 			expectedItems: []string{"ff", "gg", "hh", "ii", "jj", "subit1-a", "subit1-b", "subit1-c"},
 		},
 		{
 			name:          "into parallel iterators",
-			cursor:        Cursor{"-1", "5"},
+			cursor:        Cursor{"5", "-1"},
 			limit:         10,
 			expectedItems: []string{"ff", "gg", "hh", "ii", "jj", "subit1-a", "subit1-b", "subit1-c", "subit1-d", "subit1-e"},
 		},
 		{
 			name:          "second into parallel iterators",
-			cursor:        Cursor{"-1", "-1", "1"},
+			cursor:        Cursor{"1", "-1", "-1"},
 			limit:         7,
 			expectedItems: []string{"subit2-a", "subit2-b", "subit2-c", "subit2-d", "subit3-a", "subit3-b", "subit3-c"},
 		},
 		{
 			name:          "third into parallel iterators",
-			cursor:        Cursor{"-1", "-1", "2"},
+			cursor:        Cursor{"2", "-1", "-1"},
 			limit:         5,
 			expectedItems: []string{"subit3-a", "subit3-b", "subit3-c", "subit3-d", "subit3-e"},
 		},
 		{
 			name:          "fourth into parallel iterators",
-			cursor:        Cursor{"-1", "-1", "3"},
+			cursor:        Cursor{"3", "-1", "-1"},
 			limit:         5,
 			expectedItems: []string{"mapped-premapped-a", "mapped-premapped-b", "mapped-premapped-c", "mapped-premapped-d", "mapped-premapped-e"},
 		},
 		{
 			name:          "fourth into parallel iterators with smaller limit",
-			cursor:        Cursor{"-1", "-1", "3"},
+			cursor:        Cursor{"3", "-1", "-1"},
 			limit:         4,
 			expectedItems: []string{"mapped-premapped-a", "mapped-premapped-b", "mapped-premapped-c", "mapped-premapped-d"},
 		},
 		{
 			name:          "fourth into parallel iterators with offset into chunks",
-			cursor:        Cursor{"-1", "-1", "3", "2"},
+			cursor:        Cursor{"2", "3", "-1", "-1"},
 			limit:         5,
 			expectedItems: []string{"mapped-premapped-f", "mapped-premapped-g", "mapped-premapped-h"},
 		},
@@ -206,14 +206,14 @@ func producerMapperTestIterator(ctx context.Context, currentCursor Cursor) iter.
 		1, // concurrency
 		intFromString,
 		stringToInt,
-		func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkFollowOrHold[[]string, int], error] {
-			chunks := []ChunkAndFollow[[]string, int]{
-				{Chunk: []string{"premapped-a", "premapped-b", "premapped-c"}, Follow: 0},
-				{Chunk: []string{"premapped-d", "premapped-e"}, Follow: 1},
-				{Chunk: []string{"premapped-f", "premapped-g", "premapped-h"}, Follow: 2},
+		func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkOrHold[[]string, int], error] {
+			chunks := []Chunk[[]string, int]{
+				{CurrentChunk: []string{"premapped-a", "premapped-b", "premapped-c"}, CurrentChunkCursor: 0},
+				{CurrentChunk: []string{"premapped-d", "premapped-e"}, CurrentChunkCursor: 1},
+				{CurrentChunk: []string{"premapped-f", "premapped-g", "premapped-h"}, CurrentChunkCursor: 2},
 			}
 
-			return func(yield func(ChunkFollowOrHold[[]string, int], error) bool) {
+			return func(yield func(ChunkOrHold[[]string, int], error) bool) {
 				for _, chunk := range chunks[startIndex:] {
 					if !yield(chunk, nil) {
 						return

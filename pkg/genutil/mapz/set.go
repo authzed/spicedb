@@ -2,7 +2,6 @@ package mapz
 
 import (
 	"maps"
-	"slices"
 
 	"github.com/rs/zerolog"
 )
@@ -146,7 +145,11 @@ func (s *Set[T]) AsSlice() []T {
 		return nil
 	}
 
-	return slices.Collect(maps.Keys(s.values))
+	values := make([]T, 0, len(s.values))
+	for value := range s.values {
+		values = append(values, value)
+	}
+	return values
 }
 
 // Len returns the length of the set.

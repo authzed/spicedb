@@ -42,6 +42,8 @@ type optionState struct {
 	dispatchChunkSize                            uint16
 	startingPrimaryHedgingDelay                  time.Duration
 	caveatTypeSet                                *caveattypes.TypeSet
+	relationshipChunkCacheConfig                 *cache.Config
+	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -137,6 +139,20 @@ func DispatchChunkSize(dispatchChunkSize uint16) Option {
 	}
 }
 
+// RelationshipChunkCacheConfig sets the cache config for LR3 relationship chunks.
+func RelationshipChunkCacheConfig(config *cache.Config) Option {
+	return func(state *optionState) {
+		state.relationshipChunkCacheConfig = config
+	}
+}
+
+// RelationshipChunkCache sets the cache for LR3 relationship chunks.
+func RelationshipChunkCache(cache cache.Cache[cache.StringKey, any]) Option {
+	return func(state *optionState) {
+		state.relationshipChunkCache = cache
+	}
+}
+
 // RemoteDispatchTimeout sets the maximum timeout for a remote dispatch.
 // Defaults to 60s (as defined in the remote dispatcher).
 func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
@@ -187,7 +203,40 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	}
 
 	cts := caveattypes.TypeSetOrDefault(opts.caveatTypeSet)
-	redispatch := graph.NewDispatcher(cachingRedispatch, cts, opts.concurrencyLimits, chunkSize)
+
+	// Use provided cache or create one from config
+	var relationshipChunkCache cache.Cache[cache.StringKey, any]
+	if opts.relationshipChunkCache != nil {
+		relationshipChunkCache = opts.relationshipChunkCache
+	} else {
+		// Default RelationshipChunkCacheConfig if not provided
+		relationshipChunkCacheConfig := opts.relationshipChunkCacheConfig
+		if relationshipChunkCacheConfig == nil {
+			relationshipChunkCacheConfig = &cache.Config{
+				NumCounters: 1e4,     // 10k
+				MaxCost:     1 << 20, // 1MB
+				DefaultTTL:  30 * time.Second,
+			}
+		}
+
+		// Create cache from config
+		var err error
+		relationshipChunkCache, err = cache.NewStandardCache[cache.StringKey, any](relationshipChunkCacheConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create relationship chunk cache: %w", err)
+		}
+	}
+
+	params := graph.DispatcherParameters{
+		ConcurrencyLimits:      opts.concurrencyLimits,
+		TypeSet:                cts,
+		DispatchChunkSize:      chunkSize,
+		RelationshipChunkCache: relationshipChunkCache,
+	}
+	redispatch, err := graph.NewDispatcher(cachingRedispatch, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+	}
 	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 
 	// If an upstream is specified, create a cluster dispatcher.

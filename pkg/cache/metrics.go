@@ -50,7 +50,7 @@ var caches sync.Map
 
 func mustRegisterCache(name string, c withMetrics) {
 	if _, loaded := caches.LoadOrStore(name, c); loaded {
-		panic("two caches with the same name")
+		panic("two caches with the same name: " + name)
 	}
 }
 

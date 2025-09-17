@@ -66,7 +66,17 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 
 	cts := caveattypes.TypeSetOrDefault(c.CaveatTypeSet)
 
-	dispatcher := graph.NewLocalOnlyDispatcher(cts, defaultConcurrencyLimit, defaultMaxChunkSize)
+	params, err := graph.NewDefaultDispatcherParametersForTesting()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create default dispatcher parameters: %w", err)
+	}
+	params.TypeSet = cts
+	params.ConcurrencyLimits = graph.SharedConcurrencyLimits(defaultConcurrencyLimit)
+	params.DispatchChunkSize = defaultMaxChunkSize
+	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+	}
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs, cts)
 	healthManager := health.NewHealthManager(dispatcher, &datastoreReady{})
 

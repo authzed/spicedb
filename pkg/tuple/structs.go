@@ -57,7 +57,7 @@ func (onr ObjectAndRelation) ToCoreONR() *core.ObjectAndRelation {
 }
 
 func (onr ObjectAndRelation) String() string {
-	return fmt.Sprintf("%s:%s#%s", onr.ObjectType, onr.ObjectID, onr.Relation)
+	return onr.ObjectType + ":" + onr.ObjectID + "#" + onr.Relation
 }
 
 // RelationshipReference represents a reference to a relationship, i.e. those portions
@@ -69,7 +69,7 @@ type RelationshipReference struct {
 }
 
 func (rr RelationshipReference) String() string {
-	return fmt.Sprintf("%s@%s", rr.Resource.String(), rr.Subject.String())
+	return rr.Resource.String() + "@" + rr.Subject.String()
 }
 
 // Relationship represents a relationship between two objects.

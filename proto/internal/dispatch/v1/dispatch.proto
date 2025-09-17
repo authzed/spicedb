@@ -205,18 +205,3 @@ message CheckDebugTrace {
   string trace_id = 7;
   string source_id = 8;
 }
-
-message ResourceAndMissingContext {
-  string resource_id = 1;
-  map<string, SubjectAndMissingContext> missing_context_by_subject_id = 2;
-}
-
-message SubjectAndMissingContext {
-  string subject_id = 1;
-  repeated string missing_context_params = 2;
-}
-
-message DatastoreCursor {
-  repeated core.v1.RelationTuple ordered_relationships = 1;
-  map<string, ResourceAndMissingContext> resources = 2;
-}

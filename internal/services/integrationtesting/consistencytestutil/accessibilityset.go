@@ -108,7 +108,10 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 	headRevision, err := ccd.DataStore.HeadRevision(ccd.Ctx)
 	require.NoError(t, err)
 
-	dispatcher := graph.NewLocalOnlyDispatcher(caveattypes.Default.TypeSet, defaultConcurrencyLimit, 100)
+	params, err := graph.NewDefaultDispatcherParametersForTesting()
+	require.NoError(t, err)
+	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
+	require.NoError(t, err)
 	permissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	uncomputedPermissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	accessibilityByRelationship := map[string]Accessibility{}
