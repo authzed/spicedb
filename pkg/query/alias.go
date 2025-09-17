@@ -1,6 +1,5 @@
 package query
 
-
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type Alias struct {
@@ -53,8 +52,8 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 						return
 					}
 
-					rewrittenPath := a.rewriteRelation(path)
-					if !yield(rewrittenPath, nil) {
+					path.Relation = a.relation
+					if !yield(path, nil) {
 						return
 					}
 				}
@@ -75,8 +74,8 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 				return
 			}
 
-			rewrittenPath := a.rewriteRelation(path)
-			if !yield(rewrittenPath, nil) {
+			path.Relation = a.relation
+			if !yield(path, nil) {
 				return
 			}
 		}
@@ -96,8 +95,8 @@ func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 				return
 			}
 
-			rewrittenPath := a.rewriteRelation(path)
-			if !yield(rewrittenPath, nil) {
+			path.Relation = a.relation
+			if !yield(path, nil) {
 				return
 			}
 		}
@@ -117,19 +116,12 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 				return
 			}
 
-			rewrittenPath := a.rewriteRelation(path)
-			if !yield(rewrittenPath, nil) {
+			path.Relation = a.relation
+			if !yield(path, nil) {
 				return
 			}
 		}
 	}, nil
-}
-
-// rewriteRelation rewrites the Path's Relation field to the alias relation
-func (a *Alias) rewriteRelation(path *Path) *Path {
-	rewritten := *path
-	rewritten.Relation = a.relation
-	return &rewritten
 }
 
 func (a *Alias) Clone() Iterator {

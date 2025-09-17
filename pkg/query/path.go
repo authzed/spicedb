@@ -15,6 +15,10 @@ import (
 type PathSeq iter.Seq2[*Path, error]
 
 // Path is an abstract notion of an individual relation. While tuple.Relation is what is stored under the hood,
+// this represents a virtual relation, one that may either be backed by a real tuple, or one that is constructed from
+// a query path, equivalent to a subtree of a query.Plan.
+// `permission foo = bar | baz`, for example, is a Path named foo that can be constructed by either the bar path or the baz path
+// (which themselves may be other paths, down to individual, stored, relations.)
 type Path struct {
 	Resource   Object
 	Relation   string
@@ -26,31 +30,50 @@ type Path struct {
 	Metadata map[string]any
 }
 
-type pathMergeOp int
-
-const (
-	pathMergeOpOr pathMergeOp = iota
-	pathMergeOpAnd
-	pathMergeOpAndNot
-)
-
+// ResourceOAR returns the resource as an ObjectAndRelation with the current relation type.
 func (p *Path) ResourceOAR() ObjectAndRelation {
 	return p.Resource.WithRelation(p.Relation)
 }
 
+// MergeOr combines the paths, ORing the caveats and expiration and metadata together.
 func (p *Path) MergeOr(other *Path) error {
-	return p.mergeFrom(other, pathMergeOpOr)
+	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
+		if pCaveat != nil {
+			if otherCaveat == nil {
+				return nil
+			} else {
+				return caveats.Or(pCaveat, otherCaveat)
+			}
+		}
+		return pCaveat
+	})
 }
 
+// MergeAnd combines the paths, ANDing the caveats and expiration and metadata together.
 func (p *Path) MergeAnd(other *Path) error {
-	return p.mergeFrom(other, pathMergeOpAnd)
+	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
+		if otherCaveat != nil {
+			if pCaveat != nil {
+				return caveats.And(pCaveat, otherCaveat)
+			} else {
+				return otherCaveat
+			}
+		}
+		return pCaveat
+	})
 }
 
+// MergeAndNot combines the paths, subtracting the caveats and expiration and metadata together.
 func (p *Path) MergeAndNot(other *Path) error {
-	return p.mergeFrom(other, pathMergeOpAndNot)
+	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
+		if otherCaveat != nil {
+			return caveats.Subtract(pCaveat, otherCaveat)
+		}
+		return pCaveat
+	})
 }
 
-func (p *Path) mergeFrom(other *Path, mergeOp pathMergeOp) error {
+func (p *Path) mergeFrom(other *Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) error {
 	// Check if they have the same Resource and Subject types and IDs
 	if !p.Resource.Equals(other.Resource) {
 		return fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)
@@ -67,33 +90,8 @@ func (p *Path) mergeFrom(other *Path, mergeOp pathMergeOp) error {
 		p.Relation = ""
 	}
 
-	// Combine caveats based on merge operation
-	switch mergeOp {
-	case pathMergeOpOr:
-		if p.Caveat != nil {
-			if other.Caveat == nil {
-				p.Caveat = nil
-			} else {
-				p.Caveat = caveats.Or(p.Caveat, other.Caveat)
-			}
-		}
-	case pathMergeOpAnd:
-		if other.Caveat != nil {
-			if p.Caveat != nil {
-				p.Caveat = caveats.And(p.Caveat, other.Caveat)
-			} else {
-				p.Caveat = other.Caveat
-			}
-		}
-		// Otherwise, p.Caveat remains the same
-	case pathMergeOpAndNot:
-		if other.Caveat != nil {
-			p.Caveat = caveats.Subtract(p.Caveat, other.Caveat)
-		}
-		// p.Caveat already nil, stays nil, other.Caveat is nil, stays p.Caveat
-	default:
-		return fmt.Errorf("unknown merge operation: %d", mergeOp)
-	}
+	// Combine caveats using the provided merger function
+	p.Caveat = caveatMerger(p.Caveat, other.Caveat)
 
 	// Keep any Expiration, and if there are two of them, take the earlier one
 	if other.Expiration != nil {
