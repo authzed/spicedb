@@ -366,6 +366,13 @@ type Traits struct {
 	AllowsExpiration bool
 }
 
+func (t Traits) union(other Traits) Traits {
+	return Traits{
+		AllowsCaveats:    t.AllowsCaveats || other.AllowsCaveats,
+		AllowsExpiration: t.AllowsExpiration || other.AllowsExpiration,
+	}
+}
+
 // PossibleTraitsForSubject returns the traits that are possible for the given subject type on the specified relation.
 func (def *Definition) PossibleTraitsForSubject(relationName string, subjectTypeName string) (Traits, error) {
 	relation, ok := def.relationMap[relationName]
@@ -431,5 +438,28 @@ func (def *Definition) PossibleTraitsForAnySubject(relationName string) (Traits,
 		}
 	}
 
+	return foundTraits, nil
+}
+
+// PossibleTraitsForAnyRelation returns the traits that are possible on *any* relation for the specified resource type.
+func (def *Definition) PossibleTraitsForAnyRelation() (Traits, error) {
+	foundTraits := Traits{}
+	for _, relation := range def.relationMap {
+		// Skip relations without type information (e.g., permissions)
+		if relation.GetTypeInformation() == nil {
+			continue
+		}
+
+		traits, err := def.PossibleTraitsForAnySubject(relation.GetName())
+		if err != nil {
+			return Traits{}, err
+		}
+		if traits.AllowsCaveats {
+			foundTraits.AllowsCaveats = true
+		}
+		if traits.AllowsExpiration {
+			foundTraits.AllowsExpiration = true
+		}
+	}
 	return foundTraits, nil
 }
