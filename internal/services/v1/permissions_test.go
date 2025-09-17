@@ -646,10 +646,8 @@ func TestLookupResources(t *testing.T) {
 								tf.StandardDatastoreWithData,
 							)
 							client := v1.NewPermissionsServiceClient(conn)
-							t.Cleanup(func() {
-								goleak.VerifyNone(t, goleak.IgnoreCurrent())
-							})
-							t.Cleanup(cleanup)
+							defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+							defer cleanup()
 
 							var trailer metadata.MD
 							lookupClient, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
@@ -994,10 +992,8 @@ func TestLookupSubjects(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
-					t.Cleanup(func() {
-						goleak.VerifyNone(t, goleak.IgnoreCurrent())
-					})
-					t.Cleanup(cleanup)
+					defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+					defer cleanup()
 
 					var trailer metadata.MD
 					lookupClient, err := client.LookupSubjects(t.Context(), &v1.LookupSubjectsRequest{
@@ -1670,10 +1666,8 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 							require := require.New(t)
 							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 							client := v1.NewPermissionsServiceClient(conn)
-							t.Cleanup(func() {
-								goleak.VerifyNone(t, goleak.IgnoreCurrent())
-							})
-							t.Cleanup(cleanup)
+							defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+							defer cleanup()
 
 							var currentCursor *v1.Cursor
 							foundObjectIds := mapz.NewSet[string]()

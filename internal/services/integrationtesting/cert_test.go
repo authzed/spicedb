@@ -38,7 +38,7 @@ import (
 )
 
 func TestCertRotation(t *testing.T) {
-	t.Parallel()
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"))
 
 	const (
 		// length of time the initial cert is valid
@@ -284,5 +284,4 @@ func TestCertRotation(t *testing.T) {
 	case <-time.After(30 * time.Second):
 		require.Fail(t, "ungraceful server termination")
 	}
-	goleak.VerifyNone(t, goleak.IgnoreCurrent())
 }
