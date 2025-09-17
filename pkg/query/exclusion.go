@@ -34,9 +34,7 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 
 	// If main set is empty, return empty result
 	if len(mainPaths) == 0 {
-		return func(yield func(*Path, error) bool) {
-			// Empty sequence - never yield anything
-		}, nil
+		return EmptyPathSeq(), nil
 	}
 
 	// Get all paths from the excluded set

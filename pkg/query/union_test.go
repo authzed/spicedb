@@ -48,10 +48,10 @@ func TestUnionIterator(t *testing.T) {
 
 		// Check that we have relations for both doc1 and doc2
 		resourceIDs := make(map[string]bool)
-		for _, rel := range paths {
-			require.Equal("alice", rel.Subject.ObjectID, "All relations should be for alice")
-			require.Equal("document", rel.Resource.ObjectType, "All relations should be for documents")
-			resourceIDs[rel.Resource.ObjectID] = true
+		for _, path := range paths {
+			require.Equal("alice", path.Subject.ObjectID, "All paths should be for alice")
+			require.Equal("document", path.Resource.ObjectType, "All paths should be for documents")
+			resourceIDs[path.Resource.ObjectID] = true
 		}
 		require.Contains(resourceIDs, "doc1", "Should have relation for doc1")
 		require.Contains(resourceIDs, "doc2", "Should have relation for doc2")

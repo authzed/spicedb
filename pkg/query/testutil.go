@@ -248,7 +248,7 @@ func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 		}, nil
 	}
 	// Return empty sequence
-	return func(yield func(*Path, error) bool) {}, nil
+	return EmptyPathSeq(), nil
 }
 
 func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
@@ -262,7 +262,7 @@ func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSe
 		}, nil
 	}
 	// Return empty sequence
-	return func(yield func(*Path, error) bool) {}, nil
+	return EmptyPathSeq(), nil
 }
 
 func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
@@ -276,7 +276,7 @@ func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 		}, nil
 	}
 	// Return empty sequence
-	return func(yield func(*Path, error) bool) {}, nil
+	return EmptyPathSeq(), nil
 }
 
 func (f *FaultyIterator) Clone() Iterator {

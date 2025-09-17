@@ -59,9 +59,7 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// If the subject type doesn't match the base relation type, return no results
 	if subject.ObjectType != r.base.Type {
-		return func(yield func(*Path, error) bool) {
-			// Empty sequence
-		}, nil
+		return EmptyPathSeq(), nil
 	}
 
 	if r.base.Wildcard {

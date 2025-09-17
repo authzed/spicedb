@@ -570,4 +570,133 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 			require.Equal("original", rels2[i].Relation, "clone should use original relation")
 		}
 	})
+
+	t.Run("Check_EarlyReturnBasicRewriting", func(t *testing.T) {
+		t.Parallel()
+
+		subIt := NewDocumentAccessFixedIterator()
+		aliasIt := NewAlias("early_test", subIt)
+
+		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		// Consume only the first path and stop iteration
+		count := 0
+		for path, err := range pathSeq {
+			require.NoError(err)
+			require.Equal("early_test", path.Relation, "path should be rewritten")
+			count++
+			if count == 1 {
+				break // Early return - this should trigger the uncovered yield return false path
+			}
+		}
+		require.Equal(1, count, "should have consumed exactly one path")
+	})
+
+	t.Run("Check_EarlyReturnSelfEdgeWithSubResults", func(t *testing.T) {
+		t.Parallel()
+
+		subIt := NewDocumentAccessFixedIterator()
+		aliasIt := NewAlias("admin", subIt)
+
+		// Create scenario with self-edge and sub-results
+		subject := NewObjectAndRelation("doc1", "document", "admin")
+		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), subject)
+		require.NoError(err)
+
+		// Consume only the first path (self-edge) and stop iteration
+		count := 0
+		for path, err := range pathSeq {
+			require.NoError(err)
+			require.Equal("admin", path.Relation, "path should use alias relation")
+			count++
+			if count == 1 {
+				break // Early return after self-edge - this triggers uncovered sub-iterator yield return
+			}
+		}
+		require.Equal(1, count, "should have consumed exactly one path")
+	})
+
+	t.Run("IterSubjects_EarlyReturn", func(t *testing.T) {
+		t.Parallel()
+
+		subIt := NewDocumentAccessFixedIterator()
+		aliasIt := NewAlias("early_subjects", subIt)
+
+		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		// Consume only the first path and stop iteration
+		count := 0
+		for path, err := range pathSeq {
+			require.NoError(err)
+			require.Equal("early_subjects", path.Relation, "path should be rewritten")
+			count++
+			if count == 1 {
+				break // Early return - this should trigger the uncovered yield return false path
+			}
+		}
+		require.Equal(1, count, "should have consumed exactly one path")
+	})
+
+	t.Run("IterResources_EarlyReturn", func(t *testing.T) {
+		t.Parallel()
+
+		subIt := NewDocumentAccessFixedIterator()
+		aliasIt := NewAlias("early_resources", subIt)
+
+		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		// Consume only the first path and stop iteration
+		count := 0
+		for path, err := range pathSeq {
+			require.NoError(err)
+			require.Equal("early_resources", path.Relation, "path should be rewritten")
+			count++
+			if count == 1 {
+				break // Early return - this should trigger the uncovered yield return false path
+			}
+		}
+		require.Equal(1, count, "should have consumed exactly one path")
+	})
+
+	t.Run("Check_SelfEdgeWithSubIteratorPathRewriting", func(t *testing.T) {
+		t.Parallel()
+
+		// Use sub-iterator that will return paths that need rewriting
+		subIt := NewDocumentAccessFixedIterator()
+		aliasIt := NewAlias("admin", subIt)
+
+		// Create a self-edge scenario where sub-iterator also returns paths
+		subject := NewObjectAndRelation("doc1", "document", "admin")
+		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), subject)
+		require.NoError(err)
+
+		rels, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should find at least self-edge plus rewritten paths from sub-iterator
+		require.NotEmpty(rels, "should find both self-edge and sub-iterator paths")
+
+		// All relations should have the alias relation
+		for _, rel := range rels {
+			require.Equal("admin", rel.Relation, "all paths should use alias relation")
+		}
+
+		// Should find at least one self-edge
+		foundSelfEdge := false
+		for _, rel := range rels {
+			if rel.Resource.ObjectID == "doc1" &&
+				rel.Resource.ObjectType == "document" &&
+				rel.Relation == "admin" &&
+				rel.Subject.ObjectID == "doc1" &&
+				rel.Subject.ObjectType == "document" &&
+				rel.Subject.Relation == "admin" {
+				foundSelfEdge = true
+				break
+			}
+		}
+		require.True(foundSelfEdge, "should find self-edge relation")
+	})
 }

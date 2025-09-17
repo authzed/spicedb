@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
 )
 
 func TestIntersectionIterator(t *testing.T) {
@@ -65,9 +64,9 @@ func TestIntersectionIterator(t *testing.T) {
 		require.NoError(err)
 
 		if pathSeq != nil {
-			_, err := CollectAll(pathSeq)
+			rels, err := CollectAll(pathSeq)
 			require.NoError(err)
-			// Should likely be empty since bob isn't in documentAccess
+			require.Empty(rels)
 		}
 	})
 
