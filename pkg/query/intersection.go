@@ -5,7 +5,7 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// Intersection the set of relations that are in all of underlying subiterators.
+// Intersection the set of paths that are in all of underlying subiterators.
 // This is equivalent to `permission foo = bar & baz`
 type Intersection struct {
 	subIts []Iterator
@@ -21,44 +21,44 @@ func (i *Intersection) addSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
-func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	validResources := resources
 
-	var rels []Relation
+	var paths []*Path
 
 	for _, it := range i.subIts {
-		relSeq, err := it.CheckImpl(ctx, validResources, subject)
+		pathSeq, err := it.CheckImpl(ctx, validResources, subject)
 		if err != nil {
 			return nil, err
 		}
-		rels, err = CollectAll(relSeq)
+		paths, err = CollectAll(pathSeq)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(rels) == 0 {
-			return func(yield func(Relation, error) bool) {}, nil
+		if len(paths) == 0 {
+			return func(yield func(*Path, error) bool) {}, nil
 		}
 
-		validResources = slicez.Map(rels, func(r Relation) Object {
-			return GetObject(r.Resource)
+		validResources = slicez.Map(paths, func(p *Path) Object {
+			return p.Resource
 		})
 	}
 
-	return func(yield func(Relation, error) bool) {
-		for _, rel := range rels {
-			if !yield(rel, nil) {
+	return func(yield func(*Path, error) bool) {
+		for _, path := range paths {
+			if !yield(path, nil) {
 				return
 			}
 		}
 	}, nil
 }
 
-func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

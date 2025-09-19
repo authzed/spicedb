@@ -20,16 +20,16 @@ type Context struct {
 
 // Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
 // any of the `resources` are connected to `subject`.
-// Returns the sequence of matching relations, if they exist, at most `len(resources)`.
-func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+// Returns the sequence of matching paths, if they exist, at most `len(resources)`.
+func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 	return ctx.Executor.Check(ctx, it, resources, subject)
 }
 
-// IterSubjects returns a sequence of all the relations in this set that match the given resource.
-func (ctx *Context) IterSubjects(it Iterator, resource Object) (RelationSeq, error) {
+// IterSubjects returns a sequence of all the paths in this set that match the given resource.
+func (ctx *Context) IterSubjects(it Iterator, resource Object) (PathSeq, error) {
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
@@ -37,7 +37,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object) (RelationSeq, err
 }
 
 // IterResources returns a sequence of all the relations in this set that match the given subject.
-func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation) (RelationSeq, error) {
+func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation) (PathSeq, error) {
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
@@ -51,11 +51,11 @@ type Executor interface {
 	// Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
 	// any of the `resources` are connected to `subject`.
 	// Returns the sequence of matching relations, if they exist, at most `len(resources)`.
-	Check(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) (RelationSeq, error)
+	Check(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) (PathSeq, error)
 
 	// IterSubjects returns a sequence of all the relations in this set that match the given resource.
-	IterSubjects(ctx *Context, it Iterator, resource Object) (RelationSeq, error)
+	IterSubjects(ctx *Context, it Iterator, resource Object) (PathSeq, error)
 
 	// IterResources returns a sequence of all the relations in this set that match the given subject.
-	IterResources(ctx *Context, it Iterator, subject ObjectAndRelation) (RelationSeq, error)
+	IterResources(ctx *Context, it Iterator, subject ObjectAndRelation) (PathSeq, error)
 }
