@@ -1,10 +1,17 @@
 package cursorediterator
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 )
 
 func TestJoin(t *testing.T) {
@@ -470,5 +477,405 @@ func TestUncursoredEmpty(t *testing.T) {
 		})
 
 		require.False(t, called, "yield function should never be called for empty iterator")
+	})
+}
+
+func TestSpanned(t *testing.T) {
+	setupTracer := func() (*tracetest.SpanRecorder, func()) {
+		spanRecorder := tracetest.NewSpanRecorder()
+		tracerProvider := trace.NewTracerProvider(
+			trace.WithSampler(trace.AlwaysSample()),
+			trace.WithSpanProcessor(spanRecorder),
+		)
+
+		// Save and restore the original tracer provider
+		originalProvider := otel.GetTracerProvider()
+		otel.SetTracerProvider(tracerProvider)
+
+		return spanRecorder, func() {
+			otel.SetTracerProvider(originalProvider)
+		}
+	}
+
+	t.Run("creates span with correct name and attributes", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", nil) {
+				return
+			}
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		spanName := "test-span"
+		spanAttrs := []attribute.KeyValue{
+			attribute.String(otelconv.AttrTestKey, "test.value"),
+			attribute.Int(otelconv.AttrTestNumber, 42),
+		}
+
+		result := Spanned(ctx, source, tracer, spanName, spanAttrs...)
+		items := collectNoError(t, result)
+
+		require.Equal(t, []string{"a", "b"}, items)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+		require.Equal(t, spanName, span.Name())
+
+		// Check that the specified attributes are present
+		attrs := span.Attributes()
+		foundTestKey := false
+		foundTestNumber := false
+		foundItemCount := false
+
+		for _, attr := range attrs {
+			switch attr.Key {
+			case otelconv.AttrTestKey:
+				require.Equal(t, "test.value", attr.Value.AsString())
+				foundTestKey = true
+			case otelconv.AttrTestNumber:
+				require.Equal(t, int64(42), attr.Value.AsInt64())
+				foundTestNumber = true
+			case otelconv.AttrIteratorItemCount:
+				require.Equal(t, int64(2), attr.Value.AsInt64())
+				foundItemCount = true
+			}
+		}
+
+		require.True(t, foundTestKey, "test.key attribute not found")
+		require.True(t, foundTestNumber, "test.number attribute not found")
+		require.True(t, foundItemCount, "item.count attribute not found")
+	})
+
+	t.Run("records errors to span", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		testError1 := errors.New("first error")
+		testError2 := errors.New("second error")
+
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", testError1) {
+				return
+			}
+			if !yield("c", nil) {
+				return
+			}
+			if !yield("d", testError2) {
+				return
+			}
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		result := Spanned(ctx, source, tracer, "test-span")
+
+		items, errs := collectAll(result)
+
+		require.Equal(t, []string{"a", "b", "c", "d"}, items)
+		require.Len(t, errs, 4)
+		require.NoError(t, errs[0])
+		require.Equal(t, testError1, errs[1])
+		require.NoError(t, errs[2])
+		require.Equal(t, testError2, errs[3])
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+
+		// Check that errors were recorded
+		events := span.Events()
+		errorEvents := 0
+		for _, event := range events {
+			if event.Name == "exception" {
+				errorEvents++
+			}
+		}
+		require.Equal(t, 2, errorEvents, "Expected 2 error events to be recorded")
+	})
+
+	t.Run("sets correct item count attribute", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		source := func(yield func(string, error) bool) {
+			for i := 0; i < 5; i++ {
+				if !yield("item", nil) {
+					return
+				}
+			}
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		result := Spanned(ctx, source, tracer, "test-span")
+
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 5)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+		attrs := span.Attributes()
+
+		foundItemCount := false
+		for _, attr := range attrs {
+			if attr.Key == otelconv.AttrIteratorItemCount {
+				require.Equal(t, int64(5), attr.Value.AsInt64())
+				foundItemCount = true
+				break
+			}
+		}
+
+		require.True(t, foundItemCount, "item.count attribute not found")
+	})
+
+	t.Run("counts items correctly even with errors", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		testError := errors.New("test error")
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", testError) {
+				return
+			}
+			if !yield("c", nil) {
+				return
+			}
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		result := Spanned(ctx, source, tracer, "test-span")
+
+		items, _ := collectAll(result)
+
+		require.Len(t, items, 3)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+		attrs := span.Attributes()
+
+		foundItemCount := false
+		for _, attr := range attrs {
+			if attr.Key == otelconv.AttrIteratorItemCount {
+				require.Equal(t, int64(3), attr.Value.AsInt64())
+				foundItemCount = true
+				break
+			}
+		}
+
+		require.True(t, foundItemCount, "item.count attribute not found")
+	})
+
+	t.Run("ends span when iteration completes normally", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		result := Spanned(ctx, source, tracer, "test-span")
+
+		_ = collectNoError(t, result)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+		require.True(t, span.EndTime().After(span.StartTime()))
+	})
+
+	t.Run("ends span when iteration terminates early", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		source := func(yield func(string, error) bool) {
+			if !yield("a", nil) {
+				return
+			}
+			if !yield("b", nil) {
+				return
+			}
+			if !yield("c", nil) { // Should not be reached
+				return
+			}
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		result := Spanned(ctx, source, tracer, "test-span")
+
+		items := collectFirst(t, result, 2)
+
+		require.Equal(t, []string{"a", "b"}, items)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+		require.True(t, span.EndTime().After(span.StartTime()))
+
+		// Check item count is correct for early termination
+		attrs := span.Attributes()
+		foundItemCount := false
+		for _, attr := range attrs {
+			if attr.Key == otelconv.AttrIteratorItemCount {
+				require.Equal(t, int64(2), attr.Value.AsInt64())
+				foundItemCount = true
+				break
+			}
+		}
+		require.True(t, foundItemCount, "item.count attribute not found")
+	})
+
+	t.Run("handles empty iterator", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		source := func(yield func(string, error) bool) {
+			// Empty iterator
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		result := Spanned(ctx, source, tracer, "test-span")
+
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 0)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+		attrs := span.Attributes()
+
+		foundItemCount := false
+		for _, attr := range attrs {
+			if attr.Key == otelconv.AttrIteratorItemCount {
+				require.Equal(t, int64(0), attr.Value.AsInt64())
+				foundItemCount = true
+				break
+			}
+		}
+
+		require.True(t, foundItemCount, "item.count attribute not found")
+	})
+
+	t.Run("works with different item types", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		source := func(yield func(int, error) bool) {
+			if !yield(10, nil) {
+				return
+			}
+			if !yield(20, nil) {
+				return
+			}
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		result := Spanned(ctx, source, tracer, "int-span")
+
+		items := collectNoError(t, result)
+
+		require.Equal(t, []int{10, 20}, items)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+		require.Equal(t, "int-span", span.Name())
+	})
+
+	t.Run("preserves span context", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		source := func(yield func(string, error) bool) {
+			if !yield("test", nil) {
+				return
+			}
+		}
+
+		// Create a parent span context
+		tracer := otel.Tracer("test-tracer")
+		parentCtx, parentSpan := tracer.Start(context.Background(), "parent-span")
+		defer parentSpan.End()
+
+		result := Spanned(parentCtx, source, tracer, "child-span")
+		_ = collectNoError(t, result)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		childSpan := spans[0]
+		require.Equal(t, "child-span", childSpan.Name())
+
+		// The child span should have the parent span as its parent
+		require.True(t, childSpan.Parent().IsValid())
+		require.Equal(t, parentSpan.SpanContext().SpanID(), childSpan.Parent().SpanID())
+	})
+
+	t.Run("no attributes provided", func(t *testing.T) {
+		spanRecorder, cleanup := setupTracer()
+		defer cleanup()
+
+		source := func(yield func(string, error) bool) {
+			if !yield("test", nil) {
+				return
+			}
+		}
+
+		ctx := context.Background()
+		tracer := otel.Tracer("test-tracer")
+		result := Spanned(ctx, source, tracer, "no-attrs-span")
+
+		_ = collectNoError(t, result)
+
+		spans := spanRecorder.Ended()
+		require.Len(t, spans, 1)
+
+		span := spans[0]
+		require.Equal(t, "no-attrs-span", span.Name())
+
+		// Should still have the item.count attribute
+		attrs := span.Attributes()
+		foundItemCount := false
+		for _, attr := range attrs {
+			if attr.Key == otelconv.AttrIteratorItemCount {
+				require.Equal(t, int64(1), attr.Value.AsInt64())
+				foundItemCount = true
+				break
+			}
+		}
+
+		require.True(t, foundItemCount, "item.count attribute not found")
 	})
 }
