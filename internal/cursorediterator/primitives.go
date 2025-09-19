@@ -1,7 +1,13 @@
 package cursorediterator
 
 import (
+	"context"
 	"iter"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 )
 
 // join combines multiple iterator sequences into one.
@@ -58,5 +64,34 @@ func CountingIterator[I any](source iter.Seq2[I, error], callback func(int)) ite
 			return yield(item, err)
 		})
 		callback(count)
+	}
+}
+
+// Spanned wraps an iterator sequence, recording any errors to the provided span,
+// and ending the span when the iteration is complete.
+func Spanned[I any](
+	ctx context.Context,
+	source iter.Seq2[I, error],
+	tracer trace.Tracer,
+	spanName string,
+	spanAttrs ...attribute.KeyValue,
+) iter.Seq2[I, error] {
+	return func(yield func(I, error) bool) {
+		_, span := tracer.Start(ctx, spanName, trace.WithAttributes(spanAttrs...))
+		defer span.End()
+
+		itemCount := 0
+		for item, err := range source {
+			if err != nil {
+				span.RecordError(err)
+			}
+
+			itemCount++
+			if !yield(item, err) {
+				break
+			}
+		}
+
+		span.SetAttributes(attribute.Int(otelconv.AttrIteratorItemCount, itemCount))
 	}
 }

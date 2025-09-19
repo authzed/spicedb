@@ -54,7 +54,6 @@ const (
 	EventDispatchLR3UnlimitedResults                       = "spicedb.internal.dispatch.lookupresources3.unlimited_results"
 	EventDispatchLR3UnlimitedResultsDirectSubjects         = "spicedb.internal.dispatch.lookupresources3.unlimited_results.direct_subjects"
 	EventDispatchLookupResources3EntrypointsIter           = "spicedb.internal.dispatch.lookupresources3.entrypoints_iter"
-	EventDispatchLookupResources3EntrypointIter            = "spicedb.internal.dispatch.lookupresources3.entrypoint_iter"
 	EventDispatchLookupResources3RelationEntrypoint        = "spicedb.internal.dispatch.lookupresources3.relation_entrypoint"
 	EventDispatchLookupResources3ArrowEntrypoint           = "spicedb.internal.dispatch.lookupresources3.arrow_entrypoint"
 	EventDispatchLookupResources3RelationshipsIterProducer = "spicedb.internal.dispatch.lookupresources3.relationships_iter"
@@ -79,6 +78,7 @@ const (
 
 	AttrDispatchResourceType       = "spicedb.internal.dispatch.resource_type"
 	AttrDispatchResourceIds        = "spicedb.internal.dispatch.resource_ids"
+	AttrDispatchResourceRelation   = "spicedb.internal.dispatch.resource_relation"
 	AttrDispatchSubject            = "spicedb.internal.dispatch.subject"
 	AttrDispatchNodeID             = "spicedb.internal.dispatch.node_id"
 	AttrDispatchStart              = "spicedb.internal.dispatch.start"
@@ -88,6 +88,8 @@ const (
 	AttrDispatchTerminalSubject    = "spicedb.internal.dispatch.terminal_subject"
 	AttrDispatchLREntrypoint       = "spicedb.internal.dispatch.lookupresources3.entrypoint"
 	AttrDispatchLRConcurrencyLimit = "spicedb.internal.dispatch.lookupresources3.concurrency_limit"
+	AttrDispatchLREntrypointCount  = "spicedb.internal.dispatch.lookupresources3.entrypoint_count"
+	AttrDispatchCursorLimit        = "spicedb.internal.dispatch.lookup.cursor_limit"
 
 	AttrDatastoreNames              = "spicedb.internal.datastore.shared.names"
 	AttrDatastoreValue              = "spicedb.internal.datastore.shared.value"
@@ -112,4 +114,9 @@ const (
 
 	AttrDatastoreMySQLTransactionFresh   = "spicedb.internal.datastore.mysql.transaction_fresh"
 	AttrDatastoreMySQLTransactionUnknown = "spicedb.internal.datastore.mysql.transaction_unknown"
+
+	AttrIteratorItemCount = "spicedb.internal.iterator.item_count"
+
+	AttrTestKey    = "spicedb.internal.test.key"
+	AttrTestNumber = "spicedb.internal.test.number"
 )

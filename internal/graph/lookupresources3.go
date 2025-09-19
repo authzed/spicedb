@@ -227,7 +227,19 @@ type ValidatedLookupResources3Request struct {
 // This allows the operation to resume at any point in the complex iteration hierarchy without
 // losing progress or re-processing completed work.
 func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResources3Request, stream dispatch.LookupResources3Stream) error {
-	ctx, span := tracer.Start(stream.Context(), otelconv.EventDispatchLookupResources3)
+	ctx, span := tracer.Start(
+		stream.Context(),
+		otelconv.EventDispatchLookupResources3,
+		trace.WithAttributes(
+			attribute.String(otelconv.AttrDispatchResourceType, req.ResourceRelation.Namespace),
+			attribute.String(otelconv.AttrDispatchResourceRelation, req.ResourceRelation.Relation),
+			attribute.String(otelconv.AttrDispatchSubjectType, req.SubjectRelation.Namespace),
+			attribute.StringSlice(otelconv.AttrDispatchSubjectIDs, req.SubjectIds),
+			attribute.String(otelconv.AttrDispatchSubjectRelation, req.SubjectRelation.Relation),
+			attribute.String(otelconv.AttrDispatchTerminalSubject, tuple.StringCoreONR(req.TerminalSubject)),
+			attribute.Int(otelconv.AttrDispatchCursorLimit, int(req.OptionalLimit)),
+		),
+	)
 	defer span.End()
 
 	if req.TerminalSubject == nil {
@@ -361,14 +373,8 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 				return cter.UncursoredEmpty[pram]()
 			}
 
-			_, span := tracer.Start(ctx, otelconv.EventDispatchLR3UnlimitedResultsDirectSubjects, trace.WithAttributes(
-				attribute.String(otelconv.AttrDispatchSubjectType, refs.req.SubjectRelation.Namespace),
-				attribute.String(otelconv.AttrDispatchSubjectRelation, refs.req.SubjectRelation.Relation),
-			))
-			defer span.End()
-
 			// Return an iterator that yields results for all subject IDs starting from startIndex.
-			return func(yield func(pram, error) bool) {
+			iter := func(yield func(pram, error) bool) {
 				singleSubjectID := make([]string, 1)
 				for _, subjectID := range refs.req.SubjectIds[startIndex:] {
 					singleSubjectID[0] = subjectID
@@ -383,6 +389,15 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 					}
 				}
 			}
+
+			return cter.Spanned(
+				ctx,
+				iter,
+				tracer,
+				otelconv.EventDispatchLR3UnlimitedResultsDirectSubjects,
+				attribute.String(otelconv.AttrDispatchSubjectType, refs.req.SubjectRelation.Namespace),
+				attribute.String(otelconv.AttrDispatchSubjectRelation, refs.req.SubjectRelation.Relation),
+			)
 		},
 
 		// Portion #2: Next, we need to iterate over the entrypoints for the given subject IDs and resource relation,
@@ -398,9 +413,6 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 // the entrypoints for the given subject IDs and yields results for each entrypoint.
 func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[pram] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
-		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointsIter)
-		defer span.End()
-
 		// Load the entrypoints that are reachable from the subject relation to the resource relation/permission.
 		entrypoints, err := crr.loadEntrypoints(ctx, refs)
 		if err != nil {
@@ -419,19 +431,28 @@ func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[pra
 		}
 
 		// Execute the iterators in parallel, yielding results for each entrypoint in the proper order.
-		return estimatedConcurrencyLimit(crr, refs, keyedEntrypoints(entrypoints), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
+		iter := estimatedConcurrencyLimit(crr, refs, keyedEntrypoints(entrypoints), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
 			ccl, err := safecast.ToInt64(computedConcurrencyLimit)
 			if err != nil {
 				return cter.YieldsError[result](err)
 			}
 
-			ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3ConcurrentEntrypointsIter,
-				trace.WithAttributes(
-					attribute.Int64(otelconv.AttrDispatchLRConcurrencyLimit, ccl),
-				))
-			defer span.End()
-			return cter.CursoredParallelIterators(ctx, currentCursor, computedConcurrencyLimit, entrypointIterators...)
+			iter := cter.CursoredParallelIterators(ctx, currentCursor, computedConcurrencyLimit, entrypointIterators...)
+			return cter.Spanned(
+				ctx,
+				iter,
+				tracer,
+				otelconv.EventDispatchLookupResources3ConcurrentEntrypointsIter,
+				attribute.Int64(otelconv.AttrDispatchLRConcurrencyLimit, ccl),
+			)
 		})
+		return cter.Spanned(
+			ctx,
+			iter,
+			tracer,
+			otelconv.EventDispatchLookupResources3EntrypointsIter,
+			attribute.Int(otelconv.AttrDispatchLREntrypointCount, len(entrypoints)),
+		)
 	}
 }
 
@@ -456,19 +477,20 @@ func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, refs l
 // for each entrypoint, dispatching further when necessary.
 func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint schema.ReachabilityEntrypoint) cter.Next[pram] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
-		ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3EntrypointIter,
-			trace.WithAttributes(
-				attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
-			))
-		defer span.End()
-
 		switch entrypoint.EntrypointKind() {
 		// If the entrypoint is a relation entrypoint, we need to iterate over the relation's relationships
 		// for the given subject IDs and yield results for dispatching for each. For example, given a relation
 		// of `relation viewer: user`, we would lookup all relationships for the current user(s) and find
 		// all the document(s) on which the user is a viewer.
 		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-			return crr.relationEntrypointIter(ctx, refs, entrypoint, currentCursor)
+			iter := crr.relationEntrypointIter(ctx, refs, entrypoint, currentCursor)
+			return cter.Spanned(
+				ctx,
+				iter,
+				tracer,
+				otelconv.EventDispatchLookupResources3RelationEntrypoint,
+				attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
+			)
 
 		// If the entrypoint is a computed user set entrypoint, we need to rewrite the subject relation
 		// to the containing relation or permission of the entrypoint. For example, given a permission
@@ -493,7 +515,14 @@ func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint sch
 		// relation. For example, given an arrow of `parent->view`, we would lookup all relationships for the `parent`
 		// relation and then *dispatch* to the `view` permission for each.
 		case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-			return crr.ttuEntrypointIter(ctx, refs, entrypoint, currentCursor)
+			iter := crr.ttuEntrypointIter(ctx, refs, entrypoint, currentCursor)
+			return cter.Spanned(
+				ctx,
+				iter,
+				tracer,
+				otelconv.EventDispatchLookupResources3ArrowEntrypoint,
+				attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
+			)
 
 		default:
 			return cter.YieldsError[result](spiceerrors.MustBugf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind()))
@@ -509,12 +538,6 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 	entrypoint schema.ReachabilityEntrypoint,
 	currentCursor cter.Cursor,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationEntrypoint,
-		trace.WithAttributes(
-			attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
-		))
-	defer span.End()
-
 	// Build a subject filter for the subjects for which to lookup relationships.
 	relationReference, err := entrypoint.DirectRelation()
 	if err != nil {
@@ -591,12 +614,6 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 	entrypoint schema.ReachabilityEntrypoint,
 	currentCursor cter.Cursor,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3ArrowEntrypoint,
-		trace.WithAttributes(
-			attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
-		))
-	defer span.End()
-
 	containingRelation := entrypoint.ContainingRelationOrPermission()
 
 	ttuDef, err := refs.ts.GetValidatedDefinition(ctx, containingRelation.Namespace)
@@ -692,13 +709,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					return cter.YieldsError[coh](err)
 				}
 
-				ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterProducer,
-					trace.WithAttributes(
-						attribute.Int64(otelconv.AttrDispatchLRConcurrencyLimit, ccl),
-					))
-				defer span.End()
-
-				return func(yield func(coh, error) bool) {
+				iter := func(yield func(coh, error) bool) {
 					yieldError := func(err error) {
 						_ = yield(cter.Chunk[*relationshipsChunk, datastoreIndex]{}, err)
 					}
@@ -839,15 +850,26 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						}
 					}
 				}
+
+				return cter.Spanned(
+					ctx,
+					iter,
+					tracer,
+					otelconv.EventDispatchLookupResources3RelationshipsIterProducer,
+					attribute.Int64(otelconv.AttrDispatchLRConcurrencyLimit, ccl),
+				)
 			},
 			func(ctx context.Context, remainingCursor cter.Cursor, rm *relationshipsChunk) iter.Seq2[result, error] {
-				ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3RelationshipsIterMapper)
-				defer span.End()
-
 				// Return an iterator to continue finding resources by dispatching.
 				// NOTE(jschorr): Technically if we don't have any further entrypoints at this point, we could do checks locally,
 				// but that would require additional code just to save one dispatch hop, thus complicating the code base.
-				return crr.checkedDispatchIter(ctx, refs, remainingCursor, rm, config.foundResourceType, config.entrypoint)
+				iter := crr.checkedDispatchIter(ctx, refs, remainingCursor, rm, config.foundResourceType, config.entrypoint)
+				return cter.Spanned(
+					ctx,
+					iter,
+					tracer,
+					otelconv.EventDispatchLookupResources3RelationshipsIterMapper,
+				)
 			},
 		)
 	})
@@ -861,12 +883,6 @@ func (crr *CursoredLookupResources3) checkedDispatchIter(
 	foundResourceType *core.RelationReference,
 	entrypoint schema.ReachabilityEntrypoint,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3CheckedDispatchIter,
-		trace.WithAttributes(
-			attribute.String(otelconv.AttrDispatchLREntrypoint, entrypoint.DebugStringOrEmpty()),
-		))
-	defer span.End()
-
 	// If the entrypoint is a direct result, we can simply dispatch the results, as it means no intersection,
 	// exclusion or intersection arrow was found "above" this entrypoint in the permission.
 	if entrypoint.IsDirectResult() {
@@ -894,9 +910,6 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	foundResourceType *core.RelationReference,
 	metadata *v1.ResponseMeta,
 ) iter.Seq2[result, error] {
-	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLookupResources3DispatchIter)
-	defer span.End()
-
 	if !rm.isPopulated() {
 		// If there are no relationships to dispatch, return an empty iterator.
 		return cter.UncursoredEmpty[result]()
@@ -910,7 +923,7 @@ func (crr *CursoredLookupResources3) dispatchIter(
 
 	// Return an iterator that invokes the dispatch operation for the given resource relation and subject IDs,
 	// yielding results for each resource found.
-	return func(yield func(result, error) bool) {
+	iter := func(yield func(result, error) bool) {
 		stream := newYieldingStream(ctx, yield, rm, metadata)
 		err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 			ResourceRelation: refs.req.ResourceRelation,
@@ -930,6 +943,12 @@ func (crr *CursoredLookupResources3) dispatchIter(
 			return
 		}
 	}
+	return cter.Spanned(
+		ctx,
+		iter,
+		tracer,
+		otelconv.EventDispatchLookupResources3DispatchIter,
+	)
 }
 
 // filterSubjectsByCheck filters the subjects in the relationships chunk by checking them against the entrypoint.
