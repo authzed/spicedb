@@ -12,6 +12,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
@@ -50,10 +51,11 @@ type queryPlanConsistencyHandle struct {
 
 func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 	return &query.Context{
-		Context:   t.Context(),
-		Executor:  query.LocalExecutor{},
-		Datastore: q.ds,
-		Revision:  q.revision,
+		Context:      t.Context(),
+		Executor:     query.LocalExecutor{},
+		Datastore:    q.ds,
+		Revision:     q.revision,
+		CaveatRunner: caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 	}
 }
 
@@ -115,9 +117,12 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 							it, err := query.BuildIteratorFromSchema(handle.schema, rel.Resource.ObjectType, rel.Resource.Relation)
 							require.NoError(err)
 
-							t.Log(it.Explain())
-
 							qctx := handle.buildContext(t)
+
+							// Add caveat context from assertion if available
+							if len(assertion.CaveatContext) > 0 {
+								qctx.CaveatContext = assertion.CaveatContext
+							}
 
 							seq, err := qctx.Check(it, []query.Object{query.GetObject(rel.Resource)}, rel.Subject)
 							require.NoError(err)
@@ -128,10 +133,10 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 							switch entry.expectedPermissionship {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
 								require.Len(rels, 1)
-								require.NotNil(rels[0].OptionalCaveat)
+								require.NotNil(rels[0].Caveat)
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
 								require.Len(rels, 1)
-								require.Nil(rels[0].OptionalCaveat)
+								require.Nil(rels[0].Caveat)
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
 								require.Len(rels, 0)
 							}

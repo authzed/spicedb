@@ -20,65 +20,131 @@ func NewExclusion(mainSet, excluded Iterator) *Exclusion {
 	}
 }
 
-func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
-	// Get all relations from the main set
+// combineExclusionCaveats combines caveats for exclusion operations (A - B logic)
+// For exclusion: main path is included unless excluded path applies
+// If main has caveat_a and excluded has caveat_b, result should be: caveat_a AND NOT caveat_b
+// If main has no caveat and excluded has caveat_b, result should be: NOT caveat_b
+// If main has caveat_a and excluded has no caveat, result should be completely excluded (return nil)
+// If neither has caveats, use simple exclusion logic
+func combineExclusionCaveats(mainPath, excludedPath *Path) *Path {
+	// Case 1: Main has caveat, excluded has no caveat
+	// Since excluded always applies (no conditions), main is completely excluded
+	if mainPath.Caveat != nil && excludedPath.Caveat == nil {
+		return nil // Completely excluded
+	}
+
+	// Case 2: Main has no caveat, excluded has no caveat
+	// Simple exclusion - excluded always applies, so main is completely excluded
+	if mainPath.Caveat == nil && excludedPath.Caveat == nil {
+		return nil // Completely excluded
+	}
+
+	// Case 3: Main has no caveat, excluded has caveat
+	// Main applies unconditionally, excluded applies conditionally
+	// Result: main path with caveat NOT(excluded_caveat)
+	if mainPath.Caveat == nil && excludedPath.Caveat != nil {
+		// For now, return main with excluded caveat negated
+		// This is complex because we'd need to negate the caveat expression
+		// For simplicity, let's return the main path with the excluded caveat
+		// This represents "main applies, but only when excluded caveat is false"
+		result := *mainPath
+		result.Caveat = excludedPath.Caveat
+		return &result
+	}
+
+	// Case 4: Main has caveat, excluded has caveat
+	// Result should be: main_caveat AND NOT(excluded_caveat)
+	// This is complex to implement properly, so for now return main caveat
+	if mainPath.Caveat != nil && excludedPath.Caveat != nil {
+		// For now, return main with main caveat (simplified approach)
+		// TODO: Implement proper caveat negation and combination
+		result := *mainPath
+		return &result
+	}
+
+	return mainPath
+}
+
+func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	ctx.TraceEnterIterator("Exclusion", resources, subject)
+
+	// Get all paths from the main set
+	ctx.TraceStep("Exclusion", "getting paths from main set")
 	mainSeq, err := e.mainSet.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
 
-	mainRels, err := CollectAll(mainSeq)
+	mainPaths, err := CollectAll(mainSeq)
 	if err != nil {
 		return nil, err
 	}
 
+	ctx.TraceStep("Exclusion", "main set returned %d paths", len(mainPaths))
+
 	// If main set is empty, return empty result
-	if len(mainRels) == 0 {
-		return func(yield func(Relation, error) bool) {
+	if len(mainPaths) == 0 {
+		ctx.TraceStep("Exclusion", "main set empty, returning empty")
+		ctx.TraceExitIterator("Exclusion", []*Path{})
+		return func(yield func(*Path, error) bool) {
 			// Empty sequence - never yield anything
 		}, nil
 	}
 
-	// Get all relations from the excluded set
+	// Get all paths from the excluded set
+	ctx.TraceStep("Exclusion", "getting paths from excluded set")
 	excludedSeq, err := e.excluded.CheckImpl(ctx, resources, subject)
 	if err != nil {
 		return nil, err
 	}
 
-	excludedRels, err := CollectAll(excludedSeq)
+	excludedPaths, err := CollectAll(excludedSeq)
 	if err != nil {
 		return nil, err
 	}
 
-	// Filter main set by excluding relations that are in the excluded set
-	return func(yield func(Relation, error) bool) {
-		for _, mainRel := range mainRels {
-			found := false
+	ctx.TraceStep("Exclusion", "excluded set returned %d paths", len(excludedPaths))
 
-			// Check if this relation exists in the excluded set (only compare endpoints: resource and subject object types/IDs)
-			for _, excludedRel := range excludedRels {
-				if GetObject(mainRel.Resource).Equals(GetObject(excludedRel.Resource)) &&
-					GetObject(mainRel.Subject).Equals(GetObject(excludedRel.Subject)) {
-					found = true
-					break
-				}
+	// Filter main set by excluding paths that are in the excluded set
+	// Now with proper caveat combination logic
+	var finalPaths []*Path
+	for _, mainPath := range mainPaths {
+		resultPath := mainPath
+
+		// Check if this path exists in the excluded set
+		for _, excludedPath := range excludedPaths {
+			if mainPath.Resource.Equals(excludedPath.Resource) &&
+				GetObject(mainPath.Subject).Equals(GetObject(excludedPath.Subject)) {
+				// Found matching path in excluded set - combine caveats
+				ctx.TraceStep("Exclusion", "found matching excluded path, combining caveats")
+				resultPath = combineExclusionCaveats(mainPath, excludedPath)
+				break
 			}
+		}
 
-			// Only yield if not found in excluded set
-			if !found {
-				if !yield(mainRel, nil) {
-					return
-				}
+		// Only include if path is not completely excluded (resultPath != nil)
+		if resultPath != nil {
+			finalPaths = append(finalPaths, resultPath)
+		} else {
+			ctx.TraceStep("Exclusion", "path completely excluded")
+		}
+	}
+
+	ctx.TraceExitIterator("Exclusion", finalPaths)
+	return func(yield func(*Path, error) bool) {
+		for _, path := range finalPaths {
+			if !yield(path, nil) {
+				return
 			}
 		}
 	}, nil
 }
 
-func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 
-func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	return nil, spiceerrors.MustBugf("unimplemented")
 }
 

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/tuple"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func TestArrowIterator(t *testing.T) {
@@ -33,21 +33,16 @@ func TestArrowIterator(t *testing.T) {
 
 		// Test arrow operation: find resources where left side connects to right side
 		// This looks for documents whose parent folder has viewers
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 
 		// Expected: spec1 should match because alice has viewer access to project1 (spec1's parent)
 		// spec2 should NOT match because alice does not have access to project2 (spec2's parent)
-		expected := []tuple.Relationship{
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "spec1", "parent"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
+		expected := []*Path{
+			MustPathFromString("document:spec1#parent@user:alice"),
 		}
 		require.Equal(expected, rels)
 	})
@@ -61,10 +56,10 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, []Object{}, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(arrow, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 		require.Empty(rels, "empty resource list should return no results")
 	})
@@ -78,10 +73,10 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(arrow, NewObjects("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 		// Should be empty since resource doesn't exist
 		require.Empty(rels, "nonexistent resource should return no results")
@@ -96,10 +91,10 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
+		pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 		// Should be empty since subject doesn't exist
 		require.Empty(rels, "nonexistent subject should return no results")
@@ -213,10 +208,10 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	}
 
 	// Test with multiple resource IDs
-	relSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2", "nonexistent"), NewObject("user", "alice").WithEllipses())
+	pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2", "nonexistent"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 
-	rels, err := CollectAll(relSeq)
+	rels, err := CollectAll(pathSeq)
 	require.NoError(err)
 
 	// The result should include valid arrow relationships found across all resources
@@ -227,13 +222,238 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	// - nonexistent doesn't exist -> should NOT match
 
 	// We expect exactly 1 result: spec1 with alice as subject
-	expected := []tuple.Relationship{
-		{
-			RelationshipReference: tuple.RelationshipReference{
-				Resource: tuple.ONR("document", "spec1", "parent"),
-				Subject:  tuple.ONR("user", "alice", "..."),
-			},
-		},
+	expected := []*Path{
+		MustPathFromString("document:spec1#parent@user:alice"),
 	}
 	require.Equal(expected, rels)
+}
+
+func TestArrowIteratorCaveatCombination(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	// Create test context
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
+		t.Parallel()
+
+		// Left side path with caveat
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat",
+				},
+			},
+		}
+
+		// Right side path with different caveat (matching the left side's target)
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat",
+				},
+			},
+		}
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Arrow should return one combined relation")
+		require.NotNil(rels[0].Caveat, "Result should have combined caveat")
+		// The combination logic should combine both caveats with AND logic
+	})
+
+	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {
+		t.Parallel()
+
+		// Left side path with caveat
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat",
+				},
+			},
+		}
+
+		// Right side path with no caveat
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Arrow should return one relation")
+		require.NotNil(rels[0].Caveat, "Left caveat should be preserved")
+		// Note: Checking exact caveat content would require parsing the CaveatExpression
+	})
+
+	t.Run("Left_NoCaveat_Right_Caveat", func(t *testing.T) {
+		t.Parallel()
+
+		// Left side path with no caveat
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+
+		// Right side path with caveat
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat",
+				},
+			},
+		}
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Arrow should return one relation")
+		require.NotNil(rels[0].Caveat, "Right caveat should be preserved")
+		// Note: Checking exact caveat content would require parsing the CaveatExpression
+	})
+
+	t.Run("Neither_Side_Has_Caveat", func(t *testing.T) {
+		t.Parallel()
+
+		// Left side path with no caveat
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+
+		// Right side path with no caveat
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 1, "Arrow should return one relation")
+		require.Nil(rels[0].Caveat, "No caveat should result in no caveat")
+	})
+
+	t.Run("Multiple_Relations_Mixed_Caveats", func(t *testing.T) {
+		t.Parallel()
+
+		// Left side has multiple paths, some with caveats
+		leftPath1 := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat1",
+				},
+			},
+		}
+
+		leftPath2 := MustPathFromString("document:doc2#parent@folder:folder2")
+
+		// Right side paths with mixed caveats
+		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat1",
+				},
+			},
+		}
+
+		rightPath2 := MustPathFromString("folder:folder2#viewer@user:alice")
+		rightPath2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat2",
+				},
+			},
+		}
+
+		leftIter := NewFixedIterator(leftPath1, leftPath2)
+		rightIter := NewFixedIterator(rightPath1, rightPath2)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Len(rels, 2, "Arrow should return two relations")
+
+		// Check that caveats are combined properly
+		for _, path := range rels {
+			require.NotNil(path.Caveat, "Each result should have a caveat")
+			// Note: Exact caveat validation would require parsing CaveatExpression
+			// Just verify that caveats are present for combined results
+		}
+	})
+
+	t.Run("No_Matching_Arrow_Relations", func(t *testing.T) {
+		t.Parallel()
+
+		// Left side points to folder1, but right side only has folder2
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat",
+				},
+			},
+		}
+
+		rightPath := MustPathFromString("folder:folder2#viewer@user:alice") // Different folder
+		rightPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat",
+				},
+			},
+		}
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		rels, err := CollectAll(relSeq)
+		require.NoError(err)
+
+		require.Empty(rels, "No matching arrow relations should result in empty result")
+	})
 }

@@ -2,6 +2,9 @@ package query
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -50,7 +53,11 @@ func NewDocumentAccessFixedIterator() *FixedIterator {
 		createRelation("document", "doc6", "viewer", "group", "all_staff", "member"),
 	}
 
-	return NewFixedIterator(relations...)
+	paths := make([]*Path, len(relations))
+	for i, rel := range relations {
+		paths[i] = FromRelationship(rel)
+	}
+	return NewFixedIterator(paths...)
 }
 
 // NewFolderHierarchyFixedIterator creates a FixedIterator with folder hierarchy relations
@@ -76,7 +83,11 @@ func NewFolderHierarchyFixedIterator() *FixedIterator {
 		createRelation("document", "readme", "parent", "folder", "root", "..."),
 	}
 
-	return NewFixedIterator(relations...)
+	paths := make([]*Path, len(relations))
+	for i, rel := range relations {
+		paths[i] = FromRelationship(rel)
+	}
+	return NewFixedIterator(paths...)
 }
 
 // NewMultiRoleFixedIterator creates a FixedIterator where users have multiple roles on the same resources
@@ -101,7 +112,11 @@ func NewMultiRoleFixedIterator() *FixedIterator {
 		createRelation("document", "doc4", "owner", "user", "diana", "..."),
 	}
 
-	return NewFixedIterator(relations...)
+	paths := make([]*Path, len(relations))
+	for i, rel := range relations {
+		paths[i] = FromRelationship(rel)
+	}
+	return NewFixedIterator(paths...)
 }
 
 // NewGroupMembershipFixedIterator creates a FixedIterator with group membership and nested groups
@@ -126,7 +141,11 @@ func NewGroupMembershipFixedIterator() *FixedIterator {
 		createRelation("document", "design_guide", "editor", "group", "designers", "member"),
 	}
 
-	return NewFixedIterator(relations...)
+	paths := make([]*Path, len(relations))
+	for i, rel := range relations {
+		paths[i] = FromRelationship(rel)
+	}
+	return NewFixedIterator(paths...)
 }
 
 // NewSingleUserFixedIterator creates a FixedIterator with relations for a single user across multiple resources
@@ -140,7 +159,11 @@ func NewSingleUserFixedIterator(userID string) *FixedIterator {
 		createRelation("folder", "shared_folder", "viewer", "user", userID, "..."),
 	}
 
-	return NewFixedIterator(relations...)
+	paths := make([]*Path, len(relations))
+	for i, rel := range relations {
+		paths[i] = FromRelationship(rel)
+	}
+	return NewFixedIterator(paths...)
 }
 
 // NewEmptyFixedIterator creates an empty FixedIterator for testing edge cases
@@ -177,7 +200,11 @@ func NewLargeFixedIterator() *FixedIterator {
 		}
 	}
 
-	return NewFixedIterator(relations...)
+	paths := make([]*Path, len(relations))
+	for i, rel := range relations {
+		paths[i] = FromRelationship(rel)
+	}
+	return NewFixedIterator(paths...)
 }
 
 // NewConflictingPermissionsFixedIterator creates a FixedIterator with potential permission conflicts for testing
@@ -198,7 +225,35 @@ func NewConflictingPermissionsFixedIterator() *FixedIterator {
 		createRelation("group", "team", "member", "user", "charlie", "..."),
 	}
 
-	return NewFixedIterator(relations...)
+	paths := make([]*Path, len(relations))
+	for i, rel := range relations {
+		paths[i] = FromRelationship(rel)
+	}
+	return NewFixedIterator(paths...)
+}
+
+// AssertRelationsMatchByResource compares two slices of relations by their resource and subject,
+// ignoring the specific relation names. This is useful for testing intersection behavior where
+// we care about which resources have matching subjects, not the specific relation types.
+func AssertRelationsMatchByResource(t *testing.T, expected, actual []tuple.Relationship, msgAndArgs ...any) {
+	t.Helper()
+
+	// Convert to resource+subject keys for comparison
+	expectedKeys := make(map[string]bool)
+	for _, rel := range expected {
+		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID + "@" +
+			rel.Subject.ObjectType + ":" + rel.Subject.ObjectID
+		expectedKeys[key] = true
+	}
+
+	actualKeys := make(map[string]bool)
+	for _, rel := range actual {
+		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID + "@" +
+			rel.Subject.ObjectType + ":" + rel.Subject.ObjectID
+		actualKeys[key] = true
+	}
+
+	require.Equal(t, expectedKeys, actualKeys, msgAndArgs...)
 }
 
 // FaultyIterator is a test helper that simulates iterator errors
@@ -209,46 +264,46 @@ type FaultyIterator struct {
 
 var _ Iterator = &FaultyIterator{}
 
-func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (RelationSeq, error) {
+func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	if f.shouldFailOnCheck {
 		return nil, fmt.Errorf("faulty iterator error")
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Relation, error) bool) {
-			yield(Relation{}, fmt.Errorf("faulty iterator collection error"))
+		return func(yield func(*Path, error) bool) {
+			yield(nil, fmt.Errorf("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
-	return func(yield func(Relation, error) bool) {}, nil
+	return func(yield func(*Path, error) bool) {}, nil
 }
 
-func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (RelationSeq, error) {
+func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	if f.shouldFailOnCheck {
 		return nil, fmt.Errorf("faulty iterator error")
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Relation, error) bool) {
-			yield(Relation{}, fmt.Errorf("faulty iterator collection error"))
+		return func(yield func(*Path, error) bool) {
+			yield(nil, fmt.Errorf("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
-	return func(yield func(Relation, error) bool) {}, nil
+	return func(yield func(*Path, error) bool) {}, nil
 }
 
-func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (RelationSeq, error) {
+func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	if f.shouldFailOnCheck {
 		return nil, fmt.Errorf("faulty iterator error")
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Relation, error) bool) {
-			yield(Relation{}, fmt.Errorf("faulty iterator collection error"))
+		return func(yield func(*Path, error) bool) {
+			yield(nil, fmt.Errorf("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
-	return func(yield func(Relation, error) bool) {}, nil
+	return func(yield func(*Path, error) bool) {}, nil
 }
 
 func (f *FaultyIterator) Clone() Iterator {
