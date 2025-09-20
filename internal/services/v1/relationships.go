@@ -577,9 +577,21 @@ func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFil
 		}
 	}
 
-	// Ensure the resource ID and the resource ID prefix are not set at the same time.
-	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
-		return NewInvalidFilterErr("resource_id and resource_id_prefix cannot be set at the same time", filter.String())
+	// Use counter-based validation for mutual exclusion of resource ID fields
+	resourceIdFieldsCount := 0
+	if filter.OptionalResourceId != "" {
+		resourceIdFieldsCount++
+	}
+	if filter.OptionalResourceIdPrefix != "" {
+		resourceIdFieldsCount++
+	}
+	if len(filter.OptionalResourceIds) > 0 {
+		resourceIdFieldsCount++
+	}
+
+	// Ensure only one resource ID field type is set at a time
+	if resourceIdFieldsCount > 1 {
+		return NewInvalidFilterErr("only one of resource_id, resource_id_prefix, or resource_ids can be set at the same time", filter.String())
 	}
 
 	// Ensure that at least one field is set.
@@ -590,6 +602,7 @@ func checkIfFilterIsEmpty(filter *v1.RelationshipFilter) error {
 	if filter.ResourceType == "" &&
 		filter.OptionalResourceId == "" &&
 		filter.OptionalResourceIdPrefix == "" &&
+		len(filter.OptionalResourceIds) == 0 &&
 		filter.OptionalRelation == "" &&
 		filter.OptionalSubjectFilter == nil {
 		return NewInvalidFilterErr("at least one field must be set", filter.String())
