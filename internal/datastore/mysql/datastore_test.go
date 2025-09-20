@@ -6,6 +6,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -103,7 +104,7 @@ func createMultiDatastoreTest(b testdatastore.RunningEngineForTest, tf multiData
 			ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
 			require.NoError(t, err)
 
-			ds2, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
+			ds2, err := newMySQLDatastore(ctx, uri, primaryInstanceID+1, options...)
 			require.NoError(t, err)
 
 			secondDS = ds2
@@ -132,11 +133,30 @@ func TestMySQLRevisionTimestamps(t *testing.T) {
 	t.Run("TransactionTimestamps", createDatastoreTest(b, TransactionTimestampsTest, defaultOptions...))
 }
 
-func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
-	reg := prometheus.NewRegistry()
-	prometheus.DefaultGatherer = reg
-	prometheus.DefaultRegisterer = reg
+func multiDataStoreWithDuplicateDBNames(t *testing.T, b testdatastore.RunningEngineForTest, errMsg string) func(*testing.T) {
+	return func(t *testing.T) {
+		ctx := t.Context()
 
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, WithEnablePrometheusStats(true))
+			require.NoError(t, err)
+
+			_, err = newMySQLDatastore(ctx, uri, primaryInstanceID, WithEnablePrometheusStats(true))
+			require.Error(t, err)
+			require.ErrorContains(t, err, errMsg)
+
+			return ds
+		})
+		defer failOnError(t, ds.Close)
+	}
+}
+
+func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
+	{
+		reg := prometheus.NewRegistry()
+		prometheus.DefaultGatherer = reg
+		prometheus.DefaultRegisterer = reg
+	}
 	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest))
 	t.Run("PrometheusCollector", createDatastoreTest(
 		b,
@@ -151,7 +171,41 @@ func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
 	})
+	{
+		reg := &unregisterable{*prometheus.NewRegistry()}
+		prometheus.DefaultGatherer = reg
+		prometheus.DefaultRegisterer = reg
+	}
+	t.Run("DatastoreWithUnregisterableRegistry", func(t *testing.T) {
+		_ = b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := newMySQLDatastore(t.Context(), uri, primaryInstanceID, WithEnablePrometheusStats(true))
+			require.Error(t, err)
+			require.ErrorContains(t, err, "NewMySQLDatastore: unable to instrument connector.")
+			require.Nil(t, ds)
+			return ds
+		})
+	})
 	t.Run("Locking", createMultiDatastoreTest(b, LockingTest, defaultOptions...))
+	{
+		reg := prometheus.NewRegistry()
+		prometheus.DefaultGatherer = reg
+		prometheus.DefaultRegisterer = reg
+	}
+	t.Run("MultiDatastoreWithPrometheus", createMultiDatastoreTest(b, func(t *testing.T, ds1 datastore.Datastore, ds2 datastore.Datastore) {}, append(defaultOptions, WithEnablePrometheusStats(true))...))
+	{
+		reg := prometheus.NewRegistry()
+		prometheus.DefaultGatherer = reg
+		prometheus.DefaultRegisterer = reg
+	}
+	t.Run("MultiDatastoreWithPrometheusWithDuplicateDBNames", multiDataStoreWithDuplicateDBNames(t, b, "duplicate metrics collector registration attempted"))
+}
+
+type unregisterable struct {
+	prometheus.Registry
+}
+
+func (*unregisterable) Register(prometheus.Collector) error {
+	return errors.New("unregisterable")
 }
 
 func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) {

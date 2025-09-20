@@ -175,14 +175,14 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 
 	var db *sql.DB
 	if config.enablePrometheusStats {
-		connector, err = instrumentConnector(connector)
-		if err != nil {
-			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: unable to instrument connector", err, uri)
-		}
-
 		dbName := "spicedb"
 		if replicaIndex != primaryInstanceID {
 			dbName = fmt.Sprintf("spicedb_replica_%d", replicaIndex)
+		}
+
+		connector, err = instrumentConnector(connector, dbName)
+		if err != nil {
+			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: unable to instrument connector", err, uri)
 		}
 
 		db = sql.OpenDB(connector)
