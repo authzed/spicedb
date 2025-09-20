@@ -109,9 +109,6 @@ type PermissionsServerConfig struct {
 	// DeprecatedRelationshipsEnabled defines whether or not deprecated relationships are enabled.
 	DeprecatedRelationshipsAndObjectsEnabled bool
 
-	// DeprecatedRelationshipsEnabled defines whether or not deprecated relationships are enabled.
-	DeprecatedRelationshipsAndObjectsEnabled bool
-
 	// CaveatTypeSet is the set of caveat types to use for caveats. If not specified,
 	// the default type set is used.
 	CaveatTypeSet *caveattypes.TypeSet
@@ -152,7 +149,7 @@ func NewPermissionsServer(
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 		DeprecatedRelationshipsAndObjectsEnabled: config.DeprecatedRelationshipsAndObjectsEnabled,
 		PerformanceInsightMetricsEnabled:         config.PerformanceInsightMetricsEnabled,
-		EnableExperimentalLookupResources3: 	  config.EnableExperimentalLookupResources3,
+		EnableExperimentalLookupResources3:       config.EnableExperimentalLookupResources3,
 	}
 
 	return &permissionServer{
