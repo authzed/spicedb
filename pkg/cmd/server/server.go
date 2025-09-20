@@ -124,6 +124,7 @@ type Config struct {
 	MaxLookupResourcesLimit                   uint32        `debugmap:"visible"`
 	MaxBulkExportRelationshipsLimit           uint32        `debugmap:"visible"`
 	EnableExperimentalLookupResources         bool          `debugmap:"visible"`
+	ExperimentalLookupResourcesVersion        string        `debugmap:"visible"`
 	EnableExperimentalRelationshipExpiration  bool          `debugmap:"visible"`
 	EnableExperimentalRelationshipDeprecation bool          `debugmap:"visible"`
 	EnableRevisionHeartbeat                   bool          `debugmap:"visible"`
