@@ -36,6 +36,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -195,8 +196,21 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-
 	if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, ds); err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Build the internal filter from the API provided filter.
+	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+	if err != nil {
+		return ps.rewriteError(ctx, fmt.Errorf("error filtering: %w", err))
+	}
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+
+	// Determine the traits for the upcoming QueryRelationships call; this also checks
+	// if the filter is *impossible*, in which case an error is returned.
+	traits, err := ts.PossibleTraitsForFilter(ctx, dsFilter)
+	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
@@ -238,11 +252,6 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 	}
 
-	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
-	if err != nil {
-		return ps.rewriteError(ctx, fmt.Errorf("error filtering: %w", err))
-	}
-
 	it, err := pagination.NewPaginatedIterator(
 		ctx,
 		ds,
@@ -251,6 +260,8 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		options.ByResource,
 		startCursor,
 		queryshape.Varying,
+		options.WithSkipCaveats(!traits.AllowsCaveats),
+		options.WithSkipExpiration(!traits.AllowsExpiration),
 	)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
