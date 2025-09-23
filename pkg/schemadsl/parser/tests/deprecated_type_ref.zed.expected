@@ -1,0 +1,99 @@
+NodeTypeFile
+  end-rune = 256
+  input-source = deprecated type reference test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 17
+      input-source = deprecated type reference test
+      start-rune = 0
+    NodeTypeDefinition
+      definition-name = testuser
+      end-rune = 41
+      input-source = deprecated type reference test
+      start-rune = 20
+    NodeTypeDefinition
+      definition-name = platform
+      end-rune = 256
+      input-source = deprecated type reference test
+      start-rune = 44
+      child-node =>
+        NodeTypeRelation
+          end-rune = 101
+          input-source = deprecated type reference test
+          relation-name = viewer
+          start-rune = 70
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 101
+              input-source = deprecated type reference test
+              start-rune = 87
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 90
+                  input-source = deprecated type reference test
+                  start-rune = 87
+                  type-name = user
+                NodeTypeSpecificTypeReference
+                  end-rune = 101
+                  input-source = deprecated type reference test
+                  start-rune = 94
+                  type-name = testuser
+        NodeTypeRelation
+          end-rune = 178
+          input-source = deprecated type reference test
+          relation-name = editor
+          start-rune = 107
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 178
+              input-source = deprecated type reference test
+              start-rune = 124
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 131
+                  input-source = deprecated type reference test
+                  start-rune = 124
+                  type-name = testuser
+                NodeTypeSpecificTypeReference
+                  end-rune = 178
+                  input-source = deprecated type reference test
+                  start-rune = 135
+                  type-name = testuser
+                  reference-deprecated-type =>
+                    NodeTypeDeprecation
+                      deprecation-comments = some comments
+                      deprecation-type = error
+                      end-rune = 169
+                      input-source = deprecated type reference test
+                      start-rune = 135
+        NodeTypeRelation
+          end-rune = 254
+          input-source = deprecated type reference test
+          relation-name = auditor
+          start-rune = 185
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 254
+              input-source = deprecated type reference test
+              start-rune = 203
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 206
+                  input-source = deprecated type reference test
+                  start-rune = 203
+                  type-name = user
+                NodeTypeSpecificTypeReference
+                  end-rune = 254
+                  input-source = deprecated type reference test
+                  start-rune = 210
+                  type-name = testuser
+                  type-wildcard = true
+                  reference-deprecated-type =>
+                    NodeTypeDeprecation
+                      deprecation-comments = comments here
+                      deprecation-type = warn
+                      end-rune = 243
+                      input-source = deprecated type reference test
+                      start-rune = 210

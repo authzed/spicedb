@@ -93,6 +93,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.ExperimentalLookupResourcesVersion = c.ExperimentalLookupResourcesVersion
 		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
+		to.EnableExperimentalRelationshipDeprecation = c.EnableExperimentalRelationshipDeprecation
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 		to.EnablePerformanceInsightMetrics = c.EnablePerformanceInsightMetrics
 		to.MetricsAPI = c.MetricsAPI
@@ -167,6 +168,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
 	debugMap["ExperimentalLookupResourcesVersion"] = helpers.DebugValue(c.ExperimentalLookupResourcesVersion, false)
 	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
+	debugMap["EnableExperimentalRelationshipDeprecation"] = helpers.DebugValue(c.EnableExperimentalRelationshipDeprecation, false)
 	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
@@ -613,6 +615,13 @@ func WithExperimentalLookupResourcesVersion(experimentalLookupResourcesVersion s
 func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationshipExpiration bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableExperimentalRelationshipExpiration = enableExperimentalRelationshipExpiration
+	}
+}
+
+// WithEnableExperimentalRelationshipDeprecation returns an option that can set EnableExperimentalRelationshipDeprecation on a Config
+func WithEnableExperimentalRelationshipDeprecation(enableExperimentalRelationshipDeprecation bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableExperimentalRelationshipDeprecation = enableExperimentalRelationshipDeprecation
 	}
 }
 
