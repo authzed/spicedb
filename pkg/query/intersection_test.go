@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestIntersectionIterator(t *testing.T) {
@@ -38,24 +39,15 @@ func TestIntersectionIterator(t *testing.T) {
 		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 
-		// The intersection should find relations that exist in both iterators
-		// Both DocumentAccess and MultiRole have alice with viewer/editor/owner on doc1
-		expected := []*Path{
-			MustPathFromString("document:doc1#viewer@user:alice"),
-			MustPathFromString("document:doc1#editor@user:alice"),
-			MustPathFromString("document:doc1#owner@user:alice"),
-		}
-		require.Len(rels, len(expected), "Should have expected number of paths")
-		for _, expectedPath := range expected {
-			found := false
-			for _, actualPath := range rels {
-				if expectedPath.Equals(actualPath) {
-					found = true
-					break
-				}
-			}
-			require.True(found, "Expected path %v should be found in results", expectedPath)
-		}
+		// The intersection should find resources that exist in both iterators
+		// Both DocumentAccess and MultiRole have alice with access to doc1
+		// The intersection combines these into a single path using AND logic
+		require.Len(rels, 1, "Should have exactly 1 combined path for the intersected endpoint")
+
+		// Verify the combined path has the correct endpoint
+		path := rels[0]
+		require.True(path.Resource.Equals(NewObject("document", "doc1")), "Resource should match")
+		require.True(tuple.ONREqual(path.Subject, NewObject("user", "alice").WithEllipses()), "Subject should match")
 	})
 
 	t.Run("Check_EmptyIntersection", func(t *testing.T) {
