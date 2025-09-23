@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestIntersectionIterator(t *testing.T) {
@@ -32,33 +30,18 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 
 		// The intersection should find relations that exist in both iterators
 		// Both DocumentAccess and MultiRole have alice with viewer/editor/owner on doc1
-		expected := []tuple.Relationship{
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "viewer"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "editor"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
-			{
-				RelationshipReference: tuple.RelationshipReference{
-					Resource: tuple.ONR("document", "doc1", "owner"),
-					Subject:  tuple.ONR("user", "alice", "..."),
-				},
-			},
+		expected := []*Path{
+			MustPathFromString("document:doc1#viewer@user:alice"),
+			MustPathFromString("document:doc1#editor@user:alice"),
+			MustPathFromString("document:doc1#owner@user:alice"),
 		}
 		require.ElementsMatch(expected, rels)
 	})
@@ -77,13 +60,13 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(singleUser)
 
 		// Use a subject that doesn't exist in both
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "bob").WithEllipses())
+		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "bob").WithEllipses())
 		require.NoError(err)
 
-		if relSeq != nil {
-			_, err := CollectAll(relSeq)
+		if pathSeq != nil {
+			rels, err := CollectAll(pathSeq)
 			require.NoError(err)
-			// Should likely be empty since bob isn't in documentAccess
+			require.Empty(rels)
 		}
 	})
 
@@ -93,12 +76,12 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect := NewIntersection()
 
 		// Empty intersection should return empty results
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		// Should return nil sequence since there are no sub-iterators
-		if relSeq != nil {
-			rels, err := CollectAll(relSeq)
+		if pathSeq != nil {
+			rels, err := CollectAll(pathSeq)
 			require.NoError(err)
 			require.Empty(rels)
 		}
@@ -112,10 +95,10 @@ func TestIntersectionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect.addSubIterator(documentAccess)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 		require.NotEmpty(rels, "Single iterator intersection should return results")
 	})
@@ -128,13 +111,13 @@ func TestIntersectionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect.addSubIterator(documentAccess)
 
-		relSeq, err := ctx.Check(intersect, []Object{}, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.Check(intersect, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		// The behavior with empty resource list may vary by implementation
 		// Let's just ensure it doesn't error and log the results
-		if relSeq != nil {
-			rels, err := CollectAll(relSeq)
+		if pathSeq != nil {
+			rels, err := CollectAll(pathSeq)
 			require.NoError(err)
 			require.Empty(rels, "Empty resource list should return no results")
 		}
@@ -151,11 +134,11 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
+		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
 
-		if relSeq != nil {
-			rels, err := CollectAll(relSeq)
+		if pathSeq != nil {
+			rels, err := CollectAll(pathSeq)
 			require.NoError(err)
 			require.Empty(rels, "Nonexistent subject should return no results")
 		}
@@ -215,7 +198,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Collect results from original iterator
 	originalSeq, err := ctx.Check(original, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
-	var originalResults []Relation
+	var originalResults []*Path
 	if originalSeq != nil {
 		originalResults, err = CollectAll(originalSeq)
 		require.NoError(err)
@@ -224,7 +207,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Collect results from cloned iterator
 	clonedSeq, err := ctx.Check(cloned, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
-	var clonedResults []Relation
+	var clonedResults []*Path
 	if clonedSeq != nil {
 		clonedResults, err = CollectAll(clonedSeq)
 		require.NoError(err)
@@ -291,12 +274,12 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 	intersect.addSubIterator(documentAccess)
 
 	// Use any subject - should get no results due to empty first iterator
-	relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+	pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 
 	// Should return empty results since first iterator has no results
-	if relSeq != nil {
-		rels, err := CollectAll(relSeq)
+	if pathSeq != nil {
+		rels, err := CollectAll(pathSeq)
 		require.NoError(err)
 		// Should be empty due to early termination
 		require.Empty(rels, "Early termination should return no results")

@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestFixedIterator(t *testing.T) {
@@ -18,54 +16,13 @@ func TestFixedIterator(t *testing.T) {
 		Executor: LocalExecutor{},
 	}
 
-	// Create test relations
-	rel1 := tuple.Relationship{
-		RelationshipReference: tuple.RelationshipReference{
-			Resource: tuple.ObjectAndRelation{
-				ObjectType: "document",
-				ObjectID:   "doc1",
-				Relation:   "viewer",
-			},
-			Subject: tuple.ObjectAndRelation{
-				ObjectType: "user",
-				ObjectID:   "alice",
-				Relation:   "...",
-			},
-		},
-	}
-
-	rel2 := tuple.Relationship{
-		RelationshipReference: tuple.RelationshipReference{
-			Resource: tuple.ObjectAndRelation{
-				ObjectType: "document",
-				ObjectID:   "doc2",
-				Relation:   "editor",
-			},
-			Subject: tuple.ObjectAndRelation{
-				ObjectType: "user",
-				ObjectID:   "bob",
-				Relation:   "...",
-			},
-		},
-	}
-
-	rel3 := tuple.Relationship{
-		RelationshipReference: tuple.RelationshipReference{
-			Resource: tuple.ObjectAndRelation{
-				ObjectType: "document",
-				ObjectID:   "doc1",
-				Relation:   "editor",
-			},
-			Subject: tuple.ObjectAndRelation{
-				ObjectType: "user",
-				ObjectID:   "charlie",
-				Relation:   "...",
-			},
-		},
-	}
+	// Create test paths
+	path1 := MustPathFromString("document:doc1#viewer@user:alice")
+	path2 := MustPathFromString("document:doc2#editor@user:bob")
+	path3 := MustPathFromString("document:doc1#editor@user:charlie")
 
 	// Create fixed iterator
-	fixed := NewFixedIterator(rel1, rel2, rel3)
+	fixed := NewFixedIterator(path1, path2, path3)
 
 	t.Run("Check", func(t *testing.T) {
 		t.Parallel()
@@ -150,7 +107,7 @@ func TestFixedIterator(t *testing.T) {
 		t.Parallel()
 
 		explain := fixed.Explain()
-		require.Equal("Fixed(3 relations)", explain.Info)
+		require.Equal("Fixed(3 paths)", explain.Info)
 		require.Empty(explain.SubExplain)
 	})
 }

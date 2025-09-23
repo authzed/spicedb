@@ -128,10 +128,10 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 							switch entry.expectedPermissionship {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
 								require.Len(rels, 1)
-								require.NotNil(rels[0].OptionalCaveat)
+								require.NotNil(rels[0].Caveat)
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
 								require.Len(rels, 1)
-								require.Nil(rels[0].OptionalCaveat)
+								require.Nil(rels[0].Caveat)
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
 								require.Len(rels, 0)
 							}
