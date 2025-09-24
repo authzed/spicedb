@@ -46,7 +46,7 @@ type bulkChecker struct {
 const maxBulkCheckCount = 10000
 
 func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
-	telemetry.RecordLogicalChecks(uint64(len(req.Items)))
+	telemetry.LogicalChecks.Add(float64(len(req.Items)))
 
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
