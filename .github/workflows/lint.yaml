@@ -18,7 +18,7 @@ jobs:
     runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
+      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
       - name: "Check Licenses"
         uses: "authzed/actions/go-license-check@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
         with:
@@ -29,7 +29,7 @@ jobs:
     runs-on: "depot-ubuntu-24.04-4"
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
+      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
       - name: "Lint Go"
         run: "go run mage.go lint:go"
       - uses: "chainguard-dev/actions/nodiff@3caedd3784c809ba873cbb8c6a12e2bc6bf6ab09" # main
@@ -42,7 +42,7 @@ jobs:
     runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
-      - uses: "authzed/actions/setup-go@93e4256104107969575e8a377425b16313e8cc72" # main
+      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
       - name: "Lint Everything Else"
         run: "go run mage.go lint:extra"
       - uses: "chainguard-dev/actions/nodiff@3caedd3784c809ba873cbb8c6a12e2bc6bf6ab09" # main
