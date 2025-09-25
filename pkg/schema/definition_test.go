@@ -503,6 +503,98 @@ func requireSameSubjectRelations(t *testing.T, found []*core.RelationReference, 
 	require.Equal(t, expectedSlice, foundSlice)
 }
 
+func TestTraitsUnion(t *testing.T) {
+	testCases := []struct {
+		name     string
+		traits1  Traits
+		traits2  Traits
+		expected Traits
+	}{
+		{
+			"both empty",
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+		},
+		{
+			"first has caveats",
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+		},
+		{
+			"second has caveats",
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+		},
+		{
+			"both have caveats",
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+		},
+		{
+			"first has expiration",
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+		},
+		{
+			"second has expiration",
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+		},
+		{
+			"both have expiration",
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+		},
+		{
+			"first has caveats, second has expiration",
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+		},
+		{
+			"first has expiration, second has caveats",
+			Traits{AllowsCaveats: false, AllowsExpiration: true},
+			Traits{AllowsCaveats: true, AllowsExpiration: false},
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+		},
+		{
+			"both have both traits",
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+		},
+		{
+			"first has both, second has none",
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+		},
+		{
+			"first has none, second has both",
+			Traits{AllowsCaveats: false, AllowsExpiration: false},
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+			Traits{AllowsCaveats: true, AllowsExpiration: true},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+			result := tc.traits1.union(tc.traits2)
+			require.Equal(tc.expected.AllowsCaveats, result.AllowsCaveats, "AllowsCaveats mismatch")
+			require.Equal(tc.expected.AllowsExpiration, result.AllowsExpiration, "AllowsExpiration mismatch")
+		})
+	}
+}
+
 func TestTypeSystemAccessors(t *testing.T) {
 	tcs := []struct {
 		name       string
@@ -641,6 +733,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
 					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+					})
 				},
 			},
 		},
@@ -749,6 +848,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
 					})
 				},
 			},
@@ -877,6 +983,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
 					})
 				},
 			},
@@ -1014,6 +1127,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
 					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
+					})
 				},
 			},
 		},
@@ -1129,6 +1249,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
 					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
+					})
 				},
 			},
 		},
@@ -1166,6 +1293,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.False(t, traits.AllowsExpiration)
 					})
 				},
 			},
@@ -1208,6 +1342,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.False(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
 					})
 				},
 			},
@@ -1254,6 +1395,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
 					})
 				},
 			},
@@ -1338,6 +1486,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 						_, err = vts.PossibleTraitsForAnySubject("unknown")
 						require.Error(t, err)
+					})
+
+					t.Run("PossibleTraitsForAnyRelation", func(t *testing.T) {
+						traits, err := vts.PossibleTraitsForAnyRelation()
+						require.NoError(t, err)
+						require.True(t, traits.AllowsCaveats)
+						require.True(t, traits.AllowsExpiration)
 					})
 				},
 			},

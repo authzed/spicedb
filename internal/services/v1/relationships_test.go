@@ -1862,3 +1862,508 @@ func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *tes
 	require.ErrorContains(werr, "serialization max retries exceeded")
 	grpcutil.RequireStatus(t, codes.DeadlineExceeded, werr)
 }
+
+func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
+	// Test cases covering various combinations of expiration, caveats, and filters
+	testCases := []struct {
+		name                  string
+		schema                string
+		setupRelationships    []string
+		filter                *v1.RelationshipFilter
+		expectedRelationships []string
+		expectedCode          codes.Code
+	}{
+		{
+			name: "relations with expiration - resource type filter",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user with expiration
+					relation editor: user
+				}
+				definition other {
+					relation viewer: user
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice[expiration:3000-01-01T00:00:00Z]`,
+				`document:doc2#viewer@user:bob[expiration:3000-01-02T00:00:00Z]`,
+				"document:doc1#editor@user:alice",
+				"other:otherdoc#viewer@user:alice",
+				"other:otherdoc2#viewer@user:bob",
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice[expiration:3000-01-01T00:00:00Z]",
+				"document:doc2#viewer@user:bob[expiration:3000-01-02T00:00:00Z]",
+				"document:doc1#editor@user:alice",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "relations with expiration - specific relation filter",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user with expiration
+					relation editor: user
+				}
+
+				definition other {
+				   relation viewer: user
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice[expiration:3000-01-01T00:00:00Z]`,
+				"document:doc1#editor@user:alice",
+				"other:otherdoc#viewer@user:alice",
+				"other:otherdoc2#viewer@user:bob",
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType:     "document",
+				OptionalRelation: "viewer",
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice[expiration:3000-01-01T00:00:00Z]",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "relations without expiration - resource type filter",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user
+				}
+			`,
+			setupRelationships: []string{
+				"document:doc1#viewer@user:alice",
+				"document:doc2#viewer@user:bob",
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice",
+				"document:doc2#viewer@user:bob",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "relations with caveats - resource type filter",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user with test_caveat
+				}
+				caveat test_caveat(something int) {
+					something > 0
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice[test_caveat:{"something":41}]`,
+				`document:doc2#viewer@user:bob[test_caveat:{"something":42}]`,
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice[test_caveat:{\"something\":41}]",
+				"document:doc2#viewer@user:bob[test_caveat:{\"something\":42}]",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "relations without caveats - resource type filter",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user
+				}
+			`,
+			setupRelationships: []string{
+				"document:doc1#viewer@user:alice",
+				"document:doc2#viewer@user:bob",
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice",
+				"document:doc2#viewer@user:bob",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "mixed traits - both expiration and caveats",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user with test_caveat and expiration
+				}
+				caveat test_caveat(something int) {
+					something > 0
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice[test_caveat:{"something":41}][expiration:3000-01-01T00:00:00Z]`,
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice[test_caveat:{\"something\":41}][expiration:3000-01-01T00:00:00Z]",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "subject filter with traits",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user with expiration
+				}
+
+				definition other {
+				   relation viewer: user
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice[expiration:3000-01-01T00:00:00Z]`,
+				`document:doc2#viewer@user:bob[expiration:3000-01-02T00:00:00Z]`,
+				"other:otherdoc#viewer@user:alice",
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+				OptionalSubjectFilter: &v1.SubjectFilter{
+					SubjectType:       "user",
+					OptionalSubjectId: "alice",
+				},
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice[expiration:3000-01-01T00:00:00Z]",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "subject filter without resource type, with traits",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user with expiration
+				}
+
+				definition other {
+				   relation viewer: user
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice[expiration:3000-01-01T00:00:00Z]`,
+				`document:doc2#viewer@user:bob[expiration:3000-01-02T00:00:00Z]`,
+				"other:otherdoc#viewer@user:alice",
+			},
+			filter: &v1.RelationshipFilter{
+				OptionalSubjectFilter: &v1.SubjectFilter{
+					SubjectType:       "user",
+					OptionalSubjectId: "alice",
+				},
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice[expiration:3000-01-01T00:00:00Z]",
+				"other:otherdoc#viewer@user:alice",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "resource id prefix filter with traits",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user with test_caveat
+				}
+				definition other {
+					relation viewer: user
+				}
+				caveat test_caveat(something int) {
+					something > 0
+				}
+			`,
+			setupRelationships: []string{
+				`document:test_doc1#viewer@user:alice[test_caveat:{"something":41}]`,
+				`document:other_doc#viewer@user:bob[test_caveat:{"something":42}]`,
+				"other:otherdoc#viewer@user:alice",
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType:             "document",
+				OptionalResourceIdPrefix: "test_",
+			},
+			expectedRelationships: []string{
+				"document:test_doc1#viewer@user:alice[test_caveat:{\"something\":41}]",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "only resource id prefix filter with traits",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user with test_caveat
+				}
+				definition other {
+					relation viewer: user
+				}
+				caveat test_caveat(something int) {
+					something > 0
+				}
+			`,
+			setupRelationships: []string{
+				`document:test_doc1#viewer@user:alice[test_caveat:{"something":41}]`,
+				`document:other_doc#viewer@user:bob[test_caveat:{"something":42}]`,
+				"other:otherdoc#viewer@user:alice",
+			},
+			filter: &v1.RelationshipFilter{
+				OptionalResourceIdPrefix: "test_",
+			},
+			expectedRelationships: []string{
+				"document:test_doc1#viewer@user:alice[test_caveat:{\"something\":41}]",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "multiple relations with different traits",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user
+					relation editor: user with test_caveat
+					relation owner: user with expiration
+					relation admin: user with test_caveat and expiration
+				}
+				caveat test_caveat(something int) {
+					something > 0
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice`,
+				`document:doc1#editor@user:alice[test_caveat:{"something":41}]`,
+				`document:doc1#owner@user:alice[expiration:3000-01-01T00:00:00Z]`,
+				`document:doc1#admin@user:alice[test_caveat:{"something":42}][expiration:3000-01-01T00:00:00Z]`,
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+				OptionalSubjectFilter: &v1.SubjectFilter{
+					SubjectType:       "user",
+					OptionalSubjectId: "alice",
+				},
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice",
+				"document:doc1#editor@user:alice[test_caveat:{\"something\":41}]",
+				"document:doc1#owner@user:alice[expiration:3000-01-01T00:00:00Z]",
+				"document:doc1#admin@user:alice[test_caveat:{\"something\":42}][expiration:3000-01-01T00:00:00Z]",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "invalid resource type",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user
+				}
+			`,
+			setupRelationships: []string{},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "nonexistent",
+			},
+			expectedRelationships: nil,
+			expectedCode:          codes.FailedPrecondition,
+		},
+		{
+			name: "invalid relation name",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user
+				}
+
+				definition group {
+					relation nonexistent: user
+				}
+			`,
+			setupRelationships: []string{},
+			filter: &v1.RelationshipFilter{
+				ResourceType:     "document",
+				OptionalRelation: "nonexistent",
+			},
+			expectedRelationships: nil,
+			expectedCode:          codes.FailedPrecondition,
+		},
+		{
+			name: "invalid relation name for this type",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user
+				}
+
+				definition group {
+					relation nonexistent: user
+				}
+
+				definition other_type {
+					relation exists_on_other_type: user
+				}
+			`,
+			setupRelationships: []string{},
+			filter: &v1.RelationshipFilter{
+				ResourceType:     "document",
+				OptionalRelation: "exists_on_other_type",
+			},
+			expectedRelationships: nil,
+			expectedCode:          codes.FailedPrecondition,
+		},
+		{
+			name: "resource type filter with some relations having traits",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user
+					relation editor: user with test_caveat
+					relation owner: user with expiration
+				}
+				caveat test_caveat(something int) {
+					something > 0
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice`,
+				`document:doc1#editor@user:bob[test_caveat:{"something":41}]`,
+				`document:doc1#owner@user:charlie[expiration:3000-01-01T00:00:00Z]`,
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice",
+				"document:doc1#editor@user:bob[test_caveat:{\"something\":41}]",
+				"document:doc1#owner@user:charlie[expiration:3000-01-01T00:00:00Z]",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "resource type filter with no relations having traits",
+			schema: `use expiration
+
+				definition user {}
+				definition document {
+					relation viewer: user
+					relation editor: user
+					relation owner: user
+				}
+			`,
+			setupRelationships: []string{
+				`document:doc1#viewer@user:alice`,
+				`document:doc1#editor@user:bob`,
+				`document:doc1#owner@user:charlie`,
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+			expectedRelationships: []string{
+				"document:doc1#viewer@user:alice",
+				"document:doc1#editor@user:bob",
+				"document:doc1#owner@user:charlie",
+			},
+			expectedCode: codes.OK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			// Create test server with custom schema and data
+			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			client := v1.NewPermissionsServiceClient(conn)
+			t.Cleanup(cleanup)
+
+			// Write the schema
+			schemaClient := v1.NewSchemaServiceClient(conn)
+			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+				Schema: tc.schema,
+			})
+			require.NoError(err)
+
+			// Write the test relationships if any
+			if len(tc.setupRelationships) > 0 {
+				var updates []*v1.RelationshipUpdate
+				for _, relStr := range tc.setupRelationships {
+					rel := tuple.MustParse(relStr)
+					updates = append(updates, &v1.RelationshipUpdate{
+						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+						Relationship: tuple.ToV1Relationship(rel),
+					})
+				}
+				_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+					Updates: updates,
+				})
+				require.NoError(err)
+			}
+
+			// Execute ReadRelationships request
+			stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+				RelationshipFilter: tc.filter,
+			})
+			require.NoError(err)
+
+			// Collect all returned relationships to verify filter works
+			var actualRelationships []string
+			for {
+				rel, err := stream.Recv()
+				if errors.Is(err, io.EOF) {
+					break
+				}
+
+				if tc.expectedCode != codes.OK {
+					// Expect an error
+					require.Error(err)
+
+					status, ok := status.FromError(err)
+					require.True(ok, "Expected gRPC status error")
+					require.Equal(tc.expectedCode, status.Code())
+					return
+				}
+
+				require.NoError(err)
+
+				relString := tuple.MustV1RelString(rel.Relationship)
+				actualRelationships = append(actualRelationships, relString)
+			}
+
+			// Validate expected relationships
+			if tc.expectedRelationships == nil {
+				require.Empty(actualRelationships)
+			} else {
+				require.ElementsMatch(tc.expectedRelationships, actualRelationships)
+			}
+		})
+	}
+}

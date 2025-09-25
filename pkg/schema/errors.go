@@ -243,6 +243,12 @@ type UnusedCaveatParameterError struct {
 	paramName  string
 }
 
+// KnownEmptyFilterError indicates that a filter is known to be empty based on the schema.
+type KnownEmptyFilterError struct {
+	error
+	warningMessage string
+}
+
 // MarshalZerologObject implements zerolog object marshalling.
 func (err UnusedCaveatParameterError) MarshalZerologObject(e *zerolog.Event) {
 	e.Err(err.error).Str("caveat", err.caveatName).Str("param", err.paramName)
@@ -253,6 +259,23 @@ func (err UnusedCaveatParameterError) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"caveat_name":    err.caveatName,
 		"parameter_name": err.paramName,
+	}
+}
+
+// WarningMessage returns the warning message for the known empty filter.
+func (err KnownEmptyFilterError) WarningMessage() string {
+	return err.warningMessage
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (err KnownEmptyFilterError) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error).Str("warning", err.warningMessage)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err KnownEmptyFilterError) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"warning_message": err.warningMessage,
 	}
 }
 
@@ -354,6 +377,14 @@ func NewUnusedCaveatParameterErr(caveatName string, paramName string) error {
 		caveatName: caveatName,
 		paramName:  paramName,
 	}
+}
+
+// NewKnownEmptyFilterErr constructs an error indicating that a filter is known to be empty.
+func NewKnownEmptyFilterErr(warningMessage string) error {
+	return asTypeError(KnownEmptyFilterError{
+		error:          fmt.Errorf("the filter specified will return an empty set of results because: %s", warningMessage),
+		warningMessage: warningMessage,
+	})
 }
 
 // asTypeError wraps another error in a type error.
