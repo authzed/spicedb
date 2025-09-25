@@ -500,6 +500,7 @@ func TestCombineExclusionCaveats(t *testing.T) {
 
 	// Test cases for different caveat combinations
 	t.Run("main_with_caveat_excluded_without_caveat", func(t *testing.T) {
+		t.Parallel()
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "main_caveat")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 
@@ -510,6 +511,7 @@ func TestCombineExclusionCaveats(t *testing.T) {
 	})
 
 	t.Run("main_without_caveat_excluded_without_caveat", func(t *testing.T) {
+		t.Parallel()
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 
@@ -520,6 +522,7 @@ func TestCombineExclusionCaveats(t *testing.T) {
 	})
 
 	t.Run("main_without_caveat_excluded_with_caveat", func(t *testing.T) {
+		t.Parallel()
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "excluded_caveat")
 
@@ -536,6 +539,7 @@ func TestCombineExclusionCaveats(t *testing.T) {
 	})
 
 	t.Run("both_have_caveats", func(t *testing.T) {
+		t.Parallel()
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "main_caveat")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "excluded_caveat")
 
@@ -583,6 +587,7 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 	}
 
 	t.Run("exclusion_with_caveats", func(t *testing.T) {
+		t.Parallel()
 		// Main set has paths with various caveats
 		mainPath1 := createPathWithCaveat("document:doc1#view@user:alice", "caveat1")
 		mainPath2 := createPathWithCaveat("document:doc2#view@user:alice", "") // No caveat
@@ -609,9 +614,10 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 		var doc1Result *Path
 		var doc2Result *Path
 		for _, result := range results {
-			if result.Resource.ObjectID == "doc1" {
+			switch result.Resource.ObjectID {
+			case "doc1":
 				doc1Result = result
-			} else if result.Resource.ObjectID == "doc2" {
+			case "doc2":
 				doc2Result = result
 			}
 		}
@@ -638,6 +644,7 @@ func TestExclusion_EdgeCases(t *testing.T) {
 	}
 
 	t.Run("empty_main_set", func(t *testing.T) {
+		t.Parallel()
 		mainSet := NewFixedIterator() // Empty
 		excludedSet := NewFixedIterator(MustPathFromString("document:doc1#view@user:alice"))
 
@@ -652,6 +659,7 @@ func TestExclusion_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("empty_excluded_set", func(t *testing.T) {
+		t.Parallel()
 		mainPath := MustPathFromString("document:doc1#view@user:alice")
 		mainSet := NewFixedIterator(mainPath)
 		excludedSet := NewFixedIterator() // Empty
@@ -668,6 +676,7 @@ func TestExclusion_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("no_matching_exclusions", func(t *testing.T) {
+		t.Parallel()
 		mainPath := MustPathFromString("document:doc1#view@user:alice")
 		mainSet := NewFixedIterator(mainPath)
 

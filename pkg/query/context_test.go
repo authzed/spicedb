@@ -15,6 +15,7 @@ func TestTraceLogger(t *testing.T) {
 	require := require.New(t)
 
 	t.Run("NewTraceLogger", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		require.NotNil(logger)
 		require.Empty(logger.traces)
@@ -23,6 +24,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("EnterIteratorOld", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		resources := []Object{NewObject("document", "doc1"), NewObject("document", "doc2")}
 		subject := NewObject("user", "alice").WithEllipses()
@@ -35,6 +37,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("EnterIterator", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		resources := []Object{NewObject("document", "doc1")}
 		subject := NewObject("user", "alice").WithEllipses()
@@ -52,6 +55,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("ExitIteratorOld", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		logger.depth = 1 // Simulate having entered an iterator
 
@@ -65,6 +69,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("ExitIterator", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		testPath := MustPathFromString("document:doc1#view@user:alice")
 		iterator := NewFixedIterator(testPath)
@@ -83,6 +88,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("LogStepOld", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		logger.depth = 2 // Simulate being nested
 
@@ -93,6 +99,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("LogStep", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		testPath := MustPathFromString("document:doc1#view@user:alice")
 		iterator := NewFixedIterator(testPath)
@@ -107,6 +114,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("LogStep_IteratorNotInStack", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		logger.depth = 3
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -120,6 +128,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("DumpTrace", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		logger.traces = []string{"line1", "line2", "line3"}
 
@@ -128,6 +137,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("Caveat_handling_in_traces", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		logger.depth = 1 // Simulate having entered an iterator
 
@@ -147,6 +157,7 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("Complex_caveat_handling", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		logger.depth = 1 // Simulate having entered an iterator
 
@@ -170,6 +181,7 @@ func TestContext(t *testing.T) {
 	require := require.New(t)
 
 	t.Run("TraceStep", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		ctx := &Context{
 			Context:     context.Background(),
@@ -186,6 +198,7 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("TraceStep_NoLogger", func(t *testing.T) {
+		t.Parallel()
 		ctx := &Context{
 			Context: context.Background(),
 			// No TraceLogger set
@@ -201,6 +214,7 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("TraceEnter", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		ctx := &Context{
 			Context:     context.Background(),
@@ -219,6 +233,7 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("TraceExit", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		ctx := &Context{
 			Context:     context.Background(),
@@ -239,6 +254,7 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("shouldTrace", func(t *testing.T) {
+		t.Parallel()
 		// With logger
 		ctx := &Context{
 			Context:     context.Background(),
@@ -252,6 +268,7 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("Check_NoExecutor", func(t *testing.T) {
+		t.Parallel()
 		ctx := &Context{
 			Context: context.Background(),
 			// No Executor set
@@ -261,11 +278,12 @@ func TestContext(t *testing.T) {
 		iterator := NewFixedIterator(testPath)
 
 		require.Panics(func() {
-			ctx.Check(iterator, []Object{NewObject("document", "doc1")}, NewObject("user", "alice").WithEllipses())
+			_, _ = ctx.Check(iterator, []Object{NewObject("document", "doc1")}, NewObject("user", "alice").WithEllipses())
 		})
 	})
 
 	t.Run("IterSubjects_NoExecutor", func(t *testing.T) {
+		t.Parallel()
 		ctx := &Context{
 			Context: context.Background(),
 			// No Executor set
@@ -275,11 +293,12 @@ func TestContext(t *testing.T) {
 		iterator := NewFixedIterator(testPath)
 
 		require.Panics(func() {
-			ctx.IterSubjects(iterator, NewObject("document", "doc1"))
+			_, _ = ctx.IterSubjects(iterator, NewObject("document", "doc1"))
 		})
 	})
 
 	t.Run("IterResources_NoExecutor", func(t *testing.T) {
+		t.Parallel()
 		ctx := &Context{
 			Context: context.Background(),
 			// No Executor set
@@ -289,11 +308,12 @@ func TestContext(t *testing.T) {
 		iterator := NewFixedIterator(testPath)
 
 		require.Panics(func() {
-			ctx.IterResources(iterator, NewObject("user", "alice").WithEllipses())
+			_, _ = ctx.IterResources(iterator, NewObject("user", "alice").WithEllipses())
 		})
 	})
 
 	t.Run("wrapPathSeqForTracing_NoTracing", func(t *testing.T) {
+		t.Parallel()
 		ctx := &Context{
 			Context: context.Background(),
 			// No TraceLogger
@@ -322,6 +342,7 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("wrapPathSeqForTracing_WithTracing", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		ctx := &Context{
 			Context:     context.Background(),
@@ -357,6 +378,7 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("wrapPathSeqForTracing_WithError", func(t *testing.T) {
+		t.Parallel()
 		logger := NewTraceLogger()
 		ctx := &Context{
 			Context:     context.Background(),
