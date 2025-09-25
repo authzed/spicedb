@@ -49,6 +49,14 @@ func TestPath_IsExpired(t *testing.T) {
 		path := &Path{Expiration: &past}
 		require.True(path.IsExpired())
 	})
+
+	t.Run("exact_now_expiration", func(t *testing.T) {
+		t.Parallel()
+		now := time.Now()
+		path := &Path{Expiration: &now}
+		// Should be considered expired if exactly at current time
+		require.True(path.IsExpired())
+	})
 }
 
 func TestPath_MergeOr(t *testing.T) {
@@ -649,5 +657,288 @@ func TestPath_ConversionRoundtrip(t *testing.T) {
 		require.Equal(originalRel.OptionalCaveat, convertedRel.OptionalCaveat)
 		require.Equal(originalRel.OptionalExpiration, convertedRel.OptionalExpiration)
 		require.Equal(originalRel.OptionalIntegrity, convertedRel.OptionalIntegrity)
+	})
+}
+
+// Additional comprehensive tests for uncovered path.go functions
+
+func TestPath_EqualsEndpoints(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Base paths for comparison
+	path1 := MustPathFromString("document:doc1#view@user:alice")
+	path2 := MustPathFromString("document:doc1#view@user:alice")
+	path3 := MustPathFromString("document:doc1#edit@user:alice") // Different relation
+	path4 := MustPathFromString("document:doc2#view@user:alice") // Different resource
+	path5 := MustPathFromString("document:doc1#view@user:bob")   // Different subject
+
+	t.Run("identical_endpoints", func(t *testing.T) {
+		require.True(path1.EqualsEndpoints(path2))
+	})
+
+	t.Run("different_relation_same_endpoints", func(t *testing.T) {
+		// EqualsEndpoints should ignore relation and only compare resource/subject
+		require.True(path1.EqualsEndpoints(path3))
+	})
+
+	t.Run("different_resource", func(t *testing.T) {
+		require.False(path1.EqualsEndpoints(path4))
+	})
+
+	t.Run("different_subject", func(t *testing.T) {
+		require.False(path1.EqualsEndpoints(path5))
+	})
+
+	t.Run("nil_paths", func(t *testing.T) {
+		var nilPath1 *Path
+		var nilPath2 *Path
+
+		// Both nil should be equal
+		require.True(nilPath1.EqualsEndpoints(nilPath2))
+
+		// Nil vs non-nil should be false
+		require.False(nilPath1.EqualsEndpoints(path1))
+		require.False(path1.EqualsEndpoints(nilPath1))
+	})
+
+	t.Run("with_different_subject_relation_same_endpoints", func(t *testing.T) {
+		path1 := MustPathFromString("document:doc1#view@group:admin#member")
+		path2 := MustPathFromString("document:doc1#view@group:admin")
+
+		// Different subject relation should still have same endpoints since EqualsEndpoints
+		// only compares ObjectType and ObjectID, not the Relation field
+		require.True(path1.EqualsEndpoints(path2))
+	})
+}
+
+func TestPath_Equals_Comprehensive(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create paths with various attributes for comprehensive testing
+	basePath := MustPathFromString("document:doc1#view@user:alice")
+
+	// Path with caveat
+	pathWithCaveat := *basePath
+	pathWithCaveat.Caveat = &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Caveat{
+			Caveat: &core.ContextualizedCaveat{CaveatName: "test_caveat"},
+		},
+	}
+
+	// Path with different caveat
+	pathWithDifferentCaveat := *basePath
+	pathWithDifferentCaveat.Caveat = &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Caveat{
+			Caveat: &core.ContextualizedCaveat{CaveatName: "other_caveat"},
+		},
+	}
+
+	// Path with expiration
+	expiration := time.Now().Add(time.Hour)
+	pathWithExpiration := *basePath
+	pathWithExpiration.Expiration = &expiration
+
+	// Path with different expiration
+	differentExpiration := time.Now().Add(2 * time.Hour)
+	pathWithDifferentExpiration := *basePath
+	pathWithDifferentExpiration.Expiration = &differentExpiration
+
+	// Path with metadata
+	pathWithMetadata := *basePath
+	pathWithMetadata.Metadata = map[string]any{"key": "value"}
+
+	// Path with different metadata
+	pathWithDifferentMetadata := *basePath
+	pathWithDifferentMetadata.Metadata = map[string]any{"key": "different_value"}
+
+	// Path with integrity
+	pathWithIntegrity := *basePath
+	pathWithIntegrity.Integrity = []*core.RelationshipIntegrity{{KeyId: "key1"}}
+
+	t.Run("identical_paths", func(t *testing.T) {
+		path1 := MustPathFromString("document:doc1#view@user:alice")
+		path2 := MustPathFromString("document:doc1#view@user:alice")
+		require.True(path1.Equals(path2))
+	})
+
+	t.Run("different_resource_type", func(t *testing.T) {
+		path2 := MustPathFromString("folder:doc1#view@user:alice")
+		require.False(basePath.Equals(path2))
+	})
+
+	t.Run("different_resource_id", func(t *testing.T) {
+		path2 := MustPathFromString("document:doc2#view@user:alice")
+		require.False(basePath.Equals(path2))
+	})
+
+	t.Run("different_relation", func(t *testing.T) {
+		path2 := MustPathFromString("document:doc1#edit@user:alice")
+		require.False(basePath.Equals(path2))
+	})
+
+	t.Run("different_subject_type", func(t *testing.T) {
+		path2 := MustPathFromString("document:doc1#view@group:alice")
+		require.False(basePath.Equals(path2))
+	})
+
+	t.Run("different_subject_id", func(t *testing.T) {
+		path2 := MustPathFromString("document:doc1#view@user:bob")
+		require.False(basePath.Equals(path2))
+	})
+
+	t.Run("different_subject_relation", func(t *testing.T) {
+		path1 := MustPathFromString("document:doc1#view@group:admin#member")
+		path2 := MustPathFromString("document:doc1#view@group:admin")
+		require.False(path1.Equals(path2))
+	})
+
+	t.Run("nil_paths", func(t *testing.T) {
+		var nilPath1 *Path
+		var nilPath2 *Path
+
+		// Both nil should be equal
+		require.True(nilPath1.Equals(nilPath2))
+
+		// Nil vs non-nil should be false
+		require.False(nilPath1.Equals(basePath))
+		require.False(basePath.Equals(nilPath1))
+	})
+
+	t.Run("caveat_differences", func(t *testing.T) {
+		// Base path vs path with caveat
+		require.False(basePath.Equals(&pathWithCaveat))
+
+		// Different caveats
+		require.False(pathWithCaveat.Equals(&pathWithDifferentCaveat))
+
+		// Same caveat
+		pathWithSameCaveat := pathWithCaveat
+		require.True(pathWithCaveat.Equals(&pathWithSameCaveat))
+	})
+
+	t.Run("expiration_differences", func(t *testing.T) {
+		// Base path vs path with expiration
+		require.False(basePath.Equals(&pathWithExpiration))
+
+		// Different expiration times
+		require.False(pathWithExpiration.Equals(&pathWithDifferentExpiration))
+
+		// Same expiration
+		pathWithSameExpiration := pathWithExpiration
+		require.True(pathWithExpiration.Equals(&pathWithSameExpiration))
+	})
+
+	t.Run("metadata_differences", func(t *testing.T) {
+		// Base path vs path with metadata
+		require.False(basePath.Equals(&pathWithMetadata))
+
+		// Different metadata values
+		require.False(pathWithMetadata.Equals(&pathWithDifferentMetadata))
+
+		// Same metadata
+		pathWithSameMetadata := pathWithMetadata
+		require.True(pathWithMetadata.Equals(&pathWithSameMetadata))
+	})
+
+	t.Run("integrity_differences", func(t *testing.T) {
+		// Base path vs path with integrity
+		require.False(basePath.Equals(&pathWithIntegrity))
+
+		// Different integrity
+		pathWithDifferentIntegrity := *basePath
+		pathWithDifferentIntegrity.Integrity = []*core.RelationshipIntegrity{{KeyId: "key2"}}
+		require.False(pathWithIntegrity.Equals(&pathWithDifferentIntegrity))
+
+		// Same integrity
+		pathWithSameIntegrity := pathWithIntegrity
+		require.True(pathWithIntegrity.Equals(&pathWithSameIntegrity))
+	})
+}
+
+func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create base paths
+	basePath := MustPathFromString("document:doc1#view@user:alice")
+
+	// Paths with caveats
+	pathWithCaveat1 := *basePath
+	pathWithCaveat1.Caveat = &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Caveat{
+			Caveat: &core.ContextualizedCaveat{CaveatName: "caveat1"},
+		},
+	}
+
+	pathWithCaveat2 := *basePath
+	pathWithCaveat2.Caveat = &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Caveat{
+			Caveat: &core.ContextualizedCaveat{CaveatName: "caveat2"},
+		},
+	}
+
+	// Paths with metadata
+	pathWithMetadata1 := *basePath
+	pathWithMetadata1.Metadata = map[string]any{"source": "path1", "priority": "high"}
+
+	pathWithMetadata2 := *basePath
+	pathWithMetadata2.Metadata = map[string]any{"source": "path2", "priority": "low"}
+
+	t.Run("basic_merge_and_not", func(t *testing.T) {
+		// Make a copy to test on
+		testPath := *basePath
+		err := testPath.MergeAndNot(&pathWithCaveat1)
+
+		require.NoError(err)
+		require.Equal(basePath.Resource, testPath.Resource)
+		require.Equal(basePath.Relation, testPath.Relation)
+		require.Equal(basePath.Subject, testPath.Subject)
+
+		// Should have modified caveat (subtraction from nil should create negation)
+		require.NotNil(testPath.Caveat)
+	})
+
+	t.Run("both_paths_have_caveats", func(t *testing.T) {
+		testPath := pathWithCaveat1
+		err := testPath.MergeAndNot(&pathWithCaveat2)
+
+		require.NoError(err)
+		// Should combine caveats with AND NOT logic (subtraction)
+		require.NotNil(testPath.Caveat)
+		// The exact caveat structure depends on the caveats.Subtract implementation
+	})
+
+	t.Run("merge_metadata", func(t *testing.T) {
+		testPath := pathWithMetadata1
+		err := testPath.MergeAndNot(&pathWithMetadata2)
+
+		require.NoError(err)
+		require.NotNil(testPath.Metadata)
+
+		// Second path's metadata should overwrite first path's metadata (maps.Copy behavior)
+		require.Equal("path2", testPath.Metadata["source"])
+		require.Equal("low", testPath.Metadata["priority"])
+	})
+
+	t.Run("merge_different_resources_should_error", func(t *testing.T) {
+		differentResourcePath := MustPathFromString("folder:doc1#view@user:alice")
+		testPath := *basePath
+
+		err := testPath.MergeAndNot(differentResourcePath)
+
+		require.Error(err)
+		require.Contains(err.Error(), "cannot merge paths with different resources")
+	})
+
+	t.Run("merge_different_subjects_should_error", func(t *testing.T) {
+		differentSubjectPath := MustPathFromString("document:doc1#view@user:bob")
+		testPath := *basePath
+
+		err := testPath.MergeAndNot(differentSubjectPath)
+
+		require.Error(err)
+		require.Contains(err.Error(), "cannot merge paths with different subjects")
 	})
 }
