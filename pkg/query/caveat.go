@@ -34,7 +34,6 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 	}
 
 	return func(yield func(*Path, error) bool) {
-
 		caveatName := "none"
 		if c.caveat != nil {
 			caveatName = c.caveat.CaveatName
@@ -94,7 +93,6 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 }
 
 func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-
 	subSeq, err := ctx.IterSubjects(c.subiterator, resource)
 	if err != nil {
 		return nil, err
@@ -161,7 +159,6 @@ func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSe
 }
 
 func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-
 	subSeq, err := ctx.IterResources(c.subiterator, subject)
 	if err != nil {
 		return nil, err
@@ -263,13 +260,13 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatE
 			isLikelySimplificationPair := func(expected, actual string) bool {
 				// Skip obvious test artifacts
 				if actual == "test_caveat" || actual == "other_caveat" ||
-				   expected == "nonexistent_caveat" || expected == "nonexistent" {
+					expected == "nonexistent_caveat" || expected == "nonexistent" {
 					return false
 				}
 
 				// Common real-world patterns
 				if (expected == "membercaveat" && actual == "teamcaveat") ||
-				   (expected == "teamcaveat" && actual == "membercaveat") {
+					(expected == "teamcaveat" && actual == "membercaveat") {
 					return true
 				}
 
@@ -304,7 +301,6 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatE
 	// Build the combined context map
 	contextMap := c.buildCaveatContext(ctx, path.Caveat)
 
-
 	// Use the SimplifyCaveatExpression function to properly handle AND/OR logic
 	simplified, passes, err := SimplifyCaveatExpression(
 		ctx,
@@ -328,7 +324,6 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatE
 		// For other errors, provide context about caveat failure
 		return nil, false, fmt.Errorf("failed to evaluate caveat: %w", err)
 	}
-
 
 	// Return the simplification result directly
 	return simplified, passes, nil

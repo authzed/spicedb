@@ -620,7 +620,7 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 
 	t.Run("convert FUNCTION_ANY", func(t *testing.T) {
 		t.Parallel()
-		
+
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
 				FunctionedTupleToUserset: &corev1.FunctionedTupleToUserset{
@@ -647,7 +647,7 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 
 	t.Run("convert FUNCTION_ALL", func(t *testing.T) {
 		t.Parallel()
-		
+
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
 				FunctionedTupleToUserset: &corev1.FunctionedTupleToUserset{
@@ -674,7 +674,7 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 
 	t.Run("convert unknown function type", func(t *testing.T) {
 		t.Parallel()
-		
+
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
 				FunctionedTupleToUserset: &corev1.FunctionedTupleToUserset{
@@ -696,7 +696,7 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 
 	t.Run("full definition with functioned tupleset", func(t *testing.T) {
 		t.Parallel()
-		
+
 		def := &corev1.NamespaceDefinition{
 			Name: "document",
 			Relation: []*corev1.Relation{
@@ -745,21 +745,21 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 		result, err := convertDefinition(def)
 		require.NoError(t, err)
 		require.Equal(t, "document", result.Name)
-		
+
 		// Check that we have both relation and permission
 		require.Len(t, result.Relations, 1)
 		require.Len(t, result.Permissions, 1)
-		
+
 		// Check the relation
 		teamRel, ok := result.Relations["team"]
 		require.True(t, ok)
 		require.Equal(t, "team", teamRel.Name)
-		
+
 		// Check the permission with functioned tupleset
 		viewPerm, ok := result.Permissions["view"]
 		require.True(t, ok)
 		require.Equal(t, "view", viewPerm.Name)
-		
+
 		// The permission should have a FunctionedTuplesetOperation (might be unwrapped from union if single child)
 		// Check if it's directly a FunctionedTuplesetOperation or wrapped in a union
 		if funcOp, ok := viewPerm.Operation.(*FunctionedTuplesetOperation); ok {
@@ -813,7 +813,7 @@ func TestConvertFunctionType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			result, err := convertFunctionType(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)

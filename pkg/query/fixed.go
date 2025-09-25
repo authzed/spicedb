@@ -43,7 +43,6 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject Obje
 }
 
 func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-
 	return func(yield func(*Path, error) bool) {
 		var resultPaths []*Path
 

@@ -1,6 +1,5 @@
 package query
 
-
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type Alias struct {

@@ -49,9 +49,9 @@ const (
 )
 
 // We close the enum by implementing the private method.
-func (r *RelationReference) isOperation()          {}
-func (r *ArrowReference) isOperation()             {}
-func (u *UnionOperation) isOperation()             {}
-func (i *IntersectionOperation) isOperation()      {}
-func (e *ExclusionOperation) isOperation()         {}
+func (r *RelationReference) isOperation()           {}
+func (r *ArrowReference) isOperation()              {}
+func (u *UnionOperation) isOperation()              {}
+func (i *IntersectionOperation) isOperation()       {}
+func (e *ExclusionOperation) isOperation()          {}
 func (f *FunctionedTuplesetOperation) isOperation() {}

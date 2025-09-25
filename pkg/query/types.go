@@ -41,8 +41,8 @@ type Iterator interface {
 //
 // TODO: This can be extended with other interesting stats about the tree.
 type Explain struct {
-	Name       string    // Short name for tracing (e.g., "Arrow", "Union")
-	Info       string    // Full info for display
+	Name       string // Short name for tracing (e.g., "Arrow", "Union")
+	Info       string // Full info for display
 	SubExplain []Explain
 }
 
