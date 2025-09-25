@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"reflect"
 	"slices"
@@ -290,71 +291,80 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
-func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) ([]datastore.RevisionChanges, error) {
+func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) iter.Seq2[datastore.RevisionChanges, error] {
 	return ch.revisionChanges(lessThanFunc, *new(R), false)
 }
 
 // FilterAndRemoveRevisionChanges filters a list of changes processed up to the bound revision from the changes list, removing them
 // and returning the filtered changes.
-func (ch *Changes[R, K]) FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) ([]datastore.RevisionChanges, error) {
-	changes, err := ch.revisionChanges(lessThanFunc, boundRev, true)
-	if err != nil {
-		return nil, err
-	}
+func (ch *Changes[R, K]) FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) iter.Seq2[datastore.RevisionChanges, error] {
+	return func(yield func(datastore.RevisionChanges, error) bool) {
+		for change, err := range ch.revisionChanges(lessThanFunc, boundRev, true) {
+			if !yield(change, err) {
+				break
+			}
+		}
 
-	ch.removeAllChangesBefore(boundRev)
-	return changes, nil
+		ch.removeAllChangesBefore(boundRev)
+	}
 }
 
-func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R, withBound bool) ([]datastore.RevisionChanges, error) {
-	if ch.IsEmpty() {
-		return nil, nil
-	}
-
-	revisionsWithChanges := make([]K, 0, len(ch.records))
-	for rk, cr := range ch.records {
-		if !withBound || boundRev.GreaterThan(cr.rev) {
-			revisionsWithChanges = append(revisionsWithChanges, rk)
+func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R, withBound bool) iter.Seq2[datastore.RevisionChanges, error] {
+	return func(yield func(datastore.RevisionChanges, error) bool) {
+		if ch.IsEmpty() {
+			return
 		}
-	}
 
-	if len(revisionsWithChanges) == 0 {
-		return nil, nil
-	}
-
-	sort.Slice(revisionsWithChanges, func(i int, j int) bool {
-		return lessThanFunc(revisionsWithChanges[i], revisionsWithChanges[j])
-	})
-
-	changes := make([]datastore.RevisionChanges, len(revisionsWithChanges))
-	for i, k := range revisionsWithChanges {
-		revisionChangeRecord := ch.records[k]
-		changes[i].Revision = revisionChangeRecord.rev
-		for _, rel := range revisionChangeRecord.relTouches {
-			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, tuple.Touch(rel))
+		revisionsWithChanges := make([]K, 0, len(ch.records))
+		for rk, cr := range ch.records {
+			if !withBound || boundRev.GreaterThan(cr.rev) {
+				revisionsWithChanges = append(revisionsWithChanges, rk)
+			}
 		}
-		for _, rel := range revisionChangeRecord.relDeletes {
-			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, tuple.Delete(rel))
-		}
-		changes[i].ChangedDefinitions = slices.Collect(maps.Values(revisionChangeRecord.definitionsChanged))
-		changes[i].DeletedNamespaces = slices.Collect(maps.Keys(revisionChangeRecord.namespacesDeleted))
-		changes[i].DeletedCaveats = slices.Collect(maps.Keys(revisionChangeRecord.caveatsDeleted))
 
-		if len(revisionChangeRecord.metadatas) > 0 {
-			metadatas := make([]*structpb.Struct, 0, len(revisionChangeRecord.metadatas))
-			for _, metadata := range revisionChangeRecord.metadatas {
-				structpbMetadata, err := structpb.NewStruct(metadata)
-				if err != nil {
-					return nil, spiceerrors.MustBugf("failed to convert metadata to structpb: %v", err)
-				}
-				metadatas = append(metadatas, structpbMetadata)
+		if len(revisionsWithChanges) == 0 {
+			return
+		}
+
+		sort.Slice(revisionsWithChanges, func(i int, j int) bool {
+			return lessThanFunc(revisionsWithChanges[i], revisionsWithChanges[j])
+		})
+
+		for _, k := range revisionsWithChanges {
+			revisionChangeRecord := ch.records[k]
+			change := datastore.RevisionChanges{
+				Revision: revisionChangeRecord.rev,
 			}
 
-			changes[i].Metadatas = metadatas
+			for _, rel := range revisionChangeRecord.relTouches {
+				change.RelationshipChanges = append(change.RelationshipChanges, tuple.Touch(rel))
+			}
+			for _, rel := range revisionChangeRecord.relDeletes {
+				change.RelationshipChanges = append(change.RelationshipChanges, tuple.Delete(rel))
+			}
+			change.ChangedDefinitions = slices.Collect(maps.Values(revisionChangeRecord.definitionsChanged))
+			change.DeletedNamespaces = slices.Collect(maps.Keys(revisionChangeRecord.namespacesDeleted))
+			change.DeletedCaveats = slices.Collect(maps.Keys(revisionChangeRecord.caveatsDeleted))
+
+			if len(revisionChangeRecord.metadatas) > 0 {
+				metadatas := make([]*structpb.Struct, 0, len(revisionChangeRecord.metadatas))
+				for _, metadata := range revisionChangeRecord.metadatas {
+					structpbMetadata, err := structpb.NewStruct(metadata)
+					if err != nil {
+						_ = yield(datastore.RevisionChanges{}, spiceerrors.MustBugf("failed to convert metadata to structpb: %v", err))
+						return
+					}
+					metadatas = append(metadatas, structpbMetadata)
+				}
+
+				change.Metadatas = metadatas
+			}
+
+			if !yield(change, nil) {
+				break
+			}
 		}
 	}
-
-	return changes, nil
 }
 
 func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) {

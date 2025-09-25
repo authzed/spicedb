@@ -286,24 +286,26 @@ func (mdb *memdbDatastore) ReadWriteTx(
 				}
 			}
 
-			var rc datastore.RevisionChanges
-			changes, err := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
-			if err != nil {
-				return datastore.NoRevision, err
-			}
+			changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+			isFirstChange := true
+			for rc, err := range changes {
+				if err != nil {
+					return datastore.NoRevision, err
+				}
 
-			if len(changes) > 1 {
-				return datastore.NoRevision, spiceerrors.MustBugf("unexpected MemDB transaction with multiple revision changes")
-			} else if len(changes) == 1 {
-				rc = changes[0]
-			}
+				if !isFirstChange {
+					return datastore.NoRevision, spiceerrors.MustBugf("unexpected MemDB transaction with multiple revision changes")
+				}
 
-			change := &changelog{
-				revisionNanos: newRevision.TimestampNanoSec(),
-				changes:       rc,
-			}
-			if err := tx.Insert(tableChangelog, change); err != nil {
-				return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
+				change := &changelog{
+					revisionNanos: newRevision.TimestampNanoSec(),
+					changes:       rc,
+				}
+				if err := tx.Insert(tableChangelog, change); err != nil {
+					return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
+				}
+
+				isFirstChange = false
 			}
 
 			tx.Commit()
