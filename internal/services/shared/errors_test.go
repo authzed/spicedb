@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/grpcutil"
 
+	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	"github.com/authzed/spicedb/internal/dispatch"
 )
 
@@ -32,5 +33,11 @@ func TestRewriteMaximumDepthExceededError(t *testing.T) {
 		MaximumAPIDepth: 50,
 	})
 	require.ErrorContains(t, errorRewritten, "See: https://spicedb.dev/d/debug-max-depth")
+	grpcutil.RequireStatus(t, codes.ResourceExhausted, errorRewritten)
+}
+
+func TestRewriteAcquisitionError(t *testing.T) {
+	errorRewritten := RewriteError(t.Context(), pool.ErrAcquire, nil)
+	require.ErrorContains(t, errorRewritten, "failed to acquire in time: consider increasing write pool size and/or datastore capacity")
 	grpcutil.RequireStatus(t, codes.ResourceExhausted, errorRewritten)
 }

@@ -277,6 +277,7 @@ type crdbDatastore struct {
 	analyzeBeforeStatistics bool
 	gcWindow                time.Duration
 	schema                  common.SchemaInformation
+	acquireTimeout          time.Duration
 
 	beginChangefeedQuery string
 	transactionNowQuery  string
@@ -326,7 +327,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 		ctx = context.WithValue(ctx, pool.CtxDisableRetries, true)
 	}
 
-	err := cds.writePool.BeginFunc(ctx, func(tx pgx.Tx) error {
+	err := cds.writePool.TryBeginFunc(ctx, cds.acquireTimeout, func(tx pgx.Tx) error {
 		querier := pgxcommon.QuerierFuncsFor(tx)
 		executor := common.QueryRelationshipsExecutor{
 			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier, cds),

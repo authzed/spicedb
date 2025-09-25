@@ -19,6 +19,15 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
+// pgxPool interface is the subset of pgxpool.Pool that RetryPool needs
+type pgxPool interface {
+	Acquire(ctx context.Context) (*pgxpool.Conn, error)
+	AcquireAllIdle(ctx context.Context) []*pgxpool.Conn
+	Config() *pgxpool.Config
+	Close()
+	Stat() *pgxpool.Stat
+}
+
 var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Name:    "crdb_client_resets",
 	Help:    "cockroachdb client-side tx reset distribution",
@@ -31,10 +40,13 @@ func init() {
 
 type ctxDisableRetries struct{}
 
-var CtxDisableRetries ctxDisableRetries
+var (
+	CtxDisableRetries ctxDisableRetries
+	ErrAcquire        = errors.New("failed to acquire in time")
+)
 
 type RetryPool struct {
-	pool          *pgxpool.Pool
+	pool          pgxPool
 	id            string
 	healthTracker *NodeHealthTracker
 
@@ -131,6 +143,7 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 	if err != nil {
 		return nil, err
 	}
+
 	p.pool = pool
 	return p, nil
 }
@@ -154,19 +167,19 @@ func (p *RetryPool) MinConns() uint32 {
 	return minConns
 }
 
-// ExecFunc is a replacement for pgxpool.Pool.Exec that allows resetting the
+// ExecFunc is a replacement for pgxpool.pgxPool.Exec that allows resetting the
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error {
-	return p.withRetries(ctx, func(conn *pgxpool.Conn) error {
+	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
 		tag, err := conn.Conn().Exec(ctx, sql, arguments...)
 		return tagFunc(ctx, tag, err)
 	})
 }
 
-// QueryFunc is a replacement for pgxpool.Pool.Query that allows resetting the
+// QueryFunc is a replacement for pgxpool.pgxPool.Query that allows resetting the
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error {
-	return p.withRetries(ctx, func(conn *pgxpool.Conn) error {
+	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
 		rows, err := conn.Conn().Query(ctx, sql, optionsAndArgs...)
 		if err != nil {
 			return err
@@ -180,10 +193,10 @@ func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Con
 	})
 }
 
-// QueryRowFunc is a replacement for pgxpool.Pool.QueryRow that allows resetting
+// QueryRowFunc is a replacement for pgxpool.pgxPool.QueryRow that allows resetting
 // the connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
-	return p.withRetries(ctx, func(conn *pgxpool.Conn) error {
+	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
 		return rowFunc(ctx, conn.Conn().QueryRow(ctx, sql, optionsAndArgs...))
 	})
 }
@@ -194,10 +207,24 @@ func (p *RetryPool) BeginFunc(ctx context.Context, txFunc func(pgx.Tx) error) er
 	return p.BeginTxFunc(ctx, pgx.TxOptions{}, txFunc)
 }
 
-// BeginTxFunc is a replacement for  pgxpool.BeginTxFunc that allows resetting
+// TryBeginFunc attempts to get a connection from the pool within acquisitionTimeout.
+// If successful, it behaves like BeginFunc and will retry on errors.
+// If unsuccessful, it returns ErrAcquire.
+func (p *RetryPool) TryBeginFunc(ctx context.Context, acquireTimeout time.Duration, txFunc func(pgx.Tx) error) error {
+	return p.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
+		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return err
+		}
+
+		return beginFuncExec(ctx, tx, txFunc)
+	})
+}
+
+// BeginTxFunc is a replacement for pgxpool.BeginTxFunc that allows resetting
 // the connection on error, or retrying on a retryable error.
 func (p *RetryPool) BeginTxFunc(ctx context.Context, txOptions pgx.TxOptions, txFunc func(pgx.Tx) error) error {
-	return p.withRetries(ctx, func(conn *pgxpool.Conn) error {
+	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
 		tx, err := conn.BeginTx(ctx, txOptions)
 		if err != nil {
 			return err
@@ -248,19 +275,37 @@ func (p *RetryPool) Range(f func(conn *pgx.Conn, nodeID uint32)) {
 }
 
 // withRetries acquires a connection and attempts the request multiple times
-func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn) error) error {
-	conn, err := p.pool.Acquire(ctx)
+func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duration, fn func(conn *pgxpool.Conn) error) error {
+	acquireCtx := ctx
+	acquireCancel := func() {}
+
+	if acquireTimeout > 0 {
+		acquireCtx, acquireCancel = context.WithTimeoutCause(context.Background(), acquireTimeout, ErrAcquire)
+	}
+
+	conn, err := p.pool.Acquire(acquireCtx)
 	if err != nil {
 		if conn != nil {
 			conn.Release()
 		}
+		if acquireCtx.Err() != nil {
+			err = context.Cause(acquireCtx)
+		}
+		acquireCancel()
 		return fmt.Errorf("error acquiring connection from pool: %w", err)
 	}
+	acquireCancel()
+
 	defer func() {
 		if conn != nil {
 			conn.Release()
 		}
 	}()
+
+	// if top-level context was cancelled while we tried to acquire:
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 
 	var retries uint8
 	defer func() {

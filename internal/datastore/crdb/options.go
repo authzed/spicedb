@@ -35,6 +35,7 @@ type crdbOptions struct {
 	includeQueryParametersInTraces bool
 	expirationDisabled             bool
 	watchDisabled                  bool
+	acquireTimeout                 time.Duration
 }
 
 const (
@@ -60,6 +61,7 @@ const (
 	defaultEnablePrometheusStats          = false
 	defaultEnableConnectionBalancing      = true
 	defaultConnectRate                    = 100 * time.Millisecond
+	defaultAcquireTimeout                 = 30 * time.Millisecond
 	defaultFilterMaximumIDCount           = 100
 	defaultWithIntegrity                  = false
 	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionStaticValues
@@ -93,6 +95,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		expirationDisabled:             defaultExpirationDisabled,
 		watchDisabled:                  defaultWatchDisabled,
+		acquireTimeout:                 defaultAcquireTimeout,
 	}
 
 	for _, option := range options {
@@ -395,4 +398,10 @@ func WithExpirationDisabled(isDisabled bool) Option {
 // WithWatchDisabled configures the datastore to disable watch functionality.
 func WithWatchDisabled(isDisabled bool) Option {
 	return func(po *crdbOptions) { po.watchDisabled = isDisabled }
+}
+
+// WithAcquireTimeout configures the amount of time to wait to acquire a connection
+// from the pool with Try* methods before applying backpressure.
+func WithAcquireTimeout(timeout time.Duration) Option {
+	return func(po *crdbOptions) { po.acquireTimeout = timeout }
 }

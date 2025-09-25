@@ -145,6 +145,7 @@ type Config struct {
 	OverlapStrategy           string        `debugmap:"visible"`
 	EnableConnectionBalancing bool          `debugmap:"visible"`
 	ConnectRate               time.Duration `debugmap:"visible"`
+	WriteAcquisitionTimeout   time.Duration `debugmap:"visible"`
 
 	// Postgres
 	GCInterval            time.Duration `debugmap:"visible"`
@@ -281,6 +282,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (cockroachdb driver only)")
 	flagSet.BoolVar(&opts.DisableWatchSupport, flagName("datastore-disable-watch-support"), false, "disable watch support (only enable if you absolutely do not need watch)")
 	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (postgres and CRDB drivers only)")
+	flagSet.DurationVar(&opts.WriteAcquisitionTimeout, flagName("write-conn-acquisition-timeout"), defaults.WriteAcquisitionTimeout, "amount of time to wait for a connection to become available, otherwise causes resource exhausted errors (0 means wait indefinitely)")
 
 	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. only supported on CRDB")
 	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyID, flagName("datastore-relationship-integrity-current-key-id"), "", "current key id for relationship integrity checks")
@@ -362,6 +364,7 @@ func DefaultDatastoreConfig() *Config {
 		ExperimentalColumnOptimization:           true,
 		IncludeQueryParametersInTraces:           false,
 		EnableExperimentalRelationshipExpiration: false,
+		WriteAcquisitionTimeout:                  30 * time.Millisecond,
 	}
 }
 
@@ -543,6 +546,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
 		crdb.ReadConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		crdb.ReadConnHealthCheckInterval(opts.ReadConnPool.HealthCheckInterval),
+		crdb.WithAcquireTimeout(opts.WriteAcquisitionTimeout),
 		crdb.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		crdb.WriteConnsMinOpen(opts.WriteConnPool.MinOpenConns),
 		crdb.WriteConnMaxIdleTime(opts.WriteConnPool.MaxIdleTime),
