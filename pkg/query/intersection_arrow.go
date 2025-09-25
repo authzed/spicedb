@@ -27,7 +27,6 @@ func NewIntersectionArrow(left, right Iterator) *IntersectionArrow {
 
 func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	return func(yield func(*Path, error) bool) {
-		var finalResults []*Path
 		for _, resource := range resources {
 			ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
 
@@ -183,7 +182,6 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 						Metadata:   firstResult.Metadata,
 					}
 
-					finalResults = append(finalResults, finalResult)
 					if !yield(finalResult, nil) {
 						return
 					}

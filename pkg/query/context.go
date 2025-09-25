@@ -196,14 +196,6 @@ func (ctx *Context) shouldTrace() bool {
 	return ctx.TraceLogger != nil
 }
 
-func (ctx *Context) getIteratorName(it Iterator) string {
-	explain := it.Explain()
-	if explain.Name != "" {
-		return explain.Name
-	}
-	return explain.Info // Fallback to Info if Name not set
-}
-
 func (ctx *Context) traceEnterIfEnabled(it Iterator, resources []Object, subject ObjectAndRelation) Iterator {
 	if !ctx.shouldTrace() {
 		return nil
