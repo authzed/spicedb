@@ -21,10 +21,8 @@ func mergeContexts(expr *core.CaveatExpression, queryContext map[string]any) map
 	}
 
 	// Overlay with query-time context (takes precedence)
-	if queryContext != nil {
-		for k, v := range queryContext {
-			fullContext[k] = v
-		}
+	for k, v := range queryContext {
+		fullContext[k] = v
 	}
 
 	return fullContext
@@ -39,10 +37,8 @@ func mergeContextsForExpression(expr *core.CaveatExpression, queryContext map[st
 	collectRelationshipContexts(expr, fullContext)
 
 	// Overlay with query-time context (takes precedence)
-	if queryContext != nil {
-		for k, v := range queryContext {
-			fullContext[k] = v
-		}
+	for k, v := range queryContext {
+		fullContext[k] = v
 	}
 
 	return fullContext
@@ -88,7 +84,6 @@ func SimplifyCaveatExpression(
 	if err := runner.PopulateCaveatDefinitionsForExpr(ctx, expr, reader); err != nil {
 		return nil, false, err
 	}
-
 
 	return simplifyCaveatExpressionInternal(ctx, runner, expr, context, reader)
 }
