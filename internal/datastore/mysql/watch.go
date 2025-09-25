@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"errors"
+	"iter"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -86,9 +87,7 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 
 		currentTxn := afterRevision.TransactionID()
 		for {
-			var stagedUpdates []datastore.RevisionChanges
-			var err error
-			stagedUpdates, currentTxn, err = mds.loadChanges(ctx, currentTxn, options)
+			stagedUpdates, ctxn, err := mds.loadChanges(ctx, currentTxn, options)
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
@@ -97,16 +96,24 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 				}
 				return
 			}
+			currentTxn = ctxn
 
 			// Write the staged updates to the channel
-			for _, changeToWrite := range stagedUpdates {
+			changeCount := 0
+			for changeToWrite, err := range stagedUpdates {
+				if err != nil {
+					errs <- err
+					return
+				}
+
 				if !sendChange(changeToWrite) {
 					return
 				}
+				changeCount++
 			}
 
 			// If there were no changes, sleep a bit
-			if len(stagedUpdates) == 0 {
+			if changeCount == 0 {
 				sleep := time.NewTimer(watchSleep)
 
 				select {
@@ -127,14 +134,14 @@ func (mds *mysqlDatastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
 	options datastore.WatchOptions,
-) (changes []datastore.RevisionChanges, newRevision uint64, err error) {
-	newRevision, err = mds.loadRevision(ctx)
+) (iter.Seq2[datastore.RevisionChanges, error], uint64, error) {
+	newRevision, err := mds.loadRevision(ctx)
 	if err != nil {
-		return changes, newRevision, err
+		return nil, 0, err
 	}
 
 	if newRevision == afterRevision {
-		return changes, newRevision, err
+		return func(yield func(datastore.RevisionChanges, error) bool) {}, newRevision, nil
 	}
 
 	watchBufferSize := options.MaximumBufferedChangesByteSize
@@ -152,7 +159,7 @@ func (mds *mysqlDatastore) loadChanges(
 		},
 	}).ToSql()
 	if err != nil {
-		return changes, newRevision, err
+		return nil, 0, err
 	}
 
 	rows, err := mds.db.QueryContext(ctx, sql, args...)
@@ -165,7 +172,7 @@ func (mds *mysqlDatastore) loadChanges(
 		case common.IsResettableError(err):
 			err = datastore.NewWatchTemporaryErr(err)
 		}
-		return changes, newRevision, err
+		return nil, 0, err
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
@@ -188,7 +195,7 @@ func (mds *mysqlDatastore) loadChanges(
 	}
 	rows.Close()
 	if rows.Err() != nil {
-		return changes, newRevision, err
+		return nil, 0, err
 	}
 
 	// Load the changes relationships for the revision range.
@@ -203,7 +210,7 @@ func (mds *mysqlDatastore) loadChanges(
 		},
 	}).ToSql()
 	if err != nil {
-		return changes, newRevision, err
+		return nil, 0, err
 	}
 
 	rows, err = mds.db.QueryContext(ctx, sql, args...)
@@ -211,7 +218,7 @@ func (mds *mysqlDatastore) loadChanges(
 		if errors.Is(err, context.Canceled) {
 			err = datastore.NewWatchCanceledErr()
 		}
-		return changes, newRevision, err
+		return nil, 0, err
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
@@ -241,7 +248,7 @@ func (mds *mysqlDatastore) loadChanges(
 			&deletedTxn,
 		)
 		if err != nil {
-			return changes, newRevision, err
+			return nil, 0, err
 		}
 
 		relationship := tuple.Relationship{
@@ -262,25 +269,24 @@ func (mds *mysqlDatastore) loadChanges(
 
 		relationship.OptionalCaveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
 		if err != nil {
-			return changes, newRevision, err
+			return nil, 0, err
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
 			if err = stagedChanges.AddRelationshipChange(ctx, revisions.NewForTransactionID(createdTxn), relationship, tuple.UpdateOperationTouch); err != nil {
-				return changes, newRevision, err
+				return nil, 0, err
 			}
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
 			if err = stagedChanges.AddRelationshipChange(ctx, revisions.NewForTransactionID(deletedTxn), relationship, tuple.UpdateOperationDelete); err != nil {
-				return changes, newRevision, err
+				return nil, 0, err
 			}
 		}
 	}
-	if err = rows.Err(); err != nil {
-		return changes, newRevision, err
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
 	}
 
-	changes, err = stagedChanges.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
-	return changes, newRevision, err
+	return stagedChanges.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc), newRevision, nil
 }

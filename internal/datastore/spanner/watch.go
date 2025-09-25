@@ -370,12 +370,12 @@ func (sd *spannerDatastore) watch(
 					txnBuffer.Delete(txnID)
 
 					if !tracked.IsEmpty() {
-						changes, err := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
-						if err != nil {
-							return err
-						}
+						changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+						for revChange, err := range changes {
+							if err != nil {
+								return err
+							}
 
-						for _, revChange := range changes {
 							if !sendChange(revChange) {
 								return datastore.NewWatchDisconnectedErr()
 							}
