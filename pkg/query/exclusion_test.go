@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func TestExclusionIterator(t *testing.T) {
@@ -475,5 +476,214 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 		require.NoError(err)
 		require.Len(rels, 1, "Should return only path1 after nested exclusions")
 		require.Equal("doc1", rels[0].Resource.ObjectID)
+	})
+}
+
+// Additional comprehensive tests for uncovered functions in exclusion.go
+
+func TestCombineExclusionCaveats(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Helper function to create paths with caveats
+	createPathWithCaveat := func(relation, caveatName string) *Path {
+		path := MustPathFromString(relation)
+		if caveatName != "" {
+			path.Caveat = &core.CaveatExpression{
+				OperationOrCaveat: &core.CaveatExpression_Caveat{
+					Caveat: &core.ContextualizedCaveat{CaveatName: caveatName},
+				},
+			}
+		}
+		return path
+	}
+
+	// Test cases for different caveat combinations
+	t.Run("main_with_caveat_excluded_without_caveat", func(t *testing.T) {
+		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "main_caveat")
+		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "")
+
+		result := combineExclusionCaveats(mainPath, excludedPath)
+
+		// Main has caveat, excluded has no caveat -> completely excluded
+		require.Nil(result, "Should be completely excluded when main has caveat but excluded has none")
+	})
+
+	t.Run("main_without_caveat_excluded_without_caveat", func(t *testing.T) {
+		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "")
+		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "")
+
+		result := combineExclusionCaveats(mainPath, excludedPath)
+
+		// Neither has caveat -> completely excluded
+		require.Nil(result, "Should be completely excluded when neither has caveat")
+	})
+
+	t.Run("main_without_caveat_excluded_with_caveat", func(t *testing.T) {
+		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "")
+		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "excluded_caveat")
+
+		result := combineExclusionCaveats(mainPath, excludedPath)
+
+		// Main has no caveat, excluded has caveat -> return main with negated excluded caveat
+		require.NotNil(result, "Should return a result when main has no caveat but excluded has one")
+		require.NotNil(result.Caveat, "Result should have a caveat (negated excluded caveat)")
+
+		// Verify the result has the same endpoints as main
+		require.Equal(mainPath.Resource, result.Resource)
+		require.Equal(mainPath.Relation, result.Relation)
+		require.Equal(mainPath.Subject, result.Subject)
+	})
+
+	t.Run("both_have_caveats", func(t *testing.T) {
+		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "main_caveat")
+		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "excluded_caveat")
+
+		result := combineExclusionCaveats(mainPath, excludedPath)
+
+		// Both have caveats -> return main with combined caveat (main AND NOT excluded)
+		require.NotNil(result, "Should return a result when both have caveats")
+		require.NotNil(result.Caveat, "Result should have a combined caveat")
+
+		// Verify the result has the same endpoints as main
+		require.Equal(mainPath.Resource, result.Resource)
+		require.Equal(mainPath.Relation, result.Relation)
+		require.Equal(mainPath.Subject, result.Subject)
+	})
+}
+
+func TestExclusion_CombinedCaveatLogic(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create test datastore and context
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	ctx := &Context{
+		Context:   t.Context(),
+		Executor:  LocalExecutor{},
+		Datastore: ds,
+		Revision:  revision,
+	}
+
+	// Helper to create paths with caveats
+	createPathWithCaveat := func(relation, caveatName string) *Path {
+		path := MustPathFromString(relation)
+		if caveatName != "" {
+			path.Caveat = &core.CaveatExpression{
+				OperationOrCaveat: &core.CaveatExpression_Caveat{
+					Caveat: &core.ContextualizedCaveat{CaveatName: caveatName},
+				},
+			}
+		}
+		return path
+	}
+
+	t.Run("exclusion_with_caveats", func(t *testing.T) {
+		// Main set has paths with various caveats
+		mainPath1 := createPathWithCaveat("document:doc1#view@user:alice", "caveat1")
+		mainPath2 := createPathWithCaveat("document:doc2#view@user:alice", "") // No caveat
+		mainSet := NewFixedIterator(mainPath1, mainPath2)
+
+		// Excluded set has paths that should modify caveats
+		excludedPath1 := createPathWithCaveat("document:doc1#view@user:alice", "caveat2")
+		excludedSet := NewFixedIterator(excludedPath1)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		results, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// We expect:
+		// - doc1: main has caveat1, excluded has caveat2 -> combined caveat (caveat1 AND NOT caveat2)
+		// - doc2: main has no caveat, excluded doesn't match -> keep as is
+		require.Len(results, 2, "Should return both paths with appropriate caveat modifications")
+
+		// Find the doc1 result
+		var doc1Result *Path
+		var doc2Result *Path
+		for _, result := range results {
+			if result.Resource.ObjectID == "doc1" {
+				doc1Result = result
+			} else if result.Resource.ObjectID == "doc2" {
+				doc2Result = result
+			}
+		}
+
+		require.NotNil(doc1Result, "Should have result for doc1")
+		require.NotNil(doc2Result, "Should have result for doc2")
+
+		// doc1 should have combined caveat
+		require.NotNil(doc1Result.Caveat, "doc1 result should have combined caveat")
+
+		// doc2 should have no caveat (original state preserved)
+		require.Nil(doc2Result.Caveat, "doc2 result should have no caveat")
+	})
+}
+
+func TestExclusion_EdgeCases(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create minimal context for basic testing
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("empty_main_set", func(t *testing.T) {
+		mainSet := NewFixedIterator() // Empty
+		excludedSet := NewFixedIterator(MustPathFromString("document:doc1#view@user:alice"))
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		results, err := CollectAll(pathSeq)
+		require.NoError(err)
+		require.Empty(results, "Empty main set should result in empty output")
+	})
+
+	t.Run("empty_excluded_set", func(t *testing.T) {
+		mainPath := MustPathFromString("document:doc1#view@user:alice")
+		mainSet := NewFixedIterator(mainPath)
+		excludedSet := NewFixedIterator() // Empty
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		results, err := CollectAll(pathSeq)
+		require.NoError(err)
+		require.Len(results, 1, "Should return main set when excluded set is empty")
+		require.Equal(mainPath, results[0])
+	})
+
+	t.Run("no_matching_exclusions", func(t *testing.T) {
+		mainPath := MustPathFromString("document:doc1#view@user:alice")
+		mainSet := NewFixedIterator(mainPath)
+
+		// Excluded set has different resource/subject, so no matches
+		excludedPath := MustPathFromString("document:doc2#view@user:bob")
+		excludedSet := NewFixedIterator(excludedPath)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		results, err := CollectAll(pathSeq)
+		require.NoError(err)
+		require.Len(results, 1, "Should return main path when no exclusions match")
+		require.Equal(mainPath.Resource, results[0].Resource)
+		require.Equal(mainPath.Subject, results[0].Subject)
 	})
 }

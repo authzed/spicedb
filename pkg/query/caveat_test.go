@@ -33,6 +33,43 @@ func createTestCaveatExpression(name string, context map[string]any) *core.Cavea
 	}
 }
 
+// Enhanced test helper for creating complex caveat expressions
+func createComplexCaveatExpression(op core.CaveatOperation_Operation, children []*core.CaveatExpression) *core.CaveatExpression {
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op:       op,
+				Children: children,
+			},
+		},
+	}
+}
+
+// Test helper for creating test datastore with caveat runner
+func createTestDatastoreWithCaveats(t *testing.T, require *require.Assertions) (datastore.Datastore, datastore.Revision, *caveats.CaveatRunner) {
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ctx := context.Background()
+
+	// Create a basic caveat definition
+	caveatDef := &core.CaveatDefinition{
+		Name: "count_limit",
+		// Most of the fields need actual caveat infrastructure which is complex
+		// For now, just create a minimal definition
+	}
+
+	revision, err := rawDS.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
+	})
+	require.NoError(err)
+
+	// Create caveat runner
+	runner := caveats.NewCaveatRunner(types.NewTypeSet())
+
+	return rawDS, revision, runner
+}
+
 func TestCaveatIterator(t *testing.T) {
 	// Create test paths using caveat helper functions
 	pathWithCaveat := MustPathFromString("document:doc1#view@user:alice")
@@ -273,4 +310,280 @@ func createTestCaveat(name string, context map[string]any) *core.ContextualizedC
 	}
 
 	return caveat
+}
+
+// Additional comprehensive tests for caveat.go
+
+func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create a CaveatIterator to test the containsExpectedCaveat method
+	testCaveat := createTestCaveat("expected_caveat", nil)
+	caveatIter := NewCaveatIterator(NewFixedIterator(), testCaveat)
+
+	// Test simple caveat expressions
+	t.Run("Simple caveat match", func(t *testing.T) {
+		expr := createTestCaveatExpression("expected_caveat", nil)
+		contains := caveatIter.containsExpectedCaveat(expr)
+		require.True(contains)
+	})
+
+	t.Run("Simple caveat no match", func(t *testing.T) {
+		expr := createTestCaveatExpression("different_caveat", nil)
+		contains := caveatIter.containsExpectedCaveat(expr)
+		require.False(contains)
+	})
+
+	// Test complex caveat expressions
+	t.Run("AND expression contains expected caveat", func(t *testing.T) {
+		child1 := createTestCaveatExpression("expected_caveat", nil)
+		child2 := createTestCaveatExpression("other_caveat", nil)
+		andExpr := createComplexCaveatExpression(core.CaveatOperation_AND, []*core.CaveatExpression{child1, child2})
+
+		contains := caveatIter.containsExpectedCaveat(andExpr)
+		require.True(contains)
+	})
+
+	t.Run("OR expression contains expected caveat", func(t *testing.T) {
+		child1 := createTestCaveatExpression("wrong_caveat", nil)
+		child2 := createTestCaveatExpression("expected_caveat", nil)
+		orExpr := createComplexCaveatExpression(core.CaveatOperation_OR, []*core.CaveatExpression{child1, child2})
+
+		contains := caveatIter.containsExpectedCaveat(orExpr)
+		require.True(contains)
+	})
+
+	t.Run("Complex expression without expected caveat", func(t *testing.T) {
+		child1 := createTestCaveatExpression("wrong_caveat1", nil)
+		child2 := createTestCaveatExpression("wrong_caveat2", nil)
+		andExpr := createComplexCaveatExpression(core.CaveatOperation_AND, []*core.CaveatExpression{child1, child2})
+
+		contains := caveatIter.containsExpectedCaveat(andExpr)
+		require.False(contains)
+	})
+
+	t.Run("No expected caveat - should always return true", func(t *testing.T) {
+		noCaveatIter := NewCaveatIterator(NewFixedIterator(), nil)
+		expr := createTestCaveatExpression("any_caveat", nil)
+		contains := noCaveatIter.containsExpectedCaveat(expr)
+		require.True(contains)
+	})
+}
+
+func TestCaveatIterator_BuildCaveatContext(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	testCaveat := createTestCaveat("test_caveat", nil)
+	caveatIter := NewCaveatIterator(NewFixedIterator(), testCaveat)
+
+	// Test context building with query-time context
+	queryContext := map[string]any{
+		"user_id": "alice",
+		"limit":   10,
+	}
+
+	ctx := &Context{
+		Context:       context.Background(),
+		CaveatContext: queryContext,
+	}
+
+	pathCaveat := createTestCaveatExpression("test_caveat", map[string]any{
+		"resource_id": "doc1",
+	})
+
+	contextMap := caveatIter.buildCaveatContext(ctx, pathCaveat)
+
+	// Query-time context should be included
+	require.Equal("alice", contextMap["user_id"])
+	require.Equal(10, contextMap["limit"])
+
+	// Should only contain query-time context, not relationship context
+	// (SimplifyCaveatExpression handles relationship contexts)
+	require.NotContains(contextMap, "resource_id")
+}
+
+func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	testCaveat := createTestCaveat("test_caveat", nil)
+	caveatIter := NewCaveatIterator(NewFixedIterator(), testCaveat)
+
+	// Test with no caveat on iterator - should pass through
+	t.Run("No caveat on iterator", func(t *testing.T) {
+		noCaveatIter := NewCaveatIterator(NewFixedIterator(), nil)
+		path := MustPathFromString("document:doc1#view@user:alice")
+		path.Caveat = createTestCaveatExpression("any_caveat", nil)
+
+		// This should not error and pass through the original caveat
+		result, passes, err := noCaveatIter.simplifyCaveat(&Context{}, path)
+		require.NoError(err)
+		require.True(passes)
+		require.Equal(path.Caveat, result)
+	})
+
+	t.Run("No caveat on path", func(t *testing.T) {
+		path := MustPathFromString("document:doc1#view@user:alice")
+		// path.Caveat is nil
+
+		result, passes, err := caveatIter.simplifyCaveat(&Context{}, path)
+		require.NoError(err)
+		require.True(passes)
+		require.Nil(result) // Unconditional access
+	})
+
+	t.Run("No caveat runner", func(t *testing.T) {
+		path := MustPathFromString("document:doc1#view@user:alice")
+		path.Caveat = createTestCaveatExpression("test_caveat", nil)
+
+		ctx := &Context{
+			Context: context.Background(),
+			// CaveatRunner is nil
+		}
+
+		_, _, err := caveatIter.simplifyCaveat(ctx, path)
+		require.Error(err)
+		require.Contains(err.Error(), "no caveat runner available")
+	})
+}
+
+func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create test paths
+	path1 := MustPathFromString("document:doc1#view@user:alice")
+	path2 := MustPathFromString("document:doc1#view@user:bob")
+	path3 := MustPathFromString("document:doc2#view@user:charlie")
+
+	subIterator := NewFixedIterator(path1, path2, path3)
+
+	t.Run("with no caveat filter", func(t *testing.T) {
+		// No caveat filter - should pass through all paths
+		caveatIter := NewCaveatIterator(subIterator, nil)
+
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
+		resource := NewObject("document", "doc1")
+		seq, err := caveatIter.IterSubjectsImpl(ctx, resource)
+
+		require.NoError(err)
+		require.NotNil(seq)
+
+		// Should get paths for doc1 without error when no caveat filter
+		paths, err := CollectAll(seq)
+		require.NoError(err)
+		require.Len(paths, 2) // alice and bob for doc1
+	})
+
+	t.Run("with caveat filter", func(t *testing.T) {
+		// With caveat filter - test that the method can be called
+		testCaveat := createTestCaveat("test_caveat", nil)
+		caveatIter := NewCaveatIterator(subIterator, testCaveat)
+
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
+		resource := NewObject("document", "doc1")
+		seq, err := caveatIter.IterSubjectsImpl(ctx, resource)
+
+		require.NoError(err) // Initial call should not error
+		require.NotNil(seq)
+
+		// The sequence exists even if caveat evaluation will fail later
+		// This tests the method works correctly at the API level
+	})
+}
+
+func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create test paths
+	path1 := MustPathFromString("document:doc1#view@user:alice")
+	path2 := MustPathFromString("folder:folder1#view@user:alice")
+
+	subIterator := NewFixedIterator(path1, path2)
+
+	t.Run("with no caveat filter", func(t *testing.T) {
+		// No caveat filter - should pass through all paths
+		caveatIter := NewCaveatIterator(subIterator, nil)
+
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
+		subject := NewObject("user", "alice").WithEllipses()
+		seq, err := caveatIter.IterResourcesImpl(ctx, subject)
+
+		require.NoError(err)
+		require.NotNil(seq)
+
+		// Should get both resources for alice without error when no caveat filter
+		paths, err := CollectAll(seq)
+		require.NoError(err)
+		require.Len(paths, 2) // document and folder for alice
+	})
+
+	t.Run("with caveat filter", func(t *testing.T) {
+		// With caveat filter - test that the method can be called
+		testCaveat := createTestCaveat("test_caveat", nil)
+		caveatIter := NewCaveatIterator(subIterator, testCaveat)
+
+		ctx := &Context{
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+		}
+
+		subject := NewObject("user", "alice").WithEllipses()
+		seq, err := caveatIter.IterResourcesImpl(ctx, subject)
+
+		require.NoError(err) // Initial call should not error
+		require.NotNil(seq)
+
+		// The sequence exists even if caveat evaluation will fail later
+		// This tests the method works correctly at the API level
+	})
+}
+
+func TestCaveatIterator_BuildExplainInfo(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	t.Run("No caveat", func(t *testing.T) {
+		caveatIter := NewCaveatIterator(NewFixedIterator(), nil)
+		info := caveatIter.buildExplainInfo()
+		require.Equal("Caveat(none)", info)
+	})
+
+	t.Run("Simple caveat without context", func(t *testing.T) {
+		testCaveat := createTestCaveat("test_caveat", nil)
+		caveatIter := NewCaveatIterator(NewFixedIterator(), testCaveat)
+		info := caveatIter.buildExplainInfo()
+		require.Equal("Caveat(test_caveat)", info)
+	})
+
+	t.Run("Caveat with context", func(t *testing.T) {
+		testCaveat := createTestCaveat("test_caveat", map[string]any{
+			"limit": 10,
+			"user":  "alice",
+		})
+		caveatIter := NewCaveatIterator(NewFixedIterator(), testCaveat)
+		info := caveatIter.buildExplainInfo()
+
+		// Should contain caveat name and context keys
+		require.Contains(info, "Caveat(test_caveat")
+		require.Contains(info, "context:")
+		// Context keys can be in any order
+		require.Contains(info, "limit")
+		require.Contains(info, "user")
+	})
 }

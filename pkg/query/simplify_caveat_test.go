@@ -868,3 +868,253 @@ func mustToStruct(t *testing.T, data map[string]any) *structpb.Struct {
 	require.NoError(t, err)
 	return s
 }
+
+// Additional tests for uncovered functions in simplify_caveat.go
+
+func TestMergeContextsForExpression(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Test merging contexts for complex expressions
+	queryContext := map[string]any{
+		"user_id":    "alice",
+		"query_data": 123,
+	}
+
+	t.Run("Simple caveat expression", func(t *testing.T) {
+		// Create a simple caveat with relationship context
+		caveatExpr := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "test_caveat",
+					Context:    mustToStruct(t, map[string]any{"resource_id": "doc1", "limit": 5}),
+				},
+			},
+		}
+
+		result := mergeContextsForExpression(caveatExpr, queryContext)
+
+		// Should have query context
+		require.Equal("alice", result["user_id"])
+		require.Equal(123, result["query_data"])
+
+		// Should have relationship context from the caveat
+		require.Equal("doc1", result["resource_id"])
+		require.Equal(float64(5), result["limit"]) // structpb converts ints to float64
+	})
+
+	t.Run("Complex AND expression", func(t *testing.T) {
+		// Create AND expression with multiple caveats
+		child1 := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+					Context:    mustToStruct(t, map[string]any{"param1": "value1"}),
+				},
+			},
+		}
+		child2 := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+					Context:    mustToStruct(t, map[string]any{"param2": "value2"}),
+				},
+			},
+		}
+		andExpr := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Operation{
+				Operation: &core.CaveatOperation{
+					Op:       core.CaveatOperation_AND,
+					Children: []*core.CaveatExpression{child1, child2},
+				},
+			},
+		}
+
+		result := mergeContextsForExpression(andExpr, queryContext)
+
+		// Should have query context (takes precedence)
+		require.Equal("alice", result["user_id"])
+		require.Equal(123, result["query_data"])
+
+		// Should have relationship contexts from both child caveats
+		require.Equal("value1", result["param1"])
+		require.Equal("value2", result["param2"])
+	})
+
+	t.Run("Query context overrides relationship context", func(t *testing.T) {
+		// Test that query context takes precedence over relationship context
+		caveatExpr := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "test_caveat",
+					Context:    mustToStruct(t, map[string]any{"user_id": "bob", "limit": 10}),
+				},
+			},
+		}
+
+		result := mergeContextsForExpression(caveatExpr, queryContext)
+
+		// Query context should override relationship context
+		require.Equal("alice", result["user_id"]) // From query, not "bob" from relationship
+		require.Equal(123, result["query_data"])
+		require.Equal(float64(10), result["limit"]) // From relationship context
+	})
+
+	t.Run("Empty expression", func(t *testing.T) {
+		result := mergeContextsForExpression(nil, queryContext)
+
+		// Should only have query context
+		require.Equal("alice", result["user_id"])
+		require.Equal(123, result["query_data"])
+		require.Len(result, 2)
+	})
+}
+
+func TestCollectRelationshipContexts(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	t.Run("Nil expression", func(t *testing.T) {
+		contextMap := make(map[string]any)
+		collectRelationshipContexts(nil, contextMap)
+		require.Empty(contextMap)
+	})
+
+	t.Run("Simple caveat", func(t *testing.T) {
+		caveatExpr := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "test_caveat",
+					Context:    mustToStruct(t, map[string]any{"resource_id": "doc1", "limit": 5}),
+				},
+			},
+		}
+
+		contextMap := make(map[string]any)
+		collectRelationshipContexts(caveatExpr, contextMap)
+
+		require.Equal("doc1", contextMap["resource_id"])
+		require.Equal(float64(5), contextMap["limit"])
+		require.Len(contextMap, 2)
+	})
+
+	t.Run("Caveat without context", func(t *testing.T) {
+		caveatExpr := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "test_caveat",
+					// No Context field
+				},
+			},
+		}
+
+		contextMap := make(map[string]any)
+		collectRelationshipContexts(caveatExpr, contextMap)
+
+		require.Empty(contextMap)
+	})
+
+	t.Run("AND operation with multiple caveats", func(t *testing.T) {
+		child1 := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+					Context:    mustToStruct(t, map[string]any{"param1": "value1", "shared": "from_child1"}),
+				},
+			},
+		}
+		child2 := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+					Context:    mustToStruct(t, map[string]any{"param2": "value2", "shared": "from_child2"}),
+				},
+			},
+		}
+		andExpr := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Operation{
+				Operation: &core.CaveatOperation{
+					Op:       core.CaveatOperation_AND,
+					Children: []*core.CaveatExpression{child1, child2},
+				},
+			},
+		}
+
+		contextMap := make(map[string]any)
+		collectRelationshipContexts(andExpr, contextMap)
+
+		require.Equal("value1", contextMap["param1"])
+		require.Equal("value2", contextMap["param2"])
+		// First occurrence wins for duplicate keys
+		require.Equal("from_child1", contextMap["shared"])
+	})
+
+	t.Run("Nested operations", func(t *testing.T) {
+		// Create OR( AND(caveat1, caveat2), caveat3 )
+		innerChild1 := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+					Context:    mustToStruct(t, map[string]any{"param1": "value1"}),
+				},
+			},
+		}
+		innerChild2 := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+					Context:    mustToStruct(t, map[string]any{"param2": "value2"}),
+				},
+			},
+		}
+		andExpr := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Operation{
+				Operation: &core.CaveatOperation{
+					Op:       core.CaveatOperation_AND,
+					Children: []*core.CaveatExpression{innerChild1, innerChild2},
+				},
+			},
+		}
+		outerChild := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat3",
+					Context:    mustToStruct(t, map[string]any{"param3": "value3"}),
+				},
+			},
+		}
+		orExpr := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Operation{
+				Operation: &core.CaveatOperation{
+					Op:       core.CaveatOperation_OR,
+					Children: []*core.CaveatExpression{andExpr, outerChild},
+				},
+			},
+		}
+
+		contextMap := make(map[string]any)
+		collectRelationshipContexts(orExpr, contextMap)
+
+		// Should collect contexts from all leaf caveats
+		require.Equal("value1", contextMap["param1"])
+		require.Equal("value2", contextMap["param2"])
+		require.Equal("value3", contextMap["param3"])
+		require.Len(contextMap, 3)
+	})
+
+	t.Run("Operation without children", func(t *testing.T) {
+		emptyOp := &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Operation{
+				Operation: &core.CaveatOperation{
+					Op:       core.CaveatOperation_AND,
+					Children: nil,
+				},
+			},
+		}
+
+		contextMap := make(map[string]any)
+		collectRelationshipContexts(emptyOp, contextMap)
+
+		require.Empty(contextMap)
+	})
+}
