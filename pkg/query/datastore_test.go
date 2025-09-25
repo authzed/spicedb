@@ -31,8 +31,8 @@ func TestRelationIterator(t *testing.T) {
 	t.Run("SubjectTypeMismatchReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a base relation that expects "user" type subjects
-		baseRel := createTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
+		// Create a base relation that expects "user" type subjects (no subrelation for pure type checking)
+		baseRel := createTestBaseRelation("document", "viewer", "user", "")
 		relationIter := NewRelationIterator(baseRel)
 
 		// Test with mismatched subject type - this should return empty due to the bug fix
@@ -193,7 +193,8 @@ func TestRelationIteratorSubjectTypeMismatchScenarios(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			baseRel := createTestBaseRelation("document", "viewer", tc.expectedSubjectType, tuple.Ellipsis)
+			// Use empty string instead of Ellipsis to test pure type mismatch without subrelation bridging
+			baseRel := createTestBaseRelation("document", "viewer", tc.expectedSubjectType, "")
 			relationIter := NewRelationIterator(baseRel)
 
 			subject := NewObject(tc.actualSubjectType, "test_id").WithEllipses()
