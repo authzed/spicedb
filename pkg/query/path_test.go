@@ -674,23 +674,28 @@ func TestPath_EqualsEndpoints(t *testing.T) {
 	path5 := MustPathFromString("document:doc1#view@user:bob")   // Different subject
 
 	t.Run("identical_endpoints", func(t *testing.T) {
+		t.Parallel()
 		require.True(path1.EqualsEndpoints(path2))
 	})
 
 	t.Run("different_relation_same_endpoints", func(t *testing.T) {
+		t.Parallel()
 		// EqualsEndpoints should ignore relation and only compare resource/subject
 		require.True(path1.EqualsEndpoints(path3))
 	})
 
 	t.Run("different_resource", func(t *testing.T) {
+		t.Parallel()
 		require.False(path1.EqualsEndpoints(path4))
 	})
 
 	t.Run("different_subject", func(t *testing.T) {
+		t.Parallel()
 		require.False(path1.EqualsEndpoints(path5))
 	})
 
 	t.Run("nil_paths", func(t *testing.T) {
+		t.Parallel()
 		var nilPath1 *Path
 		var nilPath2 *Path
 
@@ -703,6 +708,7 @@ func TestPath_EqualsEndpoints(t *testing.T) {
 	})
 
 	t.Run("with_different_subject_relation_same_endpoints", func(t *testing.T) {
+		t.Parallel()
 		path1 := MustPathFromString("document:doc1#view@group:admin#member")
 		path2 := MustPathFromString("document:doc1#view@group:admin")
 
@@ -758,43 +764,51 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	pathWithIntegrity.Integrity = []*core.RelationshipIntegrity{{KeyId: "key1"}}
 
 	t.Run("identical_paths", func(t *testing.T) {
+		t.Parallel()
 		path1 := MustPathFromString("document:doc1#view@user:alice")
 		path2 := MustPathFromString("document:doc1#view@user:alice")
 		require.True(path1.Equals(path2))
 	})
 
 	t.Run("different_resource_type", func(t *testing.T) {
+		t.Parallel()
 		path2 := MustPathFromString("folder:doc1#view@user:alice")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_resource_id", func(t *testing.T) {
+		t.Parallel()
 		path2 := MustPathFromString("document:doc2#view@user:alice")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_relation", func(t *testing.T) {
+		t.Parallel()
 		path2 := MustPathFromString("document:doc1#edit@user:alice")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_subject_type", func(t *testing.T) {
+		t.Parallel()
 		path2 := MustPathFromString("document:doc1#view@group:alice")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_subject_id", func(t *testing.T) {
+		t.Parallel()
 		path2 := MustPathFromString("document:doc1#view@user:bob")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_subject_relation", func(t *testing.T) {
+		t.Parallel()
 		path1 := MustPathFromString("document:doc1#view@group:admin#member")
 		path2 := MustPathFromString("document:doc1#view@group:admin")
 		require.False(path1.Equals(path2))
 	})
 
 	t.Run("nil_paths", func(t *testing.T) {
+		t.Parallel()
 		var nilPath1 *Path
 		var nilPath2 *Path
 
@@ -807,6 +821,7 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("caveat_differences", func(t *testing.T) {
+		t.Parallel()
 		// Base path vs path with caveat
 		require.False(basePath.Equals(&pathWithCaveat))
 
@@ -819,6 +834,7 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("expiration_differences", func(t *testing.T) {
+		t.Parallel()
 		// Base path vs path with expiration
 		require.False(basePath.Equals(&pathWithExpiration))
 
@@ -831,6 +847,7 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("metadata_differences", func(t *testing.T) {
+		t.Parallel()
 		// Base path vs path with metadata
 		require.False(basePath.Equals(&pathWithMetadata))
 
@@ -843,6 +860,7 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("integrity_differences", func(t *testing.T) {
+		t.Parallel()
 		// Base path vs path with integrity
 		require.False(basePath.Equals(&pathWithIntegrity))
 
@@ -887,6 +905,7 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	pathWithMetadata2.Metadata = map[string]any{"source": "path2", "priority": "low"}
 
 	t.Run("basic_merge_and_not", func(t *testing.T) {
+		t.Parallel()
 		// Make a copy to test on
 		testPath := *basePath
 		err := testPath.MergeAndNot(&pathWithCaveat1)
@@ -901,6 +920,7 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("both_paths_have_caveats", func(t *testing.T) {
+		t.Parallel()
 		testPath := pathWithCaveat1
 		err := testPath.MergeAndNot(&pathWithCaveat2)
 
@@ -911,6 +931,7 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("merge_metadata", func(t *testing.T) {
+		t.Parallel()
 		testPath := pathWithMetadata1
 		err := testPath.MergeAndNot(&pathWithMetadata2)
 
@@ -923,6 +944,7 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("merge_different_resources_should_error", func(t *testing.T) {
+		t.Parallel()
 		differentResourcePath := MustPathFromString("folder:doc1#view@user:alice")
 		testPath := *basePath
 
@@ -933,6 +955,7 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("merge_different_subjects_should_error", func(t *testing.T) {
+		t.Parallel()
 		differentSubjectPath := MustPathFromString("document:doc1#view@user:bob")
 		testPath := *basePath
 
