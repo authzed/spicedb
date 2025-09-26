@@ -19,7 +19,6 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/promutil"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var LogicalChecks = promauto.NewCounter(prometheus.CounterOpts{
@@ -28,14 +27,6 @@ var LogicalChecks = promauto.NewCounter(prometheus.CounterOpts{
 	Name:      "logical_checks_total",
 	Help:      `Count of the number of "checks" made across all APIs (e.g. each item within a CheckBulk, each item returned from a Lookup).`,
 })
-
-func counterValue(m prometheus.Metric) float64 {
-	var written dto.Metric
-	if err := m.Write(&written); err != nil {
-		spiceerrors.MustPanic("failed to read Prometheus counter: %s", err)
-	}
-	return *written.Counter.Value
-}
 
 func SpiceDBClusterInfoCollector(ctx context.Context, subsystem, dsEngine string, ds datastore.Datastore) (promutil.CollectorFunc, error) {
 	nodeID, err := os.Hostname()
@@ -180,7 +171,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- prometheus.MustNewConstMetric(c.objectDefsDesc, prometheus.GaugeValue, float64(len(dsStats.ObjectTypeStatistics)))
 	ch <- prometheus.MustNewConstMetric(c.relationshipsDesc, prometheus.GaugeValue, float64(dsStats.EstimatedRelationshipCount))
-	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.CounterValue, counterValue(LogicalChecks))
+	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.CounterValue, promutil.MustCounterValue(LogicalChecks))
 
 	dispatchedCountMetrics := make(chan prometheus.Metric)
 	g := errgroup.Group{}
