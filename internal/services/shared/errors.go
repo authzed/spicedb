@@ -13,6 +13,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -195,6 +196,8 @@ func rewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 	case errors.As(err, &graph.UnimplementedError{}):
 		return status.Errorf(codes.Unimplemented, "%s", err)
+	case errors.Is(err, pool.ErrAcquire):
+		return status.Errorf(codes.ResourceExhausted, "%s: consider increasing write pool size and/or datastore capacity", err)
 	case errors.Is(err, context.DeadlineExceeded):
 		return status.Errorf(codes.DeadlineExceeded, "%s", err)
 	case errors.Is(err, context.Canceled):

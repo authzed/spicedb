@@ -65,6 +65,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.OverlapStrategy = c.OverlapStrategy
 		to.EnableConnectionBalancing = c.EnableConnectionBalancing
 		to.ConnectRate = c.ConnectRate
+		to.WriteAcquisitionTimeout = c.WriteAcquisitionTimeout
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.RelaxedIsolationLevel = c.RelaxedIsolationLevel
@@ -123,6 +124,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["OverlapStrategy"] = helpers.DebugValue(c.OverlapStrategy, false)
 	debugMap["EnableConnectionBalancing"] = helpers.DebugValue(c.EnableConnectionBalancing, false)
 	debugMap["ConnectRate"] = helpers.DebugValue(c.ConnectRate, false)
+	debugMap["WriteAcquisitionTimeout"] = helpers.DebugValue(c.WriteAcquisitionTimeout, false)
 	debugMap["GCInterval"] = helpers.DebugValue(c.GCInterval, false)
 	debugMap["GCMaxOperationTime"] = helpers.DebugValue(c.GCMaxOperationTime, false)
 	debugMap["RelaxedIsolationLevel"] = helpers.DebugValue(c.RelaxedIsolationLevel, false)
@@ -412,6 +414,13 @@ func WithEnableConnectionBalancing(enableConnectionBalancing bool) ConfigOption 
 func WithConnectRate(connectRate time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.ConnectRate = connectRate
+	}
+}
+
+// WithWriteAcquisitionTimeout returns an option that can set WriteAcquisitionTimeout on a Config
+func WithWriteAcquisitionTimeout(writeAcquisitionTimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.WriteAcquisitionTimeout = writeAcquisitionTimeout
 	}
 }
 

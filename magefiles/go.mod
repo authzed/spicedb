@@ -1,8 +1,6 @@
 module magefiles
 
-go 1.23.8
-
-toolchain go1.24.2
+go 1.25.1
 
 require (
 	github.com/agnivade/wasmbrowsertest v0.11.0

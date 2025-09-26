@@ -834,3 +834,10 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 		}
 	}
 }
+
+func TestWrapErr(t *testing.T) {
+	// this is a sanity check that these errors are correctly passed up
+	// unmodified so that higher layers can interpret them - in this case
+	// so we can return ResourceExhausted if we see this error.
+	require.Equal(t, wrapError(pool.ErrAcquire), pool.ErrAcquire)
+}
