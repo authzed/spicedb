@@ -156,7 +156,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 }
 
 func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
-	var base Iterator = NewRelationIterator(br)
+	base := NewRelationIterator(br)
 
 	// Collect caveat to apply at top level instead of wrapping immediately
 	if br.Caveat() != "" {
@@ -167,16 +167,7 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		b.collectedCaveats = append(b.collectedCaveats, caveat)
 	}
 
-	if !withSubRelations {
-		return base, nil
-	}
-
 	if br.Subrelation() == tuple.Ellipsis {
-		return base, nil
-	}
-
-	// Wildcards represent direct access, so no subrelation processing needed
-	if br.Wildcard() {
 		return base, nil
 	}
 
@@ -185,16 +176,19 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 	// The withSubRelations flag controls whether we build arrows for nested traversal, but relation
 	// references in the schema definition itself must always be resolved.
 	// However, we still need to prevent infinite recursion.
-
-	// We must check the effective arrow of a subrelation if we have one and subrelations are enabled
-	// (subrelations are disabled in cases of actual arrows)
-	union := NewUnion()
-	union.addSubIterator(base)
+	if !withSubRelations {
+		return base, nil
+	}
 
 	rightside, err := b.buildIteratorFromSchemaInternal(br.Type(), br.Subrelation(), false)
 	if err != nil {
 		return nil, err
 	}
+
+	// We must check the effective arrow of a subrelation if we have one and subrelations are enabled
+	// (subrelations are disabled in cases of actual arrows)
+	union := NewUnion()
+	union.addSubIterator(base)
 
 	arrow := NewArrow(base.Clone(), rightside)
 	union.addSubIterator(arrow)
