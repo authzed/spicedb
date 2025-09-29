@@ -57,11 +57,18 @@ func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelatio
 }
 
 func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	// RelationIterator always enforces strict type matching at the leaf level.
-	// Type bridging through subrelations (e.g., group#member) is handled by the Arrow iterator
-	// that wraps this RelationIterator, not by the RelationIterator itself.
-	// See buildBaseRelationIterator in build_tree.go - it creates Union(base, Arrow(base, subrel))
-	if subject.ObjectType != r.base.Type() {
+	// For subrelations, we need to allow type mismatches because the subrelation might bridge different types
+	// For example, group:member -> group:member should find group:everyone#member@group:engineering#member
+	// and then that relationship should be used by the Arrow to check group:engineering#member for user subjects
+	// However, wildcard relations and ellipsis relations should always enforce strict type checking
+	// Ellipsis (...) means "any relation on the same type", not "bridging to a different type"
+	if subject.ObjectType != r.base.Type() && r.base.Subrelation() != "" && r.base.Subrelation() != tuple.Ellipsis && !r.base.Wildcard() {
+		// For non-wildcard, non-ellipsis subrelations, we proceed with the query even if types don't match
+		// This allows finding intermediate relationships that bridge type gaps
+		ctx.TraceStep(r, "subject type %s doesn't match base type %s, but proceeding due to subrelation %s",
+			subject.ObjectType, r.base.Type(), r.base.Subrelation())
+	} else if subject.ObjectType != r.base.Type() {
+		// For non-subrelations, ellipsis, and all wildcard relations, strict type checking applies
 		ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
 		return EmptyPathSeq(), nil
 	}
