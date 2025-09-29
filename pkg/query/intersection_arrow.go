@@ -37,32 +37,18 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 			}
 
 			// For intersection arrow, we need to track:
-			// 1. All left subjects that actually exist (after caveat evaluation)
+			// 1. All left subjects that actually exist
 			// 2. Which ones satisfy the right condition
 			// 3. Only yield results if ALL existing left subjects satisfy the right condition
-			// 4. Combine all left-side caveats with AND logic
+			// 4. Combine all (leftCaveat AND rightCaveat) pairs with AND logic
 
 			var validResults []*Path
-			var leftSideCaveats []*core.CaveatExpression
-			leftSubjectCount := 0
-			satisfiedCount := 0
+			unsatisfied := false
 
 			for path, err := range subit {
 				if err != nil {
 					yield(nil, err)
 					return
-				}
-
-				// This is a valid left subject (passed its own caveats)
-				leftSubjectCount++
-				ctx.TraceStep(ia, "found left subject %s:%s (caveat: %v)",
-					path.Subject.ObjectType, path.Subject.ObjectID, path.Caveat != nil)
-
-				// Collect left-side caveats for AND combination
-				if path.Caveat != nil {
-					ctx.TraceStep(ia, "left subject %s:%s has caveat",
-						path.Subject.ObjectType, path.Subject.ObjectID)
-					leftSideCaveats = append(leftSideCaveats, path.Caveat)
 				}
 
 				checkResources := []Object{GetObject(path.Subject)}
@@ -73,121 +59,91 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 				}
 
 				// Check if this left subject satisfies the right condition
-				rightSatisfied := false
-				rightResultCount := 0
-				for checkPath, err := range checkit {
-					if err != nil {
-						yield(nil, err)
-						return
-					}
-
-					rightResultCount++
-					// This left subject satisfies the right condition
-					rightSatisfied = true
-					satisfiedCount++
-
-					ctx.TraceStep(ia, "left subject %s:%s satisfied right condition",
-						path.Subject.ObjectType, path.Subject.ObjectID)
-
-					combinedPath := &Path{
-						Resource:   path.Resource,
-						Relation:   path.Relation,
-						Subject:    checkPath.Subject,
-						Caveat:     checkPath.Caveat, // Will be combined with left-side caveats later
-						Expiration: checkPath.Expiration,
-						Integrity:  checkPath.Integrity,
-						Metadata:   checkPath.Metadata,
-					}
-					validResults = append(validResults, combinedPath)
-					break // Only need one match per left subject for intersection logic
+				// There is only one possible result from this check.
+				paths, err := CollectAll(checkit)
+				if err != nil {
+					yield(nil, err)
+					return
 				}
-
-				if rightResultCount == 0 {
+				if len(paths) == 0 {
 					ctx.TraceStep(ia, "left subject %s:%s did NOT satisfy right condition",
 						path.Subject.ObjectType, path.Subject.ObjectID)
+					unsatisfied = true
+					break
+				}
+				checkPath := paths[0]
+				ctx.TraceStep(ia, "left subject %s:%s satisfied right condition",
+					path.Subject.ObjectType, path.Subject.ObjectID)
+
+				// Combine this path's left caveat with the right caveat
+				var combinedCaveat *core.CaveatExpression
+				if path.Caveat != nil && checkPath.Caveat != nil {
+					combinedCaveat = caveats.And(path.Caveat, checkPath.Caveat)
+					ctx.TraceStep(ia, "left subject %s:%s has both left and right caveats",
+						path.Subject.ObjectType, path.Subject.ObjectID)
+				} else if path.Caveat != nil {
+					combinedCaveat = path.Caveat
+					ctx.TraceStep(ia, "left subject %s:%s has left caveat only",
+						path.Subject.ObjectType, path.Subject.ObjectID)
+				} else if checkPath.Caveat != nil {
+					combinedCaveat = checkPath.Caveat
+					ctx.TraceStep(ia, "left subject %s:%s has right caveat only",
+						path.Subject.ObjectType, path.Subject.ObjectID)
 				}
 
-				// If this left subject doesn't satisfy the right condition, break early
-				// since intersection requires ALL subjects to satisfy
-				if !rightSatisfied {
-					ctx.TraceStep(ia, "intersection FAILED - not all subjects satisfied (got %d/%d)",
-						satisfiedCount, leftSubjectCount)
-					// Early exit - not all subjects satisfied, so intersection fails
-					leftSubjectCount = -1 // Signal failure
-					break
+				combinedPath := &Path{
+					Resource:   path.Resource,
+					Relation:   path.Relation,
+					Subject:    checkPath.Subject,
+					Caveat:     combinedCaveat,
+					Expiration: checkPath.Expiration,
+					Integrity:  checkPath.Integrity,
+					Metadata:   checkPath.Metadata,
+				}
+				validResults = append(validResults, combinedPath)
+				// Only need one match per left subject for intersection logic
+			}
+
+			if unsatisfied {
+				ctx.TraceStep(ia, "intersection FAILED - not all subjects satisfied")
+				continue
+			}
+
+			ctx.TraceStep(ia, "intersection SUCCESS - combining %d results", len(validResults))
+
+			// For intersection semantics, we need to create a single path that represents
+			// the AND of all individual conditions: each (leftCaveat AND rightCaveat) must be AND'd together
+			var intersectionCaveat *core.CaveatExpression
+
+			for i, result := range validResults {
+				// For intersection (ALL), we AND each result's combined caveat
+				if i == 0 {
+					intersectionCaveat = result.Caveat
+				} else if result.Caveat != nil {
+					if intersectionCaveat != nil {
+						intersectionCaveat = caveats.And(intersectionCaveat, result.Caveat)
+					} else {
+						intersectionCaveat = result.Caveat
+					}
 				}
 			}
 
-			ctx.TraceStep(ia, "intersection check complete - %d left subjects, %d satisfied",
-				leftSubjectCount, satisfiedCount)
-
-			// Only yield results if ALL existing left subjects were satisfied
-			// (leftSubjectCount > 0 means there were subjects, satisfiedCount == leftSubjectCount means all satisfied)
-			if leftSubjectCount > 0 && satisfiedCount == leftSubjectCount {
-				ctx.TraceStep(ia, "intersection SUCCESS - combining %d left-side caveats", len(leftSideCaveats))
-
-				// Combine all left-side caveats with AND logic
-				// We need to create a single caveat expression that represents all left-side constraints
-				var combinedLeftCaveat *core.CaveatExpression
-				if len(leftSideCaveats) > 0 {
-					// Build the combined expression using the existing AND logic
-					var leftExpr *core.CaveatExpression
-					for i, caveatExpr := range leftSideCaveats {
-						if i == 0 {
-							leftExpr = caveatExpr
-						} else {
-							leftExpr = caveats.And(leftExpr, caveatExpr)
-						}
-					}
-					combinedLeftCaveat = leftExpr
+			// Return a single path representing the intersection, if one exists.
+			if len(validResults) > 0 {
+				firstResult := validResults[0]
+				finalResult := &Path{
+					Resource:   firstResult.Resource,
+					Relation:   firstResult.Relation,
+					Subject:    firstResult.Subject,
+					Caveat:     intersectionCaveat,
+					Expiration: firstResult.Expiration,
+					Integrity:  firstResult.Integrity,
+					Metadata:   firstResult.Metadata,
 				}
 
-				// For intersection semantics, we need to create a single path that represents
-				// the AND of all individual conditions: each (leftCaveat AND rightCaveat) must be AND'd together
-				var intersectionCaveat *core.CaveatExpression
-
-				for i, result := range validResults {
-					// Combine this result's left and right caveats
-					var resultCaveat *core.CaveatExpression
-					if combinedLeftCaveat != nil && result.Caveat != nil {
-						resultCaveat = caveats.And(combinedLeftCaveat, result.Caveat)
-					} else if combinedLeftCaveat != nil {
-						resultCaveat = combinedLeftCaveat
-					} else if result.Caveat != nil {
-						resultCaveat = result.Caveat
-					}
-
-					// For intersection (ALL), we AND each result's combined caveat
-					if i == 0 {
-						intersectionCaveat = resultCaveat
-					} else if resultCaveat != nil {
-						if intersectionCaveat != nil {
-							intersectionCaveat = caveats.And(intersectionCaveat, resultCaveat)
-						} else {
-							intersectionCaveat = resultCaveat
-						}
-					}
+				if !yield(finalResult, nil) {
+					return
 				}
-
-				// Return a single path representing the intersection
-				if len(validResults) > 0 {
-					firstResult := validResults[0]
-					finalResult := &Path{
-						Resource:   firstResult.Resource,
-						Relation:   firstResult.Relation,
-						Subject:    firstResult.Subject,
-						Caveat:     intersectionCaveat,
-						Expiration: firstResult.Expiration,
-						Integrity:  firstResult.Integrity,
-						Metadata:   firstResult.Metadata,
-					}
-
-					if !yield(finalResult, nil) {
-						return
-					}
-				}
-			} else {
-				ctx.TraceStep(ia, "intersection FAILED - no results yielded")
 			}
 		}
 	}, nil
