@@ -1,6 +1,7 @@
 package consistency
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -232,18 +233,47 @@ func TestRevisionFromContextMissingConsistency(t *testing.T) {
 }
 
 func TestRewriteDatastoreError(t *testing.T) {
-	err := rewriteDatastoreError(errors.New("foobar"))
-	require.Error(t, err)
-	grpcutil.RequireStatus(t, codes.Internal, err)
-	require.ErrorContains(t, err, "foobar")
+	t.Parallel()
+	type tc struct {
+		name        string
+		err         error
+		code        codes.Code
+		errContains string
+	}
+	tcs := []tc{
+		{
+			name:        "internal err",
+			err:         errors.New("foobar"),
+			code:        codes.Internal,
+			errContains: "foobar",
+		},
+		{
+			name:        "invalid revision",
+			err:         datastore.NewInvalidRevisionErr(zero, datastore.RevisionStale),
+			code:        codes.OutOfRange,
+			errContains: "invalid revision",
+		},
+		{
+			name:        "readonly err",
+			err:         datastore.NewReadonlyErr(),
+			code:        codes.Unavailable,
+			errContains: "service read-only",
+		},
+		{
+			name:        "context canceled",
+			err:         context.Canceled,
+			code:        codes.Canceled,
+			errContains: "context canceled",
+		},
+	}
 
-	err = rewriteDatastoreError(datastore.NewInvalidRevisionErr(zero, datastore.RevisionStale))
-	require.Error(t, err)
-	grpcutil.RequireStatus(t, codes.OutOfRange, err)
-	require.ErrorContains(t, err, "invalid revision")
-
-	err = rewriteDatastoreError(datastore.NewReadonlyErr())
-	require.Error(t, err)
-	grpcutil.RequireStatus(t, codes.Unavailable, err)
-	require.ErrorContains(t, err, "service read-only")
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := rewriteDatastoreError(tc.err)
+			require.Error(t, err)
+			grpcutil.RequireStatus(t, tc.code, err)
+			require.ErrorContains(t, err, tc.errContains)
+		})
+	}
 }
