@@ -272,6 +272,9 @@ func rewriteDatastoreError(err error) error {
 	case errors.As(err, &datastore.ReadOnlyError{}):
 		return shared.ErrServiceReadOnly
 
+	case errors.Is(err, context.Canceled):
+		return status.Errorf(codes.Canceled, "%s", err)
+
 	default:
 		return status.Errorf(codes.Internal, "unexpected consistency middleware error: %s", err.Error())
 	}
