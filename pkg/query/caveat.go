@@ -1,10 +1,8 @@
 package query
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -33,12 +31,12 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 		return nil, err
 	}
 
+	if c.caveat == nil {
+		return subSeq, nil
+	}
+
 	return func(yield func(*Path, error) bool) {
-		caveatName := "none"
-		if c.caveat != nil {
-			caveatName = c.caveat.CaveatName
-		}
-		ctx.TraceStep(c, "applying caveat '%s' to sub-iterator results", caveatName)
+		ctx.TraceStep(c, "applying caveat '%s' to sub-iterator results", c.caveat.CaveatName)
 
 		processedCount := 0
 		passedCount := 0
@@ -71,19 +69,8 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 
 			passedCount++
 
-			// Create modified path with simplified caveat
-			modifiedPath := *path // Copy the path
-			if simplified == nil {
-				// Caveat simplified to unconditionally true - remove caveat
-				modifiedPath.Caveat = nil
-				ctx.TraceStep(c, "caveat simplified to unconditionally true")
-			} else {
-				// Update path with simplified caveat
-				modifiedPath.Caveat = simplified
-				ctx.TraceStep(c, "caveat simplified but still conditional")
-			}
-
-			if !yield(&modifiedPath, nil) {
+			path.Caveat = simplified
+			if !yield(path, nil) {
 				return
 			}
 		}
@@ -98,15 +85,12 @@ func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSe
 		return nil, err
 	}
 
-	return func(yield func(*Path, error) bool) {
-		defer func() {
-		}()
+	if c.caveat == nil {
+		return subSeq, nil
+	}
 
-		caveatName := "none"
-		if c.caveat != nil {
-			caveatName = c.caveat.CaveatName
-		}
-		ctx.TraceStep(c, "applying caveat '%s' to subjects for resource %s:%s", caveatName, resource.ObjectType, resource.ObjectID)
+	return func(yield func(*Path, error) bool) {
+		ctx.TraceStep(c, "applying caveat '%s' to subjects for resource %s:%s", c.caveat.CaveatName, resource.ObjectType, resource.ObjectID)
 
 		processedCount := 0
 		passedCount := 0
@@ -139,17 +123,10 @@ func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSe
 
 			passedCount++
 
-			// Create modified path with simplified caveat
-			modifiedPath := *path // Copy the path
-			if simplified == nil {
-				// Caveat simplified to unconditionally true - remove caveat
-				modifiedPath.Caveat = nil
-			} else {
-				// Update path with simplified caveat
-				modifiedPath.Caveat = simplified
-			}
+			// If simplified is nil, it passes unconditionally; otherwise, it's the remainder
+			path.Caveat = simplified
 
-			if !yield(&modifiedPath, nil) {
+			if !yield(path, nil) {
 				return
 			}
 		}
@@ -164,16 +141,12 @@ func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 		return nil, err
 	}
 
+	if c.caveat == nil {
+		return subSeq, nil
+	}
+
 	return func(yield func(*Path, error) bool) {
-		defer func() {
-		}()
-
-		caveatName := "none"
-		if c.caveat != nil {
-			caveatName = c.caveat.CaveatName
-		}
-		ctx.TraceStep(c, "applying caveat '%s' to resources for subject %s:%s", caveatName, subject.ObjectType, subject.ObjectID)
-
+		ctx.TraceStep(c, "applying caveat '%s' to resources for subject %s:%s", c.caveat.CaveatName, subject.ObjectType, subject.ObjectID)
 		processedCount := 0
 		passedCount := 0
 
@@ -205,17 +178,10 @@ func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 
 			passedCount++
 
-			// Create modified path with simplified caveat
-			modifiedPath := *path // Copy the path
-			if simplified == nil {
-				// Caveat simplified to unconditionally true - remove caveat
-				modifiedPath.Caveat = nil
-			} else {
-				// Update path with simplified caveat
-				modifiedPath.Caveat = simplified
-			}
+			// If simplified is nil, it passes unconditionally; otherwise, it's the remainder
+			path.Caveat = simplified
 
-			if !yield(&modifiedPath, nil) {
+			if !yield(path, nil) {
 				return
 			}
 		}
@@ -254,51 +220,20 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatE
 	// Get a snapshot reader which should implement CaveatReader
 	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
 
-	// Build the combined context map
-	contextMap := c.buildCaveatContext(ctx, path.Caveat)
-
 	// Use the SimplifyCaveatExpression function to properly handle AND/OR logic
 	simplified, passes, err := SimplifyCaveatExpression(
 		ctx,
 		ctx.CaveatRunner,
 		path.Caveat,
-		contextMap,
+		ctx.CaveatContext,
 		reader,
 	)
 	if err != nil {
-		// Check if this is a specific caveat evaluation error and wrap it appropriately
-		var evalErr *caveats.EvaluationError
-		var paramErr *caveats.ParameterTypeError
-
-		if errors.As(err, &evalErr) {
-			return nil, false, fmt.Errorf("caveat evaluation failed: %w", evalErr)
-		}
-		if errors.As(err, &paramErr) {
-			return nil, false, fmt.Errorf("caveat parameter error: %w", paramErr)
-		}
-
-		// For other errors, provide context about caveat failure
 		return nil, false, fmt.Errorf("failed to evaluate caveat: %w", err)
 	}
 
 	// Return the simplification result directly
 	return simplified, passes, nil
-}
-
-// buildCaveatContext combines the path's caveat context with query-time context
-func (c *CaveatIterator) buildCaveatContext(ctx *Context, pathCaveat *core.CaveatExpression) map[string]any {
-	// For complex caveat expressions (OR, AND, etc.), we should only pass the query context
-	// The SimplifyCaveatExpression will handle merging relationship contexts for each leaf
-	contextMap := make(map[string]any)
-
-	// Only use query-time context - let SimplifyCaveatExpression handle relationship contexts
-	if ctx.CaveatContext != nil {
-		for k, v := range ctx.CaveatContext {
-			contextMap[k] = v
-		}
-	}
-
-	return contextMap
 }
 
 // containsExpectedCaveat checks if a caveat expression contains the expected caveat name

@@ -51,6 +51,7 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 					return
 				}
 
+				// Check if this left subject connects within the right side iterator
 				checkResources := []Object{GetObject(path.Subject)}
 				checkit, err := ctx.Check(ia.right, checkResources, subject)
 				if err != nil {
@@ -58,7 +59,6 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 					return
 				}
 
-				// Check if this left subject satisfies the right condition
 				// There is only one possible result from this check.
 				paths, err := CollectAll(checkit)
 				if err != nil {
@@ -66,30 +66,17 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 					return
 				}
 				if len(paths) == 0 {
-					ctx.TraceStep(ia, "left subject %s:%s did NOT satisfy right condition",
+					ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
 						path.Subject.ObjectType, path.Subject.ObjectID)
 					unsatisfied = true
 					break
 				}
 				checkPath := paths[0]
-				ctx.TraceStep(ia, "left subject %s:%s satisfied right condition",
+				ctx.TraceStep(ia, "left subject %s:%s connects with the right side",
 					path.Subject.ObjectType, path.Subject.ObjectID)
 
 				// Combine this path's left caveat with the right caveat
-				var combinedCaveat *core.CaveatExpression
-				if path.Caveat != nil && checkPath.Caveat != nil {
-					combinedCaveat = caveats.And(path.Caveat, checkPath.Caveat)
-					ctx.TraceStep(ia, "left subject %s:%s has both left and right caveats",
-						path.Subject.ObjectType, path.Subject.ObjectID)
-				} else if path.Caveat != nil {
-					combinedCaveat = path.Caveat
-					ctx.TraceStep(ia, "left subject %s:%s has left caveat only",
-						path.Subject.ObjectType, path.Subject.ObjectID)
-				} else if checkPath.Caveat != nil {
-					combinedCaveat = checkPath.Caveat
-					ctx.TraceStep(ia, "left subject %s:%s has right caveat only",
-						path.Subject.ObjectType, path.Subject.ObjectID)
-				}
+				combinedCaveat := caveats.And(path.Caveat, checkPath.Caveat)
 
 				combinedPath := &Path{
 					Resource:   path.Resource,
