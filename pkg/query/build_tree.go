@@ -171,6 +171,11 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		return base, nil
 	}
 
+	// If there's no subrelation (e.g., wildcards), just return the base iterator
+	if br.Subrelation() == "" {
+		return base, nil
+	}
+
 	// For relation references in schema definitions (like group#member in "relation member: user | group#member"),
 	// we always need to resolve what the referenced relation means, even if withSubRelations=false.
 	// The withSubRelations flag controls whether we build arrows for nested traversal, but relation
