@@ -11,6 +11,7 @@ import (
 
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	dto "github.com/prometheus/client_model/go"
 	"golang.org/x/sync/errgroup"
 
@@ -19,6 +20,13 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/promutil"
 )
+
+var LogicalChecks = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "services",
+	Name:      "logical_checks_total",
+	Help:      `Count of the number of "checks" made across all APIs (e.g. each item within a CheckBulk, each item returned from a Lookup).`,
+})
 
 func SpiceDBClusterInfoCollector(ctx context.Context, subsystem, dsEngine string, ds datastore.Datastore) (promutil.CollectorFunc, error) {
 	nodeID, err := os.Hostname()
@@ -161,11 +169,9 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		log.Warn().Err(err).Msg("unable to collect datastore statistics")
 	}
 
-	logicalChecksCount := loadLogicalChecksCount()
-
 	ch <- prometheus.MustNewConstMetric(c.objectDefsDesc, prometheus.GaugeValue, float64(len(dsStats.ObjectTypeStatistics)))
 	ch <- prometheus.MustNewConstMetric(c.relationshipsDesc, prometheus.GaugeValue, float64(dsStats.EstimatedRelationshipCount))
-	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.CounterValue, float64(logicalChecksCount))
+	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.CounterValue, promutil.MustCounterValue(LogicalChecks))
 
 	dispatchedCountMetrics := make(chan prometheus.Metric)
 	g := errgroup.Group{}

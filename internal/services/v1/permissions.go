@@ -68,7 +68,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		}
 	})
 
-	telemetry.RecordLogicalChecks(1)
+	telemetry.LogicalChecks.Inc()
 
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
@@ -235,7 +235,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		}
 	})
 
-	telemetry.RecordLogicalChecks(1)
+	telemetry.LogicalChecks.Inc()
 
 	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
@@ -523,7 +523,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
 	var totalCountPublished uint64
 	defer func() {
-		telemetry.RecordLogicalChecks(totalCountPublished)
+		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources3Response) error {
@@ -665,7 +665,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
 	var totalCountPublished uint64
 	defer func() {
-		telemetry.RecordLogicalChecks(totalCountPublished)
+		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources2Response) error {
@@ -805,7 +805,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 	var totalCountPublished uint64
 	defer func() {
-		telemetry.RecordLogicalChecks(totalCountPublished)
+		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
