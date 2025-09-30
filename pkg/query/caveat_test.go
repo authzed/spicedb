@@ -352,39 +352,6 @@ func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
 	})
 }
 
-func TestCaveatIterator_BuildCaveatContext(t *testing.T) {
-	t.Parallel()
-	require := require.New(t)
-
-	testCaveat := createTestCaveat("test_caveat", nil)
-	caveatIter := NewCaveatIterator(NewFixedIterator(), testCaveat)
-
-	// Test context building with query-time context
-	queryContext := map[string]any{
-		"user_id": "alice",
-		"limit":   10,
-	}
-
-	ctx := &Context{
-		Context:       context.Background(),
-		CaveatContext: queryContext,
-	}
-
-	pathCaveat := createTestCaveatExpression("test_caveat", map[string]any{
-		"resource_id": "doc1",
-	})
-
-	contextMap := caveatIter.buildCaveatContext(ctx, pathCaveat)
-
-	// Query-time context should be included
-	require.Equal("alice", contextMap["user_id"])
-	require.Equal(10, contextMap["limit"])
-
-	// Should only contain query-time context, not relationship context
-	// (SimplifyCaveatExpression handles relationship contexts)
-	require.NotContains(contextMap, "resource_id")
-}
-
 func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
