@@ -18,7 +18,7 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
       - name: "Build WASM"
         run: "go run mage.go build:wasm"
-      - uses: "shogo82148/actions-upload-release-asset@e6cd4579c50a5d0eb50ca05d0d597daafca8cebb" # v1.9.0
+      - uses: "shogo82148/actions-upload-release-asset@59cbc563d11314e48122193f8fe5cdda62ea6cf9" # v1.9.1
         with:
           upload_url: "${{ github.event.release.upload_url }}"
           asset_path: "dist/*"

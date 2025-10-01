@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -74,7 +74,7 @@ jobs:
       - name: "Unit tests with coverage"
         run: "go run mage.go test:unitCover"
       - name: "Coverage"
-        uses: "codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00" # v5.5.0
+        uses: "codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7" # v5.5.1
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -101,14 +101,14 @@ jobs:
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Integration tests with coverage"
         run: "go run mage.go test:integrationCover"
       - name: "Coverage"
-        uses: "codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00" # v5.5.0
+        uses: "codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7" # v5.5.1
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -129,7 +129,7 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -142,7 +142,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00" # v5.5.0
+        uses: "codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7" # v5.5.1
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -163,7 +163,7 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -176,7 +176,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00" # v5.5.0
+        uses: "codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7" # v5.5.1
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -198,7 +198,7 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -211,7 +211,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00" # v5.5.0
+        uses: "codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7" # v5.5.1
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -233,7 +233,7 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -246,7 +246,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00" # v5.5.0
+        uses: "codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7" # v5.5.1
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -268,7 +268,7 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -281,7 +281,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00" # v5.5.0
+        uses: "codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7" # v5.5.1
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -303,7 +303,7 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         with:
@@ -316,7 +316,7 @@ jobs:
       - name: "Coverage"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-        uses: "codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00" # v5.5.0
+        uses: "codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7" # v5.5.1
         with:
           files: "./coverage.txt"
           token: "${{ secrets.CODECOV_TOKEN }}"
@@ -392,7 +392,7 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
-      - uses: "chainguard-dev/actions/nodiff@3caedd3784c809ba873cbb8c6a12e2bc6bf6ab09" # main
+      - uses: "chainguard-dev/actions/nodiff@8e97c1fc72515d627456cb0b92e9c9f299356375" # main
         with:
           path: ""
           fixup-command: "go run mage.go gen:proto"
