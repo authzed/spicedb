@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"strconv"
 	"strings"
 	"time"
@@ -225,7 +226,7 @@ func (cds *crdbDatastore) watch(
 
 // changeTracker takes care of accumulating received from CockroachDB until a checkpoint is emitted
 type changeTracker[R datastore.Revision, K comparable] interface {
-	FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) ([]datastore.RevisionChanges, error)
+	FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) iter.Seq2[datastore.RevisionChanges, error]
 	AddRelationshipChange(ctx context.Context, rev R, rel tuple.Relationship, op tuple.UpdateOperation) error
 	AddChangedDefinition(ctx context.Context, rev R, def datastore.SchemaDefinition) error
 	AddDeletedNamespace(ctx context.Context, rev R, namespaceName string) error
@@ -244,9 +245,10 @@ type streamingChangeProvider struct {
 	sendError  sendErrorFunc
 }
 
-func (s streamingChangeProvider) FilterAndRemoveRevisionChanges(_ func(lhs revisions.HLCRevision, rhs revisions.HLCRevision) bool, _ revisions.HLCRevision) ([]datastore.RevisionChanges, error) {
-	// we do not accumulate in this implementation, but stream right away
-	return nil, nil
+func (s streamingChangeProvider) FilterAndRemoveRevisionChanges(_ func(lhs revisions.HLCRevision, rhs revisions.HLCRevision) bool, _ revisions.HLCRevision) iter.Seq2[datastore.RevisionChanges, error] {
+	return func(yield func(datastore.RevisionChanges, error) bool) {
+		// Nothing to do here, as changes are sent immediately.
+	}
 }
 
 func (s streamingChangeProvider) AddRelationshipChange(ctx context.Context, rev revisions.HLCRevision, rel tuple.Relationship, op tuple.UpdateOperation) error {
@@ -371,13 +373,13 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 				return
 			}
 
-			filtered, err := tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev)
-			if err != nil {
-				sendError(err)
-				return
-			}
+			filtered := tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev)
+			for revChange, err := range filtered {
+				if err != nil {
+					sendError(err)
+					return
+				}
 
-			for _, revChange := range filtered {
 				revChange := revChange
 
 				// TODO(jschorr): Change this to a new event type if/when we decide to report these

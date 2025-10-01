@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"sort"
 	"strings"
@@ -334,7 +335,7 @@ func TestChanges(t *testing.T) {
 				}
 			}
 
-			actual, err := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
+			actual, err := collectChanges(ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc))
 			require.NoError(err)
 
 			require.Equal(
@@ -370,7 +371,7 @@ func TestChanges(t *testing.T) {
 				}
 			}
 
-			actual, err := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
+			actual, err := collectChanges(ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc))
 			require.NoError(err)
 
 			require.Equal(
@@ -399,7 +400,7 @@ func TestAddMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ch.IsEmpty())
 
-	results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+	results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(results))
 	require.True(t, ch.IsEmpty())
@@ -439,7 +440,7 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 		err = ch.AddRevisionMetadata(ctx, rev1, map[string]any{"operation": "create", "user_id": "123"})
 		require.NoError(t, err)
 
-		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2))
 		require.NoError(t, err)
 		require.Equal(t, 1, len(results))
 		require.Equal(t, 1, len(results[0].Metadatas))
@@ -462,7 +463,7 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 		err = ch.AddRevisionMetadata(ctx, rev1, metadata3)
 		require.NoError(t, err)
 
-		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2))
 		require.NoError(t, err)
 		require.Equal(t, 1, len(results))
 		require.Equal(t, 3, len(results[0].Metadatas))
@@ -502,7 +503,7 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2))
 		require.NoError(t, err)
 		require.Equal(t, 1, len(results))
 		require.Equal(t, 1, len(results[0].Metadatas))
@@ -523,7 +524,7 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 		err = ch.AddRevisionMetadata(ctx, rev2, metadata2)
 		require.NoError(t, err)
 
-		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
+		results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3))
 		require.NoError(t, err)
 		require.Equal(t, 2, len(results))
 
@@ -546,7 +547,7 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 		err = ch.AddRevisionMetadata(ctx, rev1, metadata2)
 		require.NoError(t, err)
 
-		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2))
 		require.NoError(t, err)
 		require.Equal(t, 1, len(results))
 		require.Equal(t, 2, len(results[0].Metadatas))
@@ -575,7 +576,7 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 		err = ch.AddRevisionMetadata(ctx, rev1, metadata5)
 		require.NoError(t, err)
 
-		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2))
 		require.NoError(t, err)
 		require.Equal(t, 1, len(results))
 		require.Equal(t, 4, len(results[0].Metadatas))
@@ -600,7 +601,7 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 		err = ch.AddRevisionMetadata(ctx, rev1, metadata1)
 		require.NoError(t, err)
 
-		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+		results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2))
 		require.NoError(t, err)
 		require.Equal(t, 1, len(results))
 		require.Equal(t, 3, len(results[0].Metadatas))
@@ -638,7 +639,7 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 
 	require.False(t, ch.IsEmpty())
 
-	results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
+	results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3))
 	require.NoError(t, err)
 	require.Equal(t, 2, len(results))
 	require.False(t, ch.IsEmpty())
@@ -658,7 +659,7 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 		},
 	}, results)
 
-	remaining, err := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
+	remaining, err := collectChanges(ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc))
 	require.Equal(t, 1, len(remaining))
 	require.NoError(t, err)
 
@@ -671,12 +672,12 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 		},
 	}, remaining)
 
-	results, err = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillion)
+	results, err = collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillion))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(results))
 	require.True(t, ch.IsEmpty())
 
-	results, err = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillionOne)
+	results, err = collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillionOne))
 	require.NoError(t, err)
 	require.Equal(t, 0, len(results))
 	require.True(t, ch.IsEmpty())
@@ -700,7 +701,7 @@ func TestHLCOrdering(t *testing.T) {
 	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), tuple.UpdateOperationTouch)
 	require.NoError(t, err)
 
-	remaining, err := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	remaining, err := collectChanges(ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc))
 	require.NoError(t, err)
 	require.Equal(t, 2, len(remaining))
 
@@ -744,7 +745,7 @@ func TestHLCSameRevision(t *testing.T) {
 	err = ch.AddRelationshipChange(ctx, rev0again, tuple.MustParse("document:foo#viewer@user:sarah"), tuple.UpdateOperationTouch)
 	require.NoError(t, err)
 
-	remaining, err := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	remaining, err := collectChanges(ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(remaining))
 
@@ -967,4 +968,15 @@ func canonicalize(in []datastore.RevisionChanges) []datastore.RevisionChanges {
 	}
 
 	return out
+}
+
+func collectChanges(changes iter.Seq2[datastore.RevisionChanges, error]) ([]datastore.RevisionChanges, error) {
+	out := make([]datastore.RevisionChanges, 0, 10)
+	for change, err := range changes {
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, change)
+	}
+	return out, nil
 }

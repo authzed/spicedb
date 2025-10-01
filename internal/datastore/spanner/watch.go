@@ -369,13 +369,13 @@ func (sd *spannerDatastore) watch(
 			}
 
 			if !tracked.IsEmpty() {
-				changes, err := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
-				if err != nil {
-					return err
-				}
+				changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+				for revChange, err := range changes {
+					if err != nil {
+						sendError(err)
+						return err
+					}
 
-				for _, revChange := range changes {
-					revChange := revChange
 					if !sendChange(revChange) {
 						return datastore.NewWatchDisconnectedErr()
 					}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -155,8 +156,12 @@ func (pgd *pgDatastore) Watch(
 					return
 				}
 
-				for _, changeToWrite := range changesToWrite {
-					changeToWrite := changeToWrite
+				for changeToWrite, err := range changesToWrite {
+					if err != nil {
+						errs <- err
+						return
+					}
+
 					if !sendChange(changeToWrite) {
 						return
 					}
@@ -243,7 +248,7 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 	return ids, nil
 }
 
-func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRevision, options datastore.WatchOptions) ([]datastore.RevisionChanges, error) {
+func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRevision, options datastore.WatchOptions) (iter.Seq2[datastore.RevisionChanges, error], error) {
 	xmin := revisions[0].optionalTxID.Uint64
 	xmax := revisions[0].optionalTxID.Uint64
 	filter := make(map[uint64]int, len(revisions))
@@ -295,7 +300,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 	// Reconcile the changes.
 	return tracked.AsRevisionChanges(func(lhs, rhs uint64) bool {
 		return filter[lhs] < filter[rhs]
-	})
+	}), nil
 }
 
 func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
