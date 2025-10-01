@@ -13,14 +13,19 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/testutil"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestServerGracefulTermination(t *testing.T) {
@@ -158,6 +163,123 @@ func setupSpanRecorder() (*tracetest.SpanRecorder, func()) {
 	return spanrecorder, func() {
 		otel.SetTracerProvider(defaultProvider)
 	}
+}
+
+type countingInterceptor struct {
+	val int
+}
+
+func (m *countingInterceptor) unaryIntercept(ctx context.Context, req any, _ *grpc.UnaryServerInfo, h grpc.UnaryHandler) (resp any, err error) {
+	m.val++
+	return h(ctx, req)
+}
+
+// TestRetryPolicy tests that the retry policy specified in the grpc.WithDefaultServiceConfig is respected.
+// It does this by installing a unary interceptor that counts the number of calls, and then returning a
+// FAILED_PRECONDITION error from the WriteRelationships call.
+// This test is in place to make sure we don't regress this again by messing with grpc in our middlewares.
+func TestRetryPolicy(t *testing.T) {
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.DefaultDatastoreConfig().ToOption(),
+		datastore.WithRequestHedgingEnabled(false),
+	)
+	if err != nil {
+		log.Fatalf("unable to start memdb datastore: %s", err)
+	}
+
+	var interceptor countingInterceptor
+	configOpts := []ConfigOption{
+		WithGRPCServer(util.GRPCServerConfig{
+			Network: util.BufferedNetwork,
+			Enabled: true,
+		}),
+		WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
+			return ctx, nil
+		}),
+		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithDatastore(ds),
+		SetUnaryMiddlewareModification([]MiddlewareModification[grpc.UnaryServerInterceptor]{
+			{
+				Operation:                OperationAppend,
+				DependencyMiddlewareName: DefaultMiddlewareRequestID,
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+					NewUnaryMiddleware().
+						WithName("foobar").
+						WithInterceptor(interceptor.unaryIntercept).
+						EnsureAlreadyExecuted(DefaultMiddlewareRequestID). // make sure requestID is executed because before we fixed it, it broke retry policies
+						Done(),
+				},
+			},
+		}),
+	}
+
+	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+	require.NoError(t, err)
+
+	conn, err := srv.GRPCDialContext(ctx,
+		grpc.WithDefaultServiceConfig(`{
+                  "methodConfig": [
+                    {
+                      "name": [
+                        {
+                          "service": "authzed.api.v1.PermissionsService",
+                          "method": "WriteRelationships"
+                        }
+                      ],
+                      "retryPolicy": {
+                        "maxAttempts": 5,
+                        "initialBackoff": "0.01s",
+                        "maxBackoff": "0.1s",
+                        "backoffMultiplier": 2,
+                        "retryableStatusCodes": [
+                          "FAILED_PRECONDITION"
+                        ]
+                      }
+                    }
+                  ]
+                }`))
+	require.NoError(t, err)
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	schemaSrv := v1.NewSchemaServiceClient(conn)
+
+	go func() {
+		require.NoError(t, srv.Run(ctx))
+	}()
+
+	_, err = schemaSrv.WriteSchema(ctx, &v1.WriteSchemaRequest{
+		Schema: `definition user {}`,
+	})
+	require.NoError(t, err)
+
+	interceptor.val = 0
+	permSrv := v1.NewPermissionsServiceClient(conn)
+	var trailer metadata.MD
+	ctxWithRequestID := requestmeta.WithRequestID(ctx, "foobar")
+	ctxWithServerVersion := metadata.AppendToOutgoingContext(ctxWithRequestID, string(requestmeta.RequestServerVersion), "t")
+	_, err = permSrv.WriteRelationships(ctxWithServerVersion, &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			tuple.MustUpdateToV1RelationshipUpdate(tuple.Touch(tuple.MustParse("resource:resource#reader@user:user#..."))),
+		},
+	}, grpc.Trailer(&trailer))
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+
+	// validate that requestID was used, as it used to break retry policies before
+	require.Equal(t, 5, interceptor.val)
+	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	require.NotEmpty(t, requestIDs)
+	require.Contains(t, requestIDs, "foobar")
 }
 
 func TestServerGracefulTerminationOnError(t *testing.T) {

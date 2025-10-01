@@ -58,11 +58,11 @@ func (s *serverVersionMiddlewareTestSuite) TestUnaryInterceptor_WithVersionReque
 	require.NoError(s.T(), err)
 
 	// Check that response metadata contains server version
-	var header metadata.MD
-	_, err = s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{}, grpc.Header(&header))
+	var trailer metadata.MD
+	_, err = s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
 	require.NoError(s.T(), err)
 
-	serverVersion := header.Get(string(responsemeta.ServerVersion))
+	serverVersion := trailer.Get(string(responsemeta.ServerVersion))
 	require.NotEmpty(s.T(), serverVersion)
 }
 
@@ -87,16 +87,15 @@ func (s *serverVersionMiddlewareTestSuite) TestStreamInterceptor_WithVersionRequ
 	stream, err := s.Client.PingList(ctx, &testpb.PingListRequest{})
 	require.NoError(s.T(), err)
 
-	// Check that response metadata contains server version
-	header, err := stream.Header()
+	// Receive the response, force trailer to be sent
+	_, err = stream.Recv()
 	require.NoError(s.T(), err)
+
+	// Check that response metadata contains server version
+	header := stream.Trailer()
 
 	serverVersion := header.Get(string(responsemeta.ServerVersion))
 	require.NotEmpty(s.T(), serverVersion)
-
-	// Receive the response
-	_, err = stream.Recv()
-	require.NoError(s.T(), err)
 }
 
 func (s *serverVersionMiddlewareTestSuite) TestStreamInterceptor_WithoutVersionRequest() {
