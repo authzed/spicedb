@@ -267,7 +267,8 @@ func TestRetryPolicy(t *testing.T) {
 	permSrv := v1.NewPermissionsServiceClient(conn)
 	var trailer metadata.MD
 	ctxWithRequestID := requestmeta.WithRequestID(ctx, "foobar")
-	_, err = permSrv.WriteRelationships(ctxWithRequestID, &v1.WriteRelationshipsRequest{
+	ctxWithServerVersion := metadata.AppendToOutgoingContext(ctxWithRequestID, string(requestmeta.RequestServerVersion), "t")
+	_, err = permSrv.WriteRelationships(ctxWithServerVersion, &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{
 			tuple.MustUpdateToV1RelationshipUpdate(tuple.Touch(tuple.MustParse("resource:resource#reader@user:user#..."))),
 		},
