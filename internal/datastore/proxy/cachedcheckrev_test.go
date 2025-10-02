@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -52,5 +52,5 @@ func (f *fakeBrokenDatastore) CheckRevision(_ context.Context, _ datastore.Revis
 		return nil
 	}
 
-	return fmt.Errorf("broken")
+	return errors.New("broken")
 }

@@ -29,7 +29,7 @@ func (it *importerTest) input() string {
 }
 
 func (it *importerTest) relativePath() string {
-	return fmt.Sprintf("importer-test/%s", it.folder)
+	return "importer-test/" + it.folder
 }
 
 func (it *importerTest) expected() string {

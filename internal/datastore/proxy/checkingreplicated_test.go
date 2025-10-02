@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -183,30 +184,30 @@ func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNam
 	}
 
 	if fsr.revision.GreaterThan(revisionparsing.MustParseRevisionForTest("2")) {
-		return nil, common.NewRevisionUnavailableError(fmt.Errorf("revision not available"))
+		return nil, common.NewRevisionUnavailableError(errors.New("revision not available"))
 	}
 
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) ReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	if nsName == "expecterror" {
-		return nil, nil, fmt.Errorf("raising an expected error")
+		return nil, nil, errors.New("raising an expected error")
 	}
 
-	return nil, nil, fmt.Errorf("not implemented")
+	return nil, nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) LookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) ReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
-	return nil, nil, fmt.Errorf("not implemented")
+	return nil, nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) ListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
@@ -230,11 +231,11 @@ func (fsr fakeSnapshotReader) ReverseQueryRelationships(_ context.Context, _ dat
 }
 
 func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string) (int, error) {
-	return -1, fmt.Errorf("not implemented")
+	return -1, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCallbackForTest) datastore.RelationshipIterator {
@@ -265,7 +266,7 @@ func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCall
 			if !yield(tuple.MustParse("resource:456#viewer@user:tom"), nil) {
 				return
 			}
-			if !yield(tuple.Relationship{}, fmt.Errorf("raising an expected error")) {
+			if !yield(tuple.Relationship{}, errors.New("raising an expected error")) {
 				return
 			}
 			if !yield(tuple.MustParse("resource:789#viewer@user:tom"), nil) {
@@ -275,7 +276,7 @@ func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCall
 		}
 
 		if fsr.revision.GreaterThan(revisionparsing.MustParseRevisionForTest("2")) {
-			yield(tuple.Relationship{}, common.NewRevisionUnavailableError(fmt.Errorf("revision not available")))
+			yield(tuple.Relationship{}, common.NewRevisionUnavailableError(errors.New("revision not available")))
 			return
 		}
 

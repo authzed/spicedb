@@ -3,6 +3,7 @@ package postgres
 import (
 	"database/sql/driver"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -216,7 +217,7 @@ func (scanPlanTextAnyToUint64Scanner) Scan(src []byte, dst any) error {
 func codecScan(codec pgtype.Codec, m *pgtype.Map, oid uint32, format int16, src []byte, dst any) error {
 	scanPlan := codec.PlanScan(m, oid, format, dst)
 	if scanPlan == nil {
-		return fmt.Errorf("PlanScan did not find a plan")
+		return errors.New("PlanScan did not find a plan")
 	}
 	return scanPlan.Scan(src, dst)
 }

@@ -92,11 +92,11 @@ type DispatcherParameters struct {
 
 func (dp *DispatcherParameters) validate() error {
 	if dp.TypeSet == nil {
-		return fmt.Errorf("TypeSet must be provided")
+		return errors.New("TypeSet must be provided")
 	}
 
 	if dp.DispatchChunkSize == 0 {
-		return fmt.Errorf("DispatchChunkSize must be greater than zero")
+		return errors.New("DispatchChunkSize must be greater than zero")
 	}
 
 	return nil

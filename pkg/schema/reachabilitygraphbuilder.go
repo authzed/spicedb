@@ -2,6 +2,7 @@ package schema
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -76,7 +77,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 	for _, childOneof := range children {
 		switch child := childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
-			return fmt.Errorf("use of _this is unsupported; please rewrite your schema")
+			return errors.New("use of _this is unsupported; please rewrite your schema")
 
 		case *core.SetOperation_Child_ComputedUserset:
 			// A computed userset adds an entrypoint indicating that the relation is rewritten.

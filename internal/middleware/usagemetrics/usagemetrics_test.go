@@ -3,7 +3,6 @@ package usagemetrics
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"testing"
 
@@ -44,7 +43,7 @@ func (t testServer) PingError(ctx context.Context, _ *testpb.PingErrorRequest) (
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
 	})
-	return nil, fmt.Errorf("err")
+	return nil, errors.New("err")
 }
 
 func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {

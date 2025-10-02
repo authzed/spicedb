@@ -1,7 +1,7 @@
 package memdb
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -10,6 +10,6 @@ import (
 )
 
 func TestErrors(t *testing.T) {
-	err := NewSerializationMaxRetriesReachedErr(fmt.Errorf("some error"))
+	err := NewSerializationMaxRetriesReachedErr(errors.New("some error"))
 	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_UNSPECIFIED, err, "details")
 }

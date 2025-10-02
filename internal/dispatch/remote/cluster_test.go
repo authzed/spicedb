@@ -2,8 +2,9 @@ package remote
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -87,7 +88,7 @@ func (fds *fakeDispatchSvc) DispatchLookupSubjects(req *v1.DispatchLookupSubject
 				req.ResourceIds[0]: {
 					FoundSubjects: []*v1.FoundSubject{
 						{
-							SubjectId: fmt.Sprintf("%d", i),
+							SubjectId: strconv.FormatUint(uint64(i), 10),
 						},
 					},
 				},
@@ -114,7 +115,7 @@ func (fds *fakeDispatchSvc) DispatchLookupResources2(_ *v1.DispatchLookupResourc
 	for i := range fds.resultCount {
 		time.Sleep(fds.sleepTime)
 		if err := srv.Send(&v1.DispatchLookupResources2Response{
-			Resource: &v1.PossibleResource{ResourceId: fmt.Sprintf("%d", i)},
+			Resource: &v1.PossibleResource{ResourceId: strconv.FormatUint(uint64(i), 10)},
 			Metadata: &v1.ResponseMeta{
 				DispatchCount: fds.dispatchCount,
 			},
@@ -141,7 +142,7 @@ func (fds *fakeDispatchSvc) DispatchLookupResources3(_ *v1.DispatchLookupResourc
 	for i := range fds.resultCount {
 		time.Sleep(fds.sleepTime)
 		if err := srv.Send(&v1.DispatchLookupResources3Response{
-			Resource: &v1.PossibleResource{ResourceId: fmt.Sprintf("%d", i)},
+			Resource: &v1.PossibleResource{ResourceId: strconv.FormatUint(uint64(i), 10)},
 			Metadata: &v1.ResponseMeta{
 				DispatchCount: fds.dispatchCount,
 			},
@@ -171,7 +172,7 @@ func TestDispatchTimeout(t *testing.T) {
 		},
 	} {
 		tc := tc
-		t.Run(fmt.Sprintf("%v", tc.timeout > tc.sleepTime), func(t *testing.T) {
+		t.Run(strconv.FormatBool(tc.timeout > tc.sleepTime), func(t *testing.T) {
 			// Configure a fake dispatcher service and an associated buffconn-based
 			// connection to it.
 			listener := bufconn.Listen(humanize.MiByte)
@@ -604,7 +605,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 			conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 100 * time.Millisecond})
 			secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 0 * time.Millisecond})
 			tertiaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 3, sleepTime: 0 * time.Millisecond})
-			errorConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 4, sleepTime: 0 * time.Millisecond, errorOnLR2: fmt.Errorf("error")})
+			errorConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 4, sleepTime: 0 * time.Millisecond, errorOnLR2: errors.New("error")})
 
 			parsed, err := ParseDispatchExpression("lookupresources", tc.expr)
 			require.NoError(t, err)
@@ -732,7 +733,7 @@ func TestLSSecondaryDispatch(t *testing.T) {
 			conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 100 * time.Millisecond})
 			secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 0 * time.Millisecond})
 			tertiaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 3, sleepTime: 0 * time.Millisecond})
-			errorConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 4, sleepTime: 0 * time.Millisecond, errorOnLS: fmt.Errorf("error")})
+			errorConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 4, sleepTime: 0 * time.Millisecond, errorOnLS: errors.New("error")})
 
 			parsed, err := ParseDispatchExpression("lookupsubjects", tc.expr)
 			require.NoError(t, err)
@@ -913,7 +914,7 @@ func TestGetPrimaryWaitTime(t *testing.T) {
 	require.GreaterOrEqual(t, dispatcher.getPrimaryWaitTime("check", tuple.RR("document", "viewer"), tuple.RR("user", "..."), 10*time.Millisecond), 2*time.Millisecond)
 
 	// Mark document#viewer as unsupported.
-	dispatcher.supportedResourceSubjectTracker.updateForError(testResourceRelationError{fmt.Errorf("foo"), "document", "viewer"})
+	dispatcher.supportedResourceSubjectTracker.updateForError(testResourceRelationError{errors.New("foo"), "document", "viewer"})
 
 	// Ensure the primary wait time for document#viewer is now 0ms.
 	require.Equal(t, 0*time.Millisecond, dispatcher.getPrimaryWaitTime("check", tuple.RR("document", "viewer"), tuple.RR("user", "..."), 10*time.Millisecond))
@@ -995,12 +996,12 @@ func TestSupportedResourceSubjectTracker(t *testing.T) {
 	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
 
 	// Add a random error, which should change nothing.
-	tracker.updateForError(fmt.Errorf("some random error"))
+	tracker.updateForError(errors.New("some random error"))
 
 	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
 
 	// Add an unsupported resource, which should be marked as such.
-	unsupportedResourceError := testResourceRelationError{fmt.Errorf("foo"), "document", "viewer"}
+	unsupportedResourceError := testResourceRelationError{errors.New("foo"), "document", "viewer"}
 	tracker.updateForError(unsupportedResourceError)
 
 	require.True(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
@@ -1011,13 +1012,13 @@ func TestSupportedResourceSubjectTracker(t *testing.T) {
 	require.False(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
 
 	// Mark a subject as unsupported, which should be marked as such.
-	unsupportedSubjectError := testSubjectRelationError{fmt.Errorf("foo"), "user", "..."}
+	unsupportedSubjectError := testSubjectRelationError{errors.New("foo"), "user", "..."}
 	tracker.updateForError(unsupportedSubjectError)
 
 	require.True(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
 
 	// Mark another resource as unsupported, which should be marked as such.
-	unsupportedResourceError2 := testResourceRelationError{fmt.Errorf("foo"), "document", "editor"}
+	unsupportedResourceError2 := testResourceRelationError{errors.New("foo"), "document", "editor"}
 	tracker.updateForError(unsupportedResourceError2)
 
 	require.True(t, tracker.isUnsupported(tuple.RR("document", "viewer"), tuple.RR("user", "...")))
@@ -1044,7 +1045,7 @@ func TestSupportedResourceSubjectTrackerParallelUpdates(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < 100; i++ {
-			tracker.updateForError(testResourceRelationError{fmt.Errorf("foo"), "document", "viewer"})
+			tracker.updateForError(testResourceRelationError{errors.New("foo"), "document", "viewer"})
 		}
 	}()
 
@@ -1065,7 +1066,7 @@ func TestSupportedResourceSubjectTrackerParallelUpdates(t *testing.T) {
 func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 1 * time.Millisecond})
 	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 0 * time.Millisecond, errorOnCheck: testResourceRelationError{
-		fmt.Errorf("foo"), "sometype", "somerel",
+		errors.New("foo"), "sometype", "somerel",
 	}})
 
 	parsed, err := ParseDispatchExpression("check", "['secondary']")
@@ -1180,8 +1181,8 @@ func TestDALCount(t *testing.T) {
 }
 
 func TestPrimaryDispatcherErrorReturned(t *testing.T) {
-	primaryError := fmt.Errorf("primary dispatcher error")
-	secondaryError := fmt.Errorf("secondary dispatcher error")
+	primaryError := errors.New("primary dispatcher error")
+	secondaryError := errors.New("secondary dispatcher error")
 
 	// Create fake dispatchers where both primary and secondary fail, but primary fails first
 	conn := connectionForDispatching(t, &fakeDispatchSvc{

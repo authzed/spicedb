@@ -2093,7 +2093,7 @@ func TestImportBulkRelationships(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, withTrait := range []string{"", "caveated_viewer", "expiring_viewer"} {
 				withTrait := withTrait
-				t.Run(fmt.Sprintf("withTrait=%s", withTrait), func(t *testing.T) {
+				t.Run("withTrait="+withTrait, func(t *testing.T) {
 					require := require.New(t)
 
 					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)

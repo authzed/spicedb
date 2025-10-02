@@ -2,8 +2,9 @@ package schemacaching
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -202,7 +203,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 		// Start a loop to write a namespace a bunch of times.
 		for i := 0; i < 1000; i++ {
 			// Write somenamespace.
-			fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev(fmt.Sprintf("%d", i+1)))
+			fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev(strconv.Itoa(i+1)))
 		}
 
 		wg.Done()
@@ -451,7 +452,7 @@ func (fds *fakeDatastore) readNamespaces(names []string, revision datastore.Revi
 	defer fds.lock.RUnlock()
 
 	if fds.readsDisabled {
-		return nil, fmt.Errorf("reads are disabled")
+		return nil, errors.New("reads are disabled")
 	}
 
 	return readDefs(fds.namespaces, names, revision), nil
@@ -462,7 +463,7 @@ func (fds *fakeDatastore) readCaveats(names []string, revision datastore.Revisio
 	defer fds.lock.RUnlock()
 
 	if fds.readsDisabled {
-		return nil, fmt.Errorf("reads are disabled")
+		return nil, errors.New("reads are disabled")
 	}
 
 	return readDefs(fds.caveats, names, revision), nil
@@ -494,7 +495,7 @@ func (fds *fakeDatastore) HeadRevision(context.Context) (datastore.Revision, err
 }
 
 func (*fakeDatastore) ReadWriteTx(context.Context, datastore.TxUserFunc, ...options.RWTOptionsOption) (datastore.Revision, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (*fakeDatastore) CheckRevision(context.Context, datastore.Revision) error {
@@ -506,27 +507,27 @@ func (*fakeDatastore) Close() error {
 }
 
 func (*fakeDatastore) Features(context.Context) (*datastore.Features, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (*fakeDatastore) OfflineFeatures() (*datastore.Features, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.Revision, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (*fakeDatastore) ReadyState(context.Context) (datastore.ReadyState, error) {
-	return datastore.ReadyState{}, fmt.Errorf("not implemented")
+	return datastore.ReadyState{}, errors.New("not implemented")
 }
 
 func (*fakeDatastore) RevisionFromString(string) (datastore.Revision, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (*fakeDatastore) Statistics(context.Context) (datastore.Stats, error) {
-	return datastore.Stats{}, fmt.Errorf("not implemented")
+	return datastore.Stats{}, errors.New("not implemented")
 }
 
 func (fds *fakeDatastore) Watch(_ context.Context, _ datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
@@ -543,11 +544,11 @@ type fakeSnapshotReader struct {
 }
 
 func (fsr *fakeSnapshotReader) CountRelationships(ctx context.Context, name string) (int, error) {
-	return -1, fmt.Errorf("not implemented")
+	return -1, errors.New("not implemented")
 }
 
 func (fsr *fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (fsr *fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
@@ -595,9 +596,9 @@ func (fsr *fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.R
 }
 
 func (*fakeSnapshotReader) QueryRelationships(context.Context, datastore.RelationshipsFilter, ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (*fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.SubjectsFilter, ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }

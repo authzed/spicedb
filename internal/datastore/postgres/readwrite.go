@@ -423,7 +423,7 @@ func handleWriteError(err error) error {
 	}
 
 	if err.Error() == "extended protocol limited to 65535 parameters" {
-		return common.NewWriteOverLimitError(fmt.Errorf("the specified write operation exceeds the maximum size supported by this datastore; please reduce the number of updates in the call"))
+		return common.NewWriteOverLimitError(errors.New("the specified write operation exceeds the maximum size supported by this datastore; please reduce the number of updates in the call"))
 	}
 
 	return fmt.Errorf(errUnableToWriteRelationships, err)
@@ -800,8 +800,8 @@ func exactRelationshipDifferentCaveatAndExpirationClause(r tuple.Relationship) s
 			schema.ColUsersetRelation:  r.Subject.Relation,
 		},
 		sq.Or{
-			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, schema.ColCaveatContextName), caveatName),
-			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, schema.ColExpiration), expiration),
+			sq.Expr(schema.ColCaveatContextName+" IS DISTINCT FROM ?", caveatName),
+			sq.Expr(schema.ColExpiration+" IS DISTINCT FROM ?", expiration),
 			sq.NotEq{
 				schema.ColCaveatContext: caveatContext,
 			},

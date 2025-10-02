@@ -2,6 +2,7 @@ package cursorediterator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"strconv"
@@ -160,7 +161,7 @@ func TestCursoredWithIntegerHeader(t *testing.T) {
 	})
 
 	t.Run("header with range loop processes until error", func(t *testing.T) {
-		headerError := fmt.Errorf("header error")
+		headerError := errors.New("header error")
 
 		header := func(ctx context.Context, startIndex int) iter.Seq2[int, error] {
 			return func(yield func(int, error) bool) {
@@ -251,7 +252,7 @@ func TestCursoredWithIntegerHeader(t *testing.T) {
 	})
 
 	t.Run("header error with consumer early termination", func(t *testing.T) {
-		headerError := fmt.Errorf("header processing error")
+		headerError := errors.New("header processing error")
 
 		header := func(ctx context.Context, startIndex int) iter.Seq2[int, error] {
 			return func(yield func(int, error) bool) {
@@ -394,7 +395,7 @@ func TestCursoredParallelIterators(t *testing.T) {
 					name:   "iterator error stops processing",
 					cursor: Cursor{},
 					iterators: []Next[int]{
-						errorIterator([]int{1, 2}, 1, fmt.Errorf("iterator error")),
+						errorIterator([]int{1, 2}, 1, errors.New("iterator error")),
 						simpleIterator([]int{10}, "iter2"),
 					},
 					expected:      []ItemAndCursor[int]{{Item: 1, Cursor: Cursor{"item-0", "0"}}},
@@ -545,7 +546,7 @@ func TestCursoredParallelIterators(t *testing.T) {
 		})
 
 		t.Run("iterator error with consumer early termination", func(t *testing.T) {
-			iteratorError := fmt.Errorf("iterator processing error")
+			iteratorError := errors.New("iterator processing error")
 
 			errorIterator := func(ctx context.Context, c Cursor) iter.Seq2[ItemAndCursor[int], error] {
 				return func(yield func(ItemAndCursor[int], error) bool) {
@@ -736,7 +737,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 			})
 
 			t.Run("producer error handling", func(t *testing.T) {
-				producerError := fmt.Errorf("producer failed")
+				producerError := errors.New("producer failed")
 				errorProducer := func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkOrHold[[]string, int], error] {
 					return func(yield func(ChunkOrHold[[]string, int], error) bool) {
 						chunk := Chunk[[]string, int]{CurrentChunk: []string{"good"}, CurrentChunkCursor: 1}
@@ -767,7 +768,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 
 				producer := simpleProducer(chunks)
 
-				mapperError := fmt.Errorf("mapper failed")
+				mapperError := errors.New("mapper failed")
 				errorMapper := func(ctx context.Context, remainingCursor Cursor, chunk []string) iter.Seq2[ItemAndCursor[int], error] {
 					return func(yield func(ItemAndCursor[int], error) bool) {
 						// Yield first item successfully
@@ -796,7 +797,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 				producer := simpleProducer(chunks)
 				mapper := simpleMapper("mapped")
 
-				conversionError := fmt.Errorf("conversion failed")
+				conversionError := errors.New("conversion failed")
 				errorConverter := func(i int) (string, error) {
 					return "", conversionError
 				}
@@ -930,7 +931,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 
 				producer := simpleProducer(chunks)
 
-				mapperError := fmt.Errorf("mapper error")
+				mapperError := errors.New("mapper error")
 				errorMapper := func(ctx context.Context, remainingCursor Cursor, chunk []string) iter.Seq2[ItemAndCursor[int], error] {
 					return func(yield func(ItemAndCursor[int], error) bool) {
 						// Yield successful item first
@@ -994,7 +995,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 					return func(yield func(ItemAndCursor[int], error) bool) {
 						for i, item := range chunk {
 							mu.Lock()
-							processingOrder = append(processingOrder, fmt.Sprintf("mapper: processing %s", item))
+							processingOrder = append(processingOrder, "mapper: processing "+item)
 							mu.Unlock()
 
 							// Simulate some processing time
@@ -1007,7 +1008,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 							}
 
 							mu.Lock()
-							processingOrder = append(processingOrder, fmt.Sprintf("mapper: completed %s", item))
+							processingOrder = append(processingOrder, "mapper: completed "+item)
 							mu.Unlock()
 						}
 					}
@@ -1113,7 +1114,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 						chunkName := chunk[0][:6] // Get "chunk1", "chunk2", etc.
 
 						mu.Lock()
-						processingOrder = append(processingOrder, fmt.Sprintf("start-%s", chunkName))
+						processingOrder = append(processingOrder, "start-"+chunkName)
 						mu.Unlock()
 
 						// Simulate some processing time
@@ -1128,7 +1129,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 						}
 
 						mu.Lock()
-						processingOrder = append(processingOrder, fmt.Sprintf("end-%s", chunkName))
+						processingOrder = append(processingOrder, "end-"+chunkName)
 						mu.Unlock()
 					}
 				}
@@ -1173,8 +1174,8 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 				// Verify all chunks were started and ended
 				for i := 1; i <= len(chunks); i++ {
 					chunkName := fmt.Sprintf("chunk%d", i)
-					require.Contains(t, order, fmt.Sprintf("start-%s", chunkName))
-					require.Contains(t, order, fmt.Sprintf("end-%s", chunkName))
+					require.Contains(t, order, "start-"+chunkName)
+					require.Contains(t, order, "end-"+chunkName)
 				}
 			})
 		}
@@ -1231,7 +1232,7 @@ func TestCursoredParallelIteratorsConcurrency1SpecialCase(t *testing.T) {
 			return func(ctx context.Context, c Cursor) iter.Seq2[ItemAndCursor[int], error] {
 				return func(yield func(ItemAndCursor[int], error) bool) {
 					mu.Lock()
-					executionOrder = append(executionOrder, fmt.Sprintf("start-%s", name))
+					executionOrder = append(executionOrder, "start-"+name)
 					mu.Unlock()
 
 					for i, item := range items {
@@ -1242,7 +1243,7 @@ func TestCursoredParallelIteratorsConcurrency1SpecialCase(t *testing.T) {
 					}
 
 					mu.Lock()
-					executionOrder = append(executionOrder, fmt.Sprintf("end-%s", name))
+					executionOrder = append(executionOrder, "end-"+name)
 					mu.Unlock()
 				}
 			}
@@ -1284,7 +1285,7 @@ func TestCursoredParallelIteratorsConcurrency1SpecialCase(t *testing.T) {
 	t.Run("concurrency=1 handles errors correctly", func(t *testing.T) {
 		iterators := []Next[int]{
 			simpleIterator([]int{1, 2}, "iter1"),
-			errorIterator([]int{10, 20}, 1, fmt.Errorf("test error")),
+			errorIterator([]int{10, 20}, 1, errors.New("test error")),
 			simpleIterator([]int{100}, "iter3"), // Should not be reached
 		}
 
@@ -1421,7 +1422,7 @@ func TestCursoredProducerMapperIteratorConcurrency1SpecialCase(t *testing.T) {
 				chunkName := chunk[0][:6] // "chunk1" or "chunk2"
 
 				mu.Lock()
-				executionOrder = append(executionOrder, fmt.Sprintf("mapper-start-%s", chunkName))
+				executionOrder = append(executionOrder, "mapper-start-"+chunkName)
 				mu.Unlock()
 
 				for i, item := range chunk {
@@ -1433,7 +1434,7 @@ func TestCursoredProducerMapperIteratorConcurrency1SpecialCase(t *testing.T) {
 				}
 
 				mu.Lock()
-				executionOrder = append(executionOrder, fmt.Sprintf("mapper-end-%s", chunkName))
+				executionOrder = append(executionOrder, "mapper-end-"+chunkName)
 				mu.Unlock()
 			}
 		}
@@ -1507,7 +1508,7 @@ func TestCursoredProducerMapperIteratorConcurrency1SpecialCase(t *testing.T) {
 	})
 
 	t.Run("concurrency=1 handles errors correctly", func(t *testing.T) {
-		producerError := fmt.Errorf("producer error")
+		producerError := errors.New("producer error")
 
 		// Producer that yields one good chunk then an error
 		producer := func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkOrHold[[]string, int], error] {
@@ -1555,7 +1556,7 @@ func TestCursoredProducerMapperIteratorConcurrency1SpecialCase(t *testing.T) {
 			}
 		}
 
-		mapperError := fmt.Errorf("mapper error")
+		mapperError := errors.New("mapper error")
 		mapper := func(ctx context.Context, remainingCursor Cursor, chunk []string) iter.Seq2[ItemAndCursor[int], error] {
 			return func(yield func(ItemAndCursor[int], error) bool) {
 				// Process first item successfully

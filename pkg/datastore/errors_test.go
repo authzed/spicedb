@@ -2,7 +2,6 @@ package datastore_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,7 +34,7 @@ func createEngine(engineID string, uri string) error {
 		return err
 
 	default:
-		panic(fmt.Sprintf("missing create implementation for engine %s", engineID))
+		panic("missing create implementation for engine " + engineID)
 	}
 }
 

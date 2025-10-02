@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -18,7 +18,7 @@ import (
 func TestWithDatastore(t *testing.T) {
 	someLogger := zerolog.Nop()
 	someAuthFunc := func(ctx context.Context) (context.Context, error) {
-		return nil, fmt.Errorf("expected auth error")
+		return nil, errors.New("expected auth error")
 	}
 	var someDispatcher dispatch.Dispatcher
 
@@ -58,7 +58,7 @@ func TestWithDatastore(t *testing.T) {
 func TestWithDatastoreMiddleware(t *testing.T) {
 	someLogger := zerolog.Nop()
 	someAuthFunc := func(ctx context.Context) (context.Context, error) {
-		return nil, fmt.Errorf("expected auth error")
+		return nil, errors.New("expected auth error")
 	}
 	var someDispatcher dispatch.Dispatcher
 

@@ -1,9 +1,9 @@
 package mapz
 
 import (
-	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -325,7 +325,7 @@ func TestSetIntersectionDifference(t *testing.T) {
 
 	for index, tc := range tcs {
 		tc := tc
-		t.Run(fmt.Sprintf("%d", index), func(t *testing.T) {
+		t.Run(strconv.Itoa(index), func(t *testing.T) {
 			firstSet := NewSet[int]()
 			firstSet.Extend(tc.first)
 

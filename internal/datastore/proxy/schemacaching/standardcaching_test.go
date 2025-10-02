@@ -3,7 +3,6 @@ package schemacaching
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -411,7 +410,7 @@ type reader struct {
 func (r *reader) ReadNamespaceByName(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	time.Sleep(10 * time.Millisecond)
 	if errors.Is(ctx.Err(), context.Canceled) {
-		return nil, old, fmt.Errorf("error")
+		return nil, old, errors.New("error")
 	}
 	return &core.NamespaceDefinition{Name: namespace}, old, nil
 }
@@ -419,7 +418,7 @@ func (r *reader) ReadNamespaceByName(ctx context.Context, namespace string) (ns 
 func (r *reader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	time.Sleep(10 * time.Millisecond)
 	if errors.Is(ctx.Err(), context.Canceled) {
-		return nil, old, fmt.Errorf("error")
+		return nil, old, errors.New("error")
 	}
 	return &core.CaveatDefinition{Name: name}, old, nil
 }
