@@ -303,6 +303,7 @@ SpiceDB collects anonymous telemetry data to help us understand how the communit
 
 - Ask questions via [GitHub Discussions] or our [Community Discord]
 - Read [blog posts] from the Authzed team describing the project and major announcements
+- Follow our [self-guided workshops] on usecases ranging from Updating Web Views, to Securing RAG Pipelines
 - Watch our [YouTube videos] about SpiceDB, modeling schemas, leveraging CNCF projects, and more
 - Explore the [SpiceDB Awesome List] that enumerates official and third-party projects built by the community
 - Reference [community examples] for demo environments, integration testing, CI pipelines, and writing schemas
@@ -310,6 +311,7 @@ SpiceDB collects anonymous telemetry data to help us understand how the communit
 [GitHub Discussions]: https://github.com/orgs/authzed/discussions/new?category=q-a
 [Community Discord]: https://authzed.com/discord
 [blog posts]: https://authzed.com/blog
+[self-guided workshops]: https://github.com/authzed/workshops/
 [SpiceDB Awesome List]: https://github.com/authzed/awesome-spicedb
 [YouTube videos]: https://www.youtube.com/@authzed
 [community examples]: https://github.com/authzed/examples
