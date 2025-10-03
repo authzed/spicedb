@@ -260,7 +260,7 @@ type recvWrapper struct {
 	ctx          context.Context
 	serviceLabel string
 	option       MismatchingTokenOption
-	handler      func(context.Context, interface{}, datastore.Datastore, string, MismatchingTokenOption) error
+	handler      func(context.Context, any, datastore.Datastore, string, MismatchingTokenOption) error
 }
 
 func (s *recvWrapper) Context() context.Context { return s.ctx }
