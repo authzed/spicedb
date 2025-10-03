@@ -44,6 +44,7 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -128,6 +129,7 @@ type Config struct {
 	EnableExperimentalRelationshipExpiration bool          `debugmap:"visible"`
 	EnableRevisionHeartbeat                  bool          `debugmap:"visible"`
 	EnablePerformanceInsightMetrics          bool          `debugmap:"visible"`
+	MismatchZedTokenBehavior                 string        `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -404,6 +406,24 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		serverName = "spicedb"
 	}
 
+	var mismatchZedTokenOption consistency.MismatchingTokenOption
+	switch c.MismatchZedTokenBehavior {
+	case "":
+		fallthrough
+
+	case "full-consistency":
+		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsFullConsistency
+
+	case "min-latency":
+		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsMinLatency
+
+	case "error":
+		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsError
+
+	default:
+		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
+	}
+
 	opts := MiddlewareOption{
 		log.Logger,
 		c.GRPCAuthFunc,
@@ -413,6 +433,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		c.EnableResponseLogs,
 		c.DisableGRPCLatencyHistogram,
 		serverName,
+		mismatchZedTokenOption,
 		nil,
 		nil,
 	}

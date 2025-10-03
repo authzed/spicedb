@@ -119,6 +119,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	apiFlags.Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
 	apiFlags.BoolVar(&config.EnableRevisionHeartbeat, "enable-revision-heartbeat", true, "enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (postgres only)")
 	apiFlags.BoolVar(&config.EnablePerformanceInsightMetrics, "enable-performance-insight-metrics", false, "enables performance insight metrics, which are used to track the latency of API calls by shape")
+	apiFlags.StringVar(&config.MismatchZedTokenBehavior, "mismatch-zed-token-behavior", "full-consistency", "behavior when a mismatched zedtoken is encountered. One of: full-consistency (treat as a full-consistency call), min-latency (treat as a min-latency call), error (return an error). defaults to full-consistency for safety.")
 
 	datastoreFlags := nfs.FlagSet(BoldBlue("Datastore"))
 	// Flags for the datastore

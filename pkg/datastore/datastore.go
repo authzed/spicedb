@@ -682,6 +682,11 @@ type ReadOnlyDatastore interface {
 	// and may not be unique; callers should not rely on uniqueness.
 	MetricsID() (string, error)
 
+	// UniqueID returns a unique identifier for the datastore. This identifier
+	// must be stable across restarts of the datastore if the datastore is
+	// persistent.
+	UniqueID(context.Context) (string, error)
+
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 	// Any errors establishing the reader will be returned by subsequent calls.
 	SnapshotReader(Revision) Reader

@@ -1,15 +1,19 @@
 package v1
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ettle/strcase"
 	"github.com/stretchr/testify/require"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 	"github.com/authzed/spicedb/pkg/diff"
@@ -546,7 +550,14 @@ func TestExpConvertDiff(t *testing.T) {
 			diff, err := diff.DiffSchemas(es, cs, caveattypes.Default.TypeSet)
 			require.NoError(t, err)
 
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(100, 1*time.Second, 100*time.Minute)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ctx = datastoremw.ContextWithDatastore(ctx, ds)
+
 			resp, err := expConvertDiff(
+				ctx,
 				diff,
 				&es,
 				&cs,
@@ -556,10 +567,8 @@ func TestExpConvertDiff(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			require.NotNil(t, resp.ReadAt)
-			resp.ReadAt = nil
 
-			testutil.RequireProtoEqual(t, tc.expectedResponse, resp, "got mismatch")
+			testutil.RequireProtoEqual(t, tc.expectedResponse, &v1.ExperimentalDiffSchemaResponse{Diffs: resp.Diffs}, "got mismatch")
 
 			for _, diff := range resp.Diffs {
 				name := reflect.TypeOf(diff.GetDiff()).String()

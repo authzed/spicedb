@@ -24,6 +24,10 @@ func (p *ctxProxy) MetricsID() (string, error) {
 	return p.delegate.MetricsID()
 }
 
+func (p *ctxProxy) UniqueID(ctx context.Context) (string, error) {
+	return p.delegate.UniqueID(ctx)
+}
+
 func (p *ctxProxy) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,

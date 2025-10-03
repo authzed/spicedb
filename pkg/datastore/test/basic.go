@@ -82,3 +82,21 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 		}
 	}
 }
+
+func UniqueIDTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	// Create the datastore.
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	// Ensure the unique ID is not empty.
+	uniqueID, err := ds.UniqueID(t.Context())
+	require.NoError(err)
+	require.NotEmpty(uniqueID)
+
+	// Ensure the unique ID is stable.
+	uniqueID2, err := ds.UniqueID(t.Context())
+	require.NoError(err)
+	require.Equal(uniqueID, uniqueID2)
+}

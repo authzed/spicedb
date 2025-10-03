@@ -180,14 +180,15 @@ const (
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.middlewareoption.go . MiddlewareOption
 type MiddlewareOption struct {
-	Logger                  zerolog.Logger      `debugmap:"hidden"`
-	AuthFunc                grpcauth.AuthFunc   `debugmap:"hidden"`
-	EnableVersionResponse   bool                `debugmap:"visible"`
-	DispatcherForMiddleware dispatch.Dispatcher `debugmap:"hidden"`
-	EnableRequestLog        bool                `debugmap:"visible"`
-	EnableResponseLog       bool                `debugmap:"visible"`
-	DisableGRPCHistogram    bool                `debugmap:"visible"`
-	MiddlewareServiceLabel  string              `debugmap:"visible"`
+	Logger                    zerolog.Logger                       `debugmap:"hidden"`
+	AuthFunc                  grpcauth.AuthFunc                    `debugmap:"hidden"`
+	EnableVersionResponse     bool                                 `debugmap:"visible"`
+	DispatcherForMiddleware   dispatch.Dispatcher                  `debugmap:"hidden"`
+	EnableRequestLog          bool                                 `debugmap:"visible"`
+	EnableResponseLog         bool                                 `debugmap:"visible"`
+	DisableGRPCHistogram      bool                                 `debugmap:"visible"`
+	MiddlewareServiceLabel    string                               `debugmap:"visible"`
+	MismatchingZedTokenOption consistencymw.MismatchingTokenOption `debugmap:"visible"`
 
 	unaryDatastoreMiddleware  *ReferenceableMiddleware[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	streamDatastoreMiddleware *ReferenceableMiddleware[grpc.StreamServerInterceptor] `debugmap:"hidden"`
@@ -220,6 +221,7 @@ func (m MiddlewareOption) WithDatastoreMiddleware(middleware Middleware) Middlew
 		EnableResponseLog:         m.EnableResponseLog,
 		DisableGRPCHistogram:      m.DisableGRPCHistogram,
 		MiddlewareServiceLabel:    m.MiddlewareServiceLabel,
+		MismatchingZedTokenOption: m.MismatchingZedTokenOption,
 		unaryDatastoreMiddleware:  &unary,
 		streamDatastoreMiddleware: &stream,
 	}
@@ -247,6 +249,7 @@ func (m MiddlewareOption) WithDatastore(ds datastore.Datastore) MiddlewareOption
 		EnableResponseLog:         m.EnableResponseLog,
 		DisableGRPCHistogram:      m.DisableGRPCHistogram,
 		MiddlewareServiceLabel:    m.MiddlewareServiceLabel,
+		MismatchingZedTokenOption: m.MismatchingZedTokenOption,
 		unaryDatastoreMiddleware:  &unary,
 		streamDatastoreMiddleware: &stream,
 	}
@@ -344,7 +347,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
-			WithInterceptor(consistencymw.UnaryServerInterceptor(opts.MiddlewareServiceLabel)).
+			WithInterceptor(consistencymw.UnaryServerInterceptor(opts.MiddlewareServiceLabel, opts.MismatchingZedTokenOption)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -417,7 +420,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
-			WithInterceptor(consistencymw.StreamServerInterceptor(opts.MiddlewareServiceLabel)).
+			WithInterceptor(consistencymw.StreamServerInterceptor(opts.MiddlewareServiceLabel, opts.MismatchingZedTokenOption)).
 			Done(),
 
 		NewStreamMiddleware().

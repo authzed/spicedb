@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -99,6 +100,7 @@ type spannerDatastore struct {
 
 	tableSizesStatsTable string
 	filterMaximumIDCount uint16
+	uniqueID             atomic.Pointer[string]
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner

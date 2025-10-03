@@ -107,6 +107,10 @@ func (mdb *memdbDatastore) MetricsID() (string, error) {
 	return "memdb", nil
 }
 
+func (mdb *memdbDatastore) UniqueID(_ context.Context) (string, error) {
+	return mdb.uniqueID, nil
+}
+
 func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()
