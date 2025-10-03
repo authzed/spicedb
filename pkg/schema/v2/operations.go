@@ -27,15 +27,31 @@ type IntersectionOperation struct {
 	Children []Operation
 }
 
-// IntersectionOperation is an Operation that represents `permission foo = a - b`.
+// ExclusionOperation is an Operation that represents `permission foo = a - b`.
 type ExclusionOperation struct {
 	Left  Operation
 	Right Operation
 }
 
+// FunctionedTuplesetOperation is an Operation that represents functioned tuplesets like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
+type FunctionedTuplesetOperation struct {
+	TuplesetRelation string
+	Function         FunctionType
+	ComputedRelation string
+}
+
+// FunctionType represents the type of function applied to a tupleset.
+type FunctionType int
+
+const (
+	FunctionTypeAny FunctionType = iota
+	FunctionTypeAll
+)
+
 // We close the enum by implementing the private method.
-func (r *RelationReference) isOperation()     {}
-func (r *ArrowReference) isOperation()        {}
-func (u *UnionOperation) isOperation()        {}
-func (i *IntersectionOperation) isOperation() {}
-func (e *ExclusionOperation) isOperation()    {}
+func (r *RelationReference) isOperation()           {}
+func (r *ArrowReference) isOperation()              {}
+func (u *UnionOperation) isOperation()              {}
+func (i *IntersectionOperation) isOperation()       {}
+func (e *ExclusionOperation) isOperation()          {}
+func (f *FunctionedTuplesetOperation) isOperation() {}

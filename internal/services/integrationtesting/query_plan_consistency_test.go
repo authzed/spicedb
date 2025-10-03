@@ -4,14 +4,17 @@
 package integrationtesting_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
@@ -50,10 +53,12 @@ type queryPlanConsistencyHandle struct {
 
 func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 	return &query.Context{
-		Context:   t.Context(),
-		Executor:  query.LocalExecutor{},
-		Datastore: q.ds,
-		Revision:  q.revision,
+		Context:      t.Context(),
+		Executor:     query.LocalExecutor{},
+		Datastore:    q.ds,
+		Revision:     q.revision,
+		CaveatRunner: caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
+		TraceLogger:  query.NewTraceLogger(), // Enable tracing for debugging
 	}
 }
 
@@ -115,15 +120,31 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 							it, err := query.BuildIteratorFromSchema(handle.schema, rel.Resource.ObjectType, rel.Resource.Relation)
 							require.NoError(err)
 
-							t.Log(it.Explain())
-
 							qctx := handle.buildContext(t)
+
+							// Add caveat context from assertion if available
+							if len(assertion.CaveatContext) > 0 {
+								qctx.CaveatContext = assertion.CaveatContext
+							}
 
 							seq, err := qctx.Check(it, []query.Object{query.GetObject(rel.Resource)}, rel.Subject)
 							require.NoError(err)
 
 							rels, err := query.CollectAll(seq)
 							require.NoError(err)
+
+							// Print trace if test fails
+							if qctx.TraceLogger != nil {
+								defer func() {
+									if t.Failed() {
+										t.Logf("Trace for %s:\n%s", entry.name, qctx.TraceLogger.DumpTrace())
+										// Also print the tree structure for debugging
+										if it != nil {
+											t.Logf("Tree structure:\n%s", explainTree(it, 0))
+										}
+									}
+								}()
+							}
 
 							switch entry.expectedPermissionship {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
@@ -133,6 +154,9 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 								require.Len(rels, 1)
 								require.Nil(rels[0].Caveat)
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
+								if len(rels) != 0 && qctx.TraceLogger != nil {
+									t.Logf("Expected 0 relations but got %d. Trace:\n%s", len(rels), qctx.TraceLogger.DumpTrace())
+								}
 								require.Len(rels, 0)
 							}
 						})
@@ -141,4 +165,22 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 			}
 		}
 	})
+}
+
+// explainTree recursively explains the tree structure for debugging
+func explainTree(iter query.Iterator, depth int) string {
+	indent := strings.Repeat("  ", depth)
+	explain := iter.Explain()
+	result := fmt.Sprintf("%s%s: %s\n", indent, explain.Name, explain.Info)
+
+	for _, subExplain := range explain.SubExplain {
+		// For SubExplain, we need to create a dummy iterator to get the tree structure
+		// This is a simplified approach - in practice we'd need access to the actual sub-iterators
+		subResult := fmt.Sprintf("%s  %s: %s\n", indent, subExplain.Name, subExplain.Info)
+		result += subResult
+		// Note: We can't recursively call explainTree on SubExplain because it's not an Iterator
+		// This gives us one level of detail which should be sufficient for debugging
+	}
+
+	return result
 }
