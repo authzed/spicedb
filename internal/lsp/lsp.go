@@ -3,7 +3,7 @@ package lsp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net"
 
 	"github.com/jzelinskie/persistent"
@@ -172,7 +172,7 @@ func (s *Server) Run(ctx context.Context, addr string, stdio bool) error {
 		Msg("starting LSP server")
 
 	if addr == "-" && !stdio {
-		return fmt.Errorf("cannot use stdin with stdio disabled")
+		return errors.New("cannot use stdin with stdio disabled")
 	}
 
 	if addr == "-" || stdio {

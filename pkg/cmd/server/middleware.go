@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
@@ -412,7 +413,7 @@ func mustHaveNotExecuted(ctx context.Context, handleKey any, notExecuted string)
 
 	val := ctx.Value(handleKey)
 	if val == nil {
-		return fmt.Errorf("interception order validation bookkeeping not present in context")
+		return errors.New("interception order validation bookkeeping not present in context")
 	}
 
 	handle := val.(*executedHandle)

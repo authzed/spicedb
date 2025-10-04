@@ -2,6 +2,7 @@ package schema
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -375,7 +376,7 @@ func TestDirectPossibleTraitsForFilterErrorCases(t *testing.T) {
 	// Test case for generic error (not DefinitionNotFoundError)
 	t.Run("generic error from resolver", func(t *testing.T) {
 		require := require.New(t)
-		genericError := fmt.Errorf("database connection failed")
+		genericError := errors.New("database connection failed")
 		resolver := &mockResolver{returnError: genericError}
 		ts := NewTypeSystem(resolver)
 

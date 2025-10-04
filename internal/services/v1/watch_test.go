@@ -378,7 +378,7 @@ definition document {
 						case <-ctx.Done():
 							return
 						case <-time.After(3 * time.Second):
-							panic(fmt.Errorf("timed out waiting for stream updates"))
+							panic(errors.New("timed out waiting for stream updates"))
 						default:
 							resp, err := stream.Recv()
 							if err != nil {

@@ -2,6 +2,7 @@ package testserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -77,7 +78,7 @@ type SafeManualResolverBuilder struct {
 
 func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
 	if target.URL.Scheme != TestResolverScheme {
-		return nil, fmt.Errorf("test resolver builder only works with test:// addresses")
+		return nil, errors.New("test resolver builder only works with test:// addresses")
 	}
 	var addrs []resolver.Address
 	addrVal, ok := b.addrs.Load(target.URL.Hostname())

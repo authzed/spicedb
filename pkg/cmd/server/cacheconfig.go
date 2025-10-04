@@ -77,7 +77,7 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 
 	intMaxCost, err := safecast.ToInt64(maxCost)
 	if err != nil {
-		return nil, fmt.Errorf("could not cast max cost to int64")
+		return nil, errors.New("could not cast max cost to int64")
 	}
 
 	if cc.CacheKindForTesting != "" {

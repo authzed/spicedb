@@ -2,7 +2,7 @@ package indexcheck
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -104,23 +104,23 @@ type fakeSnapshotReader struct {
 }
 
 func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) ReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
-	return nil, nil, fmt.Errorf("not implemented")
+	return nil, nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) LookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) ReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
-	return nil, nil, fmt.Errorf("not implemented")
+	return nil, nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) ListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
@@ -144,11 +144,11 @@ func (fsr fakeSnapshotReader) ReverseQueryRelationships(_ context.Context, _ dat
 }
 
 func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string) (int, error) {
-	return -1, fmt.Errorf("not implemented")
+	return -1, errors.New("not implemented")
 }
 
 func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCallbackForTest) datastore.RelationshipIterator {

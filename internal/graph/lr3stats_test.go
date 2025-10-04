@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"errors"
 	"fmt"
 	"iter"
 	"testing"
@@ -70,7 +71,7 @@ func TestEstimatedConcurrencyLimit_UniqueKeyError(t *testing.T) {
 		},
 		concurrencyLimit: 4,
 	}
-	expectedErr := fmt.Errorf("test error")
+	expectedErr := errors.New("test error")
 	item := &fakeUniqueItem{key: "", error: expectedErr}
 
 	fn := func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {

@@ -2,7 +2,7 @@ package taskrunner
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -54,7 +54,7 @@ func TestTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 		i := i
 		tr.Schedule(func(ctx context.Context) error {
 			if i == 1 {
-				return fmt.Errorf("some error")
+				return errors.New("some error")
 			}
 
 			time.Sleep(time.Duration(i*50) * time.Millisecond)

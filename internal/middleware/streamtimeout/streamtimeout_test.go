@@ -2,7 +2,7 @@ package streamtimeout
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -25,7 +25,7 @@ func (t testServer) Ping(_ context.Context, _ *testpb.PingRequest) (*testpb.Ping
 }
 
 func (t testServer) PingError(_ context.Context, _ *testpb.PingErrorRequest) (*testpb.PingErrorResponse, error) {
-	return nil, fmt.Errorf("err")
+	return nil, errors.New("err")
 }
 
 func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
@@ -48,7 +48,7 @@ func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestServic
 }
 
 func (t testServer) PingStream(_ testpb.TestService_PingStreamServer) error {
-	return fmt.Errorf("unused")
+	return errors.New("unused")
 }
 
 type testSuite struct {

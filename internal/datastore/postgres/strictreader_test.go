@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -59,8 +59,8 @@ func TestStrictReaderDetectsLagErrors(t *testing.T) {
 		},
 		{
 			name: "bubbles up unrelated error",
-			in:   fmt.Errorf("unrelated error"),
-			want: fmt.Errorf("unrelated error"),
+			in:   errors.New("unrelated error"),
+			want: errors.New("unrelated error"),
 		},
 	}
 

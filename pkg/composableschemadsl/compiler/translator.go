@@ -3,6 +3,7 @@ package compiler
 import (
 	"bufio"
 	"container/list"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -745,7 +746,7 @@ func addWithCaveats(tctx *translationContext, typeRefNode *dslNode, ref *core.Al
 	}
 
 	if len(caveats) != 1 {
-		return fmt.Errorf("only one caveat is currently allowed per type reference")
+		return errors.New("only one caveat is currently allowed per type reference")
 	}
 
 	name, err := caveats[0].GetString(dslshape.NodeCaveatPredicateCaveat)

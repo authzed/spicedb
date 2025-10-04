@@ -2,7 +2,7 @@ package common
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
@@ -157,11 +157,11 @@ type gcDeleter interface {
 type alwaysErrorDeleter struct{}
 
 func (alwaysErrorDeleter) DeleteBeforeTx(_ uint64) (DeletionCounts, error) {
-	return DeletionCounts{}, fmt.Errorf("delete error")
+	return DeletionCounts{}, errors.New("delete error")
 }
 
 func (alwaysErrorDeleter) DeleteExpiredRels() (int64, error) {
-	return 0, fmt.Errorf("delete error")
+	return 0, errors.New("delete error")
 }
 
 // Only error on specific revisions
@@ -171,7 +171,7 @@ type revisionErrorDeleter struct {
 
 func (d revisionErrorDeleter) DeleteBeforeTx(revision uint64) (DeletionCounts, error) {
 	if slices.Contains(d.errorOnRevisions, revision) {
-		return DeletionCounts{}, fmt.Errorf("delete error")
+		return DeletionCounts{}, errors.New("delete error")
 	}
 
 	return DeletionCounts{}, nil

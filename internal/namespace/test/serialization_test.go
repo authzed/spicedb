@@ -46,7 +46,7 @@ func assertParity(t *testing.T, filenames []string, emptyProto definitionInterfa
 	for _, filename := range filenames {
 		definition := strings.Split(filename, ".")[0]
 		definitions.Add(definition)
-		bytes, err := os.ReadFile(fmt.Sprintf("testdata/proto/%s", filename))
+		bytes, err := os.ReadFile("testdata/proto/" + filename)
 		require.NoError(t, err)
 
 		standardRepresentation := proto.Clone(emptyProto).(definitionInterface)
@@ -68,8 +68,8 @@ func assertParity(t *testing.T, filenames []string, emptyProto definitionInterfa
 	// compared to the "official" serialization/deserialization
 
 	for _, definition := range definitions.AsSlice() {
-		vtFilename := fmt.Sprintf("%s.vtproto", definition)
-		standardFilename := fmt.Sprintf("%s.proto", definition)
+		vtFilename := definition + ".vtproto"
+		standardFilename := definition + ".proto"
 
 		testutil.RequireProtoEqual(t, standardProtoDefinitions[vtFilename], standardProtoDefinitions[standardFilename], "vt and standard serializations disagree")
 		testutil.RequireProtoEqual(t, standardProtoDefinitions[standardFilename], vtProtoDefinitions[standardFilename], "vt and standard deserializations of standard proto disagree")

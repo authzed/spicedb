@@ -1,7 +1,7 @@
 package pool
 
 import (
-	"fmt"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -42,7 +42,7 @@ func TestMaxRetryError_Error(t *testing.T) {
 			name: "retries, err",
 			fields: fields{
 				MaxRetries: 10,
-				LastErr:    fmt.Errorf("failed"),
+				LastErr:    errors.New("failed"),
 			},
 			want: "max retries reached (10): failed",
 		},
@@ -50,7 +50,7 @@ func TestMaxRetryError_Error(t *testing.T) {
 			name: "no retries, err",
 			fields: fields{
 				MaxRetries: 0,
-				LastErr:    fmt.Errorf("failed"),
+				LastErr:    errors.New("failed"),
 			},
 			want: "retries disabled: failed",
 		},
@@ -98,7 +98,7 @@ func TestMaxRetryError_GRPCStatus(t *testing.T) {
 			name: "retries, err",
 			fields: fields{
 				MaxRetries: 10,
-				LastErr:    fmt.Errorf("failed"),
+				LastErr:    errors.New("failed"),
 			},
 			want: nil,
 		},
@@ -106,7 +106,7 @@ func TestMaxRetryError_GRPCStatus(t *testing.T) {
 			name: "no retries, err",
 			fields: fields{
 				MaxRetries: 0,
-				LastErr:    fmt.Errorf("failed"),
+				LastErr:    errors.New("failed"),
 			},
 			want: nil,
 		},
@@ -160,7 +160,7 @@ func TestMaxRetryError_Unwrap(t *testing.T) {
 			name: "retries, err",
 			fields: fields{
 				MaxRetries: 10,
-				LastErr:    fmt.Errorf("failed"),
+				LastErr:    errors.New("failed"),
 			},
 			wantErr: true,
 		},
@@ -168,7 +168,7 @@ func TestMaxRetryError_Unwrap(t *testing.T) {
 			name: "no retries, err",
 			fields: fields{
 				MaxRetries: 0,
-				LastErr:    fmt.Errorf("failed"),
+				LastErr:    errors.New("failed"),
 			},
 			wantErr: true,
 		},
@@ -205,7 +205,7 @@ func TestResettableError_Error(t *testing.T) {
 		{
 			name: "with err",
 			fields: fields{
-				Err: fmt.Errorf("failed"),
+				Err: errors.New("failed"),
 			},
 			want: "resettable error: failed",
 		},
@@ -241,10 +241,10 @@ func TestResettableError_GRPCStatus(t *testing.T) {
 		{
 			name: "with err",
 			fields: fields{
-				Err: fmt.Errorf("failed"),
+				Err: errors.New("failed"),
 			},
 			want: spiceerrors.WithCodeAndDetails(
-				fmt.Errorf("failed"),
+				errors.New("failed"),
 				codes.Unavailable,
 			),
 		},
@@ -280,7 +280,7 @@ func TestResettableError_Unwrap(t *testing.T) {
 		{
 			name: "with err",
 			fields: fields{
-				Err: fmt.Errorf("failed"),
+				Err: errors.New("failed"),
 			},
 			wantErr: true,
 		},
@@ -316,7 +316,7 @@ func TestRetryableError_Error(t *testing.T) {
 		{
 			name: "with err",
 			fields: fields{
-				Err: fmt.Errorf("failed"),
+				Err: errors.New("failed"),
 			},
 			want: "retryable error: failed",
 		},
@@ -352,10 +352,10 @@ func TestRetryableError_GRPCStatus(t *testing.T) {
 		{
 			name: "with err",
 			fields: fields{
-				Err: fmt.Errorf("failed"),
+				Err: errors.New("failed"),
 			},
 			want: spiceerrors.WithCodeAndDetails(
-				fmt.Errorf("failed"),
+				errors.New("failed"),
 				codes.Unavailable,
 			),
 		},
@@ -391,7 +391,7 @@ func TestRetryableError_Unwrap(t *testing.T) {
 		{
 			name: "with err",
 			fields: fields{
-				Err: fmt.Errorf("failed"),
+				Err: errors.New("failed"),
 			},
 			wantErr: true,
 		},
@@ -427,7 +427,7 @@ func Test_sqlErrorCode(t *testing.T) {
 		{
 			name: "not a pg error",
 			args: args{
-				err: fmt.Errorf("not a pg error"),
+				err: errors.New("not a pg error"),
 			},
 			want: "",
 		},
