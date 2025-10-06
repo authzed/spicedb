@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"testing"
 	"time"
@@ -77,9 +78,7 @@ func TestOTelReporting(t *testing.T) {
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithRequestHedgingEnabled(false),
 	)
-	if err != nil {
-		log.Fatalf("unable to start memdb datastore: %s", err)
-	}
+	require.NoError(t, err, "unable to start memdb datastore")
 
 	configOpts := []ConfigOption{
 		WithGRPCServer(util.GRPCServerConfig{
@@ -124,7 +123,6 @@ func TestOTelReporting(t *testing.T) {
 
 	_, err = rrCli.Recv()
 	require.Error(t, err)
-
 	requireSpanExists(t, spanrecorder, "authzed.api.v1.PermissionsService/ReadRelationships")
 
 	lrCli, err := permSrv.LookupResources(ctx, &v1.LookupResourcesRequest{})
@@ -139,15 +137,14 @@ func TestOTelReporting(t *testing.T) {
 func requireSpanExists(t *testing.T, spanrecorder *tracetest.SpanRecorder, spanName string) {
 	t.Helper()
 
-	ended := spanrecorder.Ended()
-	var present bool
-	for _, span := range ended {
-		if span.Name() == spanName {
-			present = true
+	require.Eventually(t, func() bool {
+		for _, span := range spanrecorder.Ended() {
+			if span.Name() == spanName {
+				return true
+			}
 		}
-	}
-
-	require.True(t, present, "missing trace for Streaming gRPC call")
+		return false
+	}, 2*time.Second, 10*time.Millisecond, fmt.Sprintf("missing span with name %q", spanName))
 }
 
 func setupSpanRecorder() (*tracetest.SpanRecorder, func()) {
