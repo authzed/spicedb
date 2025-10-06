@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"buf.build/go/protovalidate"
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/stringz"
 
@@ -276,7 +277,7 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
 		if !tctx.skipValidate {
-			if err = ns.Validate(); err != nil {
+			if err = protovalidate.Validate(ns); err != nil {
 				return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
 			}
 		}
@@ -289,7 +290,7 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 	ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
 	if !tctx.skipValidate {
-		if err := ns.Validate(); err != nil {
+		if err := protovalidate.Validate(ns); err != nil {
 			return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
 		}
 	}
@@ -429,7 +430,7 @@ func translateRelation(tctx *translationContext, relationNode *dslNode) (*core.R
 	}
 
 	if !tctx.skipValidate {
-		if err := relation.Validate(); err != nil {
+		if err := protovalidate.Validate(relation); err != nil {
 			return nil, relationNode.Errorf("error in relation %s: %w", relationName, err)
 		}
 	}
@@ -478,7 +479,7 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 	}
 
 	if !tctx.skipValidate {
-		if err := permission.Validate(); err != nil {
+		if err := protovalidate.Validate(permission); err != nil {
 			return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
 		}
 	}
@@ -751,7 +752,7 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 	}
 
 	if !tctx.skipValidate {
-		if err := ref.Validate(); err != nil {
+		if err := protovalidate.Validate(ref); err != nil {
 			return nil, typeRefNode.Errorf("invalid type relation: %w", err)
 		}
 	}

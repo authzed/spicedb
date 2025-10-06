@@ -3,6 +3,7 @@ package namespace
 import (
 	"testing"
 
+	"buf.build/go/protovalidate"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -45,7 +46,7 @@ func TestMetadata(t *testing.T) {
 		},
 	}
 
-	verr := ns.Validate()
+	verr := protovalidate.Validate(ns)
 	require.NoError(verr)
 
 	require.Equal([]string{"Hi there"}, GetComments(ns.Metadata))
