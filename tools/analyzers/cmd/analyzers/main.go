@@ -1,6 +1,8 @@
 package main
 
 import (
+	"golang.org/x/tools/go/analysis/multichecker"
+
 	"github.com/authzed/spicedb/tools/analyzers/closeafterusagecheck"
 	"github.com/authzed/spicedb/tools/analyzers/exprstatementcheck"
 	"github.com/authzed/spicedb/tools/analyzers/iferrafterrowclosecheck"
@@ -11,7 +13,6 @@ import (
 	"github.com/authzed/spicedb/tools/analyzers/protomarshalcheck"
 	"github.com/authzed/spicedb/tools/analyzers/telemetryconvcheck"
 	"github.com/authzed/spicedb/tools/analyzers/zerologmarshalcheck"
-	"golang.org/x/tools/go/analysis/multichecker"
 )
 
 func main() {

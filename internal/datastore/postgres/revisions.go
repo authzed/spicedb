@@ -181,11 +181,11 @@ func ParseRevisionString(revisionStr string) (rev datastore.Revision, err error)
 		decimalRev, decimalErr := parseRevisionDecimal(revisionStr)
 		if decimalErr != nil {
 			// If decimal ALSO had an error than it was likely just a mangled original input
-			return
+			return rev, err
 		}
 		return decimalRev, nil
 	}
-	return
+	return rev, err
 }
 
 func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
@@ -306,14 +306,14 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]an
 
 	sql, args, err := createTxn.Values(metadata).Suffix("RETURNING " + schema.ColXID + ", " + schema.ColSnapshot).ToSql()
 	if err != nil {
-		return
+		return newXID, newSnapshot, err
 	}
 
 	cterr := tx.QueryRow(ctx, sql, args...).Scan(&newXID, &newSnapshot)
 	if cterr != nil {
 		err = fmt.Errorf("error when trying to create a new transaction: %w", cterr)
 	}
-	return
+	return newXID, newSnapshot, err
 }
 
 type postgresRevision struct {

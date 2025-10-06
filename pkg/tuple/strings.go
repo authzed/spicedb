@@ -26,7 +26,7 @@ func MustSplitRelRef(relRef string) (namespace, relation string) {
 	if !ok {
 		panic("improperly formatted relation reference")
 	}
-	return
+	return namespace, relation
 }
 
 // StringRR converts a RR object to a string.

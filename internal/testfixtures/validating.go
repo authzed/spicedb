@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"buf.build/go/protovalidate"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -61,7 +63,7 @@ func (vsr validatingSnapshotReader) ListAllNamespaces(
 	}
 
 	for _, ns := range read {
-		err := ns.Definition.Validate()
+		err := protovalidate.Validate(ns.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -80,7 +82,7 @@ func (vsr validatingSnapshotReader) LookupNamespacesWithNames(
 	}
 
 	for _, ns := range read {
-		err := ns.Definition.Validate()
+		err := protovalidate.Validate(ns.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +120,7 @@ func (vsr validatingSnapshotReader) ReadNamespaceByName(
 		return read, createdAt, err
 	}
 
-	err = read.Validate()
+	err = protovalidate.Validate(read)
 	return read, createdAt, err
 }
 
@@ -149,7 +151,7 @@ func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name s
 		return read, createdAt, err
 	}
 
-	err = read.Validate()
+	err = protovalidate.Validate(read)
 	return read, createdAt, err
 }
 
@@ -160,7 +162,7 @@ func (vsr validatingSnapshotReader) LookupCaveatsWithNames(ctx context.Context, 
 	}
 
 	for _, caveat := range read {
-		err := caveat.Definition.Validate()
+		err := protovalidate.Validate(caveat.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +178,7 @@ func (vsr validatingSnapshotReader) ListAllCaveats(ctx context.Context) ([]datas
 	}
 
 	for _, caveat := range read {
-		err := caveat.Definition.Validate()
+		err := protovalidate.Validate(caveat.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -191,7 +193,7 @@ type validatingReadWriteTransaction struct {
 }
 
 func (vrwt validatingReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
-	if err := filter.Validate(); err != nil {
+	if err := protovalidate.Validate(filter); err != nil {
 		return err
 	}
 
@@ -208,7 +210,7 @@ func (vrwt validatingReadWriteTransaction) StoreCounterValue(ctx context.Context
 
 func (vrwt validatingReadWriteTransaction) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	for _, newConfig := range newConfigs {
-		if err := newConfig.Validate(); err != nil {
+		if err := protovalidate.Validate(newConfig); err != nil {
 			return err
 		}
 	}
@@ -236,7 +238,7 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 }
 
 func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
-	if err := filter.Validate(); err != nil {
+	if err := protovalidate.Validate(filter); err != nil {
 		return 0, false, err
 	}
 

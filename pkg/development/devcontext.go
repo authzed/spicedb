@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/ccoveille/go-safecast"
 	humanize "github.com/dustin/go-humanize"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -94,7 +95,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		// Load the test relationships into the datastore.
 		relationships := make([]tuple.Relationship, 0, len(requestContext.Relationships))
 		for _, rel := range requestContext.Relationships {
-			if err := rel.Validate(); err != nil {
+			if err := protovalidate.Validate(rel); err != nil {
 				inputErrors = append(inputErrors, &devinterface.DeveloperError{
 					Message: err.Error(),
 					Source:  devinterface.DeveloperError_RELATIONSHIP,
@@ -136,7 +137,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	// Sanity check: Make sure the request context for the developer is fully valid. We do this after
 	// the loading to ensure that any user-created errors are reported as developer errors,
 	// rather than internal errors.
-	verr := requestContext.Validate()
+	verr := protovalidate.Validate(requestContext)
 	if verr != nil {
 		return nil, nil, verr
 	}

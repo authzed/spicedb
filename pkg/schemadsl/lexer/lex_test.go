@@ -281,7 +281,7 @@ func performLex(t *lexerTest) (tokens []Lexeme) {
 			break
 		}
 	}
-	return
+	return tokens
 }
 
 func equal(found, expected []Lexeme) bool {

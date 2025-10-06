@@ -3,6 +3,8 @@ package tuple
 import (
 	"time"
 
+	"buf.build/go/protovalidate"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -54,7 +56,7 @@ func RRStringToCore(namespaceName string, relationName string) *core.RelationRef
 // FromCoreRelationTuple creates a Relationship from a core.RelationTuple.
 func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 	spiceerrors.DebugAssert(func() bool {
-		return rt.Validate() == nil
+		return protovalidate.Validate(rt) == nil
 	}, "relation tuple must be valid")
 
 	var expiration *time.Time
@@ -84,7 +86,7 @@ func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 // FromCoreObjectAndRelation creates an ObjectAndRelation from a core.ObjectAndRelation.
 func FromCoreObjectAndRelation(oar *core.ObjectAndRelation) ObjectAndRelation {
 	spiceerrors.DebugAssert(func() bool {
-		return oar.Validate() == nil
+		return protovalidate.Validate(oar) == nil
 	}, "object and relation must be valid")
 
 	return ObjectAndRelation{
@@ -122,7 +124,7 @@ func CoreRR(namespace, relation string) *core.RelationReference {
 // FromCoreRelationReference creates a RelationReference from a core.RelationReference.
 func FromCoreRelationReference(rr *core.RelationReference) RelationReference {
 	spiceerrors.DebugAssert(func() bool {
-		return rr.Validate() == nil
+		return protovalidate.Validate(rr) == nil
 	}, "relation reference must be valid")
 
 	return RelationReference{

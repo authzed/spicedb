@@ -1,8 +1,9 @@
 package e2e
 
 import (
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/grpc"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 )
 
 // Client holds versioned clients to spicedb that all share the same connection

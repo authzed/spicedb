@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore/postgres/common"
-	"github.com/authzed/spicedb/internal/datastore/postgres/version"
-	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/version"
+	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 )
 
 func postgresTestVersion() string {
