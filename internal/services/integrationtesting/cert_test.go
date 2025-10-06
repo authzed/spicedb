@@ -149,7 +149,7 @@ func TestCertRotation(t *testing.T) {
 					},
 					{
 						Name:       "consistency",
-						Middleware: consistency.UnaryServerInterceptor("testing"),
+						Middleware: consistency.UnaryServerInterceptor("testing", consistency.TreatMismatchingTokensAsError),
 					},
 					{
 						Name:       "servicespecific",
@@ -168,7 +168,7 @@ func TestCertRotation(t *testing.T) {
 					},
 					{
 						Name:       "consistency",
-						Middleware: consistency.StreamServerInterceptor("testing"),
+						Middleware: consistency.StreamServerInterceptor("testing", consistency.TreatMismatchingTokensAsError),
 					},
 					{
 						Name:       "servicespecific",
@@ -212,7 +212,7 @@ func TestCertRotation(t *testing.T) {
 	_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:   rel.Resource,
@@ -265,7 +265,7 @@ func TestCertRotation(t *testing.T) {
 		_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 			Consistency: &v1.Consistency{
 				Requirement: &v1.Consistency_AtLeastAsFresh{
-					AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 				},
 			},
 			Resource:   rel.Resource,

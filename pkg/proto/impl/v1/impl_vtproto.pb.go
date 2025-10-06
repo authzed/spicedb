@@ -154,6 +154,7 @@ func (m *DecodedZedToken_V1ZedToken) CloneVT() *DecodedZedToken_V1ZedToken {
 	}
 	r := new(DecodedZedToken_V1ZedToken)
 	r.Revision = m.Revision
+	r.DatastoreUniqueIdPrefix = m.DatastoreUniqueIdPrefix
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -242,6 +243,7 @@ func (m *V1Cursor) CloneVT() *V1Cursor {
 	r.Revision = m.Revision
 	r.CallAndParametersHash = m.CallAndParametersHash
 	r.DispatchVersion = m.DispatchVersion
+	r.DatastoreUniqueId = m.DatastoreUniqueId
 	if rhs := m.Sections; rhs != nil {
 		tmpContainer := make([]string, len(rhs))
 		copy(tmpContainer, rhs)
@@ -571,6 +573,9 @@ func (this *DecodedZedToken_V1ZedToken) EqualVT(that *DecodedZedToken_V1ZedToken
 	if this.Revision != that.Revision {
 		return false
 	}
+	if this.DatastoreUniqueIdPrefix != that.DatastoreUniqueIdPrefix {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -747,6 +752,9 @@ func (this *V1Cursor) EqualVT(that *V1Cursor) bool {
 		if vx != vy {
 			return false
 		}
+	}
+	if this.DatastoreUniqueId != that.DatastoreUniqueId {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -1202,6 +1210,13 @@ func (m *DecodedZedToken_V1ZedToken) MarshalToSizedBufferVT(dAtA []byte) (int, e
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.DatastoreUniqueIdPrefix) > 0 {
+		i -= len(m.DatastoreUniqueIdPrefix)
+		copy(dAtA[i:], m.DatastoreUniqueIdPrefix)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DatastoreUniqueIdPrefix)))
+		i--
+		dAtA[i] = 0x12
+	}
 	if len(m.Revision) > 0 {
 		i -= len(m.Revision)
 		copy(dAtA[i:], m.Revision)
@@ -1394,6 +1409,13 @@ func (m *V1Cursor) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.DatastoreUniqueId) > 0 {
+		i -= len(m.DatastoreUniqueId)
+		copy(dAtA[i:], m.DatastoreUniqueId)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DatastoreUniqueId)))
+		i--
+		dAtA[i] = 0x32
 	}
 	if len(m.Flags) > 0 {
 		for k := range m.Flags {
@@ -1798,6 +1820,10 @@ func (m *DecodedZedToken_V1ZedToken) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	l = len(m.DatastoreUniqueIdPrefix)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -1900,6 +1926,10 @@ func (m *V1Cursor) SizeVT() (n int) {
 			mapEntrySize := 1 + len(k) + protohelpers.SizeOfVarint(uint64(len(k))) + 1 + len(v) + protohelpers.SizeOfVarint(uint64(len(v)))
 			n += mapEntrySize + 1 + protohelpers.SizeOfVarint(uint64(mapEntrySize))
 		}
+	}
+	l = len(m.DatastoreUniqueId)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2562,6 +2592,38 @@ func (m *DecodedZedToken_V1ZedToken) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Revision = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatastoreUniqueIdPrefix", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DatastoreUniqueIdPrefix = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -3079,6 +3141,38 @@ func (m *V1Cursor) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.Flags[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatastoreUniqueId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DatastoreUniqueId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

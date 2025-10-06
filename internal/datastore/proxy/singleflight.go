@@ -28,6 +28,10 @@ func (p *singleflightProxy) MetricsID() (string, error) {
 	return p.delegate.MetricsID()
 }
 
+func (p *singleflightProxy) UniqueID(ctx context.Context) (string, error) {
+	return p.delegate.UniqueID(ctx)
+}
+
 func (p *singleflightProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	return p.delegate.SnapshotReader(rev)
 }

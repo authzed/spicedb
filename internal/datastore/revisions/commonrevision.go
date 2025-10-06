@@ -1,6 +1,8 @@
 package revisions
 
 import (
+	"context"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -43,7 +45,12 @@ func RevisionParser(kind RevisionKind) ParsingFunc {
 
 // CommonDecoder is a revision decoder that can decode revisions of a given kind.
 type CommonDecoder struct {
-	Kind RevisionKind
+	Kind              RevisionKind
+	DatastoreUniqueID string
+}
+
+func (cd CommonDecoder) UniqueID(_ context.Context) (string, error) {
+	return cd.DatastoreUniqueID, nil
 }
 
 func (cd CommonDecoder) RevisionFromString(s string) (datastore.Revision, error) {

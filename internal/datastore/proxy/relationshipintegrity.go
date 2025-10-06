@@ -161,6 +161,10 @@ func (r *relationshipIntegrityProxy) MetricsID() (string, error) {
 	return r.ds.MetricsID()
 }
 
+func (r *relationshipIntegrityProxy) UniqueID(ctx context.Context) (string, error) {
+	return r.ds.UniqueID(ctx)
+}
+
 func (r *relationshipIntegrityProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	return relationshipIntegrityReader{
 		parent:  r,

@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"sort"
@@ -8,6 +10,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -178,6 +181,7 @@ func (sf *schemaFilters) HasPermission(namespaceName, permissionName string) boo
 
 // convertDiff converts a schema diff into an API response.
 func convertDiff(
+	ctx context.Context,
 	diff *diff.SchemaDiff,
 	existingSchema *diff.DiffableSchema,
 	comparisonSchema *diff.DiffableSchema,
@@ -515,9 +519,15 @@ func convertDiff(
 		}
 	}
 
+	ds := datastoremw.MustFromContext(ctx)
+	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, ds)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zed token: %w", err)
+	}
+
 	return &v1.DiffSchemaResponse{
 		Diffs:  diffs,
-		ReadAt: zedtoken.MustNewFromRevision(atRevision),
+		ReadAt: zedToken,
 	}, nil
 }
 

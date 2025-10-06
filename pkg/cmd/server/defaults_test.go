@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/middleware/consistency"
 )
 
 func TestWithDatastore(t *testing.T) {
@@ -31,6 +32,7 @@ func TestWithDatastore(t *testing.T) {
 		true,
 		false,
 		"service",
+		consistency.TreatMismatchingTokensAsError,
 		nil,
 		nil,
 	}
@@ -49,6 +51,7 @@ func TestWithDatastore(t *testing.T) {
 	require.Equal(t, opts.EnableResponseLog, withDS.EnableResponseLog)
 	require.Equal(t, opts.DisableGRPCHistogram, withDS.DisableGRPCHistogram)
 	require.Equal(t, opts.MiddlewareServiceLabel, withDS.MiddlewareServiceLabel)
+	require.Equal(t, opts.MismatchingZedTokenOption, withDS.MismatchingZedTokenOption)
 
 	_, authError := withDS.AuthFunc(t.Context())
 	require.Error(t, authError)
@@ -71,6 +74,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		true,
 		false,
 		"anotherservice",
+		consistency.TreatMismatchingTokensAsError,
 		nil,
 		nil,
 	}
@@ -88,6 +92,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 	require.Equal(t, opts.EnableResponseLog, withDS.EnableResponseLog)
 	require.Equal(t, opts.DisableGRPCHistogram, withDS.DisableGRPCHistogram)
 	require.Equal(t, opts.MiddlewareServiceLabel, withDS.MiddlewareServiceLabel)
+	require.Equal(t, opts.MismatchingZedTokenOption, withDS.MismatchingZedTokenOption)
 
 	_, authError := withDS.AuthFunc(t.Context())
 	require.Error(t, authError)

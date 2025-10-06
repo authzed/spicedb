@@ -545,10 +545,16 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 		}
 	}
 
+	ds := datastoremw.MustFromContext(ctx)
+	readAt, err := zedtoken.NewFromRevision(ctx, atRevision, ds)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
 	return &v1.ExperimentalReflectSchemaResponse{
 		Definitions: definitions,
 		Caveats:     caveats,
-		ReadAt:      zedtoken.MustNewFromRevision(atRevision),
+		ReadAt:      readAt,
 	}, nil
 }
 
@@ -565,7 +571,7 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	resp, err := expConvertDiff(diff, existingSchema, comparisonSchema, atRevision, es.caveatTypeSet)
+	resp, err := expConvertDiff(ctx, diff, existingSchema, comparisonSchema, atRevision, es.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -806,11 +812,16 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 		return nil, spiceerrors.MustBugf("count should not be negative")
 	}
 
+	readAt, err := zedtoken.NewFromRevision(ctx, headRev, ds)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
 	return &v1.ExperimentalCountRelationshipsResponse{
 		CounterResult: &v1.ExperimentalCountRelationshipsResponse_ReadCounterValue{
 			ReadCounterValue: &v1.ReadCounterValue{
 				RelationshipCount: uintCount,
-				ReadAt:            zedtoken.MustNewFromRevision(headRev),
+				ReadAt:            readAt,
 			},
 		},
 	}, nil
