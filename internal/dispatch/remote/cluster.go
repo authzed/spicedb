@@ -255,8 +255,6 @@ type responseMessage interface {
 }
 
 type streamingRequestMessage interface {
-	requestMessage
-
 	GetResourceRelation() *corev1.RelationReference
 	GetSubjectRelation() *corev1.RelationReference
 }
@@ -419,7 +417,7 @@ type responseMessageWithCursor interface {
 	GetAfterResponseCursor() *v1.Cursor
 }
 
-type receiver[S responseMessage] interface {
+type receiver[S any] interface {
 	Recv() (S, error)
 	grpc.ClientStream
 }
@@ -429,48 +427,41 @@ const (
 	primaryDispatcher     = "$primary"
 )
 
-func publishClient[R responseMessage](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
+func publishClient[R any](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
 	isFirstResult := true
 	for {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return ctx.Err()
+		}
 
-		default:
-			result, err := client.Recv()
-			if errors.Is(err, io.EOF) {
-				if isFirstResult {
-					dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
-				}
-				return nil
-			} else if err != nil {
-				return err
-			}
-
+		result, err := client.Recv()
+		if errors.Is(err, io.EOF) {
 			if isFirstResult {
 				dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
 			}
-			isFirstResult = false
+			return nil
+		} else if err != nil {
+			return err
+		}
 
-			merr := adjustMetadataForDispatch(result.GetMetadata())
-			if merr != nil {
-				return merr
-			}
+		if isFirstResult {
+			dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+		}
+		isFirstResult = false
 
-			if secondaryDispatchName != primaryDispatcher {
-				if supportsCursors, ok := any(result).(responseMessageWithCursor); ok {
-					afterResponseCursor := supportsCursors.GetAfterResponseCursor()
-					if afterResponseCursor == nil {
-						return spiceerrors.MustBugf("received a nil after response cursor for secondary dispatch")
-					}
-					afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.Sections...)
+		if secondaryDispatchName != primaryDispatcher {
+			if supportsCursors, ok := any(result).(responseMessageWithCursor); ok {
+				afterResponseCursor := supportsCursors.GetAfterResponseCursor()
+				if afterResponseCursor == nil {
+					return spiceerrors.MustBugf("received a nil after response cursor for secondary dispatch")
 				}
+				afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.Sections...)
 			}
+		}
 
-			serr := stream.Publish(result)
-			if serr != nil {
-				return serr
-			}
+		serr := stream.Publish(result)
+		if serr != nil {
+			return serr
 		}
 	}
 }
@@ -484,7 +475,7 @@ type ctxAndCancel struct {
 // secondary dispatchers. Unlike the non-streaming version, this will first attempt to dispatch
 // from the allowed secondary dispatchers before falling back to the primary, rather than running
 // them in parallel.
-func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
+func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	ctx context.Context,
 	cr *clusterDispatcher,
 	reqKey string,
@@ -698,14 +689,6 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 				}
 
 				hasPublishedFirstResult = true
-				merr := adjustMetadataForDispatch(result.GetMetadata())
-				if merr != nil {
-					errorsLock.Lock()
-					errorsByDispatcherName[name] = merr
-					errorsLock.Unlock()
-					return
-				}
-
 				serr := stream.Publish(result)
 				if serr != nil {
 					errorsLock.Lock()

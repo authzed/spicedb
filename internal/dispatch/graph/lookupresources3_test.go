@@ -120,11 +120,8 @@ func TestSimpleLookupResources3(t *testing.T) {
 
 			require.NoError(err)
 
-			foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount := processResults3(stream)
+			foundResources := processResults3(stream)
 			require.ElementsMatch(tc.expectedResources, foundResources, "Found: %v, Expected: %v", foundResources, tc.expectedResources)
-			require.Equal(tc.expectedDepthRequired, maxDepthRequired, "Depth required mismatch")
-			require.LessOrEqual(maxDispatchCount, tc.expectedDispatchCount, "Found dispatch count greater than expected")
-			require.Equal(uint32(0), maxCachedDispatchCount)
 
 			// We have to sleep a while to let the cache converge:
 			// https://github.com/outcaste-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
@@ -147,11 +144,8 @@ func TestSimpleLookupResources3(t *testing.T) {
 
 			require.NoError(err)
 
-			foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount = processResults3(stream)
+			foundResources = processResults3(stream)
 			require.ElementsMatch(tc.expectedResources, foundResources, "Found: %v, Expected: %v", foundResources, tc.expectedResources)
-			require.Equal(tc.expectedDepthRequired, maxDepthRequired, "Depth required mismatch")
-			require.LessOrEqual(maxCachedDispatchCount, tc.expectedDispatchCount, "Found dispatch count greater than expected")
-			require.Equal(uint32(0), maxDispatchCount)
 		})
 	}
 }
@@ -207,10 +201,10 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 
 			require.Equal(1, len(stream.Results()))
 
-			found.Insert(stream.Results()[0].Resource.ResourceId)
+			found.Insert(stream.Results()[0].Items[0].ResourceId)
 			require.Equal(tc.expectedFirst, found.AsSlice())
 
-			cursor := stream.Results()[0].AfterResponseCursor
+			cursor := stream.Results()[0].Items[0].AfterResponseCursorSections
 			require.NotNil(cursor)
 
 			stream = dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
@@ -230,7 +224,9 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 			require.NoError(err)
 
 			for _, result := range stream.Results() {
-				found.Insert(result.Resource.ResourceId)
+				for _, item := range result.Items {
+					found.Insert(item.ResourceId)
+				}
 			}
 
 			foundResults := found.AsSlice()
@@ -241,19 +237,18 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 	}
 }
 
-func processResults3(stream *dispatch.CloningCollectingDispatchStream[*v1.DispatchLookupResources3Response]) ([]*v1.PossibleResource, uint32, uint32, uint32) {
+func processResults3(stream *dispatch.CloningCollectingDispatchStream[*v1.DispatchLookupResources3Response]) []*v1.PossibleResource {
 	foundResources := []*v1.PossibleResource{}
-	var maxDepthRequired uint32
-	var maxDispatchCount uint32
-	var maxCachedDispatchCount uint32
 	for _, result := range stream.Results() {
-		result.Resource.ForSubjectIds = nil
-		foundResources = append(foundResources, result.Resource)
-		maxDepthRequired = max(maxDepthRequired, result.Metadata.DepthRequired)
-		maxDispatchCount = max(maxDispatchCount, result.Metadata.DispatchCount)
-		maxCachedDispatchCount = max(maxCachedDispatchCount, result.Metadata.CachedDispatchCount)
+		for _, item := range result.Items {
+			foundResources = append(foundResources, &v1.PossibleResource{
+				ResourceId:           item.ResourceId,
+				ForSubjectIds:        nil,
+				MissingContextParams: item.MissingContextParams,
+			})
+		}
 	}
-	return foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount
+	return foundResources
 }
 
 func TestMaxDepthLookup3(t *testing.T) {
@@ -714,7 +709,7 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 					ctx := datastoremw.ContextWithHandle(t.Context())
 					require.NoError(datastoremw.SetInContext(ctx, ds))
 
-					var currentCursor *v1.Cursor
+					var currentCursor []string
 					foundResourceIDs := mapz.NewSet[string]()
 					foundChunks := [][]*v1.DispatchLookupResources3Response{}
 					for {
@@ -744,25 +739,33 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 						}, stream)
 						require.NoError(err)
 
-						if pageSize > 0 {
-							require.LessOrEqual(len(stream.Results()), pageSize)
-						}
-
 						foundChunks = append(foundChunks, stream.Results())
 
+						itemCount := 0
 						for _, result := range stream.Results() {
-							require.ElementsMatch(tc.expectedMissingFields, result.Resource.MissingContextParams)
-							foundResourceIDs.Insert(result.Resource.ResourceId)
-							currentCursor = result.AfterResponseCursor
+							for _, item := range result.Items {
+								require.ElementsMatch(tc.expectedMissingFields, item.MissingContextParams)
+								foundResourceIDs.Insert(item.ResourceId)
+								currentCursor = item.AfterResponseCursorSections
+								itemCount++
+							}
 						}
 
-						if pageSize == 0 || len(stream.Results()) < pageSize {
+						if pageSize > 0 {
+							require.LessOrEqual(itemCount, pageSize)
+						}
+
+						if pageSize == 0 || itemCount < pageSize {
 							break
 						}
 					}
 
 					for _, chunk := range foundChunks[0 : len(foundChunks)-1] {
-						require.Equal(pageSize, len(chunk))
+						chunkItemCount := 0
+						for _, result := range chunk {
+							chunkItemCount += len(result.Items)
+						}
+						require.Equal(pageSize, chunkItemCount)
 					}
 
 					foundResourceIDsSlice := foundResourceIDs.AsSlice()
@@ -1297,12 +1300,14 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 
 			foundResourceIDs := mapz.NewSet[string]()
 			for _, result := range stream.Results() {
-				if len(result.Resource.MissingContextParams) > 0 {
-					foundResourceIDs.Insert(result.Resource.ResourceId + "[" + strings.Join(result.Resource.MissingContextParams, ",") + "]")
-					continue
-				}
+				for _, item := range result.Items {
+					if len(item.MissingContextParams) > 0 {
+						foundResourceIDs.Insert(item.ResourceId + "[" + strings.Join(item.MissingContextParams, ",") + "]")
+						continue
+					}
 
-				foundResourceIDs.Insert(result.Resource.ResourceId)
+					foundResourceIDs.Insert(item.ResourceId)
+				}
 			}
 
 			foundResourceIDsSlice := foundResourceIDs.AsSlice()

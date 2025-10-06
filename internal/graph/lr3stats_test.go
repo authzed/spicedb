@@ -233,12 +233,9 @@ func TestEstimatedConcurrencyLimit_CountingIteratorTracksResults(t *testing.T) {
 		return func(yield func(result, error) bool) {
 			// Yield 3 results
 			for i := 0; i < 3; i++ {
-				pramItem := pram{
-					possibleResource: &v1.PossibleResource{
-						ResourceId:    fmt.Sprintf("obj%d", i),
-						ForSubjectIds: []string{"user1"},
-					},
-					metadata: nil,
+				pramItem := possibleResource{
+					resourceID:    fmt.Sprintf("obj%d", i),
+					forSubjectIDs: []string{"user1"},
 				}
 				resultItem := result{
 					Item:   pramItem,

@@ -134,14 +134,19 @@ message DispatchLookupResources3Request {
   core.v1.ObjectAndRelation terminal_subject = 5 [(validate.rules).message.required = true];
   google.protobuf.Struct context = 6;
 
-  Cursor optional_cursor = 7;
+  repeated string optional_cursor = 7;
   uint32 optional_limit = 8;
 }
 
 message DispatchLookupResources3Response {
-  PossibleResource resource = 1;
-  ResponseMeta metadata = 2;
-  Cursor after_response_cursor = 3;
+  repeated LR3Item items = 1;
+}
+
+message LR3Item {
+  string resource_id = 1;
+  repeated string for_subject_ids = 2;
+  repeated string missing_context_params = 3;
+  repeated string after_response_cursor_sections = 4;
 }
 
 message DispatchLookupSubjectsRequest {

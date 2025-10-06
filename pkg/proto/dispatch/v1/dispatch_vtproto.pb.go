@@ -326,7 +326,6 @@ func (m *DispatchLookupResources3Request) CloneVT() *DispatchLookupResources3Req
 	r := new(DispatchLookupResources3Request)
 	r.Metadata = m.Metadata.CloneVT()
 	r.Context = (*structpb.Struct)((*structpb1.Struct)(m.Context).CloneVT())
-	r.OptionalCursor = m.OptionalCursor.CloneVT()
 	r.OptionalLimit = m.OptionalLimit
 	if rhs := m.ResourceRelation; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.RelationReference }); ok {
@@ -354,6 +353,11 @@ func (m *DispatchLookupResources3Request) CloneVT() *DispatchLookupResources3Req
 			r.TerminalSubject = proto.Clone(rhs).(*v1.ObjectAndRelation)
 		}
 	}
+	if rhs := m.OptionalCursor; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.OptionalCursor = tmpContainer
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -370,9 +374,13 @@ func (m *DispatchLookupResources3Response) CloneVT() *DispatchLookupResources3Re
 		return (*DispatchLookupResources3Response)(nil)
 	}
 	r := new(DispatchLookupResources3Response)
-	r.Resource = m.Resource.CloneVT()
-	r.Metadata = m.Metadata.CloneVT()
-	r.AfterResponseCursor = m.AfterResponseCursor.CloneVT()
+	if rhs := m.Items; rhs != nil {
+		tmpContainer := make([]*LR3Item, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Items = tmpContainer
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -381,6 +389,38 @@ func (m *DispatchLookupResources3Response) CloneVT() *DispatchLookupResources3Re
 }
 
 func (m *DispatchLookupResources3Response) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *LR3Item) CloneVT() *LR3Item {
+	if m == nil {
+		return (*LR3Item)(nil)
+	}
+	r := new(LR3Item)
+	r.ResourceId = m.ResourceId
+	if rhs := m.ForSubjectIds; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.ForSubjectIds = tmpContainer
+	}
+	if rhs := m.MissingContextParams; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.MissingContextParams = tmpContainer
+	}
+	if rhs := m.AfterResponseCursorSections; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.AfterResponseCursorSections = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *LR3Item) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -1041,8 +1081,14 @@ func (this *DispatchLookupResources3Request) EqualVT(that *DispatchLookupResourc
 	if !(*structpb1.Struct)(this.Context).EqualVT((*structpb1.Struct)(that.Context)) {
 		return false
 	}
-	if !this.OptionalCursor.EqualVT(that.OptionalCursor) {
+	if len(this.OptionalCursor) != len(that.OptionalCursor) {
 		return false
+	}
+	for i, vx := range this.OptionalCursor {
+		vy := that.OptionalCursor[i]
+		if vx != vy {
+			return false
+		}
 	}
 	if this.OptionalLimit != that.OptionalLimit {
 		return false
@@ -1063,20 +1109,74 @@ func (this *DispatchLookupResources3Response) EqualVT(that *DispatchLookupResour
 	} else if this == nil || that == nil {
 		return false
 	}
-	if !this.Resource.EqualVT(that.Resource) {
+	if len(this.Items) != len(that.Items) {
 		return false
 	}
-	if !this.Metadata.EqualVT(that.Metadata) {
-		return false
-	}
-	if !this.AfterResponseCursor.EqualVT(that.AfterResponseCursor) {
-		return false
+	for i, vx := range this.Items {
+		vy := that.Items[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &LR3Item{}
+			}
+			if q == nil {
+				q = &LR3Item{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
 func (this *DispatchLookupResources3Response) EqualMessageVT(thatMsg proto.Message) bool {
 	that, ok := thatMsg.(*DispatchLookupResources3Response)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *LR3Item) EqualVT(that *LR3Item) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.ResourceId != that.ResourceId {
+		return false
+	}
+	if len(this.ForSubjectIds) != len(that.ForSubjectIds) {
+		return false
+	}
+	for i, vx := range this.ForSubjectIds {
+		vy := that.ForSubjectIds[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if len(this.MissingContextParams) != len(that.MissingContextParams) {
+		return false
+	}
+	for i, vx := range this.MissingContextParams {
+		vy := that.MissingContextParams[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if len(this.AfterResponseCursorSections) != len(that.AfterResponseCursorSections) {
+		return false
+	}
+	for i, vx := range this.AfterResponseCursorSections {
+		vy := that.AfterResponseCursorSections[i]
+		if vx != vy {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *LR3Item) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*LR3Item)
 	if !ok {
 		return false
 	}
@@ -2218,15 +2318,14 @@ func (m *DispatchLookupResources3Request) MarshalToSizedBufferVT(dAtA []byte) (i
 		i--
 		dAtA[i] = 0x40
 	}
-	if m.OptionalCursor != nil {
-		size, err := m.OptionalCursor.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
+	if len(m.OptionalCursor) > 0 {
+		for iNdEx := len(m.OptionalCursor) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.OptionalCursor[iNdEx])
+			copy(dAtA[i:], m.OptionalCursor[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.OptionalCursor[iNdEx])))
+			i--
+			dAtA[i] = 0x3a
 		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x3a
 	}
 	if m.Context != nil {
 		size, err := (*structpb1.Struct)(m.Context).MarshalToSizedBufferVT(dAtA[:i])
@@ -2356,33 +2455,82 @@ func (m *DispatchLookupResources3Response) MarshalToSizedBufferVT(dAtA []byte) (
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.AfterResponseCursor != nil {
-		size, err := m.AfterResponseCursor.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
+	if len(m.Items) > 0 {
+		for iNdEx := len(m.Items) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Items[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0xa
 		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x1a
 	}
-	if m.Metadata != nil {
-		size, err := m.Metadata.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
+	return len(dAtA) - i, nil
+}
+
+func (m *LR3Item) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
 	}
-	if m.Resource != nil {
-		size, err := m.Resource.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LR3Item) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *LR3Item) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.AfterResponseCursorSections) > 0 {
+		for iNdEx := len(m.AfterResponseCursorSections) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AfterResponseCursorSections[iNdEx])
+			copy(dAtA[i:], m.AfterResponseCursorSections[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.AfterResponseCursorSections[iNdEx])))
+			i--
+			dAtA[i] = 0x22
 		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+	}
+	if len(m.MissingContextParams) > 0 {
+		for iNdEx := len(m.MissingContextParams) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.MissingContextParams[iNdEx])
+			copy(dAtA[i:], m.MissingContextParams[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.MissingContextParams[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.ForSubjectIds) > 0 {
+		for iNdEx := len(m.ForSubjectIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ForSubjectIds[iNdEx])
+			copy(dAtA[i:], m.ForSubjectIds[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ForSubjectIds[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.ResourceId) > 0 {
+		i -= len(m.ResourceId)
+		copy(dAtA[i:], m.ResourceId)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ResourceId)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -3320,9 +3468,11 @@ func (m *DispatchLookupResources3Request) SizeVT() (n int) {
 		l = (*structpb1.Struct)(m.Context).SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.OptionalCursor != nil {
-		l = m.OptionalCursor.SizeVT()
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	if len(m.OptionalCursor) > 0 {
+		for _, s := range m.OptionalCursor {
+			l = len(s)
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	if m.OptionalLimit != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.OptionalLimit))
@@ -3337,17 +3487,43 @@ func (m *DispatchLookupResources3Response) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Resource != nil {
-		l = m.Resource.SizeVT()
+	if len(m.Items) > 0 {
+		for _, e := range m.Items {
+			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *LR3Item) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ResourceId)
+	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.Metadata != nil {
-		l = m.Metadata.SizeVT()
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	if len(m.ForSubjectIds) > 0 {
+		for _, s := range m.ForSubjectIds {
+			l = len(s)
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
-	if m.AfterResponseCursor != nil {
-		l = m.AfterResponseCursor.SizeVT()
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	if len(m.MissingContextParams) > 0 {
+		for _, s := range m.MissingContextParams {
+			l = len(s)
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	if len(m.AfterResponseCursorSections) > 0 {
+		for _, s := range m.AfterResponseCursorSections {
+			l = len(s)
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -5727,7 +5903,7 @@ func (m *DispatchLookupResources3Request) UnmarshalVT(dAtA []byte) error {
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field OptionalCursor", wireType)
 			}
-			var msglen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5737,27 +5913,23 @@ func (m *DispatchLookupResources3Request) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return protohelpers.ErrInvalidLength
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return protohelpers.ErrInvalidLength
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.OptionalCursor == nil {
-				m.OptionalCursor = &Cursor{}
-			}
-			if err := m.OptionalCursor.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
+			m.OptionalCursor = append(m.OptionalCursor, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		case 8:
 			if wireType != 0 {
@@ -5831,7 +6003,7 @@ func (m *DispatchLookupResources3Response) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Resource", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Items", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -5858,18 +6030,99 @@ func (m *DispatchLookupResources3Response) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Resource == nil {
-				m.Resource = &PossibleResource{}
-			}
-			if err := m.Resource.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+			m.Items = append(m.Items, &LR3Item{})
+			if err := m.Items[len(m.Items)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LR3Item) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LR3Item: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LR3Item: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResourceId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ForSubjectIds", wireType)
 			}
-			var msglen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5879,33 +6132,29 @@ func (m *DispatchLookupResources3Response) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return protohelpers.ErrInvalidLength
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return protohelpers.ErrInvalidLength
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Metadata == nil {
-				m.Metadata = &ResponseMeta{}
-			}
-			if err := m.Metadata.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
+			m.ForSubjectIds = append(m.ForSubjectIds, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AfterResponseCursor", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field MissingContextParams", wireType)
 			}
-			var msglen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5915,27 +6164,55 @@ func (m *DispatchLookupResources3Response) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return protohelpers.ErrInvalidLength
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return protohelpers.ErrInvalidLength
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.AfterResponseCursor == nil {
-				m.AfterResponseCursor = &Cursor{}
+			m.MissingContextParams = append(m.MissingContextParams, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AfterResponseCursorSections", wireType)
 			}
-			if err := m.AfterResponseCursor.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
 			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AfterResponseCursorSections = append(m.AfterResponseCursorSections, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

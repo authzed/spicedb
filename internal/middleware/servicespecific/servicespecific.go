@@ -22,6 +22,9 @@ type ExtraStreamInterceptor interface {
 func UnaryServerInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	if hasExtraInterceptor, ok := info.Server.(ExtraUnaryInterceptor); ok {
 		interceptor := hasExtraInterceptor.UnaryInterceptor()
+		if interceptor == nil {
+			return handler(ctx, req)
+		}
 		return interceptor(ctx, req, info, handler)
 	}
 

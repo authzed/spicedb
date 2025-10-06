@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -32,9 +31,7 @@ func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchSer
 	return &dispatchServer{
 		localDispatch: localDispatch,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary: grpcvalidate.UnaryServerInterceptor(),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(streamAPITimeout),
 			),
 		},
@@ -55,24 +52,21 @@ func (ds *dispatchServer) DispatchLookupResources2(
 	req *dispatchv1.DispatchLookupResources2Request,
 	resp dispatchv1.DispatchService_DispatchLookupResources2Server,
 ) error {
-	return ds.localDispatch.DispatchLookupResources2(req,
-		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupResources2Response](resp))
+	return ds.localDispatch.DispatchLookupResources2(req, dispatch.WrapGRPCStream(resp))
 }
 
 func (ds *dispatchServer) DispatchLookupResources3(
 	req *dispatchv1.DispatchLookupResources3Request,
 	resp dispatchv1.DispatchService_DispatchLookupResources3Server,
 ) error {
-	return ds.localDispatch.DispatchLookupResources3(req,
-		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupResources3Response](resp))
+	return ds.localDispatch.DispatchLookupResources3(req, dispatch.WrapGRPCStream(resp))
 }
 
 func (ds *dispatchServer) DispatchLookupSubjects(
 	req *dispatchv1.DispatchLookupSubjectsRequest,
 	resp dispatchv1.DispatchService_DispatchLookupSubjectsServer,
 ) error {
-	return ds.localDispatch.DispatchLookupSubjects(req,
-		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupSubjectsResponse](resp))
+	return ds.localDispatch.DispatchLookupSubjects(req, dispatch.WrapGRPCStream(resp))
 }
 
 func (ds *dispatchServer) Close() error {

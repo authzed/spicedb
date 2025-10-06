@@ -17,13 +17,6 @@ type ItemAndCursor[I any] struct {
 	Cursor Cursor
 }
 
-func (i ItemAndCursor[I]) withCursorHead(value string) ItemAndCursor[I] {
-	return ItemAndCursor[I]{
-		Item:   i.Item,
-		Cursor: i.Cursor.withHead(value),
-	}
-}
-
 // Next is a function type that takes a remaining cursor and returns an iterator sequence.
 type Next[I any] func(ctx context.Context, cursor Cursor) iter.Seq2[ItemAndCursor[I], error]
 

@@ -92,7 +92,7 @@ func lookupResourcesRequest3ToKey(req *v1.DispatchLookupResources3Request, optio
 		hashableIds(req.SubjectIds),
 		hashableOnr{req.TerminalSubject},
 		hashableContext{HashableContext: caveats.HashableContext{Struct: req.Context}}, // NOTE: context is included here because lookup does a single dispatch
-		hashableCursor{req.OptionalCursor},
+		hashableCursorSections{req.OptionalCursor},
 		hashableLimit(req.OptionalLimit),
 	)
 }

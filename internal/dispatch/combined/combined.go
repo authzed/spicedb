@@ -253,7 +253,9 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
 
-		opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("s2")))
+		// TODO(jschorr): this makes streaming RPCs a bit slower, so for now, we disable it. Perhaps long-term
+		// we can enable it only for non-streaming rpcs.
+		// opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("s2")))
 
 		conn, err := grpchelpers.Dial(context.Background(), opts.upstreamAddr, opts.grpcDialOpts...)
 		if err != nil {

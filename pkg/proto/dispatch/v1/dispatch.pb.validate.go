@@ -2065,35 +2065,6 @@ func (m *DispatchLookupResources3Request) validate(all bool) error {
 		}
 	}
 
-	if all {
-		switch v := interface{}(m.GetOptionalCursor()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, DispatchLookupResources3RequestValidationError{
-					field:  "OptionalCursor",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, DispatchLookupResources3RequestValidationError{
-					field:  "OptionalCursor",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetOptionalCursor()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return DispatchLookupResources3RequestValidationError{
-				field:  "OptionalCursor",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
-
 	// no validation rules for OptionalLimit
 
 	if len(errors) > 0 {
@@ -2200,91 +2171,38 @@ func (m *DispatchLookupResources3Response) validate(all bool) error {
 
 	var errors []error
 
-	if all {
-		switch v := interface{}(m.GetResource()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, DispatchLookupResources3ResponseValidationError{
-					field:  "Resource",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, DispatchLookupResources3ResponseValidationError{
-					field:  "Resource",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetResource()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return DispatchLookupResources3ResponseValidationError{
-				field:  "Resource",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
+	for idx, item := range m.GetItems() {
+		_, _ = idx, item
 
-	if all {
-		switch v := interface{}(m.GetMetadata()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, DispatchLookupResources3ResponseValidationError{
-					field:  "Metadata",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DispatchLookupResources3ResponseValidationError{
+						field:  fmt.Sprintf("Items[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DispatchLookupResources3ResponseValidationError{
+						field:  fmt.Sprintf("Items[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
 			}
-		case interface{ Validate() error }:
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
-				errors = append(errors, DispatchLookupResources3ResponseValidationError{
-					field:  "Metadata",
+				return DispatchLookupResources3ResponseValidationError{
+					field:  fmt.Sprintf("Items[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
-				})
+				}
 			}
 		}
-	} else if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return DispatchLookupResources3ResponseValidationError{
-				field:  "Metadata",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
 
-	if all {
-		switch v := interface{}(m.GetAfterResponseCursor()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, DispatchLookupResources3ResponseValidationError{
-					field:  "AfterResponseCursor",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, DispatchLookupResources3ResponseValidationError{
-					field:  "AfterResponseCursor",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetAfterResponseCursor()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return DispatchLookupResources3ResponseValidationError{
-				field:  "AfterResponseCursor",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
 	}
 
 	if len(errors) > 0 {
@@ -2368,6 +2286,106 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DispatchLookupResources3ResponseValidationError{}
+
+// Validate checks the field values on LR3Item with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *LR3Item) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LR3Item with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in LR3ItemMultiError, or nil if none found.
+func (m *LR3Item) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LR3Item) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ResourceId
+
+	if len(errors) > 0 {
+		return LR3ItemMultiError(errors)
+	}
+
+	return nil
+}
+
+// LR3ItemMultiError is an error wrapping multiple validation errors returned
+// by LR3Item.ValidateAll() if the designated constraints aren't met.
+type LR3ItemMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LR3ItemMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LR3ItemMultiError) AllErrors() []error { return m }
+
+// LR3ItemValidationError is the validation error returned by LR3Item.Validate
+// if the designated constraints aren't met.
+type LR3ItemValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e LR3ItemValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e LR3ItemValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e LR3ItemValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e LR3ItemValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e LR3ItemValidationError) ErrorName() string { return "LR3ItemValidationError" }
+
+// Error satisfies the builtin error interface
+func (e LR3ItemValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sLR3Item.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = LR3ItemValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = LR3ItemValidationError{}
 
 // Validate checks the field values on DispatchLookupSubjectsRequest with the
 // rules defined in the proto definition for this message. If any rules are
