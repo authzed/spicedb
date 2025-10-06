@@ -717,7 +717,9 @@ func runAssertions(t *testing.T, vctx validationContext) {
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
 								require.Contains(t, resolvedDirectResourceIds, rel.Resource.ObjectID, "Missing object %s in lookup for assertion %s", rel.Resource, rel)
-								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedDirectResourcesMap[rel.Resource.ObjectID].Permissionship)
+								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedDirectResourcesMap[rel.Resource.ObjectID].Permissionship,
+									"Expected caveated permission in direct lookup for assertion %s", rel,
+								)
 							}
 
 							// Check the assertion was returned for an indirect (without context) lookup.
@@ -736,7 +738,9 @@ func runAssertions(t *testing.T, vctx validationContext) {
 								} else if accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat {
 									found, ok := resolvedIndirectResourcesMap[rel.Resource.ObjectID]
 									require.True(t, ok, "Missing expected object %s in indirect lookup for assertion %s", rel.Resource, rel)
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, found.Permissionship)
+									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, found.Permissionship,
+										"Expected caveated permission in indirect lookup for assertion %s", rel,
+									)
 								}
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:

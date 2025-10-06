@@ -505,7 +505,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
-	var currentCursor *dispatch.Cursor
+	var currentCursor []string
 
 	lrRequestHash, err := computeLRRequestHash(req)
 	if err != nil {
@@ -517,7 +517,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
-		currentCursor = decodedCursor
+		currentCursor = decodedCursor.Sections
 	}
 
 	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
@@ -527,47 +527,51 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources3Response) error {
-		found := result.Resource
+		for _, item := range result.Items {
+			var partial *v1.PartialCaveatInfo
+			permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+			if len(item.MissingContextParams) > 0 {
+				permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+				partial = &v1.PartialCaveatInfo{
+					MissingRequiredContext: item.MissingContextParams,
+				}
+			} else if req.OptionalLimit == 0 {
+				if _, ok := alreadyPublishedPermissionedResourceIds[item.ResourceId]; ok {
+					// Skip publishing the duplicate.
+					continue
+				}
 
-		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
-		currentCursor = result.AfterResponseCursor
-
-		var partial *v1.PartialCaveatInfo
-		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
-		if len(found.MissingContextParams) > 0 {
-			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
-			partial = &v1.PartialCaveatInfo{
-				MissingRequiredContext: found.MissingContextParams,
+				// TODO(jschorr): Investigate something like a Trie here for better memory efficiency.
+				alreadyPublishedPermissionedResourceIds[item.ResourceId] = struct{}{}
 			}
-		} else if req.OptionalLimit == 0 {
-			if _, ok := alreadyPublishedPermissionedResourceIds[found.ResourceId]; ok {
-				// Skip publishing the duplicate.
-				return nil
+
+			var encodedCursor *v1.Cursor
+			if len(item.AfterResponseCursorSections) > 0 {
+				currentCursor = item.AfterResponseCursorSections
+
+				ec, err := cursor.EncodeFromDispatchCursorSections(currentCursor, lrRequestHash, atRevision, map[string]string{
+					lrv3CursorFlag: "1",
+				})
+				if err != nil {
+					return ps.rewriteError(ctx, err)
+				}
+				encodedCursor = ec
 			}
 
-			// TODO(jschorr): Investigate something like a Trie here for better memory efficiency.
-			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
+			err = resp.Send(&v1.LookupResourcesResponse{
+				LookedUpAt:        revisionReadAt,
+				ResourceObjectId:  item.ResourceId,
+				Permissionship:    permissionship,
+				PartialCaveatInfo: partial,
+				AfterResultCursor: encodedCursor,
+			})
+			if err != nil {
+				return err
+			}
+
+			totalCountPublished++
 		}
 
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, map[string]string{
-			lrv3CursorFlag: "1",
-		})
-		if err != nil {
-			return ps.rewriteError(ctx, err)
-		}
-
-		err = resp.Send(&v1.LookupResourcesResponse{
-			LookedUpAt:        revisionReadAt,
-			ResourceObjectId:  found.ResourceId,
-			Permissionship:    permissionship,
-			PartialCaveatInfo: partial,
-			AfterResultCursor: encodedCursor,
-		})
-		if err != nil {
-			return err
-		}
-
-		totalCountPublished++
 		return nil
 	})
 

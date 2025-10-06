@@ -460,10 +460,10 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			datastoremw.UnaryServerInterceptor(ds),
 			servicespecific.UnaryServerInterceptor,
 		}, []grpc.StreamServerInterceptor{
+			// NOTE: the logging middlewares are not present here in streaming, to remove their significant overhead
+			// when returning streaming messages.
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			nodeid.StreamServerInterceptor(""),
-			logmw.StreamServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
-			grpclog.StreamServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsStreamingInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),

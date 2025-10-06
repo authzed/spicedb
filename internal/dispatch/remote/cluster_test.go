@@ -141,13 +141,8 @@ func (fds *fakeDispatchSvc) DispatchLookupResources3(_ *v1.DispatchLookupResourc
 	for i := range fds.resultCount {
 		time.Sleep(fds.sleepTime)
 		if err := srv.Send(&v1.DispatchLookupResources3Response{
-			Resource: &v1.PossibleResource{ResourceId: fmt.Sprintf("%d", i)},
-			Metadata: &v1.ResponseMeta{
-				DispatchCount: fds.dispatchCount,
-			},
-			AfterResponseCursor: &v1.Cursor{
-				Sections:        nil,
-				DispatchVersion: 3,
+			Items: []*v1.LR3Item{
+				{ResourceId: fmt.Sprintf("%d", i)},
 			},
 		}); err != nil {
 			return err
@@ -240,7 +235,6 @@ func TestDispatchTimeout(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, stream.Results())
-				require.GreaterOrEqual(t, stream.Results()[0].Metadata.DispatchCount, uint32(1))
 			}
 		})
 	}

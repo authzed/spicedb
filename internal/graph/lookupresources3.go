@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"slices"
 	"sort"
@@ -34,7 +33,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const lr3DispatchVersion = 3
+const respBatchSize = 500
 
 // NewCursoredLookupResources3 creates a new CursoredLookupResources3 instance with the given parameters.
 func NewCursoredLookupResources3(
@@ -277,54 +276,70 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	afterResponseCursor := &v1.Cursor{
-		DispatchVersion: lr3DispatchVersion,
-	}
-
-	resp := &v1.DispatchLookupResources3Response{
-		AfterResponseCursor: afterResponseCursor,
+	// If no limit is set, disable cursors for the entire operation, as they won't be returned.
+	if req.OptionalLimit == 0 {
+		ctx = cter.DisableCursorsInContext(ctx)
 	}
 
 	// Retrieve results from the unlimited iterator and publish them, respecting the limit,
 	// if any.
 	resultCount := uint32(0)
+	lr3items := make([]*v1.LR3Item, 0, respBatchSize)
+
 	for result, err := range crr.unlimitedLookupResourcesIter(ctx, refs) {
 		if err != nil {
 			span.RecordError(err)
 			return err
 		}
 
-		spiceerrors.DebugAssertNotNil(result.Item.possibleResource, "expected possible resource to be non-nil")
-		spiceerrors.DebugAssertNotNil(result.Item.metadata, "expected metadata to be non-nil")
+		lr3items = append(lr3items, &v1.LR3Item{
+			ResourceId:                  result.Item.resourceID,
+			ForSubjectIds:               result.Item.forSubjectIDs,
+			MissingContextParams:        result.Item.missingContextParams,
+			AfterResponseCursorSections: result.Cursor,
+		})
 
-		afterResponseCursor.Sections = result.Cursor
-		resp.Resource = result.Item.possibleResource
-		resp.Metadata = addCallToResponseMetadata(result.Item.metadata)
+		resultCount++
+		if req.OptionalLimit > 0 && resultCount == req.OptionalLimit {
+			break
+		}
 
-		if err := stream.Publish(resp); err != nil {
+		if len(lr3items) < respBatchSize {
+			continue
+		}
+
+		if err := stream.Publish(&v1.DispatchLookupResources3Response{
+			Items: lr3items,
+		}); err != nil {
 			span.RecordError(err)
 			return err
 		}
 
-		if req.OptionalLimit > 0 {
-			resultCount++
-			if resultCount >= req.OptionalLimit {
-				return nil
-			}
+		lr3items = make([]*v1.LR3Item, 0, respBatchSize)
+	}
+
+	if len(lr3items) > 0 {
+		if err := stream.Publish(&v1.DispatchLookupResources3Response{
+			Items: lr3items,
+		}); err != nil {
+			span.RecordError(err)
+			return err
 		}
 	}
+
 	return nil
 }
 
-// pram is a "possible resource and metadata" struct used for lookup resources results.
-type pram struct {
-	possibleResource *v1.PossibleResource
-	metadata         *v1.ResponseMeta
+// possibleResource is a helper struct that combines a possible resource.
+type possibleResource struct {
+	resourceID           string
+	forSubjectIDs        []string
+	missingContextParams []string
 }
 
 // result is the result type for the lookup resources iterator, which contains a possible resource and metadata,
 // as well as the cursor for the next iteration.
-type result = cter.ItemAndCursor[pram]
+type result = cter.ItemAndCursor[possibleResource]
 
 // lr3refs is a holder for various capabilities used by the LookupResources3 operation.
 type lr3refs struct {
@@ -354,36 +369,25 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 	ctx, span := tracer.Start(ctx, otelconv.EventDispatchLR3UnlimitedResults)
 	defer span.End()
 
-	var cursor cter.Cursor
-	if refs.req.OptionalCursor != nil {
-		if refs.req.OptionalCursor.DispatchVersion != lr3DispatchVersion {
-			return cter.YieldsError[result](fmt.Errorf("invalid dispatch version %d for lookup resources, expected %d", refs.req.OptionalCursor.DispatchVersion, lr3DispatchVersion))
-		}
-		cursor = refs.req.OptionalCursor.Sections
-	}
+	cursor := refs.req.OptionalCursor
 
 	// Portion #1: If the requested resource type+relation matches the subject type+relation, then we've immediately
 	// found matching resources, as a permission always matches itself.
 	return cter.CursoredWithIntegerHeader(ctx, cursor,
-		func(ctx context.Context, startIndex int) iter.Seq2[pram, error] {
+		func(ctx context.Context, startIndex int) iter.Seq2[possibleResource, error] {
 			// If the subject relation does not match the resource relation, we cannot yield any results for this
 			// portion.
 			if refs.req.SubjectRelation.Namespace != refs.req.ResourceRelation.Namespace ||
 				refs.req.SubjectRelation.Relation != refs.req.ResourceRelation.Relation {
-				return cter.UncursoredEmpty[pram]()
+				return cter.UncursoredEmpty[possibleResource]()
 			}
 
 			// Return an iterator that yields results for all subject IDs starting from startIndex.
-			iter := func(yield func(pram, error) bool) {
-				singleSubjectID := make([]string, 1)
+			iter := func(yield func(possibleResource, error) bool) {
 				for _, subjectID := range refs.req.SubjectIds[startIndex:] {
-					singleSubjectID[0] = subjectID
-					if !yield(pram{
-						possibleResource: &v1.PossibleResource{
-							ResourceId:    subjectID,
-							ForSubjectIds: singleSubjectID,
-						},
-						metadata: emptyMetadata,
+					if !yield(possibleResource{
+						resourceID:    subjectID,
+						forSubjectIDs: []string{subjectID},
 					}, nil) {
 						return
 					}
@@ -411,7 +415,7 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 
 // entrypointsIter is the second portion of the lookup resources iterator, which iterates over
 // the entrypoints for the given subject IDs and yields results for each entrypoint.
-func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[pram] {
+func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[possibleResource] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
 		// Load the entrypoints that are reachable from the subject relation to the resource relation/permission.
 		entrypoints, err := crr.loadEntrypoints(ctx, refs)
@@ -425,7 +429,7 @@ func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[pra
 
 		// For each entrypoint, create an iterator that will yield results for that entrypoint via
 		// the entrypointIter method.
-		entrypointIterators := make([]cter.Next[pram], 0, len(entrypoints))
+		entrypointIterators := make([]cter.Next[possibleResource], 0, len(entrypoints))
 		for _, ep := range entrypoints {
 			entrypointIterators = append(entrypointIterators, crr.entrypointIter(refs, ep))
 		}
@@ -475,7 +479,7 @@ func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, refs l
 // entrypointIter is the iterator for a single entrypoint, which will yield results for the given
 // entrypoint and the subject IDs in the request. It will return an iterator sequence of results
 // for each entrypoint, dispatching further when necessary.
-func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint schema.ReachabilityEntrypoint) cter.Next[pram] {
+func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint schema.ReachabilityEntrypoint) cter.Next[possibleResource] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
 		switch entrypoint.EntrypointKind() {
 		// If the entrypoint is a relation entrypoint, we need to iterate over the relation's relationships
@@ -822,7 +826,9 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						// Add the relationship to the relationships chunk, marking it with any context parameters that were missing.
 						relCount := rm.addRelationship(rel, missingContextParameters)
 						if relCount >= int(crr.dispatchChunkSize) {
-							crr.relationshipsChunkCache.storeRelationshipsChunk(rm)
+							if refs.req.OptionalLimit > 0 {
+								crr.relationshipsChunkCache.storeRelationshipsChunk(rm)
+							}
 
 							// Yield the chunk of relationships for processing.
 							if !yield(cter.Chunk[*relationshipsChunk, datastoreIndex]{
@@ -839,7 +845,9 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					}
 
 					if rm.isPopulated() {
-						crr.relationshipsChunkCache.storeRelationshipsChunk(rm)
+						if refs.req.OptionalLimit > 0 {
+							crr.relationshipsChunkCache.storeRelationshipsChunk(rm)
+						}
 
 						// Yield any remaining relationships in the chunk.
 						if !yield(cter.Chunk[*relationshipsChunk, datastoreIndex]{
@@ -886,17 +894,17 @@ func (crr *CursoredLookupResources3) checkedDispatchIter(
 	// If the entrypoint is a direct result, we can simply dispatch the results, as it means no intersection,
 	// exclusion or intersection arrow was found "above" this entrypoint in the permission.
 	if entrypoint.IsDirectResult() {
-		return crr.dispatchIter(ctx, refs, currentCursor, rm, foundResourceType, emptyMetadata)
+		return crr.dispatchIter(ctx, refs, currentCursor, rm, foundResourceType)
 	}
 
 	// Otherwise, we need to check them before dispatching. This shears the tree of results for intersections, exclusions
 	// and intersection arrows.
-	filteredChunk, checkMetadata, err := crr.filterSubjectsByCheck(ctx, refs, rm, foundResourceType, entrypoint)
+	filteredChunk, err := crr.filterSubjectsByCheck(ctx, refs, rm, foundResourceType, entrypoint)
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
 
-	return crr.dispatchIter(ctx, refs, currentCursor, filteredChunk, foundResourceType, checkMetadata)
+	return crr.dispatchIter(ctx, refs, currentCursor, filteredChunk, foundResourceType)
 }
 
 // dispatchIter is a helper function that dispatches the resources found in the relationships chunk,
@@ -908,7 +916,6 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	currentCursor cter.Cursor,
 	rm *relationshipsChunk,
 	foundResourceType *core.RelationReference,
-	metadata *v1.ResponseMeta,
 ) iter.Seq2[result, error] {
 	if !rm.isPopulated() {
 		// If there are no relationships to dispatch, return an empty iterator.
@@ -916,15 +923,11 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	}
 
 	subjectIDs := rm.subjectIDsToDispatch()
-	currentDispatchCursor := &v1.Cursor{
-		DispatchVersion: lr3DispatchVersion,
-		Sections:        currentCursor,
-	}
 
 	// Return an iterator that invokes the dispatch operation for the given resource relation and subject IDs,
 	// yielding results for each resource found.
 	iter := func(yield func(result, error) bool) {
-		stream := newYieldingStream(ctx, yield, rm, metadata)
+		stream := newYieldingStream(ctx, yield, rm)
 		err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 			ResourceRelation: refs.req.ResourceRelation,
 			SubjectRelation:  foundResourceType,
@@ -934,7 +937,7 @@ func (crr *CursoredLookupResources3) dispatchIter(
 				AtRevision:     refs.req.Revision.String(),
 				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
 			},
-			OptionalCursor: currentDispatchCursor,
+			OptionalCursor: currentCursor,
 			OptionalLimit:  refs.req.OptionalLimit,
 			Context:        refs.req.Context,
 		}, stream)
@@ -960,7 +963,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 	rm *relationshipsChunk,
 	foundResourceType *core.RelationReference,
 	entrypoint schema.ReachabilityEntrypoint,
-) (*relationshipsChunk, *v1.ResponseMeta, error) {
+) (*relationshipsChunk, error) {
 	resourceIDsToCheck := rm.subjectIDsToDispatch()
 
 	// Build a set of check hints for the resources to check, thus avoiding the work
@@ -975,14 +978,14 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 				Membership: v1.ResourceCheckResult_MEMBER,
 			})
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		checkHints = append(checkHints, checkHint)
 	}
 
 	// NOTE: we are checking the containing permission here, *not* the target relation, as
 	// the goal is to shear for the containing permission.
-	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, crr.dc, crr.caveatTypeSet, computed.CheckParameters{
+	resultsByResourceID, _, _, err := computed.ComputeBulkCheck(ctx, crr.dc, crr.caveatTypeSet, computed.CheckParameters{
 		ResourceType:  tuple.FromCoreRelationReference(foundResourceType),
 		Subject:       tuple.FromCoreObjectAndRelation(refs.req.TerminalSubject),
 		CaveatContext: refs.req.Context.AsMap(),
@@ -992,7 +995,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 		CheckHints:    checkHints,
 	}, resourceIDsToCheck, crr.dispatchChunkSize)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Dispatch any resources that are visible.
@@ -1020,26 +1023,24 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 			continue
 
 		default:
-			return nil, nil, spiceerrors.MustBugf("unexpected result from check: %v", result.Membership)
+			return nil, spiceerrors.MustBugf("unexpected result from check: %v", result.Membership)
 		}
 	}
 
-	return updatedChunk, checkMetadata, nil
+	return updatedChunk, nil
 }
 
 // newYieldingStream creates a new yielding stream for the LookupResources3 operation, which takes results
 // published to the stream and yields them to the provided yield function. The stream will cancel
 // itself if the yield function returns false, indicating that the stream is no longer interested in results.
-func newYieldingStream(ctx context.Context, yield func(result, error) bool, rm *relationshipsChunk, metadata *v1.ResponseMeta) *yieldingStream {
+func newYieldingStream(ctx context.Context, yield func(result, error) bool, rm *relationshipsChunk) *yieldingStream {
 	ctx, cancel := context.WithCancel(ctx)
 	return &yieldingStream{
-		ctx:                ctx,
-		cancel:             cancel,
-		yield:              yield,
-		rm:                 rm,
-		metadata:           metadata,
-		isFirstPublishCall: true,
-		canceled:           false,
+		ctx:      ctx,
+		cancel:   cancel,
+		yield:    yield,
+		rm:       rm,
+		canceled: false,
 	}
 }
 
@@ -1058,15 +1059,8 @@ type yieldingStream struct {
 	// rm is the relationships chunk that contains the relationships to dispatch.
 	rm *relationshipsChunk
 
-	// metadata is the metadata for the stream, which will be combined with the response metadata.
-	metadata *v1.ResponseMeta
-
 	// canceled indicates whether the stream has been canceled, which will prevent further publishing of results.
 	canceled bool
-
-	// isFirstPublishCall indicates whether this is the first call to Publish, which is used to combine metadata
-	// with the initial response metadata.
-	isFirstPublishCall bool
 }
 
 func (y *yieldingStream) Context() context.Context {
@@ -1082,41 +1076,26 @@ func (y *yieldingStream) Publish(resp *v1.DispatchLookupResources3Response) erro
 		return spiceerrors.MustBugf("cannot publish nil response")
 	}
 
-	if resp.Metadata == nil || resp.Resource == nil {
-		return spiceerrors.MustBugf("invalid response from lookup resources: missing metadata or resource")
-	}
-
-	// Check if the context is done before publishing, to avoid unnecessary work.
-	if y.ctx.Err() != nil {
-		return y.ctx.Err()
-	}
-
-	// If this is the first publish call, we combine the response metadata with the initial metadata,
-	// to ensure the check's metadata is represented in at least one of the responses.
-	metadata := resp.Metadata
-	if y.isFirstPublishCall {
-		metadata = combineResponseMetadata(y.ctx, metadata, y.metadata)
-	}
-
 	// Map the possible resource from the response, which combines missing context parameters
 	// from the existing possible resource with that published.
-	possibleResource, err := y.rm.mapPossibleResource(resp.Resource)
-	if err != nil {
-		return err
-	}
+	for _, item := range resp.Items {
+		mappedPossibleResource, err := y.rm.mapPossibleResource(possibleResource{
+			resourceID:           item.ResourceId,
+			forSubjectIDs:        item.ForSubjectIds,
+			missingContextParams: item.MissingContextParams,
+		})
+		if err != nil {
+			return err
+		}
 
-	y.isFirstPublishCall = false
-	yielded := y.yield(result{
-		Item: pram{
-			possibleResource: possibleResource,
-			metadata:         metadata,
-		},
-		Cursor: resp.AfterResponseCursor.Sections,
-	}, nil)
-	if !yielded {
-		y.canceled = true
-		y.cancel()
-		return context.Canceled
+		if !y.yield(result{
+			Item:   mappedPossibleResource,
+			Cursor: item.AfterResponseCursorSections,
+		}, nil) {
+			y.canceled = true
+			y.cancel()
+			return context.Canceled
+		}
 	}
 
 	return nil
@@ -1255,18 +1234,18 @@ func (rm *relationshipsChunk) subjectIDsToDispatch() []string {
 // mapPossibleResource maps a possible resource from the relationships chunk, collecting the subject IDs
 // and missing context parameters from the relationships chunk. It returns a new possible resource
 // that contains the mapped subject IDs and missing context parameters, or an error if the mapping fails.
-func (rm *relationshipsChunk) mapPossibleResource(foundResource *v1.PossibleResource) (*v1.PossibleResource, error) {
+func (rm *relationshipsChunk) mapPossibleResource(foundResource possibleResource) (possibleResource, error) {
 	forSubjectIDs := mapz.NewSet[string]()
 	nonCaveatedSubjectIDs := mapz.NewSet[string]()
 
 	missingContextParameters := mapz.NewSet[string]()
-	missingContextParameters.Extend(foundResource.MissingContextParams)
+	missingContextParameters.Extend(foundResource.missingContextParams)
 
-	for _, forSubjectID := range foundResource.ForSubjectIds {
+	for _, forSubjectID := range foundResource.forSubjectIDs {
 		// Map from the incoming subject ID to the subject ID(s) that caused the dispatch.
 		infos, ok := rm.subjectsByResourceID[forSubjectID]
 		if !ok {
-			return nil, spiceerrors.MustBugf("missing for subject ID")
+			return possibleResource{}, spiceerrors.MustBugf("missing for subject ID")
 		}
 
 		for _, info := range infos {
@@ -1281,19 +1260,19 @@ func (rm *relationshipsChunk) mapPossibleResource(foundResource *v1.PossibleReso
 	}
 
 	// If there are some non-caveated IDs, return those and mark as the parent status.
-	if len(foundResource.MissingContextParams) == 0 && nonCaveatedSubjectIDs.Len() > 0 {
-		return &v1.PossibleResource{
-			ResourceId:    foundResource.ResourceId,
-			ForSubjectIds: nonCaveatedSubjectIDs.AsSlice(),
+	if len(foundResource.missingContextParams) == 0 && nonCaveatedSubjectIDs.Len() > 0 {
+		return possibleResource{
+			resourceID:    foundResource.resourceID,
+			forSubjectIDs: nonCaveatedSubjectIDs.AsSlice(),
 		}, nil
 	}
 
 	// Otherwise, everything is caveated, so return the full set of subject IDs and mark
 	// as a check is required.
-	return &v1.PossibleResource{
-		ResourceId:           foundResource.ResourceId,
-		ForSubjectIds:        forSubjectIDs.AsSlice(),
-		MissingContextParams: missingContextParameters.AsSlice(),
+	return possibleResource{
+		resourceID:           foundResource.resourceID,
+		forSubjectIDs:        forSubjectIDs.AsSlice(),
+		missingContextParams: missingContextParameters.AsSlice(),
 	}, nil
 }
 

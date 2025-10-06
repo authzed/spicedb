@@ -68,6 +68,20 @@ func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterH
 	})
 }
 
+func EncodeFromDispatchCursorSections(dispatchCursorSections []string, callAndParameterHash string, revision datastore.Revision, flags map[string]string) (*v1.Cursor, error) {
+	return Encode(&impl.DecodedCursor{
+		VersionOneof: &impl.DecodedCursor_V1{
+			V1: &impl.V1Cursor{
+				Revision:              revision.String(),
+				DispatchVersion:       1,
+				Sections:              dispatchCursorSections,
+				CallAndParametersHash: callAndParameterHash,
+				Flags:                 flags,
+			},
+		},
+	})
+}
+
 // GetCursorFlag retrieves a flag from an encoded API cursor, if any.
 func GetCursorFlag(encoded *v1.Cursor, flagName string) (string, bool, error) {
 	decoded, err := Decode(encoded)

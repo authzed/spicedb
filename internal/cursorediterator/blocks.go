@@ -5,6 +5,8 @@ import (
 	"iter"
 	"strconv"
 
+	"github.com/authzed/ctxkey"
+
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -15,6 +17,16 @@ const (
 	producerChunksBufferSize          = 1000
 	mapperItemsSize                   = 1000
 )
+
+var cursorsDisabledKey = ctxkey.NewBoxedWithDefault(false)
+
+// DisableCursorsInContext returns a new context with cursors disabled. When cursors are disabled,
+// all cursored iterator functions will return nil cursors instead of constructing them.
+func DisableCursorsInContext(ctx context.Context) context.Context {
+	ctx = cursorsDisabledKey.SetBox(ctx)
+	cursorsDisabledKey.Set(ctx, true)
+	return ctx
+}
 
 // CursoredWithIntegerHeader is a function that takes a Cursor, a `header` iterator,
 // a `next` iterator and executes the `header` iterator with a Cursor of an integer value.
@@ -41,6 +53,9 @@ func CursoredWithIntegerHeader[I any](
 	if ctx.Err() != nil {
 		return YieldsError[ItemAndCursor[I]](ctx.Err())
 	}
+
+	// Check if cursors are disabled
+	cursorsDisabled := cursorsDisabledKey.Value(ctx)
 
 	nextStartingIndex, remainingCursor, err := CursorIntHeadValue(currentCursor)
 	if err != nil {
@@ -69,7 +84,11 @@ func CursoredWithIntegerHeader[I any](
 				return
 			}
 
-			if !yield(r.withCursorHead("-1"), nil) {
+			var cursor Cursor
+			if !cursorsDisabled {
+				cursor = r.Cursor.withHead("-1")
+			}
+			if !yield(ItemAndCursor[I]{Item: r.Item, Cursor: cursor}, nil) {
 				return
 			}
 		}
@@ -104,10 +123,14 @@ func CursoredWithIntegerHeader[I any](
 				return
 			}
 
-			nextIndexStr := strconv.Itoa(currentIndex + 1)
+			var cursor Cursor
+			if !cursorsDisabled {
+				nextIndexStr := strconv.Itoa(currentIndex + 1)
+				cursor = Cursor{nextIndexStr}
+			}
 			if !yield(ItemAndCursor[I]{
 				Item:   r,
-				Cursor: Cursor{nextIndexStr},
+				Cursor: cursor,
 			}, nil) {
 				return
 			}
@@ -145,6 +168,9 @@ func CursoredParallelIterators[I any](
 	if len(orderedIterators) == 0 {
 		return Empty[I](ctx, currentCursor)
 	}
+
+	// Check if cursors are disabled
+	cursorsDisabled := cursorsDisabledKey.Value(ctx)
 
 	// Find the starting index for the next iterator to execute.
 	currentStartingBranchIndex, remainingCursor, err := CursorIntHeadValue(currentCursor)
@@ -192,9 +218,13 @@ func CursoredParallelIterators[I any](
 						return
 					}
 
+					var cursor Cursor
+					if !cursorsDisabled {
+						cursor = r.Cursor.withHead(collectorIndexStr)
+					}
 					if !yield(ItemAndCursor[I]{
 						Item:   r.Item,
-						Cursor: r.Cursor.withHead(collectorIndexStr),
+						Cursor: cursor,
 					}, nil) {
 						return
 					}
@@ -280,9 +310,13 @@ func CursoredParallelIterators[I any](
 					// Otherwise, yield the item and the adjusted Cursor, which is the current overall
 					// branch index.
 					collectorIndex := currentStartingBranchIndex + collectorOffsetIndex
+					var cursor Cursor
+					if !cursorsDisabled {
+						cursor = r.itemAndCursor.Cursor.withHead(strconv.Itoa(collectorIndex))
+					}
 					if !yield(ItemAndCursor[I]{
 						Item:   r.itemAndCursor.Item,
-						Cursor: r.itemAndCursor.Cursor.withHead(strconv.Itoa(collectorIndex)),
+						Cursor: cursor,
 					}, nil) {
 						return
 					}
@@ -351,6 +385,9 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 	ctx, cancel := context.WithCancel(ctx)
 
+	// Check if cursors are disabled
+	cursorsDisabled := cursorsDisabledKey.Value(ctx)
+
 	headValue, remainingCursor, err := CursorCustomHeadValue(currentCursor, cursorFromStringConverter)
 	if err != nil {
 		cancel()
@@ -397,9 +434,13 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 							return
 						}
 
+						var cursor Cursor
+						if !cursorsDisabled {
+							cursor = r.Cursor.withHead(cursorStr)
+						}
 						if !yield(ItemAndCursor[I]{
 							Item:   r.Item,
-							Cursor: r.Cursor.withHead(cursorStr),
+							Cursor: cursor,
 						}, nil) {
 							return
 						}
@@ -558,9 +599,13 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 					}
 
 					for _, r := range mappedResult.items {
+						var cursor Cursor
+						if !cursorsDisabled {
+							cursor = r.Cursor.withHead(cursorStr)
+						}
 						if !yield(ItemAndCursor[I]{
 							Item:   r.Item,
-							Cursor: r.Cursor.withHead(cursorStr),
+							Cursor: cursor,
 						}, nil) {
 							return
 						}

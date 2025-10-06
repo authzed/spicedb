@@ -84,6 +84,17 @@ func (hc hashableCursor) AppendToHash(hasher hasherInterface) {
 	}
 }
 
+type hashableCursorSections struct {
+	sections []string
+}
+
+func (hc hashableCursorSections) AppendToHash(hasher hasherInterface) {
+	for _, section := range hc.sections {
+		hasher.WriteString(section)
+		hasher.WriteString(",")
+	}
+}
+
 type hashableContext struct{ caveats.HashableContext }
 
 func (hc hashableContext) AppendToHash(hasher hasherInterface) {

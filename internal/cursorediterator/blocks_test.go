@@ -1845,3 +1845,288 @@ func simpleTestIterator(items []int, prefix string) Next[int] {
 		}
 	}
 }
+
+func TestDisableCursorsInContext(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("CursoredWithIntegerHeader with cursors disabled", func(t *testing.T) {
+		ctxWithoutCursors := DisableCursorsInContext(ctx)
+
+		header := func(ctx context.Context, startIndex int) iter.Seq2[int, error] {
+			return simpleIntSequence(startIndex, startIndex+3)
+		}
+
+		nextFunc := func(ctx context.Context, c Cursor) iter.Seq2[ItemAndCursor[int], error] {
+			return func(yield func(ItemAndCursor[int], error) bool) {
+				if !yield(ItemAndCursor[int]{Item: 100, Cursor: Cursor{"next-cursor"}}, nil) {
+					return
+				}
+			}
+		}
+
+		result := CursoredWithIntegerHeader(ctxWithoutCursors, Cursor{}, header, nextFunc)
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 4)
+
+		// All cursors should be nil when disabled
+		for _, item := range items {
+			require.Nil(t, item.Cursor, "cursor should be nil when cursors are disabled")
+		}
+
+		// Items should still be present
+		require.Equal(t, 0, items[0].Item)
+		require.Equal(t, 1, items[1].Item)
+		require.Equal(t, 2, items[2].Item)
+		require.Equal(t, 100, items[3].Item)
+	})
+
+	t.Run("CursoredWithIntegerHeader with cursors enabled", func(t *testing.T) {
+		header := func(ctx context.Context, startIndex int) iter.Seq2[int, error] {
+			return simpleIntSequence(startIndex, startIndex+2)
+		}
+
+		nextFunc := Empty[int]
+
+		result := CursoredWithIntegerHeader(ctx, Cursor{}, header, nextFunc)
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 2)
+
+		// All cursors should be non-nil when enabled
+		for _, item := range items {
+			require.NotNil(t, item.Cursor, "cursor should not be nil when cursors are enabled")
+		}
+
+		require.Equal(t, Cursor{"1"}, items[0].Cursor)
+		require.Equal(t, Cursor{"2"}, items[1].Cursor)
+	})
+
+	t.Run("CursoredParallelIterators with cursors disabled", func(t *testing.T) {
+		ctxWithoutCursors := DisableCursorsInContext(ctx)
+
+		iterators := []Next[int]{
+			simpleTestIterator([]int{1, 2}, "iter1"),
+			simpleTestIterator([]int{10, 20}, "iter2"),
+			simpleTestIterator([]int{100}, "iter3"),
+		}
+
+		result := CursoredParallelIterators(ctxWithoutCursors, Cursor{}, 2, iterators...)
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 5)
+
+		// All cursors should be nil when disabled
+		for _, item := range items {
+			require.Nil(t, item.Cursor, "cursor should be nil when cursors are disabled")
+		}
+
+		// Items should still be present in order
+		require.Equal(t, 1, items[0].Item)
+		require.Equal(t, 2, items[1].Item)
+		require.Equal(t, 10, items[2].Item)
+		require.Equal(t, 20, items[3].Item)
+		require.Equal(t, 100, items[4].Item)
+	})
+
+	t.Run("CursoredParallelIterators with cursors enabled", func(t *testing.T) {
+		iterators := []Next[int]{
+			simpleTestIterator([]int{1, 2}, "iter1"),
+			simpleTestIterator([]int{10}, "iter2"),
+		}
+
+		result := CursoredParallelIterators(ctx, Cursor{}, 2, iterators...)
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 3)
+
+		// All cursors should be non-nil when enabled
+		for _, item := range items {
+			require.NotNil(t, item.Cursor, "cursor should not be nil when cursors are enabled")
+		}
+
+		require.Equal(t, Cursor{"iter1-1", "0"}, items[0].Cursor)
+		require.Equal(t, Cursor{"iter1-2", "0"}, items[1].Cursor)
+		require.Equal(t, Cursor{"iter2-1", "1"}, items[2].Cursor)
+	})
+
+	t.Run("CursoredParallelIterators with cursors disabled concurrency=1", func(t *testing.T) {
+		ctxWithoutCursors := DisableCursorsInContext(ctx)
+
+		iterators := []Next[int]{
+			simpleTestIterator([]int{1, 2}, "iter1"),
+			simpleTestIterator([]int{10}, "iter2"),
+		}
+
+		result := CursoredParallelIterators(ctxWithoutCursors, Cursor{}, 1, iterators...)
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 3)
+
+		// All cursors should be nil when disabled
+		for _, item := range items {
+			require.Nil(t, item.Cursor, "cursor should be nil when cursors are disabled")
+		}
+	})
+
+	t.Run("CursoredProducerMapperIterator with cursors disabled", func(t *testing.T) {
+		ctxWithoutCursors := DisableCursorsInContext(ctx)
+
+		intFromString := func(s string) (int, error) {
+			return strconv.Atoi(s)
+		}
+
+		intToString := func(i int) (string, error) {
+			return strconv.Itoa(i), nil
+		}
+
+		chunks := []Chunk[[]string, int]{
+			{CurrentChunk: []string{"ab", "cd"}, CurrentChunkCursor: 1},
+			{CurrentChunk: []string{"efg"}, CurrentChunkCursor: 2},
+		}
+
+		producer := func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkOrHold[[]string, int], error] {
+			return func(yield func(ChunkOrHold[[]string, int], error) bool) {
+				for i := startIndex; i < len(chunks); i++ {
+					if !yield(chunks[i], nil) {
+						return
+					}
+				}
+			}
+		}
+
+		mapper := func(ctx context.Context, remainingCursor Cursor, chunk []string) iter.Seq2[ItemAndCursor[int], error] {
+			return func(yield func(ItemAndCursor[int], error) bool) {
+				for i, item := range chunk {
+					cursorStr := fmt.Sprintf("mapped-%d", i)
+					value := len(item)
+					if !yield(ItemAndCursor[int]{Item: value, Cursor: Cursor{cursorStr}}, nil) {
+						return
+					}
+				}
+			}
+		}
+
+		result := CursoredProducerMapperIterator(ctxWithoutCursors, Cursor{}, 2, intFromString, intToString, producer, mapper)
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 3)
+
+		// All cursors should be nil when disabled
+		for _, item := range items {
+			require.Nil(t, item.Cursor, "cursor should be nil when cursors are disabled")
+		}
+
+		// Items should still be present
+		require.Equal(t, 2, items[0].Item) // len("ab")
+		require.Equal(t, 2, items[1].Item) // len("cd")
+		require.Equal(t, 3, items[2].Item) // len("efg")
+	})
+
+	t.Run("CursoredProducerMapperIterator with cursors enabled", func(t *testing.T) {
+		intFromString := func(s string) (int, error) {
+			return strconv.Atoi(s)
+		}
+
+		intToString := func(i int) (string, error) {
+			return strconv.Itoa(i), nil
+		}
+
+		chunks := []Chunk[[]string, int]{
+			{CurrentChunk: []string{"ab"}, CurrentChunkCursor: 1},
+		}
+
+		producer := func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkOrHold[[]string, int], error] {
+			return func(yield func(ChunkOrHold[[]string, int], error) bool) {
+				for i := startIndex; i < len(chunks); i++ {
+					if !yield(chunks[i], nil) {
+						return
+					}
+				}
+			}
+		}
+
+		mapper := func(ctx context.Context, remainingCursor Cursor, chunk []string) iter.Seq2[ItemAndCursor[int], error] {
+			return func(yield func(ItemAndCursor[int], error) bool) {
+				for i, item := range chunk {
+					cursorStr := fmt.Sprintf("mapped-%d", i)
+					value := len(item)
+					if !yield(ItemAndCursor[int]{Item: value, Cursor: Cursor{cursorStr}}, nil) {
+						return
+					}
+				}
+			}
+		}
+
+		result := CursoredProducerMapperIterator(ctx, Cursor{}, 2, intFromString, intToString, producer, mapper)
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 1)
+
+		// Cursor should be non-nil when enabled
+		require.NotNil(t, items[0].Cursor, "cursor should not be nil when cursors are enabled")
+		require.Equal(t, Cursor{"mapped-0", "1"}, items[0].Cursor)
+	})
+
+	t.Run("CursoredProducerMapperIterator with cursors disabled concurrency=1", func(t *testing.T) {
+		ctxWithoutCursors := DisableCursorsInContext(ctx)
+
+		intFromString := func(s string) (int, error) {
+			return strconv.Atoi(s)
+		}
+
+		intToString := func(i int) (string, error) {
+			return strconv.Itoa(i), nil
+		}
+
+		chunks := []Chunk[[]string, int]{
+			{CurrentChunk: []string{"test"}, CurrentChunkCursor: 1},
+		}
+
+		producer := func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkOrHold[[]string, int], error] {
+			return func(yield func(ChunkOrHold[[]string, int], error) bool) {
+				for i := startIndex; i < len(chunks); i++ {
+					if !yield(chunks[i], nil) {
+						return
+					}
+				}
+			}
+		}
+
+		mapper := func(ctx context.Context, remainingCursor Cursor, chunk []string) iter.Seq2[ItemAndCursor[int], error] {
+			return func(yield func(ItemAndCursor[int], error) bool) {
+				for i, item := range chunk {
+					cursorStr := fmt.Sprintf("mapped-%d", i)
+					value := len(item)
+					if !yield(ItemAndCursor[int]{Item: value, Cursor: Cursor{cursorStr}}, nil) {
+						return
+					}
+				}
+			}
+		}
+
+		result := CursoredProducerMapperIterator(ctxWithoutCursors, Cursor{}, 1, intFromString, intToString, producer, mapper)
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 1)
+
+		// Cursor should be nil when disabled
+		require.Nil(t, items[0].Cursor, "cursor should be nil when cursors are disabled")
+		require.Equal(t, 4, items[0].Item) // len("test")
+	})
+
+	t.Run("DisableCursorsInContext can be called multiple times", func(t *testing.T) {
+		ctxWithoutCursors1 := DisableCursorsInContext(ctx)
+		ctxWithoutCursors2 := DisableCursorsInContext(ctxWithoutCursors1)
+
+		header := func(ctx context.Context, startIndex int) iter.Seq2[int, error] {
+			return simpleIntSequence(startIndex, startIndex+1)
+		}
+
+		result := CursoredWithIntegerHeader(ctxWithoutCursors2, Cursor{}, header, Empty[int])
+		items := collectNoError(t, result)
+
+		require.Len(t, items, 1)
+		require.Nil(t, items[0].Cursor, "cursor should be nil when cursors are disabled")
+	})
+}

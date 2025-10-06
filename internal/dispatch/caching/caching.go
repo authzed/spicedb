@@ -312,18 +312,13 @@ func (cd *Dispatcher) DispatchLookupResources3(req *v1.DispatchLookupResources3R
 		Stream: stream,
 		Ctx:    stream.Context(),
 		Processor: func(result *v1.DispatchLookupResources3Response) (*v1.DispatchLookupResources3Response, bool, error) {
-			adjustedResult := result.CloneVT()
-			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
-			adjustedResult.Metadata.DispatchCount = 0
-			adjustedResult.Metadata.DebugInfo = nil
-
-			adjustedBytes, err := adjustedResult.MarshalVT()
+			bytes, err := result.MarshalVT()
 			if err != nil {
-				return &v1.DispatchLookupResources3Response{Metadata: &v1.ResponseMeta{}}, false, err
+				return &v1.DispatchLookupResources3Response{}, false, err
 			}
 
 			mu.Lock()
-			toCacheResults = append(toCacheResults, adjustedBytes)
+			toCacheResults = append(toCacheResults, bytes)
 			mu.Unlock()
 
 			return result, true, nil
