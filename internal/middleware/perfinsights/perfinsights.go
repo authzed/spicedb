@@ -138,7 +138,7 @@ func buildLabels(methodName string, shape APIShapeLabels) []string {
 			labels[index+1] = strconv.Itoa(intValue)
 
 		default:
-			spiceerrors.DebugAssert(func() bool { return false }, "unsupported type %T", t)
+			spiceerrors.DebugAssertf(func() bool { return false }, "unsupported type %T", t)
 			log.Warn().Str("method", methodName).
 				Str("key", label).
 				Str("type", fmt.Sprintf("%T", t)).
@@ -179,7 +179,7 @@ func (r *serverReporter) PostCall(err error, duration time.Duration) {
 	}
 
 	shapeClosure := ctxKey.Value(r.ctx)
-	spiceerrors.DebugAssertNotNil(shapeClosure, "ShapeBuilder should not be nil")
+	spiceerrors.DebugAssertNotNilf(shapeClosure, "ShapeBuilder should not be nil")
 
 	// If not testing and nil, simply skip.
 	if shapeClosure == nil {

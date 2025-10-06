@@ -175,7 +175,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 }
 
 func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) CheckResult {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return relation.GetUsersetRewrite() != nil || relation.GetTypeInformation() != nil
 	}, "found relation without type information")
 
@@ -539,7 +539,7 @@ func mapFoundResources(result CheckResult, resourceType tuple.RelationReference,
 	for foundResourceID, result := range result.Resp.ResultsByResourceId {
 		resourceIDAndCaveats := checksToDispatch.mappingsForSubject(resourceType.ObjectType, foundResourceID, resourceType.Relation)
 
-		spiceerrors.DebugAssert(func() bool {
+		spiceerrors.DebugAssertf(func() bool {
 			return len(resourceIDAndCaveats) > 0
 		}, "found resource ID without associated caveats")
 

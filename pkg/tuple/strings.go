@@ -86,7 +86,7 @@ func MustString(rel Relationship) string {
 
 // String converts a relationship to a string.
 func String(rel Relationship) (string, error) {
-	spiceerrors.DebugAssert(rel.ValidateNotEmpty, "relationship must not be empty")
+	spiceerrors.DebugAssertf(rel.ValidateNotEmpty, "relationship must not be empty")
 
 	caveatString, err := StringCaveat(rel.OptionalCaveat)
 	if err != nil {
@@ -111,7 +111,7 @@ func StringExpiration(expiration *time.Time) (string, error) {
 
 // StringWithoutCaveatOrExpiration converts a relationship to a string, without its caveat or expiration included.
 func StringWithoutCaveatOrExpiration(rel Relationship) string {
-	spiceerrors.DebugAssert(rel.ValidateNotEmpty, "relationship must not be empty")
+	spiceerrors.DebugAssertf(rel.ValidateNotEmpty, "relationship must not be empty")
 
 	return StringONR(rel.Resource) + "@" + StringONR(rel.Subject)
 }

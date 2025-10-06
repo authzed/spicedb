@@ -65,7 +65,7 @@ func ComputeCheck(
 		return nil, meta, err
 	}
 
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return (len(di) == 0 && meta.DebugInfo == nil) || (len(di) == 1 && meta.DebugInfo != nil)
 	}, "mismatch in debug information returned from computeCheck")
 

@@ -79,7 +79,7 @@ func (si SchemaInformation) expectedIndexesForShape(shape queryshape.Shape) opti
 }
 
 func (si SchemaInformation) debugValidate() {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		si.mustValidate()
 		return true
 	}, "SchemaInformation failed to validate")

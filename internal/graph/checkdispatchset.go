@@ -139,6 +139,6 @@ func (s *checkDispatchSet) dispatchChunks(dispatchChunkSize uint16) []checkDispa
 // that the subject has a relationship with.
 func (s *checkDispatchSet) mappingsForSubject(subjectType string, subjectObjectID string, subjectRelation string) []resourceIDAndCaveat {
 	results, ok := s.bySubject.Get(tuple.ONR(subjectType, subjectObjectID, subjectRelation))
-	spiceerrors.DebugAssert(func() bool { return ok }, "no caveats found for subject %s:%s:%s", subjectType, subjectObjectID, subjectRelation)
+	spiceerrors.DebugAssertf(func() bool { return ok }, "no caveats found for subject %s:%s:%s", subjectType, subjectObjectID, subjectRelation)
 	return results
 }

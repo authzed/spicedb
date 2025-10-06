@@ -147,7 +147,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 	return withParallelizedStreamingIterableInCursor(ctx, ci, entrypoints, parentStream, crr.concurrencyLimit,
 		func(ctx context.Context, ci cursorInformation, entrypoint schema.ReachabilityEntrypoint, stream dispatch.LookupResources2Stream) error {
 			ds, err := entrypoint.DebugString()
-			spiceerrors.DebugAssert(func() bool {
+			spiceerrors.DebugAssertf(func() bool {
 				return err == nil
 			}, "Error in entrypoint.DebugString()")
 			ctx, span := tracer.Start(ctx, "entrypoint: "+ds, trace.WithAttributes())

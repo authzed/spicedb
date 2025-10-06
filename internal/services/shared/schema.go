@@ -370,7 +370,7 @@ func sanityCheckNamespaceChanges(
 			}
 
 			// Also check for right sides of tuples.
-			spiceerrors.DebugAssert(func() bool {
+			spiceerrors.DebugAssertf(func() bool {
 				return delta.RelationName != tuple.Ellipsis && delta.RelationName != ""
 			}, "relation name should not be empty or ellipsis when checking for reverse relationships")
 

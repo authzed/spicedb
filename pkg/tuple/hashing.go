@@ -14,7 +14,7 @@ import (
 // CanonicalBytes converts a tuple to a canonical set of bytes.
 // Can be used for hashing purposes.
 func CanonicalBytes(rel Relationship) ([]byte, error) {
-	spiceerrors.DebugAssert(rel.ValidateNotEmpty, "relationship must not be empty")
+	spiceerrors.DebugAssertf(rel.ValidateNotEmpty, "relationship must not be empty")
 
 	var sb bytes.Buffer
 	sb.WriteString(rel.Resource.ObjectType)
