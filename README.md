@@ -286,7 +286,7 @@ If you choose to self-host, we recommend deploying SpiceDB using Kubernetes. If 
 kubectl apply -f https://raw.githubusercontent.com/authzed/examples/main/kubernetes/example.yaml
 ```
 
-For a more detailed guide on the SpiceDB Kubernetes Operator, see [this](https://authzed.com/docs/spicedb/concepts/operator).
+For a more detailed guide on the SpiceDB Kubernetes Operator, see [this](https://authzed.com/docs/spicedb/ops/operator).
 
 For more best practices on deploying SpiceDB, read our [best practices guide].
 
