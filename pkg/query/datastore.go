@@ -50,19 +50,19 @@ func NewRelationIterator(base *schema.BaseRelation) *RelationIterator {
 }
 
 func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelationFilter {
-	if r.base.Subrelation == tuple.Ellipsis {
+	if r.base.Subrelation() == tuple.Ellipsis {
 		return datastore.SubjectRelationFilter{}.WithEllipsisRelation()
 	}
-	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation)
+	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation())
 }
 
 func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// If the subject type doesn't match the base relation type, return no results
-	if subject.ObjectType != r.base.Type {
+	if subject.ObjectType != r.base.Type() {
 		return EmptyPathSeq(), nil
 	}
 
-	if r.base.Wildcard {
+	if r.base.Wildcard() {
 		return r.checkWildcardImpl(ctx, resources, subject)
 	}
 	return r.checkNormalImpl(ctx, resources, subject)
@@ -80,7 +80,7 @@ func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, sub
 		OptionalResourceRelation: r.base.RelationName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
-				OptionalSubjectType: r.base.Type,
+				OptionalSubjectType: r.base.Type(),
 				OptionalSubjectIds:  []string{subject.ObjectID},
 				RelationFilter:      r.buildSubjectRelationFilter(),
 			},
@@ -90,8 +90,8 @@ func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, sub
 	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
 
 	relIter, err := reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat == ""),
-		options.WithSkipExpiration(!r.base.Expiration),
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
 	)
 	if err != nil {
@@ -114,7 +114,7 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 		OptionalResourceRelation: r.base.RelationName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
-				OptionalSubjectType: r.base.Type,
+				OptionalSubjectType: r.base.Type(),
 				OptionalSubjectIds:  []string{tuple.PublicWildcard}, // Look for "*" subjects
 				RelationFilter:      r.buildSubjectRelationFilter(),
 			},
@@ -124,8 +124,8 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
 
 	relIter, err := reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat == ""),
-		options.WithSkipExpiration(!r.base.Expiration),
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
 	)
 	if err != nil {
@@ -156,7 +156,7 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 }
 
 func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	if r.base.Wildcard {
+	if r.base.Wildcard() {
 		return r.iterSubjectsWildcardImpl(ctx, resource)
 	}
 	return r.iterSubjectsNormalImpl(ctx, resource)
@@ -169,7 +169,7 @@ func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object)
 		OptionalResourceRelation: r.base.RelationName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
-				OptionalSubjectType: r.base.Type,
+				OptionalSubjectType: r.base.Type(),
 				RelationFilter:      r.buildSubjectRelationFilter(),
 			},
 		},
@@ -178,8 +178,8 @@ func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object)
 	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
 
 	relIter, err := reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat == ""),
-		options.WithSkipExpiration(!r.base.Expiration),
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.AllSubjectsForResources),
 	)
 	if err != nil {
@@ -196,7 +196,7 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 		OptionalResourceRelation: r.base.RelationName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
-				OptionalSubjectType: r.base.Type,
+				OptionalSubjectType: r.base.Type(),
 				OptionalSubjectIds:  []string{tuple.PublicWildcard}, // Look for "*" subjects
 				RelationFilter:      r.buildSubjectRelationFilter(),
 			},
@@ -206,8 +206,8 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
 
 	relIter, err := reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat == ""),
-		options.WithSkipExpiration(!r.base.Expiration),
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.AllSubjectsForResources),
 	)
 	if err != nil {
@@ -228,13 +228,13 @@ func (r *RelationIterator) Clone() Iterator {
 }
 
 func (r *RelationIterator) Explain() Explain {
-	relationName := r.base.Subrelation
-	if r.base.Wildcard {
+	relationName := r.base.Subrelation()
+	if r.base.Wildcard() {
 		relationName = "*"
 	}
 	return Explain{
 		Info: fmt.Sprintf("Relation(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
-			r.base.DefinitionName(), r.base.RelationName(), r.base.Type, relationName,
-			r.base.Caveat != "", r.base.Expiration),
+			r.base.DefinitionName(), r.base.RelationName(), r.base.Type(), relationName,
+			r.base.Caveat() != "", r.base.Expiration()),
 	}
 }

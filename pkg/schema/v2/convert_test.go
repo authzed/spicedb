@@ -22,9 +22,9 @@ func TestConvertDefinitionEdgeCases(t *testing.T) {
 
 		result, err := convertDefinition(def)
 		require.NoError(t, err)
-		require.Equal(t, "test", result.Name)
-		require.Empty(t, result.Relations)
-		require.Empty(t, result.Permissions)
+		require.Equal(t, "test", result.Name())
+		require.Empty(t, result.Relations())
+		require.Empty(t, result.Permissions())
 	})
 
 	t.Run("definition with relation having both userset and typeinfo", func(t *testing.T) {
@@ -60,10 +60,10 @@ func TestConvertDefinitionEdgeCases(t *testing.T) {
 
 		result, err := convertDefinition(def)
 		require.NoError(t, err)
-		require.Equal(t, "test", result.Name)
-		require.Empty(t, result.Relations)
-		require.Len(t, result.Permissions, 1)
-		require.Contains(t, result.Permissions, "test_rel")
+		require.Equal(t, "test", result.Name())
+		require.Empty(t, result.Relations())
+		require.Len(t, result.Permissions(), 1)
+		require.Contains(t, result.Permissions(), "test_rel")
 	})
 }
 
@@ -114,13 +114,13 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 
 		result, err := convertTypeInformation(typeinfo)
 		require.NoError(t, err)
-		require.Len(t, result.BaseRelations, 1)
+		require.Len(t, result.BaseRelations(), 1)
 
-		baseRel := result.BaseRelations[0]
-		require.Equal(t, "user", baseRel.Type)
-		require.False(t, baseRel.Wildcard)
-		require.Equal(t, "test_caveat", baseRel.Caveat)
-		require.True(t, baseRel.Expiration)
+		baseRel := result.BaseRelations()[0]
+		require.Equal(t, "user", baseRel.Type())
+		require.False(t, baseRel.Wildcard())
+		require.Equal(t, "test_caveat", baseRel.Caveat())
+		require.True(t, baseRel.Expiration())
 	})
 
 	t.Run("type information with empty relation name", func(t *testing.T) {
@@ -136,11 +136,11 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 
 		result, err := convertTypeInformation(typeinfo)
 		require.NoError(t, err)
-		require.Len(t, result.BaseRelations, 1)
+		require.Len(t, result.BaseRelations(), 1)
 
-		baseRel := result.BaseRelations[0]
-		require.Equal(t, "user", baseRel.Type)
-		require.Equal(t, "...", baseRel.Subrelation)
+		baseRel := result.BaseRelations()[0]
+		require.Equal(t, "user", baseRel.Type())
+		require.Equal(t, "...", baseRel.Subrelation())
 	})
 
 	t.Run("type information with ellipsis relation", func(t *testing.T) {
@@ -156,11 +156,11 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 
 		result, err := convertTypeInformation(typeinfo)
 		require.NoError(t, err)
-		require.Len(t, result.BaseRelations, 1)
+		require.Len(t, result.BaseRelations(), 1)
 
-		baseRel := result.BaseRelations[0]
-		require.Equal(t, "user", baseRel.Type)
-		require.Equal(t, "...", baseRel.Subrelation)
+		baseRel := result.BaseRelations()[0]
+		require.Equal(t, "user", baseRel.Type())
+		require.Equal(t, "...", baseRel.Subrelation())
 	})
 
 	t.Run("type information with specific subrelation", func(t *testing.T) {
@@ -176,11 +176,11 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 
 		result, err := convertTypeInformation(typeinfo)
 		require.NoError(t, err)
-		require.Len(t, result.BaseRelations, 1)
+		require.Len(t, result.BaseRelations(), 1)
 
-		baseRel := result.BaseRelations[0]
-		require.Equal(t, "organization", baseRel.Type)
-		require.Equal(t, "member", baseRel.Subrelation)
+		baseRel := result.BaseRelations()[0]
+		require.Equal(t, "organization", baseRel.Type())
+		require.Equal(t, "member", baseRel.Subrelation())
 	})
 }
 
@@ -206,7 +206,7 @@ func TestConvertSetOperationEdgeCases(t *testing.T) {
 		// Should create a UnionOperation with empty children
 		union, ok := result.(*UnionOperation)
 		require.True(t, ok)
-		require.Empty(t, union.Children)
+		require.Empty(t, union.Children())
 	})
 
 	t.Run("single child optimization", func(t *testing.T) {
@@ -225,7 +225,7 @@ func TestConvertSetOperationEdgeCases(t *testing.T) {
 		// Should return the child directly, not wrapped in UnionOperation
 		relRef, ok := result.(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "_this", relRef.RelationName)
+		require.Equal(t, "_this", relRef.RelationName())
 	})
 }
 
@@ -255,7 +255,7 @@ func TestConvertSetOperationAsIntersectionEdgeCases(t *testing.T) {
 		// Should return the child directly, not wrapped in IntersectionOperation
 		relRef, ok := result.(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "_this", relRef.RelationName)
+		require.Equal(t, "_this", relRef.RelationName())
 	})
 }
 
@@ -346,13 +346,13 @@ func TestConvertSetOperationAsExclusionEdgeCases(t *testing.T) {
 		exclusion, ok := result.(*ExclusionOperation)
 		require.True(t, ok)
 
-		leftRef, ok := exclusion.Left.(*RelationReference)
+		leftRef, ok := exclusion.Left().(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "left", leftRef.RelationName)
+		require.Equal(t, "left", leftRef.RelationName())
 
-		rightRef, ok := exclusion.Right.(*RelationReference)
+		rightRef, ok := exclusion.Right().(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "right", rightRef.RelationName)
+		require.Equal(t, "right", rightRef.RelationName())
 	})
 }
 
@@ -377,7 +377,7 @@ func TestConvertChildEdgeCases(t *testing.T) {
 
 		relRef, ok := result.(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "_this", relRef.RelationName)
+		require.Equal(t, "_this", relRef.RelationName())
 	})
 
 	t.Run("ComputedUserset child", func(t *testing.T) {
@@ -395,7 +395,7 @@ func TestConvertChildEdgeCases(t *testing.T) {
 
 		relRef, ok := result.(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "test_relation", relRef.RelationName)
+		require.Equal(t, "test_relation", relRef.RelationName())
 	})
 
 	t.Run("UsersetRewrite child", func(t *testing.T) {
@@ -422,7 +422,7 @@ func TestConvertChildEdgeCases(t *testing.T) {
 		// Should return the nested operation directly
 		relRef, ok := result.(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "_this", relRef.RelationName)
+		require.Equal(t, "_this", relRef.RelationName())
 	})
 
 	t.Run("TupleToUserset child", func(t *testing.T) {
@@ -445,8 +445,8 @@ func TestConvertChildEdgeCases(t *testing.T) {
 
 		arrow, ok := result.(*ArrowReference)
 		require.True(t, ok)
-		require.Equal(t, "parent", arrow.Left)
-		require.Equal(t, "member", arrow.Right)
+		require.Equal(t, "parent", arrow.Left())
+		require.Equal(t, "member", arrow.Right())
 	})
 
 	t.Run("XNil child", func(t *testing.T) {
@@ -460,7 +460,7 @@ func TestConvertChildEdgeCases(t *testing.T) {
 
 		relRef, ok := result.(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "_nil", relRef.RelationName)
+		require.Equal(t, "_nil", relRef.RelationName())
 	})
 
 	t.Run("unknown child type", func(t *testing.T) {
@@ -488,9 +488,9 @@ func TestConvertCaveatEdgeCases(t *testing.T) {
 
 		result, err := convertCaveat(def)
 		require.NoError(t, err)
-		require.Equal(t, "test_caveat", result.Name)
-		require.Equal(t, "test expression", result.Expression)
-		require.Empty(t, result.ParameterTypes)
+		require.Equal(t, "test_caveat", result.Name())
+		require.Equal(t, "test expression", result.Expression())
+		require.Empty(t, result.ParameterTypes())
 	})
 
 	t.Run("caveat with multiple parameter types", func(t *testing.T) {
@@ -507,12 +507,12 @@ func TestConvertCaveatEdgeCases(t *testing.T) {
 
 		result, err := convertCaveat(def)
 		require.NoError(t, err)
-		require.Equal(t, "complex_caveat", result.Name)
-		require.Equal(t, "complex expression", result.Expression)
-		require.Len(t, result.ParameterTypes, 3)
-		require.Contains(t, result.ParameterTypes, "param1")
-		require.Contains(t, result.ParameterTypes, "param2")
-		require.Contains(t, result.ParameterTypes, "param3")
+		require.Equal(t, "complex_caveat", result.Name())
+		require.Equal(t, "complex expression", result.Expression())
+		require.Len(t, result.ParameterTypes(), 3)
+		require.Contains(t, result.ParameterTypes(), "param1")
+		require.Contains(t, result.ParameterTypes(), "param2")
+		require.Contains(t, result.ParameterTypes(), "param3")
 	})
 }
 
@@ -553,15 +553,15 @@ func TestConvertChildWithNestedOperations(t *testing.T) {
 
 		union, ok := result.(*UnionOperation)
 		require.True(t, ok)
-		require.Len(t, union.Children, 2)
+		require.Len(t, union.Children(), 2)
 
-		rel1, ok := union.Children[0].(*RelationReference)
+		rel1, ok := union.Children()[0].(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "rel1", rel1.RelationName)
+		require.Equal(t, "rel1", rel1.RelationName())
 
-		rel2, ok := union.Children[1].(*RelationReference)
+		rel2, ok := union.Children()[1].(*RelationReference)
 		require.True(t, ok)
-		require.Equal(t, "rel2", rel2.RelationName)
+		require.Equal(t, "rel2", rel2.RelationName())
 	})
 
 	t.Run("nested intersection in userset rewrite", func(t *testing.T) {
@@ -598,7 +598,7 @@ func TestConvertChildWithNestedOperations(t *testing.T) {
 
 		intersection, ok := result.(*IntersectionOperation)
 		require.True(t, ok)
-		require.Len(t, intersection.Children, 2)
+		require.Len(t, intersection.Children(), 2)
 	})
 
 	t.Run("error in nested userset rewrite", func(t *testing.T) {

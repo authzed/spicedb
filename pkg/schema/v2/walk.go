@@ -94,7 +94,7 @@ func WalkSchema[T any](s *Schema, v Visitor[T], value T) (T, error) {
 		}
 	}
 
-	for _, def := range s.Definitions {
+	for _, def := range s.definitions {
 		newValue, err := WalkDefinition(def, v, currentValue)
 		if err != nil {
 			return currentValue, err
@@ -102,7 +102,7 @@ func WalkSchema[T any](s *Schema, v Visitor[T], value T) (T, error) {
 		currentValue = newValue
 	}
 
-	for _, caveat := range s.Caveats {
+	for _, caveat := range s.caveats {
 		newValue, err := WalkCaveat(caveat, v, currentValue)
 		if err != nil {
 			return currentValue, err
@@ -132,7 +132,7 @@ func WalkDefinition[T any](d *Definition, v Visitor[T], value T) (T, error) {
 		}
 	}
 
-	for _, rel := range d.Relations {
+	for _, rel := range d.relations {
 		newValue, err := WalkRelation(rel, v, currentValue)
 		if err != nil {
 			return currentValue, err
@@ -140,7 +140,7 @@ func WalkDefinition[T any](d *Definition, v Visitor[T], value T) (T, error) {
 		currentValue = newValue
 	}
 
-	for _, perm := range d.Permissions {
+	for _, perm := range d.permissions {
 		newValue, err := WalkPermission(perm, v, currentValue)
 		if err != nil {
 			return currentValue, err
@@ -187,7 +187,7 @@ func WalkRelation[T any](r *Relation, v Visitor[T], value T) (T, error) {
 		}
 	}
 
-	for _, br := range r.BaseRelations {
+	for _, br := range r.baseRelations {
 		newValue, err := WalkBaseRelation(br, v, currentValue)
 		if err != nil {
 			return currentValue, err
@@ -234,7 +234,7 @@ func WalkPermission[T any](p *Permission, v Visitor[T], value T) (T, error) {
 		}
 	}
 
-	return WalkOperation(p.Operation, v, currentValue)
+	return WalkOperation(p.operation, v, currentValue)
 }
 
 // WalkOperation walks an operation tree recursively.
@@ -286,7 +286,7 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 				return currentValue, nil
 			}
 		}
-		for _, child := range o.Children {
+		for _, child := range o.children {
 			newValue, err := WalkOperation(child, v, currentValue)
 			if err != nil {
 				return currentValue, err
@@ -305,7 +305,7 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 				return currentValue, nil
 			}
 		}
-		for _, child := range o.Children {
+		for _, child := range o.children {
 			newValue, err := WalkOperation(child, v, currentValue)
 			if err != nil {
 				return currentValue, err
@@ -324,13 +324,13 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 				return currentValue, nil
 			}
 		}
-		newValue, err := WalkOperation(o.Left, v, currentValue)
+		newValue, err := WalkOperation(o.left, v, currentValue)
 		if err != nil {
 			return currentValue, err
 		}
 		currentValue = newValue
 
-		newValue, err = WalkOperation(o.Right, v, currentValue)
+		newValue, err = WalkOperation(o.right, v, currentValue)
 		if err != nil {
 			return currentValue, err
 		}

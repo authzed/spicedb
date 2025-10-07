@@ -30,8 +30,8 @@ func TestCheck(t *testing.T) {
 	// by iterating through the relationships in the schema and then walking them.
 	//
 	// In this case, it's a little contrived.
-	vande := NewRelationIterator(dsSchema.Definitions["document"].Relations["viewer_and_editor"].BaseRelations[0])
-	edit := NewRelationIterator(dsSchema.Definitions["document"].Relations["editor"].BaseRelations[0])
+	vande := NewRelationIterator(dsSchema.Definitions()["document"].Relations()["viewer_and_editor"].BaseRelations()[0])
+	edit := NewRelationIterator(dsSchema.Definitions()["document"].Relations()["editor"].BaseRelations()[0])
 	it := NewIntersection()
 	it.addSubIterator(vande)
 	it.addSubIterator(edit)
@@ -64,7 +64,7 @@ func TestBaseIterSubjects(t *testing.T) {
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
-	vande := NewRelationIterator(dsSchema.Definitions["document"].Relations["viewer_and_editor"].BaseRelations[0])
+	vande := NewRelationIterator(dsSchema.Definitions()["document"].Relations()["viewer_and_editor"].BaseRelations()[0])
 
 	ctx := &Context{
 		Context:   t.Context(),
@@ -95,8 +95,8 @@ func TestCheckArrow(t *testing.T) {
 	require.NoError(err)
 
 	// This is effectively `permission foo = parent_folder->viewer`
-	folders := NewRelationIterator(dsSchema.Definitions["document"].Relations["parent"].BaseRelations[0])
-	view := NewRelationIterator(dsSchema.Definitions["folder"].Relations["viewer"].BaseRelations[0])
+	folders := NewRelationIterator(dsSchema.Definitions()["document"].Relations()["parent"].BaseRelations()[0])
+	view := NewRelationIterator(dsSchema.Definitions()["folder"].Relations()["viewer"].BaseRelations()[0])
 	it := NewArrow(folders, view)
 
 	ctx := &Context{

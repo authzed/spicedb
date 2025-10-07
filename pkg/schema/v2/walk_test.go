@@ -96,8 +96,8 @@ func TestWalkSchema_Nil(t *testing.T) {
 
 func TestWalkSchema_Empty(t *testing.T) {
 	schema := &Schema{
-		Definitions: make(map[string]*Definition),
-		Caveats:     make(map[string]*Caveat),
+		definitions: make(map[string]*Definition),
+		caveats:     make(map[string]*Caveat),
 	}
 
 	visitor := &testVisitor{}
@@ -112,28 +112,28 @@ func TestWalkSchema_Empty(t *testing.T) {
 
 func TestWalkSchema_WithDefinitionsAndCaveats(t *testing.T) {
 	schema := &Schema{
-		Definitions: map[string]*Definition{
+		definitions: map[string]*Definition{
 			"user": {
-				Name:        "user",
-				Relations:   make(map[string]*Relation),
-				Permissions: make(map[string]*Permission),
+				name:        "user",
+				relations:   make(map[string]*Relation),
+				permissions: make(map[string]*Permission),
 			},
 			"document": {
-				Name:        "document",
-				Relations:   make(map[string]*Relation),
-				Permissions: make(map[string]*Permission),
+				name:        "document",
+				relations:   make(map[string]*Relation),
+				permissions: make(map[string]*Permission),
 			},
 		},
-		Caveats: map[string]*Caveat{
+		caveats: map[string]*Caveat{
 			"is_admin": {
-				Name:       "is_admin",
-				Expression: "admin == true",
+				name:       "is_admin",
+				expression: "admin == true",
 			},
 		},
 	}
-	schema.Definitions["user"].Parent = schema
-	schema.Definitions["document"].Parent = schema
-	schema.Caveats["is_admin"].Parent = schema
+	schema.definitions["user"].parent = schema
+	schema.definitions["document"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	visitor := &testVisitor{}
 	_, err := WalkSchema(schema, visitor, struct{}{})
@@ -146,24 +146,24 @@ func TestWalkSchema_WithDefinitionsAndCaveats(t *testing.T) {
 
 func TestWalkDefinition_WithRelations(t *testing.T) {
 	rel1 := &Relation{
-		Name:          "viewer",
-		BaseRelations: []*BaseRelation{},
+		name:          "viewer",
+		baseRelations: []*BaseRelation{},
 	}
 	rel2 := &Relation{
-		Name:          "editor",
-		BaseRelations: []*BaseRelation{},
+		name:          "editor",
+		baseRelations: []*BaseRelation{},
 	}
 
 	def := &Definition{
-		Name: "document",
-		Relations: map[string]*Relation{
+		name: "document",
+		relations: map[string]*Relation{
 			"viewer": rel1,
 			"editor": rel2,
 		},
-		Permissions: make(map[string]*Permission),
+		permissions: make(map[string]*Permission),
 	}
-	rel1.Parent = def
-	rel2.Parent = def
+	rel1.parent = def
+	rel2.parent = def
 
 	visitor := &testVisitor{}
 	_, err := WalkDefinition(def, visitor, struct{}{})
@@ -175,24 +175,24 @@ func TestWalkDefinition_WithRelations(t *testing.T) {
 
 func TestWalkRelation_WithBaseRelations(t *testing.T) {
 	br1 := &BaseRelation{
-		Type: "user",
+		subjectType: "user",
 	}
 	br2 := &BaseRelation{
-		Type:        "user",
-		Subrelation: "viewer",
+		subjectType: "user",
+		subrelation: "viewer",
 	}
 	br3 := &BaseRelation{
-		Type:     "user",
-		Wildcard: true,
+		subjectType: "user",
+		wildcard:    true,
 	}
 
 	rel := &Relation{
-		Name:          "viewer",
-		BaseRelations: []*BaseRelation{br1, br2, br3},
+		name:          "viewer",
+		baseRelations: []*BaseRelation{br1, br2, br3},
 	}
-	br1.Parent = rel
-	br2.Parent = rel
-	br3.Parent = rel
+	br1.parent = rel
+	br2.parent = rel
+	br3.parent = rel
 
 	visitor := &testVisitor{}
 	_, err := WalkRelation(rel, visitor, struct{}{})
@@ -204,12 +204,12 @@ func TestWalkRelation_WithBaseRelations(t *testing.T) {
 
 func TestWalkPermission_WithSimpleOperation(t *testing.T) {
 	op := &RelationReference{
-		RelationName: "viewer",
+		relationName: "viewer",
 	}
 
 	perm := &Permission{
-		Name:      "view",
-		Operation: op,
+		name:      "view",
+		operation: op,
 	}
 
 	visitor := &testVisitor{}
@@ -219,12 +219,12 @@ func TestWalkPermission_WithSimpleOperation(t *testing.T) {
 	require.Len(t, visitor.permissions, 1)
 	require.Len(t, visitor.operations, 1)
 	require.Len(t, visitor.relationReferences, 1)
-	require.Equal(t, "viewer", visitor.relationReferences[0].RelationName)
+	require.Equal(t, "viewer", visitor.relationReferences[0].RelationName())
 }
 
 func TestWalkOperation_RelationReference(t *testing.T) {
 	op := &RelationReference{
-		RelationName: "viewer",
+		relationName: "viewer",
 	}
 
 	visitor := &testVisitor{}
@@ -233,13 +233,13 @@ func TestWalkOperation_RelationReference(t *testing.T) {
 
 	require.Len(t, visitor.operations, 1)
 	require.Len(t, visitor.relationReferences, 1)
-	require.Equal(t, "viewer", visitor.relationReferences[0].RelationName)
+	require.Equal(t, "viewer", visitor.relationReferences[0].RelationName())
 }
 
 func TestWalkOperation_ArrowReference(t *testing.T) {
 	op := &ArrowReference{
-		Left:  "parent",
-		Right: "viewer",
+		left:  "parent",
+		right: "viewer",
 	}
 
 	visitor := &testVisitor{}
@@ -248,16 +248,16 @@ func TestWalkOperation_ArrowReference(t *testing.T) {
 
 	require.Len(t, visitor.operations, 1)
 	require.Len(t, visitor.arrowReferences, 1)
-	require.Equal(t, "parent", visitor.arrowReferences[0].Left)
-	require.Equal(t, "viewer", visitor.arrowReferences[0].Right)
+	require.Equal(t, "parent", visitor.arrowReferences[0].Left())
+	require.Equal(t, "viewer", visitor.arrowReferences[0].Right())
 }
 
 func TestWalkOperation_UnionOperation(t *testing.T) {
 	op := &UnionOperation{
-		Children: []Operation{
-			&RelationReference{RelationName: "viewer"},
-			&RelationReference{RelationName: "editor"},
-			&RelationReference{RelationName: "admin"},
+		children: []Operation{
+			&RelationReference{relationName: "viewer"},
+			&RelationReference{relationName: "editor"},
+			&RelationReference{relationName: "admin"},
 		},
 	}
 
@@ -272,9 +272,9 @@ func TestWalkOperation_UnionOperation(t *testing.T) {
 
 func TestWalkOperation_IntersectionOperation(t *testing.T) {
 	op := &IntersectionOperation{
-		Children: []Operation{
-			&RelationReference{RelationName: "viewer"},
-			&RelationReference{RelationName: "approved"},
+		children: []Operation{
+			&RelationReference{relationName: "viewer"},
+			&RelationReference{relationName: "approved"},
 		},
 	}
 
@@ -289,8 +289,8 @@ func TestWalkOperation_IntersectionOperation(t *testing.T) {
 
 func TestWalkOperation_ExclusionOperation(t *testing.T) {
 	op := &ExclusionOperation{
-		Left:  &RelationReference{RelationName: "viewer"},
-		Right: &RelationReference{RelationName: "banned"},
+		left:  &RelationReference{relationName: "viewer"},
+		right: &RelationReference{relationName: "banned"},
 	}
 
 	visitor := &testVisitor{}
@@ -306,18 +306,18 @@ func TestWalkOperation_ComplexNestedOperation(t *testing.T) {
 	// Build a complex operation tree:
 	// (viewer | editor) & approved - banned
 	op := &ExclusionOperation{
-		Left: &IntersectionOperation{
-			Children: []Operation{
+		left: &IntersectionOperation{
+			children: []Operation{
 				&UnionOperation{
-					Children: []Operation{
-						&RelationReference{RelationName: "viewer"},
-						&RelationReference{RelationName: "editor"},
+					children: []Operation{
+						&RelationReference{relationName: "viewer"},
+						&RelationReference{relationName: "editor"},
 					},
 				},
-				&RelationReference{RelationName: "approved"},
+				&RelationReference{relationName: "approved"},
 			},
 		},
-		Right: &RelationReference{RelationName: "banned"},
+		right: &RelationReference{relationName: "banned"},
 	}
 
 	visitor := &testVisitor{}
@@ -334,12 +334,12 @@ func TestWalkOperation_ComplexNestedOperation(t *testing.T) {
 func TestWalkOperation_WithArrowInComplex(t *testing.T) {
 	// Build: parent->viewer | editor
 	op := &UnionOperation{
-		Children: []Operation{
+		children: []Operation{
 			&ArrowReference{
-				Left:  "parent",
-				Right: "viewer",
+				left:  "parent",
+				right: "viewer",
 			},
-			&RelationReference{RelationName: "editor"},
+			&RelationReference{relationName: "editor"},
 		},
 	}
 
@@ -356,51 +356,51 @@ func TestWalkOperation_WithArrowInComplex(t *testing.T) {
 func TestWalkSchema_CompleteSchemaTraversal(t *testing.T) {
 	// Build a complete schema with all node types
 	br1 := &BaseRelation{
-		Type: "user",
+		subjectType: "user",
 	}
 	rel1 := &Relation{
-		Name:          "viewer",
-		BaseRelations: []*BaseRelation{br1},
+		name:          "viewer",
+		baseRelations: []*BaseRelation{br1},
 	}
-	br1.Parent = rel1
+	br1.parent = rel1
 
 	perm1 := &Permission{
-		Name: "view",
-		Operation: &UnionOperation{
-			Children: []Operation{
-				&RelationReference{RelationName: "viewer"},
-				&ArrowReference{Left: "parent", Right: "view"},
+		name: "view",
+		operation: &UnionOperation{
+			children: []Operation{
+				&RelationReference{relationName: "viewer"},
+				&ArrowReference{left: "parent", right: "view"},
 			},
 		},
 	}
 
 	def1 := &Definition{
-		Name: "document",
-		Relations: map[string]*Relation{
+		name: "document",
+		relations: map[string]*Relation{
 			"viewer": rel1,
 		},
-		Permissions: map[string]*Permission{
+		permissions: map[string]*Permission{
 			"view": perm1,
 		},
 	}
-	rel1.Parent = def1
-	perm1.Parent = def1
+	rel1.parent = def1
+	perm1.parent = def1
 
 	caveat1 := &Caveat{
-		Name:       "is_admin",
-		Expression: "admin == true",
+		name:       "is_admin",
+		expression: "admin == true",
 	}
 
 	schema := &Schema{
-		Definitions: map[string]*Definition{
+		definitions: map[string]*Definition{
 			"document": def1,
 		},
-		Caveats: map[string]*Caveat{
+		caveats: map[string]*Caveat{
 			"is_admin": caveat1,
 		},
 	}
-	def1.Parent = schema
-	caveat1.Parent = schema
+	def1.parent = schema
+	caveat1.parent = schema
 
 	visitor := &testVisitor{}
 	_, err := WalkSchema(schema, visitor, struct{}{})
@@ -438,16 +438,16 @@ func TestWalkSchema_PartialVisitor(t *testing.T) {
 	pv := &partialVisitor{}
 
 	schema := &Schema{
-		Definitions: map[string]*Definition{
+		definitions: map[string]*Definition{
 			"user": {
-				Name:        "user",
-				Relations:   map[string]*Relation{},
-				Permissions: map[string]*Permission{},
+				name:        "user",
+				relations:   map[string]*Relation{},
+				permissions: map[string]*Permission{},
 			},
 		},
-		Caveats: make(map[string]*Caveat),
+		caveats: make(map[string]*Caveat),
 	}
-	schema.Definitions["user"].Parent = schema
+	schema.definitions["user"].parent = schema
 
 	_, err := WalkSchema(schema, pv, struct{}{})
 	require.NoError(t, err)
@@ -461,7 +461,7 @@ func TestWalkSchema_PartialVisitor(t *testing.T) {
 type errorVisitor struct{}
 
 func (ev *errorVisitor) VisitDefinition(d *Definition, value struct{}) (struct{}, bool, error) {
-	if d.Name == "document" {
+	if d.Name() == "document" {
 		return value, false, errTestError
 	}
 	return value, true, nil
@@ -469,22 +469,22 @@ func (ev *errorVisitor) VisitDefinition(d *Definition, value struct{}) (struct{}
 
 func TestWalkSchema_ErrorPropagation(t *testing.T) {
 	schema := &Schema{
-		Definitions: map[string]*Definition{
+		definitions: map[string]*Definition{
 			"user": {
-				Name:        "user",
-				Relations:   make(map[string]*Relation),
-				Permissions: make(map[string]*Permission),
+				name:        "user",
+				relations:   make(map[string]*Relation),
+				permissions: make(map[string]*Permission),
 			},
 			"document": {
-				Name:        "document",
-				Relations:   make(map[string]*Relation),
-				Permissions: make(map[string]*Permission),
+				name:        "document",
+				relations:   make(map[string]*Relation),
+				permissions: make(map[string]*Permission),
 			},
 		},
-		Caveats: make(map[string]*Caveat),
+		caveats: make(map[string]*Caveat),
 	}
-	schema.Definitions["user"].Parent = schema
-	schema.Definitions["document"].Parent = schema
+	schema.definitions["user"].parent = schema
+	schema.definitions["document"].parent = schema
 
 	ev := &errorVisitor{}
 	_, err := WalkSchema(schema, ev, struct{}{})
@@ -510,16 +510,16 @@ func (sv *stopVisitor) VisitDefinition(d *Definition, value struct{}) (struct{},
 
 func TestWalkSchema_EarlyTerminationOnSchema(t *testing.T) {
 	schema := &Schema{
-		Definitions: map[string]*Definition{
+		definitions: map[string]*Definition{
 			"user": {
-				Name:        "user",
-				Relations:   make(map[string]*Relation),
-				Permissions: make(map[string]*Permission),
+				name:        "user",
+				relations:   make(map[string]*Relation),
+				permissions: make(map[string]*Permission),
 			},
 		},
-		Caveats: make(map[string]*Caveat),
+		caveats: make(map[string]*Caveat),
 	}
-	schema.Definitions["user"].Parent = schema
+	schema.definitions["user"].parent = schema
 
 	sv := &stopVisitor{}
 	_, err := WalkSchema(schema, sv, struct{}{})
@@ -546,17 +546,17 @@ func (sv *stopDefVisitor) VisitRelation(r *Relation, value struct{}) (struct{}, 
 
 func TestWalkDefinition_EarlyTermination(t *testing.T) {
 	rel := &Relation{
-		Name:          "viewer",
-		BaseRelations: []*BaseRelation{},
+		name:          "viewer",
+		baseRelations: []*BaseRelation{},
 	}
 	def := &Definition{
-		Name: "document",
-		Relations: map[string]*Relation{
+		name: "document",
+		relations: map[string]*Relation{
 			"viewer": rel,
 		},
-		Permissions: make(map[string]*Permission),
+		permissions: make(map[string]*Permission),
 	}
-	rel.Parent = def
+	rel.parent = def
 
 	sv := &stopDefVisitor{}
 	_, err := WalkDefinition(def, sv, struct{}{})
@@ -580,10 +580,10 @@ func (ev *errorOnSecondVisitor) VisitOperation(op Operation, value struct{}) (st
 
 func TestWalkOperation_ErrorInNestedOperation(t *testing.T) {
 	op := &UnionOperation{
-		Children: []Operation{
-			&RelationReference{RelationName: "viewer"},
-			&RelationReference{RelationName: "editor"},
-			&RelationReference{RelationName: "admin"},
+		children: []Operation{
+			&RelationReference{relationName: "viewer"},
+			&RelationReference{relationName: "editor"},
+			&RelationReference{relationName: "admin"},
 		},
 	}
 
@@ -612,9 +612,9 @@ func (sv *stopOnUnionVisitor) VisitRelationReference(rr *RelationReference, valu
 
 func TestWalkOperation_EarlyTerminationInUnion(t *testing.T) {
 	op := &UnionOperation{
-		Children: []Operation{
-			&RelationReference{RelationName: "viewer"},
-			&RelationReference{RelationName: "editor"},
+		children: []Operation{
+			&RelationReference{relationName: "viewer"},
+			&RelationReference{relationName: "editor"},
 		},
 	}
 
@@ -643,9 +643,9 @@ func (cv *countingVisitor) VisitRelationReference(rr *RelationReference, value s
 
 func TestWalkOperation_ContinueThroughOperationVisitor(t *testing.T) {
 	op := &UnionOperation{
-		Children: []Operation{
-			&RelationReference{RelationName: "viewer"},
-			&RelationReference{RelationName: "editor"},
+		children: []Operation{
+			&RelationReference{relationName: "viewer"},
+			&RelationReference{relationName: "editor"},
 		},
 	}
 
@@ -710,16 +710,16 @@ func (iv *intVisitor) VisitExclusionOperation(eo *ExclusionOperation, value int)
 
 func TestWalkSchema_ValueThreading(t *testing.T) {
 	schema := &Schema{
-		Definitions: map[string]*Definition{
+		definitions: map[string]*Definition{
 			"user": {
-				Name:        "user",
-				Relations:   make(map[string]*Relation),
-				Permissions: make(map[string]*Permission),
+				name:        "user",
+				relations:   make(map[string]*Relation),
+				permissions: make(map[string]*Permission),
 			},
 		},
-		Caveats: make(map[string]*Caveat),
+		caveats: make(map[string]*Caveat),
 	}
-	schema.Definitions["user"].Parent = schema
+	schema.definitions["user"].parent = schema
 
 	visitor := &intVisitor{}
 	result, err := WalkSchema(schema, visitor, 0)
@@ -731,26 +731,26 @@ func TestWalkSchema_ValueThreading(t *testing.T) {
 
 func TestWalkDefinition_ValueThreading(t *testing.T) {
 	rel := &Relation{
-		Name:          "viewer",
-		BaseRelations: []*BaseRelation{{Type: "user"}},
+		name:          "viewer",
+		baseRelations: []*BaseRelation{{subjectType: "user"}},
 	}
 	perm := &Permission{
-		Name:      "view",
-		Operation: &RelationReference{RelationName: "viewer"},
+		name:      "view",
+		operation: &RelationReference{relationName: "viewer"},
 	}
 
 	def := &Definition{
-		Name: "document",
-		Relations: map[string]*Relation{
+		name: "document",
+		relations: map[string]*Relation{
 			"viewer": rel,
 		},
-		Permissions: map[string]*Permission{
+		permissions: map[string]*Permission{
 			"view": perm,
 		},
 	}
-	rel.Parent = def
-	rel.BaseRelations[0].Parent = rel
-	perm.Parent = def
+	rel.parent = def
+	rel.baseRelations[0].parent = rel
+	perm.parent = def
 
 	visitor := &intVisitor{}
 	result, err := WalkDefinition(def, visitor, 0)
@@ -764,14 +764,14 @@ func TestWalkDefinition_ValueThreading(t *testing.T) {
 func TestWalkOperation_ValueThreading(t *testing.T) {
 	// Build: (viewer | editor) & approved
 	op := &IntersectionOperation{
-		Children: []Operation{
+		children: []Operation{
 			&UnionOperation{
-				Children: []Operation{
-					&RelationReference{RelationName: "viewer"},
-					&RelationReference{RelationName: "editor"},
+				children: []Operation{
+					&RelationReference{relationName: "viewer"},
+					&RelationReference{relationName: "editor"},
 				},
 			},
-			&RelationReference{RelationName: "approved"},
+			&RelationReference{relationName: "approved"},
 		},
 	}
 
@@ -792,8 +792,8 @@ func TestWalkOperation_ValueThreading(t *testing.T) {
 func TestWalkOperation_ExclusionValueThreading(t *testing.T) {
 	// Build: viewer - banned
 	op := &ExclusionOperation{
-		Left:  &RelationReference{RelationName: "viewer"},
-		Right: &RelationReference{RelationName: "banned"},
+		left:  &RelationReference{relationName: "viewer"},
+		right: &RelationReference{relationName: "banned"},
 	}
 
 	visitor := &intVisitor{}

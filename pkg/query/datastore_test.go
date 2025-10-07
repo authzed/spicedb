@@ -9,57 +9,13 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// createTestBaseRelation creates a BaseRelation for testing with the proper parent structure
-func createTestBaseRelation(defName, relationName, subjectType, subrelation string) *schema.BaseRelation {
-	// Create the schema hierarchy: Schema -> Definition -> Relation -> BaseRelation
-	testSchema := &schema.Schema{
-		Definitions: make(map[string]*schema.Definition),
-	}
-
-	testDefinition := &schema.Definition{
-		Parent:    testSchema,
-		Name:      defName,
-		Relations: make(map[string]*schema.Relation),
-	}
-	testSchema.Definitions[defName] = testDefinition
-
-	testRelation := &schema.Relation{
-		Parent: testDefinition,
-		Name:   relationName,
-	}
-	testDefinition.Relations[relationName] = testRelation
-
-	return &schema.BaseRelation{
-		Parent:      testRelation,
-		Type:        subjectType,
-		Subrelation: subrelation,
-		Caveat:      "",
-		Expiration:  false,
-	}
-}
-
-// createTestBaseRelationWithFeatures creates a BaseRelation with caveat and expiration features
-func createTestBaseRelationWithFeatures(defName, relationName, subjectType, subrelation, caveat string, expiration bool) *schema.BaseRelation {
-	baseRel := createTestBaseRelation(defName, relationName, subjectType, subrelation)
-	baseRel.Caveat = caveat
-	baseRel.Expiration = expiration
-	return baseRel
-}
-
-// createTestWildcardBaseRelation creates a BaseRelation for wildcard testing
-func createTestWildcardBaseRelation(defName, relationName, subjectType string) *schema.BaseRelation {
-	baseRel := createTestBaseRelation(defName, relationName, subjectType, tuple.Ellipsis)
-	baseRel.Wildcard = true
-	return baseRel
-}
-
-// createTestWildcardBaseRelationWithFeatures creates a wildcard BaseRelation with caveat and expiration features
-func createTestWildcardBaseRelationWithFeatures(defName, relationName, subjectType, caveat string, expiration bool) *schema.BaseRelation {
-	baseRel := createTestWildcardBaseRelation(defName, relationName, subjectType)
-	baseRel.Caveat = caveat
-	baseRel.Expiration = expiration
-	return baseRel
-}
+// Alias the schema package test helpers for convenience
+var (
+	createTestBaseRelation                     = schema.NewTestBaseRelation
+	createTestBaseRelationWithFeatures         = schema.NewTestBaseRelationWithFeatures
+	createTestWildcardBaseRelation             = schema.NewTestWildcardBaseRelation
+	createTestWildcardBaseRelationWithFeatures = schema.NewTestWildcardBaseRelationWithFeatures
+)
 
 func TestRelationIterator(t *testing.T) {
 	t.Parallel()

@@ -9,9 +9,9 @@ import (
 
 func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 	out := &Definition{
-		Name:        def.GetName(),
-		Relations:   make(map[string]*Relation),
-		Permissions: make(map[string]*Permission),
+		name:        def.GetName(),
+		relations:   make(map[string]*Relation),
+		permissions: make(map[string]*Permission),
 	}
 	for _, r := range def.GetRelation() {
 		if userset := r.GetUsersetRewrite(); userset != nil {
@@ -19,17 +19,17 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 			if err != nil {
 				return nil, err
 			}
-			perm.Parent = out
-			perm.Name = r.GetName()
-			out.Permissions[r.GetName()] = &perm
+			perm.parent = out
+			perm.name = r.GetName()
+			out.permissions[r.GetName()] = &perm
 		} else if typeinfo := r.GetTypeInformation(); typeinfo != nil {
 			rel, err := convertTypeInformation(typeinfo)
 			if err != nil {
 				return nil, err
 			}
-			rel.Parent = out
-			rel.Name = r.GetName()
-			out.Relations[r.GetName()] = rel
+			rel.parent = out
+			rel.name = r.GetName()
+			out.relations[r.GetName()] = rel
 		}
 	}
 	return out, nil
@@ -37,13 +37,13 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 
 func convertCaveat(def *corev1.CaveatDefinition) (*Caveat, error) {
 	out := &Caveat{
-		Name:           def.GetName(),
-		Expression:     string(def.GetSerializedExpression()),
-		ParameterTypes: make([]string, 0, len(def.GetParameterTypes())),
+		name:           def.GetName(),
+		expression:     string(def.GetSerializedExpression()),
+		parameterTypes: make([]string, 0, len(def.GetParameterTypes())),
 	}
 
 	for paramName := range def.GetParameterTypes() {
-		out.ParameterTypes = append(out.ParameterTypes, paramName)
+		out.parameterTypes = append(out.parameterTypes, paramName)
 	}
 
 	return out, nil
@@ -78,7 +78,7 @@ func convertUserset(userset *corev1.UsersetRewrite) (Permission, error) {
 	}
 
 	return Permission{
-		Operation: operation,
+		operation: operation,
 	}, nil
 }
 
@@ -89,7 +89,7 @@ func convertTypeInformation(typeinfo *corev1.TypeInformation) (*Relation, error)
 
 	thisRelation := &Relation{}
 
-	thisRelation.BaseRelations = make([]*BaseRelation, 0, len(typeinfo.GetAllowedDirectRelations()))
+	thisRelation.baseRelations = make([]*BaseRelation, 0, len(typeinfo.GetAllowedDirectRelations()))
 	for _, allowedRelation := range typeinfo.GetAllowedDirectRelations() {
 		// Extract caveat and expiration information
 		caveat := ""
@@ -99,30 +99,30 @@ func convertTypeInformation(typeinfo *corev1.TypeInformation) (*Relation, error)
 		expiration := allowedRelation.GetRequiredExpiration() != nil
 
 		if allowedRelation.GetPublicWildcard() != nil {
-			thisRelation.BaseRelations = append(thisRelation.BaseRelations, &BaseRelation{
-				Parent:     thisRelation,
-				Type:       allowedRelation.GetNamespace(),
-				Wildcard:   true,
-				Caveat:     caveat,
-				Expiration: expiration,
+			thisRelation.baseRelations = append(thisRelation.baseRelations, &BaseRelation{
+				parent:      thisRelation,
+				subjectType: allowedRelation.GetNamespace(),
+				wildcard:    true,
+				caveat:      caveat,
+				expiration:  expiration,
 			})
 		} else {
 			relationName := allowedRelation.GetRelation()
 			if relationName == "" || relationName == "..." {
-				thisRelation.BaseRelations = append(thisRelation.BaseRelations, &BaseRelation{
-					Parent:      thisRelation,
-					Type:        allowedRelation.GetNamespace(),
-					Subrelation: tuple.Ellipsis,
-					Caveat:      caveat,
-					Expiration:  expiration,
+				thisRelation.baseRelations = append(thisRelation.baseRelations, &BaseRelation{
+					parent:      thisRelation,
+					subjectType: allowedRelation.GetNamespace(),
+					subrelation: tuple.Ellipsis,
+					caveat:      caveat,
+					expiration:  expiration,
 				})
 			} else {
-				thisRelation.BaseRelations = append(thisRelation.BaseRelations, &BaseRelation{
-					Parent:      thisRelation,
-					Type:        allowedRelation.GetNamespace(),
-					Subrelation: relationName,
-					Caveat:      caveat,
-					Expiration:  expiration,
+				thisRelation.baseRelations = append(thisRelation.baseRelations, &BaseRelation{
+					parent:      thisRelation,
+					subjectType: allowedRelation.GetNamespace(),
+					subrelation: relationName,
+					caveat:      caveat,
+					expiration:  expiration,
 				})
 			}
 		}
@@ -151,7 +151,7 @@ func convertSetOperation(setOp *corev1.SetOperation) (Operation, error) {
 	}
 
 	return &UnionOperation{
-		Children: children,
+		children: children,
 	}, nil
 }
 
@@ -175,7 +175,7 @@ func convertSetOperationAsIntersection(setOp *corev1.SetOperation) (Operation, e
 	}
 
 	return &IntersectionOperation{
-		Children: children,
+		children: children,
 	}, nil
 }
 
@@ -198,8 +198,8 @@ func convertSetOperationAsExclusion(setOp *corev1.SetOperation) (Operation, erro
 	}
 
 	return &ExclusionOperation{
-		Left:  children[0],
-		Right: children[1],
+		left:  children[0],
+		right: children[1],
 	}, nil
 }
 
@@ -211,26 +211,26 @@ func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 	switch childType := child.GetChildType().(type) {
 	case *corev1.SetOperation_Child_XThis:
 		return &RelationReference{
-			RelationName: "_this",
+			relationName: "_this",
 		}, nil
 	case *corev1.SetOperation_Child_ComputedUserset:
 		return &RelationReference{
-			RelationName: childType.ComputedUserset.GetRelation(),
+			relationName: childType.ComputedUserset.GetRelation(),
 		}, nil
 	case *corev1.SetOperation_Child_UsersetRewrite:
 		perm, err := convertUserset(childType.UsersetRewrite)
 		if err != nil {
 			return nil, err
 		}
-		return perm.Operation, nil
+		return perm.operation, nil
 	case *corev1.SetOperation_Child_TupleToUserset:
 		return &ArrowReference{
-			Left:  childType.TupleToUserset.GetTupleset().GetRelation(),
-			Right: childType.TupleToUserset.GetComputedUserset().GetRelation(),
+			left:  childType.TupleToUserset.GetTupleset().GetRelation(),
+			right: childType.TupleToUserset.GetComputedUserset().GetRelation(),
 		}, nil
 	case *corev1.SetOperation_Child_XNil:
 		return &RelationReference{
-			RelationName: "_nil",
+			relationName: "_nil",
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown child type")
