@@ -8,34 +8,86 @@ type Operation interface {
 
 // RelationReference is an Operation that is a simple relation, such as `permission foo = bar`.
 type RelationReference struct {
-	RelationName string
+	// relationName is the name of the relation or permission being referenced.
+	relationName string
+}
+
+// RelationName returns the name of the relation or permission being referenced.
+func (r *RelationReference) RelationName() string {
+	return r.relationName
 }
 
 // ArrowReference is an Operation that represents `permission foo = Left->Right`.
 type ArrowReference struct {
-	Left  string
-	Right string
+	// left is the relation on the resource.
+	left string
+
+	// right is the relation/permission on the subject.
+	right string
+}
+
+// Left returns the relation on the resource.
+func (a *ArrowReference) Left() string {
+	return a.left
+}
+
+// Right returns the relation/permission on the subject.
+func (a *ArrowReference) Right() string {
+	return a.right
 }
 
 // UnionOperation is an Operation that represents `permission foo = a | b | c`.
 type UnionOperation struct {
-	Children []Operation
+	// children are the sub-operations that are unioned together.
+	children []Operation
+}
+
+// Children returns the sub-operations that are unioned together.
+func (u *UnionOperation) Children() []Operation {
+	return u.children
 }
 
 // IntersectionOperation is an Operation that represents `permission foo = a & b & c`.
 type IntersectionOperation struct {
-	Children []Operation
+	// children are the sub-operations that are intersected together.
+	children []Operation
 }
 
-// IntersectionOperation is an Operation that represents `permission foo = a - b`.
+// Children returns the sub-operations that are intersected together.
+func (i *IntersectionOperation) Children() []Operation {
+	return i.children
+}
+
+// ExclusionOperation is an Operation that represents `permission foo = a - b`.
 type ExclusionOperation struct {
-	Left  Operation
-	Right Operation
+	// left is the operation from which we are excluding.
+	left Operation
+
+	// right is the operation that is being excluded.
+	right Operation
+}
+
+// Left returns the operation from which we are excluding.
+func (e *ExclusionOperation) Left() Operation {
+	return e.left
+}
+
+// Right returns the operation that is being excluded.
+func (e *ExclusionOperation) Right() Operation {
+	return e.right
 }
 
 // We close the enum by implementing the private method.
 func (r *RelationReference) isOperation()     {}
-func (r *ArrowReference) isOperation()        {}
+func (a *ArrowReference) isOperation()        {}
 func (u *UnionOperation) isOperation()        {}
 func (i *IntersectionOperation) isOperation() {}
 func (e *ExclusionOperation) isOperation()    {}
+
+var (
+	_ Operation = (*RelationReference)(nil)
+	_ Operation = (*ArrowReference)(nil)
+	_ Operation = (*UnionOperation)(nil)
+	_ Operation = (*IntersectionOperation)(nil)
+	_ Operation = (*ExclusionOperation)(nil)
+)

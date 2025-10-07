@@ -29,60 +29,60 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	}
 	b.seen[id] = true
 
-	def, ok := b.schema.Definitions[definitionName]
+	def, ok := b.schema.Definitions()[definitionName]
 	if !ok {
 		return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find a schema definition named `%s`", definitionName)
 	}
-	if p, ok := def.Permissions[relationName]; ok {
+	if p, ok := def.Permissions()[relationName]; ok {
 		return b.buildIteratorFromPermission(p)
 	}
-	if r, ok := def.Relations[relationName]; ok {
+	if r, ok := def.Relations()[relationName]; ok {
 		return b.buildIteratorFromRelation(r, withSubRelations)
 	}
 	return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find a relation or permission named `%s` in definition `%s`", relationName, definitionName)
 }
 
 func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubRelations bool) (Iterator, error) {
-	if len(r.BaseRelations) == 1 {
-		baseIt, err := b.buildBaseRelationIterator(r.BaseRelations[0], withSubRelations)
+	if len(r.BaseRelations()) == 1 {
+		baseIt, err := b.buildBaseRelationIterator(r.BaseRelations()[0], withSubRelations)
 		if err != nil {
 			return nil, err
 		}
-		return NewAlias(r.Name, baseIt), nil
+		return NewAlias(r.Name(), baseIt), nil
 	}
 	union := NewUnion()
-	for _, br := range r.BaseRelations {
+	for _, br := range r.BaseRelations() {
 		it, err := b.buildBaseRelationIterator(br, withSubRelations)
 		if err != nil {
 			return nil, err
 		}
 		union.addSubIterator(it)
 	}
-	return NewAlias(r.Name, union), nil
+	return NewAlias(r.Name(), union), nil
 }
 
 func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Iterator, error) {
-	baseIt, err := b.buildIteratorFromOperation(p, p.Operation)
+	baseIt, err := b.buildIteratorFromOperation(p, p.Operation())
 	if err != nil {
 		return nil, err
 	}
-	return NewAlias(p.Name, baseIt), nil
+	return NewAlias(p.Name(), baseIt), nil
 }
 
 func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
 	switch perm := op.(type) {
 	case *schema.ArrowReference:
-		rel, ok := p.Parent.Relations[perm.Left]
+		rel, ok := p.Parent().Relations()[perm.Left()]
 		if !ok {
-			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left, perm.Right, p.Name, p.Parent.Name)
+			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), p.Parent().Name())
 		}
 		union := NewUnion()
-		for _, br := range rel.BaseRelations {
+		for _, br := range rel.BaseRelations() {
 			left, err := b.buildBaseRelationIterator(br, false)
 			if err != nil {
 				return nil, err
 			}
-			right, err := b.buildIteratorFromSchemaInternal(br.Type, perm.Right, false)
+			right, err := b.buildIteratorFromSchemaInternal(br.Type(), perm.Right(), false)
 			if err != nil {
 				return nil, err
 			}
@@ -92,14 +92,14 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return union, nil
 
 	case *schema.RelationReference:
-		if perm.RelationName == "_nil" {
+		if perm.RelationName() == "_nil" {
 			return NewEmptyFixedIterator(), nil
 		}
-		return b.buildIteratorFromSchemaInternal(p.Parent.Name, perm.RelationName, true)
+		return b.buildIteratorFromSchemaInternal(p.Parent().Name(), perm.RelationName(), true)
 
 	case *schema.UnionOperation:
 		union := NewUnion()
-		for _, op := range perm.Children {
+		for _, op := range perm.Children() {
 			it, err := b.buildIteratorFromOperation(p, op)
 			if err != nil {
 				return nil, err
@@ -110,7 +110,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 
 	case *schema.IntersectionOperation:
 		inter := NewIntersection()
-		for _, op := range perm.Children {
+		for _, op := range perm.Children() {
 			it, err := b.buildIteratorFromOperation(p, op)
 			if err != nil {
 				return nil, err
@@ -120,12 +120,12 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return inter, nil
 
 	case *schema.ExclusionOperation:
-		mainIt, err := b.buildIteratorFromOperation(p, perm.Left)
+		mainIt, err := b.buildIteratorFromOperation(p, perm.Left())
 		if err != nil {
 			return nil, err
 		}
 
-		excludedIt, err := b.buildIteratorFromOperation(p, perm.Right)
+		excludedIt, err := b.buildIteratorFromOperation(p, perm.Right())
 		if err != nil {
 			return nil, err
 		}
@@ -143,12 +143,12 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 		return base, nil
 	}
 
-	if br.Subrelation == tuple.Ellipsis {
+	if br.Subrelation() == tuple.Ellipsis {
 		return base, nil
 	}
 
 	// Wildcards represent direct access, so no subrelation processing needed
-	if br.Wildcard {
+	if br.Wildcard() {
 		return base, nil
 	}
 
@@ -157,7 +157,7 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 	union := NewUnion()
 	union.addSubIterator(base)
 
-	rightside, err := b.buildIteratorFromSchemaInternal(br.Type, br.Subrelation, false)
+	rightside, err := b.buildIteratorFromSchemaInternal(br.Type(), br.Subrelation(), false)
 	if err != nil {
 		return nil, err
 	}

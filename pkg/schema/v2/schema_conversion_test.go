@@ -252,68 +252,68 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 			require.NoError(t, err)
 
 			// Test that we have the expected number of definitions
-			require.Len(t, v2Schema.Definitions, len(tc.expectedDefinitions))
+			require.Len(t, v2Schema.Definitions(), len(tc.expectedDefinitions))
 
 			// Test that we have the expected number of caveats
-			require.Len(t, v2Schema.Caveats, len(tc.expectedCaveats))
+			require.Len(t, v2Schema.Caveats(), len(tc.expectedCaveats))
 
 			// Verify each expected definition exists
 			for _, defName := range tc.expectedDefinitions {
-				def, exists := v2Schema.Definitions[defName]
+				def, exists := v2Schema.Definitions()[defName]
 				require.True(t, exists, "Definition %s should exist", defName)
-				require.Equal(t, defName, def.Name)
-				require.Equal(t, v2Schema, def.Parent)
+				require.Equal(t, defName, def.Name())
+				require.Equal(t, v2Schema, def.Parent())
 			}
 
 			// Verify each expected caveat exists
 			for _, caveatName := range tc.expectedCaveats {
-				caveat, exists := v2Schema.Caveats[caveatName]
+				caveat, exists := v2Schema.Caveats()[caveatName]
 				require.True(t, exists, "Caveat %s should exist", caveatName)
-				require.Equal(t, caveatName, caveat.Name)
-				require.Equal(t, v2Schema, caveat.Parent)
+				require.Equal(t, caveatName, caveat.Name())
+				require.Equal(t, v2Schema, caveat.Parent())
 			}
 
 			// Verify relations for each definition
 			for defName, expectedRelations := range tc.expectedRelations {
-				def, exists := v2Schema.Definitions[defName]
+				def, exists := v2Schema.Definitions()[defName]
 				require.True(t, exists, "Definition %s should exist", defName)
 
-				require.Len(t, def.Relations, len(expectedRelations))
+				require.Len(t, def.Relations(), len(expectedRelations))
 
 				for _, relName := range expectedRelations {
-					rel, exists := def.Relations[relName]
+					rel, exists := def.Relations()[relName]
 					require.True(t, exists, "Relation %s should exist in definition %s", relName, defName)
-					require.Equal(t, relName, rel.Name)
-					require.Equal(t, def, rel.Parent)
-					require.NotEmpty(t, rel.BaseRelations, "Relation %s should have allowed types", relName)
+					require.Equal(t, relName, rel.Name())
+					require.Equal(t, def, rel.Parent())
+					require.NotEmpty(t, rel.BaseRelations(), "Relation %s should have allowed types", relName)
 				}
 			}
 
 			// Verify permissions for each definition
 			for defName, expectedPermissions := range tc.expectedPermissions {
-				def, exists := v2Schema.Definitions[defName]
+				def, exists := v2Schema.Definitions()[defName]
 				require.True(t, exists, "Definition %s should exist", defName)
 
-				require.Len(t, def.Permissions, len(expectedPermissions))
+				require.Len(t, def.Permissions(), len(expectedPermissions))
 
 				for _, permName := range expectedPermissions {
-					perm, exists := def.Permissions[permName]
+					perm, exists := def.Permissions()[permName]
 					require.True(t, exists, "Permission %s should exist in definition %s", permName, defName)
-					require.Equal(t, permName, perm.Name)
-					require.Equal(t, def, perm.Parent)
-					require.NotNil(t, perm.Operation, "Permission %s should have an operation", permName)
+					require.Equal(t, permName, perm.Name())
+					require.Equal(t, def, perm.Parent())
+					require.NotNil(t, perm.Operation(), "Permission %s should have an operation", permName)
 				}
 			}
 
 			// Verify that the compiled schema and v2 schema have consistent data
-			require.Equal(t, len(compiled.ObjectDefinitions), len(v2Schema.Definitions))
-			require.Equal(t, len(compiled.CaveatDefinitions), len(v2Schema.Caveats))
+			require.Equal(t, len(compiled.ObjectDefinitions), len(v2Schema.Definitions()))
+			require.Equal(t, len(compiled.CaveatDefinitions), len(v2Schema.Caveats()))
 
 			// Check that each compiled definition maps to a v2 definition
 			for _, compiledDef := range compiled.ObjectDefinitions {
-				v2Def, exists := v2Schema.Definitions[compiledDef.Name]
+				v2Def, exists := v2Schema.Definitions()[compiledDef.Name]
 				require.True(t, exists, "Compiled definition %s should exist in v2 schema", compiledDef.Name)
-				require.Equal(t, compiledDef.Name, v2Def.Name)
+				require.Equal(t, compiledDef.Name, v2Def.Name())
 
 				// Count relations and permissions from compiled schema
 				compiledRelations := 0
@@ -327,16 +327,16 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 					}
 				}
 
-				require.Equal(t, compiledRelations, len(v2Def.Relations))
-				require.Equal(t, compiledPermissions, len(v2Def.Permissions))
+				require.Equal(t, compiledRelations, len(v2Def.Relations()))
+				require.Equal(t, compiledPermissions, len(v2Def.Permissions()))
 			}
 
 			// Check that each compiled caveat maps to a v2 caveat
 			for _, compiledCaveat := range compiled.CaveatDefinitions {
-				v2Caveat, exists := v2Schema.Caveats[compiledCaveat.Name]
+				v2Caveat, exists := v2Schema.Caveats()[compiledCaveat.Name]
 				require.True(t, exists, "Compiled caveat %s should exist in v2 schema", compiledCaveat.Name)
-				require.Equal(t, compiledCaveat.Name, v2Caveat.Name)
-				require.Equal(t, string(compiledCaveat.SerializedExpression), v2Caveat.Expression)
+				require.Equal(t, compiledCaveat.Name, v2Caveat.Name())
+				require.Equal(t, string(compiledCaveat.SerializedExpression), v2Caveat.Expression())
 			}
 		})
 	}
@@ -409,24 +409,24 @@ func TestSchemaConversionEdgeCases(t *testing.T) {
 			require.NotNil(t, v2Schema)
 
 			// Basic validation that schema is well-formed
-			require.NotNil(t, v2Schema.Definitions)
-			require.NotNil(t, v2Schema.Caveats)
+			require.NotNil(t, v2Schema.Definitions())
+			require.NotNil(t, v2Schema.Caveats())
 
 			// Verify Parent relationships are set correctly
-			for _, def := range v2Schema.Definitions {
-				require.Equal(t, v2Schema, def.Parent)
+			for _, def := range v2Schema.Definitions() {
+				require.Equal(t, v2Schema, def.Parent())
 
-				for _, rel := range def.Relations {
-					require.Equal(t, def, rel.Parent)
+				for _, rel := range def.Relations() {
+					require.Equal(t, def, rel.Parent())
 				}
 
-				for _, perm := range def.Permissions {
-					require.Equal(t, def, perm.Parent)
+				for _, perm := range def.Permissions() {
+					require.Equal(t, def, perm.Parent())
 				}
 			}
 
-			for _, caveat := range v2Schema.Caveats {
-				require.Equal(t, v2Schema, caveat.Parent)
+			for _, caveat := range v2Schema.Caveats() {
+				require.Equal(t, v2Schema, caveat.Parent())
 			}
 		})
 	}
@@ -517,27 +517,27 @@ func TestSchemaConversionOperationTypes(t *testing.T) {
 			require.NoError(t, err)
 
 			// Find the permission
-			def, exists := v2Schema.Definitions[tc.definition]
+			def, exists := v2Schema.Definitions()[tc.definition]
 			require.True(t, exists)
 
-			perm, exists := def.Permissions[tc.permission]
+			perm, exists := def.Permissions()[tc.permission]
 			require.True(t, exists)
-			require.NotNil(t, perm.Operation)
+			require.NotNil(t, perm.Operation())
 
 			// Check operation type
 			switch tc.expectedType {
 			case "union":
-				_, ok := perm.Operation.(*UnionOperation)
-				require.True(t, ok, "Expected UnionOperation but got %T", perm.Operation)
+				_, ok := perm.Operation().(*UnionOperation)
+				require.True(t, ok, "Expected UnionOperation but got %T", perm.Operation())
 			case "intersection":
-				_, ok := perm.Operation.(*IntersectionOperation)
-				require.True(t, ok, "Expected IntersectionOperation but got %T", perm.Operation)
+				_, ok := perm.Operation().(*IntersectionOperation)
+				require.True(t, ok, "Expected IntersectionOperation but got %T", perm.Operation())
 			case "exclusion":
-				_, ok := perm.Operation.(*ExclusionOperation)
-				require.True(t, ok, "Expected ExclusionOperation but got %T", perm.Operation)
+				_, ok := perm.Operation().(*ExclusionOperation)
+				require.True(t, ok, "Expected ExclusionOperation but got %T", perm.Operation())
 			case "relation":
-				_, ok := perm.Operation.(*RelationReference)
-				require.True(t, ok, "Expected RelationReference but got %T", perm.Operation)
+				_, ok := perm.Operation().(*RelationReference)
+				require.True(t, ok, "Expected RelationReference but got %T", perm.Operation())
 			}
 		})
 	}
