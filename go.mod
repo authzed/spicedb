@@ -21,7 +21,9 @@ replace github.com/influxdata/tdigest => github.com/hdrodz/tdigest v0.0.0-202304
 replace github.com/ecordell/optgen => github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 
 require (
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.9-20250912141014-52f32327d4b0.1
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.6-20250320161912-af2aab87b1b3.1
+	buf.build/go/protovalidate v1.0.0
 	cloud.google.com/go/spanner v1.85.0
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.2
@@ -49,7 +51,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ecordell/optgen v0.1.0
 	github.com/emirpasic/gods v1.18.1
-	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/ettle/strcase v0.2.0
 	github.com/exaring/otelpgx v0.9.3
 	github.com/fatih/color v1.18.0
@@ -135,14 +136,16 @@ tool (
 	github.com/magefile/mage/mage
 	// vulncheck always uses the current directory's go.mod.
 	golang.org/x/vuln/cmd/govulncheck
+  // the following are for protobuf generation
+	google.golang.org/protobuf/cmd/protoc-gen-go
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc
+	github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto
 )
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.9-20250912141014-52f32327d4b0.1 // indirect
 	buf.build/gen/go/gogo/protobuf/protocolbuffers/go v1.36.6-20240617172848-e1dbca2775a7.1 // indirect
-	buf.build/go/protovalidate v1.0.0 // indirect
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.122.0 // indirect
 	cloud.google.com/go/auth v0.16.5 // indirect
@@ -228,6 +231,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/firefart/nonamedreturns v1.0.6 // indirect

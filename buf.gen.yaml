@@ -19,6 +19,8 @@ plugins:
   - remote: "buf.build/grpc/go:v1.5.1"
     out: "pkg/proto"
     opt: "paths=source_relative"
-  - remote: "buf.build/community/planetscale-vtprotobuf:v0.6.0"
-    out: "pkg/proto"
+    # NOTE: we use the local vs remote here because we use a more recent version of vtproto than is available
+    # in the buf registry.
+  - local: ["go", "run", "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto"]
+    out: 'pkg/proto'
     opt: "paths=source_relative,features=marshal+unmarshal+size+clone+pool+equal"
