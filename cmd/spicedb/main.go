@@ -85,11 +85,16 @@ func buildRootCommand() (*cobra.Command, error) {
 	rootCmd.AddCommand(testingCmd)
 
 	rootCmd.AddCommand(&cobra.Command{
-		Use:                   "man",
-		Short:                 "Generate the SpiceDB manpage",
+		Use:   "man",
+		Short: "Generate man page",
+		Long: `Generate a man page for SpiceDB.
+
+The output can be redirected to a file and installed to the system:
+  spicedb man > spicedb.1
+  sudo mv spicedb.1 /usr/share/man/man1/
+  sudo mandb  # Update man page database`,
 		SilenceUsage:          true,
 		DisableFlagsInUseLine: true,
-		Hidden:                true,
 		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			manPage, err := mcobra.NewManPage(1, cmd.Root())
