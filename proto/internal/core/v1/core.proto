@@ -1,10 +1,10 @@
 syntax = "proto3";
 package core.v1;
 
+import "buf/validate/validate.proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
-import "buf/validate/validate.proto";
 
 option go_package = "github.com/authzed/spicedb/pkg/proto/core/v1";
 
@@ -177,8 +177,8 @@ message Metadata {
         "type.googleapis.com/impl.v1.DocComment",
         "type.googleapis.com/impl.v1.RelationMetadata"
       ]
-    }
-    , (buf.validate.field).required = true
+    },
+    (buf.validate.field).required = true
   ];
 }
 

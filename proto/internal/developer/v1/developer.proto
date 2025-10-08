@@ -2,10 +2,10 @@ syntax = "proto3";
 package developer.v1;
 
 import "authzed/api/v1/debug.proto";
+import "buf/validate/validate.proto";
 import "core/v1/core.proto";
 import "dispatch/v1/dispatch.proto";
 import "google/protobuf/struct.proto";
-import "buf/validate/validate.proto";
 
 option go_package = "github.com/authzed/spicedb/pkg/proto/developer/v1";
 

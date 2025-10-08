@@ -705,7 +705,7 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 	}
 
 	if !tctx.skipValidate {
-		if err := ref.Validate(); err != nil {
+		if err := protovalidate.Validate(ref); err != nil {
 			return nil, typeRefNode.Errorf("invalid type relation: %w", err)
 		}
 	}
