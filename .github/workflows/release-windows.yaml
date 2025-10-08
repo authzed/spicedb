@@ -11,22 +11,22 @@ jobs:
     runs-on: "windows-latest"
     permissions:
       contents: "write"
-      packages: "write" # publish to GHCR
+      packages: "write"  # publish to GHCR
     steps:
-      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493"  # v4.2.2
         with:
           fetch-depth: 0
-      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
-      - uses: "nowsprinting/check-version-format-action@c7180d5aa53d69af70c364c047482fc71e133f55" # v4.0.6
+      - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5"  # main
+      - uses: "nowsprinting/check-version-format-action@c7180d5aa53d69af70c364c047482fc71e133f55"  # v4.0.6
         id: "version"
         with:
           prefix: "v"
-      - uses: "authzed/actions/docker-login@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
+      - uses: "authzed/actions/docker-login@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1"  # main
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
-      - uses: "goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a" # v6.4.0
+      - uses: "goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a"  # v6.4.0
         with:
           distribution: "goreleaser-pro"
           # NOTE: keep in sync with goreleaser version in other job.

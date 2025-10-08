@@ -1651,7 +1651,7 @@ var File_dispatch_v1_dispatch_proto protoreflect.FileDescriptor
 
 const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\n" +
-	"\x1adispatch/v1/dispatch.proto\x12\vdispatch.v1\x1a\x12core/v1/core.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1bbuf/validate/validate.proto\"\xfb\x04\n" +
+	"\x1adispatch/v1/dispatch.proto\x12\vdispatch.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12core/v1/core.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xfb\x04\n" +
 	"\x14DispatchCheckRequest\x12=\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\x06\xbaH\x03\xc8\x01\x01R\bmetadata\x12O\n" +
 	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x10resourceRelation\x12!\n" +

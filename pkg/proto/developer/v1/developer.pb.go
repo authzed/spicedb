@@ -1393,7 +1393,7 @@ var File_developer_v1_developer_proto protoreflect.FileDescriptor
 
 const file_developer_v1_developer_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdeveloper/v1/developer.proto\x12\fdeveloper.v1\x1a\x1aauthzed/api/v1/debug.proto\x1a\x12core/v1/core.proto\x1a\x1adispatch/v1/dispatch.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1bbuf/validate/validate.proto\"\x83\x01\n" +
+	"\x1cdeveloper/v1/developer.proto\x12\fdeveloper.v1\x1a\x1aauthzed/api/v1/debug.proto\x1a\x1bbuf/validate/validate.proto\x1a\x12core/v1/core.proto\x1a\x1adispatch/v1/dispatch.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x83\x01\n" +
 	"\x10DeveloperRequest\x126\n" +
 	"\acontext\x18\x01 \x01(\v2\x1c.developer.v1.RequestContextR\acontext\x127\n" +
 	"\n" +

@@ -2998,7 +2998,7 @@ var File_core_v1_core_proto protoreflect.FileDescriptor
 
 const file_core_v1_core_proto_rawDesc = "" +
 	"\n" +
-	"\x12core/v1/core.proto\x12\acore.v1\x1a\x19google/protobuf/any.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bbuf/validate/validate.proto\"\x80\x03\n" +
+	"\x12core/v1/core.proto\x12\acore.v1\x1a\x1bbuf/validate/validate.proto\x1a\x19google/protobuf/any.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x80\x03\n" +
 	"\rRelationTuple\x12V\n" +
 	"\x15resource_and_relation\x18\x01 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\x13resourceAndRelation\x12<\n" +
 	"\asubject\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\asubject\x12=\n" +
