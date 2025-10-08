@@ -3123,22 +3123,22 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x0fExpirationTrait\"0\n" +
 	"\rAllowedCaveat\x12\x1f\n" +
 	"\vcaveat_name\x18\x01 \x01(\tR\n" +
-	"caveatName\"\xa9\x02\n" +
-	"\x0eUsersetRewrite\x125\n" +
-	"\x05union\x18\x01 \x01(\v2\x15.core.v1.SetOperationB\x06\xbaH\x03\xc8\x01\x01H\x00R\x05union\x12C\n" +
-	"\fintersection\x18\x02 \x01(\v2\x15.core.v1.SetOperationB\x06\xbaH\x03\xc8\x01\x01H\x00R\fintersection\x12=\n" +
-	"\texclusion\x18\x03 \x01(\v2\x15.core.v1.SetOperationB\x06\xbaH\x03\xc8\x01\x01H\x00R\texclusion\x12@\n" +
+	"caveatName\"\x91\x02\n" +
+	"\x0eUsersetRewrite\x12-\n" +
+	"\x05union\x18\x01 \x01(\v2\x15.core.v1.SetOperationH\x00R\x05union\x12;\n" +
+	"\fintersection\x18\x02 \x01(\v2\x15.core.v1.SetOperationH\x00R\fintersection\x125\n" +
+	"\texclusion\x18\x03 \x01(\v2\x15.core.v1.SetOperationH\x00R\texclusion\x12@\n" +
 	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePositionB\x1a\n" +
-	"\x11rewrite_operation\x12\x05\xbaH\x02\b\x01\"\xaa\x05\n" +
+	"\x11rewrite_operation\x12\x05\xbaH\x02\b\x01\"\x8a\x05\n" +
 	"\fSetOperation\x12@\n" +
 	"\x05child\x18\x01 \x03(\v2\x1b.core.v1.SetOperation.ChildB\r\xbaH\n" +
-	"\x92\x01\a\b\x01\"\x03\xc8\x01\x01R\x05child\x1a\xd7\x04\n" +
+	"\x92\x01\a\b\x01\"\x03\xc8\x01\x01R\x05child\x1a\xb7\x04\n" +
 	"\x05Child\x127\n" +
-	"\x05_this\x18\x01 \x01(\v2 .core.v1.SetOperation.Child.ThisH\x00R\x04This\x12M\n" +
-	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetB\x06\xbaH\x03\xc8\x01\x01H\x00R\x0fcomputedUserset\x12K\n" +
-	"\x10tuple_to_userset\x18\x03 \x01(\v2\x17.core.v1.TupleToUsersetB\x06\xbaH\x03\xc8\x01\x01H\x00R\x0etupleToUserset\x12J\n" +
-	"\x0fuserset_rewrite\x18\x04 \x01(\v2\x17.core.v1.UsersetRewriteB\x06\xbaH\x03\xc8\x01\x01H\x00R\x0eusersetRewrite\x12j\n" +
-	"\x1bfunctioned_tuple_to_userset\x18\b \x01(\v2!.core.v1.FunctionedTupleToUsersetB\x06\xbaH\x03\xc8\x01\x01H\x00R\x18functionedTupleToUserset\x124\n" +
+	"\x05_this\x18\x01 \x01(\v2 .core.v1.SetOperation.Child.ThisH\x00R\x04This\x12E\n" +
+	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetH\x00R\x0fcomputedUserset\x12C\n" +
+	"\x10tuple_to_userset\x18\x03 \x01(\v2\x17.core.v1.TupleToUsersetH\x00R\x0etupleToUserset\x12B\n" +
+	"\x0fuserset_rewrite\x18\x04 \x01(\v2\x17.core.v1.UsersetRewriteH\x00R\x0eusersetRewrite\x12b\n" +
+	"\x1bfunctioned_tuple_to_userset\x18\b \x01(\v2!.core.v1.FunctionedTupleToUsersetH\x00R\x18functionedTupleToUserset\x124\n" +
 	"\x04_nil\x18\x06 \x01(\v2\x1f.core.v1.SetOperation.Child.NilH\x00R\x03Nil\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x12%\n" +
 	"\x0eoperation_path\x18\a \x03(\rR\roperationPath\x1a\x06\n" +

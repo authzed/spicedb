@@ -136,10 +136,6 @@ tool (
 	github.com/magefile/mage/mage
 	// vulncheck always uses the current directory's go.mod.
 	golang.org/x/vuln/cmd/govulncheck
-  // the following are for protobuf generation
-	google.golang.org/protobuf/cmd/protoc-gen-go
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc
-	github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto
 )
 
 require (

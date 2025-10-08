@@ -437,9 +437,9 @@ message UsersetRewrite {
   oneof rewrite_operation {
     option (buf.validate.oneof).required = true;
 
-    SetOperation union = 1 [(buf.validate.field).required = true];
-    SetOperation intersection = 2 [(buf.validate.field).required = true];
-    SetOperation exclusion = 3 [(buf.validate.field).required = true];
+    SetOperation union = 1;
+    SetOperation intersection = 2;
+    SetOperation exclusion = 3;
   }
 
   SourcePosition source_position = 4;
@@ -454,10 +454,10 @@ message SetOperation {
       option (buf.validate.oneof).required = true;
 
       This _this = 1;
-      ComputedUserset computed_userset = 2 [(buf.validate.field).required = true];
-      TupleToUserset tuple_to_userset = 3 [(buf.validate.field).required = true];
-      UsersetRewrite userset_rewrite = 4 [(buf.validate.field).required = true];
-      FunctionedTupleToUserset functioned_tuple_to_userset = 8 [(buf.validate.field).required = true];
+      ComputedUserset computed_userset = 2;
+      TupleToUserset tuple_to_userset = 3;
+      UsersetRewrite userset_rewrite = 4;
+      FunctionedTupleToUserset functioned_tuple_to_userset = 8;
       Nil _nil = 6;
     }
 
