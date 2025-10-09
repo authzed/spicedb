@@ -91,6 +91,10 @@ func (s *serverVersionMiddlewareTestSuite) TestStreamInterceptor_WithVersionRequ
 	_, err = stream.Recv()
 	require.NoError(s.T(), err)
 
+	// Close the stream to ensure trailers are available
+	err = stream.CloseSend()
+	require.NoError(s.T(), err)
+
 	// Check that response metadata contains server version
 	header := stream.Trailer()
 
