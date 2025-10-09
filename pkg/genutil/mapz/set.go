@@ -7,11 +7,13 @@ import (
 )
 
 // Set implements a very basic generic set.
+// NOT safe for concurrent use. Use xsync.NewMap for that.
 type Set[T comparable] struct {
 	values map[T]struct{}
 }
 
 // NewSet returns a new set.
+// NOT safe for concurrent use. Use xsync.NewMap for that.
 func NewSet[T comparable](items ...T) *Set[T] {
 	s := &Set[T]{
 		values: map[T]struct{}{},
