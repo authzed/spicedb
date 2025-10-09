@@ -58,13 +58,13 @@ jobs:
           webhook: "${{ secrets.SLACK_WEBHOOK_URL }}"
           webhook-type: "incoming-webhook"
           payload: |
-            text: "*Release Job Finished* with status: ${{ job.status }}"
+            text: "*SpiceDB Release Finished* with status: ${{ job.status }}"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
                   text: |
-                    *Goreleaser Job* finished with status: ${{ job.status }}
+                    @eng-oss *SpiceDB Release Finished* with status: ${{ job.status }}
                     *Repository:* <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>
                     *Commit:* <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
                     *Job Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Run>

@@ -37,3 +37,23 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
           CHOCOLATEY_API_KEY: "${{ secrets.CHOCOLATEY_API_KEY }}"
+      - name: "Notify Slack if failure"
+        if: "failure()"
+        uses: "slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a" # v2.1.1
+        with:
+          webhook: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          webhook-type: "incoming-webhook"
+          payload: |
+            text: "*SpiceDB Release for Windows Failed!*
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: |
+                    :x: @eng-oss *SpiceDB Release for Windows Failed*. Please take a look.
+                    *Repository:* <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>
+                    *Commit:* <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+                    *Job Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Run>
+                    *Actor:* ${{ github.actor }}
+                    *Ref:* ${{ github.ref }}
+                    *Workflow:* ${{ github.workflow }}
