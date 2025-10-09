@@ -388,7 +388,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	var foundError error
 	select {
 	case <-withTimeout.Done():
-		return *new(S), fmt.Errorf("check dispatch has timed out")
+		return *new(S), errors.New("check dispatch has timed out")
 
 	case r := <-primaryResultChan:
 		if r.err == nil {
@@ -541,7 +541,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 	// If no secondary dispatches are defined, just invoke directly.
 	if len(validSecondaryDispatchers) == 0 {
 		if !allowPrimary {
-			return fmt.Errorf("cursor locked to unknown secondary dispatcher")
+			return errors.New("cursor locked to unknown secondary dispatcher")
 		}
 
 		client, err := handler(withTimeout, cr.clusterClient)
@@ -746,7 +746,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R responseMessage](
 	}
 
 	// Otherwise return a combined error.
-	return fmt.Errorf("no dispatcher returned results; please check the logs for more information")
+	return errors.New("no dispatcher returned results; please check the logs for more information")
 }
 
 func adjustMetadataForDispatch(metadata *v1.ResponseMeta) error {

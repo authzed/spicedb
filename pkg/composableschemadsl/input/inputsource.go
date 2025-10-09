@@ -1,6 +1,7 @@
 package input
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -169,7 +170,7 @@ func (ris runeIndexedPosition) LineAndColumn() (int, int, error) {
 		return 0, 0, nil
 	}
 	if ris.mapper == nil {
-		return -1, -1, fmt.Errorf("nil mapper")
+		return -1, -1, errors.New("nil mapper")
 	}
 	return ris.mapper.RunePositionToLineAndCol(ris.runePosition, ris.source)
 }
@@ -207,7 +208,7 @@ func (lcip lcIndexedPosition) RunePosition() (int, error) {
 		return 0, nil
 	}
 	if lcip.mapper == nil {
-		return -1, fmt.Errorf("nil mapper")
+		return -1, errors.New("nil mapper")
 	}
 	return lcip.mapper.LineAndColToRunePosition(lcip.lcPosition.LineNumber, lcip.lcPosition.ColumnPosition, lcip.source)
 }
@@ -218,7 +219,7 @@ func (lcip lcIndexedPosition) LineAndColumn() (int, int, error) {
 
 func (lcip lcIndexedPosition) LineText() (string, error) {
 	if lcip.mapper == nil {
-		return "", fmt.Errorf("nil mapper")
+		return "", errors.New("nil mapper")
 	}
 	return lcip.mapper.TextForLine(lcip.lcPosition.LineNumber, lcip.source)
 }

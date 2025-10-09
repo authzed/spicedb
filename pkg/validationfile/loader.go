@@ -88,15 +88,15 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 
 		// Disallow legacy sections.
 		if len(parsed.NamespaceConfigs) > 0 {
-			return nil, revision, fmt.Errorf("definitions must be specified in `schema`")
+			return nil, revision, errors.New("definitions must be specified in `schema`")
 		}
 
 		if len(parsed.ValidationTuples) > 0 {
-			return nil, revision, fmt.Errorf("relationships must be specified in `relationships`")
+			return nil, revision, errors.New("relationships must be specified in `relationships`")
 		}
 
 		if len(parsed.Schema.Schema) > 0 && len(parsed.SchemaFile) > 0 {
-			return nil, datastore.NoRevision, fmt.Errorf("only one of schema or schemaFile can be specified")
+			return nil, datastore.NoRevision, errors.New("only one of schema or schemaFile can be specified")
 		}
 
 		var inputSchema compiler.InputSchema

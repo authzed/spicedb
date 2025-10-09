@@ -3,7 +3,6 @@ package caveats
 import (
 	"context"
 	"errors"
-	"fmt"
 	"maps"
 
 	"go.opentelemetry.io/otel"
@@ -95,7 +94,7 @@ func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, ex
 	span.SetAttributes(attribute.StringSlice(otelconv.AttrCaveatsNames, caveatNames.AsSlice()))
 
 	if caveatNames.IsEmpty() {
-		return fmt.Errorf("received empty caveat expression")
+		return errors.New("received empty caveat expression")
 	}
 
 	// Remove any caveats already loaded.
@@ -416,7 +415,7 @@ func (sr syntheticResult) MissingVarNames() ([]string, error) {
 		return missingVarNames.AsSlice(), nil
 	}
 
-	return nil, fmt.Errorf("not a partial value")
+	return nil, errors.New("not a partial value")
 }
 
 func isFalseResult(result ExpressionResult) bool {

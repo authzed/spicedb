@@ -2,6 +2,7 @@ package dsfortesting
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -84,7 +85,7 @@ func (vr validatingReader) QueryRelationships(
 
 	_, _ = executor.ExecuteQuery(ctx, qBuilder, options...)
 	if builder == nil {
-		return nil, fmt.Errorf("no builder returned")
+		return nil, errors.New("no builder returned")
 	}
 
 	checkStaticField := func(returnedValue string, fieldName string) error {

@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -396,7 +395,7 @@ func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
 		if !errors.As(err, &datastore.CaveatNameNotFoundError{}) {
 			t.Skip("datastore does not implement CaveatStorer interface")
 		}
-		return fmt.Errorf("force rollback of unnecesary tx")
+		return errors.New("force rollback of unnecesary tx")
 	})
 }
 
