@@ -87,7 +87,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 
 	bulkResponseMutex := sync.Mutex{}
 
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return bc.maxConcurrency > 0
 	}, "max concurrency must be greater than 0 in bulk check")
 

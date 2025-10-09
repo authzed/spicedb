@@ -10,15 +10,15 @@ import (
 
 const DebugAssertionsEnabled = true
 
-// DebugAssert panics if the condition is false in CI builds.
-func DebugAssert(condition func() bool, format string, args ...any) {
+// DebugAssertf panics if the condition is false in CI builds.
+func DebugAssertf(condition func() bool, format string, args ...any) {
 	if !condition() {
 		panic(fmt.Sprintf(format, args...))
 	}
 }
 
-// DebugAssertNotNil panics if the object is nil in CI builds.
-func DebugAssertNotNil(obj any, format string, args ...any) {
+// DebugAssertNotNilf panics if the object is nil in CI builds.
+func DebugAssertNotNilf(obj any, format string, args ...any) {
 	if obj == nil {
 		panic(fmt.Sprintf(format, args...))
 	}

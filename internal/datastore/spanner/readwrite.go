@@ -142,10 +142,10 @@ func spannerMutation(
 	default:
 		log.Ctx(ctx).Error().Msg("unknown operation type")
 		err = fmt.Errorf("unknown mutation operation: %v", operation)
-		return
+		return txnMut, countChange, err
 	}
 
-	return
+	return txnMut, countChange, err
 }
 
 func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {

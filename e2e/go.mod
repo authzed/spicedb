@@ -15,9 +15,9 @@ require (
 	github.com/ecordell/optgen v0.1.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/tools v0.36.0
+	golang.org/x/tools v0.37.0
 	google.golang.org/grpc v1.75.1
-	mvdan.cc/gofumpt v0.8.0
+	mvdan.cc/gofumpt v0.9.1
 )
 
 require (
@@ -70,7 +70,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b // indirect
-	golang.org/x/mod v0.27.0 // indirect
+	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect

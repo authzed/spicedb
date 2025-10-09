@@ -188,7 +188,7 @@ func (hp hedgingProxy) OptimizedRevision(ctx context.Context) (rev datastore.Rev
 
 	hp.revisionHedger(ctx, subreq)
 
-	return
+	return rev, err
 }
 
 func (hp hedgingProxy) HeadRevision(ctx context.Context) (rev datastore.Revision, err error) {
@@ -204,7 +204,7 @@ func (hp hedgingProxy) HeadRevision(ctx context.Context) (rev datastore.Revision
 
 	hp.headRevisionHedger(ctx, subreq)
 
-	return
+	return rev, err
 }
 
 func (hp hedgingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -235,7 +235,7 @@ func (hp hedgingReader) ReadNamespaceByName(
 
 	hp.p.readNamespaceHedger(ctx, subreq)
 
-	return
+	return ns, createdAt, err
 }
 
 func (hp hedgingReader) QueryRelationships(
@@ -284,5 +284,5 @@ func (hp hedgingReader) executeQuery(
 
 	hp.p.queryTuplesHedger(ctx, subreq)
 
-	return
+	return delegateIterator, err
 }

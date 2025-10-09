@@ -123,7 +123,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 	if permissionship == v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION && len(partialResults) == 1 &&
 		len(partialResults[0].MissingExprFields) == 0 {
 		partialCheckResult := partialResults[0]
-		spiceerrors.DebugAssertNotNil(partialCheckResult.Expression, "got nil caveat expression")
+		spiceerrors.DebugAssertNotNilf(partialCheckResult.Expression, "got nil caveat expression")
 
 		computedResult, err := cexpr.RunSingleCaveatExpression(ctx, caveatTypeSet, partialCheckResult.Expression, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
 		if err != nil {

@@ -77,7 +77,7 @@ func (cr *crdbReader) fromSuffix() string {
 }
 
 func (cr *crdbReader) assertHasExpectedAsOfSystemTime(sql string) {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		if cr.atSpecificRevision == "" {
 			return !strings.Contains(sql, "AS OF SYSTEM TIME")
 		} else {

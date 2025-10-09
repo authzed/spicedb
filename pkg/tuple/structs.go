@@ -193,7 +193,7 @@ func (rr RelationReference) String() string {
 
 // ONR creates an ObjectAndRelation.
 func ONR(namespace, objectID, relation string) ObjectAndRelation {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return namespace != "" && objectID != "" && relation != ""
 	}, "invalid ONR: %s %s %s", namespace, objectID, relation)
 
@@ -212,7 +212,7 @@ func ONRRef(namespace, objectID, relation string) *ObjectAndRelation {
 
 // RR creates a RelationReference.
 func RR(namespace, relation string) RelationReference {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return namespace != "" && relation != ""
 	}, "invalid RR: %s %s", namespace, relation)
 

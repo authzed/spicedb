@@ -48,7 +48,7 @@ func (srqf strictReaderQueryFuncs) rewriteError(err error) error {
 }
 
 func (srqf strictReaderQueryFuncs) addAssertToSelectSQL(sql string) string {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return strings.HasPrefix(sql, "SELECT ")
 	}, "strictReaderQueryFuncs can only wrap SELECT queries")
 

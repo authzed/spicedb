@@ -103,7 +103,7 @@ func discoverTimeseries(registry *prometheus.Registry) (allTS []*prompb.TimeSeri
 		})
 	}
 
-	return
+	return allTS, err
 }
 
 func discoverAndWriteMetrics(

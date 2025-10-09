@@ -47,7 +47,7 @@ type squashable interface {
 }
 
 func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datastore.Datastore, error) {
-	spiceerrors.DebugAssertNotNil(m.caveatTypeSet, "caveatTypeSet must be set")
+	spiceerrors.DebugAssertNotNilf(m.caveatTypeSet, "caveatTypeSet must be set")
 
 	tokenStr, _ := grpcauth.AuthFromMD(ctx, "bearer")
 	tokenDatastore, ok := m.datastoreByToken.Load(tokenStr)
