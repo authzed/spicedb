@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -151,7 +152,7 @@ func newHedgingProxyWithTimeSource(
 	timeSource clock.Clock,
 ) (datastore.Datastore, error) {
 	if initialSlowRequestThreshold < 0 {
-		return nil, fmt.Errorf("initial slow request threshold negative")
+		return nil, errors.New("initial slow request threshold negative")
 	}
 
 	if maxSampleCount < minMaxRequestsThreshold {
@@ -159,7 +160,7 @@ func newHedgingProxyWithTimeSource(
 	}
 
 	if hedgingQuantile <= 0.0 || hedgingQuantile >= 1.0 {
-		return nil, fmt.Errorf("hedgingQuantile must be in the range (0.0-1.0) exclusive")
+		return nil, errors.New("hedgingQuantile must be in the range (0.0-1.0) exclusive")
 	}
 
 	return hedgingProxy{

@@ -3,6 +3,7 @@ package tuple
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"regexp"
@@ -62,7 +63,7 @@ func ValidateResourceID(objectID string) error {
 		return fmt.Errorf("invalid resource id; must match %s", resourceIDExpr)
 	}
 	if len(objectID) > 1024 {
-		return fmt.Errorf("invalid resource id; must be <= 1024 characters")
+		return errors.New("invalid resource id; must be <= 1024 characters")
 	}
 
 	return nil
@@ -71,10 +72,10 @@ func ValidateResourceID(objectID string) error {
 // ValidateSubjectID ensures that the given object ID (under a subject reference) is valid. Returns an error if not.
 func ValidateSubjectID(subjectID string) error {
 	if !subjectIDRegex.MatchString(subjectID) {
-		return fmt.Errorf("invalid subject id; must be alphanumeric and between 1 and 127 characters or a star for public")
+		return errors.New("invalid subject id; must be alphanumeric and between 1 and 127 characters or a star for public")
 	}
 	if len(subjectID) > 1024 {
-		return fmt.Errorf("invalid resource id; must be <= 1024 characters")
+		return errors.New("invalid resource id; must be <= 1024 characters")
 	}
 
 	return nil
@@ -107,7 +108,7 @@ var (
 func Parse(relString string) (Relationship, error) {
 	groups := parserRegex.FindStringSubmatch(relString)
 	if len(groups) == 0 {
-		return Relationship{}, fmt.Errorf("invalid relationship string")
+		return Relationship{}, errors.New("invalid relationship string")
 	}
 
 	subjectRelation := Ellipsis

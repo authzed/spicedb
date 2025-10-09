@@ -2,7 +2,7 @@ package nodeid
 
 import (
 	"context"
-	"fmt"
+	"encoding/hex"
 	"os"
 
 	"github.com/cespare/xxhash/v2"
@@ -37,7 +37,7 @@ func init() {
 		return
 	}
 
-	defaultNodeID = spiceDBPrefix + fmt.Sprintf("%x", hasher.Sum(nil))
+	defaultNodeID = spiceDBPrefix + hex.EncodeToString(hasher.Sum(nil))
 }
 
 // ContextWithHandle adds a placeholder to a context that will later be

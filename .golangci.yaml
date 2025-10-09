@@ -28,6 +28,7 @@ linters:
     - "importas"
     - "ineffassign"
     - "makezero"
+    - "perfsprint"
     - "prealloc"
     - "predeclared"
     - "promlinter"
@@ -90,6 +91,9 @@ linters:
       - linters:
           - "revive"
         text: 'receiver-naming: receiver name \S+ should be consistent with previous receiver name \S+ for invalid-type'
+      - linters:
+          - "perfsprint"
+        path: '(.+)_test\.go'
     paths:
       - "third_party$"
       - "builtin$"

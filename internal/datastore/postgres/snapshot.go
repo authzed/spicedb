@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -40,7 +41,7 @@ func (SnapshotCodec) DecodeValue(tm *pgtype.Map, oid uint32, format int16, src [
 	var target pgSnapshot
 	scanPlan := tm.PlanScan(oid, format, &target)
 	if scanPlan == nil {
-		return nil, fmt.Errorf("PlanScan did not find a plan")
+		return nil, errors.New("PlanScan did not find a plan")
 	}
 
 	err := scanPlan.Scan(src, &target)
@@ -63,7 +64,7 @@ var (
 
 func (s *pgSnapshot) ScanText(v pgtype.Text) error {
 	if !v.Valid {
-		return fmt.Errorf("cannot scan NULL into pgSnapshot")
+		return errors.New("cannot scan NULL into pgSnapshot")
 	}
 
 	components := strings.SplitN(v.String, ":", 3)

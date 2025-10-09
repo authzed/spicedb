@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -79,7 +80,7 @@ func NewManager[D Driver[C, T], C any, T any]() *Manager[D, C, T] {
 // the function can alternatively take a Driver interface param.
 func (m *Manager[D, C, T]) Register(version, replaces string, up MigrationFunc[C], upTx TxMigrationFunc[T]) error {
 	if strings.ToLower(version) == Head {
-		return fmt.Errorf("unable to register version called head")
+		return errors.New("unable to register version called head")
 	}
 
 	if _, ok := m.migrations[version]; ok {

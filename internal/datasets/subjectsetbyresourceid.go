@@ -1,6 +1,7 @@
 package datasets
 
 import (
+	"errors"
 	"fmt"
 
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -22,7 +23,7 @@ type SubjectSetByResourceID struct {
 
 func (ssr SubjectSetByResourceID) add(resourceID string, subject *v1.FoundSubject) error {
 	if subject == nil {
-		return fmt.Errorf("cannot add a nil subject to SubjectSetByResourceID")
+		return errors.New("cannot add a nil subject to SubjectSetByResourceID")
 	}
 
 	_, ok := ssr.subjectSetByResourceID[resourceID]

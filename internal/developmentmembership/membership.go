@@ -1,7 +1,7 @@
 package developmentmembership
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/authzed/spicedb/internal/datasets"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -117,7 +117,7 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 
 		case core.SetOperationUserset_EXCLUSION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
-				return nil, fmt.Errorf("found exclusion with no children")
+				return nil, errors.New("found exclusion with no children")
 			}
 
 			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.ChildNodes[0])

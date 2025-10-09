@@ -35,7 +35,7 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	name := fmt.Sprintf("spanner-%s", uuid.New().String())
+	name := "spanner-" + uuid.New().String()
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         name,
 		Repository:   "gcr.io/cloud-spanner-emulator/emulator",
@@ -54,7 +54,7 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 	})
 
 	port := resource.GetPort("9010/tcp")
-	spannerEmulatorAddr := fmt.Sprintf("localhost:%s", port)
+	spannerEmulatorAddr := "localhost:" + port
 	t.Setenv("SPANNER_EMULATOR_HOST", spannerEmulatorAddr)
 
 	require.NoError(t, pool.Retry(func() error {
@@ -101,7 +101,7 @@ func (b *spannerTest) NewDatabase(t testing.TB) string {
 	uniquePortion, err := secrets.TokenHex(4)
 	require.NoError(t, err)
 
-	newInstanceName := fmt.Sprintf("fake-instance-%s", uniquePortion)
+	newInstanceName := "fake-instance-" + uniquePortion
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -3,7 +3,6 @@ package consistency
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -198,7 +197,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		}
 
 		if status == zedtoken.StatusMismatchedDatastoreID {
-			return fmt.Errorf("ZedToken specified references a different datastore instance but at-exact-snapshot was requested")
+			return errors.New("ZedToken specified references a different datastore instance but at-exact-snapshot was requested")
 		}
 
 		err = ds.CheckRevision(ctx, requestedRev)
@@ -305,7 +304,7 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 
 			case TreatMismatchingTokensAsError:
 				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
-				return datastore.NoRevision, false, fmt.Errorf("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
+				return datastore.NoRevision, false, errors.New("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
 
 			default:
 				return datastore.NoRevision, false, spiceerrors.MustBugf("unknown mismatching token option: %v", option)

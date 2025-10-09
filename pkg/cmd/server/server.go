@@ -209,7 +209,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}()
 
 	if len(c.PresharedSecureKey) < 1 && c.GRPCAuthFunc == nil {
-		return nil, fmt.Errorf("a preshared key must be provided to authenticate API requests")
+		return nil, errors.New("a preshared key must be provided to authenticate API requests")
 	}
 
 	if c.GRPCAuthFunc == nil {

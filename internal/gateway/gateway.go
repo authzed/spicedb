@@ -2,7 +2,7 @@ package gateway
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 
@@ -37,7 +37,7 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 // configuration.
 func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (*CloserHandler, error) {
 	if upstreamAddr == "" {
-		return nil, fmt.Errorf("upstreamAddr must not be empty")
+		return nil, errors.New("upstreamAddr must not be empty")
 	}
 
 	opts := []grpc.DialOption{

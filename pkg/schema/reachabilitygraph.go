@@ -2,6 +2,7 @@ package schema
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -188,7 +189,7 @@ func (rg *DefinitionReachability) computeEntrypoints(
 	entrypointLookupOption entrypointLookupOption,
 ) ([]ReachabilityEntrypoint, []string, error) {
 	if resourceType.Namespace != rg.def.nsDef.Name {
-		return nil, nil, fmt.Errorf("gave mismatching namespace name for resource type to reachability graph")
+		return nil, nil, errors.New("gave mismatching namespace name for resource type to reachability graph")
 	}
 
 	collected := &[]ReachabilityEntrypoint{}

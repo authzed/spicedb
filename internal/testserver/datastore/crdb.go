@@ -36,7 +36,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion strin
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	name := fmt.Sprintf("crds-%s", uuid.New().String())
+	name := "crds-" + uuid.New().String()
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
 		Repository: "mirror.gcr.io/cockroachdb/cockroach",
