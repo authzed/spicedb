@@ -243,8 +243,8 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 				Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
 				CheckpointInterval: p.watchHeartbeat,
 			})
-			spiceerrors.DebugAssertNotNil(ssc, "ssc is nil")
-			spiceerrors.DebugAssertNotNil(serrc, "serrc is nil")
+			spiceerrors.DebugAssertNotNilf(ssc, "ssc is nil")
+			spiceerrors.DebugAssertNotNilf(serrc, "serrc is nil")
 
 			log.Debug().Msg("schema watch started")
 

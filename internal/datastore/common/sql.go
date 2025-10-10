@@ -191,7 +191,7 @@ func (sqf SchemaQueryFilterer) WithIndexingHint(indexingHint IndexingHint) Schem
 }
 
 func (sqf SchemaQueryFilterer) UnderlyingQueryBuilder() sq.SelectBuilder {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return sqf.isCustomQuery
 	}, "UnderlyingQueryBuilder should only be called on custom queries")
 	return sqf.queryBuilderWithMaybeExpirationFilter(false)
@@ -302,7 +302,7 @@ func (sqf SchemaQueryFilterer) MustAfter(cursor options.Cursor, order options.So
 }
 
 func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOrder) (SchemaQueryFilterer, error) {
-	spiceerrors.DebugAssertNotNil(cursor, "cursor cannot be nil")
+	spiceerrors.DebugAssertNotNilf(cursor, "cursor cannot be nil")
 
 	// NOTE: The ordering of these columns can affect query performance, be aware when changing.
 	columnsAndValues, err := columnsAndValuesForSort(order, sqf.schema, cursor)
@@ -424,7 +424,7 @@ func (sqf SchemaQueryFilterer) MustFilterWithResourceIDPrefix(prefix string) Sch
 // FilterToResourceIDs returns a new SchemaQueryFilterer that is limited to resources with any of the
 // specified IDs.
 func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (SchemaQueryFilterer, error) {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return len(resourceIds) <= int(sqf.filterMaximumIDCount)
 	}, "cannot have more than %d resource IDs in a single filter", sqf.filterMaximumIDCount)
 
@@ -511,7 +511,7 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 
 	switch filter.OptionalCaveatNameFilter.Option {
 	case datastore.CaveatFilterOptionHasMatchingCaveat:
-		spiceerrors.DebugAssert(func() bool {
+		spiceerrors.DebugAssertf(func() bool {
 			return filter.OptionalCaveatNameFilter.CaveatName != ""
 		}, "caveat name must be set when using HasMatchingCaveat")
 		csqf = csqf.FilterWithCaveatName(filter.OptionalCaveatNameFilter.CaveatName)
@@ -529,7 +529,7 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 	switch filter.OptionalExpirationOption {
 	case datastore.ExpirationFilterOptionHasExpiration:
 		csqf.queryBuilder = csqf.queryBuilder.Where(sq.NotEq{csqf.schema.ColExpiration: nil})
-		spiceerrors.DebugAssert(func() bool { return !sqf.schema.ExpirationDisabled }, "expiration filter requested but schema does not support expiration")
+		spiceerrors.DebugAssertf(func() bool { return !sqf.schema.ExpirationDisabled }, "expiration filter requested but schema does not support expiration")
 	case datastore.ExpirationFilterOptionNoExpiration:
 		csqf.queryBuilder = csqf.queryBuilder.Where(sq.Eq{csqf.schema.ColExpiration: nil})
 	}
@@ -570,7 +570,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 		}
 
 		if len(selector.OptionalSubjectIds) > 0 {
-			spiceerrors.DebugAssert(func() bool {
+			spiceerrors.DebugAssertf(func() bool {
 				return len(selector.OptionalSubjectIds) <= int(sqf.filterMaximumIDCount)
 			}, "cannot have more than %d subject IDs in a single filter", sqf.filterMaximumIDCount)
 

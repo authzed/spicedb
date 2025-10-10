@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -84,12 +85,12 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	meta := dispatch.ResolverMeta{
+	meta := &dispatch.ResolverMeta{
 		AtRevision:     revToTest.String(),
 		DepthRemaining: 50,
 		TraversalBloom: dispatch.MustNewTraversalBloomFilter(50),
 	}
-	require.NoError(meta.Validate())
+	require.NoError(protovalidate.Validate(meta))
 }
 
 // GCProcessRunTest tests whether the custom GC process runs for the datastore.

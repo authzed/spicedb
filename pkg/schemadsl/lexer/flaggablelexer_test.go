@@ -70,5 +70,5 @@ func performFlaggedLex(t *lexerTest) (tokens []Lexeme) {
 			break
 		}
 	}
-	return
+	return tokens
 }

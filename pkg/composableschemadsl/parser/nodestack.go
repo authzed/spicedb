@@ -29,7 +29,7 @@ func (s *nodeStack) pop() (value AstNode) {
 	if s.size > 0 {
 		value, s.top = s.top.value, s.top.next
 		s.size--
-		return
+		return value
 	}
 	return nil
 }

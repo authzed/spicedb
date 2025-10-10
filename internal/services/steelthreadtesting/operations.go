@@ -13,9 +13,10 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	"gopkg.in/yaml.v3"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/tuple"

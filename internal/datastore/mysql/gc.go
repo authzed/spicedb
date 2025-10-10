@@ -118,7 +118,7 @@ func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	removed.Relationships, err = mcc.batchDelete(ctx, mcc.mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {
-		return
+		return removed, err
 	}
 
 	// Delete all transaction rows with ID < the transaction ID.
@@ -127,12 +127,12 @@ func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 	// one transaction present.
 	removed.Transactions, err = mcc.batchDelete(ctx, mcc.mds.driver.RelationTupleTransaction(), sq.Lt{colID: txID})
 	if err != nil {
-		return
+		return removed, err
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
 	removed.Namespaces, err = mcc.batchDelete(ctx, mcc.mds.driver.Namespace(), sq.LtOrEq{colDeletedTxn: txID})
-	return
+	return removed, err
 }
 
 func (mcc *mysqlGarbageCollector) DeleteExpiredRels(ctx context.Context) (int64, error) {

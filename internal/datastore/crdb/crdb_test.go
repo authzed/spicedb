@@ -473,7 +473,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 		unprivileged: fmt.Sprintf("postgresql://unprivileged:testpass2@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir),
 	}
 
-	return
+	return adminConn, connStrings
 }
 
 func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {

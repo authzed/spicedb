@@ -3,13 +3,15 @@ package tuple
 import (
 	"time"
 
+	"buf.build/go/protovalidate"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // ONRStringToCore creates an ONR from string pieces.
 func ONRStringToCore(ns, oid, rel string) *core.ObjectAndRelation {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return ns != "" && oid != "" && rel != ""
 	}, "namespace, object ID, and relation must not be empty")
 
@@ -41,7 +43,7 @@ func MustCoreRelationToString(rel *core.RelationTuple) string {
 
 // RRStringToCore creates a RelationReference from the string pieces.
 func RRStringToCore(namespaceName string, relationName string) *core.RelationReference {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return namespaceName != "" && relationName != ""
 	}, "namespace and relation must not be empty")
 
@@ -53,8 +55,8 @@ func RRStringToCore(namespaceName string, relationName string) *core.RelationRef
 
 // FromCoreRelationTuple creates a Relationship from a core.RelationTuple.
 func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
-	spiceerrors.DebugAssert(func() bool {
-		return rt.Validate() == nil
+	spiceerrors.DebugAssertf(func() bool {
+		return protovalidate.Validate(rt) == nil
 	}, "relation tuple must be valid")
 
 	var expiration *time.Time
@@ -83,8 +85,8 @@ func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 
 // FromCoreObjectAndRelation creates an ObjectAndRelation from a core.ObjectAndRelation.
 func FromCoreObjectAndRelation(oar *core.ObjectAndRelation) ObjectAndRelation {
-	spiceerrors.DebugAssert(func() bool {
-		return oar.Validate() == nil
+	spiceerrors.DebugAssertf(func() bool {
+		return protovalidate.Validate(oar) == nil
 	}, "object and relation must be valid")
 
 	return ObjectAndRelation{
@@ -96,7 +98,7 @@ func FromCoreObjectAndRelation(oar *core.ObjectAndRelation) ObjectAndRelation {
 
 // CoreONR creates a core ObjectAndRelation from the string pieces.
 func CoreONR(namespace, objectID, relation string) *core.ObjectAndRelation {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return namespace != "" && objectID != "" && relation != ""
 	}, "namespace, object ID, and relation must not be empty")
 
@@ -109,7 +111,7 @@ func CoreONR(namespace, objectID, relation string) *core.ObjectAndRelation {
 
 // CoreRR creates a core RelationReference from the string pieces.
 func CoreRR(namespace, relation string) *core.RelationReference {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return namespace != "" && relation != ""
 	}, "namespace and relation must not be empty")
 
@@ -121,8 +123,8 @@ func CoreRR(namespace, relation string) *core.RelationReference {
 
 // FromCoreRelationReference creates a RelationReference from a core.RelationReference.
 func FromCoreRelationReference(rr *core.RelationReference) RelationReference {
-	spiceerrors.DebugAssert(func() bool {
-		return rr.Validate() == nil
+	spiceerrors.DebugAssertf(func() bool {
+		return protovalidate.Validate(rr) == nil
 	}, "relation reference must be valid")
 
 	return RelationReference{
