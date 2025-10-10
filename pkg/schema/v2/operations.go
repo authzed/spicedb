@@ -124,6 +124,29 @@ type ExclusionOperation struct {
 	right Operation
 }
 
+// ResolvedRelationReference is an Operation that is a resolved relation reference.
+// It contains both the name and the actual RelationOrPermission being referenced.
+type ResolvedRelationReference struct {
+	// relationName is the name of the relation or permission being referenced.
+	relationName string
+
+	// resolved is the actual RelationOrPermission being referenced.
+	resolved RelationOrPermission
+}
+
+// ResolvedArrowReference is an Operation that represents a resolved arrow reference.
+// It contains the resolved left side relation and the name of the right side.
+type ResolvedArrowReference struct {
+	// left is the name of the relation on the resource.
+	left string
+
+	// resolvedLeft is the actual Relation being referenced on the left side.
+	resolvedLeft *Relation
+
+	// right is the name of the relation/permission on the subject.
+	right string
+}
+
 // Left returns the operation from which we are excluding.
 func (e *ExclusionOperation) Left() Operation {
 	return e.left
@@ -145,7 +168,57 @@ func (e *ExclusionOperation) clone() Operation {
 	}
 }
 
+// RelationName returns the name of the relation or permission being referenced.
+func (r *ResolvedRelationReference) RelationName() string {
+	return r.relationName
+}
+
+// Resolved returns the actual RelationOrPermission being referenced.
+func (r *ResolvedRelationReference) Resolved() RelationOrPermission {
+	return r.resolved
+}
+
+// clone creates a deep copy of the ResolvedRelationReference.
+func (r *ResolvedRelationReference) clone() Operation {
+	if r == nil {
+		return nil
+	}
+	return &ResolvedRelationReference{
+		relationName: r.relationName,
+		resolved:     r.resolved,
+	}
+}
+
+// Left returns the name of the relation on the resource.
+func (a *ResolvedArrowReference) Left() string {
+	return a.left
+}
+
+// ResolvedLeft returns the actual Relation being referenced on the left side.
+func (a *ResolvedArrowReference) ResolvedLeft() *Relation {
+	return a.resolvedLeft
+}
+
+// Right returns the name of the relation/permission on the subject.
+func (a *ResolvedArrowReference) Right() string {
+	return a.right
+}
+
+// clone creates a deep copy of the ResolvedArrowReference.
+func (a *ResolvedArrowReference) clone() Operation {
+	if a == nil {
+		return nil
+	}
+	return &ResolvedArrowReference{
+		left:         a.left,
+		resolvedLeft: a.resolvedLeft,
+		right:        a.right,
+	}
+}
+
 var _ schemaUnit[Operation] = &ExclusionOperation{}
+var _ schemaUnit[Operation] = &ResolvedRelationReference{}
+var _ schemaUnit[Operation] = &ResolvedArrowReference{}
 
 // FunctionedTuplesetOperation is an Operation that represents functioned tuplesets like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
 type FunctionedTuplesetOperation struct {
@@ -187,12 +260,14 @@ func (f *FunctionedTuplesetOperation) clone() Operation {
 }
 
 // We close the enum by implementing the private method.
-func (r *RelationReference) isOperation()           {}
-func (a *ArrowReference) isOperation()              {}
-func (u *UnionOperation) isOperation()              {}
-func (i *IntersectionOperation) isOperation()       {}
-func (e *ExclusionOperation) isOperation()          {}
-func (f *FunctionedTuplesetOperation) isOperation() {}
+func (r *RelationReference) isOperation()             {}
+func (a *ArrowReference) isOperation()                {}
+func (u *UnionOperation) isOperation()                {}
+func (i *IntersectionOperation) isOperation()         {}
+func (e *ExclusionOperation) isOperation()            {}
+func (f *FunctionedTuplesetOperation) isOperation()   {}
+func (r *ResolvedRelationReference) isOperation()     {}
+func (a *ResolvedArrowReference) isOperation()        {}
 
 var (
 	_ Operation = (*RelationReference)(nil)
@@ -201,4 +276,6 @@ var (
 	_ Operation = (*IntersectionOperation)(nil)
 	_ Operation = (*ExclusionOperation)(nil)
 	_ Operation = (*FunctionedTuplesetOperation)(nil)
+	_ Operation = (*ResolvedRelationReference)(nil)
+	_ Operation = (*ResolvedArrowReference)(nil)
 )
