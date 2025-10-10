@@ -217,9 +217,11 @@ func (a *ResolvedArrowReference) clone() Operation {
 	}
 }
 
-var _ schemaUnit[Operation] = &ExclusionOperation{}
-var _ schemaUnit[Operation] = &ResolvedRelationReference{}
-var _ schemaUnit[Operation] = &ResolvedArrowReference{}
+var (
+	_ schemaUnit[Operation] = &ExclusionOperation{}
+	_ schemaUnit[Operation] = &ResolvedRelationReference{}
+	_ schemaUnit[Operation] = &ResolvedArrowReference{}
+)
 
 // We close the enum by implementing the private method.
 func (r *RelationReference) isOperation()         {}

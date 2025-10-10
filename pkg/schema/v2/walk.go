@@ -75,6 +75,18 @@ type ExclusionOperationVisitor[T any] interface {
 	VisitExclusionOperation(eo *ExclusionOperation, value T) (T, bool, error)
 }
 
+// ResolvedRelationReferenceVisitor is called when visiting a ResolvedRelationReference.
+// Returns the value to pass to subsequent visits, and error to halt immediately.
+type ResolvedRelationReferenceVisitor[T any] interface {
+	VisitResolvedRelationReference(rrr *ResolvedRelationReference, value T) (T, error)
+}
+
+// ResolvedArrowReferenceVisitor is called when visiting a ResolvedArrowReference.
+// Returns the value to pass to subsequent visits, and error to halt immediately.
+type ResolvedArrowReferenceVisitor[T any] interface {
+	VisitResolvedArrowReference(rar *ResolvedArrowReference, value T) (T, error)
+}
+
 // WalkSchema walks the entire schema tree, calling appropriate visitor methods
 // on the provided Visitor for each node encountered. Returns the final value and error if any visitor returns an error.
 func WalkSchema[T any](s *Schema, v Visitor[T], value T) (T, error) {
@@ -269,6 +281,24 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 	case *ArrowReference:
 		if arv, ok := v.(ArrowReferenceVisitor[T]); ok {
 			newValue, err := arv.VisitArrowReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *ResolvedRelationReference:
+		if rrrv, ok := v.(ResolvedRelationReferenceVisitor[T]); ok {
+			newValue, err := rrrv.VisitResolvedRelationReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *ResolvedArrowReference:
+		if rarv, ok := v.(ResolvedArrowReferenceVisitor[T]); ok {
+			newValue, err := rarv.VisitResolvedArrowReference(o, currentValue)
 			if err != nil {
 				return currentValue, err
 			}
