@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func TestTraceLogger(t *testing.T) {
@@ -21,19 +19,6 @@ func TestTraceLogger(t *testing.T) {
 		require.Empty(logger.traces)
 		require.Equal(0, logger.depth)
 		require.Empty(logger.stack)
-	})
-
-	t.Run("EnterIteratorOld", func(t *testing.T) {
-		t.Parallel()
-		logger := NewTraceLogger()
-		resources := []Object{NewObject("document", "doc1"), NewObject("document", "doc2")}
-		subject := NewObject("user", "alice").WithEllipses()
-
-		logger.EnterIteratorOld("TestIterator", resources, subject)
-
-		require.Len(logger.traces, 1)
-		require.Equal(1, logger.depth)
-		require.Contains(logger.traces[0], "-> TestIterator: check(document:doc1,document:doc2, user:alice)")
 	})
 
 	t.Run("EnterIterator", func(t *testing.T) {
@@ -54,20 +39,6 @@ func TestTraceLogger(t *testing.T) {
 		require.Contains(logger.traces[0], "-> Fixed: check(document:doc1, user:alice)")
 	})
 
-	t.Run("ExitIteratorOld", func(t *testing.T) {
-		t.Parallel()
-		logger := NewTraceLogger()
-		logger.depth = 1 // Simulate having entered an iterator
-
-		paths := []*Path{MustPathFromString("document:doc1#view@user:alice")}
-		logger.ExitIteratorOld("TestIterator", paths)
-
-		require.Equal(0, logger.depth)
-		require.Len(logger.traces, 1)
-		require.Contains(logger.traces[0], "<- TestIterator: returned 1 paths")
-		require.Contains(logger.traces[0], "document:doc1#view@user:alice")
-	})
-
 	t.Run("ExitIterator", func(t *testing.T) {
 		t.Parallel()
 		logger := NewTraceLogger()
@@ -85,17 +56,6 @@ func TestTraceLogger(t *testing.T) {
 		require.Empty(logger.stack)
 		require.Len(logger.traces, 1)
 		require.Contains(logger.traces[0], "<- Fixed: returned 1 paths")
-	})
-
-	t.Run("LogStepOld", func(t *testing.T) {
-		t.Parallel()
-		logger := NewTraceLogger()
-		logger.depth = 2 // Simulate being nested
-
-		logger.LogStepOld("TestIterator", "processing step %d", 42)
-
-		require.Len(logger.traces, 1)
-		require.Contains(logger.traces[0], "    TestIterator: processing step 42")
 	})
 
 	t.Run("LogStep", func(t *testing.T) {
@@ -134,45 +94,6 @@ func TestTraceLogger(t *testing.T) {
 
 		dump := logger.DumpTrace()
 		require.Equal("line1\nline2\nline3", dump)
-	})
-
-	t.Run("Caveat_handling_in_traces", func(t *testing.T) {
-		t.Parallel()
-		logger := NewTraceLogger()
-		logger.depth = 1 // Simulate having entered an iterator
-
-		// Create path with caveat
-		pathWithCaveat := MustPathFromString("document:doc1#view@user:alice")
-		pathWithCaveat.Caveat = &core.CaveatExpression{
-			OperationOrCaveat: &core.CaveatExpression_Caveat{
-				Caveat: &core.ContextualizedCaveat{CaveatName: "test_caveat"},
-			},
-		}
-
-		// Test ExitIteratorOld with caveat
-		logger.ExitIteratorOld("CaveatIterator", []*Path{pathWithCaveat})
-
-		require.Len(logger.traces, 1)
-		require.Contains(logger.traces[0], "[test_caveat]")
-	})
-
-	t.Run("Complex_caveat_handling", func(t *testing.T) {
-		t.Parallel()
-		logger := NewTraceLogger()
-		logger.depth = 1 // Simulate having entered an iterator
-
-		// Create path with complex caveat (operation-based)
-		pathWithComplexCaveat := MustPathFromString("document:doc1#view@user:alice")
-		pathWithComplexCaveat.Caveat = &core.CaveatExpression{
-			OperationOrCaveat: &core.CaveatExpression_Operation{
-				Operation: &core.CaveatOperation{Op: core.CaveatOperation_AND},
-			},
-		}
-
-		logger.ExitIteratorOld("ComplexIterator", []*Path{pathWithComplexCaveat})
-
-		require.Len(logger.traces, 1)
-		require.Contains(logger.traces[0], "[complex_caveat]")
 	})
 }
 

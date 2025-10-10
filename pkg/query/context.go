@@ -26,18 +26,6 @@ func NewTraceLogger() *TraceLogger {
 	}
 }
 
-// EnterIteratorOld logs entering an iterator
-func (t *TraceLogger) EnterIteratorOld(iteratorType string, resources []Object, subject ObjectAndRelation) {
-	indent := strings.Repeat("  ", t.depth)
-	resourceStrs := make([]string, len(resources))
-	for i, r := range resources {
-		resourceStrs[i] = fmt.Sprintf("%s:%s", r.ObjectType, r.ObjectID)
-	}
-	t.traces = append(t.traces, fmt.Sprintf("%s-> %s: check(%s, %s:%s)",
-		indent, iteratorType, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
-	t.depth++
-}
-
 // EnterIterator logs entering an iterator and pushes it onto the stack
 func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject ObjectAndRelation) {
 	// Get iterator name from Explain
@@ -56,29 +44,6 @@ func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject Obj
 		indent, iteratorType, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
 	t.depth++
 	t.stack = append(t.stack, it) // Push iterator pointer onto stack
-}
-
-// ExitIteratorOld logs exiting an iterator with results
-func (t *TraceLogger) ExitIteratorOld(iteratorType string, paths []*Path) {
-	t.depth--
-	indent := strings.Repeat("  ", t.depth)
-	pathStrs := make([]string, len(paths))
-	for i, p := range paths {
-		caveatInfo := ""
-		if p.Caveat != nil {
-			// Extract caveat name from CaveatExpression
-			if p.Caveat.GetCaveat() != nil {
-				caveatInfo = fmt.Sprintf("[%s]", p.Caveat.GetCaveat().CaveatName)
-			} else {
-				caveatInfo = "[complex_caveat]"
-			}
-		}
-		pathStrs[i] = fmt.Sprintf("%s:%s#%s@%s:%s%s",
-			p.Resource.ObjectType, p.Resource.ObjectID, p.Relation,
-			p.Subject.ObjectType, p.Subject.ObjectID, caveatInfo)
-	}
-	t.traces = append(t.traces, fmt.Sprintf("%s<- %s: returned %d paths: [%s]",
-		indent, iteratorType, len(paths), strings.Join(pathStrs, ", ")))
 }
 
 // ExitIterator logs exiting an iterator and pops it from the stack
@@ -114,13 +79,6 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []*Path) {
 	}
 	t.traces = append(t.traces, fmt.Sprintf("%s<- %s: returned %d paths: [%s]",
 		indent, iteratorType, len(paths), strings.Join(pathStrs, ", ")))
-}
-
-// LogStepOld logs an intermediate step within an iterator
-func (t *TraceLogger) LogStepOld(iteratorType, step string, data ...any) {
-	indent := strings.Repeat("  ", t.depth)
-	message := fmt.Sprintf(step, data...)
-	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, iteratorType, message))
 }
 
 // LogStep logs an intermediate step within an iterator, using the iterator pointer to find the correct indentation level
