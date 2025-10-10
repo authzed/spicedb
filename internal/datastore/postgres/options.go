@@ -30,7 +30,6 @@ type postgresOptions struct {
 	analyzeBeforeStatistics        bool
 	gcEnabled                      bool
 	readStrictMode                 bool
-	expirationDisabled             bool
 	watchDisabled                  bool
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
@@ -77,7 +76,6 @@ const (
 	defaultFilterMaximumIDCount              = 100
 	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces    = false
-	defaultExpirationDisabled                = false
 	defaultWatchDisabled                     = false
 	// no follower delay by default, it should only be set if using read replicas
 	defaultFollowerReadDelay     = 0
@@ -107,7 +105,6 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		filterMaximumIDCount:           defaultFilterMaximumIDCount,
 		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
-		expirationDisabled:             defaultExpirationDisabled,
 		watchDisabled:                  defaultWatchDisabled,
 		followerReadDelay:              defaultFollowerReadDelay,
 		revisionHeartbeatEnabled:       defaultRevisionHeartbeat,
@@ -423,11 +420,6 @@ func WithColumnOptimization(isEnabled bool) Option {
 			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
 		}
 	}
-}
-
-// WithExpirationDisabled disables support for relationship expiration.
-func WithExpirationDisabled(isDisabled bool) Option {
-	return func(po *postgresOptions) { po.expirationDisabled = isDisabled }
 }
 
 // WithRevisionHeartbeat enables the revision heartbeat.

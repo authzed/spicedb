@@ -86,7 +86,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.MigrationPhase = c.MigrationPhase
 		to.AllowedMigrations = c.AllowedMigrations
 		to.ExperimentalColumnOptimization = c.ExperimentalColumnOptimization
-		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 	}
 }
@@ -144,7 +143,6 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
 	debugMap["AllowedMigrations"] = helpers.DebugValue(c.AllowedMigrations, false)
 	debugMap["ExperimentalColumnOptimization"] = helpers.DebugValue(c.ExperimentalColumnOptimization, false)
-	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
 	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	return debugMap
 }
@@ -582,13 +580,6 @@ func SetAllowedMigrations(allowedMigrations []string) ConfigOption {
 func WithExperimentalColumnOptimization(experimentalColumnOptimization bool) ConfigOption {
 	return func(c *Config) {
 		c.ExperimentalColumnOptimization = experimentalColumnOptimization
-	}
-}
-
-// WithEnableExperimentalRelationshipExpiration returns an option that can set EnableExperimentalRelationshipExpiration on a Config
-func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationshipExpiration bool) ConfigOption {
-	return func(c *Config) {
-		c.EnableExperimentalRelationshipExpiration = enableExperimentalRelationshipExpiration
 	}
 }
 
