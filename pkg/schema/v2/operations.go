@@ -216,9 +216,11 @@ func (a *ResolvedArrowReference) clone() Operation {
 	}
 }
 
-var _ schemaUnit[Operation] = &ExclusionOperation{}
-var _ schemaUnit[Operation] = &ResolvedRelationReference{}
-var _ schemaUnit[Operation] = &ResolvedArrowReference{}
+var (
+	_ schemaUnit[Operation] = &ExclusionOperation{}
+	_ schemaUnit[Operation] = &ResolvedRelationReference{}
+	_ schemaUnit[Operation] = &ResolvedArrowReference{}
+)
 
 // FunctionedTuplesetOperation is an Operation that represents functioned tuplesets like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
 type FunctionedTuplesetOperation struct {
@@ -260,14 +262,14 @@ func (f *FunctionedTuplesetOperation) clone() Operation {
 }
 
 // We close the enum by implementing the private method.
-func (r *RelationReference) isOperation()             {}
-func (a *ArrowReference) isOperation()                {}
-func (u *UnionOperation) isOperation()                {}
-func (i *IntersectionOperation) isOperation()         {}
-func (e *ExclusionOperation) isOperation()            {}
-func (f *FunctionedTuplesetOperation) isOperation()   {}
-func (r *ResolvedRelationReference) isOperation()     {}
-func (a *ResolvedArrowReference) isOperation()        {}
+func (r *RelationReference) isOperation()           {}
+func (a *ArrowReference) isOperation()              {}
+func (u *UnionOperation) isOperation()              {}
+func (i *IntersectionOperation) isOperation()       {}
+func (e *ExclusionOperation) isOperation()          {}
+func (f *FunctionedTuplesetOperation) isOperation() {}
+func (r *ResolvedRelationReference) isOperation()   {}
+func (a *ResolvedArrowReference) isOperation()      {}
 
 var (
 	_ Operation = (*RelationReference)(nil)
