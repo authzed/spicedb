@@ -34,6 +34,15 @@ body:
       label: "What SpiceDB version are you using?"
       placeholder: "v1.25.0"
   - type: "textarea"
+    id: "version"
+    validations:
+      required: true
+    attributes:
+      label: "What SpiceDB flags do you use?"
+      placeholder: |-
+        1. --datastore-engine=...
+        2. --enable-experimental-watchable-schema-cache=...
+  - type: "textarea"
     id: "repro"
     validations:
       required: true
