@@ -4,6 +4,7 @@ package schema
 // It forms a tree of unions, intersections and exclusions, until the leaves are things like references to other permissions or relations, or are arrows.
 type Operation interface {
 	isOperation()
+	clone() Operation
 }
 
 // RelationReference is an Operation that is a simple relation, such as `permission foo = bar`.
@@ -16,6 +17,18 @@ type RelationReference struct {
 func (r *RelationReference) RelationName() string {
 	return r.relationName
 }
+
+// clone creates a deep copy of the RelationReference.
+func (r *RelationReference) clone() Operation {
+	if r == nil {
+		return nil
+	}
+	return &RelationReference{
+		relationName: r.relationName,
+	}
+}
+
+var _ schemaUnit[Operation] = &RelationReference{}
 
 // ArrowReference is an Operation that represents `permission foo = Left->Right`.
 type ArrowReference struct {
@@ -36,6 +49,19 @@ func (a *ArrowReference) Right() string {
 	return a.right
 }
 
+// clone creates a deep copy of the ArrowReference.
+func (a *ArrowReference) clone() Operation {
+	if a == nil {
+		return nil
+	}
+	return &ArrowReference{
+		left:  a.left,
+		right: a.right,
+	}
+}
+
+var _ schemaUnit[Operation] = &ArrowReference{}
+
 // UnionOperation is an Operation that represents `permission foo = a | b | c`.
 type UnionOperation struct {
 	// children are the sub-operations that are unioned together.
@@ -47,6 +73,22 @@ func (u *UnionOperation) Children() []Operation {
 	return u.children
 }
 
+// clone creates a deep copy of the UnionOperation.
+func (u *UnionOperation) clone() Operation {
+	if u == nil {
+		return nil
+	}
+	children := make([]Operation, len(u.children))
+	for i, child := range u.children {
+		children[i] = child.clone()
+	}
+	return &UnionOperation{
+		children: children,
+	}
+}
+
+var _ schemaUnit[Operation] = &UnionOperation{}
+
 // IntersectionOperation is an Operation that represents `permission foo = a & b & c`.
 type IntersectionOperation struct {
 	children []Operation
@@ -56,6 +98,22 @@ type IntersectionOperation struct {
 func (i *IntersectionOperation) Children() []Operation {
 	return i.children
 }
+
+// clone creates a deep copy of the IntersectionOperation.
+func (i *IntersectionOperation) clone() Operation {
+	if i == nil {
+		return nil
+	}
+	children := make([]Operation, len(i.children))
+	for idx, child := range i.children {
+		children[idx] = child.clone()
+	}
+	return &IntersectionOperation{
+		children: children,
+	}
+}
+
+var _ schemaUnit[Operation] = &IntersectionOperation{}
 
 // ExclusionOperation is an Operation that represents `permission foo = a - b`.
 type ExclusionOperation struct {
@@ -75,6 +133,19 @@ func (e *ExclusionOperation) Left() Operation {
 func (e *ExclusionOperation) Right() Operation {
 	return e.right
 }
+
+// clone creates a deep copy of the ExclusionOperation.
+func (e *ExclusionOperation) clone() Operation {
+	if e == nil {
+		return nil
+	}
+	return &ExclusionOperation{
+		left:  e.left.clone(),
+		right: e.right.clone(),
+	}
+}
+
+var _ schemaUnit[Operation] = &ExclusionOperation{}
 
 // FunctionedTuplesetOperation is an Operation that represents functioned tuplesets like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
 type FunctionedTuplesetOperation struct {
@@ -101,6 +172,18 @@ func (f *FunctionedTuplesetOperation) Function() FunctionType {
 
 func (f *FunctionedTuplesetOperation) ComputedRelation() string {
 	return f.computedRelation
+}
+
+// clone creates a deep copy of the FunctionedTuplesetOperation.
+func (f *FunctionedTuplesetOperation) clone() Operation {
+	if f == nil {
+		return nil
+	}
+	return &FunctionedTuplesetOperation{
+		tuplesetRelation: f.tuplesetRelation,
+		function:         f.function,
+		computedRelation: f.computedRelation,
+	}
 }
 
 // We close the enum by implementing the private method.
