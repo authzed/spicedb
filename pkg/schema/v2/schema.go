@@ -169,6 +169,15 @@ type Permission struct {
 	parent    *Definition
 	name      string
 	operation Operation
+	synthetic bool // true if this permission was synthesized by the schema system
+}
+
+// SyntheticPermission is a permission that has been synthesized by the schema system
+// (e.g., during flattening operations). It is functionally identical to a Permission
+// but is marked as synthetic for tracking purposes.
+type SyntheticPermission struct {
+	Permission
+	synthetic bool
 }
 
 // Parent returns the parent definition.
@@ -201,8 +210,23 @@ func (p *Permission) cloneWithParent(parentDefinition *Definition) *Permission {
 	}
 }
 
-var _ RelationOrPermission = &Permission{}
-var _ schemaUnitWithParent[*Permission, *Definition] = &Permission{}
+// IsSynthetic returns true if this permission was synthesized by the schema system.
+func (p *Permission) IsSynthetic() bool {
+	return p.synthetic
+}
+
+// IsSynthetic returns true for synthetic permissions.
+func (sp *SyntheticPermission) IsSynthetic() bool {
+	return sp.synthetic
+}
+
+func (sp *SyntheticPermission) isRelationOrPermission() {}
+
+var (
+	_ RelationOrPermission                           = &Permission{}
+	_ RelationOrPermission                           = &SyntheticPermission{}
+	_ schemaUnitWithParent[*Permission, *Definition] = &Permission{}
+)
 
 // Relation is a single `relation` line belonging to a definition. It has a name and list of types appearing on the right hand side.
 type Relation struct {
@@ -254,8 +278,10 @@ func (r *Relation) cloneWithParent(parentDefinition *Definition) *Relation {
 	return cloned
 }
 
-var _ RelationOrPermission = &Relation{}
-var _ schemaUnitWithParent[*Relation, *Definition] = &Relation{}
+var (
+	_ RelationOrPermission                         = &Relation{}
+	_ schemaUnitWithParent[*Relation, *Definition] = &Relation{}
+)
 
 // BaseRelation is a single type, and its potential caveats, and expiration options. These features are written directly to the database with the parent Relation and Definition as the resource type and relation, and contains the subject type and optional subrelation.
 type BaseRelation struct {

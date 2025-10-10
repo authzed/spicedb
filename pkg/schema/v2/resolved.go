@@ -13,6 +13,16 @@ func (r *ResolvedSchema) Schema() *Schema {
 	return r.schema
 }
 
+// WalkResolvedSchema walks the resolved schema tree, calling appropriate visitor methods
+// on the provided Visitor for each node encountered. This is a convenience function that
+// delegates to WalkSchema on the underlying schema.
+func WalkResolvedSchema[T any](rs *ResolvedSchema, v Visitor[T], value T) (T, error) {
+	if rs == nil {
+		return value, nil
+	}
+	return WalkSchema(rs.schema, v, value)
+}
+
 // ResolveSchema takes a schema, clones it, walks through all operations,
 // and replaces RelationReference and ArrowReference nodes with their resolved versions.
 // Returns an error if any relation or arrow left side cannot be resolved.

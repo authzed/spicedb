@@ -216,9 +216,11 @@ func (a *ResolvedArrowReference) clone() Operation {
 	}
 }
 
-var _ schemaUnit[Operation] = &ExclusionOperation{}
-var _ schemaUnit[Operation] = &ResolvedRelationReference{}
-var _ schemaUnit[Operation] = &ResolvedArrowReference{}
+var (
+	_ schemaUnit[Operation] = &ExclusionOperation{}
+	_ schemaUnit[Operation] = &ResolvedRelationReference{}
+	_ schemaUnit[Operation] = &ResolvedArrowReference{}
+)
 
 // FunctionedTuplesetOperation is an Operation that represents functioned tuplesets like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
 type FunctionedTuplesetOperation struct {
