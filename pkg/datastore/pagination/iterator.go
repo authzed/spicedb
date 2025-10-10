@@ -15,7 +15,7 @@ func NewPaginatedIterator(
 	ctx context.Context,
 	reader datastore.Reader,
 	filter datastore.RelationshipsFilter,
-	pageSize uint64,
+	limit uint64,
 	order options.SortOrder,
 	startCursor options.Cursor,
 	queryShape queryshape.Shape,
@@ -23,22 +23,23 @@ func NewPaginatedIterator(
 ) (datastore.RelationshipIterator, error) {
 	baseOptions := append([]options.QueryOptionsOption{
 		options.WithSort(order),
-		options.WithLimit(&pageSize),
+		options.WithLimit(&limit),
 		options.WithQueryShape(queryShape),
 	}, opts...)
-
-	iter, err := reader.QueryRelationships(
-		ctx,
-		filter,
-		append(baseOptions, options.WithAfter(startCursor))...,
-	)
-	if err != nil {
-		return nil, err
-	}
 
 	return func(yield func(tuple.Relationship, error) bool) {
 		cursor := startCursor
 		for {
+			iter, err := reader.QueryRelationships(
+				ctx,
+				filter,
+				append(baseOptions, options.WithAfter(cursor))...,
+			)
+			if err != nil {
+				yield(tuple.Relationship{}, err)
+				return
+			}
+
 			var counter uint64
 			for rel, err := range iter {
 				if !yield(rel, err) {
@@ -48,22 +49,12 @@ func NewPaginatedIterator(
 				cursor = options.ToCursor(rel)
 				counter++
 
-				if counter >= pageSize {
+				if counter >= limit {
 					break
 				}
 			}
 
-			if counter < pageSize {
-				return
-			}
-
-			iter, err = reader.QueryRelationships(
-				ctx,
-				filter,
-				append(baseOptions, options.WithAfter(cursor))...,
-			)
-			if err != nil {
-				yield(tuple.Relationship{}, err)
+			if counter < limit {
 				return
 			}
 		}
