@@ -33,7 +33,7 @@ const (
 type Cursor *tuple.Relationship
 
 func ToCursor(r tuple.Relationship) Cursor {
-	spiceerrors.DebugAssert(r.ValidateNotEmpty, "cannot create cursor from empty relationship")
+	spiceerrors.DebugAssertf(r.ValidateNotEmpty, "cannot create cursor from empty relationship")
 	return Cursor(&r)
 }
 

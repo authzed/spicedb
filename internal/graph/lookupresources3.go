@@ -724,7 +724,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					// chunk of relationships over which the process is iterating. If non-empty, then we first yield that chunk
 					// before continuing to query for more relationships.
 					if crc, ok := currentIndex.lookupRelationshipsChunk(crr.relationshipsChunkCache); ok {
-						spiceerrors.DebugAssert(crc.isPopulated, "expected relationships chunk to be populated")
+						spiceerrors.DebugAssertf(crc.isPopulated, "expected relationships chunk to be populated")
 
 						// Yield the current chunk of relationships.
 						if !yield(cter.Chunk[*relationshipsChunk, datastoreIndex]{
@@ -1211,7 +1211,7 @@ func (rm *relationshipsChunk) copyRelationshipsFrom(src *relationshipsChunk, res
 }
 
 func (rm *relationshipsChunk) mustAsIndex() datastoreIndex {
-	spiceerrors.DebugAssert(rm.isPopulated, "cannot create index from empty relationships chunk")
+	spiceerrors.DebugAssertf(rm.isPopulated, "cannot create index from empty relationships chunk")
 	return datastoreIndex{
 		dbCursor: rm.dbCursor,
 		chunkID:  rm.uniqueID,
@@ -1393,7 +1393,7 @@ func datastoreIndexFromString(cursorStr string) (datastoreIndex, error) {
 
 // mustDatastoreIndexToString converts a datastoreIndex into a string representation.
 func mustDatastoreIndexToString(index datastoreIndex) (string, error) {
-	spiceerrors.DebugAssert(func() bool { return index.chunkID != "" }, "chunk ID must be set")
+	spiceerrors.DebugAssertf(func() bool { return index.chunkID != "" }, "chunk ID must be set")
 
 	if index.dbCursor == nil {
 		return dsIndexPrefix + index.chunkID, nil

@@ -70,11 +70,11 @@ func subjectIDsToResourcesMap2(resourceType *core.RelationReference, subjectIDs 
 // addRelationship adds the relationship to the resource subject map, recording a mapping from
 // the resource of the relationship to the subject, as well as whether the relationship was caveated.
 func (rsm resourcesSubjectMap2) addRelationship(rel tuple.Relationship, missingContextParameters []string) error {
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return rel.Resource.ObjectType == rsm.resourceType.Namespace && rel.Resource.Relation == rsm.resourceType.Relation
 	}, "invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.Resource)
 
-	spiceerrors.DebugAssert(func() bool {
+	spiceerrors.DebugAssertf(func() bool {
 		return len(missingContextParameters) == 0 || rel.OptionalCaveat != nil
 	}, "missing context parameters must be empty if there is no caveat")
 

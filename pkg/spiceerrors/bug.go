@@ -19,8 +19,8 @@ func IsInTests() bool {
 	return false
 }
 
-// MustPanic is a special function for panicing when necessary to violate the linter.
-func MustPanic(format string, args ...any) {
+// MustPanicf is a special function for panicing when necessary to violate the linter.
+func MustPanicf(format string, args ...any) {
 	panic(fmt.Sprintf(format, args...))
 }
 
