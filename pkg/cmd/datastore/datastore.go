@@ -102,8 +102,8 @@ func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure,password -output zz_generated.options.go . Config
 type Config struct {
-	Engine                      string        `debugmap:"visible"`
-	URI                         string        `debugmap:"sensitive"`
+	Engine string `debugmap:"visible"`
+	URI    string `debugmap:"sensitive"`
 
 	// Granular connection parameters (alternative to URI)
 	Host     string `debugmap:"visible"`
@@ -117,7 +117,7 @@ type Config struct {
 	RevisionQuantization        time.Duration `debugmap:"visible"`
 	MaxRevisionStalenessPercent float64       `debugmap:"visible"`
 	CredentialsProviderName     string        `debugmap:"visible"`
-	FilterMaximumIDCount        uint16        `debugmap:"hidden"    default:"100"`
+	FilterMaximumIDCount        uint16        `debugmap:"hidden"  default:"100"`
 
 	// Options
 	ReadConnPool                   ConnPoolConfig `debugmap:"visible"`
