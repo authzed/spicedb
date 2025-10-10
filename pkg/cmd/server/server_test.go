@@ -67,6 +67,12 @@ func TestServerGracefulTermination(t *testing.T) {
 	<-ch
 }
 
+func TestServerDefaultOptions(t *testing.T) {
+	cfg := NewConfigWithOptionsAndDefaults()
+
+	require.True(t, cfg.EnableRelationshipExpiration)
+}
+
 func TestOTelReporting(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 	spanrecorder, restoreOtel := setupSpanRecorder()

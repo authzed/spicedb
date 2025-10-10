@@ -348,7 +348,7 @@ func newPostgresDatastore(
 		isPrimary:               isPrimary,
 		inStrictReadMode:        config.readStrictMode,
 		filterMaximumIDCount:    config.filterMaximumIDCount,
-		schema:                  *schema.Schema(config.columnOptimizationOption, config.expirationDisabled),
+		schema:                  *schema.Schema(config.columnOptimizationOption, false),
 		quantizationPeriodNanos: quantizationPeriodNanos,
 		isolationLevel:          isolationLevel,
 	}

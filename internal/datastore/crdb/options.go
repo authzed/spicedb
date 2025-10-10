@@ -33,7 +33,6 @@ type crdbOptions struct {
 	allowedMigrations              []string
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
-	expirationDisabled             bool
 	watchDisabled                  bool
 	acquireTimeout                 time.Duration
 }
@@ -66,7 +65,6 @@ const (
 	defaultWithIntegrity                  = false
 	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces = false
-	defaultExpirationDisabled             = false
 	defaultWatchDisabled                  = false
 )
 
@@ -93,7 +91,6 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		withIntegrity:                  defaultWithIntegrity,
 		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
-		expirationDisabled:             defaultExpirationDisabled,
 		watchDisabled:                  defaultWatchDisabled,
 		acquireTimeout:                 defaultAcquireTimeout,
 	}
@@ -388,11 +385,6 @@ func WithColumnOptimization(isEnabled bool) Option {
 			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
 		}
 	}
-}
-
-// WithExpirationDisabled configures the datastore to disable relationship expiration.
-func WithExpirationDisabled(isDisabled bool) Option {
-	return func(po *crdbOptions) { po.expirationDisabled = isDisabled }
 }
 
 // WithWatchDisabled configures the datastore to disable watch functionality.
