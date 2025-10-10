@@ -11,6 +11,7 @@ type CountingMultiMap[T comparable, Q comparable] struct {
 }
 
 // NewCountingMultiMap constructs a new counting multimap.
+// Safe for concurrent use.
 func NewCountingMultiMap[T comparable, Q comparable]() *CountingMultiMap[T, Q] {
 	return &CountingMultiMap[T, Q]{
 		valuesByKey: map[T]*Set[Q]{},

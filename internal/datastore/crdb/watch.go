@@ -223,7 +223,7 @@ func (cds *crdbDatastore) watch(
 	cds.processChanges(ctx, changes, sendError, sendChange, opts, opts.EmissionStrategy == datastore.EmitImmediatelyStrategy)
 }
 
-// changeTracker takes care of accumulating received from CockroachDB until a checkpoint is emitted
+// changeTracker takes care of accumulating changes received from CockroachDB until a checkpoint is emitted
 type changeTracker[R datastore.Revision, K comparable] interface {
 	FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) ([]datastore.RevisionChanges, error)
 	AddRelationshipChange(ctx context.Context, rev R, rel tuple.Relationship, op tuple.UpdateOperation) error
