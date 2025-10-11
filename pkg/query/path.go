@@ -206,6 +206,72 @@ func MustPathFromString(relationshipStr string) *Path {
 	return FromRelationship(rel)
 }
 
+// EqualsEndpoints checks if two paths have the same Resource and Subject endpoints (types and IDs only)
+func (p *Path) EqualsEndpoints(other *Path) bool {
+	if p == nil || other == nil {
+		return p == other
+	}
+
+	return p.Resource.ObjectType == other.Resource.ObjectType &&
+		p.Resource.ObjectID == other.Resource.ObjectID &&
+		p.Subject.ObjectType == other.Subject.ObjectType &&
+		p.Subject.ObjectID == other.Subject.ObjectID
+}
+
+// Equals checks if two paths are fully equal (all fields match)
+func (p *Path) Equals(other *Path) bool {
+	if p == nil || other == nil {
+		return p == other
+	}
+
+	// Check basic fields
+	if p.Resource.ObjectType != other.Resource.ObjectType ||
+		p.Resource.ObjectID != other.Resource.ObjectID ||
+		p.Relation != other.Relation ||
+		p.Subject.ObjectType != other.Subject.ObjectType ||
+		p.Subject.ObjectID != other.Subject.ObjectID ||
+		p.Subject.Relation != other.Subject.Relation {
+		return false
+	}
+
+	// Check expiration
+	if (p.Expiration == nil) != (other.Expiration == nil) {
+		return false
+	}
+	if p.Expiration != nil && other.Expiration != nil && !p.Expiration.Equal(*other.Expiration) {
+		return false
+	}
+
+	// Check caveat (basic comparison - could be more sophisticated)
+	if (p.Caveat == nil) != (other.Caveat == nil) {
+		return false
+	}
+	if p.Caveat != nil && other.Caveat != nil {
+		// For now, just compare the string representation
+		// A more sophisticated comparison would parse the caveat structure
+		if p.Caveat.String() != other.Caveat.String() {
+			return false
+		}
+	}
+
+	// Check metadata maps
+	if !maps.Equal(p.Metadata, other.Metadata) {
+		return false
+	}
+
+	// Check integrity (basic comparison)
+	if len(p.Integrity) != len(other.Integrity) {
+		return false
+	}
+	for i, integrity := range p.Integrity {
+		if integrity.String() != other.Integrity[i].String() {
+			return false
+		}
+	}
+
+	return true
+}
+
 // CollectAll is a helper function to build read a complete PathSeq and turn it into a fully realized slice of Paths.
 func CollectAll(seq PathSeq) ([]*Path, error) {
 	out := make([]*Path, 0) // `prealloc` is overly aggressive. This should be `var out []*Path`

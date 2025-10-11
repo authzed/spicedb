@@ -203,19 +203,19 @@ func BuildSchemaFromDefinitions(objectDefs []*corev1.NamespaceDefinition, caveat
 
 	for _, def := range objectDefs {
 		d, err := convertDefinition(def)
-		d.parent = out
 		if err != nil {
 			return nil, err
 		}
+		d.parent = out
 		out.definitions[def.GetName()] = d
 	}
 
 	for _, caveat := range caveatDefs {
 		c, err := convertCaveat(caveat)
-		c.parent = out
 		if err != nil {
 			return nil, err
 		}
+		c.parent = out
 		out.caveats[caveat.GetName()] = c
 	}
 
