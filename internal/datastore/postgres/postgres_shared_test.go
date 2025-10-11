@@ -1435,6 +1435,7 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 }
 
 func BenchmarkPostgresQuery(b *testing.B) {
+	b.StopTimer()
 	req := require.New(b)
 
 	ds := testdatastore.RunPostgresForTesting(b, "", migrate.Head, pgversion.MinimumSupportedPostgresVersion, false).NewDatastore(b, func(engine, uri string) datastore.Datastore {
@@ -1451,6 +1452,8 @@ func BenchmarkPostgresQuery(b *testing.B) {
 	})
 	defer ds.Close()
 	ds, revision := testfixtures.StandardDatastoreWithData(ds, req)
+
+	b.StartTimer()
 
 	b.Run("benchmark checks", func(b *testing.B) {
 		require := require.New(b)
