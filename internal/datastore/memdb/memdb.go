@@ -120,7 +120,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 	}
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is not ready"), time.Now()}
+		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now()}
 	}
 
 	if err := mdb.checkRevisionLocalCallerMustLock(dr); err != nil {
@@ -138,7 +138,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is already closed"), time.Now()}
+		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now()}
 	}
 
 	roTxn := rev.db.Txn(false)

@@ -1,6 +1,7 @@
 package dispatchv1
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/bits-and-blooms/bloom/v3"
@@ -16,7 +17,7 @@ func (x *ResolverMeta) RecordTraversal(key string) (possiblyLoop bool, err error
 	}
 
 	if x == nil || len(x.TraversalBloom) == 0 {
-		return false, status.Error(codes.Internal, fmt.Errorf("required traversal bloom filter is missing").Error())
+		return false, status.Error(codes.Internal, errors.New("required traversal bloom filter is missing").Error())
 	}
 
 	bf := &bloom.BloomFilter{}

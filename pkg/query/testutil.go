@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -239,12 +240,12 @@ var _ Iterator = &FaultyIterator{}
 
 func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	if f.shouldFailOnCheck {
-		return nil, fmt.Errorf("faulty iterator error")
+		return nil, errors.New("faulty iterator error")
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
 		return func(yield func(*Path, error) bool) {
-			yield(nil, fmt.Errorf("faulty iterator collection error"))
+			yield(nil, errors.New("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
@@ -253,12 +254,12 @@ func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 
 func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
 	if f.shouldFailOnCheck {
-		return nil, fmt.Errorf("faulty iterator error")
+		return nil, errors.New("faulty iterator error")
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
 		return func(yield func(*Path, error) bool) {
-			yield(nil, fmt.Errorf("faulty iterator collection error"))
+			yield(nil, errors.New("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
@@ -267,12 +268,12 @@ func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSe
 
 func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	if f.shouldFailOnCheck {
-		return nil, fmt.Errorf("faulty iterator error")
+		return nil, errors.New("faulty iterator error")
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
 		return func(yield func(*Path, error) bool) {
-			yield(nil, fmt.Errorf("faulty iterator collection error"))
+			yield(nil, errors.New("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence

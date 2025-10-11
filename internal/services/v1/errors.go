@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -414,9 +415,7 @@ func NewInvalidFilterErr(reason string, filter string) InvalidFilterError {
 // NewEmptyPreconditionErr constructs a new empty precondition error.
 func NewEmptyPreconditionErr() EmptyPreconditionError {
 	return EmptyPreconditionError{
-		error: fmt.Errorf(
-			"one of the specified preconditions is empty",
-		),
+		error: errors.New("one of the specified preconditions is empty"),
 	}
 }
 

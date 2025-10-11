@@ -1,7 +1,7 @@
 package caveats
 
 import (
-	"fmt"
+	"errors"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -43,7 +43,7 @@ func (cr CaveatResult) IsPartial() bool {
 // PartialValue returns the partially evaluated caveat. Only applies if IsPartial is true.
 func (cr CaveatResult) PartialValue() (*CompiledCaveat, error) {
 	if !cr.isPartial {
-		return nil, fmt.Errorf("result is fully evaluated")
+		return nil, errors.New("result is fully evaluated")
 	}
 
 	ast, err := cr.parentCaveat.celEnv.ResidualAst(cr.parentCaveat.ast, cr.details)
@@ -78,7 +78,7 @@ func (cr CaveatResult) ParentCaveat() *CompiledCaveat {
 // MissingVarNames returns the name(s) of the missing variables.
 func (cr CaveatResult) MissingVarNames() ([]string, error) {
 	if !cr.isPartial {
-		return nil, fmt.Errorf("result is fully evaluated")
+		return nil, errors.New("result is fully evaluated")
 	}
 
 	return cr.missingVarNames, nil

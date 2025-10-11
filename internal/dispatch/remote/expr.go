@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"errors"
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
@@ -33,7 +34,7 @@ var dispatchRequestTypes = []proto.Message{
 func ParseDispatchExpression(methodName string, exprString string) (*DispatchExpr, error) {
 	registry, err := types.NewRegistry(dispatchRequestTypes...)
 	if err != nil {
-		return nil, fmt.Errorf("unable to initialize dispatch expression type registry")
+		return nil, errors.New("unable to initialize dispatch expression type registry")
 	}
 
 	opts := make([]cel.EnvOption, 0)
@@ -91,7 +92,7 @@ func RunDispatchExpr[R any](de *DispatchExpr, request R) ([]string, error) {
 
 	// If the value produced has Unknown type, then it means required context was missing.
 	if types.IsUnknown(val) {
-		return nil, fmt.Errorf("unable to eval dispatch expression; did you make sure you use `request.`?")
+		return nil, errors.New("unable to eval dispatch expression; did you make sure you use `request.`?")
 	}
 
 	values := val.Value().([]ref.Val)

@@ -93,7 +93,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 		if features.Watch.Status != datastore.FeatureSupported {
 			close(updates)
-			errs <- datastore.NewWatchDisabledErr(fmt.Sprintf("%s. See https://spicedb.dev/d/enable-watch-api-crdb", features.Watch.Reason))
+			errs <- datastore.NewWatchDisabledErr(features.Watch.Reason + ". See https://spicedb.dev/d/enable-watch-api-crdb")
 			return updates, errs
 		}
 	}
@@ -147,12 +147,12 @@ func (cds *crdbDatastore) watch(
 	}
 
 	if len(tableNames) == 0 {
-		errs <- fmt.Errorf("at least relationships or schema must be specified")
+		errs <- errors.New("at least relationships or schema must be specified")
 		return
 	}
 
 	if opts.CheckpointInterval < 0 {
-		errs <- fmt.Errorf("invalid checkpoint interval given")
+		errs <- errors.New("invalid checkpoint interval given")
 		return
 	}
 

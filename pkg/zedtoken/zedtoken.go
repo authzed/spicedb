@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strconv"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -125,7 +126,7 @@ func DecodeRevision(encoded *v1.ZedToken, ds revisionDecoder) (datastore.Revisio
 
 	switch ver := decoded.VersionOneof.(type) {
 	case *zedtoken.DecodedZedToken_DeprecatedV1Zookie:
-		revString := fmt.Sprintf("%d", ver.DeprecatedV1Zookie.Revision)
+		revString := strconv.FormatUint(ver.DeprecatedV1Zookie.Revision, 10)
 		parsed, err := ds.RevisionFromString(revString)
 		if err != nil {
 			return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, err)

@@ -2,7 +2,7 @@ package schema
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"slices"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -106,7 +106,7 @@ func (r *DatastoreResolver) LookupCaveat(ctx context.Context, name string) (*Cav
 
 	cr, ok := r.ds.(datastore.CaveatReader)
 	if !ok {
-		return nil, fmt.Errorf("caveats are not supported on this datastore type")
+		return nil, errors.New("caveats are not supported on this datastore type")
 	}
 
 	caveatDef, _, err := cr.ReadCaveatByName(ctx, name)

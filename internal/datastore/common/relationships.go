@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -79,7 +80,7 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 			explainString += explain + "\n"
 		}
 		if explainString == "" {
-			return fmt.Errorf("received empty explain")
+			return errors.New("received empty explain")
 		}
 
 		return builder.SQLExplainCallbackForTest(ctx, sqlString, args, builder.queryShape, explainString, expectedIndexes)

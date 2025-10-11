@@ -53,7 +53,7 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 	ctx := stream.Context()
 
 	if len(req.ResourceIds) == 0 {
-		return fmt.Errorf("no resources ids given to lookupsubjects dispatch")
+		return errors.New("no resources ids given to lookupsubjects dispatch")
 	}
 
 	// If the resource type matches the subject type, yield directly.
@@ -496,7 +496,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaRewrite(
 		log.Ctx(ctx).Trace().Msg("exclusion")
 		return cl.lookupSetOperation(ctx, req, rw.Exclusion, ts, newLookupSubjectsExclusion(stream))
 	default:
-		return fmt.Errorf("unknown kind of rewrite in lookup subjects")
+		return errors.New("unknown kind of rewrite in lookup subjects")
 	}
 }
 
@@ -682,7 +682,7 @@ func combineFoundSubjects(existing *v1.FoundSubjects, toAdd *v1.FoundSubjects) (
 	}
 
 	if toAdd == nil {
-		return nil, fmt.Errorf("toAdd FoundSubject cannot be nil")
+		return nil, errors.New("toAdd FoundSubject cannot be nil")
 	}
 
 	return &v1.FoundSubjects{

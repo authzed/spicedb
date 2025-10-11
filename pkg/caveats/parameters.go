@@ -1,6 +1,7 @@
 package caveats
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -33,7 +34,7 @@ func ConvertContextToParameters(
 	}
 
 	if len(parameterTypes) == 0 {
-		return nil, fmt.Errorf("missing parameters for caveat")
+		return nil, errors.New("missing parameters for caveat")
 	}
 
 	converted := make(map[string]any, len(contextMap))

@@ -80,7 +80,7 @@ var (
 	getRevisionForGC = psql.
 				Select(schema.ColXID, schema.ColSnapshot).
 				From(schema.TableTransaction).
-				OrderByClause(fmt.Sprintf("%s DESC", schema.ColXID)).
+				OrderByClause(schema.ColXID + " DESC").
 				Limit(1)
 
 	createTxn = psql.Insert(schema.TableTransaction).Columns(schema.ColMetadata)
@@ -243,7 +243,7 @@ func newPostgresDatastore(
 		replicaIndexStr := strconv.Itoa(replicaIndex)
 		dbname := "spicedb"
 		if replicaIndex != primaryInstanceID {
-			dbname = fmt.Sprintf("spicedb_replica_%s", replicaIndexStr)
+			dbname = "spicedb_replica_" + replicaIndexStr
 		}
 
 		if err := prometheus.Register(pgxpoolprometheus.NewCollector(readPool, map[string]string{
@@ -533,7 +533,7 @@ func (pgd *pgDatastore) Repair(ctx context.Context, operationName string, output
 		return pgd.repairTransactionIDs(ctx, outputProgress)
 
 	default:
-		return fmt.Errorf("unknown operation")
+		return errors.New("unknown operation")
 	}
 }
 

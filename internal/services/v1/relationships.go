@@ -3,6 +3,7 @@ package v1
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -356,7 +357,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		if !ps.config.ExpiringRelationshipsEnabled && update.Relationship.OptionalExpiresAt != nil {
 			return nil, ps.rewriteError(
 				ctx,
-				fmt.Errorf("support for expiring relationships is not enabled"),
+				errors.New("support for expiring relationships is not enabled"),
 			)
 		}
 	}

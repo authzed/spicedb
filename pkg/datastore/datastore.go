@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"slices"
@@ -312,11 +313,11 @@ func RelationshipsFilterFromCoreFilter(filter *core.RelationshipFilter) (Relatio
 	}
 
 	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
-		return RelationshipsFilter{}, fmt.Errorf("cannot specify both OptionalResourceId and OptionalResourceIDPrefix")
+		return RelationshipsFilter{}, errors.New("cannot specify both OptionalResourceId and OptionalResourceIDPrefix")
 	}
 
 	if filter.ResourceType == "" && filter.OptionalRelation == "" && len(resourceIds) == 0 && filter.OptionalResourceIdPrefix == "" && len(subjectsSelectors) == 0 {
-		return RelationshipsFilter{}, fmt.Errorf("at least one filter field must be set")
+		return RelationshipsFilter{}, errors.New("at least one filter field must be set")
 	}
 
 	return RelationshipsFilter{
@@ -361,11 +362,11 @@ func RelationshipsFilterFromPublicFilter(filter *v1.RelationshipFilter) (Relatio
 	}
 
 	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
-		return RelationshipsFilter{}, fmt.Errorf("cannot specify both OptionalResourceId and OptionalResourceIDPrefix")
+		return RelationshipsFilter{}, errors.New("cannot specify both OptionalResourceId and OptionalResourceIDPrefix")
 	}
 
 	if filter.ResourceType == "" && filter.OptionalRelation == "" && len(resourceIds) == 0 && filter.OptionalResourceIdPrefix == "" && len(subjectsSelectors) == 0 {
-		return RelationshipsFilter{}, fmt.Errorf("at least one filter field must be set")
+		return RelationshipsFilter{}, errors.New("at least one filter field must be set")
 	}
 
 	return RelationshipsFilter{

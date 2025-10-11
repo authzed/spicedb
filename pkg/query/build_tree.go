@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/schema/v2"
@@ -25,7 +26,7 @@ func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, r
 func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Iterator, error) {
 	id := fmt.Sprintf("%s#%s:%v", definitionName, relationName, withSubRelations)
 	if b.seen[id] {
-		return nil, fmt.Errorf("recursive schema iterators are as yet unsupported")
+		return nil, errors.New("recursive schema iterators are as yet unsupported")
 	}
 	b.seen[id] = true
 
