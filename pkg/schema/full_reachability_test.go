@@ -391,7 +391,6 @@ func containsRelation(references []RelationReferenceInfo, relation expectedRelat
 }
 
 func BenchmarkRelationsReferencing(b *testing.B) {
-	b.ReportAllocs()
 	schema, err := compiler.Compile(compiler.InputSchema{
 		Source: "",
 		SchemaString: `
@@ -418,6 +417,8 @@ func BenchmarkRelationsReferencing(b *testing.B) {
 	res := ResolverForCompiledSchema(*schema)
 	graph, err := BuildGraph(b.Context(), res)
 	require.NoError(b, err)
+
+	b.ResetTimer()
 
 	var size int
 	for i := 0; i < b.N; i++ {

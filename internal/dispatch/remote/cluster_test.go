@@ -1227,18 +1227,3 @@ func TestPrimaryDispatcherErrorReturned(t *testing.T) {
 	require.Contains(t, err.Error(), "primary dispatcher error")
 	require.NotContains(t, err.Error(), "secondary dispatcher error")
 }
-
-func BenchmarkDAL(b *testing.B) {
-	digest, err := tdigest.New(tdigest.Compression(1000))
-	require.NoError(b, err)
-	dal := &digestAndLock{
-		digest: digest,
-		lock:   sync.RWMutex{},
-	}
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		dal.addResultTime(time.Duration(i) * time.Millisecond)
-	}
-}

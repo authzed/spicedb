@@ -32,6 +32,7 @@ import (
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -1434,6 +1435,7 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 }
 
 func BenchmarkPostgresQuery(b *testing.B) {
+	b.StopTimer()
 	req := require.New(b)
 
 	ds := testdatastore.RunPostgresForTesting(b, "", migrate.Head, pgversion.MinimumSupportedPostgresVersion, false).NewDatastore(b, func(engine, uri string) datastore.Datastore {
@@ -1448,8 +1450,12 @@ func BenchmarkPostgresQuery(b *testing.B) {
 		require.NoError(b, err)
 		return ds
 	})
-	defer ds.Close()
 	ds, revision := testfixtures.StandardDatastoreWithData(ds, req)
+	b.Cleanup(func() {
+		_ = ds.Close()
+	})
+
+	b.StartTimer()
 
 	b.Run("benchmark checks", func(b *testing.B) {
 		require := require.New(b)
@@ -1457,7 +1463,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 				OptionalResourceType: testfixtures.DocumentNS.Name,
-			})
+			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			require.NoError(err)
 			for rel, err := range iter {
 				require.NoError(err)
