@@ -172,6 +172,8 @@ func BenchmarkServices(b *testing.B) {
 		b.Run(bt.title, func(b *testing.B) {
 			for _, engineID := range datastore.Engines {
 				b.Run(engineID, func(b *testing.B) {
+					b.StopTimer()
+
 					brequire := require.New(b)
 
 					rde := testdatastore.RunDatastoreEngine(b, engineID)
@@ -198,6 +200,8 @@ func BenchmarkServices(b *testing.B) {
 					brequire.NoError(datastoremw.SetInContext(dsCtx, ds))
 
 					testers := consistencytestutil.ServiceTesters(conn[0])
+
+					b.StartTimer()
 
 					for _, tester := range testers {
 						b.Run(tester.Name(), func(b *testing.B) {

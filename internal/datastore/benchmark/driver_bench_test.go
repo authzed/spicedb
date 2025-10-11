@@ -61,6 +61,7 @@ var sortOrders = map[string]options.SortOrder{
 func BenchmarkDatastoreDriver(b *testing.B) {
 	for _, driver := range drivers {
 		b.Run(driver.name+driver.suffix, func(b *testing.B) {
+			b.StopTimer()
 			engine := testdatastore.RunDatastoreEngine(b, driver.name)
 			ds := engine.NewDatastore(b, config.DatastoreConfigInitFunc(
 				b,
@@ -94,6 +95,8 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 
 			headRev, err := ds.HeadRevision(ctx)
 			require.NoError(b, err)
+
+			b.StartTimer()
 
 			b.Run("TestTuple", func(b *testing.B) {
 				b.Run("SnapshotRead", func(b *testing.B) {
