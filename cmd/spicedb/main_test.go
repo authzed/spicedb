@@ -42,10 +42,10 @@ func TestMainCommandStructure(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, migrateCmd.Hidden)
 
-	// Verify man command is hidden
+	// Verify man command is visible (not hidden)
 	manCmd, _, err := rootCmd.Find([]string{"man"})
 	require.NoError(t, err)
-	require.True(t, manCmd.Hidden)
+	require.False(t, manCmd.Hidden)
 }
 
 func TestMainCommandFlagErrorFunc(t *testing.T) {
