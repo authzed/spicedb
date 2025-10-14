@@ -24,7 +24,7 @@ func (i *Intersection) addSubIterator(subIt Iterator) {
 func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	validResources := resources
 
-	var paths []*Path
+	var paths []Path
 
 	for _, it := range i.subIts {
 		pathSeq, err := it.CheckImpl(ctx, validResources, subject)
@@ -37,15 +37,15 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 		}
 
 		if len(paths) == 0 {
-			return func(yield func(*Path, error) bool) {}, nil
+			return func(yield func(Path, error) bool) {}, nil
 		}
 
-		validResources = slicez.Map(paths, func(p *Path) Object {
+		validResources = slicez.Map(paths, func(p Path) Object {
 			return p.Resource
 		})
 	}
 
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, path := range paths {
 			if !yield(path, nil) {
 				return
