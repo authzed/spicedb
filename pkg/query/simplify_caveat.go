@@ -2,10 +2,12 @@ package query
 
 import (
 	"context"
+	"maps"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // mergeContexts combines relationship context from a caveat expression with query context
@@ -15,15 +17,11 @@ func mergeContexts(expr *core.CaveatExpression, queryContext map[string]any) map
 
 	// Start with the relationship context from the caveat expression
 	if expr.GetCaveat() != nil && expr.GetCaveat().Context != nil {
-		for k, v := range expr.GetCaveat().Context.AsMap() {
-			fullContext[k] = v
-		}
+		maps.Copy(fullContext, expr.GetCaveat().Context.AsMap())
 	}
 
 	// Overlay with query-time context (takes precedence)
-	for k, v := range queryContext {
-		fullContext[k] = v
-	}
+	maps.Copy(fullContext, queryContext)
 
 	return fullContext
 }
@@ -37,9 +35,7 @@ func mergeContextsForExpression(expr *core.CaveatExpression, queryContext map[st
 	collectRelationshipContexts(expr, fullContext)
 
 	// Overlay with query-time context (takes precedence)
-	for k, v := range queryContext {
-		fullContext[k] = v
-	}
+	maps.Copy(fullContext, queryContext)
 
 	return fullContext
 }
@@ -67,7 +63,8 @@ func collectRelationshipContexts(expr *core.CaveatExpression, contextMap map[str
 	}
 }
 
-// SimplifyCaveatExpression simplifies a caveat expression by applying AND/OR logic:
+// SimplifyCaveatExpression simplifies a caveat expression by applying AND/OR logic and
+// running them with a CaveatRunner if they match the expected caveat:
 // - For AND: if a caveat evaluates to true, remove it from the expression
 // - For OR: if a caveat evaluates to true, the entire expression becomes true
 // Returns:
@@ -155,7 +152,7 @@ func simplifyOperation(
 ) (*core.CaveatExpression, bool, error) {
 	switch cop.Op {
 	case core.CaveatOperation_AND:
-		return simplifyAndOperation(ctx, runner, expr, cop, context, reader)
+		return simplifyAndOperation(ctx, runner, cop, context, reader)
 	case core.CaveatOperation_OR:
 		return simplifyOrOperation(ctx, runner, expr, cop, context, reader)
 	case core.CaveatOperation_NOT:
@@ -169,7 +166,6 @@ func simplifyOperation(
 func simplifyAndOperation(
 	ctx context.Context,
 	runner *caveats.CaveatRunner,
-	expr *core.CaveatExpression,
 	cop *core.CaveatOperation,
 	context map[string]any,
 	reader datastore.CaveatReader,
@@ -274,7 +270,7 @@ func simplifyNotOperation(
 ) (*core.CaveatExpression, bool, error) {
 	if len(cop.Children) != 1 {
 		// NOT should have exactly one child
-		return expr, true, nil
+		return expr, true, spiceerrors.MustBugf("simplifyNotOperation: returned a Caveat NOT operation with more than one child")
 	}
 
 	child := cop.Children[0]

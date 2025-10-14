@@ -215,7 +215,8 @@ func (p *Path) EqualsEndpoints(other *Path) bool {
 	return p.Resource.ObjectType == other.Resource.ObjectType &&
 		p.Resource.ObjectID == other.Resource.ObjectID &&
 		p.Subject.ObjectType == other.Subject.ObjectType &&
-		p.Subject.ObjectID == other.Subject.ObjectID
+		p.Subject.ObjectID == other.Subject.ObjectID &&
+		p.Subject.Relation == other.Subject.Relation
 }
 
 // Equals checks if two paths are fully equal (all fields match)
