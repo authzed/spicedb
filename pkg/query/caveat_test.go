@@ -45,8 +45,99 @@ func createComplexCaveatExpression(op core.CaveatOperation_Operation, children [
 	}
 }
 
-func TestCaveatIterator(t *testing.T) {
-	// Create test paths using caveat helper functions
+func TestCaveatIteratorNoCaveat(t *testing.T) {
+	// Test that when no caveat is set on the iterator, all paths are allowed through
+	pathWithCaveat := MustPathFromString("document:doc1#view@user:alice")
+	pathWithCaveat.Caveat = createTestCaveatExpression("test_caveat", map[string]any{
+		"allowed": true,
+	})
+
+	pathWithoutCaveat := MustPathFromString("document:doc2#view@user:bob")
+
+	pathWithDifferentCaveat := MustPathFromString("document:doc3#view@user:charlie")
+	pathWithDifferentCaveat.Caveat = createTestCaveatExpression("other_caveat", map[string]any{
+		"allowed": true,
+	})
+
+	testCases := []struct {
+		name          string
+		paths         []*Path
+		caveatContext map[string]any
+		expectedPaths []*Path
+	}{
+		{
+			name: "allows all paths through",
+			paths: []*Path{
+				pathWithCaveat,
+				pathWithoutCaveat,
+				pathWithDifferentCaveat,
+			},
+			caveatContext: nil,
+			expectedPaths: []*Path{
+				pathWithCaveat,
+				pathWithoutCaveat,
+				pathWithDifferentCaveat,
+			},
+		},
+		{
+			name: "allows paths even with context provided",
+			paths: []*Path{
+				pathWithCaveat,
+				pathWithoutCaveat,
+			},
+			caveatContext: map[string]any{
+				"allowed": true,
+			},
+			expectedPaths: []*Path{
+				pathWithCaveat,
+				pathWithoutCaveat,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fixedIter := NewFixedIterator(tc.paths...)
+			caveatIter := NewCaveatIterator(fixedIter, nil)
+
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			require.NoError(t, err)
+
+			rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+				return nil
+			})
+			require.NoError(t, err)
+
+			queryCtx := &Context{
+				Context:       context.Background(),
+				Executor:      LocalExecutor{},
+				Datastore:     ds,
+				Revision:      rev,
+				CaveatContext: tc.caveatContext,
+				CaveatRunner:  caveats.NewCaveatRunner(types.NewTypeSet()),
+			}
+
+			resource := NewObject("document", "doc1")
+			seq, err := queryCtx.IterSubjects(caveatIter, resource)
+
+			var expectedMatchingPaths []*Path
+			for _, path := range tc.expectedPaths {
+				if path.Resource.ObjectType == resource.ObjectType && path.Resource.ObjectID == resource.ObjectID {
+					expectedMatchingPaths = append(expectedMatchingPaths, path)
+				}
+			}
+
+			require.NoError(t, err)
+			actualPaths, err := CollectAll(seq)
+			require.NoError(t, err)
+			require.Len(t, actualPaths, len(expectedMatchingPaths), "Expected all matching paths to be returned")
+		})
+	}
+}
+
+func TestCaveatIteratorWithCaveat(t *testing.T) {
+	// Test that when a caveat is set, it attempts to filter/evaluate paths
+	// These tests expect errors because no actual caveat definitions exist in the test context
 	pathWithCaveat := MustPathFromString("document:doc1#view@user:alice")
 	pathWithCaveat.Caveat = createTestCaveatExpression("test_caveat", map[string]any{
 		"allowed": true,
@@ -64,25 +155,9 @@ func TestCaveatIterator(t *testing.T) {
 		caveat        *core.ContextualizedCaveat
 		paths         []*Path
 		caveatContext map[string]any
-		expectedPaths []*Path
 	}{
 		{
-			name:   "no caveat iterator allows all paths",
-			caveat: nil,
-			paths: []*Path{
-				pathWithCaveat,
-				pathWithoutCaveat,
-				pathWithDifferentCaveat,
-			},
-			caveatContext: nil,
-			expectedPaths: []*Path{
-				pathWithCaveat,
-				pathWithoutCaveat,
-				pathWithDifferentCaveat,
-			},
-		},
-		{
-			name:   "caveat iterator with matching caveat name filters correctly",
+			name:   "filters by matching caveat name",
 			caveat: createTestCaveat("test_caveat", nil),
 			paths: []*Path{
 				pathWithCaveat,          // has test_caveat
@@ -92,12 +167,9 @@ func TestCaveatIterator(t *testing.T) {
 			caveatContext: map[string]any{
 				"allowed": true,
 			},
-			expectedPaths: []*Path{
-				// This will fail due to caveat not found, which is expected behavior
-			},
 		},
 		{
-			name:   "caveat iterator filters out paths without matching caveat",
+			name:   "filters out paths without matching caveat",
 			caveat: createTestCaveat("test_caveat", nil),
 			paths: []*Path{
 				pathWithCaveat,
@@ -107,33 +179,23 @@ func TestCaveatIterator(t *testing.T) {
 			caveatContext: map[string]any{
 				"allowed": true,
 			},
-			expectedPaths: []*Path{
-				// Paths should be filtered - caveat evaluation will fail since no caveat definitions exist
-			},
 		},
 		{
-			name:   "caveat iterator without context denies all caveated paths",
+			name:   "denies caveated paths without context",
 			caveat: createTestCaveat("test_caveat", nil),
 			paths: []*Path{
 				pathWithCaveat,
 				pathWithoutCaveat,
 			},
-			caveatContext: nil, // No caveat context provided
-			expectedPaths: []*Path{
-				// No paths should pass since no context is provided
-			},
+			caveatContext: nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create a fixed iterator with the test paths
 			fixedIter := NewFixedIterator(tc.paths...)
-
-			// Create the caveat iterator
 			caveatIter := NewCaveatIterator(fixedIter, tc.caveat)
 
-			// Create test datastore and context
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
@@ -142,7 +204,6 @@ func TestCaveatIterator(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// Create test context with CaveatRunner and datastore
 			queryCtx := &Context{
 				Context:       context.Background(),
 				Executor:      LocalExecutor{},
@@ -152,69 +213,19 @@ func TestCaveatIterator(t *testing.T) {
 				CaveatRunner:  caveats.NewCaveatRunner(types.NewTypeSet()),
 			}
 
-			// Test IterSubjectsImpl - this is more straightforward than CheckImpl
-			// as it returns all paths for a given resource
 			resource := NewObject("document", "doc1")
-
 			seq, err := queryCtx.IterSubjects(caveatIter, resource)
 
-			// Count expected paths that match this resource
-			var expectedMatchingPaths []*Path
-			for _, path := range tc.expectedPaths {
-				if path.Resource.ObjectType == resource.ObjectType && path.Resource.ObjectID == resource.ObjectID {
-					expectedMatchingPaths = append(expectedMatchingPaths, path)
-				}
-			}
-
-			if tc.name == "no caveat iterator allows all paths" {
-				require.NoError(t, err)
-				actualPaths, err := CollectAll(seq)
-				require.NoError(t, err)
-				require.Len(t, actualPaths, len(expectedMatchingPaths), "Expected all matching paths to be returned")
-			} else if tc.name == "caveat iterator filters out paths without matching caveat" {
-				// Tests that attempt caveat evaluation should fail since we don't have caveat definitions
-				// in the test context. This is expected and correct behavior.
-				if err != nil {
-					// Accept various caveat-related errors (not found, evaluation errors, etc.)
-					require.True(t,
-						err.Error() != "",
-						"Expected some caveat-related error")
-				} else {
-					actualPaths, err := CollectAll(seq)
-					if err != nil {
-						// Accept various caveat-related errors during path collection
-						require.True(t,
-							err.Error() != "",
-							"Expected some caveat-related error")
-					} else {
-						require.Fail(t, "Expected caveat evaluation to fail, but got paths: %v", actualPaths)
-					}
-				}
-			} else if tc.caveat != nil && tc.caveat.CaveatName != "" {
-				// Tests that attempt caveat evaluation should fail since we don't have caveat definitions
-				// in the test context. This is expected and correct behavior.
-				if err != nil {
-					// Accept various caveat-related errors (not found, evaluation errors, etc.)
-					require.True(t,
-						err.Error() != "",
-						"Expected some caveat-related error")
-				} else {
-					actualPaths, err := CollectAll(seq)
-					if err != nil {
-						// Accept various caveat-related errors during path collection
-						require.True(t,
-							err.Error() != "",
-							"Expected some caveat-related error")
-					} else {
-						require.Fail(t, "Expected caveat evaluation to fail, but got paths: %v", actualPaths)
-					}
-				}
+			// These tests expect caveat-related errors because no actual caveat definitions exist
+			if err != nil {
+				require.True(t, err.Error() != "", "Expected some caveat-related error")
 			} else {
-				// For other caveat tests, no errors should occur but paths should be filtered
-				require.NoError(t, err)
 				actualPaths, err := CollectAll(seq)
-				require.NoError(t, err)
-				require.NotNil(t, actualPaths)
+				if err != nil {
+					require.True(t, err.Error() != "", "Expected some caveat-related error")
+				} else {
+					require.Fail(t, "Expected caveat evaluation to fail, but got paths: %v", actualPaths)
+				}
 			}
 		})
 	}

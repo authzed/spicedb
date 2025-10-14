@@ -36,9 +36,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 		require.NoError(err)
 
-		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-			return nil
-		})
+		revision, err := ds.HeadRevision(context.Background())
 		require.NoError(err)
 
 		ctx := &Context{
@@ -379,6 +377,90 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		require.Len(paths, 1, "IntersectionArrow should return one path")
 		require.NotNil(paths[0].Caveat, "Left caveat should be preserved")
 		require.Equal("left_caveat", paths[0].Caveat.GetCaveat().CaveatName)
+	})
+
+	t.Run("MultiplePaths_CombineCaveats_AND_Logic", func(t *testing.T) {
+		t.Parallel()
+
+		// Left side: document has multiple teams, each with different caveats
+		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
+		leftPath1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat_1",
+				},
+			},
+		}
+
+		leftPath2 := MustPathFromString("document:doc1#team@team:team2")
+		leftPath2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat_2",
+				},
+			},
+		}
+
+		leftPath3 := MustPathFromString("document:doc1#team@team:team3")
+		leftPath3.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat_3",
+				},
+			},
+		}
+
+		// Right side: alice is a member of all three teams, each with different caveats
+		rightPath1 := MustPathFromString("team:team1#member@user:alice")
+		rightPath1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat_1",
+				},
+			},
+		}
+
+		rightPath2 := MustPathFromString("team:team2#member@user:alice")
+		rightPath2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat_2",
+				},
+			},
+		}
+
+		rightPath3 := MustPathFromString("team:team3#member@user:alice")
+		rightPath3.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat_3",
+				},
+			},
+		}
+
+		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
+		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		resources := []Object{NewObject("document", "doc1")}
+		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
+
+		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "IntersectionArrow should return one combined path for the intersection")
+		require.NotNil(paths[0].Caveat, "Result should have combined caveat")
+
+		// The result should have a complex caveat combining all left and right caveats with AND logic
+		// Verify it's an AND operation
+		caveatOp := paths[0].Caveat.GetOperation()
+		require.NotNil(caveatOp, "Result caveat should be an operation")
+		require.Equal(core.CaveatOperation_AND, caveatOp.Op, "Combined caveat should use AND operation")
+		require.NotEmpty(caveatOp.Children, "Combined caveat should have children")
 	})
 }
 

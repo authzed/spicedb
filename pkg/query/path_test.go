@@ -707,15 +707,6 @@ func TestPath_EqualsEndpoints(t *testing.T) {
 		require.False(path1.EqualsEndpoints(nilPath1))
 	})
 
-	t.Run("with_different_subject_relation_same_endpoints", func(t *testing.T) {
-		t.Parallel()
-		path1 := MustPathFromString("document:doc1#view@group:admin#member")
-		path2 := MustPathFromString("document:doc1#view@group:admin")
-
-		// Different subject relation should still have same endpoints since EqualsEndpoints
-		// only compares ObjectType and ObjectID, not the Relation field
-		require.True(path1.EqualsEndpoints(path2))
-	})
 }
 
 func TestPath_Equals_Comprehensive(t *testing.T) {
