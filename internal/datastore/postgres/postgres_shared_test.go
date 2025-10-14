@@ -273,7 +273,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 			))
-
 		}
 
 		t.Run("OTelTracing", createDatastoreTest(
@@ -904,7 +903,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			defer ds.Close()
 
 			// set a random time zone to ensure the queries are unaffected by tz
-			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1)) //nolint:gosec
 			require.NoError(err)
 
 			var dbNow time.Time
@@ -981,14 +980,14 @@ func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest)
 			defer ds.Close()
 
 			// set a random time zone to ensure the queries are unaffected by tz
-			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1)) //nolint:gosec
 			require.NoError(err)
 
 			for _, rev := range tc.revisions {
 				stmt := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 				insertTxn := stmt.Insert(schema.TableTransaction).Columns(schema.ColXID, schema.ColSnapshot, schema.ColTimestamp)
 
-				ts := time.Unix(0, int64(rev.optionalNanosTimestamp))
+				ts := time.Unix(0, int64(rev.optionalNanosTimestamp)) //nolint:gosec
 				sql, args, err := insertTxn.Values(rev.optionalTxID, rev.snapshot, ts).ToSql()
 				require.NoError(err)
 
@@ -1674,7 +1673,7 @@ func RepairTransactionsTest(t *testing.T, ds datastore.Datastore) {
 	// Break the datastore by adding a transaction entry with an XID greater the current one.
 	pds := ds.(*pgDatastore)
 
-	getVersionQuery := fmt.Sprintf("SELECT version()")
+	getVersionQuery := "SELECT version()"
 	var version string
 	err := pds.writePool.QueryRow(context.Background(), getVersionQuery).Scan(&version)
 	require.NoError(t, err)
@@ -1950,11 +1949,7 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 
 	anHourAgo := time.Now().UTC().Add(-1 * time.Hour)
 	var checkedUpdate, checkedCheckpoint bool
-	for {
-		if checkedCheckpoint && checkedUpdate {
-			break
-		}
-
+	for !checkedCheckpoint || !checkedUpdate {
 		changeWait := time.NewTimer(waitForChangesTimeout)
 		select {
 		case change, ok := <-changes:
@@ -1974,7 +1969,7 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 				rev := change.Revision.(postgresRevision)
 				timestamp, timestampPresent := rev.OptionalNanosTimestamp()
 				require.True(timestampPresent, "expected timestamp to be present in revision")
-				isCorrectAndUsesNanos := time.Unix(0, int64(timestamp)).After(anHourAgo)
+				isCorrectAndUsesNanos := time.Unix(0, int64(timestamp)).After(anHourAgo) //nolint:gosec
 				require.True(isCorrectAndUsesNanos, "timestamp is not correct")
 
 				_, transactionIDPresent := rev.OptionalTransactionID()

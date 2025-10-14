@@ -87,6 +87,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion strin
 	return builder
 }
 
+// NewDatabase creates a database. It is NOT safe for concurrent use.
 func (r *crdbTester) NewDatabase(t testing.TB) string {
 	uniquePortion, err := secrets.TokenHex(4)
 	require.NoError(t, err)
@@ -106,6 +107,7 @@ func (r *crdbTester) NewDatabase(t testing.TB) string {
 	return connectStr
 }
 
+// NewDatastore creates a database and runs migrations on it. It is NOT safe for concurrent use.
 func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	connectStr := r.NewDatabase(t)
 

@@ -135,6 +135,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	}
 	for _, quantization := range quantizationDurations {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			ctx := context.Background()
 
@@ -150,7 +151,9 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 				require.NoError(err)
 				return ds
 			})
-			defer ds.Close()
+			t.Cleanup(func() {
+				require.NoError(ds.Close())
+			})
 
 			r, err := ds.ReadyState(ctx)
 			require.NoError(err)
@@ -183,7 +186,7 @@ var defaultKeyForTesting = proxy.KeyConfig{
 	ExpiredAt: nil,
 }
 
-func TestCRDBDatastoreWithIntegrity(t *testing.T) {
+func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
@@ -473,7 +476,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 		unprivileged: fmt.Sprintf("postgresql://unprivileged:testpass2@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir),
 	}
 
-	return
+	return adminConn, connStrings
 }
 
 func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
