@@ -1128,3 +1128,286 @@ func TestCollectRelationshipContexts(t *testing.T) {
 		require.Empty(contextMap)
 	})
 }
+
+func TestSimplifyWithEmptyContext(t *testing.T) {
+	ctx := context.Background()
+	require := require.New(t)
+
+	// Create test caveats
+	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
+		"a": caveattypes.Default.IntType,
+		"b": caveattypes.Default.IntType,
+		"c": caveattypes.Default.IntType,
+	})
+	require.NoError(err)
+
+	caveat1, err := caveats.CompileCaveatWithName(env, "a >= 10", "caveat1")
+	require.NoError(err)
+	caveat2, err := caveats.CompileCaveatWithName(env, "b >= 20", "caveat2")
+	require.NoError(err)
+	caveat3, err := caveats.CompileCaveatWithName(env, "c >= 30", "caveat3")
+	require.NoError(err)
+
+	serialized1, _ := caveat1.Serialize()
+	serialized2, _ := caveat2.Serialize()
+	serialized3, _ := caveat3.Serialize()
+
+	caveatDefs := []*core.CaveatDefinition{
+		{Name: "caveat1", SerializedExpression: serialized1, ParameterTypes: env.EncodedParametersTypes()},
+		{Name: "caveat2", SerializedExpression: serialized2, ParameterTypes: env.EncodedParametersTypes()},
+		{Name: "caveat3", SerializedExpression: serialized3, ParameterTypes: env.EncodedParametersTypes()},
+	}
+
+	// Create datastore with caveats
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return tx.WriteCaveats(ctx, caveatDefs)
+	})
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(revision)
+	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
+
+	// Create nested expression: (caveat1 OR caveat2) AND caveat3
+	nestedExpr := &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op: core.CaveatOperation_AND,
+				Children: []*core.CaveatExpression{
+					{
+						OperationOrCaveat: &core.CaveatExpression_Operation{
+							Operation: &core.CaveatOperation{
+								Op: core.CaveatOperation_OR,
+								Children: []*core.CaveatExpression{
+									{
+										OperationOrCaveat: &core.CaveatExpression_Caveat{
+											Caveat: &core.ContextualizedCaveat{CaveatName: "caveat1"},
+										},
+									},
+									{
+										OperationOrCaveat: &core.CaveatExpression_Caveat{
+											Caveat: &core.ContextualizedCaveat{CaveatName: "caveat2"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						OperationOrCaveat: &core.CaveatExpression_Caveat{
+							Caveat: &core.ContextualizedCaveat{CaveatName: "caveat3"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Empty context - all caveats should be partial
+	emptyContext := map[string]any{}
+	simplified, passes, err := SimplifyCaveatExpression(ctx, runner, nestedExpr, emptyContext, reader)
+	require.NoError(err)
+	require.NotNil(simplified, "Should return the expression (partial)")
+	require.True(passes, "Should pass conditionally with empty context")
+
+	// Should return a complex expression since all children are partial
+	require.NotNil(simplified.GetOperation())
+}
+
+func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
+	ctx := context.Background()
+	require := require.New(t)
+
+	// Create multiple test caveats for deep nesting
+	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
+		"a": caveattypes.Default.IntType,
+		"b": caveattypes.Default.IntType,
+		"c": caveattypes.Default.IntType,
+		"d": caveattypes.Default.IntType,
+		"e": caveattypes.Default.IntType,
+		"f": caveattypes.Default.IntType,
+	})
+	require.NoError(err)
+
+	caveatA, err := caveats.CompileCaveatWithName(env, "a >= 10", "caveat_a")
+	require.NoError(err)
+	caveatB, err := caveats.CompileCaveatWithName(env, "b >= 20", "caveat_b")
+	require.NoError(err)
+	caveatC, err := caveats.CompileCaveatWithName(env, "c >= 30", "caveat_c")
+	require.NoError(err)
+	caveatD, err := caveats.CompileCaveatWithName(env, "d >= 40", "caveat_d")
+	require.NoError(err)
+	caveatE, err := caveats.CompileCaveatWithName(env, "e >= 50", "caveat_e")
+	require.NoError(err)
+	caveatF, err := caveats.CompileCaveatWithName(env, "f >= 60", "caveat_f")
+	require.NoError(err)
+
+	serializedA, _ := caveatA.Serialize()
+	serializedB, _ := caveatB.Serialize()
+	serializedC, _ := caveatC.Serialize()
+	serializedD, _ := caveatD.Serialize()
+	serializedE, _ := caveatE.Serialize()
+	serializedF, _ := caveatF.Serialize()
+
+	caveatDefs := []*core.CaveatDefinition{
+		{Name: "caveat_a", SerializedExpression: serializedA, ParameterTypes: env.EncodedParametersTypes()},
+		{Name: "caveat_b", SerializedExpression: serializedB, ParameterTypes: env.EncodedParametersTypes()},
+		{Name: "caveat_c", SerializedExpression: serializedC, ParameterTypes: env.EncodedParametersTypes()},
+		{Name: "caveat_d", SerializedExpression: serializedD, ParameterTypes: env.EncodedParametersTypes()},
+		{Name: "caveat_e", SerializedExpression: serializedE, ParameterTypes: env.EncodedParametersTypes()},
+		{Name: "caveat_f", SerializedExpression: serializedF, ParameterTypes: env.EncodedParametersTypes()},
+	}
+
+	// Create datastore with caveats
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return tx.WriteCaveats(ctx, caveatDefs)
+	})
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(revision)
+	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
+
+	// Helper to create caveat expressions
+	makeCaveat := func(name string) *core.CaveatExpression {
+		return &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{CaveatName: name},
+			},
+		}
+	}
+
+	t.Run("ThreeLevels_AND_OR_AND", func(t *testing.T) {
+		// Create: ((caveat_a AND caveat_b) OR (caveat_c AND caveat_d)) AND caveat_e
+		// Level 1: caveat_a AND caveat_b
+		level1Left := internalcaveats.And(makeCaveat("caveat_a"), makeCaveat("caveat_b"))
+		// Level 1: caveat_c AND caveat_d
+		level1Right := internalcaveats.And(makeCaveat("caveat_c"), makeCaveat("caveat_d"))
+		// Level 2: (level1Left OR level1Right)
+		level2 := internalcaveats.Or(level1Left, level1Right)
+		// Level 3: level2 AND caveat_e
+		deepExpr := internalcaveats.And(level2, makeCaveat("caveat_e"))
+
+		// Test 1: All values satisfy all caveats
+		context1 := map[string]any{"a": int64(15), "b": int64(25), "c": int64(35), "d": int64(45), "e": int64(55)}
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, reader)
+		require.NoError(err1)
+		require.True(passes1, "All caveats satisfied should pass")
+		require.Nil(simplified1, "Should simplify to unconditionally true")
+
+		// Test 2: Only left branch of OR satisfies, and E satisfies
+		// (a=15>=10 AND b=25>=20) OR (c=25<30 AND d=35<40) = true OR false = true, then true AND e=55>=50 = true
+		context2 := map[string]any{"a": int64(15), "b": int64(25), "c": int64(25), "d": int64(35), "e": int64(55)}
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, reader)
+		require.NoError(err2)
+		require.True(passes2, "Left branch of OR satisfies, should pass")
+		require.Nil(simplified2, "Should simplify to unconditionally true")
+
+		// Test 3: OR branch passes but E fails
+		// (a=15>=10 AND b=25>=20) = true, then true AND e=45<50 = false
+		context3 := map[string]any{"a": int64(15), "b": int64(25), "c": int64(25), "d": int64(35), "e": int64(45)}
+		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, reader)
+		require.NoError(err3)
+		require.False(passes3, "E fails, entire expression should fail")
+		require.NotNil(simplified3, "Should return failed caveat")
+
+		// Test 4: Neither OR branch satisfies
+		// Both AND branches fail, so OR fails, making entire expression fail
+		context4 := map[string]any{"a": int64(5), "b": int64(15), "c": int64(25), "d": int64(35), "e": int64(55)}
+		simplified4, passes4, err4 := SimplifyCaveatExpression(ctx, runner, deepExpr, context4, reader)
+		require.NoError(err4)
+		require.False(passes4, "OR branch fails, entire expression should fail")
+		require.NotNil(simplified4, "Should return failed expression")
+	})
+
+	t.Run("FourLevels_OR_AND_OR_AND", func(t *testing.T) {
+		// Create: (((caveat_a OR caveat_b) AND caveat_c) OR ((caveat_d OR caveat_e) AND caveat_f))
+		// Level 1: caveat_a OR caveat_b
+		level1Left := internalcaveats.Or(makeCaveat("caveat_a"), makeCaveat("caveat_b"))
+		// Level 2: (level1Left AND caveat_c)
+		level2Left := internalcaveats.And(level1Left, makeCaveat("caveat_c"))
+
+		// Level 1: caveat_d OR caveat_e
+		level1Right := internalcaveats.Or(makeCaveat("caveat_d"), makeCaveat("caveat_e"))
+		// Level 2: (level1Right AND caveat_f)
+		level2Right := internalcaveats.And(level1Right, makeCaveat("caveat_f"))
+
+		// Level 3: level2Left OR level2Right
+		deepExpr := internalcaveats.Or(level2Left, level2Right)
+
+		// Test 1: Left branch fully satisfies (a passes, c passes)
+		context1 := map[string]any{"a": int64(15), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(5), "f": int64(5)}
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, reader)
+		require.NoError(err1)
+		require.True(passes1, "Left branch satisfies, should pass")
+		require.Nil(simplified1, "Should simplify to unconditionally true")
+
+		// Test 2: Right branch satisfies (e passes, f passes)
+		context2 := map[string]any{"a": int64(5), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(55), "f": int64(65)}
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, reader)
+		require.NoError(err2)
+		require.True(passes2, "Right branch satisfies, should pass")
+		require.Nil(simplified2, "Should simplify to unconditionally true")
+
+		// Test 3: Both branches fail
+		context3 := map[string]any{"a": int64(5), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(5), "f": int64(65)}
+		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, reader)
+		require.NoError(err3)
+		require.False(passes3, "Both branches fail, should fail")
+		require.NotNil(simplified3, "Should return failed expression")
+	})
+
+	t.Run("FiveLevels_Mixed_Operations", func(t *testing.T) {
+		// Create: ((caveat_a OR caveat_b) AND (caveat_c OR caveat_d)) OR (caveat_e AND caveat_f)
+		// This creates 5 levels of alternating AND/OR operations
+		// Level 1: caveat_a OR caveat_b
+		orAB := internalcaveats.Or(makeCaveat("caveat_a"), makeCaveat("caveat_b"))
+		// Level 1: caveat_c OR caveat_d
+		orCD := internalcaveats.Or(makeCaveat("caveat_c"), makeCaveat("caveat_d"))
+		// Level 2: (caveat_a OR caveat_b) AND (caveat_c OR caveat_d)
+		andLeft := internalcaveats.And(orAB, orCD)
+		// Level 2: caveat_e AND caveat_f
+		andRight := internalcaveats.And(makeCaveat("caveat_e"), makeCaveat("caveat_f"))
+		// Level 3: ((caveat_a OR caveat_b) AND (caveat_c OR caveat_d)) OR (caveat_e AND caveat_f)
+		deepExpr := internalcaveats.Or(andLeft, andRight)
+
+		// Test 1: All pass
+		context1 := map[string]any{"a": int64(15), "b": int64(25), "c": int64(35), "d": int64(45), "e": int64(55), "f": int64(65)}
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, reader)
+		require.NoError(err1)
+		require.True(passes1, "All pass, should pass")
+		require.Nil(simplified1, "Should simplify to unconditionally true")
+
+		// Test 2: Left branch passes (a passes, c passes)
+		context2 := map[string]any{"a": int64(15), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(5), "f": int64(5)}
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, reader)
+		require.NoError(err2)
+		require.True(passes2, "Left branch passes, should pass")
+		require.Nil(simplified2, "Should simplify to unconditionally true")
+
+		// Test 3: Right branch passes (e and f pass)
+		context3 := map[string]any{"a": int64(5), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(55), "f": int64(65)}
+		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, reader)
+		require.NoError(err3)
+		require.True(passes3, "Right branch passes, should pass")
+		require.Nil(simplified3, "Should simplify to unconditionally true")
+
+		// Test 4: Left branch partial fails (a passes but c and d fail)
+		context4 := map[string]any{"a": int64(15), "b": int64(5), "c": int64(5), "d": int64(5), "e": int64(5), "f": int64(5)}
+		simplified4, passes4, err4 := SimplifyCaveatExpression(ctx, runner, deepExpr, context4, reader)
+		require.NoError(err4)
+		require.False(passes4, "Both branches fail, should fail")
+		require.NotNil(simplified4, "Should return failed expression")
+
+		// Test 5: Right branch partial fails (only e passes, not f)
+		context5 := map[string]any{"a": int64(5), "b": int64(5), "c": int64(5), "d": int64(5), "e": int64(55), "f": int64(5)}
+		simplified5, passes5, err5 := SimplifyCaveatExpression(ctx, runner, deepExpr, context5, reader)
+		require.NoError(err5)
+		require.False(passes5, "Both branches fail, should fail")
+		require.NotNil(simplified5, "Should return failed expression")
+	})
+}

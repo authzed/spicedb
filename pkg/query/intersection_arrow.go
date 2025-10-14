@@ -119,9 +119,9 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 			if len(validResults) > 0 {
 				firstResult := validResults[0]
 				finalResult := &Path{
-					Resource:   firstResult.Resource,
-					Relation:   firstResult.Relation,
-					Subject:    firstResult.Subject,
+					Resource:   resource,
+					Relation:   "",
+					Subject:    subject,
 					Caveat:     intersectionCaveat,
 					Expiration: firstResult.Expiration,
 					Integrity:  firstResult.Integrity,

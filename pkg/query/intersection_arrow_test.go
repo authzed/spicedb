@@ -59,8 +59,12 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		// Should return a single result since alice is in ALL teams (intersection semantics)
 		require.Len(paths, 1, "Should return single path representing the intersection")
 
-		// Verify the result has alice as the subject
-		require.Equal("alice", paths[0].Subject.ObjectID, "Result should have alice as the subject")
+		// Verify the result path properties
+		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
+		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 	})
 
 	t.Run("NotAllSubjectsSatisfyCondition", func(t *testing.T) {
@@ -151,7 +155,13 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		// Should return result since alice is in the only team
 		require.Len(paths, 1, "Should return one result since alice is in the single team")
-		require.Equal("alice", paths[0].Subject.ObjectID)
+
+		// Verify the result path properties
+		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
+		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 	})
 
 	t.Run("NoLeftSubjects", func(t *testing.T) {
@@ -241,8 +251,12 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		// Should return a single result representing the intersection of all three teams
 		require.Len(paths, 1, "Should return single path representing the intersection")
 
-		// Verify the result has alice as the subject
-		require.Equal("alice", paths[0].Subject.ObjectID, "Result should have alice as the subject")
+		// Verify the result path properties
+		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
+		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 	})
 
 	t.Run("EmptyResources", func(t *testing.T) {
@@ -339,6 +353,15 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(paths, 1, "IntersectionArrow should return one combined path")
+
+		// Verify the result path properties
+		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
+		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+
+		// Verify caveat combination
 		require.NotNil(paths[0].Caveat, "Result should have combined caveat")
 		// The combination logic should combine both caveats with AND logic
 	})
@@ -375,6 +398,15 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(paths, 1, "IntersectionArrow should return one path")
+
+		// Verify the result path properties
+		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
+		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+
+		// Verify caveat preservation
 		require.NotNil(paths[0].Caveat, "Left caveat should be preserved")
 		require.Equal("left_caveat", paths[0].Caveat.GetCaveat().CaveatName)
 	})
@@ -453,6 +485,15 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(paths, 1, "IntersectionArrow should return one combined path for the intersection")
+
+		// Verify the result path properties
+		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
+		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+
+		// Verify caveat combination
 		require.NotNil(paths[0].Caveat, "Result should have combined caveat")
 
 		// The result should have a complex caveat combining all left and right caveats with AND logic
