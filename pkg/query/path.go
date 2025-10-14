@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"sync"
 	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
@@ -25,14 +26,15 @@ func EmptyPathSeq() PathSeq {
 // `permission foo = bar | baz`, for example, is a Path named foo that can be constructed by either the bar path or the baz path
 // (which themselves may be other paths, down to individual, stored, relations.)
 type Path struct {
+	sync.Mutex
 	Resource   Object
 	Relation   string
 	Subject    ObjectAndRelation
-	Caveat     *core.CaveatExpression
 	Expiration *time.Time
-	Integrity  []*core.RelationshipIntegrity
 
-	Metadata map[string]any
+	Caveat    *core.CaveatExpression        // GUARDED_BY(Mutex)
+	Integrity []*core.RelationshipIntegrity // GUARDED_BY(Mutex)
+	Metadata  map[string]any                // GUARDED_BY(Mutex)
 }
 
 // ResourceOAR returns the resource as an ObjectAndRelation with the current relation type.
@@ -80,6 +82,11 @@ func (p *Path) MergeAndNot(other *Path) error {
 }
 
 func (p *Path) mergeFrom(other *Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) error {
+	p.Lock()
+	other.Lock()
+	defer other.Unlock()
+	defer p.Unlock()
+
 	// Check if they have the same Resource and Subject types and IDs
 	if !p.Resource.Equals(other.Resource) {
 		return fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)
