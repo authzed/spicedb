@@ -30,7 +30,27 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 	if err != nil {
 		return nil, err
 	}
+	return c.runCaveats(ctx, subSeq)
+}
 
+func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+	subSeq, err := ctx.IterSubjects(c.subiterator, resource)
+	if err != nil {
+		return nil, err
+	}
+	return c.runCaveats(ctx, subSeq)
+}
+
+func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+	subSeq, err := ctx.IterResources(c.subiterator, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.runCaveats(ctx, subSeq)
+}
+
+func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, error) {
 	if c.caveat == nil {
 		return subSeq, nil
 	}
@@ -79,117 +99,6 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 	}, nil
 }
 
-func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	subSeq, err := ctx.IterSubjects(c.subiterator, resource)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.caveat == nil {
-		return subSeq, nil
-	}
-
-	return func(yield func(*Path, error) bool) {
-		ctx.TraceStep(c, "applying caveat '%s' to subjects for resource %s:%s", c.caveat.CaveatName, resource.ObjectType, resource.ObjectID)
-
-		processedCount := 0
-		passedCount := 0
-
-		for path, err := range subSeq {
-			if err != nil {
-				if !yield(path, err) {
-					return
-				}
-				continue
-			}
-
-			processedCount++
-
-			// Apply caveat simplification to the path
-			simplified, passes, err := c.simplifyCaveat(ctx, path)
-			if err != nil {
-				ctx.TraceStep(c, "caveat evaluation failed for path: %v", err)
-				if !yield(path, err) {
-					return
-				}
-				continue
-			}
-
-			if !passes {
-				// Caveat evaluated to false - don't yield the path
-				ctx.TraceStep(c, "path failed caveat evaluation")
-				continue
-			}
-
-			passedCount++
-
-			// If simplified is nil, it passes unconditionally; otherwise, it's the remainder
-			path.Caveat = simplified
-
-			if !yield(path, nil) {
-				return
-			}
-		}
-
-		ctx.TraceStep(c, "processed %d subjects, %d passed caveat evaluation", processedCount, passedCount)
-	}, nil
-}
-
-func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	subSeq, err := ctx.IterResources(c.subiterator, subject)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.caveat == nil {
-		return subSeq, nil
-	}
-
-	return func(yield func(*Path, error) bool) {
-		ctx.TraceStep(c, "applying caveat '%s' to resources for subject %s:%s", c.caveat.CaveatName, subject.ObjectType, subject.ObjectID)
-		processedCount := 0
-		passedCount := 0
-
-		for path, err := range subSeq {
-			if err != nil {
-				if !yield(path, err) {
-					return
-				}
-				continue
-			}
-
-			processedCount++
-
-			// Apply caveat simplification to the path
-			simplified, passes, err := c.simplifyCaveat(ctx, path)
-			if err != nil {
-				ctx.TraceStep(c, "caveat evaluation failed for path: %v", err)
-				if !yield(path, err) {
-					return
-				}
-				continue
-			}
-
-			if !passes {
-				// Caveat evaluated to false - don't yield the path
-				ctx.TraceStep(c, "path failed caveat evaluation")
-				continue
-			}
-
-			passedCount++
-
-			// If simplified is nil, it passes unconditionally; otherwise, it's the remainder
-			path.Caveat = simplified
-
-			if !yield(path, nil) {
-				return
-			}
-		}
-
-		ctx.TraceStep(c, "processed %d resources, %d passed caveat evaluation", processedCount, passedCount)
-	}, nil
-}
-
 // simplifyCaveat simplifies the caveat on the given path using AND/OR logic.
 // Returns: (simplified_expression, passes, error)
 func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatExpression, bool, error) {
@@ -229,7 +138,7 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatE
 		reader,
 	)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to evaluate caveat: %w", err)
+		return nil, false, fmt.Errorf("failed to simplify caveat: %w", err)
 	}
 
 	// Return the simplification result directly
