@@ -706,7 +706,6 @@ func TestPath_EqualsEndpoints(t *testing.T) {
 		require.False(nilPath1.EqualsEndpoints(path1))
 		require.False(path1.EqualsEndpoints(nilPath1))
 	})
-
 }
 
 func TestPath_Equals_Comprehensive(t *testing.T) {
