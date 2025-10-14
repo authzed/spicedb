@@ -644,10 +644,11 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 	require := require.New(t)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+		use expiration
 		definition user {}
 
 		definition resource {
-			relation viewer: user
+			relation viewer: user | user with expiration
 		}
 	`, []tuple.Relationship{
 		tuple.MustParse("resource:foo#viewer@user:tom"),
@@ -670,7 +671,7 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
 	require.NoError(err)
 
-	// Write some rels, which should still avoid writing to the transactions table.
+	// Write some rels without expiration, which should still avoid writing to the transactions table.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:tom")),
@@ -735,6 +736,28 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 			err := rows.Scan(&count)
 			require.NoError(err)
 			require.Equal(2, count)
+		}
+		return nil
+	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
+	require.NoError(err)
+
+	// Write one rel with expiration and one without, which should result in one transaction metadata entry.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:tom[expiration:2300-01-01T00:00:00Z]")),
+			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:fred")),
+		})
+		require.NoError(err)
+		return nil
+	}, options.WithIncludesExpiredAt(true))
+	require.NoError(err)
+
+	err = cds.readPool.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var count int
+			err := rows.Scan(&count)
+			require.NoError(err)
+			require.Equal(3, count)
 		}
 		return nil
 	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))

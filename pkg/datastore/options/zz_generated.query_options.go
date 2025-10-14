@@ -276,6 +276,7 @@ func (r *RWTOptions) ToOption() RWTOptionsOption {
 	return func(to *RWTOptions) {
 		to.DisableRetries = r.DisableRetries
 		to.Metadata = r.Metadata
+		to.IncludesExpiredAt = r.IncludesExpiredAt
 	}
 }
 
@@ -284,6 +285,7 @@ func (r RWTOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	debugMap["DisableRetries"] = helpers.DebugValue(r.DisableRetries, false)
 	debugMap["Metadata"] = helpers.DebugValue(r.Metadata, false)
+	debugMap["IncludesExpiredAt"] = helpers.DebugValue(r.IncludesExpiredAt, false)
 	return debugMap
 }
 
@@ -314,5 +316,12 @@ func WithDisableRetries(disableRetries bool) RWTOptionsOption {
 func WithMetadata(metadata *structpb.Struct) RWTOptionsOption {
 	return func(r *RWTOptions) {
 		r.Metadata = metadata
+	}
+}
+
+// WithIncludesExpiredAt returns an option that can set IncludesExpiredAt on a RWTOptions
+func WithIncludesExpiredAt(includesExpiredAt bool) RWTOptionsOption {
+	return func(r *RWTOptions) {
+		r.IncludesExpiredAt = includesExpiredAt
 	}
 }

@@ -362,11 +362,11 @@ func (cds *crdbDatastore) ReadWriteTx(
 		//    a deletion of expired relationships.
 		//
 		//    A transaction is marked as such IF and only IF the operations in the transaction
-		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watc
+		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watch
 		//    changefeed that the transaction is not a deletion of expired relationships performed
 		//    by CRDB itself. This is also only necessary if both expiration and watch are enabled.
 		metadata := config.Metadata.AsMap()
-		requiresMetadata := len(metadata) > 0 || (cds.watchEnabled && !rwt.hasNonExpiredDeletionChange)
+		requiresMetadata := len(metadata) > 0 || (cds.watchEnabled && (config.IncludesExpiredAt || !rwt.hasNonExpiredDeletionChange))
 		if requiresMetadata {
 			// Mark the transaction as coming from SpiceDB. See the comment in watch.go
 			// for why this is necessary.
