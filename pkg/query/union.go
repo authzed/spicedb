@@ -21,7 +21,7 @@ func (u *Union) addSubIterator(subIt Iterator) {
 }
 
 func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	var out []*Path
+	var out []Path
 	// Collect paths from all sub-iterators
 	ctx.TraceStep(u, "processing %d sub-iterators with %d resources", len(u.subIts), len(resources))
 
@@ -45,7 +45,7 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 
 	// Deduplicate paths based on resource for CheckImpl
 	// Since the subject is fixed in CheckImpl, we only need to deduplicate by resource
-	seen := make(map[string]*Path)
+	seen := make(map[string]Path)
 	for _, path := range out {
 		// Use resource object (type + id) as key for deduplication, not the full resource with relation
 		key := path.Resource.ObjectType + ":" + path.Resource.ObjectID
@@ -54,21 +54,23 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 		} else {
 			// If we already have a path for this resource,
 			// merge it with the new one using OR semantics
-			if err := existing.MergeOr(path); err != nil {
+			merged, err := existing.MergeOr(path)
+			if err != nil {
 				return nil, err
 			}
+			seen[key] = merged
 		}
 	}
 
 	// Convert map to slice
-	deduplicatedSlice := make([]*Path, 0, len(seen))
+	deduplicatedSlice := make([]Path, 0, len(seen))
 	for _, path := range seen {
 		deduplicatedSlice = append(deduplicatedSlice, path)
 	}
 
 	ctx.TraceStep(u, "deduplicated to %d paths", len(deduplicatedSlice))
 
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, path := range deduplicatedSlice {
 			if !yield(path, nil) {
 				return

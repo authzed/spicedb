@@ -34,7 +34,7 @@ func TestMigrate(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		pool.Client.RemoveNetwork(network.ID)
+		_ = pool.Client.RemoveNetwork(network.ID)
 	})
 
 	for _, engineKey := range datastore.Engines {
@@ -92,7 +92,7 @@ func TestMigrate(t *testing.T) {
 
 			t.Cleanup(func() {
 				// When you're done, kill and remove the container
-				pool.Purge(resource)
+				_ = pool.Purge(resource)
 			})
 		})
 	}

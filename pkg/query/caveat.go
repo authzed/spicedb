@@ -55,7 +55,7 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 		return subSeq, nil
 	}
 
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		ctx.TraceStep(c, "applying caveat '%s' to sub-iterator results", c.caveat.CaveatName)
 
 		processedCount := 0
@@ -101,7 +101,7 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 
 // simplifyCaveat simplifies the caveat on the given path using AND/OR logic.
 // Returns: (simplified_expression, passes, error)
-func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatExpression, bool, error) {
+func (c *CaveatIterator) simplifyCaveat(ctx *Context, path Path) (*core.CaveatExpression, bool, error) {
 	// If no caveat is specified on the iterator, allow all paths
 	if c.caveat == nil {
 		return path.Caveat, true, nil

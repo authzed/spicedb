@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -24,6 +22,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -52,11 +53,11 @@ func TestTestServer(t *testing.T) {
 	defer tester.cleanup()
 
 	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken(key)}
-	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), options...)
+	conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.port), options...)
 	require.NoError(err)
 	defer conn.Close()
 
-	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), options...)
+	roConn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.readonlyPort), options...)
 	require.NoError(err)
 	defer roConn.Close()
 
@@ -123,7 +124,9 @@ func TestTestServer(t *testing.T) {
 	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
 
 	// Try a call with a different auth header and ensure it fails.
-	authedConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken("someothertoken"))
+	authedConn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.readonlyPort),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpcutil.WithInsecureBearerToken("someothertoken"))
 	require.NoError(err)
 	defer authedConn.Close()
 
@@ -143,14 +146,19 @@ func TestTestServer(t *testing.T) {
 	require.Equal(codes.FailedPrecondition, s.Code())
 
 	// Make an HTTP call and ensure it succeeds.
-	readUrl := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.httpPort)
-	req, err := http.NewRequest("POST", readUrl, nil)
+	readURL := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.HTTPPort)
+	req, err := http.NewRequest("POST", readURL, nil)
+	require.NoError(err)
 	req.Header.Add("Authorization", "Bearer "+key)
 	hresp, err := http.DefaultClient.Do(req)
 	require.NoError(err)
 
 	body, err := io.ReadAll(hresp.Body)
 	require.NoError(err)
+
+	t.Cleanup(func() {
+		_ = hresp.Body.Close()
+	})
 
 	require.Equal(200, hresp.StatusCode)
 	require.Contains(string(body), "schemaText")
@@ -159,7 +167,7 @@ func TestTestServer(t *testing.T) {
 	/*
 		 * TODO(jschorr): Re-enable once we figure out why this makes the test flaky
 		// Attempt to write to the read only HTTP and ensure it fails.
-		writeUrl := fmt.Sprintf("http://localhost:%s/v1/schema/write", tester.readonlyHttpPort)
+		writeUrl := fmt.Sprintf("http://localhost:%s/v1/schema/write", tester.readonlyHTTPPort)
 		wresp, err := http.Post(writeUrl, "application/json", strings.NewReader(`{
 			"schemaText": "definition user {}\ndefinition resource {\nrelation reader: user\nrelation writer: user\nrelation foobar: user\n}"
 		}`))
@@ -175,8 +183,8 @@ func TestTestServer(t *testing.T) {
 type spicedbHandle struct {
 	port             string
 	readonlyPort     string
-	httpPort         string
-	readonlyHttpPort string
+	HTTPPort         string
+	readonlyHTTPPort string
 	cleanup          func()
 }
 
@@ -199,7 +207,7 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 		port := resource.GetPort("50051/tcp")
 		readonlyPort := resource.GetPort("50052/tcp")
 		httpPort := resource.GetPort("8443/tcp")
-		readonlyHttpPort := resource.GetPort("8444/tcp")
+		readonlyHTTPPort := resource.GetPort("8444/tcp")
 
 		cleanup := func() {
 			// When you're done, kill and remove the container
@@ -210,7 +218,7 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 
 		// Give the service time to boot.
 		err = pool.Retry(func() error {
-			conn, err := grpc.Dial(
+			conn, err := grpc.NewClient(
 				fmt.Sprintf("localhost:%s", port),
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpcutil.WithInsecureBearerToken(token),
@@ -266,8 +274,8 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 		return &spicedbHandle{
 			port:             port,
 			readonlyPort:     readonlyPort,
-			httpPort:         httpPort,
-			readonlyHttpPort: readonlyHttpPort,
+			HTTPPort:         httpPort,
+			readonlyHTTPPort: readonlyHTTPPort,
 			cleanup:          cleanup,
 		}, nil
 	}

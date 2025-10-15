@@ -47,7 +47,7 @@ func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject Obj
 }
 
 // ExitIterator logs exiting an iterator and pops it from the stack
-func (t *TraceLogger) ExitIterator(it Iterator, paths []*Path) {
+func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 	// Pop from stack to maintain stack consistency
 	if len(t.stack) > 0 {
 		t.stack = t.stack[:len(t.stack)-1]
@@ -143,7 +143,7 @@ func (ctx *Context) TraceEnter(it Iterator, resources []Object, subject ObjectAn
 	}
 }
 
-func (ctx *Context) TraceExit(it Iterator, paths []*Path) {
+func (ctx *Context) TraceExit(it Iterator, paths []Path) {
 	if ctx.TraceLogger != nil {
 		ctx.TraceLogger.ExitIterator(it, paths)
 	}
@@ -162,7 +162,7 @@ func (ctx *Context) traceEnterIfEnabled(it Iterator, resources []Object, subject
 	return it
 }
 
-func (ctx *Context) traceExitIfEnabled(it Iterator, paths []*Path) {
+func (ctx *Context) traceExitIfEnabled(it Iterator, paths []Path) {
 	if ctx.shouldTrace() && it != nil {
 		ctx.TraceExit(it, paths)
 	}
@@ -175,8 +175,8 @@ func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq 
 		return pathSeq
 	}
 
-	return func(yield func(*Path, error) bool) {
-		var resultPaths []*Path
+	return func(yield func(Path, error) bool) {
+		var resultPaths []Path
 		defer func() {
 			ctx.traceExitIfEnabled(it, resultPaths)
 		}()

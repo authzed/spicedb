@@ -5,7 +5,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"testing"
 
@@ -29,56 +29,68 @@ func TestRESTGateway(t *testing.T) {
 	require.NoError(err)
 	defer tester.cleanup()
 
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", tester.httpPort))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", tester.HTTPPort))
 	require.NoError(err)
+	t.Cleanup(func() {
+		_ = resp.Body.Close()
+	})
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(err)
 	require.JSONEq(`{"code":5,"message":"Not Found","details":[]}`, string(body))
 
 	// Attempt to read schema without a valid Auth header.
-	readUrl := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.httpPort)
-	resp, err = http.Post(readUrl, "", nil)
+	readURL := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.HTTPPort)
+	resp, err = http.Post(readURL, "", nil) //nolint:gosec
 	require.NoError(err)
 
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	require.NoError(err)
 
 	require.Equal(401, resp.StatusCode)
 	require.Contains(string(body), "Unauthenticated")
 
 	// Attempt to read schema with an invalid Auth header.
-	req, err := http.NewRequest("POST", readUrl, nil)
+	req, err := http.NewRequest("POST", readURL, nil)
+	require.NoError(err)
 	req.Header.Add("Authorization", "Bearer notcorrect")
 
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(err)
 
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	require.NoError(err)
+	t.Cleanup(func() {
+		_ = resp.Body.Close()
+	})
 
 	require.Equal(403, resp.StatusCode)
 	require.Contains(string(body), "invalid preshared key: invalid token")
 
 	// Read with the correct token.
-	req, err = http.NewRequest("POST", readUrl, nil)
+	req, err = http.NewRequest("POST", readURL, nil)
+	require.NoError(err)
 	req.Header.Add("Authorization", "Bearer somerandomkeyhere")
 
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(err)
 
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	require.NoError(err)
 
 	require.Equal(200, resp.StatusCode)
 	require.Contains(string(body), "definition user {")
 
 	// Execute a watch call with an invalid auth header and ensure it 403s.
-	watchUrl := fmt.Sprintf("http://localhost:%s/v1/watch", tester.httpPort)
-	watchReq, err := http.NewRequest("POST", watchUrl, nil)
+	watchURL := fmt.Sprintf("http://localhost:%s/v1/watch", tester.HTTPPort)
+	watchReq, err := http.NewRequest("POST", watchURL, nil)
+	require.NoError(err)
 	watchReq.Header.Add("Authorization", "Bearer notcorrect")
 
 	watchResp, err := http.DefaultClient.Do(watchReq)
 	require.NoError(err)
 	require.Equal(403, watchResp.StatusCode)
+	t.Cleanup(func() {
+		_ = watchResp.Body.Close()
+	})
 }

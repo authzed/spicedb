@@ -12,11 +12,11 @@ import (
 )
 
 // PathSeq is the intermediate iter closure that any of the planning calls return.
-type PathSeq iter.Seq2[*Path, error]
+type PathSeq iter.Seq2[Path, error]
 
 // EmptyPathSeq returns an empty iterator, that is error-free but empty.
 func EmptyPathSeq() PathSeq {
-	return func(yield func(*Path, error) bool) {}
+	return func(yield func(Path, error) bool) {}
 }
 
 // Path is an abstract notion of an individual relation. While tuple.Relation is what is stored under the hood,
@@ -36,12 +36,13 @@ type Path struct {
 }
 
 // ResourceOAR returns the resource as an ObjectAndRelation with the current relation type.
-func (p *Path) ResourceOAR() ObjectAndRelation {
+func (p Path) ResourceOAR() ObjectAndRelation {
 	return p.Resource.WithRelation(p.Relation)
 }
 
 // MergeOr combines the paths, ORing the caveats and expiration and metadata together.
-func (p *Path) MergeOr(other *Path) error {
+// Returns a new Path with the merged values.
+func (p Path) MergeOr(other Path) (Path, error) {
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if pCaveat != nil && otherCaveat != nil {
 			return caveats.Or(pCaveat, otherCaveat)
@@ -53,7 +54,8 @@ func (p *Path) MergeOr(other *Path) error {
 }
 
 // MergeAnd combines the paths, ANDing the caveats and expiration and metadata together.
-func (p *Path) MergeAnd(other *Path) error {
+// Returns a new Path with the merged values.
+func (p Path) MergeAnd(other Path) (Path, error) {
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if pCaveat != nil {
 			if otherCaveat != nil {
@@ -67,7 +69,8 @@ func (p *Path) MergeAnd(other *Path) error {
 }
 
 // MergeAndNot combines the paths, subtracting the caveats and expiration and metadata together.
-func (p *Path) MergeAndNot(other *Path) error {
+// Returns a new Path with the merged values.
+func (p Path) MergeAndNot(other Path) (Path, error) {
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if otherCaveat != nil {
 			// If pCaveat is nil, this turns it into a negation (Invert() in caveats package)
@@ -79,50 +82,65 @@ func (p *Path) MergeAndNot(other *Path) error {
 	})
 }
 
-func (p *Path) mergeFrom(other *Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) error {
+func (p Path) mergeFrom(other Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) (Path, error) {
 	// Check if they have the same Resource and Subject types and IDs
 	if !p.Resource.Equals(other.Resource) {
-		return fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)
+		return Path{}, fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)
 	}
 
 	pSubject := GetObject(p.Subject)
 	otherSubject := GetObject(other.Subject)
 	if !pSubject.Equals(otherSubject) {
-		return fmt.Errorf("cannot merge paths with different subjects: %v vs %v", pSubject, otherSubject)
+		return Path{}, fmt.Errorf("cannot merge paths with different subjects: %v vs %v", pSubject, otherSubject)
+	}
+
+	// Create a new Path with merged values
+	result := Path{
+		Resource: p.Resource,
+		Subject:  p.Subject,
 	}
 
 	// Clear Relation unless both have the same Relation string
-	if p.Relation != other.Relation {
-		p.Relation = ""
+	if p.Relation == other.Relation {
+		result.Relation = p.Relation
 	}
 
 	// Combine caveats using the provided merger function
-	p.Caveat = caveatMerger(p.Caveat, other.Caveat)
+	result.Caveat = caveatMerger(p.Caveat, other.Caveat)
 
 	// Keep any Expiration, and if there are two of them, take the earlier one
 	if other.Expiration != nil {
 		if p.Expiration == nil || other.Expiration.Before(*p.Expiration) {
-			p.Expiration = other.Expiration
+			result.Expiration = other.Expiration
+		} else {
+			result.Expiration = p.Expiration
 		}
+	} else {
+		result.Expiration = p.Expiration
 	}
 
 	// Append all integrities together
-	p.Integrity = append(p.Integrity, other.Integrity...)
+	result.Integrity = make([]*core.RelationshipIntegrity, 0, len(p.Integrity)+len(other.Integrity))
+	result.Integrity = append(result.Integrity, p.Integrity...)
+	result.Integrity = append(result.Integrity, other.Integrity...)
 
-	// Merge the metadata by overwriting fields from other into p.
+	// Merge the metadata by combining both maps
 	// WARNING: This is a simple overwrite strategy and may not be appropriate for all use cases.
 	// Better is probably to have a more structured Metadata type, with a Merge() function.
-	if other.Metadata != nil {
-		if p.Metadata == nil {
-			p.Metadata = make(map[string]any)
+	if p.Metadata != nil || other.Metadata != nil {
+		result.Metadata = make(map[string]any)
+		if p.Metadata != nil {
+			maps.Copy(result.Metadata, p.Metadata)
 		}
-		maps.Copy(p.Metadata, other.Metadata)
+		if other.Metadata != nil {
+			maps.Copy(result.Metadata, other.Metadata)
+		}
 	}
 
-	return nil
+	return result, nil
 }
 
-func (p *Path) IsExpired() bool {
+func (p Path) IsExpired() bool {
 	if p.Expiration == nil {
 		return false
 	}
@@ -130,7 +148,7 @@ func (p *Path) IsExpired() bool {
 }
 
 // FromRelationship creates a new Path from a tuple.Relationship.
-func FromRelationship(rel tuple.Relationship) *Path {
+func FromRelationship(rel tuple.Relationship) Path {
 	resource := Object{
 		ObjectID:   rel.Resource.ObjectID,
 		ObjectType: rel.Resource.ObjectType,
@@ -146,7 +164,7 @@ func FromRelationship(rel tuple.Relationship) *Path {
 		integrity = []*core.RelationshipIntegrity{rel.OptionalIntegrity}
 	}
 
-	return &Path{
+	return Path{
 		Resource:   resource,
 		Relation:   rel.Resource.Relation,
 		Subject:    rel.Subject,
@@ -158,7 +176,7 @@ func FromRelationship(rel tuple.Relationship) *Path {
 }
 
 // ToRelationship converts the Path to a tuple.Relationship.
-func (p *Path) ToRelationship() (tuple.Relationship, error) {
+func (p Path) ToRelationship() (tuple.Relationship, error) {
 	if p.Relation == "" {
 		return tuple.Relationship{}, fmt.Errorf("cannot convert Path with empty Relation to Relationship")
 	}
@@ -201,17 +219,13 @@ func (p *Path) ToRelationship() (tuple.Relationship, error) {
 // MustPathFromString is a helper function for tests that creates a Path from a relationship string.
 // It uses tuple.MustParse to parse the string and then converts it to a Path using FromRelationship.
 // Example: MustPathFromString("document:doc1#viewer@user:alice")
-func MustPathFromString(relationshipStr string) *Path {
+func MustPathFromString(relationshipStr string) Path {
 	rel := tuple.MustParse(relationshipStr)
 	return FromRelationship(rel)
 }
 
 // EqualsEndpoints checks if two paths have the same Resource and Subject endpoints (types and IDs only)
-func (p *Path) EqualsEndpoints(other *Path) bool {
-	if p == nil || other == nil {
-		return p == other
-	}
-
+func (p Path) EqualsEndpoints(other Path) bool {
 	return p.Resource.ObjectType == other.Resource.ObjectType &&
 		p.Resource.ObjectID == other.Resource.ObjectID &&
 		p.Subject.ObjectType == other.Subject.ObjectType &&
@@ -220,11 +234,7 @@ func (p *Path) EqualsEndpoints(other *Path) bool {
 }
 
 // Equals checks if two paths are fully equal (all fields match)
-func (p *Path) Equals(other *Path) bool {
-	if p == nil || other == nil {
-		return p == other
-	}
-
+func (p Path) Equals(other Path) bool {
 	// Check basic fields
 	if p.Resource.ObjectType != other.Resource.ObjectType ||
 		p.Resource.ObjectID != other.Resource.ObjectID ||
@@ -274,8 +284,8 @@ func (p *Path) Equals(other *Path) bool {
 }
 
 // CollectAll is a helper function to build read a complete PathSeq and turn it into a fully realized slice of Paths.
-func CollectAll(seq PathSeq) ([]*Path, error) {
-	out := make([]*Path, 0) // `prealloc` is overly aggressive. This should be `var out []*Path`
+func CollectAll(seq PathSeq) ([]Path, error) {
+	out := make([]Path, 0)
 	for x, err := range seq {
 		if err != nil {
 			return nil, err

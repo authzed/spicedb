@@ -2,6 +2,8 @@ package serverversion
 
 import (
 	"context"
+	"errors"
+	"io"
 	"testing"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
@@ -87,18 +89,25 @@ func (s *serverVersionMiddlewareTestSuite) TestStreamInterceptor_WithVersionRequ
 	stream, err := s.Client.PingList(ctx, &testpb.PingListRequest{})
 	require.NoError(s.T(), err)
 
-	// Receive the response, force trailer to be sent
-	_, err = stream.Recv()
-	require.NoError(s.T(), err)
+	// Keep receiving responses until EOF to ensure stream is fully closed
+	for {
+		_, err = stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			require.Fail(s.T(), "unexpected error receiving from stream: %v", err)
+		}
+	}
 
 	// Close the stream to ensure trailers are available
 	err = stream.CloseSend()
 	require.NoError(s.T(), err)
 
 	// Check that response metadata contains server version
-	header := stream.Trailer()
+	trailer := stream.Trailer()
 
-	serverVersion := header.Get(string(responsemeta.ServerVersion))
+	serverVersion := trailer.Get(string(responsemeta.ServerVersion))
 	require.NotEmpty(s.T(), serverVersion)
 }
 

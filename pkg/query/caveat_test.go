@@ -61,19 +61,19 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		paths         []*Path
+		paths         []Path
 		caveatContext map[string]any
-		expectedPaths []*Path
+		expectedPaths []Path
 	}{
 		{
 			name: "allows all paths through",
-			paths: []*Path{
+			paths: []Path{
 				pathWithCaveat,
 				pathWithoutCaveat,
 				pathWithDifferentCaveat,
 			},
 			caveatContext: nil,
-			expectedPaths: []*Path{
+			expectedPaths: []Path{
 				pathWithCaveat,
 				pathWithoutCaveat,
 				pathWithDifferentCaveat,
@@ -81,14 +81,14 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 		},
 		{
 			name: "allows paths even with context provided",
-			paths: []*Path{
+			paths: []Path{
 				pathWithCaveat,
 				pathWithoutCaveat,
 			},
 			caveatContext: map[string]any{
 				"allowed": true,
 			},
-			expectedPaths: []*Path{
+			expectedPaths: []Path{
 				pathWithCaveat,
 				pathWithoutCaveat,
 			},
@@ -120,7 +120,7 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 			resource := NewObject("document", "doc1")
 			seq, err := queryCtx.IterSubjects(caveatIter, resource)
 
-			var expectedMatchingPaths []*Path
+			var expectedMatchingPaths []Path
 			for _, path := range tc.expectedPaths {
 				if path.Resource.ObjectType == resource.ObjectType && path.Resource.ObjectID == resource.ObjectID {
 					expectedMatchingPaths = append(expectedMatchingPaths, path)
@@ -153,13 +153,13 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 	testCases := []struct {
 		name          string
 		caveat        *core.ContextualizedCaveat
-		paths         []*Path
+		paths         []Path
 		caveatContext map[string]any
 	}{
 		{
 			name:   "filters by matching caveat name",
 			caveat: createTestCaveat("test_caveat", nil),
-			paths: []*Path{
+			paths: []Path{
 				pathWithCaveat,          // has test_caveat
 				pathWithoutCaveat,       // has no caveat
 				pathWithDifferentCaveat, // has other_caveat
@@ -171,7 +171,7 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 		{
 			name:   "filters out paths without matching caveat",
 			caveat: createTestCaveat("test_caveat", nil),
-			paths: []*Path{
+			paths: []Path{
 				pathWithCaveat,
 				pathWithoutCaveat,
 				pathWithDifferentCaveat,
@@ -183,7 +183,7 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 		{
 			name:   "denies caveated paths without context",
 			caveat: createTestCaveat("test_caveat", nil),
-			paths: []*Path{
+			paths: []Path{
 				pathWithCaveat,
 				pathWithoutCaveat,
 			},

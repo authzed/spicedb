@@ -9,20 +9,20 @@ import "fmt"
 // For example: document->folder->ownerGroup->user -- and we'd like to
 // find all documents (IterResources) that traverse a known folder->ownerGroup relationship
 type FixedIterator struct {
-	paths []*Path
+	paths []Path
 }
 
 var _ Iterator = &FixedIterator{}
 
-func NewFixedIterator(paths ...*Path) *FixedIterator {
+func NewFixedIterator(paths ...Path) *FixedIterator {
 	return &FixedIterator{
 		paths: paths,
 	}
 }
 
 func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
-		var resultPaths []*Path
+	return func(yield func(Path, error) bool) {
+		var resultPaths []Path
 		ctx.TraceStep(f, "checking %d paths against %d resources", len(f.paths), len(resources))
 
 		for _, path := range f.paths {
@@ -43,8 +43,8 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject Obje
 }
 
 func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
-		var resultPaths []*Path
+	return func(yield func(Path, error) bool) {
+		var resultPaths []Path
 
 		ctx.TraceStep(f, "iterating subjects for resource %s:%s from %d paths", resource.ObjectType, resource.ObjectID, len(f.paths))
 
@@ -63,8 +63,8 @@ func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq
 }
 
 func (f *FixedIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
-		var resultPaths []*Path
+	return func(yield func(Path, error) bool) {
+		var resultPaths []Path
 
 		ctx.TraceStep(f, "iterating resources for subject %s:%s from %d paths", subject.ObjectType, subject.ObjectID, len(f.paths))
 
@@ -91,7 +91,7 @@ func (f *FixedIterator) Explain() Explain {
 
 func (f *FixedIterator) Clone() Iterator {
 	// Create a copy of the paths slice
-	clonedPaths := make([]*Path, len(f.paths))
+	clonedPaths := make([]Path, len(f.paths))
 	copy(clonedPaths, f.paths)
 
 	return &FixedIterator{

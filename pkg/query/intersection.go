@@ -24,7 +24,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 	validResources := resources
 
 	// Track paths by resource key for combining with AND logic
-	pathsByKey := make(map[string]*Path)
+	pathsByKey := make(map[string]Path)
 
 	for iterIdx, it := range i.subIts {
 		ctx.TraceStep(i, "processing sub-iterator %d with %d resources", iterIdx, len(validResources))
@@ -42,7 +42,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 
 		if len(paths) == 0 {
 			ctx.TraceStep(i, "sub-iterator %d returned empty, short-circuiting", iterIdx)
-			return func(yield func(*Path, error) bool) {}, nil
+			return func(yield func(Path, error) bool) {}, nil
 		}
 
 		if iterIdx == 0 {
@@ -53,26 +53,30 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 					pathsByKey[key] = path
 				} else {
 					// If multiple paths for same endpoint in first iterator, merge with OR
-					if err := existing.MergeOr(path); err != nil {
+					merged, err := existing.MergeOr(path)
+					if err != nil {
 						return nil, err
 					}
+					pathsByKey[key] = merged
 				}
 			}
 		} else {
 			// Subsequent iterators - intersect based on endpoints and combine caveats
-			newPathsByKey := make(map[string]*Path)
+			newPathsByKey := make(map[string]Path)
 
 			// First collect all paths from this iterator by endpoint
-			currentIterPaths := make(map[string]*Path)
+			currentIterPaths := make(map[string]Path)
 			for _, path := range paths {
 				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID
 				if existing, exists := currentIterPaths[key]; !exists {
 					currentIterPaths[key] = path
 				} else {
 					// Multiple paths for same endpoint in current iterator, merge with OR
-					if err := existing.MergeOr(path); err != nil {
+					merged, err := existing.MergeOr(path)
+					if err != nil {
 						return nil, err
 					}
+					currentIterPaths[key] = merged
 				}
 			}
 
@@ -80,18 +84,18 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 			for key, currentPath := range currentIterPaths {
 				if existing, exists := pathsByKey[key]; exists {
 					// Combine using intersection logic (AND)
-					combined := *existing // Copy the existing path
-					if err := combined.MergeAnd(currentPath); err != nil {
+					combined, err := existing.MergeAnd(currentPath)
+					if err != nil {
 						return nil, err
 					}
-					newPathsByKey[key] = &combined
+					newPathsByKey[key] = combined
 				}
 				// If endpoint not in previous results, it's filtered out (intersection)
 			}
 			pathsByKey = newPathsByKey
 
 			if len(pathsByKey) == 0 {
-				return func(yield func(*Path, error) bool) {}, nil
+				return func(yield func(Path, error) bool) {}, nil
 			}
 		}
 
@@ -107,7 +111,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 		}
 	}
 
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, path := range pathsByKey {
 			if !yield(path, nil) {
 				return

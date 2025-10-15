@@ -13,9 +13,10 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	"gopkg.in/yaml.v3"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -167,7 +168,7 @@ func cursoredLookupResources(parameters map[string]any, clients stClients) (any,
 					FullyConsistent: true,
 				},
 			},
-			OptionalLimit:  uint32(parameters["page_size"].(int)),
+			OptionalLimit:  uint32(parameters["page_size"].(int)), //nolint:gosec
 			OptionalCursor: currentCursor,
 		})
 		if err != nil {
@@ -269,14 +270,14 @@ func bulkImportExportRelationships(parameters map[string]any, clients stClients)
 		return nil, err
 	}
 
-	if len(importRels) != int(resp.NumLoaded) {
+	if uint64(len(importRels)) != resp.NumLoaded {
 		return nil, fmt.Errorf("expected %d relationships to be loaded, got %d", len(importRels), resp.NumLoaded)
 	}
 
 	// Run bulk export and return the results.
 	var optionalLimit uint32
 	if optionalLimitValue, ok := parameters["optional_limit"]; ok {
-		optionalLimit = uint32(optionalLimitValue.(int))
+		optionalLimit = uint32(optionalLimitValue.(int)) //nolint:gosec
 	}
 
 	var filter *v1.RelationshipFilter

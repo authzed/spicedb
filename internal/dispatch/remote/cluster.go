@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/caio/go-tdigest/v4"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/rs/zerolog"
 	"go.uber.org/atomic"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -94,7 +93,7 @@ type ClusterClient interface {
 }
 
 type ClusterDispatcherConfig struct {
-	// KeyHandler is then handler to use for generating dispatch hash ring keys.
+	// KeyHandler is the handler to use for generating dispatch hash ring keys.
 	KeyHandler keys.Handler
 
 	// DispatchOverallTimeout is the maximum duration of a dispatched request
@@ -179,7 +178,6 @@ type digestAndLock struct {
 }
 
 // getWaitTime returns the configured percentile of the digest, or a default value if the digest is empty.
-// In
 func (dal *digestAndLock) getWaitTime(maximumHedgingDelay time.Duration) time.Duration {
 	dal.lock.RLock()
 	milliseconds := dal.digest.Quantile(defaultHedgerQuantile)
@@ -269,6 +267,9 @@ type secondaryRespTuple[S responseMessage] struct {
 	resp        S
 }
 
+// dispatchSyncRequest handles the dispatch of a unary request.
+// It first attempts to use the secondary dispatchers, if any are defined and match,
+// before falling back to the primary dispatcher.
 func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	ctx context.Context,
 	cr *clusterDispatcher,
@@ -472,7 +473,7 @@ type ctxAndCancel struct {
 }
 
 // dispatchStreamingRequest handles the dispatching of a streaming request to the primary and any
-// secondary dispatchers. Unlike the non-streaming version, this will first attempt to dispatch
+// secondary dispatchers. Unlike dispatchSyncRequest, this will first attempt to dispatch
 // from the allowed secondary dispatchers before falling back to the primary, rather than running
 // them in parallel.
 func dispatchStreamingRequest[Q streamingRequestMessage, R any](
@@ -558,8 +559,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 
 	// For each secondary dispatch (as well as the primary), dispatch. Whichever one returns first,
 	// stream its results and cancel the remaining dispatches.
-	var errorsLock sync.Mutex
-	errorsByDispatcherName := make(map[string]error)
+	errorsByDispatcherName := xsync.NewMap[string, error]()
 
 	var wg sync.WaitGroup
 	if allowPrimary {
@@ -614,9 +614,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 			}
 
 			log.Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
-			errorsLock.Lock()
-			errorsByDispatcherName[name] = err
-			errorsLock.Unlock()
+			errorsByDispatcherName.Store(name, err)
 			return
 		}
 
@@ -682,18 +680,14 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 						primarySleeper.cancelSleep()
 					}
 
-					errorsLock.Lock()
-					errorsByDispatcherName[name] = err
-					errorsLock.Unlock()
+					errorsByDispatcherName.Store(name, err)
 					return
 				}
 
 				hasPublishedFirstResult = true
 				serr := stream.Publish(result)
 				if serr != nil {
-					errorsLock.Lock()
-					errorsByDispatcherName[name] = serr
-					errorsLock.Unlock()
+					errorsByDispatcherName.Store(name, serr)
 					return
 				}
 			}
@@ -716,15 +710,20 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	// Check for the first dispatcher that returned results and return its error, if any.
 	resultHandlerName := returnedResultsDispatcherName.Load()
 	if resultHandlerName != "" {
-		if err, ok := errorsByDispatcherName[resultHandlerName]; ok {
+		if err, ok := errorsByDispatcherName.Load(resultHandlerName); ok {
 			return err
 		}
 		return nil
 	}
 
 	// If there is a primary dispatcher error, return it.
-	if primaryErr, ok := errorsByDispatcherName[primaryDispatcher]; ok {
-		log.Warn().Err(primaryErr).Errs("all-errors", slices.Collect(maps.Values(errorsByDispatcherName))).Msg("returning primary dispatcher error as no dispatchers returned results")
+	if primaryErr, ok := errorsByDispatcherName.Load(primaryDispatcher); ok {
+		allErrors := make([]error, 0, errorsByDispatcherName.Size())
+		errorsByDispatcherName.Range(func(key string, value error) bool {
+			allErrors = append(allErrors, value)
+			return true
+		})
+		log.Warn().Err(primaryErr).Errs("all-errors", allErrors).Msg("returning primary dispatcher error as no dispatchers returned results")
 		return primaryErr
 	}
 
@@ -982,6 +981,7 @@ type primarySleeper struct {
 	lock       sync.Mutex
 }
 
+// sleep sets the value of cancelFunc, and sleeps for the configured wait time or exits early if the context is cancelled.
 func (s *primarySleeper) sleep(parentCtx context.Context) {
 	if s.waitTime <= 0 {
 		return

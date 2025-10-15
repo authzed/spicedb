@@ -53,7 +53,7 @@ func NewDocumentAccessFixedIterator() *FixedIterator {
 		createRelation("document", "doc6", "viewer", "group", "all_staff", "member"),
 	}
 
-	paths := make([]*Path, len(relations))
+	paths := make([]Path, len(relations))
 	for i, rel := range relations {
 		paths[i] = FromRelationship(rel)
 	}
@@ -83,7 +83,7 @@ func NewFolderHierarchyFixedIterator() *FixedIterator {
 		createRelation("document", "readme", "parent", "folder", "root", "..."),
 	}
 
-	paths := make([]*Path, len(relations))
+	paths := make([]Path, len(relations))
 	for i, rel := range relations {
 		paths[i] = FromRelationship(rel)
 	}
@@ -112,7 +112,7 @@ func NewMultiRoleFixedIterator() *FixedIterator {
 		createRelation("document", "doc4", "owner", "user", "diana", "..."),
 	}
 
-	paths := make([]*Path, len(relations))
+	paths := make([]Path, len(relations))
 	for i, rel := range relations {
 		paths[i] = FromRelationship(rel)
 	}
@@ -141,7 +141,7 @@ func NewGroupMembershipFixedIterator() *FixedIterator {
 		createRelation("document", "design_guide", "editor", "group", "designers", "member"),
 	}
 
-	paths := make([]*Path, len(relations))
+	paths := make([]Path, len(relations))
 	for i, rel := range relations {
 		paths[i] = FromRelationship(rel)
 	}
@@ -159,7 +159,7 @@ func NewSingleUserFixedIterator(userID string) *FixedIterator {
 		createRelation("folder", "shared_folder", "viewer", "user", userID, "..."),
 	}
 
-	paths := make([]*Path, len(relations))
+	paths := make([]Path, len(relations))
 	for i, rel := range relations {
 		paths[i] = FromRelationship(rel)
 	}
@@ -200,7 +200,7 @@ func NewLargeFixedIterator() *FixedIterator {
 		}
 	}
 
-	paths := make([]*Path, len(relations))
+	paths := make([]Path, len(relations))
 	for i, rel := range relations {
 		paths[i] = FromRelationship(rel)
 	}
@@ -225,7 +225,7 @@ func NewConflictingPermissionsFixedIterator() *FixedIterator {
 		createRelation("group", "team", "member", "user", "charlie", "..."),
 	}
 
-	paths := make([]*Path, len(relations))
+	paths := make([]Path, len(relations))
 	for i, rel := range relations {
 		paths[i] = FromRelationship(rel)
 	}
@@ -270,8 +270,8 @@ func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(*Path, error) bool) {
-			yield(nil, fmt.Errorf("faulty iterator collection error"))
+		return func(yield func(Path, error) bool) {
+			yield(Path{}, fmt.Errorf("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
@@ -284,8 +284,8 @@ func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSe
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(*Path, error) bool) {
-			yield(nil, fmt.Errorf("faulty iterator collection error"))
+		return func(yield func(Path, error) bool) {
+			yield(Path{}, fmt.Errorf("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
@@ -298,8 +298,8 @@ func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(*Path, error) bool) {
-			yield(nil, fmt.Errorf("faulty iterator collection error"))
+		return func(yield func(Path, error) bool) {
+			yield(Path{}, fmt.Errorf("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence

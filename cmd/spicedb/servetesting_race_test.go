@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +19,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 )
 
 // Based on a test originally written by https://github.com/wscalf
@@ -41,7 +42,8 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 	defer tester.cleanup()
 
 	for i := 0; i < 1000; i++ {
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.port),
+			grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {

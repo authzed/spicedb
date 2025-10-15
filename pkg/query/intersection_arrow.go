@@ -26,13 +26,13 @@ func NewIntersectionArrow(left, right Iterator) *IntersectionArrow {
 }
 
 func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, resource := range resources {
 			ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
 
 			subit, err := ctx.IterSubjects(ia.left, resource)
 			if err != nil {
-				yield(nil, err)
+				yield(Path{}, err)
 				return
 			}
 
@@ -42,12 +42,12 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 			// 3. Only yield results if ALL existing left subjects satisfy the right condition
 			// 4. Combine all (leftCaveat AND rightCaveat) pairs with AND logic
 
-			var validResults []*Path
+			var validResults []Path
 			unsatisfied := false
 
 			for path, err := range subit {
 				if err != nil {
-					yield(nil, err)
+					yield(Path{}, err)
 					return
 				}
 
@@ -55,14 +55,14 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 				checkResources := []Object{GetObject(path.Subject)}
 				checkit, err := ctx.Check(ia.right, checkResources, subject)
 				if err != nil {
-					yield(nil, err)
+					yield(Path{}, err)
 					return
 				}
 
 				// There is only one possible result from this check.
 				paths, err := CollectAll(checkit)
 				if err != nil {
-					yield(nil, err)
+					yield(Path{}, err)
 					return
 				}
 				if len(paths) == 0 {
@@ -78,7 +78,7 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 				// Combine this path's left caveat with the right caveat
 				combinedCaveat := caveats.And(path.Caveat, checkPath.Caveat)
 
-				combinedPath := &Path{
+				combinedPath := Path{
 					Resource:   path.Resource,
 					Relation:   path.Relation,
 					Subject:    checkPath.Subject,
@@ -118,7 +118,7 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 			// Return a single path representing the intersection, if one exists.
 			if len(validResults) > 0 {
 				firstResult := validResults[0]
-				finalResult := &Path{
+				finalResult := Path{
 					Resource:   resource,
 					Relation:   "",
 					Subject:    subject,

@@ -49,7 +49,7 @@ func TestTraceLogger(t *testing.T) {
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		paths := []*Path{testPath}
+		paths := []Path{testPath}
 		logger.ExitIterator(iterator, paths)
 
 		require.Equal(0, logger.depth)
@@ -168,7 +168,7 @@ func TestContext(t *testing.T) {
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		ctx.TraceExit(iterator, []*Path{testPath})
+		ctx.TraceExit(iterator, []Path{testPath})
 
 		require.Equal(0, logger.depth)
 		require.Empty(logger.stack)
@@ -243,7 +243,7 @@ func TestContext(t *testing.T) {
 		testPath := MustPathFromString("document:doc1#view@user:alice")
 		iterator := NewFixedIterator(testPath)
 
-		originalSeq := func(yield func(*Path, error) bool) {
+		originalSeq := func(yield func(Path, error) bool) {
 			yield(testPath, nil)
 		}
 
@@ -253,7 +253,7 @@ func TestContext(t *testing.T) {
 		require.NotNil(wrappedSeq)
 
 		// Collect results to verify it works
-		var paths []*Path
+		var paths []Path
 		for path, err := range wrappedSeq {
 			require.NoError(err)
 			paths = append(paths, path)
@@ -277,14 +277,14 @@ func TestContext(t *testing.T) {
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		originalSeq := func(yield func(*Path, error) bool) {
+		originalSeq := func(yield func(Path, error) bool) {
 			yield(testPath, nil)
 		}
 
 		wrappedSeq := ctx.wrapPathSeqForTracing(iterator, originalSeq)
 
 		// Collect results
-		var paths []*Path
+		var paths []Path
 		for path, err := range wrappedSeq {
 			require.NoError(err)
 			paths = append(paths, path)
@@ -312,16 +312,15 @@ func TestContext(t *testing.T) {
 		logger.depth = 1 // Set proper depth to avoid negative repeat count
 
 		expectedErr := errors.New("test error")
-		originalSeq := func(yield func(*Path, error) bool) {
-			yield(nil, expectedErr)
+		originalSeq := func(yield func(Path, error) bool) {
+			yield(Path{}, expectedErr)
 		}
 
 		wrappedSeq := ctx.wrapPathSeqForTracing(iterator, originalSeq)
 
 		// Collect results - should get the error
 		var foundError error
-		for path, err := range wrappedSeq {
-			require.Nil(path)
+		for _, err := range wrappedSeq {
 			foundError = err
 			break
 		}

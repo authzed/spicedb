@@ -2,6 +2,17 @@
 version: "2"
 run:
   allow-parallel-runners: true
+  build-tags:
+    - "ci"
+    - "datastoreconsistency"
+    - "docker"
+    - "image"
+    - "mage"
+    - "!skipintegrationtests"
+    - "steelthread"
+    - "pgbouncer"
+    - "postgres"
+#    - wasm
 linters:
   enable:
     - "bidichk"

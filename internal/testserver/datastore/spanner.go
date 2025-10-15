@@ -55,7 +55,7 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 
 	port := resource.GetPort("9010/tcp")
 	spannerEmulatorAddr := fmt.Sprintf("localhost:%s", port)
-	require.NoError(t, os.Setenv("SPANNER_EMULATOR_HOST", spannerEmulatorAddr))
+	t.Setenv("SPANNER_EMULATOR_HOST", spannerEmulatorAddr)
 
 	require.NoError(t, pool.Retry(func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), dockerBootTimeout)

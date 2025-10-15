@@ -486,7 +486,7 @@ func TestCombineExclusionCaveats(t *testing.T) {
 	require := require.New(t)
 
 	// Helper function to create paths with caveats
-	createPathWithCaveat := func(relation, caveatName string) *Path {
+	createPathWithCaveat := func(relation, caveatName string) Path {
 		path := MustPathFromString(relation)
 		if caveatName != "" {
 			path.Caveat = &core.CaveatExpression{
@@ -504,10 +504,11 @@ func TestCombineExclusionCaveats(t *testing.T) {
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "main_caveat")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 
-		result := combineExclusionCaveats(mainPath, excludedPath)
+		result, shouldInclude := combineExclusionCaveats(mainPath, excludedPath)
 
 		// Main has caveat, excluded has no caveat -> completely excluded
-		require.Nil(result, "Should be completely excluded when main has caveat but excluded has none")
+		require.False(shouldInclude, "Should be completely excluded when main has caveat but excluded has none")
+		require.Equal(Path{}, result, "Result should be empty path when excluded")
 	})
 
 	t.Run("main_without_caveat_excluded_without_caveat", func(t *testing.T) {
@@ -515,10 +516,11 @@ func TestCombineExclusionCaveats(t *testing.T) {
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 
-		result := combineExclusionCaveats(mainPath, excludedPath)
+		result, shouldInclude := combineExclusionCaveats(mainPath, excludedPath)
 
 		// Neither has caveat -> completely excluded
-		require.Nil(result, "Should be completely excluded when neither has caveat")
+		require.False(shouldInclude, "Should be completely excluded when neither has caveat")
+		require.Equal(Path{}, result, "Result should be empty path when excluded")
 	})
 
 	t.Run("main_without_caveat_excluded_with_caveat", func(t *testing.T) {
@@ -526,10 +528,10 @@ func TestCombineExclusionCaveats(t *testing.T) {
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "excluded_caveat")
 
-		result := combineExclusionCaveats(mainPath, excludedPath)
+		result, shouldInclude := combineExclusionCaveats(mainPath, excludedPath)
 
 		// Main has no caveat, excluded has caveat -> return main with negated excluded caveat
-		require.NotNil(result, "Should return a result when main has no caveat but excluded has one")
+		require.True(shouldInclude, "Should be included when main has no caveat but excluded has one")
 		require.NotNil(result.Caveat, "Result should have a caveat (negated excluded caveat)")
 
 		// Verify the result has the same endpoints as main
@@ -543,10 +545,10 @@ func TestCombineExclusionCaveats(t *testing.T) {
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "main_caveat")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "excluded_caveat")
 
-		result := combineExclusionCaveats(mainPath, excludedPath)
+		result, shouldInclude := combineExclusionCaveats(mainPath, excludedPath)
 
 		// Both have caveats -> return main with combined caveat (main AND NOT excluded)
-		require.NotNil(result, "Should return a result when both have caveats")
+		require.True(shouldInclude, "Should be included when both have caveats")
 		require.NotNil(result.Caveat, "Result should have a combined caveat")
 
 		// Verify the result has the same endpoints as main
@@ -574,7 +576,7 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 	}
 
 	// Helper to create paths with caveats
-	createPathWithCaveat := func(relation, caveatName string) *Path {
+	createPathWithCaveat := func(relation, caveatName string) Path {
 		path := MustPathFromString(relation)
 		if caveatName != "" {
 			path.Caveat = &core.CaveatExpression{
@@ -611,19 +613,22 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 		require.Len(results, 2, "Should return both paths with appropriate caveat modifications")
 
 		// Find the doc1 result
-		var doc1Result *Path
-		var doc2Result *Path
+		var doc1Result Path
+		var doc2Result Path
+		var foundDoc1, foundDoc2 bool
 		for _, result := range results {
 			switch result.Resource.ObjectID {
 			case "doc1":
 				doc1Result = result
+				foundDoc1 = true
 			case "doc2":
 				doc2Result = result
+				foundDoc2 = true
 			}
 		}
 
-		require.NotNil(doc1Result, "Should have result for doc1")
-		require.NotNil(doc2Result, "Should have result for doc2")
+		require.True(foundDoc1, "Should have result for doc1")
+		require.True(foundDoc2, "Should have result for doc2")
 
 		// doc1 should have combined caveat
 		require.NotNil(doc1Result.Caveat, "doc1 result should have combined caveat")

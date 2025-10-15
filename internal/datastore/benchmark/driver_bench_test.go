@@ -98,7 +98,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 			b.Run("TestTuple", func(b *testing.B) {
 				b.Run("SnapshotRead", func(b *testing.B) {
 					for n := 0; n < b.N; n++ {
-						randDocNum := rand.Intn(numDocuments)
+						randDocNum := rand.Intn(numDocuments) //nolint:gosec
 						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 							OptionalResourceType:     testfixtures.DocumentNS.Name,
 							OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},
@@ -168,7 +168,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 						order := order
 						b.Run(orderName, func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
-								randDocNum := rand.Intn(numDocuments)
+								randDocNum := rand.Intn(numDocuments) //nolint:gosec
 								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 									OptionalResourceType:     testfixtures.DocumentNS.Name,
 									OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},

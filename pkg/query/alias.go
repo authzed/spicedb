@@ -26,7 +26,7 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 			resourceWithAlias.ObjectType == subject.ObjectType &&
 			resourceWithAlias.Relation == subject.Relation {
 			// Return the self-edge path first
-			selfPath := &Path{
+			selfPath := Path{
 				Resource: GetObject(resourceWithAlias),
 				Relation: resourceWithAlias.Relation,
 				Subject:  subject,
@@ -39,7 +39,7 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 				return nil, err
 			}
 
-			return func(yield func(*Path, error) bool) {
+			return func(yield func(Path, error) bool) {
 				// Yield the self-edge first
 				if !yield(selfPath, nil) {
 					return
@@ -48,7 +48,7 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 				// Then yield rewritten paths from sub-iterator
 				for path, err := range subSeq {
 					if err != nil {
-						yield(nil, err)
+						yield(Path{}, err)
 						return
 					}
 
@@ -67,10 +67,10 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 		return nil, err
 	}
 
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for path, err := range subSeq {
 			if err != nil {
-				yield(nil, err)
+				yield(Path{}, err)
 				return
 			}
 
@@ -88,10 +88,10 @@ func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 		return nil, err
 	}
 
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for path, err := range subSeq {
 			if err != nil {
-				yield(nil, err)
+				yield(Path{}, err)
 				return
 			}
 
@@ -109,10 +109,10 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 		return nil, err
 	}
 
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for path, err := range subSeq {
 			if err != nil {
-				yield(nil, err)
+				yield(Path{}, err)
 				return
 			}
 

@@ -22,9 +22,11 @@ func pgbouncerTestVersion() string {
 var pgbouncerConfig = postgresTestConfig{"head", "", pgbouncerTestVersion(), true}
 
 func TestPostgresWithPgBouncerDatastore(t *testing.T) {
+	t.Parallel()
 	testPostgresDatastore(t, pgbouncerConfig)
 }
 
 func TestPostgresDatastoreWithPgBouncerWithoutCommitTimestamps(t *testing.T) {
+	t.Parallel()
 	testPostgresDatastoreWithoutCommitTimestamps(t, pgbouncerConfig)
 }
