@@ -1216,6 +1216,72 @@ func TestSimplifyWithEmptyContext(t *testing.T) {
 	require.NotNil(simplified.GetOperation())
 }
 
+func TestSimplifyNotConditional(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	require := require.New(t)
+
+	// Create test caveat: count < limit
+	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
+		"count": caveattypes.Default.UIntType,
+		"limit": caveattypes.Default.UIntType,
+	})
+	require.NoError(err)
+
+	limitCaveat, err := caveats.CompileCaveatWithName(env, "count < limit", "limit_check")
+	require.NoError(err)
+
+	serialized, err := limitCaveat.Serialize()
+	require.NoError(err)
+
+	caveatDef := &core.CaveatDefinition{
+		Name:                 "limit_check",
+		SerializedExpression: serialized,
+		ParameterTypes:       env.EncodedParametersTypes(),
+	}
+
+	// Create datastore with caveat
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
+	})
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(revision)
+	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
+
+	// Create NOT expression: NOT limit_check(limit=10)
+	// Base case: when child is conditional (partial), NOT conditional should remain conditional
+	notExpr := internalcaveats.Invert(
+		&core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "limit_check",
+					Context:    mustToStruct(t, map[string]any{"limit": uint64(10)}),
+				},
+			},
+		},
+	)
+
+	// Test with partial/missing context - child caveat is conditional, so NOT should also be conditional
+	// We provide limit but not count, making the child caveat partial
+	partialContext := map[string]any{} // No count provided, only limit is in relationship context
+
+	simplified, passes, err := SimplifyCaveatExpression(ctx, runner, notExpr, partialContext, reader)
+	require.NoError(err)
+	require.True(passes, "NOT of conditional caveat should pass conditionally")
+	require.NotNil(simplified, "NOT of conditional caveat should remain as NOT expression")
+
+	// Verify the structure: should still be a NOT operation with the child caveat
+	require.NotNil(simplified.GetOperation(), "Result should be an operation")
+	require.Equal(core.CaveatOperation_NOT, simplified.GetOperation().Op, "Should be a NOT operation")
+	require.Len(simplified.GetOperation().Children, 1, "NOT should have one child")
+	require.NotNil(simplified.GetOperation().Children[0].GetCaveat(), "Child should be the original caveat")
+	require.Equal("limit_check", simplified.GetOperation().Children[0].GetCaveat().CaveatName)
+}
+
 func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 	ctx := context.Background()
 	require := require.New(t)

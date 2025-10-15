@@ -279,21 +279,26 @@ func simplifyNotOperation(
 		return nil, false, err
 	}
 
+	// Since we're simplifying the NOT operation, the results are basically flipped.
+
 	if simplified == nil && passes {
-		// Child evaluated to true unconditionally - NOT true is false
+		// Child caveat evaluated to true unconditionally - NOT true is false
 		return expr, false, nil // Return original expr to indicate what failed
-	} else if !passes {
-		// Child failed - NOT false is true
-		return nil, true, nil
-	} else {
-		// Child is conditional - NOT conditional is still conditional
-		return &core.CaveatExpression{
-			OperationOrCaveat: &core.CaveatExpression_Operation{
-				Operation: &core.CaveatOperation{
-					Op:       core.CaveatOperation_NOT,
-					Children: []*core.CaveatExpression{simplified},
-				},
-			},
-		}, true, nil
 	}
+
+	if !passes {
+		// Child caveat did NOT pass the caveat check, or simplified to impossible.
+		// Since the NOT of false is true, we DO pass the check, unconditionally.
+		return nil, true, nil
+	}
+
+	// Child is conditional - NOT conditional is still conditional
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op:       core.CaveatOperation_NOT,
+				Children: []*core.CaveatExpression{simplified},
+			},
+		},
+	}, true, nil
 }
