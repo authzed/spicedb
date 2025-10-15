@@ -29,6 +29,7 @@ type ReadOnlyMultimap[T comparable, Q any] interface {
 }
 
 // NewMultiMap initializes a new MultiMap.
+// NOT safe for concurrent use.
 func NewMultiMap[T comparable, Q any]() *MultiMap[T, Q] {
 	return &MultiMap[T, Q]{items: map[T][]Q{}}
 }
@@ -40,6 +41,7 @@ func NewMultiMapWithCap[T comparable, Q any](capacity uint32) *MultiMap[T, Q] {
 }
 
 // MultiMap represents a map that can contain 1 or more values for each key.
+// NOT safe for concurrent use.
 type MultiMap[T comparable, Q any] struct {
 	items map[T][]Q
 }
