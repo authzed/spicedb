@@ -2,3 +2,4 @@
 line-length: false
 no-hard-tabs: false
 no-inline-html: false
+no-bare-urls: false
