@@ -21,7 +21,7 @@ var _ Iterator = &CaveatIterator{}
 func NewCaveatIterator(subiterator Iterator, caveat *core.ContextualizedCaveat) *CaveatIterator {
 	return &CaveatIterator{
 		subiterator: subiterator,
-		caveat:      caveat,
+		caveat:      caveat.CloneVT(),
 	}
 }
 
@@ -66,7 +66,6 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 				if !yield(path, err) {
 					return
 				}
-				continue
 			}
 
 			processedCount++
@@ -78,7 +77,6 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 				if !yield(path, err) {
 					return
 				}
-				continue
 			}
 
 			if !passes {
@@ -181,7 +179,7 @@ func (c *CaveatIterator) containsCaveatName(expr *core.CaveatExpression, expecte
 func (c *CaveatIterator) Clone() Iterator {
 	return &CaveatIterator{
 		subiterator: c.subiterator.Clone(),
-		caveat:      c.caveat, // ContextualizedCaveat is immutable, safe to share
+		caveat:      c.caveat.CloneVT(),
 	}
 }
 
