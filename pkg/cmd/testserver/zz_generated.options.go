@@ -45,6 +45,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
+		to.DisableHealthCheckOTelTracing = c.DisableHealthCheckOTelTracing
 		to.CaveatTypeSet = c.CaveatTypeSet
 	}
 }
@@ -65,6 +66,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxDeleteRelationshipsLimit"] = helpers.DebugValue(c.MaxDeleteRelationshipsLimit, false)
 	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
+	debugMap["DisableHealthCheckOTelTracing"] = helpers.DebugValue(c.DisableHealthCheckOTelTracing, false)
 	return debugMap
 }
 
@@ -179,6 +181,13 @@ func WithMaxLookupResourcesLimit(maxLookupResourcesLimit uint32) ConfigOption {
 func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32) ConfigOption {
 	return func(c *Config) {
 		c.MaxBulkExportRelationshipsLimit = maxBulkExportRelationshipsLimit
+	}
+}
+
+// WithDisableHealthCheckOTelTracing returns an option that can set DisableHealthCheckOTelTracing on a Config
+func WithDisableHealthCheckOTelTracing(disableHealthCheckOTelTracing bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableHealthCheckOTelTracing = disableHealthCheckOTelTracing
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	helpers "github.com/ecordell/optgen/helpers"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
@@ -46,6 +47,7 @@ type Config struct {
 	MaxDeleteRelationshipsLimit     uint32                `debugmap:"visible"`
 	MaxLookupResourcesLimit         uint32                `debugmap:"visible"`
 	MaxBulkExportRelationshipsLimit uint32                `debugmap:"visible"`
+	DisableHealthCheckOTelTracing   bool                  `debugmap:"visible" default:"true"`
 	CaveatTypeSet                   *caveattypes.TypeSet  `debugmap:"hidden"`
 }
 
@@ -121,10 +123,16 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, err
 	}
 
+	// Build OTel stats handler options
+	var statsHandlerOpts []otelgrpc.Option
+	if c.DisableHealthCheckOTelTracing {
+		statsHandlerOpts = append(statsHandlerOpts, otelgrpc.WithFilter(filters.Not(filters.HealthCheck())))
+	}
+
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,
 		grpc.ChainUnaryInterceptor(unaryMiddleware.ToGRPCInterceptors()...),
 		grpc.ChainStreamInterceptor(streamMiddleware.ToGRPCInterceptors()...),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
 	)
 	if err != nil {
 		return nil, err
@@ -137,13 +145,13 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		grpc.ChainStreamInterceptor(
 			append(streamMiddleware.ToGRPCInterceptors(), readonly.StreamServerInterceptor())...,
 		),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
+	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath, c.DisableHealthCheckOTelTracing)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
@@ -157,7 +165,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
 
-	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
+	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath, c.DisableHealthCheckOTelTracing)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}

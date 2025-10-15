@@ -105,6 +105,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.DisableHealthCheckOTelTracing = c.DisableHealthCheckOTelTracing
 		to.EnableRequestLogs = c.EnableRequestLogs
 		to.EnableResponseLogs = c.EnableResponseLogs
 		to.DisableGRPCLatencyHistogram = c.DisableGRPCLatencyHistogram
@@ -176,6 +177,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
 	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
 	debugMap["TelemetryInterval"] = helpers.DebugValue(c.TelemetryInterval, false)
+	debugMap["DisableHealthCheckOTelTracing"] = helpers.DebugValue(c.DisableHealthCheckOTelTracing, false)
 	debugMap["EnableRequestLogs"] = helpers.DebugValue(c.EnableRequestLogs, false)
 	debugMap["EnableResponseLogs"] = helpers.DebugValue(c.EnableResponseLogs, false)
 	debugMap["DisableGRPCLatencyHistogram"] = helpers.DebugValue(c.DisableGRPCLatencyHistogram, false)
@@ -727,6 +729,13 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithDisableHealthCheckOTelTracing returns an option that can set DisableHealthCheckOTelTracing on a Config
+func WithDisableHealthCheckOTelTracing(disableHealthCheckOTelTracing bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableHealthCheckOTelTracing = disableHealthCheckOTelTracing
 	}
 }
 

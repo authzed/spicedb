@@ -11,7 +11,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	grpcfilters "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	httpfilters "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/filters"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
@@ -35,13 +37,18 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 // NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream
 // configuration.
-func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (*CloserHandler, error) {
+func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string, disableHealthCheckTracing bool) (*CloserHandler, error) {
 	if upstreamAddr == "" {
 		return nil, fmt.Errorf("upstreamAddr must not be empty")
 	}
 
+	var clientHandlerOpts []otelgrpc.Option
+	if disableHealthCheckTracing {
+		clientHandlerOpts = append(clientHandlerOpts, otelgrpc.WithFilter(grpcfilters.Not(grpcfilters.HealthCheck())))
+	}
+
 	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(clientHandlerOpts...)),
 	}
 	if upstreamTLSCertPath == "" {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -85,7 +92,13 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	}))
 	mux.Handle("/", gwMux)
 
-	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway"))
+	var otelHandlerOpts []otelhttp.Option
+	if disableHealthCheckTracing {
+		// Filter out /healthz endpoint from tracing
+		otelHandlerOpts = append(otelHandlerOpts, otelhttp.WithFilter(httpfilters.Not(httpfilters.Path("/healthz"))))
+	}
+
+	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway", otelHandlerOpts...))
 	return newCloserHandler(finalHandler, schemaConn, permissionsConn, watchConn, healthConn, experimentalConn), nil
 }
 

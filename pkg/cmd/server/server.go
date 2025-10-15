@@ -18,9 +18,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/sean-/sysexits"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
+	"google.golang.org/grpc/stats"
 
 	"github.com/authzed/consistent"
 	"github.com/authzed/grpcutil"
@@ -143,10 +145,11 @@ type Config struct {
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor `debugmap:"hidden"`
 
 	// Telemetry
-	SilentlyDisableTelemetry bool          `debugmap:"visible"`
-	TelemetryCAOverridePath  string        `debugmap:"visible"`
-	TelemetryEndpoint        string        `debugmap:"visible"`
-	TelemetryInterval        time.Duration `debugmap:"visible"`
+	SilentlyDisableTelemetry      bool          `debugmap:"visible"`
+	TelemetryCAOverridePath       string        `debugmap:"visible"`
+	TelemetryEndpoint             string        `debugmap:"visible"`
+	TelemetryInterval             time.Duration `debugmap:"visible"`
+	DisableHealthCheckOTelTracing bool          `debugmap:"visible" default:"true"`
 
 	// Logs
 	EnableRequestLogs  bool `debugmap:"visible"`
@@ -370,13 +373,19 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		closeables.AddWithError(cachingClusterDispatch.Close)
 	}
 
+	// Build OTel stats handler options (shared by both gRPC servers)
+	var statsHandlerOpts []otelgrpc.Option
+	if c.DisableHealthCheckOTelTracing {
+		statsHandlerOpts = append(statsHandlerOpts, otelgrpc.WithFilter(filters.Not(filters.HealthCheck())))
+	}
+
 	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
 		},
 		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
 		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
@@ -572,6 +581,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		presharedKeys:       c.PresharedSecureKey,
 		telemetryReporter:   reporter,
 		healthManager:       healthManager,
+		statsHandler:        otelgrpc.NewServerHandler(statsHandlerOpts...),
 		closeFunc:           closeables.Close,
 	}, nil
 }
@@ -668,7 +678,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	var gatewayHandler http.Handler
-	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, c.DisableHealthCheckOTelTracing)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
@@ -718,6 +728,7 @@ type completedServerConfig struct {
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
 	presharedKeys       []string
+	statsHandler        stats.Handler
 	closeFunc           func() error
 }
 
@@ -759,7 +770,7 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	grpcServer := c.gRPCServer.WithOpts(
 		grpc.ChainUnaryInterceptor(c.unaryMiddleware...),
 		grpc.ChainStreamInterceptor(c.streamingMiddleware...),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()))
+		grpc.StatsHandler(c.statsHandler))
 
 	g.Go(c.healthManager.Checker(ctx))
 	g.Go(grpcServer.Listen(ctx))
