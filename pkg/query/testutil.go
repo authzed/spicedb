@@ -2,9 +2,6 @@ package query
 
 import (
 	"fmt"
-	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -119,35 +116,6 @@ func NewMultiRoleFixedIterator() *FixedIterator {
 	return NewFixedIterator(paths...)
 }
 
-// NewGroupMembershipFixedIterator creates a FixedIterator with group membership and nested groups
-func NewGroupMembershipFixedIterator() *FixedIterator {
-	relations := []tuple.Relationship{
-		// Direct group memberships
-		createRelation("group", "engineers", "member", "user", "alice", "..."),
-		createRelation("group", "engineers", "member", "user", "bob", "..."),
-		createRelation("group", "designers", "member", "user", "charlie", "..."),
-		createRelation("group", "designers", "member", "user", "diana", "..."),
-
-		// Nested group relationships
-		createRelation("group", "all_staff", "member", "group", "engineers", "..."),
-		createRelation("group", "all_staff", "member", "group", "designers", "..."),
-		createRelation("group", "leads", "member", "user", "alice", "..."),
-		createRelation("group", "leads", "member", "user", "charlie", "..."),
-
-		// Resource permissions through groups
-		createRelation("document", "handbook", "viewer", "group", "all_staff", "member"),
-		createRelation("document", "roadmap", "viewer", "group", "leads", "member"),
-		createRelation("document", "code_review", "editor", "group", "engineers", "member"),
-		createRelation("document", "design_guide", "editor", "group", "designers", "member"),
-	}
-
-	paths := make([]Path, len(relations))
-	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
-	}
-	return NewFixedIterator(paths...)
-}
-
 // NewSingleUserFixedIterator creates a FixedIterator with relations for a single user across multiple resources
 func NewSingleUserFixedIterator(userID string) *FixedIterator {
 	relations := []tuple.Relationship{
@@ -176,18 +144,18 @@ func NewLargeFixedIterator() *FixedIterator {
 	var relations []tuple.Relationship
 
 	// Create 100 users with various permissions on 50 documents
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		userID := fmt.Sprintf("user%d", i)
 
 		// Each user gets viewer access to multiple documents
-		for j := 0; j < 10; j++ {
+		for j := range 10 {
 			docID := fmt.Sprintf("doc%d", j)
 			relations = append(relations, createRelation("document", docID, "viewer", "user", userID, "..."))
 		}
 
 		// Some users get editor access
 		if i%5 == 0 {
-			for j := 0; j < 5; j++ {
+			for j := range 5 {
 				docID := fmt.Sprintf("doc%d", j)
 				relations = append(relations, createRelation("document", docID, "editor", "user", userID, "..."))
 			}
@@ -205,55 +173,6 @@ func NewLargeFixedIterator() *FixedIterator {
 		paths[i] = FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
-}
-
-// NewConflictingPermissionsFixedIterator creates a FixedIterator with potential permission conflicts for testing
-func NewConflictingPermissionsFixedIterator() *FixedIterator {
-	relations := []tuple.Relationship{
-		// Same user with different permission levels on same resource
-		createRelation("document", "conflicted", "viewer", "user", "alice", "..."),
-		createRelation("document", "conflicted", "editor", "user", "alice", "..."),
-		createRelation("document", "conflicted", "owner", "user", "alice", "..."),
-
-		// Different relation types for same resource-subject pair
-		createRelation("document", "mixed", "viewer", "user", "bob", "..."),
-		createRelation("document", "mixed", "parent", "user", "bob", "..."),
-
-		// Group and direct permissions on same resource
-		createRelation("document", "group_direct", "viewer", "group", "team", "member"),
-		createRelation("document", "group_direct", "editor", "user", "charlie", "..."),
-		createRelation("group", "team", "member", "user", "charlie", "..."),
-	}
-
-	paths := make([]Path, len(relations))
-	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
-	}
-	return NewFixedIterator(paths...)
-}
-
-// AssertRelationsMatchByResource compares two slices of relations by their resource and subject,
-// ignoring the specific relation names. This is useful for testing intersection behavior where
-// we care about which resources have matching subjects, not the specific relation types.
-func AssertRelationsMatchByResource(t *testing.T, expected, actual []tuple.Relationship, msgAndArgs ...any) {
-	t.Helper()
-
-	// Convert to resource+subject keys for comparison
-	expectedKeys := make(map[string]bool)
-	for _, rel := range expected {
-		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID + "@" +
-			rel.Subject.ObjectType + ":" + rel.Subject.ObjectID
-		expectedKeys[key] = true
-	}
-
-	actualKeys := make(map[string]bool)
-	for _, rel := range actual {
-		key := rel.Resource.ObjectType + ":" + rel.Resource.ObjectID + "@" +
-			rel.Subject.ObjectType + ":" + rel.Subject.ObjectID
-		actualKeys[key] = true
-	}
-
-	require.Equal(t, expectedKeys, actualKeys, msgAndArgs...)
 }
 
 // FaultyIterator is a test helper that simulates iterator errors
