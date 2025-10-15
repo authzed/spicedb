@@ -103,6 +103,12 @@ func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
 type Config struct {
 	Engine                      string        `debugmap:"visible"`
 	URI                         string        `debugmap:"sensitive"`
+	DatastoreHost               string        `debugmap:"sensitive"`
+	DatastorePort               string        `debugmap:"sensitive"`
+	DatastoreUsername           string        `debugmap:"sensitive"`
+	DatastorePassword           string        `debugmap:"sensitive"`
+	DatastoreName               string        `debugmap:"sensitive"`
+	DatastoreSSLMode            string        `debugmap:"sensitive"`
 	GCWindow                    time.Duration `debugmap:"visible"`
 	LegacyFuzzing               time.Duration `debugmap:"visible"`
 	RevisionQuantization        time.Duration `debugmap:"visible"`
@@ -159,6 +165,9 @@ type Config struct {
 	SpannerMinSessions            uint64 `debugmap:"visible"`
 	SpannerMaxSessions            uint64 `debugmap:"visible"`
 	SpannerDatastoreMetricsOption string `debugmap:"visible"`
+	SpannerInstanceID             string `debugmap:"sensitive"`
+	SpannerDatabaseID             string `debugmap:"sensitive"`
+	SpannerProjectID              string `debugmap:"sensitive"`
 
 	// MySQL
 	TablePrefix string `debugmap:"visible"`
@@ -312,12 +321,28 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 	flagSet.BoolVar(&opts.ExperimentalColumnOptimization, flagName("datastore-experimental-column-optimization"), true, "enable experimental column optimization")
 
+	flagSet.StringVar(&opts.DatastoreHost, flagName("datastore-host"), defaults.DatastoreHost, "database host for datastore connection string")
+	flagSet.StringVar(&opts.DatastorePort, flagName("datastore-port"), defaults.DatastorePort, "database port for datastore connection string")
+	flagSet.StringVar(&opts.DatastoreUsername, flagName("datastore-user"), defaults.DatastoreUsername, "database username for datastore connection string")
+	flagSet.StringVar(&opts.DatastorePassword, flagName("datastore-password"), defaults.DatastorePassword, "database password for datastore connection string")
+	flagSet.StringVar(&opts.DatastoreName, flagName("datastore-name"), defaults.DatastoreName, "database name for datastore connection string")
+	flagSet.StringVar(&opts.DatastoreSSLMode, flagName("datastore-ssl-mode"), defaults.DatastoreSSLMode, "database SSL mode for datastore connection string")
+	flagSet.StringVar(&opts.SpannerProjectID, flagName("spanner-datastore-project-id"), defaults.SpannerProjectID, "spanner project-id for datastore connection string")
+	flagSet.StringVar(&opts.SpannerInstanceID, flagName("spanner-datastore-instance-id"), defaults.SpannerInstanceID, "spanner instance-id for datastore connection string")
+	flagSet.StringVar(&opts.SpannerDatabaseID, flagName("spanner-datastore-database-id"), defaults.SpannerDatabaseID, "spanner database-id for datastore connection string")
+
 	return nil
 }
 
 func DefaultDatastoreConfig() *Config {
 	return &Config{
 		Engine:                                   MemoryEngine,
+		DatastoreHost:                            "",
+		DatastorePort:                            "",
+		DatastoreUsername:                        "",
+		DatastorePassword:                        "",
+		DatastoreName:                            "",
+		DatastoreSSLMode:                         "",
 		GCWindow:                                 24 * time.Hour,
 		LegacyFuzzing:                            -1,
 		RevisionQuantization:                     5 * time.Second,
@@ -350,6 +375,9 @@ func DefaultDatastoreConfig() *Config {
 		RequestHedgingQuantile:                   0.95,
 		SpannerCredentialsFile:                   "",
 		SpannerEmulatorHost:                      "",
+		SpannerInstanceID:                        "",
+		SpannerDatabaseID:                        "",
+		SpannerProjectID:                         "",
 		TablePrefix:                              "",
 		MigrationPhase:                           "",
 		FollowerReadDelay:                        DefaultFollowerReadDelay,
@@ -373,6 +401,56 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	opts := DefaultDatastoreConfig()
 	for _, o := range options {
 		o(opts)
+	}
+
+	if opts.URI == "" && ((opts.DatastoreHost != "" && opts.DatastoreUsername != "" && opts.DatastoreName != "") || (opts.SpannerDatabaseID != "" && opts.SpannerInstanceID != "" && opts.SpannerProjectID != "")) {
+		switch opts.Engine {
+		case PostgresEngine, CockroachEngine:
+			sslMode := opts.DatastoreSSLMode
+			if sslMode == "" {
+				sslMode = "prefer"
+			}
+
+			port := opts.DatastorePort
+			if port == "" {
+				if opts.Engine == PostgresEngine {
+					port = "5432"
+				} else {
+					port = "26257"
+				}
+			}
+
+			userPart := ""
+			if opts.DatastoreUsername != "" {
+				userPart = opts.DatastoreUsername
+				if opts.DatastorePassword != "" {
+					userPart = userPart + ":" + opts.DatastorePassword
+				}
+				userPart = userPart + "@"
+			}
+
+			opts.URI = fmt.Sprintf("%s://%s%s:%s/%s?sslmode=%s",
+				opts.Engine, userPart, opts.DatastoreHost, port, opts.DatastoreName, sslMode)
+
+		case MySQLEngine:
+			port := opts.DatastorePort
+			if port == "" {
+				port = "3306"
+			}
+			opts.URI = fmt.Sprintf("%s:%s@(%s:%s)/%s?parseTime=True",
+				opts.DatastoreUsername, opts.DatastorePassword, opts.DatastoreHost, port, opts.DatastoreName)
+
+		case SpannerEngine:
+			if opts.SpannerDatabaseID != "" && opts.SpannerInstanceID != "" && opts.SpannerProjectID != "" {
+				opts.URI = fmt.Sprintf("projects/%s/instances/%s/databases/%s",
+					opts.SpannerProjectID, opts.SpannerInstanceID, opts.SpannerDatabaseID)
+			} else {
+				return nil, fmt.Errorf("%s engine requires host (project) and database parameters", SpannerEngine)
+			}
+
+		default:
+			return nil, fmt.Errorf("engine %s does not support connection parameter construction", opts.Engine)
+		}
 	}
 
 	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {
