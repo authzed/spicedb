@@ -228,11 +228,32 @@ func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 			left:  childType.TupleToUserset.GetTupleset().GetRelation(),
 			right: childType.TupleToUserset.GetComputedUserset().GetRelation(),
 		}, nil
+	case *corev1.SetOperation_Child_FunctionedTupleToUserset:
+		functionType, err := convertFunctionType(childType.FunctionedTupleToUserset.GetFunction())
+		if err != nil {
+			return nil, err
+		}
+		return &FunctionedTuplesetOperation{
+			tuplesetRelation: childType.FunctionedTupleToUserset.GetTupleset().GetRelation(),
+			function:         functionType,
+			computedRelation: childType.FunctionedTupleToUserset.GetComputedUserset().GetRelation(),
+		}, nil
 	case *corev1.SetOperation_Child_XNil:
 		return &RelationReference{
 			relationName: "_nil",
 		}, nil
 	default:
-		return nil, fmt.Errorf("unknown child type")
+		return nil, fmt.Errorf("unknown child type: %#v", child.GetChildType())
+	}
+}
+
+func convertFunctionType(protoFunc corev1.FunctionedTupleToUserset_Function) (FunctionType, error) {
+	switch protoFunc {
+	case corev1.FunctionedTupleToUserset_FUNCTION_ANY:
+		return FunctionTypeAny, nil
+	case corev1.FunctionedTupleToUserset_FUNCTION_ALL:
+		return FunctionTypeAll, nil
+	default:
+		return 0, fmt.Errorf("unknown function type: %v", protoFunc)
 	}
 }

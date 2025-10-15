@@ -1,8 +1,6 @@
 package query
 
 import (
-	"maps"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -25,8 +23,12 @@ func (u *Union) addSubIterator(subIt Iterator) {
 func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	var out []Path
 	// Collect paths from all sub-iterators
-	for _, it := range u.subIts {
-		pathSeq, err := it.CheckImpl(ctx, resources, subject)
+	ctx.TraceStep(u, "processing %d sub-iterators with %d resources", len(u.subIts), len(resources))
+
+	for iterIdx, it := range u.subIts {
+		ctx.TraceStep(u, "processing sub-iterator %d", iterIdx)
+
+		pathSeq, err := ctx.Check(it, resources, subject)
 		if err != nil {
 			return nil, err
 		}
@@ -35,8 +37,11 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 			return nil, err
 		}
 
+		ctx.TraceStep(u, "sub-iterator %d returned %d paths", iterIdx, len(paths))
 		out = append(out, paths...)
 	}
+
+	ctx.TraceStep(u, "collected %d total paths before deduplication", len(out))
 
 	// Deduplicate paths based on resource for CheckImpl
 	// Since the subject is fixed in CheckImpl, we only need to deduplicate by resource
@@ -58,10 +63,15 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	}
 
 	// Convert map to slice
-	deduplicated := maps.Values(seen)
+	deduplicatedSlice := make([]Path, 0, len(seen))
+	for _, path := range seen {
+		deduplicatedSlice = append(deduplicatedSlice, path)
+	}
+
+	ctx.TraceStep(u, "deduplicated to %d paths", len(deduplicatedSlice))
 
 	return func(yield func(Path, error) bool) {
-		for path := range deduplicated {
+		for _, path := range deduplicatedSlice {
 			if !yield(path, nil) {
 				return
 			}
@@ -93,6 +103,7 @@ func (u *Union) Explain() Explain {
 		subs[i] = it.Explain()
 	}
 	return Explain{
+		Name:       "Union",
 		Info:       "Union",
 		SubExplain: subs,
 	}

@@ -614,3 +614,214 @@ func TestConvertChildWithNestedOperations(t *testing.T) {
 		require.Contains(t, err.Error(), "userset rewrite is nil")
 	})
 }
+
+func TestConvertFunctionedTupleToUserset(t *testing.T) {
+	t.Parallel()
+
+	t.Run("convert FUNCTION_ANY", func(t *testing.T) {
+		t.Parallel()
+
+		child := &corev1.SetOperation_Child{
+			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
+				FunctionedTupleToUserset: &corev1.FunctionedTupleToUserset{
+					Function: corev1.FunctionedTupleToUserset_FUNCTION_ANY,
+					Tupleset: &corev1.FunctionedTupleToUserset_Tupleset{
+						Relation: "team",
+					},
+					ComputedUserset: &corev1.ComputedUserset{
+						Relation: "member",
+					},
+				},
+			},
+		}
+
+		result, err := convertChild(child)
+		require.NoError(t, err)
+
+		funcOp, ok := result.(*FunctionedTuplesetOperation)
+		require.True(t, ok, "Should convert to FunctionedTuplesetOperation")
+		require.Equal(t, "team", funcOp.TuplesetRelation())
+		require.Equal(t, FunctionTypeAny, funcOp.Function())
+		require.Equal(t, "member", funcOp.ComputedRelation())
+	})
+
+	t.Run("convert FUNCTION_ALL", func(t *testing.T) {
+		t.Parallel()
+
+		child := &corev1.SetOperation_Child{
+			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
+				FunctionedTupleToUserset: &corev1.FunctionedTupleToUserset{
+					Function: corev1.FunctionedTupleToUserset_FUNCTION_ALL,
+					Tupleset: &corev1.FunctionedTupleToUserset_Tupleset{
+						Relation: "group",
+					},
+					ComputedUserset: &corev1.ComputedUserset{
+						Relation: "viewer",
+					},
+				},
+			},
+		}
+
+		result, err := convertChild(child)
+		require.NoError(t, err)
+
+		funcOp, ok := result.(*FunctionedTuplesetOperation)
+		require.True(t, ok, "Should convert to FunctionedTuplesetOperation")
+		require.Equal(t, "group", funcOp.TuplesetRelation())
+		require.Equal(t, FunctionTypeAll, funcOp.Function())
+		require.Equal(t, "viewer", funcOp.ComputedRelation())
+	})
+
+	t.Run("convert unknown function type", func(t *testing.T) {
+		t.Parallel()
+
+		child := &corev1.SetOperation_Child{
+			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
+				FunctionedTupleToUserset: &corev1.FunctionedTupleToUserset{
+					Function: corev1.FunctionedTupleToUserset_FUNCTION_UNSPECIFIED,
+					Tupleset: &corev1.FunctionedTupleToUserset_Tupleset{
+						Relation: "team",
+					},
+					ComputedUserset: &corev1.ComputedUserset{
+						Relation: "member",
+					},
+				},
+			},
+		}
+
+		_, err := convertChild(child)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unknown function type")
+	})
+
+	t.Run("full definition with functioned tupleset", func(t *testing.T) {
+		t.Parallel()
+
+		def := &corev1.NamespaceDefinition{
+			Name: "document",
+			Relation: []*corev1.Relation{
+				// Add a relation for the tupleset
+				{
+					Name: "team",
+					TypeInformation: &corev1.TypeInformation{
+						AllowedDirectRelations: []*corev1.AllowedRelation{
+							{
+								Namespace: "team",
+								RelationOrWildcard: &corev1.AllowedRelation_Relation{
+									Relation: "",
+								},
+							},
+						},
+					},
+				},
+				// Add a permission with functioned tupleset
+				{
+					Name: "view",
+					UsersetRewrite: &corev1.UsersetRewrite{
+						RewriteOperation: &corev1.UsersetRewrite_Union{
+							Union: &corev1.SetOperation{
+								Child: []*corev1.SetOperation_Child{
+									{
+										ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
+											FunctionedTupleToUserset: &corev1.FunctionedTupleToUserset{
+												Function: corev1.FunctionedTupleToUserset_FUNCTION_ALL,
+												Tupleset: &corev1.FunctionedTupleToUserset_Tupleset{
+													Relation: "team",
+												},
+												ComputedUserset: &corev1.ComputedUserset{
+													Relation: "member",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		result, err := convertDefinition(def)
+		require.NoError(t, err)
+		require.Equal(t, "document", result.Name())
+
+		// Check that we have both relation and permission
+		require.Len(t, result.Relations(), 1)
+		require.Len(t, result.Permissions(), 1)
+
+		// Check the relation
+		teamRel, ok := result.Relations()["team"]
+		require.True(t, ok)
+		require.Equal(t, "team", teamRel.Name())
+
+		// Check the permission with functioned tupleset
+		viewPerm, ok := result.Permissions()["view"]
+		require.True(t, ok)
+		require.Equal(t, "view", viewPerm.Name())
+
+		// The permission should have a FunctionedTuplesetOperation (might be unwrapped from union if single child)
+		// Check if it's directly a FunctionedTuplesetOperation or wrapped in a union
+		if funcOp, ok := viewPerm.Operation().(*FunctionedTuplesetOperation); ok {
+			// Direct operation (unwrapped by optimization)
+			require.Equal(t, "team", funcOp.TuplesetRelation())
+			require.Equal(t, FunctionTypeAll, funcOp.Function())
+			require.Equal(t, "member", funcOp.ComputedRelation())
+		} else if union, ok := viewPerm.Operation().(*UnionOperation); ok {
+			// Wrapped in union
+			require.Len(t, union.Children(), 1)
+			funcOp, ok := union.Children()[0].(*FunctionedTuplesetOperation)
+			require.True(t, ok)
+			require.Equal(t, "team", funcOp.TuplesetRelation())
+			require.Equal(t, FunctionTypeAll, funcOp.Function())
+			require.Equal(t, "member", funcOp.ComputedRelation())
+		} else {
+			require.Fail(t, "Expected FunctionedTuplesetOperation, got %T", viewPerm.Operation())
+		}
+	})
+}
+
+func TestConvertFunctionType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    corev1.FunctionedTupleToUserset_Function
+		expected FunctionType
+		wantErr  bool
+	}{
+		{
+			name:     "FUNCTION_ANY",
+			input:    corev1.FunctionedTupleToUserset_FUNCTION_ANY,
+			expected: FunctionTypeAny,
+			wantErr:  false,
+		},
+		{
+			name:     "FUNCTION_ALL",
+			input:    corev1.FunctionedTupleToUserset_FUNCTION_ALL,
+			expected: FunctionTypeAll,
+			wantErr:  false,
+		},
+		{
+			name:     "FUNCTION_UNSPECIFIED",
+			input:    corev1.FunctionedTupleToUserset_FUNCTION_UNSPECIFIED,
+			expected: 0,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := convertFunctionType(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "unknown function type")
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
