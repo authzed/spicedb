@@ -164,7 +164,7 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithDatastore(ds),
-		WithDisableHealthCheckOTelTracing(true),
+		WithOtelDisableHealthcheckTracing(true),
 	}
 
 	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
@@ -575,5 +575,5 @@ func TestSupportOldAndNewReadReplicaConnectionPoolFlags(t *testing.T) {
 func TestServerDefaultOptions(t *testing.T) {
 	cfg := NewConfigWithOptionsAndDefaults()
 
-	require.True(t, cfg.DisableHealthCheckOTelTracing)
+	require.True(t, cfg.OtelDisableHealthcheckTracing)
 }

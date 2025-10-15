@@ -149,7 +149,7 @@ type Config struct {
 	TelemetryCAOverridePath       string        `debugmap:"visible"`
 	TelemetryEndpoint             string        `debugmap:"visible"`
 	TelemetryInterval             time.Duration `debugmap:"visible"`
-	DisableHealthCheckOTelTracing bool          `debugmap:"visible" default:"true"`
+	OtelDisableHealthcheckTracing bool          `debugmap:"visible" default:"true"`
 
 	// Logs
 	EnableRequestLogs  bool `debugmap:"visible"`
@@ -375,7 +375,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	// Build OTel stats handler options (shared by both gRPC servers)
 	var statsHandlerOpts []otelgrpc.Option
-	if c.DisableHealthCheckOTelTracing {
+	if c.OtelDisableHealthcheckTracing {
 		statsHandlerOpts = append(statsHandlerOpts, otelgrpc.WithFilter(filters.Not(filters.HealthCheck())))
 	}
 
@@ -678,7 +678,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	var gatewayHandler http.Handler
-	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, c.DisableHealthCheckOTelTracing)
+	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, c.OtelDisableHealthcheckTracing)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}

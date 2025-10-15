@@ -45,7 +45,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
-		to.DisableHealthCheckOTelTracing = c.DisableHealthCheckOTelTracing
+		to.OtelDisableHealthcheckTracing = c.OtelDisableHealthcheckTracing
 		to.CaveatTypeSet = c.CaveatTypeSet
 	}
 }
@@ -66,7 +66,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxDeleteRelationshipsLimit"] = helpers.DebugValue(c.MaxDeleteRelationshipsLimit, false)
 	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
-	debugMap["DisableHealthCheckOTelTracing"] = helpers.DebugValue(c.DisableHealthCheckOTelTracing, false)
+	debugMap["OtelDisableHealthcheckTracing"] = helpers.DebugValue(c.OtelDisableHealthcheckTracing, false)
 	return debugMap
 }
 
@@ -184,10 +184,10 @@ func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32)
 	}
 }
 
-// WithDisableHealthCheckOTelTracing returns an option that can set DisableHealthCheckOTelTracing on a Config
-func WithDisableHealthCheckOTelTracing(disableHealthCheckOTelTracing bool) ConfigOption {
+// WithOtelDisableHealthcheckTracing returns an option that can set OtelDisableHealthcheckTracing on a Config
+func WithOtelDisableHealthcheckTracing(otelDisableHealthcheckTracing bool) ConfigOption {
 	return func(c *Config) {
-		c.DisableHealthCheckOTelTracing = disableHealthCheckOTelTracing
+		c.OtelDisableHealthcheckTracing = otelDisableHealthcheckTracing
 	}
 }
 
