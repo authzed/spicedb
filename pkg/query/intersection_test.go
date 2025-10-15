@@ -348,8 +348,11 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(rels, 1, "Intersection should return one combined relation")
-		require.NotNil(rels[0].Caveat, "Result should have combined caveat")
-		// The combination logic should combine both caveats with AND logic
+		relCaveat := rels[0].Caveat
+		require.NotNil(relCaveat, "Result should have combined caveat")
+		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
+		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children")
 	})
 
 	t.Run("OneCaveat_One_NoCaveat_AND_Logic", func(t *testing.T) {
@@ -512,7 +515,10 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(rels, 1, "Should return one intersected path")
-		require.NotNil(rels[0].Caveat, "Final result should have combined caveat")
-		// The final caveat should be some combination of caveat1 and caveat2 (implementation detail)
+		relCaveat := rels[0].Caveat
+		require.NotNil(relCaveat, "Final result should have combined caveat")
+		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
+		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children (caveat1 and caveat2)")
 	})
 }

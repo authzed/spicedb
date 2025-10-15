@@ -362,8 +362,11 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 
 		// Verify caveat combination
-		require.NotNil(paths[0].Caveat, "Result should have combined caveat")
-		// The combination logic should combine both caveats with AND logic
+		pathCaveat := paths[0].Caveat
+		require.NotNil(pathCaveat, "Result should have combined caveat")
+		require.NotNil(pathCaveat.GetOperation(), "Caveat should be an operation")
+		require.Equal(pathCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Len(pathCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children")
 	})
 
 	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {

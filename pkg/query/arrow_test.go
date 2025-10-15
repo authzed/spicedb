@@ -274,8 +274,11 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(rels, 1, "Arrow should return one combined relation")
-		require.NotNil(rels[0].Caveat, "Result should have combined caveat")
-		// The combination logic should combine both caveats with AND logic
+		relCaveat := rels[0].Caveat
+		require.NotNil(relCaveat, "Result should have combined caveat")
+		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
+		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children")
 	})
 
 	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {

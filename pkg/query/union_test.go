@@ -506,8 +506,11 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(rels, 1, "Union should deduplicate to one relation")
-		require.NotNil(rels[0].Caveat, "Result should have combined caveat")
-		// The combination logic should preserve one of the caveats (implementation detail)
+		relCaveat := rels[0].Caveat
+		require.NotNil(relCaveat, "Result should have combined caveat")
+		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
+		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_OR, "Caveat should be an OR")
+		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an OR of two children")
 	})
 
 	t.Run("NoCaveat_Wins_Over_Caveat", func(t *testing.T) {

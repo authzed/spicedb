@@ -100,7 +100,6 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 	ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
 
 	// Filter main set by excluding paths that are in the excluded set
-	// Now with proper caveat combination logic
 	var finalPaths []Path
 	for _, mainPath := range mainPaths {
 		resultPath := mainPath
