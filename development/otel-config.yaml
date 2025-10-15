@@ -1,0 +1,25 @@
+---
+# How data gets into the Collector
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+
+processors:
+  batch:
+
+exporters:
+  # Data sources: traces
+  otlp:
+    endpoint: "tempo:4317"
+    compression: "none"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: ["otlp"]
+      processors: ["batch"]
+      exporters: ["otlp"]
