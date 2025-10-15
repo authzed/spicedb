@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/gosimple/slug"
 	"github.com/stretchr/testify/require"
 	yamlv3 "gopkg.in/yaml.v3"
@@ -27,8 +26,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
-
-const defaultConnBufferSize = humanize.MiByte
 
 func TestMemdbSteelThreads(t *testing.T) {
 	for _, tc := range steelThreadTestCases {
@@ -110,7 +107,7 @@ func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datas
 			}
 
 			if os.Getenv("REGENERATE_STEEL_RESULTS") == "true" {
-				err := os.WriteFile(resultsFileName, []byte("---\n"+string(actual)), 0o644)
+				err := os.WriteFile(resultsFileName, []byte("---\n"+string(actual)), 0o600)
 				require.NoError(t, err)
 				return
 			}

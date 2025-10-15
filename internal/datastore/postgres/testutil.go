@@ -64,5 +64,5 @@ func (ql *withQueryInterceptor) InterceptQueryRow(ctx context.Context, querier p
 }
 
 func (ql *withQueryInterceptor) InterceptQuery(ctx context.Context, querier pgxcommon.Querier, sql string, args ...any) (pgx.Rows, error) {
-	return querier.Query(ctx, sql, args...)
+	return querier.Query(ctx, sql, args...) // nolint:rowserrcheck
 }

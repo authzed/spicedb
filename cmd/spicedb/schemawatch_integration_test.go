@@ -44,7 +44,7 @@ func TestSchemaWatch(t *testing.T) {
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				pool.Client.RemoveNetwork(network.ID)
+				_ = pool.Client.RemoveNetwork(network.ID)
 			})
 
 			engine := testdatastore.RunDatastoreEngineWithBridge(t, driverName, bridgeNetworkName)

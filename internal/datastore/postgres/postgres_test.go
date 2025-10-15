@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore/postgres/common"
-	"github.com/authzed/spicedb/internal/datastore/postgres/version"
-	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/version"
+	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 )
 
 func postgresTestVersion() string {
@@ -30,14 +30,18 @@ func postgresTestVersion() string {
 var postgresConfig = postgresTestConfig{"head", "", postgresTestVersion(), false}
 
 func TestPostgresDatastore(t *testing.T) {
+	t.Parallel()
 	testPostgresDatastore(t, postgresConfig)
 }
 
 func TestPostgresDatastoreWithoutCommitTimestamps(t *testing.T) {
+	t.Parallel()
 	testPostgresDatastoreWithoutCommitTimestamps(t, postgresConfig)
 }
 
 func TestPostgresDatastoreGC(t *testing.T) {
+	t.Parallel()
+
 	config := postgresConfig
 	pgbouncerStr := ""
 	if config.pgbouncer {

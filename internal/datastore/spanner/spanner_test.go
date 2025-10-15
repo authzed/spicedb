@@ -27,7 +27,7 @@ func (sd *spannerDatastore) ExampleRetryableError() error {
 }
 
 func TestSpannerDatastore(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() //nolint:tparallel, the test sets environment variables (the emulator)
 
 	ctx := context.Background()
 	b := testdatastore.RunSpannerForTesting(t, "", "head")
