@@ -38,7 +38,7 @@ func TestIntersectionIterator(t *testing.T) {
 
 		// The intersection should find relations that exist in both iterators
 		// Both DocumentAccess and MultiRole have alice with viewer/editor/owner on doc1
-		expected := []*Path{
+		expected := []Path{
 			MustPathFromString("document:doc1#viewer@user:alice"),
 			MustPathFromString("document:doc1#editor@user:alice"),
 			MustPathFromString("document:doc1#owner@user:alice"),
@@ -198,7 +198,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Collect results from original iterator
 	originalSeq, err := ctx.Check(original, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
-	var originalResults []*Path
+	var originalResults []Path
 	if originalSeq != nil {
 		originalResults, err = CollectAll(originalSeq)
 		require.NoError(err)
@@ -207,7 +207,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Collect results from cloned iterator
 	clonedSeq, err := ctx.Check(cloned, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
-	var clonedResults []*Path
+	var clonedResults []Path
 	if clonedSeq != nil {
 		clonedResults, err = CollectAll(clonedSeq)
 		require.NoError(err)

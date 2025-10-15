@@ -49,7 +49,7 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 	}
 
 	// Filter main set by excluding paths that are in the excluded set
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, mainPath := range mainPaths {
 			found := false
 

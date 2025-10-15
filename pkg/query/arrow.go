@@ -34,32 +34,32 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	// This is going to be the crux of a lot of statistics optimizations -- statistics often
 	// don't restructure the tree, but can affect the best way to evaluate the tree, sometimes dynamically.
 
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, resource := range resources {
 			subit, err := a.left.IterSubjectsImpl(ctx, resource)
 			if err != nil {
-				yield(nil, err)
+				yield(Path{}, err)
 				return
 			}
 			for path, err := range subit {
 				if err != nil {
-					yield(nil, err)
+					yield(Path{}, err)
 					return
 				}
 				checkResources := []Object{GetObject(path.Subject)}
 				checkit, err := a.right.CheckImpl(ctx, checkResources, subject)
 				if err != nil {
-					yield(nil, err)
+					yield(Path{}, err)
 					return
 				}
 				for checkPath, err := range checkit {
 					if err != nil {
-						yield(nil, err)
+						yield(Path{}, err)
 						return
 					}
 
 					// Create combined path with resource from left and subject from right
-					combinedPath := &Path{
+					combinedPath := Path{
 						Resource:   path.Resource,
 						Relation:   path.Relation,
 						Subject:    checkPath.Subject,

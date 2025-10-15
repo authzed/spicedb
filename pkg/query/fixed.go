@@ -9,19 +9,19 @@ import "fmt"
 // For example: document->folder->ownerGroup->user -- and we'd like to
 // find all documents (IterResources) that traverse a known folder->ownerGroup relationship
 type FixedIterator struct {
-	paths []*Path
+	paths []Path
 }
 
 var _ Iterator = &FixedIterator{}
 
-func NewFixedIterator(paths ...*Path) *FixedIterator {
+func NewFixedIterator(paths ...Path) *FixedIterator {
 	return &FixedIterator{
 		paths: paths,
 	}
 }
 
 func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, path := range f.paths {
 			for _, resource := range resources {
 				if path.Resource.Equals(resource) &&
@@ -37,7 +37,7 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject Obje
 }
 
 func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, path := range f.paths {
 			// Check if the path's resource matches the requested resource
 			if path.Resource.Equals(resource) {
@@ -50,7 +50,7 @@ func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq
 }
 
 func (f *FixedIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
+	return func(yield func(Path, error) bool) {
 		for _, path := range f.paths {
 			// Check if the path's subject matches the requested subject
 			if path.Subject.ObjectID == subject.ObjectID && path.Subject.ObjectType == subject.ObjectType && path.Subject.Relation == subject.Relation {
@@ -70,7 +70,7 @@ func (f *FixedIterator) Explain() Explain {
 
 func (f *FixedIterator) Clone() Iterator {
 	// Create a copy of the paths slice
-	clonedPaths := make([]*Path, len(f.paths))
+	clonedPaths := make([]Path, len(f.paths))
 	copy(clonedPaths, f.paths)
 
 	return &FixedIterator{
