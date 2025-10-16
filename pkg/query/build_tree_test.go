@@ -139,7 +139,7 @@ func TestBuildTreeRecursion(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create a simple schema with potential recursion using group membership
+	// Create a simple schema with recursion using group membership
 	userDef := testfixtures.UserNS.CloneVT()
 
 	groupDef := namespace.Namespace("group",
@@ -154,10 +154,18 @@ func TestBuildTreeRecursion(t *testing.T) {
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
-	// This should detect recursion and return an error
-	_, err = BuildIteratorFromSchema(dsSchema, "group", "member")
-	require.Error(err)
-	require.Contains(err.Error(), "recursive schema iterators are as yet unsupported")
+	// This should detect recursion and create a RecursiveIterator
+	it, err := BuildIteratorFromSchema(dsSchema, "group", "member")
+	require.NoError(err)
+	require.NotNil(it)
+
+	// Verify it's wrapped in a RecursiveIterator
+	_, isRecursive := it.(*RecursiveIterator)
+	require.True(isRecursive, "Expected RecursiveIterator for recursive schema")
+
+	// Verify the explain output
+	explain := it.Explain()
+	require.Equal("RecursiveIterator", explain.Name)
 }
 
 func TestBuildTreeArrowOperation(t *testing.T) {
@@ -572,7 +580,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Base Relation with Ellipsis Subrelation", func(t *testing.T) {
 		t.Parallel()
-		// Test base relation with ellipsis - should return just the base relation
+		// Test base relation with ellipsis - creates recursive arrow
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member",
 				namespace.Union(
@@ -594,9 +602,14 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		_, err = BuildIteratorFromSchema(dsSchema, "document", "viewer")
-		require.Error(err)
-		require.Contains(err.Error(), "recursive schema iterators are as yet unsupported", "Self-referential schema should be detected")
+		// Should create RecursiveIterator for arrow recursion
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// Should be wrapped in RecursiveIterator
+		_, isRecursive := it.(*RecursiveIterator)
+		require.True(isRecursive, "Expected RecursiveIterator for arrow recursion")
 	})
 
 	t.Run("Base Relation with Specific Subrelation", func(t *testing.T) {
@@ -653,9 +666,14 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		_, err = BuildIteratorFromSchema(dsSchema, "document", "viewer")
-		require.Error(err)
-		require.Contains(err.Error(), "recursive schema iterators are as yet unsupported", "Self-referential schema should be detected")
+		// Should create RecursiveIterator for arrow recursion
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// Should be wrapped in RecursiveIterator
+		_, isRecursive := it.(*RecursiveIterator)
+		require.True(isRecursive, "Expected RecursiveIterator for arrow recursion")
 	})
 
 	t.Run("Base Relation with Missing Subrelation Definition", func(t *testing.T) {
