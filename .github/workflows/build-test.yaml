@@ -54,10 +54,6 @@ jobs:
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
-        with:
-          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
-          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - uses: "authzed/actions/go-build@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
       - name: "Image tests"
         run: "go run mage.go test:image"
@@ -101,10 +97,6 @@ jobs:
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
-        with:
-          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
-          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Integration tests with coverage"
         run: "go run mage.go test:integrationCover"
       - name: "Coverage"
@@ -129,12 +121,6 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
-        if: |
-          needs.paths-filter.outputs.codechange == 'true'
-        with:
-          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
-          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Integration tests"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -163,12 +149,6 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
-        if: |
-          needs.paths-filter.outputs.codechange == 'true'
-        with:
-          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
-          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Consistency tests"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -198,12 +178,6 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
-        if: |
-          needs.paths-filter.outputs.codechange == 'true'
-        with:
-          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
-          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Integration tests"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -233,12 +207,6 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
-        if: |
-          needs.paths-filter.outputs.codechange == 'true'
-        with:
-          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
-          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Consistency tests"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -268,12 +236,6 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
-        if: |
-          needs.paths-filter.outputs.codechange == 'true'
-        with:
-          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
-          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Integration tests"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -303,12 +265,6 @@ jobs:
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
         if: |
           needs.paths-filter.outputs.codechange == 'true'
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
-        if: |
-          needs.paths-filter.outputs.codechange == 'true'
-        with:
-          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
-          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Consistency tests"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
