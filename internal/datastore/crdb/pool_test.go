@@ -117,7 +117,7 @@ func TestTxReset(t *testing.T) {
 
 			r, err := ds.ReadyState(ctx)
 			require.NoError(err)
-			require.True(r.IsReady)
+			require.True(r.IsReady, "datastore not ready: %s", r.Message)
 
 			// WriteNamespace utilizes execute so we'll use it
 			i := 0
