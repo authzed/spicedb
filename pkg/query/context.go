@@ -123,12 +123,13 @@ func (t *TraceLogger) DumpTrace() string {
 // Context is the concrete type that contains the overall handles, and uses the executor as a strategy for continuing execution.
 type Context struct {
 	context.Context
-	Executor      Executor
-	Datastore     datastore.ReadOnlyDatastore
-	Revision      datastore.Revision
-	CaveatContext map[string]any
-	CaveatRunner  *caveats.CaveatRunner
-	TraceLogger   *TraceLogger // For debugging iterator execution
+	Executor          Executor
+	Datastore         datastore.ReadOnlyDatastore
+	Revision          datastore.Revision
+	CaveatContext     map[string]any
+	CaveatRunner      *caveats.CaveatRunner
+	TraceLogger       *TraceLogger // For debugging iterator execution
+	MaxRecursionDepth int          // Maximum depth for recursive iterators (0 = use default of 10)
 }
 
 func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
