@@ -1,6 +1,7 @@
 package caveats
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -208,7 +209,7 @@ func DeserializeCaveatWithTypeSet(ts *types.TypeSet, serialized []byte, paramete
 // has the parameters defined as variables.
 func DeserializeCaveatWithEnviroment(env *Environment, serialized []byte) (*CompiledCaveat, error) {
 	if len(serialized) == 0 {
-		return nil, fmt.Errorf("given empty serialized")
+		return nil, errors.New("given empty serialized")
 	}
 
 	caveat := &impl.DecodedCaveat{}

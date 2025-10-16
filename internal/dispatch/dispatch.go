@@ -2,7 +2,7 @@ package dispatch
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/rs/zerolog"
 
@@ -89,7 +89,7 @@ func CheckDepth(ctx context.Context, req DispatchableRequest) error {
 	metadata := req.GetMetadata()
 	if metadata == nil {
 		log.Ctx(ctx).Warn().Object("request", req).Msg("request missing metadata")
-		return fmt.Errorf("request missing metadata")
+		return errors.New("request missing metadata")
 	}
 
 	if metadata.DepthRemaining == 0 {

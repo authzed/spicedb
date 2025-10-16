@@ -4,7 +4,7 @@
 package v1
 
 import (
-	"fmt"
+	"encoding/hex"
 	"maps"
 	"slices"
 	"sort"
@@ -49,5 +49,5 @@ func computeAPICallHash(apiName string, arguments map[string]string) (string, er
 		}
 	}
 
-	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }

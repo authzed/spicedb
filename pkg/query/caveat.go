@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -121,7 +122,7 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path Path) (*core.CaveatEx
 	// Use the CaveatRunner from the context if available
 	if ctx.CaveatRunner == nil {
 		// No caveat runner available - cannot evaluate caveats
-		return nil, false, fmt.Errorf("no caveat runner available for caveat evaluation")
+		return nil, false, errors.New("no caveat runner available for caveat evaluation")
 	}
 
 	// Get a snapshot reader which should implement CaveatReader
@@ -200,7 +201,7 @@ func (c *CaveatIterator) buildExplainInfo() string {
 	}
 
 	// Build basic caveat information
-	info := fmt.Sprintf("Caveat(%s", c.caveat.CaveatName)
+	info := "Caveat(" + c.caveat.CaveatName
 
 	// Add context information if available
 	if c.caveat.Context != nil && len(c.caveat.Context.GetFields()) > 0 {

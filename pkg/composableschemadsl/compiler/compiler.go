@@ -176,7 +176,7 @@ func parseSchema(schema InputSchema) (*dslNode, input.PositionMapper, error) {
 
 func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {
 	if node.GetType() != dslshape.NodeTypeError {
-		return fmt.Errorf("given none error node")
+		return errors.New("given none error node")
 	}
 
 	errMessage, err := node.GetString(dslshape.NodePredicateErrorMessage)

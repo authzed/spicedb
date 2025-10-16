@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"hash"
 	"sync"
@@ -57,11 +58,11 @@ func NewRelationshipIntegrityProxy(ds datastore.Datastore, currentKey KeyConfig,
 	}
 
 	if len(currentKey.Bytes) == 0 {
-		return nil, fmt.Errorf("contents of the current key file cannot be empty")
+		return nil, errors.New("contents of the current key file cannot be empty")
 	}
 
 	if len(currentKey.ID) == 0 {
-		return nil, fmt.Errorf("current key ID cannot be empty")
+		return nil, errors.New("current key ID cannot be empty")
 	}
 
 	currentKeyHMAC := &hmacConfig{
@@ -80,15 +81,15 @@ func NewRelationshipIntegrityProxy(ds datastore.Datastore, currentKey KeyConfig,
 	expiredKeyIDs := make([]string, 0, len(expiredKeys))
 	for _, key := range expiredKeys {
 		if len(key.Bytes) == 0 {
-			return nil, fmt.Errorf("expired key cannot be empty")
+			return nil, errors.New("expired key cannot be empty")
 		}
 
 		if len(key.ID) == 0 {
-			return nil, fmt.Errorf("expired key ID cannot be empty")
+			return nil, errors.New("expired key ID cannot be empty")
 		}
 
 		if key.ExpiredAt == nil {
-			return nil, fmt.Errorf("expired key missing expiration time")
+			return nil, errors.New("expired key missing expiration time")
 		}
 
 		if _, ok := keysByID[key.ID]; ok {

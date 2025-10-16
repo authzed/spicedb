@@ -136,7 +136,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 
 func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {
 	if node.GetType() != dslshape.NodeTypeError {
-		return fmt.Errorf("given none error node")
+		return errors.New("given none error node")
 	}
 
 	errMessage, err := node.GetString(dslshape.NodePredicateErrorMessage)

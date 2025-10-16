@@ -815,7 +815,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
 		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
 		if !ok {
-			return fmt.Errorf("missing resource ID in returned LS")
+			return errors.New("missing resource ID in returned LS")
 		}
 
 		for _, foundSubject := range foundSubjects.FoundSubjects {

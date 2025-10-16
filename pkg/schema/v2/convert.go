@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"errors"
 	"fmt"
 
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -51,7 +52,7 @@ func convertCaveat(def *corev1.CaveatDefinition) (*Caveat, error) {
 
 func convertUserset(userset *corev1.UsersetRewrite) (Permission, error) {
 	if userset == nil {
-		return Permission{}, fmt.Errorf("userset rewrite is nil")
+		return Permission{}, errors.New("userset rewrite is nil")
 	}
 
 	var operation Operation
@@ -74,7 +75,7 @@ func convertUserset(userset *corev1.UsersetRewrite) (Permission, error) {
 			return Permission{}, err
 		}
 	default:
-		return Permission{}, fmt.Errorf("unknown userset rewrite operation type")
+		return Permission{}, errors.New("unknown userset rewrite operation type")
 	}
 
 	return Permission{
@@ -84,7 +85,7 @@ func convertUserset(userset *corev1.UsersetRewrite) (Permission, error) {
 
 func convertTypeInformation(typeinfo *corev1.TypeInformation) (*Relation, error) {
 	if typeinfo == nil {
-		return &Relation{}, fmt.Errorf("type information is nil")
+		return &Relation{}, errors.New("type information is nil")
 	}
 
 	thisRelation := &Relation{}
@@ -133,7 +134,7 @@ func convertTypeInformation(typeinfo *corev1.TypeInformation) (*Relation, error)
 
 func convertSetOperation(setOp *corev1.SetOperation) (Operation, error) {
 	if setOp == nil {
-		return nil, fmt.Errorf("set operation is nil")
+		return nil, errors.New("set operation is nil")
 	}
 
 	children := make([]Operation, 0, len(setOp.GetChild()))
@@ -157,7 +158,7 @@ func convertSetOperation(setOp *corev1.SetOperation) (Operation, error) {
 
 func convertSetOperationAsIntersection(setOp *corev1.SetOperation) (Operation, error) {
 	if setOp == nil {
-		return nil, fmt.Errorf("set operation is nil")
+		return nil, errors.New("set operation is nil")
 	}
 
 	children := make([]Operation, 0, len(setOp.GetChild()))
@@ -181,7 +182,7 @@ func convertSetOperationAsIntersection(setOp *corev1.SetOperation) (Operation, e
 
 func convertSetOperationAsExclusion(setOp *corev1.SetOperation) (Operation, error) {
 	if setOp == nil {
-		return nil, fmt.Errorf("set operation is nil")
+		return nil, errors.New("set operation is nil")
 	}
 
 	children := make([]Operation, 0, len(setOp.GetChild()))
@@ -205,7 +206,7 @@ func convertSetOperationAsExclusion(setOp *corev1.SetOperation) (Operation, erro
 
 func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 	if child == nil {
-		return nil, fmt.Errorf("child is nil")
+		return nil, errors.New("child is nil")
 	}
 
 	switch childType := child.GetChildType().(type) {

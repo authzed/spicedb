@@ -127,7 +127,7 @@ func (p *sourceParser) currentNode() AstNode {
 // the current token's end position as its end position.
 func (p *sourceParser) mustFinishNode() {
 	if p.currentNode() == nil {
-		panic(fmt.Sprintf("No current node on stack. Token: %s", p.currentToken.Value))
+		panic("No current node on stack. Token: " + p.currentToken.Value)
 	}
 
 	p.decorateEndRune(p.currentNode(), p.previousToken)

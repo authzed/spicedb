@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -137,7 +138,7 @@ func RemoteReporter(
 		return nil, fmt.Errorf("invalid telemetry reporting interval: %s < %s", interval, MinimumAllowedInterval)
 	}
 	if endpoint == DefaultEndpoint && interval != DefaultInterval {
-		return nil, fmt.Errorf("cannot change the telemetry reporting interval for the default endpoint")
+		return nil, errors.New("cannot change the telemetry reporting interval for the default endpoint")
 	}
 
 	client := &http.Client{}

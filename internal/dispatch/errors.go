@@ -1,7 +1,7 @@
 package dispatch
 
 import (
-	"fmt"
+	"errors"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,7 +22,7 @@ type MaxDepthExceededError struct {
 // NewMaxDepthExceededError creates a new MaxDepthExceededError.
 func NewMaxDepthExceededError(req DispatchableRequest) error {
 	return MaxDepthExceededError{
-		fmt.Errorf("max depth exceeded: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth"),
+		errors.New("max depth exceeded: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth"),
 		req,
 	}
 }

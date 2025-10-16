@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -57,7 +58,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 
 	containerImageTag := version.MinimumSupportedMySQLVersion
 
-	name := fmt.Sprintf("mysql-%s", uuid.New().String())
+	name := "mysql-" + uuid.New().String()
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
 		Repository: "mirror.gcr.io/library/mysql",
@@ -85,7 +86,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 	port := resource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))
 	if bridgeNetworkName != "" {
 		builder.hostname = name
-		builder.port = fmt.Sprintf("%d", mysqlPort)
+		builder.port = strconv.Itoa(mysqlPort)
 	} else {
 		builder.port = port
 	}

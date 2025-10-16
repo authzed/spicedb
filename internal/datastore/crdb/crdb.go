@@ -149,7 +149,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	switch config.overlapStrategy {
 	case overlapStrategyStatic:
 		if len(config.overlapKey) == 0 {
-			return nil, fmt.Errorf("static tx overlap strategy specified without an overlap key")
+			return nil, errors.New("static tx overlap strategy specified without an overlap key")
 		}
 		keyer = appendStaticKey(config.overlapKey)
 	case overlapStrategyPrefix:
@@ -581,7 +581,7 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 			}
 
 			features.Watch.Status = datastore.FeatureUnsupported
-			features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
+			features.Watch.Reason = "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: " + err.Error()
 			return nil
 		}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "-1s"))
 	} else {
@@ -630,7 +630,7 @@ func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int
 
 	groups := gcTTLRegex.FindStringSubmatch(configSQL)
 	if groups == nil || len(groups) != 2 {
-		return 0, fmt.Errorf("CRDB zone config unexpected format")
+		return 0, errors.New("CRDB zone config unexpected format")
 	}
 
 	gcSeconds, err := strconv.ParseInt(groups[1], 10, 64)

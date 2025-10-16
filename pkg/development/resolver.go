@@ -113,7 +113,7 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 				Text:     relation.Name,
 
 				ReferenceType:     ReferenceTypePermission,
-				ReferenceMarkdown: fmt.Sprintf("permission %s", relation.Name),
+				ReferenceMarkdown: "permission " + relation.Name,
 
 				TargetSource:             &source,
 				TargetPosition:           &relationPosition,
@@ -128,7 +128,7 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			Text:     relation.Name,
 
 			ReferenceType:     ReferenceTypeRelation,
-			ReferenceMarkdown: fmt.Sprintf("relation %s", relation.Name),
+			ReferenceMarkdown: "relation " + relation.Name,
 
 			TargetSource:             &source,
 			TargetPosition:           &relationPosition,
@@ -177,7 +177,7 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			Text:     def.Name,
 
 			ReferenceType:     ReferenceTypeDefinition,
-			ReferenceMarkdown: fmt.Sprintf("definition %s", def.Name),
+			ReferenceMarkdown: "definition " + def.Name,
 
 			TargetSource:             &source,
 			TargetPosition:           &defPosition,
@@ -222,7 +222,7 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			Text:     caveatDef.Name,
 
 			ReferenceType:     ReferenceTypeCaveat,
-			ReferenceMarkdown: fmt.Sprintf("caveat %s", caveatDef.Name),
+			ReferenceMarkdown: "caveat " + caveatDef.Name,
 
 			TargetSource:             &source,
 			TargetPosition:           &defPosition,

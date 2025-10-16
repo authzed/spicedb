@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -705,7 +706,7 @@ func addWithExpiration(tctx *translationContext, typeRefNode *dslNode, ref *core
 		}
 
 		if !slices.Contains(tctx.allowedFlags, "expiration") {
-			return fmt.Errorf("expiration trait is not allowed")
+			return errors.New("expiration trait is not allowed")
 		}
 
 		ref.RequiredExpiration = &core.ExpirationTrait{}
@@ -720,7 +721,7 @@ func addWithCaveats(tctx *translationContext, typeRefNode *dslNode, ref *core.Al
 	}
 
 	if len(caveats) != 1 {
-		return fmt.Errorf("only one caveat is currently allowed per type reference")
+		return errors.New("only one caveat is currently allowed per type reference")
 	}
 
 	name, err := caveats[0].GetString(dslshape.NodeCaveatPredicateCaveat)

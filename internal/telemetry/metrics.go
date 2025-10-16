@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -42,7 +43,7 @@ func SpiceDBClusterInfoCollector(ctx context.Context, subsystem, dsEngine string
 	clusterID := dbStats.UniqueID
 	buildInfo, ok := debug.ReadBuildInfo()
 	if !ok {
-		return nil, fmt.Errorf("failed to read BuildInfo")
+		return nil, errors.New("failed to read BuildInfo")
 	}
 
 	return func(ch chan<- prometheus.Metric) {

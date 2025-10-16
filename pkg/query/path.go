@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 	"iter"
 	"maps"
@@ -178,7 +179,7 @@ func FromRelationship(rel tuple.Relationship) Path {
 // ToRelationship converts the Path to a tuple.Relationship.
 func (p Path) ToRelationship() (tuple.Relationship, error) {
 	if p.Relation == "" {
-		return tuple.Relationship{}, fmt.Errorf("cannot convert Path with empty Relation to Relationship")
+		return tuple.Relationship{}, errors.New("cannot convert Path with empty Relation to Relationship")
 	}
 
 	resourceOAR := ObjectAndRelation{
@@ -193,14 +194,14 @@ func (p Path) ToRelationship() (tuple.Relationship, error) {
 			caveat = p.Caveat.GetCaveat()
 		} else {
 			// For complex caveat expressions, we cannot directly convert to a single ContextualizedCaveat
-			return tuple.Relationship{}, fmt.Errorf("cannot convert Path with complex caveat expression to Relationship")
+			return tuple.Relationship{}, errors.New("cannot convert Path with complex caveat expression to Relationship")
 		}
 	}
 
 	var integrity *core.RelationshipIntegrity
 	if len(p.Integrity) > 0 {
 		if len(p.Integrity) > 1 {
-			return tuple.Relationship{}, fmt.Errorf("cannot convert Path with multiple integrity values to Relationship")
+			return tuple.Relationship{}, errors.New("cannot convert Path with multiple integrity values to Relationship")
 		}
 		integrity = p.Integrity[0]
 	}

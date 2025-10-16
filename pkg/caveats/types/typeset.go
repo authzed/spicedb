@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/authzed/cel-go/cel"
@@ -30,7 +31,7 @@ func (ts *TypeSet) Freeze() {
 // for the caveat. This includes the custom types and methods defined in the TypeSet.
 func (ts *TypeSet) EnvOptions() ([]cel.EnvOption, error) {
 	if !ts.isFrozen {
-		return nil, fmt.Errorf("cannot get env options from a non-frozen TypeSet")
+		return nil, errors.New("cannot get env options from a non-frozen TypeSet")
 	}
 	return ts.customOptions, nil
 }
@@ -38,7 +39,7 @@ func (ts *TypeSet) EnvOptions() ([]cel.EnvOption, error) {
 // BuildType builds a variable type from its name and child types.
 func (ts *TypeSet) BuildType(name string, childTypes []VariableType) (*VariableType, error) {
 	if !ts.isFrozen {
-		return nil, fmt.Errorf("cannot build types from a non-frozen TypeSet")
+		return nil, errors.New("cannot build types from a non-frozen TypeSet")
 	}
 
 	typeDef, ok := ts.definitions[name]

@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/authzed/cel-go/cel"
@@ -27,7 +28,7 @@ type typeDefinition struct {
 // RegisterBasicType registers a basic type with the given keyword, CEL type, and converter.
 func RegisterBasicType(ts *TypeSet, keyword string, celType *cel.Type, converter typedValueConverter) (VariableType, error) {
 	if ts.isFrozen {
-		return VariableType{}, fmt.Errorf("cannot register new types after the TypeSet is frozen")
+		return VariableType{}, errors.New("cannot register new types after the TypeSet is frozen")
 	}
 
 	varType := VariableType{
@@ -65,7 +66,7 @@ func RegisterGenericType(
 	asVariableType func(childTypes []VariableType) VariableType,
 ) (GenericTypeBuilder, error) {
 	if ts.isFrozen {
-		return nil, fmt.Errorf("cannot register new types after the TypeSet is frozen")
+		return nil, errors.New("cannot register new types after the TypeSet is frozen")
 	}
 
 	ts.definitions[keyword] = typeDefinition{
@@ -115,7 +116,7 @@ func MustRegisterGenericType(
 // RegisterCustomType registers a custom type that wraps a base CEL type.
 func RegisterCustomType[T CustomType](ts *TypeSet, keyword string, baseCelType *cel.Type, converter typedValueConverter, opts ...cel.EnvOption) (VariableType, error) {
 	if ts.isFrozen {
-		return VariableType{}, fmt.Errorf("cannot register new types after the TypeSet is frozen")
+		return VariableType{}, errors.New("cannot register new types after the TypeSet is frozen")
 	}
 
 	if err := RegisterCustomCELOptions(ts, opts...); err != nil {
@@ -138,7 +139,7 @@ func RegisterMethodOnDefinedType(ts *TypeSet, baseType *cel.Type, name string, a
 // RegisterCustomOptions registers custom CEL environment options for the TypeSet.
 func RegisterCustomCELOptions(ts *TypeSet, opts ...cel.EnvOption) error {
 	if ts.isFrozen {
-		return fmt.Errorf("cannot register new options after the TypeSet is frozen")
+		return errors.New("cannot register new options after the TypeSet is frozen")
 	}
 	ts.customOptions = append(ts.customOptions, opts...)
 	return nil

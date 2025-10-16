@@ -60,7 +60,7 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 		bridgeNetworkName = createNetworkBridge(t, pool)
 	}
 
-	postgresContainerHostname := fmt.Sprintf("postgres-%s", uuid.New().String())
+	postgresContainerHostname := "postgres-" + uuid.New().String()
 
 	cmd := []string{"-N", PostgresTestMaxConnections}
 	if withCommitTimestamps {
@@ -172,7 +172,7 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 }
 
 func createNetworkBridge(t testing.TB, pool *dockertest.Pool) string {
-	bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
+	bridgeNetworkName := "bridge-" + uuid.New().String()
 	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{Name: bridgeNetworkName})
 
 	require.NoError(t, err)
@@ -185,7 +185,7 @@ func createNetworkBridge(t testing.TB, pool *dockertest.Pool) string {
 
 func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pool *dockertest.Pool, bridgeNetworkName string) {
 	uniqueID := uuid.New().String()
-	pgbouncerContainerHostname := fmt.Sprintf("pgbouncer-%s", uniqueID)
+	pgbouncerContainerHostname := "pgbouncer-" + uniqueID
 
 	pgbouncer, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       pgbouncerContainerHostname,

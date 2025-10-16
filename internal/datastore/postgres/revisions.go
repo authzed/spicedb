@@ -277,7 +277,7 @@ func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
 	if xmax > xmin {
 		// Ensure that the delta is not too large to cause memory issues or a panic.
 		if xmax-xmin > MaxLegacyXIPDelta {
-			return nil, fmt.Errorf("received revision delta in excess of that expected; are you sure you're not passing a ZedToken from an incompatible datastore?")
+			return nil, errors.New("received revision delta in excess of that expected; are you sure you're not passing a ZedToken from an incompatible datastore?")
 		}
 
 		// TODO(jschorr): Remove this deprecated code path once we have per-datastore-marked ZedTokens.

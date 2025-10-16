@@ -114,14 +114,14 @@ func NewNamespaceNotFoundErr(nsName string) error {
 // NewWatchDisconnectedErr constructs a new watch was disconnected error.
 func NewWatchDisconnectedErr() error {
 	return WatchDisconnectedError{
-		error: fmt.Errorf("watch fell too far behind and was disconnected; consider increasing watch buffer size via the flag --datastore-watch-buffer-length"),
+		error: errors.New("watch fell too far behind and was disconnected; consider increasing watch buffer size via the flag --datastore-watch-buffer-length"),
 	}
 }
 
 // NewWatchCanceledErr constructs a new watch was canceled error.
 func NewWatchCanceledErr() error {
 	return WatchCanceledError{
-		error: fmt.Errorf("watch was canceled by the caller"),
+		error: errors.New("watch was canceled by the caller"),
 	}
 }
 
@@ -144,7 +144,7 @@ func NewWatchTemporaryErr(wrapped error) error {
 // the datastore has been configured to be read-only.
 func NewReadonlyErr() error {
 	return ReadOnlyError{
-		error: fmt.Errorf("datastore is in read-only mode"),
+		error: errors.New("datastore is in read-only mode"),
 	}
 }
 
@@ -153,14 +153,14 @@ func NewInvalidRevisionErr(revision Revision, reason InvalidRevisionReason) erro
 	switch reason {
 	case RevisionStale:
 		return InvalidRevisionError{
-			error:    fmt.Errorf("revision has expired"),
+			error:    errors.New("revision has expired"),
 			revision: revision,
 			reason:   reason,
 		}
 
 	default:
 		return InvalidRevisionError{
-			error:    fmt.Errorf("revision was invalid"),
+			error:    errors.New("revision was invalid"),
 			revision: revision,
 			reason:   reason,
 		}
