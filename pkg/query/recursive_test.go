@@ -100,16 +100,21 @@ func TestReplaceSentinels(t *testing.T) {
 	// Create a replacement tree
 	replacementTree := NewEmptyFixedIterator()
 
+	// Create a RecursiveIterator to use replaceSentinelsWithTree
+	recursive := NewRecursiveIterator(union, []*RecursiveSentinel{sentinel})
+
 	// Replace sentinels with the tree
-	replacePlaceholdersWithTreeRecursive(union, replacementTree)
+	result := recursive.replaceSentinelsWithTree(union, replacementTree)
 
 	// Verify sentinels were replaced
+	resultUnion := result.(*Union)
+
 	// Union's second child should now be FixedIterator
-	_, isFixed := union.subIts[1].(*FixedIterator)
+	_, isFixed := resultUnion.subIts[1].(*FixedIterator)
 	require.True(t, isFixed, "Sentinel in union should be replaced with tree")
 
 	// Arrow's right side should be FixedIterator
-	arrowIter := union.subIts[2].(*Arrow)
+	arrowIter := resultUnion.subIts[2].(*Arrow)
 	_, isFixed = arrowIter.right.(*FixedIterator)
 	require.True(t, isFixed, "Sentinel in arrow should be replaced with tree")
 }

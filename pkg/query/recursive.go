@@ -85,119 +85,49 @@ func (r *RecursiveIterator) iterativeDeepening(ctx *Context, execute func(*Conte
 // buildTreeAtDepth creates a tree for the given depth by replacing placeholders
 // with deeper copies of the template tree
 func (r *RecursiveIterator) buildTreeAtDepth(depth int) Iterator {
+	// Clone and unwrap any nested RecursiveIterators at this depth
+	clonedTree := r.templateTree.Clone()
+	clonedTree = unwrapRecursiveIterators(clonedTree, depth)
+
 	if depth == 0 {
-		// At depth 0, placeholders remain as-is (return empty)
-		return r.templateTree.Clone()
+		// At depth 0, sentinels remain as-is (return empty)
+		return clonedTree
 	}
 
-	// For depth > 0, replace placeholders with depth-1 tree
-	clonedTree := r.templateTree.Clone()
+	// For depth > 0, replace sentinels with depth-1 tree
 	deeperTree := r.buildTreeAtDepth(depth - 1)
-	// Unwrap nested RecursiveIterators to avoid independent depth tracking
+	// Unwrap the replacement tree as well, in case it contains nested RecursiveIterators
 	deeperTree = unwrapRecursiveIterators(deeperTree, depth-1)
-	r.replacePlaceholdersWithTree(clonedTree, deeperTree)
+	clonedTree = r.replaceSentinelsWithTree(clonedTree, deeperTree)
+
+	// Unwrap again after replacement, as new RecursiveIterators may have been introduced
+	clonedTree = unwrapRecursiveIterators(clonedTree, depth)
+
 	return clonedTree
 }
 
 // unwrapRecursiveIterators recursively unwraps nested RecursiveIterators,
 // replacing them with their template trees at the specified depth
 func unwrapRecursiveIterators(tree Iterator, depth int) Iterator {
-	if recIt, isRecursive := tree.(*RecursiveIterator); isRecursive {
-		// Unwrap the RecursiveIterator by building its tree at this depth
-		return unwrapRecursiveIterators(recIt.buildTreeAtDepth(depth), depth)
-	}
-	return tree
+	return Walk(tree, func(it Iterator) Iterator {
+		if recIt, isRecursive := it.(*RecursiveIterator); isRecursive {
+			// Unwrap the RecursiveIterator by building its tree at this depth
+			// Note: We need to unwrap recursively in case buildTreeAtDepth returns another RecursiveIterator
+			return unwrapRecursiveIterators(recIt.buildTreeAtDepth(depth), depth)
+		}
+		return it
+	})
 }
 
-// replacePlaceholdersWithTree walks the iterator tree and replaces all RecursiveSentinel instances
+// replaceSentinelsWithTree walks the iterator tree and replaces all RecursiveSentinel instances
 // with a clone of the provided replacement tree
-func (r *RecursiveIterator) replacePlaceholdersWithTree(tree Iterator, replacement Iterator) {
-	replacePlaceholdersWithTreeRecursive(tree, replacement)
-}
-
-// replacePlaceholdersWithTreeRecursive is a visitor function that walks the tree and performs replacement
-func replacePlaceholdersWithTreeRecursive(it Iterator, replacement Iterator) {
-	switch iter := it.(type) {
-	case *Union:
-		for i, subIt := range iter.subIts {
-			if _, isSentinel := subIt.(*RecursiveSentinel); isSentinel {
-				iter.subIts[i] = replacement.Clone()
-			} else {
-				replacePlaceholdersWithTreeRecursive(subIt, replacement)
-			}
+func (r *RecursiveIterator) replaceSentinelsWithTree(tree Iterator, replacement Iterator) Iterator {
+	return Walk(tree, func(it Iterator) Iterator {
+		if _, isSentinel := it.(*RecursiveSentinel); isSentinel {
+			return replacement.Clone()
 		}
-
-	case *Intersection:
-		for i, subIt := range iter.subIts {
-			if _, isSentinel := subIt.(*RecursiveSentinel); isSentinel {
-				iter.subIts[i] = replacement.Clone()
-			} else {
-				replacePlaceholdersWithTreeRecursive(subIt, replacement)
-			}
-		}
-
-	case *Arrow:
-		if _, isSentinel := iter.left.(*RecursiveSentinel); isSentinel {
-			iter.left = replacement.Clone()
-		} else {
-			replacePlaceholdersWithTreeRecursive(iter.left, replacement)
-		}
-
-		if _, isSentinel := iter.right.(*RecursiveSentinel); isSentinel {
-			iter.right = replacement.Clone()
-		} else {
-			replacePlaceholdersWithTreeRecursive(iter.right, replacement)
-		}
-
-	case *IntersectionArrow:
-		if _, isSentinel := iter.left.(*RecursiveSentinel); isSentinel {
-			iter.left = replacement.Clone()
-		} else {
-			replacePlaceholdersWithTreeRecursive(iter.left, replacement)
-		}
-
-		if _, isSentinel := iter.right.(*RecursiveSentinel); isSentinel {
-			iter.right = replacement.Clone()
-		} else {
-			replacePlaceholdersWithTreeRecursive(iter.right, replacement)
-		}
-
-	case *Exclusion:
-		if _, isSentinel := iter.mainSet.(*RecursiveSentinel); isSentinel {
-			iter.mainSet = replacement.Clone()
-		} else {
-			replacePlaceholdersWithTreeRecursive(iter.mainSet, replacement)
-		}
-
-		if _, isSentinel := iter.excluded.(*RecursiveSentinel); isSentinel {
-			iter.excluded = replacement.Clone()
-		} else {
-			replacePlaceholdersWithTreeRecursive(iter.excluded, replacement)
-		}
-
-	case *Alias:
-		if _, isSentinel := iter.subIt.(*RecursiveSentinel); isSentinel {
-			iter.subIt = replacement.Clone()
-		} else {
-			replacePlaceholdersWithTreeRecursive(iter.subIt, replacement)
-		}
-
-	case *CaveatIterator:
-		if _, isSentinel := iter.subiterator.(*RecursiveSentinel); isSentinel {
-			iter.subiterator = replacement.Clone()
-		} else {
-			replacePlaceholdersWithTreeRecursive(iter.subiterator, replacement)
-		}
-
-	case *RecursiveSentinel, *FixedIterator, *RelationIterator, *RecursiveIterator:
-		// Leaf nodes or nested recursive iterators - no children to process
-		return
-
-	default:
-		// Unknown iterator type - assume it's a leaf or doesn't contain sentinels
-		// This handles custom iterators like test iterators gracefully
-		return
-	}
+		return it
+	})
 }
 
 // Clone creates a deep copy of the RecursiveIterator
@@ -228,4 +158,12 @@ func (r *RecursiveIterator) Explain() Explain {
 			r.templateTree.Explain(),
 		},
 	}
+}
+
+func (r *RecursiveIterator) Subiterators() []Iterator {
+	return []Iterator{r.templateTree}
+}
+
+func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) Iterator {
+	return &RecursiveIterator{templateTree: newSubs[0], sentinels: r.sentinels}
 }

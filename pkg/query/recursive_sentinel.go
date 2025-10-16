@@ -73,3 +73,11 @@ func (r *RecursiveSentinel) Explain() Explain {
 		Info: fmt.Sprintf("%s#%s (withSubRelations=%v)", r.definitionName, r.relationName, r.withSubRelations),
 	}
 }
+
+func (r *RecursiveSentinel) Subiterators() []Iterator {
+	return nil
+}
+
+func (r *RecursiveSentinel) ReplaceSubiterators(newSubs []Iterator) Iterator {
+	return r
+}

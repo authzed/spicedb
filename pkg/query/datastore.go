@@ -251,3 +251,11 @@ func (r *RelationIterator) Explain() Explain {
 			r.base.Caveat() != "", r.base.Expiration()),
 	}
 }
+
+func (r *RelationIterator) Subiterators() []Iterator {
+	return nil
+}
+
+func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) Iterator {
+	return r
+}

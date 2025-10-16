@@ -34,6 +34,15 @@ type Iterator interface {
 
 	// Clone does a deep-copy to duplicate the iterator tree at this point.
 	Clone() Iterator
+
+	// Subiterators returns the child iterators of this iterator, if any.
+	// Returns nil or empty slice for leaf iterators.
+	Subiterators() []Iterator
+
+	// ReplaceSubiterators returns a new iterator with the given subiterators replacing the current ones.
+	// For leaf iterators, this returns the iterator unchanged.
+	// For composite iterators, the length of newSubs should match the length of Subiterators().
+	ReplaceSubiterators(newSubs []Iterator) Iterator
 }
 
 // Explain describes the state of an iterator tree, in a human-readable fashion, with an Info line at

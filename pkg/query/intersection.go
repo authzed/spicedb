@@ -149,3 +149,11 @@ func (i *Intersection) Explain() Explain {
 		SubExplain: subs,
 	}
 }
+
+func (i *Intersection) Subiterators() []Iterator {
+	return i.subIts
+}
+
+func (i *Intersection) ReplaceSubiterators(newSubs []Iterator) Iterator {
+	return &Intersection{subIts: newSubs}
+}
