@@ -6,6 +6,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,15 +25,19 @@ const (
 	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
 )
 
+// crdbTester is safe for concurrent use by tests.
 type crdbTester struct {
-	conn     *pgx.Conn
-	hostname string
-	creds    string
-	port     string
+	conn      *pgx.Conn // GUARDED_BY(connMutex)
+	connMutex sync.Mutex
+	hostname  string
+	creds     string
+	port      string
 }
 
+var _ RunningEngineForTest = (*crdbTester)(nil)
+
 // RunCRDBForTesting returns a RunningEngineForTest for CRDB
-func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion string) RunningEngineForTest {
+func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion string) *crdbTester {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
@@ -55,6 +60,8 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion strin
 		creds:    "root:fake",
 	}
 	t.Cleanup(func() {
+		builder.connMutex.Lock()
+		defer builder.connMutex.Unlock()
 		if builder.conn != nil {
 			require.NoError(t, builder.conn.Close(context.Background()))
 		}
@@ -74,26 +81,31 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion strin
 		var err error
 		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
 		defer cancelConnect()
-		builder.conn, err = pgx.Connect(ctx, uri)
+		conn, err := pgx.Connect(ctx, uri)
 		if err != nil {
 			return err
 		}
+		builder.connMutex.Lock()
+		builder.conn = conn
 		ctx, cancelRangeFeeds := context.WithTimeout(context.Background(), dockerBootTimeout)
 		defer cancelRangeFeeds()
 		_, err = builder.conn.Exec(ctx, enableRangefeeds)
+		builder.connMutex.Unlock()
 		return err
 	}))
 
 	return builder
 }
 
-// NewDatabase creates a database. It is NOT safe for concurrent use.
+// NewDatabase creates a database.
 func (r *crdbTester) NewDatabase(t testing.TB) string {
 	uniquePortion, err := secrets.TokenHex(4)
 	require.NoError(t, err)
 
 	newDBName := "db" + uniquePortion
 
+	r.connMutex.Lock()
+	defer r.connMutex.Unlock()
 	_, err = r.conn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
 	require.NoError(t, err)
 
@@ -107,7 +119,7 @@ func (r *crdbTester) NewDatabase(t testing.TB) string {
 	return connectStr
 }
 
-// NewDatastore creates a database and runs migrations on it. It is NOT safe for concurrent use.
+// NewDatastore creates a database and runs migrations on it.
 func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	connectStr := r.NewDatabase(t)
 

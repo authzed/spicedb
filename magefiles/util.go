@@ -44,6 +44,7 @@ func testWithArgs(ctx context.Context, args ...string) ([]string, error) {
 		"test",
 		"-failfast",
 		"-count=1",
+		"-race",
 	}, args...)
 
 	return testArgs, nil

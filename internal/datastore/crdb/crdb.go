@@ -119,6 +119,10 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		log.Info().Object("version", version).Msg("using changefeed query for CRDB version < 22")
 		changefeedQuery = queryChangefeedPreV22
 	}
+	if version.Major < 25 {
+		log.Info().Object("version", version).Msg("using changefeed query for CRDB version < 25")
+		changefeedQuery = queryChangefeedPreV25
+	}
 
 	transactionNowQuery := queryTransactionNow
 	if version.Major < 23 {

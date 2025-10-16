@@ -54,7 +54,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			ok, err := ds.ReadyState(ctx)
 			require.NoError(err)
-			require.True(ok.IsReady)
+			require.True(ok.IsReady, "datastore not ready: %s", ok.Message)
 
 			setupDatastore(ds, require)
 

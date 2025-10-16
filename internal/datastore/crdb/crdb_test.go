@@ -251,7 +251,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 		{
 			name: "rangefeeds disabled",
 			postInit: func(ctx context.Context, adminConn *pgx.Conn) {
-				_, err = adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = false;`)
+				_, err := adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = false;`)
 				require.NoError(t, err)
 			},
 			expectEnabled: false,
@@ -260,7 +260,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 		{
 			name: "rangefeeds enabled, user doesn't have permission",
 			postInit: func(ctx context.Context, adminConn *pgx.Conn) {
-				_, err = adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true;`)
+				_, err := adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true;`)
 				require.NoError(t, err)
 			},
 			expectEnabled: false,
@@ -269,7 +269,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 		{
 			name: "rangefeeds enabled, user has permission",
 			postInit: func(ctx context.Context, adminConn *pgx.Conn) {
-				_, err = adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true;`)
+				_, err := adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true;`)
 				require.NoError(t, err)
 
 				_, err = adminConn.Exec(ctx, fmt.Sprintf(`GRANT CHANGEFEED ON TABLE testspicedb.%s TO unprivileged;`, schema.TableTuple))
