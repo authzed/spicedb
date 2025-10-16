@@ -11,6 +11,7 @@ import (
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/fatih/color"
+	"github.com/felixge/fgprof"
 	"github.com/go-logr/zerologr"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
@@ -103,6 +104,7 @@ func MetricsHandler(telemetryRegistry *prometheus.Registry, c *Config) http.Hand
 	}
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.Handle("/debug/fgprof", fgprof.Handler())
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
