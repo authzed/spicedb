@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-const defaultMaxRecursionDepth = 10
+const defaultMaxRecursionDepth = 50
 
 // RecursiveIterator is the root controller that manages iterative deepening for recursive schemas.
 // It wraps an iterator tree that contains RecursiveSentinel sentinels, and executes the tree
@@ -44,42 +44,57 @@ func (r *RecursiveIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 }
 
 // iterativeDeepening executes the core iterative deepening algorithm
+// It yields results directly, always running to maxDepth to find all valid paths
 func (r *RecursiveIterator) iterativeDeepening(ctx *Context, execute func(*Context, Iterator) (PathSeq, error)) (PathSeq, error) {
 	maxDepth := ctx.MaxRecursionDepth
 	if maxDepth == 0 {
 		maxDepth = defaultMaxRecursionDepth
 	}
 
-	var finalResults []Path
+	return func(yield func(Path, error) bool) {
+		seen := make(map[string]bool)
 
-	for depth := 0; depth < maxDepth; depth++ {
-		ctx.TraceStep(r, "Depth %d: starting iteration", depth)
+		for depth := range maxDepth {
+			ctx.TraceStep(r, "Depth %d: starting iteration", depth)
 
-		// Build tree for this depth by deepening the template
-		deepenedTree := r.buildTreeAtDepth(depth)
+			// Build tree for this depth by deepening the template
+			deepenedTree := r.buildTreeAtDepth(depth)
 
-		// Execute the tree
-		pathSeq, err := execute(ctx, deepenedTree)
-		if err != nil {
-			return nil, fmt.Errorf("execution failed at depth %d: %w", depth, err)
-		}
-
-		// Collect all paths from this iteration
-		currentResults := make([]Path, 0)
-		for path, err := range pathSeq {
+			// Execute the tree
+			pathSeq, err := execute(ctx, deepenedTree)
 			if err != nil {
-				return nil, err
+				yield(Path{}, fmt.Errorf("execution failed at depth %d: %w", depth, err))
+				return
 			}
-			currentResults = append(currentResults, path)
+
+			newPathCount := 0
+			totalPathCount := 0
+
+			// Yield each new path we find
+			for path, err := range pathSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+
+				totalPathCount++
+
+				// Deduplicate paths by key
+				key := path.Key()
+				if !seen[key] {
+					seen[key] = true
+					newPathCount++
+					if !yield(path, nil) {
+						return
+					}
+				}
+			}
+
+			ctx.TraceStep(r, "Depth %d: collected %d paths (%d new)", depth, totalPathCount, newPathCount)
 		}
 
-		ctx.TraceStep(r, "Depth %d: collected %d paths", depth, len(currentResults))
-		finalResults = currentResults
-	}
-
-	// Return results from final depth
-	ctx.TraceStep(r, "Completed at max depth %d", maxDepth)
-	return pathSeqFromPaths(finalResults), nil
+		ctx.TraceStep(r, "Completed at max depth %d", maxDepth)
+	}, nil
 }
 
 // buildTreeAtDepth creates a tree for the given depth by replacing placeholders

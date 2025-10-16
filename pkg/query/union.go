@@ -48,7 +48,7 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	seen := make(map[string]Path)
 	for _, path := range out {
 		// Use resource object (type + id) as key for deduplication, not the full resource with relation
-		key := path.Resource.ObjectType + ":" + path.Resource.ObjectID
+		key := path.Resource.Key()
 		if existing, exists := seen[key]; !exists {
 			seen[key] = path
 		} else {

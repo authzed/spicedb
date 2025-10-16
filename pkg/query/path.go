@@ -41,6 +41,11 @@ func (p Path) ResourceOAR() ObjectAndRelation {
 	return p.Resource.WithRelation(p.Relation)
 }
 
+// Key returns a unique string key for this Path based on its resource and subject
+func (p Path) Key() string {
+	return fmt.Sprintf("%s#%s@%s", p.Resource.Key(), p.Relation, ObjectAndRelationKey(p.Subject))
+}
+
 // MergeOr combines the paths, ORing the caveats and expiration and metadata together.
 // Returns a new Path with the merged values.
 func (p Path) MergeOr(other Path) (Path, error) {
