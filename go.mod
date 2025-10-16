@@ -53,6 +53,7 @@ require (
 	github.com/ettle/strcase v0.2.0
 	github.com/exaring/otelpgx v0.9.3
 	github.com/fatih/color v1.18.0
+	github.com/felixge/fgprof v0.9.5
 	github.com/go-errors/errors v1.5.1
 	github.com/go-logr/zerologr v1.2.3
 	github.com/go-sql-driver/mysql v1.9.2
@@ -272,6 +273,7 @@ require (
 	github.com/golangci/swaggoswag v0.0.0-20250504205917-77f2aca3143e // indirect
 	github.com/golangci/unconvert v0.0.0-20250410112200-a129a6e6413e // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
+	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
