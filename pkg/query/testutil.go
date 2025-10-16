@@ -237,6 +237,14 @@ func (f *FaultyIterator) Explain() Explain {
 	return Explain{Info: "FaultyIterator"}
 }
 
+func (f *FaultyIterator) Subiterators() []Iterator {
+	return nil
+}
+
+func (f *FaultyIterator) ReplaceSubiterators(newSubs []Iterator) Iterator {
+	return f
+}
+
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions
 func NewFaultyIterator(shouldFailOnCheck, shouldFailOnCollect bool) *FaultyIterator {
 	return &FaultyIterator{

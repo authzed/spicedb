@@ -98,3 +98,11 @@ func (f *FixedIterator) Clone() Iterator {
 		paths: clonedPaths,
 	}
 }
+
+func (f *FixedIterator) Subiterators() []Iterator {
+	return nil
+}
+
+func (f *FixedIterator) ReplaceSubiterators(newSubs []Iterator) Iterator {
+	return f
+}

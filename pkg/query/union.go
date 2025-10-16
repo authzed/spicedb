@@ -108,3 +108,11 @@ func (u *Union) Explain() Explain {
 		SubExplain: subs,
 	}
 }
+
+func (u *Union) Subiterators() []Iterator {
+	return u.subIts
+}
+
+func (u *Union) ReplaceSubiterators(newSubs []Iterator) Iterator {
+	return &Union{subIts: newSubs}
+}
