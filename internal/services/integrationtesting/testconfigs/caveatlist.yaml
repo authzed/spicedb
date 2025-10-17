@@ -19,11 +19,11 @@ relationships: >-
   document:firstdoc#viewer@user:fred[some_caveat:{"somelist": [42, 41]}]
 assertions:
   assertTrue:
-    - 'document:firstdoc#view@user:tom'
+    - "document:firstdoc#view@user:tom"
     - 'document:firstdoc#view@user:sarah with {"somelist":[]}'
     - 'document:firstdoc#view@user:sarah with {"somelist":[56]}'
   assertCaveated:
-    - 'document:firstdoc#view@user:sarah'
+    - "document:firstdoc#view@user:sarah"
   assertFalse:
-    - 'document:firstdoc#view@user:fred'
+    - "document:firstdoc#view@user:fred"
     - 'document:firstdoc#view@user:sarah with {"somelist":[12]}'

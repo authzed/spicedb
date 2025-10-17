@@ -25,5 +25,5 @@ relationships: >-
   folder:folder2#viewer@user:tom
 assertions:
   assertTrue:
-    - 'document:firstdoc#view@user:tom#...'
-    - 'document:seconddoc#view@user:tom#...'
+    - "document:firstdoc#view@user:tom#..."
+    - "document:seconddoc#view@user:tom#..."

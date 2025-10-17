@@ -1,6 +1,6 @@
 ---
 name: "Security"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "!dependabot/*"
@@ -18,7 +18,7 @@ env:
 jobs:
   codeql:
     name: "CodeQL Analyze"
-    if: "${{ github.event_name == 'pull_request' }}"  # workaround to https://github.com/github/codeql-action/issues/1537
+    if: "${{ github.event_name == 'pull_request' }}" # workaround to https://github.com/github/codeql-action/issues/1537
     runs-on: "depot-ubuntu-24.04-8"
     timeout-minutes: "${{ (matrix.language == 'swift' && 120) || 360 }}"
     permissions:

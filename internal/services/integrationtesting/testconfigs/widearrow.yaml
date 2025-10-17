@@ -46,4 +46,4 @@ relationships: >-
   folder:folder12#viewer@user:tom#...
 assertions:
   assertTrue:
-    - 'document:seconddoc#view@user:tom#...'
+    - "document:seconddoc#view@user:tom#..."

@@ -19,12 +19,12 @@ relationships: >-
   document:firstdoc#viewer@user:tracy
 assertions:
   assertTrue:
-    - 'document:firstdoc#view@user:tracy'
+    - "document:firstdoc#view@user:tracy"
     - 'document:firstdoc#view@user:tom with {"user_ip": "10.2.3.4"}'
     - 'document:firstdoc#view@user:sarah with {"user_ip": "10.1.3.4"}'
   assertCaveated:
-    - 'document:firstdoc#view@user:tom'
-    - 'document:firstdoc#view@user:sarah'
+    - "document:firstdoc#view@user:tom"
+    - "document:firstdoc#view@user:sarah"
   assertFalse:
     - 'document:firstdoc#view@user:tom with {"user_ip": "1.2.3.4"}'
     - 'document:firstdoc#view@user:sarah with {"user_ip": "10.2.3.4"}'

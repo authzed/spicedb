@@ -1,6 +1,6 @@
 ---
 name: "Build & Test"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
@@ -371,7 +371,7 @@ jobs:
         run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
-    runs-on: "ubuntu-22.04"  # do not run Depot runners due to somehow triggering https://github.com/agnivade/wasmbrowsertest/issues/40
+    runs-on: "ubuntu-22.04" # do not run Depot runners due to somehow triggering https://github.com/agnivade/wasmbrowsertest/issues/40
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
