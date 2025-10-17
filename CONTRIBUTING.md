@@ -144,3 +144,24 @@ mage gen:proto
 
 [Protobuf]: https://developers.google.com/protocol-buffers/
 [buf]: https://docs.buf.build/installation
+
+### Test a local change with Docker Compose
+
+Run `docker compose up --build` and then use `zed` against it, for example:
+
+```sh
+zed context set example localhost:50051 foobar --insecure
+zed import development/schema.yaml
+{
+for i in $(seq 1 10); do
+  u=$(( (RANDOM % 99999) + 1 ))
+  echo -n "{\"resourceObjectType\": \"document\", \"permission\": \"view\",  \"subject\": { \"object\": { \"objectType\": \"user\", \"objectId\": \"1\" }}}" > payload.json
+  ab -n 100 -c 100   -T 'application/json' -H 'Authorization: Bearer foobar' -p payload.json http://localhost:8443/v1/permissions/resources
+done
+}
+# Access CockroachDB Admin UI: http://localhost:8080
+# Access Grafana: http://localhost:3000
+# Run profiler: 
+# go tool pprof --http=:6060 "http://localhost:9090/debug/pprof/profile?seconds=60"
+# go tool pprof --http=:6061 "http://localhost:9090/debug/pprof/heap?seconds=60"
+```
