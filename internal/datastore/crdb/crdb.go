@@ -193,9 +193,8 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		supportsIntegrity:       config.withIntegrity,
 		gcWindow:                config.gcWindow,
-		expirationEnabled:       !config.expirationDisabled,
 		watchEnabled:            !config.watchDisabled,
-		schema:                  *schema.Schema(config.columnOptimizationOption, config.withIntegrity, config.expirationDisabled),
+		schema:                  *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
 
@@ -296,7 +295,6 @@ type crdbDatastore struct {
 	cancel               context.CancelFunc
 	filterMaximumIDCount uint16
 	supportsIntegrity    bool
-	expirationEnabled    bool
 	watchEnabled         bool
 
 	uniqueID atomic.Pointer[string]
@@ -368,11 +366,11 @@ func (cds *crdbDatastore) ReadWriteTx(
 		//    a deletion of expired relationships.
 		//
 		//    A transaction is marked as such IF and only IF the operations in the transaction
-		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watc
+		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watch
 		//    changefeed that the transaction is not a deletion of expired relationships performed
 		//    by CRDB itself. This is also only necessary if both expiration and watch are enabled.
 		metadata := config.Metadata.AsMap()
-		requiresMetadata := len(metadata) > 0 || (cds.expirationEnabled && cds.watchEnabled && !rwt.hasNonExpiredDeletionChange)
+		requiresMetadata := len(metadata) > 0 || (cds.watchEnabled && (config.IncludesExpiredAt || !rwt.hasNonExpiredDeletionChange))
 		if requiresMetadata {
 			// Mark the transaction as coming from SpiceDB. See the comment in watch.go
 			// for why this is necessary.
