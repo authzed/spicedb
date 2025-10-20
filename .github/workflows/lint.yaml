@@ -1,6 +1,6 @@
 ---
 name: "Lint"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "!dependabot/*"
@@ -22,7 +22,7 @@ jobs:
       - name: "Check Licenses"
         uses: "authzed/actions/go-license-check@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
         with:
-          ignore: "buf.build"  # Has no license information
+          ignore: "buf.build" # Has no license information
 
   go-lint:
     name: "Lint Go"

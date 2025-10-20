@@ -84,18 +84,18 @@ relationships: >-
 
 assertions:
   assertTrue:
-    - 'repo:buynlarge/orgrepo#view@user:test_engineer'
-    - 'repo:buynlarge/orgrepo#view@user:engineer'
-    - 'repo:buynlarge/orgrepo#view@user:eng_manager'
-    - 'repo:buynlarge/orgrepo#view@user:ceo'
-    - 'repo:buynlarge/orgrepo#view@user:cto'
+    - "repo:buynlarge/orgrepo#view@user:test_engineer"
+    - "repo:buynlarge/orgrepo#view@user:engineer"
+    - "repo:buynlarge/orgrepo#view@user:eng_manager"
+    - "repo:buynlarge/orgrepo#view@user:ceo"
+    - "repo:buynlarge/orgrepo#view@user:cto"
     - 'repo:buynlarge/orgrepo#view@anonymoususer:dskfjbdkfjb with {"user_ip": "2.3.4.5"}'
     - 'repo:buynlarge/orgrepo#view@anonymoususer:avbcocdhdsc with {"user_ip": "10.11.12.13"}'
   assertCaveated:
-    - 'repo:buynlarge/orgrepo#view@anonymoususer:dskfjbdkfjb'
-    - 'repo:buynlarge/orgrepo#view@anonymoususer:avbcocdhdsc'
+    - "repo:buynlarge/orgrepo#view@anonymoususer:dskfjbdkfjb"
+    - "repo:buynlarge/orgrepo#view@anonymoususer:avbcocdhdsc"
   assertFalse:
-    - 'repo:buynlarge/orgrepo#view@user:villain'
-    - 'repo:buynlarge/orgrepo#view@user:eng_director'
+    - "repo:buynlarge/orgrepo#view@user:villain"
+    - "repo:buynlarge/orgrepo#view@user:eng_director"
     - 'repo:buynlarge/orgrepo#view@anonymoususer:dskfjbdkfjb with {"user_ip": "1.2.3.4"}'
     - 'repo:buynlarge/orgrepo#view@anonymoususer:avbcocdhdsc with {"user_ip": "1.10.20.30"}'

@@ -21,10 +21,10 @@ linters:
     - "errcheck"
     - "errname"
     - "errorlint"
-#    - "gocritic" TODO: fix issues
+    # - "gocritic" TODO: fix issues
     - "goprintffuncname"
     - "gosec"
-#    - "govet" TODO: fix issues
+    # - "govet" TODO: fix issues
     - "importas"
     - "ineffassign"
     - "makezero"
@@ -37,7 +37,7 @@ linters:
     - "spancheck"
     - "staticcheck"
     - "tagalign"
-#    - "testifylint" TODO: fix issues
+    # - "testifylint" TODO: fix issues
     - "tparallel"
     - "unconvert"
     - "usetesting"

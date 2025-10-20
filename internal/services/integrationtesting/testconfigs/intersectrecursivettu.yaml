@@ -1,30 +1,30 @@
 ---
 schema: |+
-    definition irtt/user {}
+  definition irtt/user {}
 
-    definition irtt/namespace {
-    	relation parent: irtt/namespace
-    	relation direct_owner: irtt/user
-        permission owner = direct_owner + parent->owner
-    }
+  definition irtt/namespace {
+  	relation parent: irtt/namespace
+  	relation direct_owner: irtt/user
+      permission owner = direct_owner + parent->owner
+  }
 
-    definition irtt/resource {
-    	relation parent_namespace: irtt/namespace
-    	permission owner = parent_namespace->owner
-    }
+  definition irtt/resource {
+  	relation parent_namespace: irtt/namespace
+  	permission owner = parent_namespace->owner
+  }
 
 relationships: >-
-    irtt/namespace:rootns#direct_owner@irtt/user:someguy#...
+  irtt/namespace:rootns#direct_owner@irtt/user:someguy#...
 
-    irtt/namespace:childns1#parent@irtt/namespace:rootns#...
+  irtt/namespace:childns1#parent@irtt/namespace:rootns#...
 
-    irtt/namespace:childns2#parent@irtt/namespace:rootns#...
+  irtt/namespace:childns2#parent@irtt/namespace:rootns#...
 
-    irtt/namespace:childns1#direct_owner@irtt/user:someguy#...
+  irtt/namespace:childns1#direct_owner@irtt/user:someguy#...
 
-    irtt/resource:resource1#parent_namespace@irtt/namespace:childns1#...
+  irtt/resource:resource1#parent_namespace@irtt/namespace:childns1#...
 
-    irtt/resource:resource2#parent_namespace@irtt/namespace:childns2#...
+  irtt/resource:resource2#parent_namespace@irtt/namespace:childns2#...
 assertions:
-    assertTrue: []
-    assertFalse: []
+  assertTrue: []
+  assertFalse: []

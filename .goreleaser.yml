@@ -208,19 +208,25 @@ docker_manifests:
 
   # Quay (debug)
   - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
-    image_templates: [*amd_debug_image_quay, *arm_debug_image_quay, *riscv64_debug_image_quay]
+    image_templates:
+      [*amd_debug_image_quay, *arm_debug_image_quay, *riscv64_debug_image_quay]
   - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
-    image_templates: [*amd_debug_image_quay, *arm_debug_image_quay, *riscv64_debug_image_quay]
+    image_templates:
+      [*amd_debug_image_quay, *arm_debug_image_quay, *riscv64_debug_image_quay]
   # GitHub Registry
   - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
-    image_templates: [*amd_debug_image_gh, *arm_debug_image_gh, *riscv64_debug_image_gh]
+    image_templates:
+      [*amd_debug_image_gh, *arm_debug_image_gh, *riscv64_debug_image_gh]
   - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
-    image_templates: [*amd_debug_image_gh, *arm_debug_image_gh, *riscv64_debug_image_gh]
+    image_templates:
+      [*amd_debug_image_gh, *arm_debug_image_gh, *riscv64_debug_image_gh]
   # Docker Hub
   - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
-    image_templates: [*amd_debug_image_dh, *arm_debug_image_dh, *riscv64_debug_image_dh]
+    image_templates:
+      [*amd_debug_image_dh, *arm_debug_image_dh, *riscv64_debug_image_dh]
   - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
-    image_templates: [*amd_debug_image_dh, *arm_debug_image_dh, *riscv64_debug_image_dh]
+    image_templates:
+      [*amd_debug_image_dh, *arm_debug_image_dh, *riscv64_debug_image_dh]
 checksum:
   name_template: "checksums.txt"
 snapshot:

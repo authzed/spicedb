@@ -1,6 +1,6 @@
 ---
 name: "Build WASM"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   release:
     types: ["created"]
 permissions:

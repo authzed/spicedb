@@ -1,6 +1,6 @@
 ---
 name: "CLA"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   issue_comment:
     types:
       - "created"
