@@ -103,15 +103,28 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	// If so, this subtree contains recursion and should be wrapped
 	sentinelsAdded := b.recursiveSentinels[sentinelsLenBefore:]
 	if len(sentinelsAdded) > 0 {
-		// Extract just the sentinel objects
-		sentinels := make([]*RecursiveSentinel, len(sentinelsAdded))
-		for i, info := range sentinelsAdded {
-			sentinels[i] = info.sentinel
+		// Filter sentinels to only include those matching this definition/relation
+		// Non-matching sentinels are left in the list for parent builds to handle
+		var matchingSentinels []*RecursiveSentinel
+		var nonMatchingSentinels []*recursiveSentinelInfo
+
+		for _, info := range sentinelsAdded {
+			if info.definitionName == definitionName && info.relationName == relationName {
+				matchingSentinels = append(matchingSentinels, info.sentinel)
+			} else {
+				nonMatchingSentinels = append(nonMatchingSentinels, info)
+			}
 		}
-		// Wrap this subtree in RecursiveIterator
-		result = NewRecursiveIterator(result)
-		// Remove these sentinels from the list since we've wrapped them
+
+		// Only wrap if we have matching sentinels
+		if len(matchingSentinels) > 0 {
+			// Wrap this subtree in RecursiveIterator with the current definition and relation
+			result = NewRecursiveIterator(result, definitionName, relationName)
+		}
+
+		// Remove matching sentinels from the list, but keep non-matching ones for parent
 		b.recursiveSentinels = b.recursiveSentinels[:sentinelsLenBefore]
+		b.recursiveSentinels = append(b.recursiveSentinels, nonMatchingSentinels...)
 	}
 
 	return result, nil

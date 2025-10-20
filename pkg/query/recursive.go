@@ -12,13 +12,17 @@ var _ Iterator = &RecursiveIterator{}
 // It wraps an iterator tree that contains RecursiveSentinel sentinels, and executes the tree
 // repeatedly with increasing depth until a fixed point is reached or max depth is exceeded.
 type RecursiveIterator struct {
-	templateTree Iterator
+	templateTree   Iterator
+	definitionName string // The schema definition this iterator is recursing on
+	relationName   string // The relation name this iterator is recursing on
 }
 
 // NewRecursiveIterator creates a new recursive iterator controller
-func NewRecursiveIterator(templateTree Iterator) *RecursiveIterator {
+func NewRecursiveIterator(templateTree Iterator, definitionName, relationName string) *RecursiveIterator {
 	return &RecursiveIterator{
-		templateTree: templateTree,
+		templateTree:   templateTree,
+		definitionName: definitionName,
+		relationName:   relationName,
 	}
 }
 
@@ -127,7 +131,7 @@ func (r *RecursiveIterator) buildTreeAtDepth(depth int) (Iterator, error) {
 		return nil, err
 	}
 
-	clonedTree, err = replaceSentinelsInTree(clonedTree, deeperTree)
+	clonedTree, err = r.replaceSentinelsInTree(clonedTree, deeperTree)
 	if err != nil {
 		return nil, err
 	}
@@ -153,12 +157,18 @@ func unwrapRecursiveIterators(tree Iterator, depth int) (Iterator, error) {
 	})
 }
 
-// replaceSentinelsWithTree walks the iterator tree and replaces all RecursiveSentinel instances
-// with a clone of the provided replacement tree
-func replaceSentinelsInTree(tree Iterator, replacement Iterator) (Iterator, error) {
+// replaceSentinelsWithTree walks the iterator tree and replaces RecursiveSentinel instances
+// that match this RecursiveIterator's definition and relation with a clone of the provided replacement tree.
+// Non-matching sentinels are left alone as they belong to different RecursiveIterators.
+func (r *RecursiveIterator) replaceSentinelsInTree(tree Iterator, replacement Iterator) (Iterator, error) {
 	return Walk(tree, func(it Iterator) (Iterator, error) {
-		if _, isSentinel := it.(*RecursiveSentinel); isSentinel {
-			return replacement.Clone(), nil
+		if sentinel, isSentinel := it.(*RecursiveSentinel); isSentinel {
+			// Only replace sentinels that belong to THIS RecursiveIterator's schema
+			if sentinel.DefinitionName() == r.definitionName && sentinel.RelationName() == r.relationName {
+				return replacement.Clone(), nil
+			}
+			// Leave non-matching sentinels alone (they belong to a different RecursiveIterator)
+			return sentinel, nil
 		}
 		return it, nil
 	})
@@ -167,7 +177,9 @@ func replaceSentinelsInTree(tree Iterator, replacement Iterator) (Iterator, erro
 // Clone creates a deep copy of the RecursiveIterator
 func (r *RecursiveIterator) Clone() Iterator {
 	return &RecursiveIterator{
-		templateTree: r.templateTree.Clone(),
+		templateTree:   r.templateTree.Clone(),
+		definitionName: r.definitionName,
+		relationName:   r.relationName,
 	}
 }
 
@@ -188,6 +200,8 @@ func (r *RecursiveIterator) Subiterators() []Iterator {
 
 func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return &RecursiveIterator{
-		templateTree: newSubs[0],
+		templateTree:   newSubs[0],
+		definitionName: r.definitionName,
+		relationName:   r.relationName,
 	}, nil
 }
