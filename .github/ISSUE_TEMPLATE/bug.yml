@@ -34,9 +34,9 @@ body:
       label: "What SpiceDB version are you using?"
       placeholder: "v1.25.0"
   - type: "textarea"
-    id: "version"
+    id: "config"
     validations:
-      required: true
+      required: false
     attributes:
       label: "What SpiceDB flags do you use?"
       placeholder: |-
