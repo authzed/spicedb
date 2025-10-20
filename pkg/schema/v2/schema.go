@@ -5,6 +5,16 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
+// schemaUnit is an interface for schema elements that can be cloned without a parent.
+type schemaUnit[T any] interface {
+	clone() T
+}
+
+// schemaUnitWithParent is an interface for schema elements that can be cloned with a parent.
+type schemaUnitWithParent[T any, P any] interface {
+	cloneWithParent(parent P) T
+}
+
 // Schema is a view of a complete schema, with all definitions and caveats.
 type Schema struct {
 	definitions map[string]*Definition
@@ -20,6 +30,32 @@ func (s *Schema) Definitions() map[string]*Definition {
 func (s *Schema) Caveats() map[string]*Caveat {
 	return s.caveats
 }
+
+// clone creates a deep copy of the Schema.
+func (s *Schema) clone() *Schema {
+	if s == nil {
+		return nil
+	}
+
+	cloned := &Schema{
+		definitions: make(map[string]*Definition, len(s.definitions)),
+		caveats:     make(map[string]*Caveat, len(s.caveats)),
+	}
+
+	for name, def := range s.definitions {
+		clonedDef := def.cloneWithParent(cloned)
+		cloned.definitions[name] = clonedDef
+	}
+
+	for name, caveat := range s.caveats {
+		clonedCaveat := caveat.cloneWithParent(cloned)
+		cloned.caveats[name] = clonedCaveat
+	}
+
+	return cloned
+}
+
+var _ schemaUnit[*Schema] = &Schema{}
 
 // Definition is a single schema object type, with relations and permissions.
 type Definition struct {
@@ -49,6 +85,34 @@ func (d *Definition) Permissions() map[string]*Permission {
 	return d.permissions
 }
 
+// cloneWithParent creates a deep copy of the Definition with the specified parent.
+func (d *Definition) cloneWithParent(parentSchema *Schema) *Definition {
+	if d == nil {
+		return nil
+	}
+
+	cloned := &Definition{
+		parent:      parentSchema,
+		name:        d.name,
+		relations:   make(map[string]*Relation, len(d.relations)),
+		permissions: make(map[string]*Permission, len(d.permissions)),
+	}
+
+	for name, rel := range d.relations {
+		clonedRel := rel.cloneWithParent(cloned)
+		cloned.relations[name] = clonedRel
+	}
+
+	for name, perm := range d.permissions {
+		clonedPerm := perm.cloneWithParent(cloned)
+		cloned.permissions[name] = clonedPerm
+	}
+
+	return cloned
+}
+
+var _ schemaUnitWithParent[*Definition, *Schema] = &Definition{}
+
 // Caveat is a single, top-level caveat definition and it's internal expresion.
 type Caveat struct {
 	parent         *Schema
@@ -77,6 +141,25 @@ func (c *Caveat) ParameterTypes() []string {
 	return c.parameterTypes
 }
 
+// cloneWithParent creates a deep copy of the Caveat with the specified parent.
+func (c *Caveat) cloneWithParent(parentSchema *Schema) *Caveat {
+	if c == nil {
+		return nil
+	}
+
+	parameterTypes := make([]string, len(c.parameterTypes))
+	copy(parameterTypes, c.parameterTypes)
+
+	return &Caveat{
+		parent:         parentSchema,
+		name:           c.name,
+		expression:     c.expression,
+		parameterTypes: parameterTypes,
+	}
+}
+
+var _ schemaUnitWithParent[*Caveat, *Schema] = &Caveat{}
+
 type RelationOrPermission interface {
 	isRelationOrPermission()
 }
@@ -86,6 +169,15 @@ type Permission struct {
 	parent    *Definition
 	name      string
 	operation Operation
+	synthetic bool // true if this permission was synthesized by the schema system
+}
+
+// SyntheticPermission is a permission that has been synthesized by the schema system
+// (e.g., during flattening operations). It is functionally identical to a Permission
+// but is marked as synthetic for tracking purposes.
+type SyntheticPermission struct {
+	Permission
+	synthetic bool
 }
 
 // Parent returns the parent definition.
@@ -105,7 +197,36 @@ func (p *Permission) Operation() Operation {
 
 func (p *Permission) isRelationOrPermission() {}
 
-var _ RelationOrPermission = &Permission{}
+// cloneWithParent creates a deep copy of the Permission with the specified parent.
+func (p *Permission) cloneWithParent(parentDefinition *Definition) *Permission {
+	if p == nil {
+		return nil
+	}
+
+	return &Permission{
+		parent:    parentDefinition,
+		name:      p.name,
+		operation: p.operation.clone(),
+	}
+}
+
+// IsSynthetic returns true if this permission was synthesized by the schema system.
+func (p *Permission) IsSynthetic() bool {
+	return p.synthetic
+}
+
+// IsSynthetic returns true for synthetic permissions.
+func (sp *SyntheticPermission) IsSynthetic() bool {
+	return sp.synthetic
+}
+
+func (sp *SyntheticPermission) isRelationOrPermission() {}
+
+var (
+	_ RelationOrPermission                           = &Permission{}
+	_ RelationOrPermission                           = &SyntheticPermission{}
+	_ schemaUnitWithParent[*Permission, *Definition] = &Permission{}
+)
 
 // Relation is a single `relation` line belonging to a definition. It has a name and list of types appearing on the right hand side.
 type Relation struct {
@@ -137,7 +258,30 @@ func (r *Relation) AliasingRelation() string {
 
 func (r *Relation) isRelationOrPermission() {}
 
-var _ RelationOrPermission = &Relation{}
+// cloneWithParent creates a deep copy of the Relation with the specified parent.
+func (r *Relation) cloneWithParent(parentDefinition *Definition) *Relation {
+	if r == nil {
+		return nil
+	}
+
+	cloned := &Relation{
+		parent:           parentDefinition,
+		name:             r.name,
+		baseRelations:    make([]*BaseRelation, len(r.baseRelations)),
+		aliasingRelation: r.aliasingRelation,
+	}
+
+	for i, br := range r.baseRelations {
+		cloned.baseRelations[i] = br.cloneWithParent(cloned)
+	}
+
+	return cloned
+}
+
+var (
+	_ RelationOrPermission                         = &Relation{}
+	_ schemaUnitWithParent[*Relation, *Definition] = &Relation{}
+)
 
 // BaseRelation is a single type, and its potential caveats, and expiration options. These features are written directly to the database with the parent Relation and Definition as the resource type and relation, and contains the subject type and optional subrelation.
 type BaseRelation struct {
@@ -188,6 +332,24 @@ func (b *BaseRelation) DefinitionName() string {
 func (b *BaseRelation) RelationName() string {
 	return b.parent.name
 }
+
+// cloneWithParent creates a deep copy of the BaseRelation with the specified parent.
+func (b *BaseRelation) cloneWithParent(parentRelation *Relation) *BaseRelation {
+	if b == nil {
+		return nil
+	}
+
+	return &BaseRelation{
+		parent:      parentRelation,
+		subjectType: b.subjectType,
+		subrelation: b.subrelation,
+		caveat:      b.caveat,
+		expiration:  b.expiration,
+		wildcard:    b.wildcard,
+	}
+}
+
+var _ schemaUnitWithParent[*BaseRelation, *Relation] = &BaseRelation{}
 
 // BuildSchemaFromCompiledSchema generates a Schema view from a CompiledSchema.
 func BuildSchemaFromCompiledSchema(schema compiler.CompiledSchema) (*Schema, error) {
