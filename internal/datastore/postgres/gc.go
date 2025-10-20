@@ -151,7 +151,7 @@ func (pgg *pgGarbageCollector) DeleteBeforeTx(ctx context.Context, txID datastor
 func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, txID datastore.Revision) (common.DeletionCounts, error) {
 	revision := txID.(postgresRevision)
 
-	minTxAlive := newXid8(revision.snapshot.xmin)
+	minTxAlive := NewXid8(revision.snapshot.xmin)
 	removed := common.DeletionCounts{}
 	var err error
 	// Delete any relationship rows that were already dead when this transaction started

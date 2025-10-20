@@ -26,7 +26,7 @@ type xid8 struct {
 	Valid  bool
 }
 
-func newXid8(u uint64) xid8 {
+func NewXid8(u uint64) xid8 {
 	return xid8{
 		Uint64: u,
 		Valid:  true,
@@ -71,7 +71,7 @@ func (Uint64Codec) PlanEncode(_ *pgtype.Map, _ uint32, format int16, value any) 
 			return encodePlanUint64CodecBinaryUint64Valuer{}
 		}
 	case pgtype.TextFormatCode:
-		switch value.(type) {
+		switch value.(type) { //nolint:gocritic
 		case uint64:
 			return encodePlanUint64CodecTextUint64{}
 		}
