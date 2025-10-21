@@ -248,7 +248,11 @@ func (cr *crdbReader) QueryRelationships(
 	}
 
 	builtOpts := options.NewQueryOptionsWithOptions(opts...)
-	indexingHint := schema.IndexingHintForQueryShape(cr.schema, builtOpts.QueryShape)
+	indexingHint, err := schema.IndexingHintForQueryShape(cr.schema, builtOpts.QueryShape, &filter)
+	if err != nil {
+		return nil, err
+	}
+
 	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
 	if spiceerrors.DebugAssertionsEnabled {
@@ -277,7 +281,11 @@ func (cr *crdbReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	indexingHint := schema.IndexingHintForQueryShape(cr.schema, queryOpts.QueryShapeForReverse)
+	indexingHint, err := schema.IndexingHintForQueryShape(cr.schema, queryOpts.QueryShapeForReverse, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
 	eopts := []options.QueryOptionsOption{

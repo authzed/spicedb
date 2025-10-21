@@ -119,6 +119,9 @@ type IndexingHint interface {
 
 	// FromSQLSuffix returns the suffix to be used for the indexing hint, if any.
 	FromSQLSuffix() (string, error)
+
+	// SortOrder returns the preferred sort order for this index, if any.
+	SortOrder() options.SortOrder
 }
 
 // NewSchemaQueryFiltererForRelationshipsSelect creates a new SchemaQueryFilterer object for selecting
@@ -702,15 +705,22 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
 	// Add sort order.
-	query = query.TupleOrder(queryOpts.Sort)
+	sort := queryOpts.Sort
+	if sort == options.ChooseEfficient && query.indexingHint != nil {
+		hintSort := query.indexingHint.SortOrder()
+		if hintSort != options.Unsorted {
+			sort = hintSort
+		}
+	}
+	query = query.TupleOrder(sort)
 
 	// Add cursor.
 	if queryOpts.After != nil {
-		if queryOpts.Sort == options.Unsorted {
+		if sort == options.Unsorted {
 			return nil, datastore.ErrCursorsWithoutSorting
 		}
 
-		q, err := query.After(queryOpts.After, queryOpts.Sort)
+		q, err := query.After(queryOpts.After, sort)
 		if err != nil {
 			return nil, err
 		}

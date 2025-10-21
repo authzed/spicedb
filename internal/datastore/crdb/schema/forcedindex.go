@@ -2,6 +2,7 @@ package schema
 
 import (
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -26,6 +27,10 @@ func (f forcedIndex) FromTable(existingTableName string) (string, error) {
 
 func (f forcedIndex) SQLPrefix() (string, error) {
 	return "", nil
+}
+
+func (f forcedIndex) SortOrder() options.SortOrder {
+	return f.index.PreferredSortOrder
 }
 
 var _ common.IndexingHint = forcedIndex{}
