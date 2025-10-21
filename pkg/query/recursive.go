@@ -13,14 +13,12 @@ var _ Iterator = &RecursiveIterator{}
 // repeatedly with increasing depth until a fixed point is reached or max depth is exceeded.
 type RecursiveIterator struct {
 	templateTree Iterator
-	sentinels    []*RecursiveSentinel
 }
 
 // NewRecursiveIterator creates a new recursive iterator controller
-func NewRecursiveIterator(templateTree Iterator, sentinels []*RecursiveSentinel) *RecursiveIterator {
+func NewRecursiveIterator(templateTree Iterator) *RecursiveIterator {
 	return &RecursiveIterator{
 		templateTree: templateTree,
-		sentinels:    sentinels,
 	}
 }
 
@@ -168,28 +166,16 @@ func replaceSentinelsInTree(tree Iterator, replacement Iterator) (Iterator, erro
 
 // Clone creates a deep copy of the RecursiveIterator
 func (r *RecursiveIterator) Clone() Iterator {
-	// Clone template tree and sentinels
-	clonedSentinels := make([]*RecursiveSentinel, len(r.sentinels))
-	for i, s := range r.sentinels {
-		clonedSentinels[i] = s.Clone().(*RecursiveSentinel)
-	}
-
 	return &RecursiveIterator{
 		templateTree: r.templateTree.Clone(),
-		sentinels:    clonedSentinels,
 	}
 }
 
 // Explain returns a description of this recursive iterator
 func (r *RecursiveIterator) Explain() Explain {
-	sentinelInfo := make([]string, len(r.sentinels))
-	for i, s := range r.sentinels {
-		sentinelInfo[i] = s.ID()
-	}
-
 	return Explain{
 		Name: "RecursiveIterator",
-		Info: fmt.Sprintf("RecursiveIterator(sentinels: %v)", sentinelInfo),
+		Info: "RecursiveIterator",
 		SubExplain: []Explain{
 			r.templateTree.Explain(),
 		},
@@ -203,6 +189,5 @@ func (r *RecursiveIterator) Subiterators() []Iterator {
 func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return &RecursiveIterator{
 		templateTree: newSubs[0],
-		sentinels:    r.sentinels,
 	}, nil
 }

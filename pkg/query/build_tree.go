@@ -109,7 +109,7 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 			sentinels[i] = info.sentinel
 		}
 		// Wrap this subtree in RecursiveIterator
-		result = NewRecursiveIterator(result, sentinels)
+		result = NewRecursiveIterator(result)
 		// Remove these sentinels from the list since we've wrapped them
 		b.recursiveSentinels = b.recursiveSentinels[:sentinelsLenBefore]
 	}

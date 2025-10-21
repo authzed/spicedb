@@ -59,7 +59,7 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	union.addSubIterator(emptyIterator)
 	union.addSubIterator(sentinel)
 
-	recursive := NewRecursiveIterator(union, []*RecursiveSentinel{sentinel})
+	recursive := NewRecursiveIterator(union)
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -94,11 +94,9 @@ func TestReplaceSentinels(t *testing.T) {
 	// Create a replacement tree
 	replacementTree := NewEmptyFixedIterator()
 
-	// Create a RecursiveIterator to use replaceSentinelsWithTree
-	recursive := NewRecursiveIterator(union, []*RecursiveSentinel{sentinel})
-
 	// Replace sentinels with the tree
-	result := recursive.replaceSentinelsWithTree(union, replacementTree)
+	result, err := replaceSentinelsInTree(union, replacementTree)
+	require.NoError(t, err)
 
 	// Verify sentinels were replaced
 	resultUnion := result.(*Union)

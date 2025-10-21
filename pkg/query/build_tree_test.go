@@ -580,7 +580,6 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Base Relation with Ellipsis Subrelation", func(t *testing.T) {
 		t.Parallel()
-		// Test base relation with ellipsis - creates recursive arrow
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member",
 				namespace.Union(

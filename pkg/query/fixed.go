@@ -1,6 +1,10 @@
 package query
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+)
 
 // FixedIterator represents a fixed set of pre-computed paths.
 // This is often useful for testing, but can also be used in rare situations
@@ -104,5 +108,5 @@ func (f *FixedIterator) Subiterators() []Iterator {
 }
 
 func (f *FixedIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return f, nil
+	return nil, spiceerrors.MustBugf("Trying to replace a leaf FixedIterator's subiterators")
 }

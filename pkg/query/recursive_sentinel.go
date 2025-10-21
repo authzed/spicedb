@@ -1,6 +1,10 @@
 package query
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+)
 
 var _ Iterator = &RecursiveSentinel{}
 
@@ -81,5 +85,5 @@ func (r *RecursiveSentinel) Subiterators() []Iterator {
 }
 
 func (r *RecursiveSentinel) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return r, nil
+	return nil, spiceerrors.MustBugf("Trying to replace a leaf RecursiveSentinel's subiterators")
 }

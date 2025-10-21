@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -242,7 +243,7 @@ func (f *FaultyIterator) Subiterators() []Iterator {
 }
 
 func (f *FaultyIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return f, nil
+	return nil, spiceerrors.MustBugf("Trying to replace a leaf FaultyIterator's subiterators")
 }
 
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions
