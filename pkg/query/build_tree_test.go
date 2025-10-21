@@ -139,29 +139,37 @@ func TestBuildTreeRecursion(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create a simple schema with recursion using group membership
-	userDef := testfixtures.UserNS.CloneVT()
-
+	// Create a proper recursive group hierarchy schema:
+	// definition group {
+	//    relation parent: group
+	//    permission member = parent->member
+	// }
+	// This creates recursion: computing member arrows through parent groups,
+	// which recursively compute their own member permission
 	groupDef := namespace.Namespace("group",
+		namespace.MustRelation("parent", nil,
+			namespace.AllowedRelation("group", "..."),
+		),
 		namespace.MustRelation("member",
 			namespace.Union(
-				namespace.ComputedUserset("member"),
+				namespace.TupleToUserset("parent", "member"),
 			),
 		),
 	)
 
-	objectDefs := []*corev1.NamespaceDefinition{userDef, groupDef}
+	objectDefs := []*corev1.NamespaceDefinition{groupDef}
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
 	// This should detect recursion and create a RecursiveIterator
+	// The arrow operation parent->member creates recursion: group->parent->member->parent->member...
 	it, err := BuildIteratorFromSchema(dsSchema, "group", "member")
 	require.NoError(err)
 	require.NotNil(it)
 
 	// Verify it's wrapped in a RecursiveIterator
 	_, isRecursive := it.(*RecursiveIterator)
-	require.True(isRecursive, "Expected RecursiveIterator for recursive schema")
+	require.True(isRecursive, "Expected RecursiveIterator for recursive arrow operation")
 
 	// Verify the explain output
 	explain := it.Explain()
@@ -580,19 +588,16 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Base Relation with Ellipsis Subrelation", func(t *testing.T) {
 		t.Parallel()
+		// Test that base relations with ellipsis (group:...) work correctly with arrows
 		groupDef := namespace.Namespace("group",
-			namespace.MustRelation("member",
-				namespace.Union(
-					namespace.ComputedUserset("member"),
-				),
-			),
+			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
 		)
 
 		docDef := namespace.Namespace("document",
-			namespace.MustRelation("parent", nil, namespace.AllowedRelation("document", "...")),
+			namespace.MustRelation("parent", nil, namespace.AllowedRelation("group", "...")), // Ellipsis on group
 			namespace.MustRelation("viewer",
 				namespace.Union(
-					namespace.TupleToUserset("parent", "viewer"),
+					namespace.TupleToUserset("parent", "member"), // Arrow to group's member relation
 				),
 			),
 		)
@@ -601,14 +606,21 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		// Should create RecursiveIterator for arrow recursion
+		// Should create an alias wrapping union with arrow
 		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
-		// Should be wrapped in RecursiveIterator
-		_, isRecursive := it.(*RecursiveIterator)
-		require.True(isRecursive, "Expected RecursiveIterator for arrow recursion")
+		// Verify structure has arrow operation
+		explain := it.Explain()
+		explainStr := explain.String()
+		require.Contains(explainStr, "Arrow", "Expected arrow operation for tuple-to-userset")
+
+		// Test execution doesn't crash
+		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+		_, err = CollectAll(relSeq)
+		require.NoError(err)
 	})
 
 	t.Run("Base Relation with Specific Subrelation", func(t *testing.T) {
