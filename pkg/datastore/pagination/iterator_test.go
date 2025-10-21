@@ -33,6 +33,8 @@ func TestPaginatedIterator(t *testing.T) {
 		{options.ByResource, 100, 10},
 		{options.ByResource, 10, 1000},
 		{options.ByResource, 9, 20},
+		{options.ChooseEfficient, 10, 1000},
+		{options.ChooseEfficient, 10, 1000},
 	}
 
 	for _, tc := range testCases {

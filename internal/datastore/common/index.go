@@ -1,6 +1,9 @@
 package common
 
-import "github.com/authzed/spicedb/pkg/datastore/queryshape"
+import (
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
+)
 
 // IndexDefinition is a definition of an index for a datastore.
 type IndexDefinition struct {
@@ -15,6 +18,9 @@ type IndexDefinition struct {
 
 	// IsDeprecated is true if this index is deprecated and should not be used.
 	IsDeprecated bool
+
+	// PreferredSortOrder is the preferred sort order for this index, if any.
+	PreferredSortOrder options.SortOrder
 }
 
 // matchesShape returns true if the index matches the given shape.

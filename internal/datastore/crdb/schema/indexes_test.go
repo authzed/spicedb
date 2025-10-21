@@ -421,8 +421,96 @@ func TestIndexingHintForAllSpecificShapes(t *testing.T) {
 	schema := Schema(common.ColumnOptimizationOptionNone, false, false)
 	for _, shape := range queryshape.AllSpecificQueryShapes {
 		t.Run(string(shape), func(t *testing.T) {
-			index := IndexingHintForQueryShape(*schema, shape)
+			index, err := IndexingHintForQueryShape(*schema, shape, nil)
+			require.NoError(t, err)
 			require.NotEqual(t, NoIndexingHint, index, "expected an indexing hint for shape %s", shape)
+		})
+	}
+}
+
+func TestIndexingHintForVaryingShapeWithFilter(t *testing.T) {
+	schema := Schema(common.ColumnOptimizationOptionNone, false, false)
+
+	tests := []struct {
+		name          string
+		filter        datastore.RelationshipsFilter
+		expectedIndex string
+	}{
+		{
+			name: "filter by resource type uses primary key",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "foo",
+			},
+			expectedIndex: "pk_relation_tuple",
+		},
+		{
+			name: "filter by resource type and ID uses primary key",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "foo",
+				OptionalResourceIds:  []string{"bar"},
+			},
+			expectedIndex: "pk_relation_tuple",
+		},
+		{
+			name: "filter by subject type uses subject relation index",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+					},
+				},
+			},
+			expectedIndex: "ix_relation_tuple_by_subject_relation",
+		},
+		{
+			name: "filter by subject type and ID uses subject index",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+						OptionalSubjectIds:  []string{"bar"},
+					},
+				},
+			},
+			expectedIndex: "ix_relation_tuple_by_subject",
+		},
+		{
+			name: "filter by subject type, ID, and relation uses subject index",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "foo",
+						OptionalSubjectIds:  []string{"bar"},
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: "baz",
+						},
+					},
+				},
+			},
+			expectedIndex: "ix_relation_tuple_by_subject",
+		},
+		{
+			name: "filter with no forced index returns no hint",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceRelation: "bar",
+			},
+			expectedIndex: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			index, err := IndexingHintForQueryShape(*schema, queryshape.Varying, &test.filter)
+			require.NoError(t, err)
+
+			if test.expectedIndex == "" {
+				require.Equal(t, NoIndexingHint, index, "expected no indexing hint for varying shape with this filter")
+			} else {
+				require.NotEqual(t, NoIndexingHint, index, "expected an indexing hint for varying shape with this filter")
+				forcedIdx, ok := index.(forcedIndex)
+				require.True(t, ok, "expected a forcedIndex type")
+				require.Equal(t, test.expectedIndex, forcedIdx.index.Name)
+			}
 		})
 	}
 }

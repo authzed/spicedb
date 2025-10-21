@@ -28,6 +28,9 @@ const (
 	// BySubject might be quite a bit slower than ByResource, as relationships are
 	// indexed by resource.
 	BySubject
+
+	// ChooseEfficient lets the datastore choose the most efficient order based on the query shape and available indexes.
+	ChooseEfficient
 )
 
 type Cursor *tuple.Relationship

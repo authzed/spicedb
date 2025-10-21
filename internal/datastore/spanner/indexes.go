@@ -2,12 +2,14 @@ package spanner
 
 import (
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
 var IndexRelationshipBySubject = common.IndexDefinition{
-	Name:       "ix_relation_tuple_by_subject",
-	ColumnsSQL: `relation_tuple (userset_object_id, userset_namespace, userset_relation, namespace, relation)`,
+	Name:               "ix_relation_tuple_by_subject",
+	ColumnsSQL:         `relation_tuple (userset_object_id, userset_namespace, userset_relation, namespace, relation)`,
+	PreferredSortOrder: options.BySubject,
 }
 
 var NoIndexingHint common.IndexingHint = nil
@@ -43,6 +45,10 @@ func (f forcedIndex) FromTable(existingTableName string) (string, error) {
 
 func (f forcedIndex) SQLPrefix() (string, error) {
 	return "", nil
+}
+
+func (f forcedIndex) SortOrder() options.SortOrder {
+	return f.index.PreferredSortOrder
 }
 
 var _ common.IndexingHint = forcedIndex{}
