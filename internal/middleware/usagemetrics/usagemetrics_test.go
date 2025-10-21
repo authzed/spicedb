@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -91,45 +89,45 @@ func TestMetricsMiddleware(t *testing.T) {
 func (s *metricsMiddlewareTestSuite) TestTrailers_Unary() {
 	var trailerMD metadata.MD
 	_, err := s.Client.Ping(s.SimpleCtx(), &testpb.PingRequest{Value: "something"}, grpc.Trailer(&trailerMD))
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(
 		trailerMD,
 		responsemeta.DispatchedOperationsCount,
 	)
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), 1, dispatchCount)
+	s.Require().NoError(err)
+	s.Require().Equal(1, dispatchCount)
 
 	cachedCount, err := responsemeta.GetIntResponseTrailerMetadata(
 		trailerMD,
 		responsemeta.CachedOperationsCount,
 	)
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), 1, cachedCount)
+	s.Require().NoError(err)
+	s.Require().Equal(1, cachedCount)
 }
 
 func (s *metricsMiddlewareTestSuite) TestTrailers_Stream() {
 	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{Value: "something"})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 	for {
 		_, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
 			break
 		}
-		assert.NoError(s.T(), err, "no error on messages sent occurred")
+		s.NoError(err, "no error on messages sent occurred")
 	}
 
 	dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(
 		stream.Trailer(),
 		responsemeta.DispatchedOperationsCount,
 	)
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), 1, dispatchCount)
+	s.Require().NoError(err)
+	s.Require().Equal(1, dispatchCount)
 
 	cachedCount, err := responsemeta.GetIntResponseTrailerMetadata(
 		stream.Trailer(),
 		responsemeta.CachedOperationsCount,
 	)
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), 1, cachedCount)
+	s.Require().NoError(err)
+	s.Require().Equal(1, cachedCount)
 }

@@ -191,7 +191,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	// require.Error(ds.CheckRevision(ctx, head), "expected head revision to be valid if out of GC window")
 	//
 	// latest state of the system is invalid if head revision is out of GC window
-	//_, _, err = ds.SnapshotReader(head).ReadNamespaceByName(ctx, "foo/bar")
+	// _, _, err = ds.SnapshotReader(head).ReadNamespaceByName(ctx, "foo/bar")
 	// require.Error(err, "expected previously written schema to exist at out-of-GC window head")
 
 	// check freshly fetched head revision is valid after GC window elapsed

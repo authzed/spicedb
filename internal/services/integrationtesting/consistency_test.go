@@ -863,7 +863,7 @@ func validateDevelopmentAssertions(t *testing.T, devContext *development.DevCont
 
 	devErrs, err := development.RunAllAssertions(devContext, parsedAssertions)
 	require.NoError(t, err, "Got unexpected error from assertions")
-	require.Equal(t, 0, len(devErrs), "Got unexpected errors from validation: %v", devErrs)
+	require.Empty(t, devErrs, "Got unexpected errors from validation: %v", devErrs)
 }
 
 // validateDevelopmentExpectedRels validates that the generated expected relationships matches
@@ -913,7 +913,7 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 					// May be caveated or uncaveated, so check the uncomputed permissionship.
 					uncomputed, ok := vctx.accessibilitySet.UncomputedPermissionshipFor(resourceAndRelation, subjectWithExceptions.Subject.Subject)
 					require.True(t, ok, "missing expected subject in accessibility set")
-					require.True(t, subjectWithExceptions.Subject.IsCaveated == (uncomputed == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER), "found mismatch in uncomputed permissionship")
+					require.Equal(t, subjectWithExceptions.Subject.IsCaveated, (uncomputed == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER), "found mismatch in uncomputed permissionship")
 
 				case dispatchv1.ResourceCheckResult_CAVEATED_MEMBER:
 					require.True(t, subjectWithExceptions.Subject.IsCaveated, "found uncaveated expected subject for caveated subject")

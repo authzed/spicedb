@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -369,10 +368,10 @@ func TestRelationsReferencing(t *testing.T) {
 					references := graph.RelationsReferencing(resource.Name, relation.Name)
 					rel := resource.Name + "#" + relation.Name
 					expectedRelations, ok := tc.expected[rel]
-					require.True(t, ok, fmt.Sprintf("expected %v to be in %v", rel, tc.expected))
+					require.True(t, ok, "expected %v to be in %v", rel, tc.expected)
 					require.Len(t, references, len(expectedRelations), "found rel: %s => expected: %v | found %v", rel, expectedRelations, references)
 					for _, expected := range expectedRelations {
-						require.True(t, containsRelation(references, expected), fmt.Sprintf("for %s, expected %v to contain %v", rel, references, expected))
+						require.True(t, containsRelation(references, expected), "for %s, expected %v to contain %v", rel, references, expected)
 					}
 				}
 			}

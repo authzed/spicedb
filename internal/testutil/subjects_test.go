@@ -157,14 +157,14 @@ func TestCompareSubjects(t *testing.T) {
 			if tc.expectedEquivalent {
 				require.NoError(t, err)
 			} else {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			}
 
 			err = CheckEquivalentSets([]*v1.FoundSubject{tc.first}, []*v1.FoundSubject{tc.second})
 			if tc.expectedEquivalent {
 				require.NoError(t, err)
 			} else {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			}
 		})
 	}

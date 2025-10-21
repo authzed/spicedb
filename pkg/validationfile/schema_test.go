@@ -52,13 +52,13 @@ func TestParseSchema(t *testing.T) {
 			}
 			compiled, err := CompileSchema(inputSchema, caveattypes.Default.TypeSet)
 			if tt.expectedError != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectedError)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				if tt.expectedDefCount > 0 {
 					require.NotNil(t, compiled)
-					require.Equal(t, tt.expectedDefCount, len(compiled.OrderedDefinitions))
+					require.Len(t, compiled.OrderedDefinitions, tt.expectedDefCount)
 				}
 			}
 		})

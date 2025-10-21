@@ -110,7 +110,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to delete the `somerelation` relation, which should fail.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -130,7 +130,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 			relation somerelation: example/user
 		}`,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, updateResp.WrittenAt)
 	require.NotEmpty(t, updateResp.WrittenAt.Token)
 
@@ -140,7 +140,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to delete the `somerelation` relation, which should succeed.
 	deleteRelResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -148,7 +148,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 		
 			definition example/document {}`,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, deleteRelResp.WrittenAt)
 	require.NotEmpty(t, deleteRelResp.WrittenAt.Token)
 }
@@ -177,7 +177,7 @@ func TestSchemaDeletePermission(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to delete the `someperm` relation, which should succeed.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -188,7 +188,7 @@ func TestSchemaDeletePermission(t *testing.T) {
 			relation anotherrelation: example/user
 		}`,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestSchemaChangeRelationToPermission(t *testing.T) {
@@ -215,7 +215,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#anotherrelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to change `anotherrelation` into a permission, which should fail since it has data.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -235,7 +235,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#anotherrelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to change `anotherrelation` into a permission, which should now succeed.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -247,7 +247,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 			permission someperm = somerelation + anotherrelation
 		}`,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestSchemaDeleteDefinition(t *testing.T) {
@@ -273,7 +273,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to delete the `document` type, which should fail.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -287,13 +287,13 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to  delete the `document` type, which should succeed.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}`,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
@@ -323,7 +323,7 @@ func TestSchemaRemoveWildcard(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	newSchema := `definition example/document {
 	relation somerelation: example/organization#user
@@ -348,13 +348,13 @@ definition example/user {}`
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to delete the wildcard type, which should work now.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
@@ -385,7 +385,7 @@ func TestSchemaEmpty(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to empty the schema, which should fail.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -399,13 +399,13 @@ func TestSchemaEmpty(t *testing.T) {
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to empty the schema, which should succeed.
 	emptyResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: ``,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, emptyResp.WrittenAt)
 	require.NotEmpty(t, emptyResp.WrittenAt.Token)
 
@@ -487,7 +487,7 @@ func TestSchemaRemoveCaveat(t *testing.T) {
 			toWrite,
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	newSchema := `definition document {
 	relation somerelation: user
@@ -508,13 +508,13 @@ definition user {}`
 			toWrite,
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to delete the caveated type, which should work now.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
@@ -613,7 +613,7 @@ func TestSchemaChangeExpiration(t *testing.T) {
 			toWrite,
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	newSchema := "definition document {\n\trelation somerelation: user\n}\n\ndefinition user {}"
 
@@ -630,13 +630,13 @@ func TestSchemaChangeExpiration(t *testing.T) {
 			toWrite,
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to delete the relation type, which should work now.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
@@ -650,7 +650,7 @@ func TestSchemaChangeExpiration(t *testing.T) {
 			toWriteWithoutExp,
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Attempt to change the relation type back to including expiration, which should fail.
 	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -687,7 +687,7 @@ func TestSchemaChangeExpirationAllowed(t *testing.T) {
 			toWrite,
 		))},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	newSchema := "definition document {\n\trelation somerelation: user\n}\n\ndefinition user {}"
 

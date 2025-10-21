@@ -180,12 +180,12 @@ func TestIntervalTrackerGC(t *testing.T) {
 	// GC anything older than 5s, which shouldn't change anything.
 	result := tracker.removeStaleIntervals(5 * time.Second)
 	require.False(t, false, result)
-	require.Equal(t, 2, len(tracker.sortedEntries))
+	require.Len(t, tracker.sortedEntries, 2)
 
 	// GC anything older than 5ms. There should still be a single entry because it is unbounded.
 	result = tracker.removeStaleIntervals(5 * time.Millisecond)
 	require.False(t, false, result)
-	require.Equal(t, 1, len(tracker.sortedEntries))
+	require.Len(t, tracker.sortedEntries, 1)
 }
 
 func TestIntervalTrackerAnotherBasicTest(t *testing.T) {

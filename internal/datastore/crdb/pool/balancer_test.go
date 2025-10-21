@@ -163,7 +163,7 @@ func TestNodeConnectionBalancerPrune(t *testing.T) {
 			defer cancel()
 
 			p.mustPruneConnections(ctx)
-			require.Equal(t, len(tt.expectedGC), len(pool.gc))
+			require.Len(t, pool.gc, len(tt.expectedGC))
 			gcFromNodes := make([]uint32, 0, len(tt.expectedGC))
 			for _, n := range pool.gc {
 				gcFromNodes = append(gcFromNodes, n)
