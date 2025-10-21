@@ -53,13 +53,11 @@ func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, r
 }
 
 func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Iterator, error) {
-	id := fmt.Sprintf("%s#%s:%v", definitionName, relationName, withSubRelations)
-	// Also check the opposite withSubRelations flag to catch recursion across flags
-	oppositeID := fmt.Sprintf("%s#%s:%v", definitionName, relationName, !withSubRelations)
+	id := fmt.Sprintf("%s#%s", definitionName, relationName)
 
 	// Check if we're currently building this (true recursion)
 	// Check both with the same flag and opposite flag, since recursion can cross the boundary
-	if b.building[id] || b.building[oppositeID] {
+	if b.building[id] {
 		// Recursion detected - create sentinel and remember where
 		sentinel := NewRecursiveSentinel(definitionName, relationName, withSubRelations)
 		// Track this sentinel with its location info
@@ -248,9 +246,8 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 	if !needsExpansion {
 		// Check if this might be a recursive subrelation
 		// by seeing if the subrelation type matches any definition we're currently building
-		subrelID := fmt.Sprintf("%s#%s:false", br.Type(), br.Subrelation())
-		subrelIDOpposite := fmt.Sprintf("%s#%s:true", br.Type(), br.Subrelation())
-		if b.building[subrelID] || b.building[subrelIDOpposite] {
+		subrelID := fmt.Sprintf("%s#%s", br.Type(), br.Subrelation())
+		if b.building[subrelID] {
 			// This is recursive! We need to expand to detect it
 			needsExpansion = true
 		}

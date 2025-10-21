@@ -23,12 +23,18 @@ type Plan interface {
 	Explain() Explain
 }
 
-// Iterator is an interface for manipulating iterators to create more query plans.
+// Iterator is a Plan that forms a tree structure through its Subiterators,
+// where the tree represents the query execution plan that can be traversed and
+// optimized. While Plan provides a read-only query interface, Iterator adds
+// methods for cloning, inspecting, and rebuilding iterator trees. This enables
+// query optimization by rewriting the tree.
 //
-// A Plan is abstract and more limited, and easier to pass around.
+// Implementations should form a composite tree structure where leaf nodes
+// (e.g., datastore scans) have no subiterators, and composite nodes (e.g.,
+// unions, intersections) combine multiple subiterators.
 //
-// An Iterator is what Iterators (even future datastore-specific ones) implement so that optimizations
-// and reorderings and rebalancing can take place.
+// Most tree transformations should use the Walk helper function rather than
+// manually calling Subiterators and ReplaceSubiterators.
 type Iterator interface {
 	Plan
 

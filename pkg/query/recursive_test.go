@@ -33,21 +33,13 @@ func TestRecursiveSentinel(t *testing.T) {
 	seq, err := sentinel.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
 	require.NoError(t, err)
 
-	count := 0
-	for range seq {
-		count++
-	}
-	require.Equal(t, 0, count)
+	require.Empty(t, seq)
 
 	// IterSubjectsImpl should return empty
 	seq, err = sentinel.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"})
 	require.NoError(t, err)
 
-	count = 0
-	for range seq {
-		count++
-	}
-	require.Equal(t, 0, count)
+	require.Empty(t, seq)
 
 	// Test Clone
 	cloned := sentinel.Clone()
@@ -79,11 +71,7 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
 	require.NoError(t, err)
 
-	count := 0
-	for range seq {
-		count++
-	}
-	require.Equal(t, 0, count)
+	require.Empty(t, seq)
 }
 
 func TestReplaceSentinels(t *testing.T) {
