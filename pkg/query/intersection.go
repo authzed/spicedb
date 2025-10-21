@@ -154,6 +154,6 @@ func (i *Intersection) Subiterators() []Iterator {
 	return i.subIts
 }
 
-func (i *Intersection) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return &Intersection{subIts: newSubs}
+func (i *Intersection) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &Intersection{subIts: newSubs}, nil
 }

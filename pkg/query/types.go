@@ -48,7 +48,8 @@ type Iterator interface {
 	// ReplaceSubiterators returns a new iterator with the given subiterators replacing the current ones.
 	// For leaf iterators, this returns the iterator unchanged.
 	// For composite iterators, the length of newSubs should match the length of Subiterators().
-	ReplaceSubiterators(newSubs []Iterator) Iterator
+	// Returns an error if the replacement fails or if the length of newSubs doesn't match expectations.
+	ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
 }
 
 // Explain describes the state of an iterator tree, in a human-readable fashion, with an Info line at

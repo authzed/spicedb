@@ -163,6 +163,6 @@ func (e *Exclusion) Subiterators() []Iterator {
 	return []Iterator{e.mainSet, e.excluded}
 }
 
-func (e *Exclusion) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return &Exclusion{mainSet: newSubs[0], excluded: newSubs[1]}
+func (e *Exclusion) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &Exclusion{mainSet: newSubs[0], excluded: newSubs[1]}, nil
 }

@@ -163,6 +163,6 @@ func (ia *IntersectionArrow) Subiterators() []Iterator {
 	return []Iterator{ia.left, ia.right}
 }
 
-func (ia *IntersectionArrow) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return &IntersectionArrow{left: newSubs[0], right: newSubs[1]}
+func (ia *IntersectionArrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &IntersectionArrow{left: newSubs[0], right: newSubs[1]}, nil
 }

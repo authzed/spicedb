@@ -241,8 +241,8 @@ func (f *FaultyIterator) Subiterators() []Iterator {
 	return nil
 }
 
-func (f *FaultyIterator) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return f
+func (f *FaultyIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return f, nil
 }
 
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions

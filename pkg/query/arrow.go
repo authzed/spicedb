@@ -143,6 +143,6 @@ func (a *Arrow) Subiterators() []Iterator {
 	return []Iterator{a.left, a.right}
 }
 
-func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return &Arrow{left: newSubs[0], right: newSubs[1]}
+func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &Arrow{left: newSubs[0], right: newSubs[1]}, nil
 }

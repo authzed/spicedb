@@ -113,6 +113,6 @@ func (u *Union) Subiterators() []Iterator {
 	return u.subIts
 }
 
-func (u *Union) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return &Union{subIts: newSubs}
+func (u *Union) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &Union{subIts: newSubs}, nil
 }

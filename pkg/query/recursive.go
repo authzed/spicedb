@@ -6,6 +6,8 @@ import (
 
 const defaultMaxRecursionDepth = 50
 
+var _ Iterator = &RecursiveIterator{}
+
 // RecursiveIterator is the root controller that manages iterative deepening for recursive schemas.
 // It wraps an iterator tree that contains RecursiveSentinel sentinels, and executes the tree
 // repeatedly with increasing depth until a fixed point is reached or max depth is exceeded.
@@ -58,7 +60,10 @@ func (r *RecursiveIterator) iterativeDeepening(ctx *Context, execute func(*Conte
 			ctx.TraceStep(r, "Depth %d: starting iteration", depth)
 
 			// Build tree for this depth by deepening the template
-			deepenedTree := r.buildTreeAtDepth(depth)
+			deepenedTree, err := r.buildTreeAtDepth(depth)
+			if err != nil {
+				return
+			}
 
 			// Execute the tree
 			pathSeq, err := execute(ctx, deepenedTree)
@@ -99,49 +104,65 @@ func (r *RecursiveIterator) iterativeDeepening(ctx *Context, execute func(*Conte
 
 // buildTreeAtDepth creates a tree for the given depth by replacing placeholders
 // with deeper copies of the template tree
-func (r *RecursiveIterator) buildTreeAtDepth(depth int) Iterator {
+func (r *RecursiveIterator) buildTreeAtDepth(depth int) (Iterator, error) {
+	var err error
 	// Clone and unwrap any nested RecursiveIterators at this depth
 	clonedTree := r.templateTree.Clone()
-	clonedTree = unwrapRecursiveIterators(clonedTree, depth)
+	clonedTree, err = unwrapRecursiveIterators(clonedTree, depth)
+	if err != nil {
+		return nil, err
+	}
 
 	if depth == 0 {
 		// At depth 0, sentinels remain as-is (return empty)
-		return clonedTree
+		return clonedTree, nil
 	}
 
 	// For depth > 0, replace sentinels with depth-1 tree
-	deeperTree := r.buildTreeAtDepth(depth - 1)
+	deeperTree, err := r.buildTreeAtDepth(depth - 1)
+	if err != nil {
+		return nil, err
+	}
 	// Unwrap the replacement tree as well, in case it contains nested RecursiveIterators
-	deeperTree = unwrapRecursiveIterators(deeperTree, depth-1)
-	clonedTree = r.replaceSentinelsWithTree(clonedTree, deeperTree)
+	deeperTree, err = unwrapRecursiveIterators(deeperTree, depth-1)
+	if err != nil {
+		return nil, err
+	}
+
+	clonedTree, err = replaceSentinelsInTree(clonedTree, deeperTree)
+	if err != nil {
+		return nil, err
+	}
 
 	// Unwrap again after replacement, as new RecursiveIterators may have been introduced
-	clonedTree = unwrapRecursiveIterators(clonedTree, depth)
-
-	return clonedTree
+	return unwrapRecursiveIterators(clonedTree, depth)
 }
 
 // unwrapRecursiveIterators recursively unwraps nested RecursiveIterators,
 // replacing them with their template trees at the specified depth
-func unwrapRecursiveIterators(tree Iterator, depth int) Iterator {
-	return Walk(tree, func(it Iterator) Iterator {
+func unwrapRecursiveIterators(tree Iterator, depth int) (Iterator, error) {
+	return Walk(tree, func(it Iterator) (Iterator, error) {
 		if recIt, isRecursive := it.(*RecursiveIterator); isRecursive {
 			// Unwrap the RecursiveIterator by building its tree at this depth
 			// Note: We need to unwrap recursively in case buildTreeAtDepth returns another RecursiveIterator
-			return unwrapRecursiveIterators(recIt.buildTreeAtDepth(depth), depth)
+			rec, err := recIt.buildTreeAtDepth(depth)
+			if err != nil {
+				return nil, err
+			}
+			return unwrapRecursiveIterators(rec, depth)
 		}
-		return it
+		return it, nil
 	})
 }
 
 // replaceSentinelsWithTree walks the iterator tree and replaces all RecursiveSentinel instances
 // with a clone of the provided replacement tree
-func (r *RecursiveIterator) replaceSentinelsWithTree(tree Iterator, replacement Iterator) Iterator {
-	return Walk(tree, func(it Iterator) Iterator {
+func replaceSentinelsInTree(tree Iterator, replacement Iterator) (Iterator, error) {
+	return Walk(tree, func(it Iterator) (Iterator, error) {
 		if _, isSentinel := it.(*RecursiveSentinel); isSentinel {
-			return replacement.Clone()
+			return replacement.Clone(), nil
 		}
-		return it
+		return it, nil
 	})
 }
 
@@ -179,6 +200,9 @@ func (r *RecursiveIterator) Subiterators() []Iterator {
 	return []Iterator{r.templateTree}
 }
 
-func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return &RecursiveIterator{templateTree: newSubs[0], sentinels: r.sentinels}
+func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &RecursiveIterator{
+		templateTree: newSubs[0],
+		sentinels:    r.sentinels,
+	}, nil
 }

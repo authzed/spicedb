@@ -256,6 +256,6 @@ func (r *RelationIterator) Subiterators() []Iterator {
 	return nil
 }
 
-func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return r
+func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return nil, spiceerrors.MustBugf("Trying to replace a leaf RelationIterator's subiterators")
 }

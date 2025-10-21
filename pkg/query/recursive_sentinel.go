@@ -2,6 +2,8 @@ package query
 
 import "fmt"
 
+var _ Iterator = &RecursiveSentinel{}
+
 // RecursiveSentinel is a sentinel iterator that marks recursion points during iterator tree construction.
 // It acts as a placeholder that will be replaced during execution by RecursiveIterator.
 type RecursiveSentinel struct {
@@ -78,6 +80,6 @@ func (r *RecursiveSentinel) Subiterators() []Iterator {
 	return nil
 }
 
-func (r *RecursiveSentinel) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return r
+func (r *RecursiveSentinel) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return r, nil
 }

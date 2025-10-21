@@ -143,6 +143,6 @@ func (a *Alias) Subiterators() []Iterator {
 	return []Iterator{a.subIt}
 }
 
-func (a *Alias) ReplaceSubiterators(newSubs []Iterator) Iterator {
-	return &Alias{relation: a.relation, subIt: newSubs[0]}
+func (a *Alias) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &Alias{relation: a.relation, subIt: newSubs[0]}, nil
 }
