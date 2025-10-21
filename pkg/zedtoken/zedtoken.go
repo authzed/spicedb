@@ -46,6 +46,15 @@ const (
 	StatusMismatchedDatastoreID
 )
 
+// RevisionHolder is an interface for types that can provide a unique ID and revision information.
+type RevisionHolder interface {
+	// UniqueID returns the unique ID of the holder (typically: a datastore).
+	UniqueID(context.Context) (string, error)
+
+	// RevisionFromString converts a string representation of a revision to a Revision.
+	RevisionFromString(string) (datastore.Revision, error)
+}
+
 const uniqueIDPrefixLength = 8
 
 // MustNewFromRevisionForTesting generates an encoded zedtoken from an integral revision.
@@ -58,13 +67,19 @@ func MustNewFromRevisionForTesting(revision datastore.Revision) *v1.ZedToken {
 }
 
 // NewFromRevision generates an encoded zedtoken from an integral revision.
-func NewFromRevision(ctx context.Context, revision datastore.Revision, ds datastore.Datastore) (*v1.ZedToken, error) {
+func NewFromRevision(ctx context.Context, revision datastore.Revision, ds RevisionHolder) (*v1.ZedToken, error) {
 	datastoreUniqueID, err := ds.UniqueID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf(errEncodeError, err)
 	}
 
 	return newFromRevision(revision, datastoreUniqueID)
+}
+
+// NewFromRevisionNoDatastoreID generates an encoded zedtoken from an integral revision without a datastore ID.
+// This is only for use in legacy scenarios. Most callers should use NewFromRevision.
+func NewFromRevisionNoDatastoreID(revision datastore.Revision) (*v1.ZedToken, error) {
+	return newFromRevision(revision, legacyEmptyDatastoreID)
 }
 
 func newFromRevision(revision datastore.Revision, datastoreUniqueID string) (*v1.ZedToken, error) {
@@ -118,7 +133,7 @@ func Decode(encoded *v1.ZedToken) (*zedtoken.DecodedZedToken, error) {
 }
 
 // DecodeRevision converts and extracts the revision from a zedtoken or legacy zookie.
-func DecodeRevision(encoded *v1.ZedToken, ds revisionDecoder) (datastore.Revision, TokenStatus, error) {
+func DecodeRevision(encoded *v1.ZedToken, ds RevisionHolder) (datastore.Revision, TokenStatus, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
 		return datastore.NoRevision, StatusUnknown, err
@@ -161,9 +176,4 @@ func DecodeRevision(encoded *v1.ZedToken, ds revisionDecoder) (datastore.Revisio
 	default:
 		return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
 	}
-}
-
-type revisionDecoder interface {
-	UniqueID(context.Context) (string, error)
-	RevisionFromString(string) (datastore.Revision, error)
 }
