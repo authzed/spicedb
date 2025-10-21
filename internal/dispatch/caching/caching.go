@@ -196,7 +196,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 
 	// Return both the computed and err in ALL cases: computed contains resolved
 	// metadata even if there was an error.
-	return computed, err
+	return computed.CloneVT(), err
 }
 
 // DispatchExpand implements dispatch.Expand interface and does not do any caching yet.

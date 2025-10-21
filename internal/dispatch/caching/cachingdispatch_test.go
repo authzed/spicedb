@@ -2,6 +2,7 @@ package caching
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -146,6 +147,77 @@ func TestMaxDepthCaching(t *testing.T) {
 
 			delegate.AssertExpectations(t)
 		})
+	}
+}
+
+func TestConcurrentDebugInfoAccess(t *testing.T) {
+	require := require.New(t)
+
+	delegate := delegateDispatchMock{&mock.Mock{}}
+
+	originalReq := &v1.DispatchCheckRequest{
+		ResourceIds: []string{"original"},
+		Subject: &core.ObjectAndRelation{
+			Relation: "original",
+		},
+	}
+
+	// Have the delegate return one request object for all calls
+	delegate.On("DispatchCheck", mock.Anything).
+		Return(&v1.DispatchCheckResponse{
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: 1,
+				DebugInfo:     &v1.DebugInformation{Check: &v1.CheckDebugTrace{Request: originalReq}},
+			},
+		}, nil)
+
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+	require.NoError(err)
+	dispatcher.SetDelegate(delegate)
+	t.Cleanup(func() {
+		_ = dispatcher.Close()
+	})
+
+	// Spawn multiple goroutines that create requests with slice views of the same backing array
+	// This simulates what happens in ComputeBulkCheck with ForEachChunkUntil
+	const numGoroutines = 1000
+	errors := make(chan error, numGoroutines)
+
+	var wg sync.WaitGroup
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+
+			request := &v1.DispatchCheckRequest{
+				ResourceRelation: RR("document", "viewer"),
+				ResourceIds:      []string{"doc1"},
+				Subject:          tuple.MustParseSubjectONR("user:alice").ToCoreONR(),
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     decimal.Zero.String(),
+					DepthRemaining: 50,
+				},
+				Debug: v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING,
+			}
+
+			resp, err := dispatcher.DispatchCheck(context.Background(), request)
+			if err != nil {
+				errors <- err
+				return
+			}
+
+			require.NotNil(resp.GetMetadata().GetDebugInfo().GetCheck().GetRequest())
+
+			// we mutate the response to prove that it's not shared across goroutines
+			resp.GetMetadata().GetDebugInfo().GetCheck().GetRequest().Subject.Relation = "modified"
+			resp.GetMetadata().GetDebugInfo().GetCheck().GetRequest().ResourceIds = []string{"modified"}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errors)
+	for err := range errors {
+		require.NoError(err)
 	}
 }
 
