@@ -15,20 +15,20 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/authzed/authzed-go/pkg/requestmeta"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/authzed/spicedb/internal/datastore/revisions"
-	"github.com/authzed/spicedb/pkg/zedtoken"
+	"github.com/authzed/authzed-go/pkg/requestmeta"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/e2e"
 	"github.com/authzed/spicedb/e2e/cockroach"
 	"github.com/authzed/spicedb/e2e/generator"
 	"github.com/authzed/spicedb/e2e/spice"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 type NamespaceNames struct {
@@ -277,7 +277,7 @@ func attemptFnsForProbeFns(vulnerableMax int, vulnerableProbe, protectedProbe pr
 			return
 		}
 	}
-	return
+	return vulnerableFn, protectedFn
 }
 
 // attemptFn runs a check and returns how many iterations it took to fail
@@ -322,7 +322,7 @@ func iterationsForHighConfidence(samples []int) (iterations int) {
 	if *maxIterations != 0 && *maxIterations < iterations {
 		iterations = *maxIterations
 	}
-	return
+	return iterations
 }
 
 var goodNs *NamespaceNames
@@ -534,7 +534,7 @@ func generateSchemaData(n int, batchSize int) (data []SchemaData) {
 		}
 		data = append(data, schema)
 	}
-	return
+	return data
 }
 
 func generateTuples(names NamespaceNames, n int, objIDGenerator *generator.UniqueGenerator) (allowlists []*v1.RelationshipUpdate, blocklists []*v1.RelationshipUpdate, allowusers []*v1.RelationshipUpdate, blockusers []*v1.RelationshipUpdate) {
@@ -611,7 +611,7 @@ func generateTuples(names NamespaceNames, n int, objIDGenerator *generator.Uniqu
 			Relationship: tupleBlockuser,
 		})
 	}
-	return
+	return allowlists, blocklists, allowusers, blockusers
 }
 
 // getLeaderNode returns the node with the lease leader for the range containing the tuple

@@ -139,38 +139,74 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	firstErrs := make(chan error, 2)
+	firstFallbackModes := make(chan bool, 1)
+	firstNsDefNames := make(chan string, 1)
+
+	secondErrs := make(chan error, 2)
+	secondFallbackModes := make(chan bool, 2)
+
 	go (func() {
+		defer wg.Done()
+
 		// Read somenamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "somenamespace")
-		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-		require.False(t, wcache.namespaceCache.inFallbackMode)
+		firstErrs <- err
+		firstFallbackModes <- wcache.namespaceCache.inFallbackMode
 
 		// Write somenamespace.
 		fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
 
 		// Read again (which should be found now)
 		nsDef, _, err := wcache.SnapshotReader(rev("2")).ReadNamespaceByName(t.Context(), "somenamespace")
-		require.NoError(t, err)
-		require.Equal(t, "somenamespace", nsDef.Name)
-
-		wg.Done()
+		firstErrs <- err
+		firstNsDefNames <- nsDef.Name
 	})()
 
 	go (func() {
+		defer wg.Done()
+
 		// Read anothernamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).ReadNamespaceByName(t.Context(), "anothernamespace")
-		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-		require.False(t, wcache.namespaceCache.inFallbackMode)
+		secondErrs <- err
+		secondFallbackModes <- wcache.namespaceCache.inFallbackMode
 
 		// Read again (which should still not be found)
 		_, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(t.Context(), "anothernamespace")
-		require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-		require.False(t, wcache.namespaceCache.inFallbackMode)
-
-		wg.Done()
+		secondErrs <- err
+		secondFallbackModes <- wcache.namespaceCache.inFallbackMode
 	})()
 
 	wg.Wait()
+
+	var nsNotFoundErr datastore.NamespaceNotFoundError
+
+	// Make the assertions
+	// Assertions on first goroutine
+	// Non-existent namespace
+	err := <-firstErrs
+	require.ErrorAs(t, err, &nsNotFoundErr)
+	inFallbackMode := <-firstFallbackModes
+	require.False(t, inFallbackMode)
+
+	// Namespace that we expect to exist
+	err = <-firstErrs
+	require.NoError(t, err, "expected namespace read from rev 2 to succeed")
+	name := <-firstNsDefNames
+	require.Equal(t, "somenamespace", name)
+
+	// Assertions on second goroutine
+	// Reading a non-existent namespace
+	err = <-secondErrs
+	require.ErrorAs(t, err, &nsNotFoundErr)
+	inFallbackMode = <-secondFallbackModes
+	require.False(t, inFallbackMode)
+
+	// Reading another non-existent namespace
+	err = <-secondErrs
+	require.ErrorAs(t, err, &nsNotFoundErr)
+	inFallbackMode = <-secondFallbackModes
+	require.False(t, inFallbackMode)
 
 	// Close the proxy and ensure the background goroutines are terminated.
 	wcache.Close()
@@ -208,21 +244,37 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 		wg.Done()
 	})()
 
+	headRevisionErrors := make(chan error, 1000)
+	snapshotReaderErrors := make(chan error, 1000)
+	namespaceNames := make(chan string, 1000)
+
 	go (func() {
 		// Start a loop to read a namespace a bunch of times.
 		for i := 0; i < 1000; i++ {
 			headRevision, err := fakeDS.HeadRevision(t.Context())
-			require.NoError(t, err)
+			headRevisionErrors <- err
 
 			nsDef, _, err := wcache.SnapshotReader(headRevision).ReadNamespaceByName(t.Context(), "somenamespace")
-			require.NoError(t, err)
-			require.Equal(t, "somenamespace", nsDef.Name)
+			snapshotReaderErrors <- err
+			namespaceNames <- nsDef.Name
 		}
 
 		wg.Done()
 	})()
 
 	wg.Wait()
+
+	// 1000 iterations, 3 channels
+	for range 3000 {
+		select {
+		case headRevisionErr := <-headRevisionErrors:
+			require.NoError(t, headRevisionErr, "unexpected error getting head revision")
+		case snapshotReaderErr := <-snapshotReaderErrors:
+			require.NoError(t, snapshotReaderErr, "unexpected error reading namespace")
+		case namespaceName := <-namespaceNames:
+			require.Equal(t, "somenamespace", namespaceName)
+		}
+	}
 
 	// Close the proxy and ensure the background goroutines are terminated.
 	wcache.Close()
