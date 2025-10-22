@@ -70,7 +70,7 @@ func (s *SubjectByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Re
 			continue
 		}
 
-		key := tuple.JoinRelRef(updatedType.Namespace, updatedType.Relation)
+		key := tuple.JoinRelRef(updatedType.GetNamespace(), updatedType.GetRelation())
 		if existing, ok := mapped.byType[key]; ok {
 			cloned := subjectset.Clone()
 			if err := cloned.UnionWithSet(existing); err != nil {
@@ -96,7 +96,7 @@ func (s *SubjectByTypeSet) Len() int {
 
 // SubjectSetForType returns the subject set associated with the given subject type, if any.
 func (s *SubjectByTypeSet) SubjectSetForType(rr *core.RelationReference) (SubjectSet, bool) {
-	found, ok := s.byType[tuple.JoinRelRef(rr.Namespace, rr.Relation)]
+	found, ok := s.byType[tuple.JoinRelRef(rr.GetNamespace(), rr.GetRelation())]
 	return found, ok
 }
 

@@ -59,7 +59,7 @@ func TestEncodeDecode(t *testing.T) {
 			require.NotNil(decoded)
 			require.Equal(map[string]string{"some": "flag"}, flags)
 
-			require.Equal(tc.sections, decoded.Sections)
+			require.Equal(tc.sections, decoded.GetSections())
 
 			decodedRev, _, err := DecodeToDispatchRevision(context.Background(), encoded, revisions.CommonDecoder{
 				Kind: revisions.TransactionID,
@@ -137,7 +137,7 @@ func TestDecode(t *testing.T) {
 
 			require.NoError(err)
 			require.NotNil(decoded)
-			require.Equal(testCase.expectedSections, decoded.Sections)
+			require.Equal(testCase.expectedSections, decoded.GetSections())
 
 			decodedRev, _, err := DecodeToDispatchRevision(context.Background(), &v1.Cursor{
 				Token: testCase.token,

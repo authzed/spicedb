@@ -48,17 +48,17 @@ func TestMetadata(t *testing.T) {
 	verr := ns.Validate()
 	require.NoError(verr)
 
-	require.Equal([]string{"Hi there"}, GetComments(ns.Metadata))
-	require.Equal([]string{"Hi there"}, GetComments(ns.Relation[0].Metadata))
-	require.Equal(iv1.RelationMetadata_PERMISSION, GetRelationKind(ns.Relation[0]))
+	require.Equal([]string{"Hi there"}, GetComments(ns.GetMetadata()))
+	require.Equal([]string{"Hi there"}, GetComments(ns.GetRelation()[0].GetMetadata()))
+	require.Equal(iv1.RelationMetadata_PERMISSION, GetRelationKind(ns.GetRelation()[0]))
 
-	require.Equal([]string{}, GetComments(ns.Relation[1].Metadata))
+	require.Equal([]string{}, GetComments(ns.GetRelation()[1].GetMetadata()))
 
 	FilterUserDefinedMetadataInPlace(ns)
-	require.Equal([]string{}, GetComments(ns.Metadata))
-	require.Equal([]string{}, GetComments(ns.Relation[0].Metadata))
+	require.Equal([]string{}, GetComments(ns.GetMetadata()))
+	require.Equal([]string{}, GetComments(ns.GetRelation()[0].GetMetadata()))
 
-	require.Equal(iv1.RelationMetadata_PERMISSION, GetRelationKind(ns.Relation[0]))
+	require.Equal(iv1.RelationMetadata_PERMISSION, GetRelationKind(ns.GetRelation()[0]))
 }
 
 func TestTypeAnnotations(t *testing.T) {

@@ -833,5 +833,5 @@ func (st v1OpsTester) ReadSchema(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return resp.SchemaText, nil
+	return resp.GetSchemaText(), nil
 }

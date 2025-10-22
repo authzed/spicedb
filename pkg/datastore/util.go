@@ -29,12 +29,12 @@ func DeleteAllData(ctx context.Context, ds Datastore) error {
 		namespaceNames := make([]string, 0, len(nsDefs))
 		for _, nsDef := range nsDefs {
 			_, _, err = rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
-				ResourceType: nsDef.Definition.Name,
+				ResourceType: nsDef.Definition.GetName(),
 			})
 			if err != nil {
 				return err
 			}
-			namespaceNames = append(namespaceNames, nsDef.Definition.Name)
+			namespaceNames = append(namespaceNames, nsDef.Definition.GetName())
 		}
 
 		// Delete all caveats.
@@ -45,7 +45,7 @@ func DeleteAllData(ctx context.Context, ds Datastore) error {
 
 		caveatNames := make([]string, 0, len(caveatDefs))
 		for _, caveatDef := range caveatDefs {
-			caveatNames = append(caveatNames, caveatDef.Definition.Name)
+			caveatNames = append(caveatNames, caveatDef.Definition.GetName())
 		}
 
 		if err := rwt.DeleteCaveats(ctx, caveatNames); err != nil {

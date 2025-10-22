@@ -26,7 +26,7 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 	// Register the filter.
 	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		err := tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
-			ResourceType: testfixtures.DocumentNS.Name,
+			ResourceType: testfixtures.DocumentNS.GetName(),
 		})
 		require.NoError(t, err)
 		return nil
@@ -47,7 +47,7 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 
 	expectedCount := 0
 	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
-		OptionalResourceType: testfixtures.DocumentNS.Name,
+		OptionalResourceType: testfixtures.DocumentNS.GetName(),
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(t, err)
 
@@ -85,7 +85,7 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 			defer wg.Done()
 			_, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				return tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
-					ResourceType: testfixtures.DocumentNS.Name,
+					ResourceType: testfixtures.DocumentNS.GetName(),
 				})
 			})
 			if err != nil {
@@ -123,13 +123,13 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	// Register the filter.
 	updatedRev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		err := tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
-			ResourceType: testfixtures.DocumentNS.Name,
+			ResourceType: testfixtures.DocumentNS.GetName(),
 		})
 		require.NoError(t, err)
 
 		// Register another filter.
 		err = tx.RegisterCounter(ctx, "another", &core.RelationshipFilter{
-			ResourceType: testfixtures.FolderNS.Name,
+			ResourceType: testfixtures.FolderNS.GetName(),
 		})
 		require.NoError(t, err)
 
@@ -140,7 +140,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	// Try to register again.
 	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		err := tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
-			ResourceType: testfixtures.DocumentNS.Name,
+			ResourceType: testfixtures.DocumentNS.GetName(),
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "counter with name `document` already registered")
@@ -153,7 +153,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 
 	expectedCount := 0
 	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
-		OptionalResourceType: testfixtures.DocumentNS.Name,
+		OptionalResourceType: testfixtures.DocumentNS.GetName(),
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(t, err)
 
@@ -169,7 +169,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	// Call another filter.
 	expectedCount = 0
 	iter, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
-		OptionalResourceType: testfixtures.FolderNS.Name,
+		OptionalResourceType: testfixtures.FolderNS.GetName(),
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(t, err)
 
@@ -218,9 +218,9 @@ func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester)
 	// Register the filter.
 	updatedRev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		err := tx.RegisterCounter(ctx, "somefilter", &core.RelationshipFilter{
-			ResourceType: testfixtures.DocumentNS.Name,
+			ResourceType: testfixtures.DocumentNS.GetName(),
 			OptionalSubjectFilter: &core.SubjectFilter{
-				SubjectType: testfixtures.UserNS.Name,
+				SubjectType: testfixtures.UserNS.GetName(),
 			},
 		})
 		require.NoError(t, err)
@@ -233,10 +233,10 @@ func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester)
 
 	expectedCount := 0
 	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
-		OptionalResourceType: testfixtures.DocumentNS.Name,
+		OptionalResourceType: testfixtures.DocumentNS.GetName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
-				OptionalSubjectType: testfixtures.UserNS.Name,
+				OptionalSubjectType: testfixtures.UserNS.GetName(),
 			},
 		},
 	}, options.WithQueryShape(queryshape.Varying))
@@ -275,7 +275,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	// Register filter.
 	updatedRev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		err := tx.RegisterCounter(ctx, "somedocfilter", &core.RelationshipFilter{
-			ResourceType: testfixtures.DocumentNS.Name,
+			ResourceType: testfixtures.DocumentNS.GetName(),
 		})
 		require.NoError(t, err)
 		return nil
@@ -316,7 +316,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	// Register a new filter.
 	newFilterRev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		err := tx.RegisterCounter(ctx, "another", &core.RelationshipFilter{
-			ResourceType: testfixtures.FolderNS.Name,
+			ResourceType: testfixtures.FolderNS.GetName(),
 		})
 		require.NoError(t, err)
 		return nil

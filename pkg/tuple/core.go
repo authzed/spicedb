@@ -22,11 +22,11 @@ func ONRStringToCore(ns, oid, rel string) *core.ObjectAndRelation {
 
 // CoreRelationToStringWithoutCaveatOrExpiration creates a string from a core.RelationTuple without stringifying the caveat.
 func CoreRelationToStringWithoutCaveatOrExpiration(rel *core.RelationTuple) string {
-	if rel.Subject.Relation == Ellipsis {
-		return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId
+	if rel.GetSubject().GetRelation() == Ellipsis {
+		return rel.GetResourceAndRelation().GetNamespace() + ":" + rel.GetResourceAndRelation().GetObjectId() + "@" + rel.GetSubject().GetNamespace() + ":" + rel.GetSubject().GetObjectId()
 	}
 
-	return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId + "#" + rel.ResourceAndRelation.Relation
+	return rel.GetResourceAndRelation().GetNamespace() + ":" + rel.GetResourceAndRelation().GetObjectId() + "@" + rel.GetSubject().GetNamespace() + ":" + rel.GetSubject().GetObjectId() + "#" + rel.GetResourceAndRelation().GetRelation()
 }
 
 // CoreRelationToString creates a string from a core.RelationTuple.
@@ -58,25 +58,25 @@ func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 	}, "relation tuple must be valid")
 
 	var expiration *time.Time
-	if rt.OptionalExpirationTime != nil {
-		t := rt.OptionalExpirationTime.AsTime()
+	if rt.GetOptionalExpirationTime() != nil {
+		t := rt.GetOptionalExpirationTime().AsTime()
 		expiration = &t
 	}
 
 	return Relationship{
 		RelationshipReference: RelationshipReference{
 			Resource: ObjectAndRelation{
-				ObjectType: rt.ResourceAndRelation.Namespace,
-				ObjectID:   rt.ResourceAndRelation.ObjectId,
-				Relation:   rt.ResourceAndRelation.Relation,
+				ObjectType: rt.GetResourceAndRelation().GetNamespace(),
+				ObjectID:   rt.GetResourceAndRelation().GetObjectId(),
+				Relation:   rt.GetResourceAndRelation().GetRelation(),
 			},
 			Subject: ObjectAndRelation{
-				ObjectType: rt.Subject.Namespace,
-				ObjectID:   rt.Subject.ObjectId,
-				Relation:   rt.Subject.Relation,
+				ObjectType: rt.GetSubject().GetNamespace(),
+				ObjectID:   rt.GetSubject().GetObjectId(),
+				Relation:   rt.GetSubject().GetRelation(),
 			},
 		},
-		OptionalCaveat:     rt.Caveat,
+		OptionalCaveat:     rt.GetCaveat(),
 		OptionalExpiration: expiration,
 	}
 }
@@ -88,9 +88,9 @@ func FromCoreObjectAndRelation(oar *core.ObjectAndRelation) ObjectAndRelation {
 	}, "object and relation must be valid")
 
 	return ObjectAndRelation{
-		ObjectType: oar.Namespace,
-		ObjectID:   oar.ObjectId,
-		Relation:   oar.Relation,
+		ObjectType: oar.GetNamespace(),
+		ObjectID:   oar.GetObjectId(),
+		Relation:   oar.GetRelation(),
 	}
 }
 
@@ -126,7 +126,7 @@ func FromCoreRelationReference(rr *core.RelationReference) RelationReference {
 	}, "relation reference must be valid")
 
 	return RelationReference{
-		ObjectType: rr.Namespace,
-		Relation:   rr.Relation,
+		ObjectType: rr.GetNamespace(),
+		Relation:   rr.GetRelation(),
 	}
 }

@@ -169,7 +169,7 @@ func TestOverlapKeysFromContext(t *testing.T) {
 			ctx := metadata.NewOutgoingContext(t.Context(), md)
 			resp, err := client.Ping(ctx, &testpb.PingRequest{})
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, resp.Value)
+			require.Equal(t, tt.expected, resp.GetValue())
 		})
 	}
 }

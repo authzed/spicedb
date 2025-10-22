@@ -106,8 +106,8 @@ definition document {
 	adErrs, err := RunAllAssertions(devCtx, assertions)
 	require.NoError(t, err)
 	require.Len(t, adErrs, 1)
-	require.Equal(t, devinterface.DeveloperError_UNKNOWN_RELATION, adErrs[0].Kind)
-	require.Contains(t, adErrs[0].Message, "cannot specify a caveat on an assertion")
+	require.Equal(t, devinterface.DeveloperError_UNKNOWN_RELATION, adErrs[0].GetKind())
+	require.Contains(t, adErrs[0].GetMessage(), "cannot specify a caveat on an assertion")
 }
 
 func TestRunAllAssertionsFailure(t *testing.T) {
@@ -136,6 +136,6 @@ definition document {
 	adErrs, err := RunAllAssertions(devCtx, assertions)
 	require.NoError(t, err)
 	require.Len(t, adErrs, 1)
-	require.Equal(t, devinterface.DeveloperError_ASSERTION_FAILED, adErrs[0].Kind)
-	require.Contains(t, adErrs[0].Message, "Expected relation or permission")
+	require.Equal(t, devinterface.DeveloperError_ASSERTION_FAILED, adErrs[0].GetKind())
+	require.Contains(t, adErrs[0].GetMessage(), "Expected relation or permission")
 }

@@ -76,9 +76,9 @@ func relationsReferencing(ctx context.Context, arrowSet *ArrowSet, res FullSchem
 		if err != nil {
 			return nil, err
 		}
-		for _, relation := range def.Namespace().Relation {
+		for _, relation := range def.Namespace().GetRelation() {
 			// Check for the use of the relation directly as part of any permissions in the same namespace.
-			if def.IsPermission(relation.Name) && name == namespaceName {
+			if def.IsPermission(relation.GetName()) && name == namespaceName {
 				hasReference, err := expressionReferencesRelation(ctx, relation.GetUsersetRewrite(), relationName)
 				if err != nil {
 					return nil, err
@@ -88,7 +88,7 @@ func relationsReferencing(ctx context.Context, arrowSet *ArrowSet, res FullSchem
 					foundReferences = append(foundReferences, RelationReferenceInfo{
 						Relation: &core.RelationReference{
 							Namespace: name,
-							Relation:  relation.Name,
+							Relation:  relation.GetName(),
 						},
 						Type: RelationInExpression,
 					})
@@ -97,7 +97,7 @@ func relationsReferencing(ctx context.Context, arrowSet *ArrowSet, res FullSchem
 			}
 
 			// Check for the use of the relation as a subject type on any relation in the entire schema.
-			isAllowed, err := def.IsAllowedDirectRelation(relation.Name, namespaceName, relationName)
+			isAllowed, err := def.IsAllowedDirectRelation(relation.GetName(), namespaceName, relationName)
 			if err != nil {
 				return nil, err
 			}
@@ -106,7 +106,7 @@ func relationsReferencing(ctx context.Context, arrowSet *ArrowSet, res FullSchem
 				foundReferences = append(foundReferences, RelationReferenceInfo{
 					Relation: &core.RelationReference{
 						Namespace: name,
-						Relation:  relation.Name,
+						Relation:  relation.GetName(),
 					},
 					Type: RelationIsSubjectType,
 				})
@@ -163,15 +163,15 @@ func preComputeRelationReferenceInfo(ctx context.Context, arrowSet *ArrowSet, re
 		if err != nil {
 			return nil, err
 		}
-		for _, outerRelation := range outerTS.Namespace().Relation {
-			referenceInfos, err := relationsReferencing(ctx, arrowSet, res, ts, namespaceName, outerRelation.Name)
+		for _, outerRelation := range outerTS.Namespace().GetRelation() {
+			referenceInfos, err := relationsReferencing(ctx, arrowSet, res, ts, namespaceName, outerRelation.GetName())
 			if err != nil {
 				return nil, err
 			}
 
 			nsAndRel := nsAndRel{
 				Namespace: namespaceName,
-				Relation:  outerRelation.Name,
+				Relation:  outerRelation.GetName(),
 			}
 			nsAndRelToInfo[nsAndRel] = referenceInfos
 		}
@@ -182,7 +182,7 @@ func preComputeRelationReferenceInfo(ctx context.Context, arrowSet *ArrowSet, re
 
 func expressionReferencesRelation(ctx context.Context, rewrite *core.UsersetRewrite, relationName string) (bool, error) {
 	// TODO(jschorr): Precompute this and maybe create a visitor pattern to stop repeating this everywhere
-	switch rw := rewrite.RewriteOperation.(type) {
+	switch rw := rewrite.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
 		return setOperationReferencesRelation(ctx, rw.Union, relationName)
 	case *core.UsersetRewrite_Intersection:
@@ -195,10 +195,10 @@ func expressionReferencesRelation(ctx context.Context, rewrite *core.UsersetRewr
 }
 
 func setOperationReferencesRelation(ctx context.Context, so *core.SetOperation, relationName string) (bool, error) {
-	for _, childOneof := range so.Child {
-		switch child := childOneof.ChildType.(type) {
+	for _, childOneof := range so.GetChild() {
+		switch child := childOneof.GetChildType().(type) {
 		case *core.SetOperation_Child_ComputedUserset:
-			if child.ComputedUserset.Relation == relationName {
+			if child.ComputedUserset.GetRelation() == relationName {
 				return true, nil
 			}
 

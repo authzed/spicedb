@@ -20,11 +20,11 @@ const (
 func computeReachability(ctx context.Context, def *Definition, relationName string, option reachabilityOption) (*core.ReachabilityGraph, error) {
 	targetRelation, ok := def.relationMap[relationName]
 	if !ok {
-		return nil, fmt.Errorf("relation `%s` not found under type `%s` missing when computing reachability", relationName, def.nsDef.Name)
+		return nil, fmt.Errorf("relation `%s` not found under type `%s` missing when computing reachability", relationName, def.nsDef.GetName())
 	}
 
 	if !def.HasTypeInformation(relationName) && targetRelation.GetUsersetRewrite() == nil {
-		return nil, fmt.Errorf("relation `%s` missing type information when computing reachability for namespace `%s`", relationName, def.nsDef.Name)
+		return nil, fmt.Errorf("relation `%s` missing type information when computing reachability for namespace `%s`", relationName, def.nsDef.GetName())
 	}
 
 	graph := &core.ReachabilityGraph{
@@ -43,25 +43,25 @@ func computeReachability(ctx context.Context, def *Definition, relationName stri
 }
 
 func computeRewriteReachability(ctx context.Context, graph *core.ReachabilityGraph, rewrite *core.UsersetRewrite, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, targetRelation *core.Relation, def *Definition, option reachabilityOption) error {
-	switch rw := rewrite.RewriteOperation.(type) {
+	switch rw := rewrite.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
-		return computeRewriteOpReachability(ctx, rw.Union.Child, operationResultState, graph, targetRelation, def, option)
+		return computeRewriteOpReachability(ctx, rw.Union.GetChild(), operationResultState, graph, targetRelation, def, option)
 
 	case *core.UsersetRewrite_Intersection:
 		// If optimized mode is set, only return the first child of the intersection.
 		if option == reachabilityFirst {
-			return computeRewriteOpReachability(ctx, rw.Intersection.Child[0:1], core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
+			return computeRewriteOpReachability(ctx, rw.Intersection.GetChild()[0:1], core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
 		}
 
-		return computeRewriteOpReachability(ctx, rw.Intersection.Child, core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
+		return computeRewriteOpReachability(ctx, rw.Intersection.GetChild(), core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
 
 	case *core.UsersetRewrite_Exclusion:
 		// If optimized mode is set, only return the first child of the exclusion.
 		if option == reachabilityFirst {
-			return computeRewriteOpReachability(ctx, rw.Exclusion.Child[0:1], core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
+			return computeRewriteOpReachability(ctx, rw.Exclusion.GetChild()[0:1], core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
 		}
 
-		return computeRewriteOpReachability(ctx, rw.Exclusion.Child, core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
+		return computeRewriteOpReachability(ctx, rw.Exclusion.GetChild(), core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
 
 	default:
 		return fmt.Errorf("unknown kind of userset rewrite in reachability computation: %T", rw)
@@ -70,21 +70,21 @@ func computeRewriteReachability(ctx context.Context, graph *core.ReachabilityGra
 
 func computeRewriteOpReachability(ctx context.Context, children []*core.SetOperation_Child, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, graph *core.ReachabilityGraph, targetRelation *core.Relation, def *Definition, option reachabilityOption) error {
 	rr := &core.RelationReference{
-		Namespace: def.nsDef.Name,
-		Relation:  targetRelation.Name,
+		Namespace: def.nsDef.GetName(),
+		Relation:  targetRelation.GetName(),
 	}
 
 	for _, childOneof := range children {
-		switch child := childOneof.ChildType.(type) {
+		switch child := childOneof.GetChildType().(type) {
 		case *core.SetOperation_Child_XThis:
 			return errors.New("use of _this is unsupported; please rewrite your schema")
 
 		case *core.SetOperation_Child_ComputedUserset:
 			// A computed userset adds an entrypoint indicating that the relation is rewritten.
-			err := addSubjectEntrypoint(graph, def.nsDef.Name, child.ComputedUserset.Relation, &core.ReachabilityEntrypoint{
+			err := addSubjectEntrypoint(graph, def.nsDef.GetName(), child.ComputedUserset.GetRelation(), &core.ReachabilityEntrypoint{
 				Kind:                    core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT,
 				TargetRelation:          rr,
-				ComputedUsersetRelation: child.ComputedUserset.Relation,
+				ComputedUsersetRelation: child.ComputedUserset.GetRelation(),
 				ResultStatus:            operationResultState,
 			})
 			if err != nil {
@@ -98,17 +98,17 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 			}
 
 		case *core.SetOperation_Child_TupleToUserset:
-			tuplesetRelation := child.TupleToUserset.Tupleset.Relation
-			computedUsersetRelation := child.TupleToUserset.ComputedUserset.Relation
+			tuplesetRelation := child.TupleToUserset.GetTupleset().GetRelation()
+			computedUsersetRelation := child.TupleToUserset.GetComputedUserset().GetRelation()
 			if err := computeTTUReachability(ctx, graph, tuplesetRelation, computedUsersetRelation, operationResultState, rr, def); err != nil {
 				return err
 			}
 
 		case *core.SetOperation_Child_FunctionedTupleToUserset:
-			tuplesetRelation := child.FunctionedTupleToUserset.Tupleset.Relation
-			computedUsersetRelation := child.FunctionedTupleToUserset.ComputedUserset.Relation
+			tuplesetRelation := child.FunctionedTupleToUserset.GetTupleset().GetRelation()
+			computedUsersetRelation := child.FunctionedTupleToUserset.GetComputedUserset().GetRelation()
 
-			switch child.FunctionedTupleToUserset.Function {
+			switch child.FunctionedTupleToUserset.GetFunction() {
 			case core.FunctionedTupleToUserset_FUNCTION_ANY:
 				// Nothing to change.
 
@@ -117,7 +117,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 				operationResultState = core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT
 
 			default:
-				return spiceerrors.MustBugf("unknown function type `%T` in reachability graph building", child.FunctionedTupleToUserset.Function)
+				return spiceerrors.MustBugf("unknown function type `%T` in reachability graph building", child.FunctionedTupleToUserset.GetFunction())
 			}
 
 			if err := computeTTUReachability(ctx, graph, tuplesetRelation, computedUsersetRelation, operationResultState, rr, def); err != nil {
@@ -181,13 +181,13 @@ func computeTTUReachability(
 		// right side of the arrow.
 
 		// Check if the relation does exist on the allowed type, and only add the entrypoint if present.
-		relDef, err := def.ts.GetDefinition(ctx, allowedRelationType.Namespace)
+		relDef, err := def.ts.GetDefinition(ctx, allowedRelationType.GetNamespace())
 		if err != nil {
 			return err
 		}
 
 		if relDef.HasRelation(computedUsersetRelation) {
-			err := addSubjectEntrypoint(graph, allowedRelationType.Namespace, computedUsersetRelation, &core.ReachabilityEntrypoint{
+			err := addSubjectEntrypoint(graph, allowedRelationType.GetNamespace(), computedUsersetRelation, &core.ReachabilityEntrypoint{
 				Kind:                    core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT,
 				TargetRelation:          rr,
 				ResultStatus:            operationResultState,
@@ -209,7 +209,7 @@ func addSubjectEntrypoint(graph *core.ReachabilityGraph, namespaceName string, r
 		return spiceerrors.MustBugf("found empty relation name for subject entrypoint")
 	}
 
-	if graph.EntrypointsBySubjectRelation[key] == nil {
+	if graph.GetEntrypointsBySubjectRelation()[key] == nil {
 		graph.EntrypointsBySubjectRelation[key] = &core.ReachabilityEntrypoints{
 			Entrypoints: []*core.ReachabilityEntrypoint{},
 			SubjectRelation: &core.RelationReference{
@@ -230,12 +230,12 @@ func addSubjectEntrypoint(graph *core.ReachabilityGraph, namespaceName string, r
 func addSubjectLinks(graph *core.ReachabilityGraph, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, relation *core.Relation, def *Definition) error {
 	typeInfo := relation.GetTypeInformation()
 	if typeInfo == nil {
-		return fmt.Errorf("missing type information for relation %s#%s", def.nsDef.Name, relation.Name)
+		return fmt.Errorf("missing type information for relation %s#%s", def.nsDef.GetName(), relation.GetName())
 	}
 
 	rr := &core.RelationReference{
-		Namespace: def.nsDef.Name,
-		Relation:  relation.Name,
+		Namespace: def.nsDef.GetName(),
+		Relation:  relation.GetName(),
 	}
 
 	allowedDirectRelations := typeInfo.GetAllowedDirectRelations()
@@ -243,15 +243,15 @@ func addSubjectLinks(graph *core.ReachabilityGraph, operationResultState core.Re
 		// If the allowed relation is a wildcard, add it as a subject *type* entrypoint, rather than
 		// a subject relation.
 		if directRelation.GetPublicWildcard() != nil {
-			if graph.EntrypointsBySubjectType[directRelation.Namespace] == nil {
-				graph.EntrypointsBySubjectType[directRelation.Namespace] = &core.ReachabilityEntrypoints{
+			if graph.GetEntrypointsBySubjectType()[directRelation.GetNamespace()] == nil {
+				graph.EntrypointsBySubjectType[directRelation.GetNamespace()] = &core.ReachabilityEntrypoints{
 					Entrypoints: []*core.ReachabilityEntrypoint{},
-					SubjectType: directRelation.Namespace,
+					SubjectType: directRelation.GetNamespace(),
 				}
 			}
 
-			graph.EntrypointsBySubjectType[directRelation.Namespace].Entrypoints = append(
-				graph.EntrypointsBySubjectType[directRelation.Namespace].Entrypoints,
+			graph.EntrypointsBySubjectType[directRelation.GetNamespace()].Entrypoints = append(
+				graph.EntrypointsBySubjectType[directRelation.GetNamespace()].Entrypoints,
 				&core.ReachabilityEntrypoint{
 					Kind:           core.ReachabilityEntrypoint_RELATION_ENTRYPOINT,
 					TargetRelation: rr,
@@ -261,7 +261,7 @@ func addSubjectLinks(graph *core.ReachabilityGraph, operationResultState core.Re
 			continue
 		}
 
-		err := addSubjectEntrypoint(graph, directRelation.Namespace, directRelation.GetRelation(), &core.ReachabilityEntrypoint{
+		err := addSubjectEntrypoint(graph, directRelation.GetNamespace(), directRelation.GetRelation(), &core.ReachabilityEntrypoint{
 			Kind:           core.ReachabilityEntrypoint_RELATION_ENTRYPOINT,
 			TargetRelation: rr,
 			ResultStatus:   operationResultState,

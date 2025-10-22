@@ -87,7 +87,7 @@ func (v1st v1ServiceTester) Check(ctx context.Context, resource tuple.ObjectAndR
 	if err != nil {
 		return v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED, err
 	}
-	return checkResp.Permissionship, nil
+	return checkResp.GetPermissionship(), nil
 }
 
 func (v1st v1ServiceTester) Expand(ctx context.Context, resource tuple.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error) {
@@ -106,7 +106,7 @@ func (v1st v1ServiceTester) Expand(ctx context.Context, resource tuple.ObjectAnd
 	if err != nil {
 		return nil, err
 	}
-	return v1svc.TranslateRelationshipTree(expandResp.TreeRoot), nil
+	return v1svc.TranslateRelationshipTree(expandResp.GetTreeRoot()), nil
 }
 
 func (v1st v1ServiceTester) Write(ctx context.Context, relationship tuple.Relationship) error {
@@ -154,7 +154,7 @@ func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevi
 			return nil, err
 		}
 
-		rels = append(rels, tuple.FromV1Relationship(resp.Relationship))
+		rels = append(rels, tuple.FromV1Relationship(resp.GetRelationship()))
 	}
 
 	return rels, nil
@@ -206,7 +206,7 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 		}
 
 		found = append(found, resp)
-		lastCursor = resp.AfterResultCursor
+		lastCursor = resp.GetAfterResultCursor()
 	}
 	return found, lastCursor, nil
 }
@@ -251,7 +251,7 @@ func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource tuple.Obj
 			return nil, err
 		}
 
-		found[resp.Subject.SubjectObjectId] = resp
+		found[resp.GetSubject().GetSubjectObjectId()] = resp
 	}
 	return found, nil
 }
@@ -269,7 +269,7 @@ func (v1st v1ServiceTester) BulkCheck(ctx context.Context, items []*v1.BulkCheck
 		return nil, err
 	}
 
-	return result.Pairs, nil
+	return result.GetPairs(), nil
 }
 
 func (v1st v1ServiceTester) CheckBulk(ctx context.Context, items []*v1.CheckBulkPermissionsRequestItem, atRevision datastore.Revision) ([]*v1.CheckBulkPermissionsPair, error) {
@@ -285,5 +285,5 @@ func (v1st v1ServiceTester) CheckBulk(ctx context.Context, items []*v1.CheckBulk
 		return nil, err
 	}
 
-	return result.Pairs, nil
+	return result.GetPairs(), nil
 }

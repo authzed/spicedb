@@ -52,8 +52,8 @@ func TestDispatchChunking(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, checkResult)
-			require.NotEmpty(t, checkResult.ResultsByResourceId, "expected membership for resource %s", tpl.Resource.ObjectID)
-			require.Equal(t, v1.ResourceCheckResult_MEMBER, checkResult.ResultsByResourceId[tpl.Resource.ObjectID].Membership)
+			require.NotEmpty(t, checkResult.GetResultsByResourceId(), "expected membership for resource %s", tpl.Resource.ObjectID)
+			require.Equal(t, v1.ResourceCheckResult_MEMBER, checkResult.GetResultsByResourceId()[tpl.Resource.ObjectID].GetMembership())
 		}
 	})
 
@@ -100,9 +100,9 @@ func TestDispatchChunking(t *testing.T) {
 			require.NoError(t, err)
 			res := stream.Results()
 			require.Len(t, res, 1)
-			require.Len(t, res[0].FoundSubjectsByResourceId, 1)
-			require.NotNil(t, res[0].FoundSubjectsByResourceId["res1"])
-			require.Len(t, res[0].FoundSubjectsByResourceId["res1"].FoundSubjects, math.MaxUint16+1)
+			require.Len(t, res[0].GetFoundSubjectsByResourceId(), 1)
+			require.NotNil(t, res[0].GetFoundSubjectsByResourceId()["res1"])
+			require.Len(t, res[0].GetFoundSubjectsByResourceId()["res1"].GetFoundSubjects(), math.MaxUint16+1)
 		}
 	})
 }

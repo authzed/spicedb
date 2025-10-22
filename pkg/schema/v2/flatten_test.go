@@ -294,13 +294,13 @@ definition folder {
 			// Step 6: Generate schema string
 			// Sort definitions by name for deterministic output
 			sort.Slice(defs, func(i, j int) bool {
-				return defs[i].Name < defs[j].Name
+				return defs[i].GetName() < defs[j].GetName()
 			})
 
 			// Sort relations within each definition for deterministic output
 			for _, def := range defs {
-				sort.Slice(def.Relation, func(i, j int) bool {
-					return def.Relation[i].Name < def.Relation[j].Name
+				sort.Slice(def.GetRelation(), func(i, j int) bool {
+					return def.GetRelation()[i].GetName() < def.GetRelation()[j].GetName()
 				})
 			}
 
@@ -333,12 +333,12 @@ definition folder {
 
 			// Sort expected definitions and relations the same way
 			sort.Slice(expectedCompiled.ObjectDefinitions, func(i, j int) bool {
-				return expectedCompiled.ObjectDefinitions[i].Name < expectedCompiled.ObjectDefinitions[j].Name
+				return expectedCompiled.ObjectDefinitions[i].GetName() < expectedCompiled.ObjectDefinitions[j].GetName()
 			})
 
 			for _, def := range expectedCompiled.ObjectDefinitions {
-				sort.Slice(def.Relation, func(i, j int) bool {
-					return def.Relation[i].Name < def.Relation[j].Name
+				sort.Slice(def.GetRelation(), func(i, j int) bool {
+					return def.GetRelation()[i].GetName() < def.GetRelation()[j].GetName()
 				})
 			}
 

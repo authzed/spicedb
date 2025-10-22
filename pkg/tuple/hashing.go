@@ -29,13 +29,13 @@ func CanonicalBytes(rel Relationship) ([]byte, error) {
 	sb.WriteString("#")
 	sb.WriteString(rel.Subject.Relation)
 
-	if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
+	if rel.OptionalCaveat != nil && rel.OptionalCaveat.GetCaveatName() != "" {
 		sb.WriteString(" with ")
-		sb.WriteString(rel.OptionalCaveat.CaveatName)
+		sb.WriteString(rel.OptionalCaveat.GetCaveatName())
 
-		if rel.OptionalCaveat.Context != nil && len(rel.OptionalCaveat.Context.Fields) > 0 {
+		if rel.OptionalCaveat.GetContext() != nil && len(rel.OptionalCaveat.GetContext().GetFields()) > 0 {
 			sb.WriteString(":")
-			if err := writeCanonicalContext(&sb, rel.OptionalCaveat.Context); err != nil {
+			if err := writeCanonicalContext(&sb, rel.OptionalCaveat.GetContext()); err != nil {
 				return nil, err
 			}
 		}
@@ -52,13 +52,13 @@ func CanonicalBytes(rel Relationship) ([]byte, error) {
 
 func writeCanonicalContext(sb *bytes.Buffer, context *structpb.Struct) error {
 	sb.WriteString("{")
-	for i, key := range sortedContextKeys(context.Fields) {
+	for i, key := range sortedContextKeys(context.GetFields()) {
 		if i > 0 {
 			sb.WriteString(",")
 		}
 		sb.WriteString(key)
 		sb.WriteString(":")
-		if err := writeCanonicalContextValue(sb, context.Fields[key]); err != nil {
+		if err := writeCanonicalContextValue(sb, context.GetFields()[key]); err != nil {
 			return err
 		}
 	}
@@ -67,7 +67,7 @@ func writeCanonicalContext(sb *bytes.Buffer, context *structpb.Struct) error {
 }
 
 func writeCanonicalContextValue(sb *bytes.Buffer, value *structpb.Value) error {
-	switch value.Kind.(type) {
+	switch value.GetKind().(type) {
 	case *structpb.Value_NullValue:
 		sb.WriteString("null")
 	case *structpb.Value_NumberValue:
@@ -82,7 +82,7 @@ func writeCanonicalContextValue(sb *bytes.Buffer, value *structpb.Value) error {
 		}
 	case *structpb.Value_ListValue:
 		sb.WriteString("[")
-		for i, elem := range value.GetListValue().Values {
+		for i, elem := range value.GetListValue().GetValues() {
 			if i > 0 {
 				sb.WriteString(",")
 			}
@@ -92,7 +92,7 @@ func writeCanonicalContextValue(sb *bytes.Buffer, value *structpb.Value) error {
 		}
 		sb.WriteString("]")
 	default:
-		return spiceerrors.MustBugf("unknown structpb.Value type: %T", value.Kind)
+		return spiceerrors.MustBugf("unknown structpb.Value type: %T", value.GetKind())
 	}
 
 	return nil

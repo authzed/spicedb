@@ -201,10 +201,10 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 
 			require.Equal(1, len(stream.Results()))
 
-			found.Insert(stream.Results()[0].Items[0].ResourceId)
+			found.Insert(stream.Results()[0].GetItems()[0].GetResourceId())
 			require.Equal(tc.expectedFirst, found.AsSlice())
 
-			cursor := stream.Results()[0].Items[0].AfterResponseCursorSections
+			cursor := stream.Results()[0].GetItems()[0].GetAfterResponseCursorSections()
 			require.NotNil(cursor)
 
 			stream = dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
@@ -224,8 +224,8 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 			require.NoError(err)
 
 			for _, result := range stream.Results() {
-				for _, item := range result.Items {
-					found.Insert(item.ResourceId)
+				for _, item := range result.GetItems() {
+					found.Insert(item.GetResourceId())
 				}
 			}
 
@@ -240,11 +240,11 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 func processResults3(stream *dispatch.CloningCollectingDispatchStream[*v1.DispatchLookupResources3Response]) []*v1.PossibleResource {
 	foundResources := []*v1.PossibleResource{}
 	for _, result := range stream.Results() {
-		for _, item := range result.Items {
+		for _, item := range result.GetItems() {
 			foundResources = append(foundResources, &v1.PossibleResource{
-				ResourceId:           item.ResourceId,
+				ResourceId:           item.GetResourceId(),
 				ForSubjectIds:        nil,
-				MissingContextParams: item.MissingContextParams,
+				MissingContextParams: item.GetMissingContextParams(),
 			})
 		}
 	}
@@ -743,10 +743,10 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 
 						itemCount := 0
 						for _, result := range stream.Results() {
-							for _, item := range result.Items {
-								require.ElementsMatch(tc.expectedMissingFields, item.MissingContextParams)
-								foundResourceIDs.Insert(item.ResourceId)
-								currentCursor = item.AfterResponseCursorSections
+							for _, item := range result.GetItems() {
+								require.ElementsMatch(tc.expectedMissingFields, item.GetMissingContextParams())
+								foundResourceIDs.Insert(item.GetResourceId())
+								currentCursor = item.GetAfterResponseCursorSections()
 								itemCount++
 							}
 						}
@@ -763,7 +763,7 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 					for _, chunk := range foundChunks[0 : len(foundChunks)-1] {
 						chunkItemCount := 0
 						for _, result := range chunk {
-							chunkItemCount += len(result.Items)
+							chunkItemCount += len(result.GetItems())
 						}
 						require.Equal(pageSize, chunkItemCount)
 					}
@@ -1300,13 +1300,13 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 
 			foundResourceIDs := mapz.NewSet[string]()
 			for _, result := range stream.Results() {
-				for _, item := range result.Items {
-					if len(item.MissingContextParams) > 0 {
-						foundResourceIDs.Insert(item.ResourceId + "[" + strings.Join(item.MissingContextParams, ",") + "]")
+				for _, item := range result.GetItems() {
+					if len(item.GetMissingContextParams()) > 0 {
+						foundResourceIDs.Insert(item.GetResourceId() + "[" + strings.Join(item.GetMissingContextParams(), ",") + "]")
 						continue
 					}
 
-					foundResourceIDs.Insert(item.ResourceId)
+					foundResourceIDs.Insert(item.GetResourceId())
 				}
 			}
 

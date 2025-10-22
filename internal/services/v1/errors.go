@@ -185,34 +185,34 @@ func NewPreconditionFailedErr(precondition *v1.Precondition) error {
 // GRPCStatus implements retrieving the gRPC status for the error.
 func (err PreconditionFailedError) GRPCStatus() *status.Status {
 	metadata := map[string]string{
-		"precondition_operation": v1.Precondition_Operation_name[int32(err.precondition.Operation)],
+		"precondition_operation": v1.Precondition_Operation_name[int32(err.precondition.GetOperation())],
 	}
 
-	if err.precondition.Filter.ResourceType != "" {
-		metadata["precondition_resource_type"] = err.precondition.Filter.ResourceType
+	if err.precondition.GetFilter().GetResourceType() != "" {
+		metadata["precondition_resource_type"] = err.precondition.GetFilter().GetResourceType()
 	}
 
-	if err.precondition.Filter.OptionalResourceId != "" {
-		metadata["precondition_resource_id"] = err.precondition.Filter.OptionalResourceId
+	if err.precondition.GetFilter().GetOptionalResourceId() != "" {
+		metadata["precondition_resource_id"] = err.precondition.GetFilter().GetOptionalResourceId()
 	}
 
-	if err.precondition.Filter.OptionalResourceIdPrefix != "" {
-		metadata["precondition_resource_id_prefix"] = err.precondition.Filter.OptionalResourceIdPrefix
+	if err.precondition.GetFilter().GetOptionalResourceIdPrefix() != "" {
+		metadata["precondition_resource_id_prefix"] = err.precondition.GetFilter().GetOptionalResourceIdPrefix()
 	}
 
-	if err.precondition.Filter.OptionalRelation != "" {
-		metadata["precondition_relation"] = err.precondition.Filter.OptionalRelation
+	if err.precondition.GetFilter().GetOptionalRelation() != "" {
+		metadata["precondition_relation"] = err.precondition.GetFilter().GetOptionalRelation()
 	}
 
-	if err.precondition.Filter.OptionalSubjectFilter != nil {
-		metadata["precondition_subject_type"] = err.precondition.Filter.OptionalSubjectFilter.SubjectType
+	if err.precondition.GetFilter().GetOptionalSubjectFilter() != nil {
+		metadata["precondition_subject_type"] = err.precondition.GetFilter().GetOptionalSubjectFilter().GetSubjectType()
 
-		if err.precondition.Filter.OptionalSubjectFilter.OptionalSubjectId != "" {
-			metadata["precondition_subject_id"] = err.precondition.Filter.OptionalSubjectFilter.OptionalSubjectId
+		if err.precondition.GetFilter().GetOptionalSubjectFilter().GetOptionalSubjectId() != "" {
+			metadata["precondition_subject_id"] = err.precondition.GetFilter().GetOptionalSubjectFilter().GetOptionalSubjectId()
 		}
 
-		if err.precondition.Filter.OptionalSubjectFilter.OptionalRelation != nil {
-			metadata["precondition_subject_relation"] = err.precondition.Filter.OptionalSubjectFilter.OptionalRelation.Relation
+		if err.precondition.GetFilter().GetOptionalSubjectFilter().GetOptionalRelation() != nil {
+			metadata["precondition_subject_relation"] = err.precondition.GetFilter().GetOptionalSubjectFilter().GetOptionalRelation().GetRelation()
 		}
 	}
 
@@ -237,7 +237,7 @@ func NewDuplicateRelationshipErr(update *v1.RelationshipUpdate) DuplicateRelatio
 	return DuplicateRelationErrorshipError{
 		error: fmt.Errorf(
 			"found more than one update with relationship `%s` in this request; a relationship can only be specified in an update once per overall WriteRelationships request",
-			tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship),
+			tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.GetRelationship()),
 		),
 		update: update,
 	}
@@ -251,8 +251,8 @@ func (err DuplicateRelationErrorshipError) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_UPDATES_ON_SAME_RELATIONSHIP,
 			map[string]string{
-				"definition_name": err.update.Relationship.Resource.ObjectType,
-				"relationship":    tuple.MustV1StringRelationship(err.update.Relationship),
+				"definition_name": err.update.GetRelationship().GetResource().GetObjectType(),
+				"relationship":    tuple.MustV1StringRelationship(err.update.GetRelationship()),
 			},
 		),
 	)
@@ -271,7 +271,7 @@ func NewMaxRelationshipContextError(update *v1.RelationshipUpdate, maxAllowedSiz
 	return ErrMaxRelationshipContextError{
 		error: fmt.Errorf(
 			"provided relationship `%s` exceeded maximum allowed caveat size of %d",
-			tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship),
+			tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.GetRelationship()),
 			maxAllowedSize,
 		),
 		update:         update,
@@ -287,9 +287,9 @@ func (err ErrMaxRelationshipContextError) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_MAX_RELATIONSHIP_CONTEXT_SIZE,
 			map[string]string{
-				"relationship":     tuple.V1StringRelationshipWithoutCaveatOrExpiration(err.update.Relationship),
+				"relationship":     tuple.V1StringRelationshipWithoutCaveatOrExpiration(err.update.GetRelationship()),
 				"max_allowed_size": strconv.Itoa(err.maxAllowedSize),
-				"context_size":     strconv.Itoa(proto.Size(err.update.Relationship)),
+				"context_size":     strconv.Itoa(proto.Size(err.update.GetRelationship())),
 			},
 		),
 	)
@@ -318,26 +318,26 @@ func NewCouldNotTransactionallyDeleteErr(filter *v1.RelationshipFilter, limit ui
 func (err CouldNotTransactionallyDeleteError) GRPCStatus() *status.Status {
 	metadata := map[string]string{
 		"limit":                strconv.Itoa(int(err.limit)),
-		"filter_resource_type": err.filter.ResourceType,
+		"filter_resource_type": err.filter.GetResourceType(),
 	}
 
-	if err.filter.OptionalResourceId != "" {
-		metadata["filter_resource_id"] = err.filter.OptionalResourceId
+	if err.filter.GetOptionalResourceId() != "" {
+		metadata["filter_resource_id"] = err.filter.GetOptionalResourceId()
 	}
 
-	if err.filter.OptionalRelation != "" {
-		metadata["filter_relation"] = err.filter.OptionalRelation
+	if err.filter.GetOptionalRelation() != "" {
+		metadata["filter_relation"] = err.filter.GetOptionalRelation()
 	}
 
-	if err.filter.OptionalSubjectFilter != nil {
-		metadata["filter_subject_type"] = err.filter.OptionalSubjectFilter.SubjectType
+	if err.filter.GetOptionalSubjectFilter() != nil {
+		metadata["filter_subject_type"] = err.filter.GetOptionalSubjectFilter().GetSubjectType()
 
-		if err.filter.OptionalSubjectFilter.OptionalSubjectId != "" {
-			metadata["filter_subject_id"] = err.filter.OptionalSubjectFilter.OptionalSubjectId
+		if err.filter.GetOptionalSubjectFilter().GetOptionalSubjectId() != "" {
+			metadata["filter_subject_id"] = err.filter.GetOptionalSubjectFilter().GetOptionalSubjectId()
 		}
 
-		if err.filter.OptionalSubjectFilter.OptionalRelation != nil {
-			metadata["filter_subject_relation"] = err.filter.OptionalSubjectFilter.OptionalRelation.Relation
+		if err.filter.GetOptionalSubjectFilter().GetOptionalRelation() != nil {
+			metadata["filter_subject_relation"] = err.filter.GetOptionalSubjectFilter().GetOptionalRelation().GetRelation()
 		}
 	}
 

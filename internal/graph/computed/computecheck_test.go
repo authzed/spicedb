@@ -840,10 +840,10 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						require.Equal(t, err.Error(), r.error)
 					} else {
 						require.NoError(t, err)
-						require.Equal(t, v1.ResourceCheckResult_Membership_name[int32(r.member)], v1.ResourceCheckResult_Membership_name[int32(result.Membership)], "mismatch for %s with context %v", r.check, r.context)
+						require.Equal(t, v1.ResourceCheckResult_Membership_name[int32(r.member)], v1.ResourceCheckResult_Membership_name[int32(result.GetMembership())], "mismatch for %s with context %v", r.check, r.context)
 
-						if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
-							foundFields := result.MissingExprFields
+						if result.GetMembership() == v1.ResourceCheckResult_CAVEATED_MEMBER {
+							foundFields := result.GetMissingExprFields()
 							sort.Strings(foundFields)
 							sort.Strings(r.expectedMissingFields)
 
@@ -928,10 +928,10 @@ func TestComputeBulkCheck(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	require.Equal(t, v1.ResourceCheckResult_MEMBER, resp["direct"].Membership)
-	require.Equal(t, v1.ResourceCheckResult_MEMBER, resp["first"].Membership)
-	require.Equal(t, v1.ResourceCheckResult_CAVEATED_MEMBER, resp["second"].Membership)
-	require.Equal(t, v1.ResourceCheckResult_NOT_MEMBER, resp["third"].Membership)
+	require.Equal(t, v1.ResourceCheckResult_MEMBER, resp["direct"].GetMembership())
+	require.Equal(t, v1.ResourceCheckResult_MEMBER, resp["first"].GetMembership())
+	require.Equal(t, v1.ResourceCheckResult_CAVEATED_MEMBER, resp["second"].GetMembership())
+	require.Equal(t, v1.ResourceCheckResult_NOT_MEMBER, resp["third"].GetMembership())
 }
 
 func writeCaveatedTuples(ctx context.Context, _ *testing.T, ds datastore.Datastore, schema string, updates []caveatedUpdate) (datastore.Revision, error) {

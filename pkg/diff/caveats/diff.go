@@ -96,19 +96,19 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 		}, nil
 	}
 
-	deltas := make([]Delta, 0, len(existing.ParameterTypes)+len(updated.ParameterTypes))
+	deltas := make([]Delta, 0, len(existing.GetParameterTypes())+len(updated.GetParameterTypes()))
 
 	// Check the caveats's comments.
-	existingComments := nspkg.GetComments(existing.Metadata)
-	updatedComments := nspkg.GetComments(updated.Metadata)
+	existingComments := nspkg.GetComments(existing.GetMetadata())
+	updatedComments := nspkg.GetComments(updated.GetMetadata())
 	if !slices.Equal(existingComments, updatedComments) {
 		deltas = append(deltas, Delta{
 			Type: CaveatCommentsChanged,
 		})
 	}
 
-	existingParameterNames := mapz.NewSet(slices.Collect(maps.Keys(existing.ParameterTypes))...)
-	updatedParameterNames := mapz.NewSet(slices.Collect(maps.Keys(updated.ParameterTypes))...)
+	existingParameterNames := mapz.NewSet(slices.Collect(maps.Keys(existing.GetParameterTypes()))...)
+	updatedParameterNames := mapz.NewSet(slices.Collect(maps.Keys(updated.GetParameterTypes()))...)
 
 	for _, removed := range existingParameterNames.Subtract(updatedParameterNames).AsSlice() {
 		deltas = append(deltas, Delta{
@@ -125,8 +125,8 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 	}
 
 	for _, shared := range existingParameterNames.Intersect(updatedParameterNames).AsSlice() {
-		existingParamType := existing.ParameterTypes[shared]
-		updatedParamType := updated.ParameterTypes[shared]
+		existingParamType := existing.GetParameterTypes()[shared]
+		updatedParamType := updated.GetParameterTypes()[shared]
 
 		existingType, err := caveattypes.DecodeParameterType(caveatTypeSet, existingParamType)
 		if err != nil {
@@ -149,7 +149,7 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 		}
 	}
 
-	if !bytes.Equal(existing.SerializedExpression, updated.SerializedExpression) {
+	if !bytes.Equal(existing.GetSerializedExpression(), updated.GetSerializedExpression()) {
 		deltas = append(deltas, Delta{
 			Type: CaveatExpressionChanged,
 		})

@@ -36,11 +36,11 @@ func TestSubjectSetByResourceIDBasicOperations(t *testing.T) {
 	}
 	asMap := ssr.AsMap()
 
-	slices.SortFunc(expected["firstdoc"].FoundSubjects, testutil.CmpSubjects)
-	slices.SortFunc(expected["seconddoc"].FoundSubjects, testutil.CmpSubjects)
+	slices.SortFunc(expected["firstdoc"].GetFoundSubjects(), testutil.CmpSubjects)
+	slices.SortFunc(expected["seconddoc"].GetFoundSubjects(), testutil.CmpSubjects)
 
-	slices.SortFunc(asMap["firstdoc"].FoundSubjects, testutil.CmpSubjects)
-	slices.SortFunc(asMap["seconddoc"].FoundSubjects, testutil.CmpSubjects)
+	slices.SortFunc(asMap["firstdoc"].GetFoundSubjects(), testutil.CmpSubjects)
+	slices.SortFunc(asMap["seconddoc"].GetFoundSubjects(), testutil.CmpSubjects)
 
 	require.Equal(t, expected, asMap)
 }
@@ -67,7 +67,7 @@ func TestSubjectSetByResourceIDUnionWith(t *testing.T) {
 	require.NoError(t, err)
 
 	found := ssr.AsMap()
-	slices.SortFunc(found["firstdoc"].FoundSubjects, testutil.CmpSubjects)
+	slices.SortFunc(found["firstdoc"].GetFoundSubjects(), testutil.CmpSubjects)
 
 	require.Equal(t, map[string]*v1.FoundSubjects{
 		"firstdoc": {
@@ -216,8 +216,8 @@ func TestSubjectSetByResourceIDBasicCaveatedOperations(t *testing.T) {
 	}
 	asMap := ssr.AsMap()
 
-	slices.SortFunc(expected["firstdoc"].FoundSubjects, testutil.CmpSubjects)
-	slices.SortFunc(asMap["firstdoc"].FoundSubjects, testutil.CmpSubjects)
+	slices.SortFunc(expected["firstdoc"].GetFoundSubjects(), testutil.CmpSubjects)
+	slices.SortFunc(asMap["firstdoc"].GetFoundSubjects(), testutil.CmpSubjects)
 
 	require.Equal(t, expected, asMap)
 }

@@ -133,12 +133,12 @@ func GenerateRelationSource(relation *core.Relation, caveatTypeSet *caveattypes.
 }
 
 func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
-	sg.emitComments(caveat.Metadata)
+	sg.emitComments(caveat.GetMetadata())
 	sg.append("caveat ")
-	sg.append(caveat.Name)
+	sg.append(caveat.GetName())
 	sg.append("(")
 
-	parameterNames := slices.Collect(maps.Keys(caveat.ParameterTypes))
+	parameterNames := slices.Collect(maps.Keys(caveat.GetParameterTypes()))
 	sort.Strings(parameterNames)
 
 	for index, paramName := range parameterNames {
@@ -146,7 +146,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 			sg.append(", ")
 		}
 
-		decoded, err := caveattypes.DecodeParameterType(sg.caveatTypeSet, caveat.ParameterTypes[paramName])
+		decoded, err := caveattypes.DecodeParameterType(sg.caveatTypeSet, caveat.GetParameterTypes()[paramName])
 		if err != nil {
 			return fmt.Errorf("invalid parameter type on caveat: %w", err)
 		}
@@ -163,12 +163,12 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.indent()
 	sg.markNewScope()
 
-	parameterTypes, err := caveattypes.DecodeParameterTypes(sg.caveatTypeSet, caveat.ParameterTypes)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(sg.caveatTypeSet, caveat.GetParameterTypes())
 	if err != nil {
 		return fmt.Errorf("invalid caveat parameters: %w", err)
 	}
 
-	deserializedExpression, err := caveats.DeserializeCaveatWithTypeSet(sg.caveatTypeSet, caveat.SerializedExpression, parameterTypes)
+	deserializedExpression, err := caveats.DeserializeCaveatWithTypeSet(sg.caveatTypeSet, caveat.GetSerializedExpression(), parameterTypes)
 	if err != nil {
 		return fmt.Errorf("invalid caveat expression bytes: %w", err)
 	}
@@ -187,11 +187,11 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 }
 
 func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) error {
-	sg.emitComments(namespace.Metadata)
+	sg.emitComments(namespace.GetMetadata())
 	sg.append("definition ")
-	sg.append(namespace.Name)
+	sg.append(namespace.GetName())
 
-	if len(namespace.Relation) == 0 {
+	if len(namespace.GetRelation()) == 0 {
 		sg.append(" {}")
 		return nil
 	}
@@ -201,7 +201,7 @@ func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) er
 	sg.indent()
 	sg.markNewScope()
 
-	for _, relation := range namespace.Relation {
+	for _, relation := range namespace.GetRelation() {
 		err := sg.emitRelation(relation)
 		if err != nil {
 			return err
@@ -214,28 +214,28 @@ func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) er
 }
 
 func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
-	hasThis, err := graph.HasThis(relation.UsersetRewrite)
+	hasThis, err := graph.HasThis(relation.GetUsersetRewrite())
 	if err != nil {
 		return err
 	}
 
-	isPermission := relation.UsersetRewrite != nil && !hasThis
+	isPermission := relation.GetUsersetRewrite() != nil && !hasThis
 
-	sg.emitComments(relation.Metadata)
+	sg.emitComments(relation.GetMetadata())
 	if isPermission {
 		sg.append("permission ")
 	} else {
 		sg.append("relation ")
 	}
 
-	sg.append(relation.Name)
+	sg.append(relation.GetName())
 
 	if !isPermission {
 		sg.append(": ")
-		if relation.TypeInformation == nil || relation.TypeInformation.AllowedDirectRelations == nil || len(relation.TypeInformation.AllowedDirectRelations) == 0 {
+		if relation.GetTypeInformation() == nil || relation.TypeInformation.AllowedDirectRelations == nil || len(relation.GetTypeInformation().GetAllowedDirectRelations()) == 0 {
 			sg.appendIssue("missing allowed types")
 		} else {
-			for index, allowedRelation := range relation.TypeInformation.AllowedDirectRelations {
+			for index, allowedRelation := range relation.GetTypeInformation().GetAllowedDirectRelations() {
 				if index > 0 {
 					sg.append(" | ")
 				}
@@ -245,9 +245,9 @@ func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
 		}
 	}
 
-	if relation.UsersetRewrite != nil {
+	if relation.GetUsersetRewrite() != nil {
 		sg.append(" = ")
-		sg.mustEmitRewrite(relation.UsersetRewrite)
+		sg.mustEmitRewrite(relation.GetUsersetRewrite())
 	}
 
 	sg.appendLine()
@@ -255,7 +255,7 @@ func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
 }
 
 func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRelation) {
-	sg.append(allowedRelation.Namespace)
+	sg.append(allowedRelation.GetNamespace())
 	if allowedRelation.GetRelation() != "" && allowedRelation.GetRelation() != Ellipsis {
 		sg.append("#")
 		sg.append(allowedRelation.GetRelation())
@@ -270,7 +270,7 @@ func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRela
 	if hasExpirationTrait || hasCaveat {
 		sg.append(" with ")
 		if hasCaveat {
-			sg.append(allowedRelation.RequiredCaveat.CaveatName)
+			sg.append(allowedRelation.GetRequiredCaveat().GetCaveatName())
 		}
 
 		if hasExpirationTrait {
@@ -286,7 +286,7 @@ func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRela
 }
 
 func (sg *sourceGenerator) mustEmitRewrite(rewrite *core.UsersetRewrite) {
-	switch rw := rewrite.RewriteOperation.(type) {
+	switch rw := rewrite.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
 		sg.emitRewriteOps(rw.Union, "+")
 	case *core.UsersetRewrite_Intersection:
@@ -299,7 +299,7 @@ func (sg *sourceGenerator) mustEmitRewrite(rewrite *core.UsersetRewrite) {
 }
 
 func (sg *sourceGenerator) emitRewriteOps(setOp *core.SetOperation, op string) {
-	for index, child := range setOp.Child {
+	for index, child := range setOp.GetChild() {
 		if index > 0 {
 			sg.append(" " + op + " ")
 		}
@@ -309,10 +309,10 @@ func (sg *sourceGenerator) emitRewriteOps(setOp *core.SetOperation, op string) {
 }
 
 func (sg *sourceGenerator) isAllUnion(rewrite *core.UsersetRewrite) bool {
-	switch rw := rewrite.RewriteOperation.(type) {
+	switch rw := rewrite.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
-		for _, setOpChild := range rw.Union.Child {
-			switch child := setOpChild.ChildType.(type) {
+		for _, setOpChild := range rw.Union.GetChild() {
+			switch child := setOpChild.GetChildType().(type) {
 			case *core.SetOperation_Child_UsersetRewrite:
 				if !sg.isAllUnion(child.UsersetRewrite) {
 					return false
@@ -328,7 +328,7 @@ func (sg *sourceGenerator) isAllUnion(rewrite *core.UsersetRewrite) bool {
 }
 
 func (sg *sourceGenerator) mustEmitSetOpChild(setOpChild *core.SetOperation_Child) {
-	switch child := setOpChild.ChildType.(type) {
+	switch child := setOpChild.GetChildType().(type) {
 	case *core.SetOperation_Child_UsersetRewrite:
 		if sg.isAllUnion(child.UsersetRewrite) {
 			sg.mustEmitRewrite(child.UsersetRewrite)
@@ -346,18 +346,18 @@ func (sg *sourceGenerator) mustEmitSetOpChild(setOpChild *core.SetOperation_Chil
 		sg.append("nil")
 
 	case *core.SetOperation_Child_ComputedUserset:
-		sg.append(child.ComputedUserset.Relation)
+		sg.append(child.ComputedUserset.GetRelation())
 
 	case *core.SetOperation_Child_TupleToUserset:
-		sg.append(child.TupleToUserset.Tupleset.Relation)
+		sg.append(child.TupleToUserset.GetTupleset().GetRelation())
 		sg.append("->")
-		sg.append(child.TupleToUserset.ComputedUserset.Relation)
+		sg.append(child.TupleToUserset.GetComputedUserset().GetRelation())
 
 	case *core.SetOperation_Child_FunctionedTupleToUserset:
-		sg.append(child.FunctionedTupleToUserset.Tupleset.Relation)
+		sg.append(child.FunctionedTupleToUserset.GetTupleset().GetRelation())
 		sg.append(".")
 
-		switch child.FunctionedTupleToUserset.Function {
+		switch child.FunctionedTupleToUserset.GetFunction() {
 		case core.FunctionedTupleToUserset_FUNCTION_ALL:
 			sg.append("all")
 
@@ -365,11 +365,11 @@ func (sg *sourceGenerator) mustEmitSetOpChild(setOpChild *core.SetOperation_Chil
 			sg.append("any")
 
 		default:
-			panic(spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.Function))
+			panic(spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.GetFunction()))
 		}
 
 		sg.append("(")
-		sg.append(child.FunctionedTupleToUserset.ComputedUserset.Relation)
+		sg.append(child.FunctionedTupleToUserset.GetComputedUserset().GetRelation())
 		sg.append(")")
 
 	default:

@@ -23,11 +23,11 @@ var userDefinedMetadataTypeUrls = map[string]struct{}{
 // *in place*.
 func FilterUserDefinedMetadataInPlace(nsconfig *core.NamespaceDefinition) {
 	nsconfig.Metadata = nil
-	for _, relation := range nsconfig.Relation {
-		if relation.Metadata != nil {
+	for _, relation := range nsconfig.GetRelation() {
+		if relation.GetMetadata() != nil {
 			var filteredMessages []*anypb.Any
-			for _, msg := range relation.Metadata.MetadataMessage {
-				if _, ok := userDefinedMetadataTypeUrls[msg.TypeUrl]; !ok {
+			for _, msg := range relation.GetMetadata().GetMetadataMessage() {
+				if _, ok := userDefinedMetadataTypeUrls[msg.GetTypeUrl()]; !ok {
 					filteredMessages = append(filteredMessages, msg)
 				}
 			}
@@ -43,10 +43,10 @@ func GetComments(metadata *core.Metadata) []string {
 	}
 
 	comments := []string{}
-	for _, msg := range metadata.MetadataMessage {
+	for _, msg := range metadata.GetMetadataMessage() {
 		var dc iv1.DocComment
 		if err := msg.UnmarshalTo(&dc); err == nil {
-			comments = append(comments, dc.Comment)
+			comments = append(comments, dc.GetComment())
 		}
 	}
 
@@ -73,15 +73,15 @@ func AddComment(metadata *core.Metadata, comment string) (*core.Metadata, error)
 
 // GetRelationKind returns the kind of the relation.
 func GetRelationKind(relation *core.Relation) iv1.RelationMetadata_RelationKind {
-	metadata := relation.Metadata
+	metadata := relation.GetMetadata()
 	if metadata == nil {
 		return iv1.RelationMetadata_UNKNOWN_KIND
 	}
 
-	for _, msg := range metadata.MetadataMessage {
+	for _, msg := range metadata.GetMetadataMessage() {
 		var rm iv1.RelationMetadata
 		if err := msg.UnmarshalTo(&rm); err == nil {
-			return rm.Kind
+			return rm.GetKind()
 		}
 	}
 
@@ -90,7 +90,7 @@ func GetRelationKind(relation *core.Relation) iv1.RelationMetadata_RelationKind 
 
 // SetRelationKind sets the kind of relation.
 func SetRelationKind(relation *core.Relation, kind iv1.RelationMetadata_RelationKind) error {
-	metadata := relation.Metadata
+	metadata := relation.GetMetadata()
 	if metadata == nil {
 		metadata = &core.Metadata{}
 		relation.Metadata = metadata
@@ -110,20 +110,20 @@ func SetRelationKind(relation *core.Relation, kind iv1.RelationMetadata_Relation
 
 // GetTypeAnnotations returns the type annotations for a permission relation.
 func GetTypeAnnotations(relation *core.Relation) []string {
-	if relation.Metadata == nil {
+	if relation.GetMetadata() == nil {
 		return nil
 	}
 
-	for _, metadataAny := range relation.Metadata.MetadataMessage {
+	for _, metadataAny := range relation.GetMetadata().GetMetadataMessage() {
 		var relationMetadata iv1.RelationMetadata
 		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
 			// Skip if this metadata message is not RelationMetadata
 			continue
 		}
 
-		if relationMetadata.Kind == iv1.RelationMetadata_PERMISSION {
-			if relationMetadata.TypeAnnotations != nil {
-				return relationMetadata.TypeAnnotations.Types
+		if relationMetadata.GetKind() == iv1.RelationMetadata_PERMISSION {
+			if relationMetadata.GetTypeAnnotations() != nil {
+				return relationMetadata.GetTypeAnnotations().GetTypes()
 			}
 			return nil
 		}
@@ -135,7 +135,7 @@ func GetTypeAnnotations(relation *core.Relation) []string {
 // SetTypeAnnotations sets the type annotations for a permission relation.
 // If typeAnnotations is nil, removes any existing type annotations.
 func SetTypeAnnotations(relation *core.Relation, typeAnnotations []string) error {
-	if relation.Metadata == nil {
+	if relation.GetMetadata() == nil {
 		if typeAnnotations == nil {
 			return nil // Nothing to remove
 		}
@@ -143,14 +143,14 @@ func SetTypeAnnotations(relation *core.Relation, typeAnnotations []string) error
 	}
 
 	// Find existing PERMISSION RelationMetadata and update it, or create new one
-	for i, metadataAny := range relation.Metadata.MetadataMessage {
+	for i, metadataAny := range relation.GetMetadata().GetMetadataMessage() {
 		var relationMetadata iv1.RelationMetadata
 		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
 			continue // Skip if this is not RelationMetadata
 		}
 
 		// Only update if this is the PERMISSION metadata
-		if relationMetadata.Kind == iv1.RelationMetadata_PERMISSION {
+		if relationMetadata.GetKind() == iv1.RelationMetadata_PERMISSION {
 			if typeAnnotations == nil {
 				// Remove type annotations by setting to nil
 				relationMetadata.TypeAnnotations = nil

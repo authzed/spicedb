@@ -94,7 +94,7 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 		referencedNamespaceNames.Insert(rel.Resource.ObjectType)
 		referencedNamespaceNames.Insert(rel.Subject.ObjectType)
 		if hasNonEmptyCaveatContext(rel) {
-			referencedCaveatNamesWithContext.Insert(rel.OptionalCaveat.CaveatName)
+			referencedCaveatNamesWithContext.Insert(rel.OptionalCaveat.GetCaveatName())
 		}
 	}
 
@@ -115,7 +115,7 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 				return nil, nil, err
 			}
 
-			referencedNamespaceMap[nsDef.Definition.Name] = nts
+			referencedNamespaceMap[nsDef.Definition.GetName()] = nts
 		}
 	}
 
@@ -127,7 +127,7 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 
 		referencedCaveatMap = make(map[string]*core.CaveatDefinition, len(foundCaveats))
 		for _, caveatDef := range foundCaveats {
-			referencedCaveatMap[caveatDef.Definition.Name] = caveatDef.Definition
+			referencedCaveatMap[caveatDef.Definition.GetName()] = caveatDef.Definition
 		}
 	}
 	return referencedNamespaceMap, referencedCaveatMap, nil
@@ -191,7 +191,7 @@ func ValidateOneRelationship(
 	// Validate the subject against the allowed relation(s).
 	var caveat *core.AllowedCaveat
 	if rel.OptionalCaveat != nil {
-		caveat = ns.AllowedCaveat(rel.OptionalCaveat.CaveatName)
+		caveat = ns.AllowedCaveat(rel.OptionalCaveat.GetCaveatName())
 	}
 
 	var relationToCheck *core.AllowedRelation
@@ -250,7 +250,7 @@ func ValidateOneRelationship(
 
 	// Validate caveat and its context, if applicable.
 	if hasNonEmptyCaveatContext(rel) {
-		caveat, ok := caveatMap[rel.OptionalCaveat.CaveatName]
+		caveat, ok := caveatMap[rel.OptionalCaveat.GetCaveatName()]
 		if !ok {
 			// Should ideally never happen since the caveat is type checked above, but just in case.
 			return NewCaveatNotFoundError(rel)
@@ -259,8 +259,8 @@ func ValidateOneRelationship(
 		// Verify that the provided context information matches the types of the parameters defined.
 		_, err := caveats.ConvertContextToParameters(
 			caveatTypeSet,
-			rel.OptionalCaveat.Context.AsMap(),
-			caveat.ParameterTypes,
+			rel.OptionalCaveat.GetContext().AsMap(),
+			caveat.GetParameterTypes(),
 			caveats.ErrorForUnknownParameters,
 		)
 		if err != nil {
@@ -273,7 +273,7 @@ func ValidateOneRelationship(
 
 func hasNonEmptyCaveatContext(relationship tuple.Relationship) bool {
 	return relationship.OptionalCaveat != nil &&
-		relationship.OptionalCaveat.CaveatName != "" &&
-		relationship.OptionalCaveat.Context != nil &&
-		len(relationship.OptionalCaveat.Context.GetFields()) > 0
+		relationship.OptionalCaveat.GetCaveatName() != "" &&
+		relationship.OptionalCaveat.GetContext() != nil &&
+		len(relationship.OptionalCaveat.GetContext().GetFields()) > 0
 }

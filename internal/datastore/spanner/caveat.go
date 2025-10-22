@@ -93,10 +93,10 @@ func (rwt spannerReadWriteTXN) WriteCaveats(_ context.Context, caveats []*core.C
 	names := map[string]struct{}{}
 	mutations := make([]*spanner.Mutation, 0, len(caveats))
 	for _, caveat := range caveats {
-		if _, ok := names[caveat.Name]; ok {
-			return fmt.Errorf(errUnableToWriteCaveat, fmt.Errorf("duplicate caveats in input: %s", caveat.Name))
+		if _, ok := names[caveat.GetName()]; ok {
+			return fmt.Errorf(errUnableToWriteCaveat, fmt.Errorf("duplicate caveats in input: %s", caveat.GetName()))
 		}
-		names[caveat.Name] = struct{}{}
+		names[caveat.GetName()] = struct{}{}
 		serialized, err := caveat.MarshalVT()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteCaveat, err)
@@ -105,7 +105,7 @@ func (rwt spannerReadWriteTXN) WriteCaveats(_ context.Context, caveats []*core.C
 		mutations = append(mutations, spanner.InsertOrUpdate(
 			tableCaveat,
 			[]string{colName, colCaveatDefinition, colCaveatTS},
-			[]any{caveat.Name, serialized, spanner.CommitTimestamp},
+			[]any{caveat.GetName(), serialized, spanner.CommitTimestamp},
 		))
 	}
 

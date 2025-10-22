@@ -32,7 +32,7 @@ func TestRecordTraversal(t *testing.T) {
 	require.NoError(t, err)
 
 	bfs := bloom.BloomFilter{}
-	err = bfs.UnmarshalBinary(rm.TraversalBloom)
+	err = bfs.UnmarshalBinary(rm.GetTraversalBloom())
 	require.NoError(t, err)
 	require.True(t, bfs.TestString("test"))
 

@@ -121,7 +121,7 @@ func Decode(encoded *v1.ZedToken) (*zedtoken.DecodedZedToken, error) {
 		return nil, fmt.Errorf(errDecodeError, ErrNilZedToken)
 	}
 
-	decodedBytes, err := base64.StdEncoding.DecodeString(encoded.Token)
+	decodedBytes, err := base64.StdEncoding.DecodeString(encoded.GetToken())
 	if err != nil {
 		return nil, fmt.Errorf(errDecodeError, err)
 	}
@@ -139,9 +139,9 @@ func DecodeRevision(encoded *v1.ZedToken, ds RevisionHolder) (datastore.Revision
 		return datastore.NoRevision, StatusUnknown, err
 	}
 
-	switch ver := decoded.VersionOneof.(type) {
+	switch ver := decoded.GetVersionOneof().(type) {
 	case *zedtoken.DecodedZedToken_DeprecatedV1Zookie:
-		revString := strconv.FormatUint(ver.DeprecatedV1Zookie.Revision, 10)
+		revString := strconv.FormatUint(ver.DeprecatedV1Zookie.GetRevision(), 10)
 		parsed, err := ds.RevisionFromString(revString)
 		if err != nil {
 			return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, err)
@@ -149,12 +149,12 @@ func DecodeRevision(encoded *v1.ZedToken, ds RevisionHolder) (datastore.Revision
 		return parsed, StatusLegacyEmptyDatastoreID, nil
 
 	case *zedtoken.DecodedZedToken_V1:
-		parsed, err := ds.RevisionFromString(ver.V1.Revision)
+		parsed, err := ds.RevisionFromString(ver.V1.GetRevision())
 		if err != nil {
 			return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, err)
 		}
 
-		if ver.V1.DatastoreUniqueIdPrefix == legacyEmptyDatastoreID {
+		if ver.V1.GetDatastoreUniqueIdPrefix() == legacyEmptyDatastoreID {
 			return parsed, StatusLegacyEmptyDatastoreID, nil
 		}
 
@@ -168,12 +168,12 @@ func DecodeRevision(encoded *v1.ZedToken, ds RevisionHolder) (datastore.Revision
 			datastoreUniqueIDPrefix = datastoreUniqueIDPrefix[0:uniqueIDPrefixLength]
 		}
 
-		if ver.V1.DatastoreUniqueIdPrefix != datastoreUniqueIDPrefix {
+		if ver.V1.GetDatastoreUniqueIdPrefix() != datastoreUniqueIDPrefix {
 			return parsed, StatusMismatchedDatastoreID, nil
 		}
 
 		return parsed, StatusValid, nil
 	default:
-		return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
+		return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.GetVersionOneof()))
 	}
 }

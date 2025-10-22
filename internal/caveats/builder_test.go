@@ -223,10 +223,10 @@ func TestMustCaveatExprForTestingWithContext(t *testing.T) {
 	result := MustCaveatExprForTestingWithContext("test_caveat", context)
 	require.NotNil(t, result)
 	require.NotNil(t, result.GetCaveat())
-	require.Equal(t, "test_caveat", result.GetCaveat().CaveatName)
-	require.NotNil(t, result.GetCaveat().Context)
+	require.Equal(t, "test_caveat", result.GetCaveat().GetCaveatName())
+	require.NotNil(t, result.GetCaveat().GetContext())
 
-	contextMap := result.GetCaveat().Context.AsMap()
+	contextMap := result.GetCaveat().GetContext().AsMap()
 	require.Equal(t, "value1", contextMap["key1"])
 	require.Equal(t, float64(42), contextMap["key2"]) //nolint:testifyrequire these are known/static values
 }

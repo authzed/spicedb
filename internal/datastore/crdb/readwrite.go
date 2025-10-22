@@ -298,8 +298,8 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		var caveatContext map[string]any
 		var caveatName string
 		if rel.OptionalCaveat != nil {
-			caveatName = rel.OptionalCaveat.CaveatName
-			caveatContext = rel.OptionalCaveat.Context.AsMap()
+			caveatName = rel.OptionalCaveat.GetCaveatName()
+			caveatContext = rel.OptionalCaveat.GetContext().AsMap()
 		}
 
 		var integrityKeyID *string
@@ -311,7 +311,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 			}
 
 			integrityKeyID = &rel.OptionalIntegrity.KeyId
-			integrityHash = rel.OptionalIntegrity.Hash
+			integrityHash = rel.OptionalIntegrity.GetHash()
 		} else if rwt.withIntegrity {
 			return spiceerrors.MustBugf("attempted to write a relationship without integrity, but the datastore requires integrity")
 		}
@@ -416,17 +416,17 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 
 	query := rwt.queryDeleteTuples(index)
 
-	if filter.ResourceType != "" {
-		query = query.Where(sq.Eq{schema.ColNamespace: filter.ResourceType})
+	if filter.GetResourceType() != "" {
+		query = query.Where(sq.Eq{schema.ColNamespace: filter.GetResourceType()})
 	}
-	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{schema.ColObjectID: filter.OptionalResourceId})
+	if filter.GetOptionalResourceId() != "" {
+		query = query.Where(sq.Eq{schema.ColObjectID: filter.GetOptionalResourceId()})
 	}
-	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{schema.ColRelation: filter.OptionalRelation})
+	if filter.GetOptionalRelation() != "" {
+		query = query.Where(sq.Eq{schema.ColRelation: filter.GetOptionalRelation()})
 	}
-	if filter.OptionalResourceIdPrefix != "" {
-		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.OptionalResourceIdPrefix)
+	if filter.GetOptionalResourceIdPrefix() != "" {
+		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.GetOptionalResourceIdPrefix())
 		if err != nil {
 			return 0, false, fmt.Errorf("unable to build like clause: %w", err)
 		}
@@ -434,18 +434,18 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 		query = query.Where(likeClause)
 	}
 
-	rwt.addOverlapKey(filter.ResourceType)
+	rwt.addOverlapKey(filter.GetResourceType())
 
 	// Add clauses for the SubjectFilter
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.SubjectType})
-		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.OptionalSubjectId})
+	if subjectFilter := filter.GetOptionalSubjectFilter(); subjectFilter != nil {
+		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.GetSubjectType()})
+		if subjectFilter.GetOptionalSubjectId() != "" {
+			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.GetOptionalSubjectId()})
 		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{schema.ColUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
+		if relationFilter := subjectFilter.GetOptionalRelation(); relationFilter != nil {
+			query = query.Where(sq.Eq{schema.ColUsersetRelation: cmp.Or(relationFilter.GetRelation(), datastore.Ellipsis)})
 		}
-		rwt.addOverlapKey(subjectFilter.SubjectType)
+		rwt.addOverlapKey(subjectFilter.GetSubjectType())
 	}
 
 	// Add the limit, if any.
@@ -487,13 +487,13 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 	query := queryWriteNamespace
 
 	for _, newConfig := range newConfigs {
-		rwt.addOverlapKey(newConfig.Name)
+		rwt.addOverlapKey(newConfig.GetName())
 
 		serialized, err := newConfig.MarshalVT()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}
-		query = query.Values(newConfig.Name, serialized)
+		query = query.Values(newConfig.GetName(), serialized)
 	}
 
 	writeSQL, writeArgs, err := query.ToSql()
