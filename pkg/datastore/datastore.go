@@ -204,12 +204,12 @@ func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
 		// No caveat filter, so no need to check.
 
 	case CaveatFilterOptionHasMatchingCaveat:
-		if relationship.OptionalCaveat == nil || relationship.OptionalCaveat.CaveatName != rf.OptionalCaveatNameFilter.CaveatName {
+		if relationship.OptionalCaveat == nil || relationship.OptionalCaveat.GetCaveatName() != rf.OptionalCaveatNameFilter.CaveatName {
 			return false
 		}
 
 	case CaveatFilterOptionNoCaveat:
-		if relationship.OptionalCaveat != nil && relationship.OptionalCaveat.CaveatName != "" {
+		if relationship.OptionalCaveat != nil && relationship.OptionalCaveat.GetCaveatName() != "" {
 			return false
 		}
 	}
@@ -251,11 +251,11 @@ func WithNoCaveat() CaveatNameFilter {
 // CoreFilterFromRelationshipFilter constructs a core RelationshipFilter from a V1 RelationshipsFilter.
 func CoreFilterFromRelationshipFilter(filter *v1.RelationshipFilter) *core.RelationshipFilter {
 	return &core.RelationshipFilter{
-		ResourceType:             filter.ResourceType,
-		OptionalResourceId:       filter.OptionalResourceId,
-		OptionalResourceIdPrefix: filter.OptionalResourceIdPrefix,
-		OptionalRelation:         filter.OptionalRelation,
-		OptionalSubjectFilter:    coreFilterFromSubjectsFilter(filter.OptionalSubjectFilter),
+		ResourceType:             filter.GetResourceType(),
+		OptionalResourceId:       filter.GetOptionalResourceId(),
+		OptionalResourceIdPrefix: filter.GetOptionalResourceIdPrefix(),
+		OptionalRelation:         filter.GetOptionalRelation(),
+		OptionalSubjectFilter:    coreFilterFromSubjectsFilter(filter.GetOptionalSubjectFilter()),
 	}
 }
 
@@ -265,9 +265,9 @@ func coreFilterFromSubjectsFilter(filter *v1.SubjectFilter) *core.SubjectFilter 
 	}
 
 	return &core.SubjectFilter{
-		SubjectType:       filter.SubjectType,
-		OptionalSubjectId: filter.OptionalSubjectId,
-		OptionalRelation:  coreFilterFromSubjectRelationFilter(filter.OptionalRelation),
+		SubjectType:       filter.GetSubjectType(),
+		OptionalSubjectId: filter.GetOptionalSubjectId(),
+		OptionalRelation:  coreFilterFromSubjectRelationFilter(filter.GetOptionalRelation()),
 	}
 }
 
@@ -277,28 +277,28 @@ func coreFilterFromSubjectRelationFilter(filter *v1.SubjectFilter_RelationFilter
 	}
 
 	return &core.SubjectFilter_RelationFilter{
-		Relation: filter.Relation,
+		Relation: filter.GetRelation(),
 	}
 }
 
 // RelationshipsFilterFromCoreFilter constructs a datastore RelationshipsFilter from a core RelationshipFilter.
 func RelationshipsFilterFromCoreFilter(filter *core.RelationshipFilter) (RelationshipsFilter, error) {
 	var resourceIds []string
-	if filter.OptionalResourceId != "" {
-		resourceIds = []string{filter.OptionalResourceId}
+	if filter.GetOptionalResourceId() != "" {
+		resourceIds = []string{filter.GetOptionalResourceId()}
 	}
 
 	var subjectsSelectors []SubjectsSelector
-	if filter.OptionalSubjectFilter != nil {
+	if filter.GetOptionalSubjectFilter() != nil {
 		var subjectIds []string
-		if filter.OptionalSubjectFilter.OptionalSubjectId != "" {
-			subjectIds = []string{filter.OptionalSubjectFilter.OptionalSubjectId}
+		if filter.GetOptionalSubjectFilter().GetOptionalSubjectId() != "" {
+			subjectIds = []string{filter.GetOptionalSubjectFilter().GetOptionalSubjectId()}
 		}
 
 		relationFilter := SubjectRelationFilter{}
 
-		if filter.OptionalSubjectFilter.OptionalRelation != nil {
-			relation := filter.OptionalSubjectFilter.OptionalRelation.GetRelation()
+		if filter.GetOptionalSubjectFilter().GetOptionalRelation() != nil {
+			relation := filter.GetOptionalSubjectFilter().GetOptionalRelation().GetRelation()
 			if relation != "" {
 				relationFilter = relationFilter.WithNonEllipsisRelation(relation)
 			} else {
@@ -307,25 +307,25 @@ func RelationshipsFilterFromCoreFilter(filter *core.RelationshipFilter) (Relatio
 		}
 
 		subjectsSelectors = append(subjectsSelectors, SubjectsSelector{
-			OptionalSubjectType: filter.OptionalSubjectFilter.SubjectType,
+			OptionalSubjectType: filter.GetOptionalSubjectFilter().GetSubjectType(),
 			OptionalSubjectIds:  subjectIds,
 			RelationFilter:      relationFilter,
 		})
 	}
 
-	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
+	if filter.GetOptionalResourceId() != "" && filter.GetOptionalResourceIdPrefix() != "" {
 		return RelationshipsFilter{}, errors.New("cannot specify both OptionalResourceId and OptionalResourceIDPrefix")
 	}
 
-	if filter.ResourceType == "" && filter.OptionalRelation == "" && len(resourceIds) == 0 && filter.OptionalResourceIdPrefix == "" && len(subjectsSelectors) == 0 {
+	if filter.GetResourceType() == "" && filter.GetOptionalRelation() == "" && len(resourceIds) == 0 && filter.GetOptionalResourceIdPrefix() == "" && len(subjectsSelectors) == 0 {
 		return RelationshipsFilter{}, errors.New("at least one filter field must be set")
 	}
 
 	return RelationshipsFilter{
-		OptionalResourceType:      filter.ResourceType,
+		OptionalResourceType:      filter.GetResourceType(),
 		OptionalResourceIds:       resourceIds,
-		OptionalResourceIDPrefix:  filter.OptionalResourceIdPrefix,
-		OptionalResourceRelation:  filter.OptionalRelation,
+		OptionalResourceIDPrefix:  filter.GetOptionalResourceIdPrefix(),
+		OptionalResourceRelation:  filter.GetOptionalRelation(),
 		OptionalSubjectsSelectors: subjectsSelectors,
 	}, nil
 }
@@ -333,21 +333,21 @@ func RelationshipsFilterFromCoreFilter(filter *core.RelationshipFilter) (Relatio
 // RelationshipsFilterFromPublicFilter constructs a datastore RelationshipsFilter from an API-defined RelationshipFilter.
 func RelationshipsFilterFromPublicFilter(filter *v1.RelationshipFilter) (RelationshipsFilter, error) {
 	var resourceIds []string
-	if filter.OptionalResourceId != "" {
-		resourceIds = []string{filter.OptionalResourceId}
+	if filter.GetOptionalResourceId() != "" {
+		resourceIds = []string{filter.GetOptionalResourceId()}
 	}
 
 	var subjectsSelectors []SubjectsSelector
-	if filter.OptionalSubjectFilter != nil {
+	if filter.GetOptionalSubjectFilter() != nil {
 		var subjectIds []string
-		if filter.OptionalSubjectFilter.OptionalSubjectId != "" {
-			subjectIds = []string{filter.OptionalSubjectFilter.OptionalSubjectId}
+		if filter.GetOptionalSubjectFilter().GetOptionalSubjectId() != "" {
+			subjectIds = []string{filter.GetOptionalSubjectFilter().GetOptionalSubjectId()}
 		}
 
 		relationFilter := SubjectRelationFilter{}
 
-		if filter.OptionalSubjectFilter.OptionalRelation != nil {
-			relation := filter.OptionalSubjectFilter.OptionalRelation.GetRelation()
+		if filter.GetOptionalSubjectFilter().GetOptionalRelation() != nil {
+			relation := filter.GetOptionalSubjectFilter().GetOptionalRelation().GetRelation()
 			if relation != "" {
 				relationFilter = relationFilter.WithNonEllipsisRelation(relation)
 			} else {
@@ -356,25 +356,25 @@ func RelationshipsFilterFromPublicFilter(filter *v1.RelationshipFilter) (Relatio
 		}
 
 		subjectsSelectors = append(subjectsSelectors, SubjectsSelector{
-			OptionalSubjectType: filter.OptionalSubjectFilter.SubjectType,
+			OptionalSubjectType: filter.GetOptionalSubjectFilter().GetSubjectType(),
 			OptionalSubjectIds:  subjectIds,
 			RelationFilter:      relationFilter,
 		})
 	}
 
-	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
+	if filter.GetOptionalResourceId() != "" && filter.GetOptionalResourceIdPrefix() != "" {
 		return RelationshipsFilter{}, errors.New("cannot specify both OptionalResourceId and OptionalResourceIDPrefix")
 	}
 
-	if filter.ResourceType == "" && filter.OptionalRelation == "" && len(resourceIds) == 0 && filter.OptionalResourceIdPrefix == "" && len(subjectsSelectors) == 0 {
+	if filter.GetResourceType() == "" && filter.GetOptionalRelation() == "" && len(resourceIds) == 0 && filter.GetOptionalResourceIdPrefix() == "" && len(subjectsSelectors) == 0 {
 		return RelationshipsFilter{}, errors.New("at least one filter field must be set")
 	}
 
 	return RelationshipsFilter{
-		OptionalResourceType:      filter.ResourceType,
+		OptionalResourceType:      filter.GetResourceType(),
 		OptionalResourceIds:       resourceIds,
-		OptionalResourceIDPrefix:  filter.OptionalResourceIdPrefix,
-		OptionalResourceRelation:  filter.OptionalRelation,
+		OptionalResourceIDPrefix:  filter.GetOptionalResourceIdPrefix(),
+		OptionalResourceRelation:  filter.GetOptionalRelation(),
 		OptionalSubjectsSelectors: subjectsSelectors,
 	}, nil
 }

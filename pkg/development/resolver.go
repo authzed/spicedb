@@ -88,11 +88,11 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 
 	relationReference := func(relation *core.Relation, def *schema.Definition) (*SchemaReference, error) {
 		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, err := safecast.Convert[int](relation.SourcePosition.ZeroIndexedLineNumber)
+		lineNumber, err := safecast.Convert[int](relation.GetSourcePosition().GetZeroIndexedLineNumber())
 		if err != nil {
 			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
-		columnPosition, err := safecast.Convert[int](relation.SourcePosition.ZeroIndexedColumnPosition)
+		columnPosition, err := safecast.Convert[int](relation.GetSourcePosition().GetZeroIndexedColumnPosition())
 		if err != nil {
 			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
@@ -106,14 +106,14 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			return nil, err
 		}
 
-		if def.IsPermission(relation.Name) {
+		if def.IsPermission(relation.GetName()) {
 			return &SchemaReference{
 				Source:   source,
 				Position: position,
-				Text:     relation.Name,
+				Text:     relation.GetName(),
 
 				ReferenceType:     ReferenceTypePermission,
-				ReferenceMarkdown: "permission " + relation.Name,
+				ReferenceMarkdown: "permission " + relation.GetName(),
 
 				TargetSource:             &source,
 				TargetPosition:           &relationPosition,
@@ -125,10 +125,10 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		return &SchemaReference{
 			Source:   source,
 			Position: position,
-			Text:     relation.Name,
+			Text:     relation.GetName(),
 
 			ReferenceType:     ReferenceTypeRelation,
-			ReferenceMarkdown: "relation " + relation.Name,
+			ReferenceMarkdown: "relation " + relation.GetName(),
 
 			TargetSource:             &source,
 			TargetPosition:           &relationPosition,
@@ -146,11 +146,11 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		def := ts.Namespace()
 
 		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, err := safecast.Convert[int](def.SourcePosition.ZeroIndexedLineNumber)
+		lineNumber, err := safecast.Convert[int](def.GetSourcePosition().GetZeroIndexedLineNumber())
 		if err != nil {
 			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
-		columnPosition, err := safecast.Convert[int](def.SourcePosition.ZeroIndexedColumnPosition)
+		columnPosition, err := safecast.Convert[int](def.GetSourcePosition().GetZeroIndexedColumnPosition())
 		if err != nil {
 			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
@@ -161,23 +161,23 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		}
 
 		docComment := ""
-		comments := namespace.GetComments(def.Metadata)
+		comments := namespace.GetComments(def.GetMetadata())
 		if len(comments) > 0 {
 			docComment = strings.Join(comments, "\n") + "\n"
 		}
 
-		targetSourceCode := fmt.Sprintf("%sdefinition %s {\n\t// ...\n}", docComment, def.Name)
-		if len(def.Relation) == 0 {
-			targetSourceCode = fmt.Sprintf("%sdefinition %s {}", docComment, def.Name)
+		targetSourceCode := fmt.Sprintf("%sdefinition %s {\n\t// ...\n}", docComment, def.GetName())
+		if len(def.GetRelation()) == 0 {
+			targetSourceCode = fmt.Sprintf("%sdefinition %s {}", docComment, def.GetName())
 		}
 
 		return &SchemaReference{
 			Source:   source,
 			Position: position,
-			Text:     def.Name,
+			Text:     def.GetName(),
 
 			ReferenceType:     ReferenceTypeDefinition,
-			ReferenceMarkdown: "definition " + def.Name,
+			ReferenceMarkdown: "definition " + def.GetName(),
 
 			TargetSource:             &source,
 			TargetPosition:           &defPosition,
@@ -189,11 +189,11 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 	// Caveat Type reference.
 	if caveatDef, ok := r.caveatTypeReferenceChain(nodeChain); ok {
 		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, err := safecast.Convert[int](caveatDef.SourcePosition.ZeroIndexedLineNumber)
+		lineNumber, err := safecast.Convert[int](caveatDef.GetSourcePosition().GetZeroIndexedLineNumber())
 		if err != nil {
 			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
-		columnPosition, err := safecast.Convert[int](caveatDef.SourcePosition.ZeroIndexedColumnPosition)
+		columnPosition, err := safecast.Convert[int](caveatDef.GetSourcePosition().GetZeroIndexedColumnPosition())
 		if err != nil {
 			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
@@ -204,9 +204,9 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		}
 
 		var caveatSourceCode strings.Builder
-		caveatSourceCode.WriteString(fmt.Sprintf("caveat %s(", caveatDef.Name))
+		caveatSourceCode.WriteString(fmt.Sprintf("caveat %s(", caveatDef.GetName()))
 		index := 0
-		for paramName, paramType := range caveatDef.ParameterTypes {
+		for paramName, paramType := range caveatDef.GetParameterTypes() {
 			if index > 0 {
 				caveatSourceCode.WriteString(", ")
 			}
@@ -219,10 +219,10 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		return &SchemaReference{
 			Source:   source,
 			Position: position,
-			Text:     caveatDef.Name,
+			Text:     caveatDef.GetName(),
 
 			ReferenceType:     ReferenceTypeCaveat,
-			ReferenceMarkdown: "caveat " + caveatDef.Name,
+			ReferenceMarkdown: "caveat " + caveatDef.GetName(),
 
 			TargetSource:             &source,
 			TargetPosition:           &defPosition,
@@ -238,7 +238,7 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 
 	// Caveat parameter used in expression.
 	if caveatParamName, caveatDef, ok := r.caveatParamChain(nodeChain, source, position); ok {
-		targetSourceCode := fmt.Sprintf("%s %s", caveatParamName, caveats.ParameterTypeString(caveatDef.ParameterTypes[caveatParamName]))
+		targetSourceCode := fmt.Sprintf("%s %s", caveatParamName, caveats.ParameterTypeString(caveatDef.GetParameterTypes()[caveatParamName]))
 
 		return &SchemaReference{
 			Source:   source,
@@ -258,7 +258,7 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 
 func (r *Resolver) lookupCaveat(caveatName string) (*core.CaveatDefinition, bool) {
 	for _, caveatDef := range r.schema.CaveatDefinitions {
-		if caveatDef.Name == caveatName {
+		if caveatDef.GetName() == caveatName {
 			return caveatDef, true
 		}
 	}
@@ -326,7 +326,7 @@ func (r *Resolver) caveatParamChain(nodeChain *compiler.NodeChain, source input.
 	currentIndex := 0
 	for _, token := range tokens {
 		if currentIndex <= relationRunePosition && currentIndex+len(token) >= relationRunePosition {
-			if _, ok := caveatDef.ParameterTypes[token]; ok {
+			if _, ok := caveatDef.GetParameterTypes()[token]; ok {
 				return token, caveatDef, true
 			}
 		}

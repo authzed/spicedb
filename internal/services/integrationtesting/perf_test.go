@@ -62,9 +62,9 @@ func TestBurst(t *testing.T) {
 								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 							},
 						},
-						Resource:   rel.Resource,
+						Resource:   rel.GetResource(),
 						Permission: "viewer",
-						Subject:    rel.Subject,
+						Subject:    rel.GetSubject(),
 					})
 					require.NoError(t, err)
 				}()

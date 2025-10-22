@@ -55,7 +55,7 @@ const computedKeyPrefix = "%"
 // representing the same *logical* expressions for a permission, even if the relations have
 // different names.
 func computeCanonicalCacheKeys(typeDef *schema.ValidatedDefinition, aliasMap map[string]string) (map[string]string, error) {
-	varMap, err := buildBddVarMap(typeDef.Namespace().Relation, aliasMap)
+	varMap, err := buildBddVarMap(typeDef.Namespace().GetRelation(), aliasMap)
 	if err != nil {
 		return nil, err
 	}
@@ -70,13 +70,13 @@ func computeCanonicalCacheKeys(typeDef *schema.ValidatedDefinition, aliasMap map
 	}
 
 	// For each permission, build a canonicalized cache key based on its expression.
-	cacheKeys := make(map[string]string, len(typeDef.Namespace().Relation))
-	for _, rel := range typeDef.Namespace().Relation {
+	cacheKeys := make(map[string]string, len(typeDef.Namespace().GetRelation()))
+	for _, rel := range typeDef.Namespace().GetRelation() {
 		rewrite := rel.GetUsersetRewrite()
 		if rewrite == nil {
 			// If the relation has no rewrite (making it a pure relation), then its canonical
 			// key is simply the relation's name.
-			cacheKeys[rel.Name] = rel.Name
+			cacheKeys[rel.GetName()] = rel.GetName()
 			continue
 		}
 
@@ -87,14 +87,14 @@ func computeCanonicalCacheKeys(typeDef *schema.ValidatedDefinition, aliasMap map
 		}
 
 		bdd.Print(hasher, node)
-		cacheKeys[rel.Name] = computedKeyPrefix + hex.EncodeToString(hasher.Sum(nil))
+		cacheKeys[rel.GetName()] = computedKeyPrefix + hex.EncodeToString(hasher.Sum(nil))
 	}
 
 	return cacheKeys, nil
 }
 
 func convertRewriteToBdd(relation *core.Relation, bdd *rudd.BDD, rewrite *core.UsersetRewrite, varMap bddVarMap) (rudd.Node, error) {
-	switch rw := rewrite.RewriteOperation.(type) {
+	switch rw := rewrite.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
 		return convertToBdd(relation, bdd, rw.Union, bdd.Or, func(childIndex int, varIndex int) rudd.Node {
 			return bdd.Ithvar(varIndex)
@@ -124,14 +124,14 @@ type (
 )
 
 func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation, combiner combiner, builder builder, varMap bddVarMap) (rudd.Node, error) {
-	values := make([]rudd.Node, 0, len(so.Child))
-	for index, childOneof := range so.Child {
-		switch child := childOneof.ChildType.(type) {
+	values := make([]rudd.Node, 0, len(so.GetChild()))
+	for index, childOneof := range so.GetChild() {
+		switch child := childOneof.GetChildType().(type) {
 		case *core.SetOperation_Child_XThis:
 			return nil, spiceerrors.MustBugf("use of _this is disallowed")
 
 		case *core.SetOperation_Child_ComputedUserset:
-			cuIndex, err := varMap.Get(child.ComputedUserset.Relation)
+			cuIndex, err := varMap.Get(child.ComputedUserset.GetRelation())
 			if err != nil {
 				return nil, err
 			}
@@ -147,7 +147,7 @@ func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation,
 			values = append(values, node)
 
 		case *core.SetOperation_Child_TupleToUserset:
-			arrowIndex, err := varMap.GetArrow(child.TupleToUserset.Tupleset.Relation, child.TupleToUserset.ComputedUserset.Relation)
+			arrowIndex, err := varMap.GetArrow(child.TupleToUserset.GetTupleset().GetRelation(), child.TupleToUserset.GetComputedUserset().GetRelation())
 			if err != nil {
 				return nil, err
 			}
@@ -155,9 +155,9 @@ func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation,
 			values = append(values, builder(index, arrowIndex))
 
 		case *core.SetOperation_Child_FunctionedTupleToUserset:
-			switch child.FunctionedTupleToUserset.Function {
+			switch child.FunctionedTupleToUserset.GetFunction() {
 			case core.FunctionedTupleToUserset_FUNCTION_ANY:
-				arrowIndex, err := varMap.GetArrow(child.FunctionedTupleToUserset.Tupleset.Relation, child.FunctionedTupleToUserset.ComputedUserset.Relation)
+				arrowIndex, err := varMap.GetArrow(child.FunctionedTupleToUserset.GetTupleset().GetRelation(), child.FunctionedTupleToUserset.GetComputedUserset().GetRelation())
 				if err != nil {
 					return nil, err
 				}
@@ -165,7 +165,7 @@ func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation,
 				values = append(values, builder(index, arrowIndex))
 
 			case core.FunctionedTupleToUserset_FUNCTION_ALL:
-				arrowIndex, err := varMap.GetIntersectionArrow(child.FunctionedTupleToUserset.Tupleset.Relation, child.FunctionedTupleToUserset.ComputedUserset.Relation)
+				arrowIndex, err := varMap.GetIntersectionArrow(child.FunctionedTupleToUserset.GetTupleset().GetRelation(), child.FunctionedTupleToUserset.GetComputedUserset().GetRelation())
 				if err != nil {
 					return nil, err
 				}
@@ -173,7 +173,7 @@ func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation,
 				values = append(values, builder(index, arrowIndex))
 
 			default:
-				return nil, spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.Function)
+				return nil, spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.GetFunction())
 			}
 
 		case *core.SetOperation_Child_XNil:
@@ -232,11 +232,11 @@ func (bvm bddVarMap) Len() int {
 func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) (bddVarMap, error) {
 	varMap := map[string]int{}
 	for _, rel := range relations {
-		if _, ok := aliasMap[rel.Name]; ok {
+		if _, ok := aliasMap[rel.GetName()]; ok {
 			continue
 		}
 
-		varMap[rel.Name] = len(varMap)
+		varMap[rel.GetName()] = len(varMap)
 
 		rewrite := rel.GetUsersetRewrite()
 		if rewrite == nil {
@@ -244,24 +244,24 @@ func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) (bdd
 		}
 
 		_, err := graph.WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) (any, error) {
-			switch child := childOneof.ChildType.(type) {
+			switch child := childOneof.GetChildType().(type) {
 			case *core.SetOperation_Child_TupleToUserset:
-				key := child.TupleToUserset.Tupleset.Relation + "->" + child.TupleToUserset.ComputedUserset.Relation
+				key := child.TupleToUserset.GetTupleset().GetRelation() + "->" + child.TupleToUserset.GetComputedUserset().GetRelation()
 				if _, ok := varMap[key]; !ok {
 					varMap[key] = len(varMap)
 				}
 			case *core.SetOperation_Child_FunctionedTupleToUserset:
-				key := child.FunctionedTupleToUserset.Tupleset.Relation + "->" + child.FunctionedTupleToUserset.ComputedUserset.Relation
+				key := child.FunctionedTupleToUserset.GetTupleset().GetRelation() + "->" + child.FunctionedTupleToUserset.GetComputedUserset().GetRelation()
 
-				switch child.FunctionedTupleToUserset.Function {
+				switch child.FunctionedTupleToUserset.GetFunction() {
 				case core.FunctionedTupleToUserset_FUNCTION_ANY:
 					// Use the key.
 
 				case core.FunctionedTupleToUserset_FUNCTION_ALL:
-					key = child.FunctionedTupleToUserset.Tupleset.Relation + "-(all)->" + child.FunctionedTupleToUserset.ComputedUserset.Relation
+					key = child.FunctionedTupleToUserset.GetTupleset().GetRelation() + "-(all)->" + child.FunctionedTupleToUserset.GetComputedUserset().GetRelation()
 
 				default:
-					return nil, spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.Function)
+					return nil, spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.GetFunction())
 				}
 
 				if _, ok := varMap[key]; !ok {

@@ -1463,12 +1463,12 @@ func BenchmarkPostgresQuery(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-				OptionalResourceType: testfixtures.DocumentNS.Name,
+				OptionalResourceType: testfixtures.DocumentNS.GetName(),
 			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			require.NoError(err)
 			for rel, err := range iter {
 				require.NoError(err)
-				require.Equal(testfixtures.DocumentNS.Name, rel.Resource.ObjectType)
+				require.Equal(testfixtures.DocumentNS.GetName(), rel.Resource.ObjectType)
 			}
 		}
 	})
@@ -1511,7 +1511,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 			rtu := tuple.Touch(tuple.Relationship{
 				RelationshipReference: tuple.RelationshipReference{
 					Resource: tuple.ObjectAndRelation{
-						ObjectType: testfixtures.DocumentNS.Name,
+						ObjectType: testfixtures.DocumentNS.GetName(),
 						ObjectID:   fmt.Sprintf("doc%d", i),
 						Relation:   "reader",
 					},
@@ -1564,7 +1564,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 			rtu := tuple.Delete(tuple.Relationship{
 				RelationshipReference: tuple.RelationshipReference{
 					Resource: tuple.ObjectAndRelation{
-						ObjectType: testfixtures.DocumentNS.Name,
+						ObjectType: testfixtures.DocumentNS.GetName(),
 						ObjectID:   fmt.Sprintf("doc%d", i),
 						Relation:   "reader",
 					},
@@ -1602,7 +1602,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 			rtu := tuple.Touch(tuple.Relationship{
 				RelationshipReference: tuple.RelationshipReference{
 					Resource: tuple.ObjectAndRelation{
-						ObjectType: testfixtures.DocumentNS.Name,
+						ObjectType: testfixtures.DocumentNS.GetName(),
 						ObjectID:   fmt.Sprintf("doc%d", i),
 						Relation:   "reader",
 					},

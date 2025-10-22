@@ -16,8 +16,8 @@ func mergeContexts(expr *core.CaveatExpression, queryContext map[string]any) map
 	fullContext := make(map[string]any)
 
 	// Start with the relationship context from the caveat expression
-	if expr.GetCaveat() != nil && expr.GetCaveat().Context != nil {
-		maps.Copy(fullContext, expr.GetCaveat().Context.AsMap())
+	if expr.GetCaveat() != nil && expr.GetCaveat().GetContext() != nil {
+		maps.Copy(fullContext, expr.GetCaveat().GetContext().AsMap())
 	}
 
 	// Overlay with query-time context (takes precedence)
@@ -47,8 +47,8 @@ func collectRelationshipContexts(expr *core.CaveatExpression, contextMap map[str
 	}
 
 	// If this is a leaf caveat, collect its context
-	if expr.GetCaveat() != nil && expr.GetCaveat().Context != nil {
-		for k, v := range expr.GetCaveat().Context.AsMap() {
+	if expr.GetCaveat() != nil && expr.GetCaveat().GetContext() != nil {
+		for k, v := range expr.GetCaveat().GetContext().AsMap() {
 			if _, exists := contextMap[k]; !exists {
 				contextMap[k] = v
 			}
@@ -57,7 +57,7 @@ func collectRelationshipContexts(expr *core.CaveatExpression, contextMap map[str
 
 	// If this is an operation, recursively collect from children
 	if expr.GetOperation() != nil {
-		for _, child := range expr.GetOperation().Children {
+		for _, child := range expr.GetOperation().GetChildren() {
 			collectRelationshipContexts(child, contextMap)
 		}
 	}
@@ -150,7 +150,7 @@ func simplifyOperation(
 	context map[string]any,
 	reader datastore.CaveatReader,
 ) (*core.CaveatExpression, bool, error) {
-	switch cop.Op {
+	switch cop.GetOp() {
 	case core.CaveatOperation_AND:
 		return simplifyAndOperation(ctx, runner, cop, context, reader)
 	case core.CaveatOperation_OR:
@@ -172,7 +172,7 @@ func simplifyAndOperation(
 ) (*core.CaveatExpression, bool, error) {
 	var simplifiedChildren []*core.CaveatExpression
 
-	for _, child := range cop.Children {
+	for _, child := range cop.GetChildren() {
 		simplified, passes, err := simplifyCaveatExpressionInternal(ctx, runner, child, context, reader)
 		if err != nil {
 			return nil, false, err
@@ -222,7 +222,7 @@ func simplifyOrOperation(
 ) (*core.CaveatExpression, bool, error) {
 	var simplifiedChildren []*core.CaveatExpression
 
-	for _, child := range cop.Children {
+	for _, child := range cop.GetChildren() {
 		simplified, passes, err := simplifyCaveatExpressionInternal(ctx, runner, child, context, reader)
 		if err != nil {
 			return nil, false, err
@@ -270,12 +270,12 @@ func simplifyNotOperation(
 	context map[string]any,
 	reader datastore.CaveatReader,
 ) (*core.CaveatExpression, bool, error) {
-	if len(cop.Children) != 1 {
+	if len(cop.GetChildren()) != 1 {
 		// NOT should have exactly one child
 		return expr, true, spiceerrors.MustBugf("simplifyNotOperation: returned a Caveat NOT operation with more than one child")
 	}
 
-	child := cop.Children[0]
+	child := cop.GetChildren()[0]
 	simplified, passes, err := simplifyCaveatExpressionInternal(ctx, runner, child, context, reader)
 	if err != nil {
 		return nil, false, err

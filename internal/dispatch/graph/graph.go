@@ -222,15 +222,15 @@ func (ld *localDispatcher) parseRevision(ctx context.Context, s string) (datasto
 
 func (ld *localDispatcher) lookupRelation(_ context.Context, ns *core.NamespaceDefinition, relationName string) (*core.Relation, error) {
 	var relation *core.Relation
-	for _, candidate := range ns.Relation {
-		if candidate.Name == relationName {
+	for _, candidate := range ns.GetRelation() {
+		if candidate.GetName() == relationName {
 			relation = candidate
 			break
 		}
 	}
 
 	if relation == nil {
-		return nil, NewRelationNotFoundErr(ns.Name, relationName)
+		return nil, NewRelationNotFoundErr(ns.GetName(), relationName)
 	}
 
 	return relation, nil
@@ -238,21 +238,21 @@ func (ld *localDispatcher) lookupRelation(_ context.Context, ns *core.NamespaceD
 
 // DispatchCheck implements dispatch.Check interface
 func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
-	resourceType := tuple.StringCoreRR(req.ResourceRelation)
-	spanName := "DispatchCheck → " + resourceType + "@" + req.Subject.Namespace + "#" + req.Subject.Relation
+	resourceType := tuple.StringCoreRR(req.GetResourceRelation())
+	spanName := "DispatchCheck → " + resourceType + "@" + req.GetSubject().GetNamespace() + "#" + req.GetSubject().GetRelation()
 
 	nodeID := nodeid.Get()
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithAttributes(
 		attribute.String(otelconv.AttrDispatchResourceType, resourceType),
-		attribute.StringSlice(otelconv.AttrDispatchResourceIds, req.ResourceIds),
-		attribute.String(otelconv.AttrDispatchSubject, tuple.StringCoreONR(req.Subject)),
+		attribute.StringSlice(otelconv.AttrDispatchResourceIds, req.GetResourceIds()),
+		attribute.String(otelconv.AttrDispatchSubject, tuple.StringCoreONR(req.GetSubject())),
 		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
-		if req.Debug != v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING {
+		if req.GetDebug() != v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING {
 			return &v1.DispatchCheckResponse{
 				Metadata: &v1.ResponseMeta{
 					DispatchCount: 0,
@@ -273,17 +273,17 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		}, rewriteError(ctx, err)
 	}
 
-	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.GetMetadata().GetAtRevision())
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ResourceRelation.Namespace, revision)
+	ns, err := ld.loadNamespace(ctx, req.GetResourceRelation().GetNamespace(), revision)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
 
-	relation, err := ld.lookupRelation(ctx, ns, req.ResourceRelation.Relation)
+	relation, err := ld.lookupRelation(ctx, ns, req.GetResourceRelation().GetRelation())
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
@@ -292,8 +292,8 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	// resource, load the aliased relation and dispatch to it. We cannot use the alias if the
 	// resource and subject types are the same because a check on the *exact same* resource and
 	// subject must pass, and we don't know how many intermediate steps may hit that case.
-	if relation.AliasingRelation != "" && req.ResourceRelation.Namespace != req.Subject.Namespace {
-		relation, err := ld.lookupRelation(ctx, ns, relation.AliasingRelation)
+	if relation.GetAliasingRelation() != "" && req.GetResourceRelation().GetNamespace() != req.GetSubject().GetNamespace() {
+		relation, err := ld.lookupRelation(ctx, ns, relation.GetAliasingRelation())
 		if err != nil {
 			return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 		}
@@ -302,17 +302,17 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		validatedReq := graph.ValidatedCheckRequest{
 			DispatchCheckRequest: &v1.DispatchCheckRequest{
 				ResourceRelation: &core.RelationReference{
-					Namespace: req.ResourceRelation.Namespace,
-					Relation:  relation.Name,
+					Namespace: req.GetResourceRelation().GetNamespace(),
+					Relation:  relation.GetName(),
 				},
-				ResourceIds: req.ResourceIds,
-				Subject:     req.Subject,
-				Metadata:    req.Metadata,
-				Debug:       req.Debug,
-				CheckHints:  req.CheckHints,
+				ResourceIds: req.GetResourceIds(),
+				Subject:     req.GetSubject(),
+				Metadata:    req.GetMetadata(),
+				Debug:       req.GetDebug(),
+				CheckHints:  req.GetCheckHints(),
 			},
 			Revision:             revision,
-			OriginalRelationName: req.ResourceRelation.Relation,
+			OriginalRelationName: req.GetResourceRelation().GetRelation(),
 		}
 
 		resp, err := ld.checker.Check(ctx, validatedReq, relation)
@@ -330,7 +330,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	nodeID := nodeid.Get()
 	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
-		attribute.String(otelconv.AttrDispatchStart, tuple.StringCoreONR(req.ResourceAndRelation)),
+		attribute.String(otelconv.AttrDispatchStart, tuple.StringCoreONR(req.GetResourceAndRelation())),
 		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
@@ -339,17 +339,17 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.GetMetadata().GetAtRevision())
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ResourceAndRelation.Namespace, revision)
+	ns, err := ld.loadNamespace(ctx, req.GetResourceAndRelation().GetNamespace(), revision)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	relation, err := ld.lookupRelation(ctx, ns, req.ResourceAndRelation.Relation)
+	relation, err := ld.lookupRelation(ctx, ns, req.GetResourceAndRelation().GetRelation())
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
@@ -367,10 +367,10 @@ func (ld *localDispatcher) DispatchLookupResources2(
 	nodeID := nodeid.Get()
 
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
-		attribute.String(otelconv.AttrDispatchResourceType, tuple.StringCoreRR(req.ResourceRelation)),
-		attribute.String(otelconv.AttrDispatchSubjectType, tuple.StringCoreRR(req.SubjectRelation)),
-		attribute.StringSlice(otelconv.AttrDispatchSubjectIDs, req.SubjectIds),
-		attribute.String(otelconv.AttrDispatchTerminalSubject, tuple.StringCoreONR(req.TerminalSubject)),
+		attribute.String(otelconv.AttrDispatchResourceType, tuple.StringCoreRR(req.GetResourceRelation())),
+		attribute.String(otelconv.AttrDispatchSubjectType, tuple.StringCoreRR(req.GetSubjectRelation())),
+		attribute.StringSlice(otelconv.AttrDispatchSubjectIDs, req.GetSubjectIds()),
+		attribute.String(otelconv.AttrDispatchTerminalSubject, tuple.StringCoreONR(req.GetTerminalSubject())),
 		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
@@ -379,7 +379,7 @@ func (ld *localDispatcher) DispatchLookupResources2(
 		return err
 	}
 
-	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.GetMetadata().GetAtRevision())
 	if err != nil {
 		return err
 	}
@@ -400,10 +400,10 @@ func (ld *localDispatcher) DispatchLookupResources3(
 	nodeID := nodeid.Get()
 
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources3", trace.WithAttributes(
-		attribute.String(otelconv.AttrDispatchResourceType, tuple.StringCoreRR(req.ResourceRelation)),
-		attribute.String(otelconv.AttrDispatchSubjectType, tuple.StringCoreRR(req.SubjectRelation)),
-		attribute.StringSlice(otelconv.AttrDispatchSubjectIDs, req.SubjectIds),
-		attribute.String(otelconv.AttrDispatchTerminalSubject, tuple.StringCoreONR(req.TerminalSubject)),
+		attribute.String(otelconv.AttrDispatchResourceType, tuple.StringCoreRR(req.GetResourceRelation())),
+		attribute.String(otelconv.AttrDispatchSubjectType, tuple.StringCoreRR(req.GetSubjectRelation())),
+		attribute.StringSlice(otelconv.AttrDispatchSubjectIDs, req.GetSubjectIds()),
+		attribute.String(otelconv.AttrDispatchTerminalSubject, tuple.StringCoreONR(req.GetTerminalSubject())),
 		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
@@ -412,7 +412,7 @@ func (ld *localDispatcher) DispatchLookupResources3(
 		return err
 	}
 
-	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.GetMetadata().GetAtRevision())
 	if err != nil {
 		return err
 	}
@@ -433,14 +433,14 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 ) error {
 	nodeID := nodeid.Get()
 
-	resourceType := tuple.StringCoreRR(req.ResourceRelation)
-	subjectRelation := tuple.StringCoreRR(req.SubjectRelation)
+	resourceType := tuple.StringCoreRR(req.GetResourceRelation())
+	subjectRelation := tuple.StringCoreRR(req.GetSubjectRelation())
 	spanName := "DispatchLookupSubjects → " + resourceType + "@" + subjectRelation
 
 	ctx, span := tracer.Start(stream.Context(), spanName, trace.WithAttributes(
 		attribute.String(otelconv.AttrDispatchResourceType, resourceType),
 		attribute.String(otelconv.AttrDispatchSubjectType, subjectRelation),
-		attribute.StringSlice(otelconv.AttrDispatchResourceIds, req.ResourceIds),
+		attribute.StringSlice(otelconv.AttrDispatchResourceIds, req.GetResourceIds()),
 		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
 	))
 	defer span.End()
@@ -449,7 +449,7 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 		return err
 	}
 
-	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.GetMetadata().GetAtRevision())
 	if err != nil {
 		return err
 	}

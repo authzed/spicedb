@@ -89,5 +89,5 @@ func relationContainsCaveat(rel *RelationIterator, caveat *core.ContextualizedCa
 	}
 
 	// Check if the relation has this caveat
-	return rel.base.Caveat() == caveat.CaveatName
+	return rel.base.Caveat() == caveat.GetCaveatName()
 }

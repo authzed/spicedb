@@ -111,7 +111,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	}
 
 	resolved := cc.checkInternal(ctx, req, relation)
-	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
+	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.GetMetadata())
 	if req.Debug == v1.DispatchCheckRequest_NO_DEBUG {
 		return resolved.Resp, resolved.Err
 	}
@@ -119,7 +119,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	nodeID := nodeid.Get()
 
 	// Add debug information if requested.
-	debugInfo := resolved.Resp.Metadata.DebugInfo
+	debugInfo := resolved.Resp.GetMetadata().GetDebugInfo()
 	if debugInfo == nil {
 		debugInfo = &v1.DebugInformation{
 			Check: &v1.CheckDebugTrace{
@@ -127,7 +127,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 				SourceId: nodeID,
 			},
 		}
-	} else if debugInfo.Check != nil && debugInfo.Check.SourceId == "" {
+	} else if debugInfo.GetCheck() != nil && debugInfo.GetCheck().GetSourceId() == "" {
 		debugInfo.Check.SourceId = nodeID
 	}
 
@@ -148,7 +148,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	// Build the results for the debug trace.
 	results := make(map[string]*v1.ResourceCheckResult, len(req.ResourceIds))
 	for _, resourceID := range req.ResourceIds {
-		if found, ok := resolved.Resp.ResultsByResourceId[resourceID]; ok {
+		if found, ok := resolved.Resp.GetResultsByResourceId()[resourceID]; ok {
 			results[resourceID] = found
 		}
 	}
@@ -157,7 +157,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	// If there is existing debug information in the error, then place it as the subproblem of the current
 	// debug information.
 	if existingDebugInfo, ok := spiceerrors.GetDetails[*v1.DebugInformation](resolved.Err); ok {
-		debugInfo.Check.SubProblems = []*v1.CheckDebugTrace{existingDebugInfo.Check}
+		debugInfo.Check.SubProblems = []*v1.CheckDebugTrace{existingDebugInfo.GetCheck()}
 	}
 
 	resolved.Resp.Metadata.DebugInfo = debugInfo
@@ -183,7 +183,7 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	}
 
 	// Ensure that we are not performing a check for a wildcard as the subject.
-	if req.Subject.ObjectId == tuple.PublicWildcard {
+	if req.Subject.GetObjectId() == tuple.PublicWildcard {
 		return checkResultError(NewWildcardNotAllowedErr("cannot perform check on wildcard subject", "subject.object_id"), emptyMetadata)
 	}
 
@@ -206,14 +206,14 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 		subject := tuple.FromCoreObjectAndRelation(req.Subject)
 		filteredResourcesIdsSet := mapz.NewSet(filteredResourcesIds...)
 		for _, checkHint := range req.CheckHints {
-			resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.ResourceRelation.Relation, subject)
+			resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.GetNamespace(), req.ResourceRelation.GetRelation(), subject)
 			if ok {
 				filteredResourcesIdsSet.Delete(resourceID)
 				continue
 			}
 
 			if req.OriginalRelationName != "" {
-				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.OriginalRelationName, subject)
+				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.GetNamespace(), req.OriginalRelationName, subject)
 				if ok {
 					filteredResourcesIdsSet.Delete(resourceID)
 				}
@@ -244,11 +244,11 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 		crc.dispatchChunkSize = 1
 	}
 
-	if relation.UsersetRewrite == nil {
+	if relation.GetUsersetRewrite() == nil {
 		return combineWithCheckHints(combineResultWithFoundResources(cc.checkDirect(ctx, crc, relation), membershipSet), req)
 	}
 
-	return combineWithCheckHints(combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.UsersetRewrite), membershipSet), req)
+	return combineWithCheckHints(combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.GetUsersetRewrite()), membershipSet), req)
 }
 
 func combineWithComputedHints(result CheckResult, hints map[string]*v1.ResourceCheckResult) CheckResult {
@@ -257,7 +257,7 @@ func combineWithComputedHints(result CheckResult, hints map[string]*v1.ResourceC
 	}
 
 	for resourceID, hint := range hints {
-		if _, ok := result.Resp.ResultsByResourceId[resourceID]; ok {
+		if _, ok := result.Resp.GetResultsByResourceId()[resourceID]; ok {
 			return checkResultError(
 				spiceerrors.MustBugf("check hint for resource ID %q, which already exists", resourceID),
 				emptyMetadata,
@@ -280,10 +280,10 @@ func combineWithCheckHints(result CheckResult, req ValidatedCheckRequest) CheckR
 
 	subject := tuple.FromCoreObjectAndRelation(req.Subject)
 	for _, checkHint := range req.CheckHints {
-		resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.ResourceRelation.Relation, subject)
+		resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.GetNamespace(), req.ResourceRelation.GetRelation(), subject)
 		if !ok {
 			if req.OriginalRelationName != "" {
-				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.OriginalRelationName, subject)
+				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.GetNamespace(), req.OriginalRelationName, subject)
 			}
 
 			if !ok {
@@ -295,14 +295,14 @@ func combineWithCheckHints(result CheckResult, req ValidatedCheckRequest) CheckR
 			result.Resp.ResultsByResourceId = make(map[string]*v1.ResourceCheckResult)
 		}
 
-		if _, ok := result.Resp.ResultsByResourceId[resourceID]; ok {
+		if _, ok := result.Resp.GetResultsByResourceId()[resourceID]; ok {
 			return checkResultError(
 				spiceerrors.MustBugf("check hint for resource ID %q, which already exists", resourceID),
 				emptyMetadata,
 			)
 		}
 
-		result.Resp.ResultsByResourceId[resourceID] = checkHint.Result
+		result.Resp.ResultsByResourceId[resourceID] = checkHint.GetResult()
 	}
 
 	return result
@@ -345,18 +345,18 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// cases to optimize:
 		// 1) Finding the target subject itself, as a direct lookup
 		// 2) Finding a wildcard for the subject type+relation
-		if allowedDirectRelation.GetNamespace() == crc.parentReq.Subject.Namespace {
+		if allowedDirectRelation.GetNamespace() == crc.parentReq.Subject.GetNamespace() {
 			if allowedDirectRelation.GetPublicWildcard() != nil {
 				totalWildcardSubjects++
-			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.Relation {
+			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.GetRelation() {
 				totalDirectSubjects++
 			}
 
-			if allowedDirectRelation.RequiredCaveat == nil {
+			if allowedDirectRelation.GetRequiredCaveat() == nil {
 				directSubjectsAndWildcardsWithoutCaveats++
 			}
 
-			if allowedDirectRelation.RequiredExpiration == nil {
+			if allowedDirectRelation.GetRequiredExpiration() == nil {
 				directSubjectsAndWildcardsWithoutExpiration++
 			}
 		}
@@ -368,10 +368,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// relations can reach the target subject type.
 		if allowedDirectRelation.GetRelation() != tuple.Ellipsis {
 			totalNonTerminals++
-			if allowedDirectRelation.RequiredCaveat == nil {
+			if allowedDirectRelation.GetRequiredCaveat() == nil {
 				nonTerminalsWithoutCaveats++
 			}
-			if allowedDirectRelation.RequiredExpiration == nil {
+			if allowedDirectRelation.GetRequiredExpiration() == nil {
 				nonTerminalsWithoutExpiration++
 			}
 		}
@@ -400,24 +400,24 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 		if hasDirectSubject {
 			subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
-				OptionalSubjectType: crc.parentReq.Subject.Namespace,
-				OptionalSubjectIds:  []string{crc.parentReq.Subject.ObjectId},
-				RelationFilter:      datastore.SubjectRelationFilter{}.WithRelation(crc.parentReq.Subject.Relation),
+				OptionalSubjectType: crc.parentReq.Subject.GetNamespace(),
+				OptionalSubjectIds:  []string{crc.parentReq.Subject.GetObjectId()},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithRelation(crc.parentReq.Subject.GetRelation()),
 			})
 		}
 
 		if hasWildcardSubject {
 			subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
-				OptionalSubjectType: crc.parentReq.Subject.Namespace,
+				OptionalSubjectType: crc.parentReq.Subject.GetNamespace(),
 				OptionalSubjectIds:  []string{tuple.PublicWildcard},
 				RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
 			})
 		}
 
 		filter := datastore.RelationshipsFilter{
-			OptionalResourceType:      crc.parentReq.ResourceRelation.Namespace,
+			OptionalResourceType:      crc.parentReq.ResourceRelation.GetNamespace(),
 			OptionalResourceIds:       crc.filteredResourceIDs,
-			OptionalResourceRelation:  crc.parentReq.ResourceRelation.Relation,
+			OptionalResourceRelation:  crc.parentReq.ResourceRelation.GetRelation(),
 			OptionalSubjectsSelectors: subjectSelectors,
 		}
 
@@ -464,9 +464,9 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 	// Otherwise, for any remaining resource IDs, query for redispatch.
 	filter := datastore.RelationshipsFilter{
-		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
+		OptionalResourceType:     crc.parentReq.ResourceRelation.GetNamespace(),
 		OptionalResourceIds:      furtherFilteredResourceIDs,
-		OptionalResourceRelation: crc.parentReq.ResourceRelation.Relation,
+		OptionalResourceRelation: crc.parentReq.ResourceRelation.GetRelation(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
 				RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
@@ -532,7 +532,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 func mapFoundResources(result CheckResult, resourceType tuple.RelationReference, checksToDispatch *checkDispatchSet) CheckResult {
 	// Map any resources found to the parent resource IDs.
 	membershipSet := NewMembershipSet()
-	for foundResourceID, result := range result.Resp.ResultsByResourceId {
+	for foundResourceID, result := range result.Resp.GetResultsByResourceId() {
 		resourceIDAndCaveats := checksToDispatch.mappingsForSubject(resourceType.ObjectType, foundResourceID, resourceType.Relation)
 
 		spiceerrors.DebugAssertf(func() bool {
@@ -540,34 +540,34 @@ func mapFoundResources(result CheckResult, resourceType tuple.RelationReference,
 		}, "found resource ID without associated caveats")
 
 		for _, riac := range resourceIDAndCaveats {
-			membershipSet.AddMemberWithParentCaveat(riac.resourceID, result.Expression, riac.caveat)
+			membershipSet.AddMemberWithParentCaveat(riac.resourceID, result.GetExpression(), riac.caveat)
 		}
 	}
 
 	if membershipSet.IsEmpty() {
-		return noMembersWithMetadata(result.Resp.Metadata)
+		return noMembersWithMetadata(result.Resp.GetMetadata())
 	}
 
-	return checkResultsForMembership(membershipSet, result.Resp.Metadata)
+	return checkResultsForMembership(membershipSet, result.Resp.GetMetadata())
 }
 
 func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, crc currentRequestContext, rewrite *core.UsersetRewrite) CheckResult {
-	switch rw := rewrite.RewriteOperation.(type) {
+	switch rw := rewrite.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
-		if len(rw.Union.Child) > 1 {
+		if len(rw.Union.GetChild()) > 1 {
 			var span trace.Span
 			ctx, span = tracer.Start(ctx, "+")
 			defer span.End()
 		}
-		return union(ctx, crc, rw.Union.Child, cc.runSetOperation, cc.concurrencyLimit)
+		return union(ctx, crc, rw.Union.GetChild(), cc.runSetOperation, cc.concurrencyLimit)
 	case *core.UsersetRewrite_Intersection:
 		ctx, span := tracer.Start(ctx, "&")
 		defer span.End()
-		return all(ctx, crc, rw.Intersection.Child, cc.runSetOperation, cc.concurrencyLimit)
+		return all(ctx, crc, rw.Intersection.GetChild(), cc.runSetOperation, cc.concurrencyLimit)
 	case *core.UsersetRewrite_Exclusion:
 		ctx, span := tracer.Start(ctx, "-")
 		defer span.End()
-		return difference(ctx, crc, rw.Exclusion.Child, cc.runSetOperation, cc.concurrencyLimit)
+		return difference(ctx, crc, rw.Exclusion.GetChild(), cc.runSetOperation, cc.concurrencyLimit)
 	default:
 		return checkResultError(spiceerrors.MustBugf("unknown userset rewrite operator"), emptyMetadata)
 	}
@@ -580,7 +580,7 @@ func (cc *ConcurrentChecker) dispatch(ctx context.Context, _ currentRequestConte
 }
 
 func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentRequestContext, childOneof *core.SetOperation_Child) CheckResult {
-	switch child := childOneof.ChildType.(type) {
+	switch child := childOneof.GetChildType().(type) {
 	case *core.SetOperation_Child_XThis:
 		return checkResultError(spiceerrors.MustBugf("use of _this is unsupported; please rewrite your schema"), emptyMetadata)
 	case *core.SetOperation_Child_ComputedUserset:
@@ -590,7 +590,7 @@ func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentReq
 	case *core.SetOperation_Child_TupleToUserset:
 		return checkTupleToUserset(ctx, cc, crc, child.TupleToUserset)
 	case *core.SetOperation_Child_FunctionedTupleToUserset:
-		switch child.FunctionedTupleToUserset.Function {
+		switch child.FunctionedTupleToUserset.GetFunction() {
 		case core.FunctionedTupleToUserset_FUNCTION_ANY:
 			return checkTupleToUserset(ctx, cc, crc, child.FunctionedTupleToUserset)
 
@@ -598,7 +598,7 @@ func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentReq
 			return checkIntersectionTupleToUserset(ctx, cc, crc, child.FunctionedTupleToUserset)
 
 		default:
-			return checkResultError(spiceerrors.MustBugf("unknown userset function `%s`", child.FunctionedTupleToUserset.Function), emptyMetadata)
+			return checkResultError(spiceerrors.MustBugf("unknown userset function `%s`", child.FunctionedTupleToUserset.GetFunction()), emptyMetadata)
 		}
 
 	case *core.SetOperation_Child_XNil:
@@ -609,12 +609,12 @@ func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentReq
 }
 
 func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc currentRequestContext, cu *core.ComputedUserset, rr *tuple.RelationReference, resourceIds []string) CheckResult {
-	ctx, span := tracer.Start(ctx, cu.Relation)
+	ctx, span := tracer.Start(ctx, cu.GetRelation())
 	defer span.End()
 
 	var startNamespace string
 	var targetResourceIds []string
-	switch cu.Object {
+	switch cu.GetObject() {
 	case core.ComputedUserset_TUPLE_USERSET_OBJECT:
 		if rr == nil || len(resourceIds) == 0 {
 			return checkResultError(spiceerrors.MustBugf("computed userset for tupleset without tuples"), emptyMetadata)
@@ -627,13 +627,13 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 			return checkResultError(spiceerrors.MustBugf("computed userset for tupleset with wrong object type"), emptyMetadata)
 		}
 
-		startNamespace = crc.parentReq.ResourceRelation.Namespace
+		startNamespace = crc.parentReq.ResourceRelation.GetNamespace()
 		targetResourceIds = crc.filteredResourceIDs
 	}
 
 	targetRR := &core.RelationReference{
 		Namespace: startNamespace,
-		Relation:  cu.Relation,
+		Relation:  cu.GetRelation(),
 	}
 
 	// If we will be dispatching to the goal's ONR, then we know that the ONR is a member.
@@ -645,9 +645,9 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	// Check if the target relation exists. If not, return nothing. This is only necessary
 	// for TTU-based computed usersets, as directly computed ones reference relations within
 	// the same namespace as the caller, and thus must be fully typed checked.
-	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
+	if cu.GetObject() == core.ComputedUserset_TUPLE_USERSET_OBJECT {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
-		err := namespace.CheckNamespaceAndRelation(ctx, targetRR.Namespace, targetRR.Relation, true, ds)
+		err := namespace.CheckNamespaceAndRelation(ctx, targetRR.GetNamespace(), targetRR.GetRelation(), true, ds)
 		if err != nil {
 			if errors.As(err, &namespace.RelationNotFoundError{}) {
 				return noMembers()
@@ -688,26 +688,26 @@ func TraitsForArrowRelation(ctx context.Context, reader datastore.Reader, namesp
 	}
 
 	var relation *core.Relation
-	for _, rel := range nsDef.Relation {
-		if rel.Name == relationName {
+	for _, rel := range nsDef.GetRelation() {
+		if rel.GetName() == relationName {
 			relation = rel
 			break
 		}
 	}
 
-	if relation == nil || relation.TypeInformation == nil {
+	if relation == nil || relation.GetTypeInformation() == nil {
 		return Traits{}, fmt.Errorf("relation %q not found", relationName)
 	}
 
 	hasCaveats := false
 	hasExpiration := false
 
-	for _, allowedDirectRelation := range relation.TypeInformation.GetAllowedDirectRelations() {
-		if allowedDirectRelation.RequiredCaveat != nil {
+	for _, allowedDirectRelation := range relation.GetTypeInformation().GetAllowedDirectRelations() {
+		if allowedDirectRelation.GetRequiredCaveat() != nil {
 			hasCaveats = true
 		}
 
-		if allowedDirectRelation.RequiredExpiration != nil {
+		if allowedDirectRelation.GetRequiredExpiration() != nil {
 			hasExpiration = true
 		}
 	}
@@ -739,12 +739,12 @@ func queryOptionsForArrowRelation(ctx context.Context, ds datastore.Reader, name
 }
 
 func filterForFoundMemberResource(resourceRelation *core.RelationReference, resourceIds []string, subject *core.ObjectAndRelation) (*MembershipSet, []string) {
-	if resourceRelation.Namespace != subject.Namespace || resourceRelation.Relation != subject.Relation {
+	if resourceRelation.GetNamespace() != subject.GetNamespace() || resourceRelation.GetRelation() != subject.GetRelation() {
 		return nil, resourceIds
 	}
 
 	for index, resourceID := range resourceIds {
-		if subject.ObjectId == resourceID {
+		if subject.GetObjectId() == resourceID {
 			membershipSet := NewMembershipSet()
 			membershipSet.AddDirectMember(resourceID, nil)
 			return membershipSet, removeIndexFromSlice(resourceIds, index)
@@ -782,19 +782,19 @@ func checkIntersectionTupleToUserset(
 	ttu *core.FunctionedTupleToUserset,
 ) CheckResult {
 	// TODO(jschorr): use check hints here
-	ctx, span := tracer.Start(ctx, ttu.GetTupleset().GetRelation()+"-(all)->"+ttu.GetComputedUserset().Relation)
+	ctx, span := tracer.Start(ctx, ttu.GetTupleset().GetRelation()+"-(all)->"+ttu.GetComputedUserset().GetRelation())
 	defer span.End()
 
 	// Query for the subjects over which to walk the TTU.
 	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
-	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.GetNamespace(), ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
 
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
+		OptionalResourceType:     crc.parentReq.ResourceRelation.GetNamespace(),
 		OptionalResourceIds:      crc.filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 	}, queryOpts...)
@@ -857,8 +857,8 @@ func checkIntersectionTupleToUserset(
 			resultsByDispatchedSubject[result.relationType] = NewMembershipSet()
 		}
 
-		resultsByDispatchedSubject[result.relationType].UnionWith(result.Resp.ResultsByResourceId)
-		combinedMetadata = combineResponseMetadata(ctx, combinedMetadata, result.Resp.Metadata)
+		resultsByDispatchedSubject[result.relationType].UnionWith(result.Resp.GetResultsByResourceId())
+		combinedMetadata = combineResponseMetadata(ctx, combinedMetadata, result.Resp.GetMetadata())
 	}
 
 	// For each resource ID, check that there exist some sort of permission for *each* subject. If not, then the
@@ -929,9 +929,9 @@ func checkTupleToUserset[T relation](
 		for _, checkHint := range crc.parentReq.CheckHints {
 			resourceID, ok := hints.AsCheckHintForArrow(
 				checkHint,
-				crc.parentReq.ResourceRelation.Namespace,
+				crc.parentReq.ResourceRelation.GetNamespace(),
 				ttu.GetTupleset().GetRelation(),
-				ttu.GetComputedUserset().Relation,
+				ttu.GetComputedUserset().GetRelation(),
 				tuple.FromCoreObjectAndRelation(crc.parentReq.Subject),
 			)
 			if !ok {
@@ -939,7 +939,7 @@ func checkTupleToUserset[T relation](
 			}
 
 			filteredResourcesIdsSet.Delete(resourceID)
-			hintsToReturn[resourceID] = checkHint.Result
+			hintsToReturn[resourceID] = checkHint.GetResult()
 		}
 
 		filteredResourceIDs = filteredResourcesIdsSet.AsSlice()
@@ -949,19 +949,19 @@ func checkTupleToUserset[T relation](
 		return combineWithComputedHints(noMembers(), hintsToReturn)
 	}
 
-	ctx, span := tracer.Start(ctx, ttu.GetTupleset().GetRelation()+"->"+ttu.GetComputedUserset().Relation)
+	ctx, span := tracer.Start(ctx, ttu.GetTupleset().GetRelation()+"->"+ttu.GetComputedUserset().GetRelation())
 	defer span.End()
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
-	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.GetNamespace(), ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
 
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
+		OptionalResourceType:     crc.parentReq.ResourceRelation.GetNamespace(),
 		OptionalResourceIds:      filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 	}, queryOpts...)
@@ -1002,7 +1002,7 @@ func withDistinctMetadata(ctx context.Context, result CheckResult) CheckResult {
 	// NOTE: This is necessary to ensure unique debug information on the request and that debug
 	// information from the child metadata is *not* copied over.
 	clonedResp := result.Resp.CloneVT()
-	clonedResp.Metadata = combineResponseMetadata(ctx, emptyMetadata, clonedResp.Metadata)
+	clonedResp.Metadata = combineResponseMetadata(ctx, emptyMetadata, clonedResp.GetMetadata())
 	return CheckResult{
 		Resp: clonedResp,
 		Err:  result.Err,
@@ -1073,12 +1073,12 @@ func union[T any](
 		select {
 		case result := <-resultChan:
 			log.Ctx(ctx).Trace().Object("anyResult", result.Resp).Send()
-			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.GetMetadata())
 			if result.Err != nil {
 				return checkResultError(result.Err, responseMetadata)
 			}
 
-			membershipSet.UnionWith(result.Resp.ResultsByResourceId)
+			membershipSet.UnionWith(result.Resp.GetResultsByResourceId())
 			if membershipSet.HasDeterminedMember() && crc.resultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT {
 				return checkResultsForMembership(membershipSet, responseMetadata)
 			}
@@ -1124,16 +1124,16 @@ func all[T any](
 	for i := 0; i < len(children); i++ {
 		select {
 		case result := <-resultChan:
-			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.GetMetadata())
 			if result.Err != nil {
 				return checkResultError(result.Err, responseMetadata)
 			}
 
 			if membershipSet == nil {
 				membershipSet = NewMembershipSet()
-				membershipSet.UnionWith(result.Resp.ResultsByResourceId)
+				membershipSet.UnionWith(result.Resp.GetResultsByResourceId())
 			} else {
-				membershipSet.IntersectWith(result.Resp.ResultsByResourceId)
+				membershipSet.IntersectWith(result.Resp.GetResultsByResourceId())
 			}
 
 			if membershipSet.IsEmpty() {
@@ -1191,13 +1191,13 @@ func difference[T any](
 	// Wait for the base set to return.
 	select {
 	case base := <-baseChan:
-		responseMetadata = combineResponseMetadata(ctx, responseMetadata, base.Resp.Metadata)
+		responseMetadata = combineResponseMetadata(ctx, responseMetadata, base.Resp.GetMetadata())
 
 		if base.Err != nil {
 			return checkResultError(base.Err, responseMetadata)
 		}
 
-		membershipSet.UnionWith(base.Resp.ResultsByResourceId)
+		membershipSet.UnionWith(base.Resp.GetResultsByResourceId())
 		if membershipSet.IsEmpty() {
 			return noMembersWithMetadata(responseMetadata)
 		}
@@ -1210,13 +1210,13 @@ func difference[T any](
 	for i := 1; i < len(children); i++ {
 		select {
 		case sub := <-othersChan:
-			responseMetadata = combineResponseMetadata(ctx, responseMetadata, sub.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(ctx, responseMetadata, sub.Resp.GetMetadata())
 
 			if sub.Err != nil {
 				return checkResultError(sub.Err, responseMetadata)
 			}
 
-			membershipSet.Subtract(sub.Resp.ResultsByResourceId)
+			membershipSet.Subtract(sub.Resp.GetResultsByResourceId())
 			if membershipSet.IsEmpty() {
 				return noMembersWithMetadata(responseMetadata)
 			}
@@ -1300,11 +1300,11 @@ func combineResultWithFoundResources(result CheckResult, foundResources *Members
 		return result
 	}
 
-	foundResources.UnionWith(result.Resp.ResultsByResourceId)
+	foundResources.UnionWith(result.Resp.GetResultsByResourceId())
 	return CheckResult{
 		Resp: &v1.DispatchCheckResponse{
 			ResultsByResourceId: foundResources.AsCheckResultsMap(),
-			Metadata:            result.Resp.Metadata,
+			Metadata:            result.Resp.GetMetadata(),
 		},
 		Err: result.Err,
 	}
@@ -1312,12 +1312,12 @@ func combineResultWithFoundResources(result CheckResult, foundResources *Members
 
 func combineResponseMetadata(ctx context.Context, existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
 	combined := &v1.ResponseMeta{
-		DispatchCount:       existing.DispatchCount + responseMetadata.DispatchCount,
-		DepthRequired:       max(existing.DepthRequired, responseMetadata.DepthRequired),
-		CachedDispatchCount: existing.CachedDispatchCount + responseMetadata.CachedDispatchCount,
+		DispatchCount:       existing.GetDispatchCount() + responseMetadata.GetDispatchCount(),
+		DepthRequired:       max(existing.GetDepthRequired(), responseMetadata.GetDepthRequired()),
+		CachedDispatchCount: existing.GetCachedDispatchCount() + responseMetadata.GetCachedDispatchCount(),
 	}
 
-	if existing.DebugInfo == nil && responseMetadata.DebugInfo == nil {
+	if existing.GetDebugInfo() == nil && responseMetadata.GetDebugInfo() == nil {
 		return combined
 	}
 
@@ -1328,19 +1328,19 @@ func combineResponseMetadata(ctx context.Context, existing *v1.ResponseMeta, res
 		},
 	}
 
-	if existing.DebugInfo != nil {
-		if existing.DebugInfo.Check.Request != nil {
-			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, existing.DebugInfo.Check)
+	if existing.GetDebugInfo() != nil {
+		if existing.GetDebugInfo().GetCheck().GetRequest() != nil {
+			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, existing.GetDebugInfo().GetCheck())
 		} else {
-			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, existing.DebugInfo.Check.SubProblems...)
+			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, existing.GetDebugInfo().GetCheck().GetSubProblems()...)
 		}
 	}
 
-	if responseMetadata.DebugInfo != nil {
-		if responseMetadata.DebugInfo.Check.Request != nil {
-			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.DebugInfo.Check)
+	if responseMetadata.GetDebugInfo() != nil {
+		if responseMetadata.GetDebugInfo().GetCheck().GetRequest() != nil {
+			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.GetDebugInfo().GetCheck())
 		} else {
-			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.DebugInfo.Check.SubProblems...)
+			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.GetDebugInfo().GetCheck().GetSubProblems()...)
 		}
 	}
 

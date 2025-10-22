@@ -1317,22 +1317,22 @@ func TestCompile(t *testing.T) {
 					if caveatDef, ok := def.(*core.CaveatDefinition); ok {
 						expectedCaveatDef, ok := expectedDef.(*core.CaveatDefinition)
 						require.True(ok, "definition is not a caveat def")
-						require.Equal(expectedCaveatDef.Name, caveatDef.Name)
-						require.Len(caveatDef.ParameterTypes, len(expectedCaveatDef.ParameterTypes))
+						require.Equal(expectedCaveatDef.GetName(), caveatDef.GetName())
+						require.Len(caveatDef.GetParameterTypes(), len(expectedCaveatDef.GetParameterTypes()))
 
-						for expectedParamName, expectedParam := range expectedCaveatDef.ParameterTypes {
-							foundParam, ok := caveatDef.ParameterTypes[expectedParamName]
+						for expectedParamName, expectedParam := range expectedCaveatDef.GetParameterTypes() {
+							foundParam, ok := caveatDef.GetParameterTypes()[expectedParamName]
 							require.True(ok, "missing parameter %s", expectedParamName)
 							testutil.RequireProtoEqual(t, expectedParam, foundParam, "mismatch type for parameter %s", expectedParamName)
 						}
 
-						parameterTypes, err := caveattypes.DecodeParameterTypes(caveattypes.Default.TypeSet, caveatDef.ParameterTypes)
+						parameterTypes, err := caveattypes.DecodeParameterTypes(caveattypes.Default.TypeSet, caveatDef.GetParameterTypes())
 						require.NoError(err)
 
-						expectedDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(expectedCaveatDef.SerializedExpression, parameterTypes)
+						expectedDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(expectedCaveatDef.GetSerializedExpression(), parameterTypes)
 						require.NoError(err)
 
-						foundDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(caveatDef.SerializedExpression, parameterTypes)
+						foundDecoded, err := caveats.DeserializeCaveatWithDefaultTypeSet(caveatDef.GetSerializedExpression(), parameterTypes)
 						require.NoError(err)
 
 						expectedExprString, err := expectedDecoded.ExprString()

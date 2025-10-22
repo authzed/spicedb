@@ -18,7 +18,7 @@ func Namespace(name string, relations ...*core.Relation) *core.NamespaceDefiniti
 // WithComment creates a namespace definition with one or more defined relations.
 func WithComment(name string, comment string, relations ...*core.Relation) *core.NamespaceDefinition {
 	nd := Namespace(name, relations...)
-	nd.Metadata, _ = AddComment(nd.Metadata, comment)
+	nd.Metadata, _ = AddComment(nd.GetMetadata(), comment)
 	return nd
 }
 
@@ -69,7 +69,7 @@ func Relation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations 
 // MustRelationWithComment creates a relation definition with an optional rewrite definition.
 func MustRelationWithComment(name string, comment string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
 	rel := MustRelation(name, rewrite, allowedDirectRelations...)
-	rel.Metadata, _ = AddComment(rel.Metadata, comment)
+	rel.Metadata, _ = AddComment(rel.GetMetadata(), comment)
 	return rel
 }
 
@@ -97,9 +97,9 @@ func AllowedRelationWithCaveat(namespaceName string, relationName string, withCa
 // WithExpiration adds the expiration trait to the allowed relation.
 func WithExpiration(allowedRelation *core.AllowedRelation) *core.AllowedRelation {
 	return &core.AllowedRelation{
-		Namespace:          allowedRelation.Namespace,
-		RelationOrWildcard: allowedRelation.RelationOrWildcard,
-		RequiredCaveat:     allowedRelation.RequiredCaveat,
+		Namespace:          allowedRelation.GetNamespace(),
+		RelationOrWildcard: allowedRelation.GetRelationOrWildcard(),
+		RequiredCaveat:     allowedRelation.GetRequiredCaveat(),
 		RequiredExpiration: &core.ExpirationTrait{},
 	}
 }
@@ -185,7 +185,7 @@ func MustCaveatDefinitionWithComment(env *caveats.Environment, name string, comm
 	if err != nil {
 		panic(err)
 	}
-	cd.Metadata, _ = AddComment(cd.Metadata, comment)
+	cd.Metadata, _ = AddComment(cd.GetMetadata(), comment)
 	return cd
 }
 

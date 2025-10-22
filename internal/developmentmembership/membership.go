@@ -53,21 +53,21 @@ func (ms *Set) AddExpansion(onr tuple.ObjectAndRelation, expansion *core.Relatio
 
 // AccessibleExpansionSubjects returns a TrackingSubjectSet representing the set of accessible subjects in the expansion.
 func AccessibleExpansionSubjects(treeNode *core.RelationTupleTreeNode) (*TrackingSubjectSet, error) {
-	return populateFoundSubjects(tuple.FromCoreObjectAndRelation(treeNode.Expanded), treeNode)
+	return populateFoundSubjects(tuple.FromCoreObjectAndRelation(treeNode.GetExpanded()), treeNode)
 }
 
 func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.RelationTupleTreeNode) (*TrackingSubjectSet, error) {
 	resource := rootONR
-	if treeNode.Expanded != nil {
-		resource = tuple.FromCoreObjectAndRelation(treeNode.Expanded)
+	if treeNode.GetExpanded() != nil {
+		resource = tuple.FromCoreObjectAndRelation(treeNode.GetExpanded())
 	}
 
-	switch typed := treeNode.NodeType.(type) {
+	switch typed := treeNode.GetNodeType().(type) {
 	case *core.RelationTupleTreeNode_IntermediateNode:
-		switch typed.IntermediateNode.Operation {
+		switch typed.IntermediateNode.GetOperation() {
 		case core.SetOperationUserset_UNION:
 			toReturn := NewTrackingSubjectSet()
-			for _, child := range typed.IntermediateNode.ChildNodes {
+			for _, child := range typed.IntermediateNode.GetChildNodes() {
 				tss, err := populateFoundSubjects(resource, child)
 				if err != nil {
 					return nil, err
@@ -79,15 +79,15 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 				}
 			}
 
-			toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
+			toReturn.ApplyParentCaveatExpression(treeNode.GetCaveatExpression())
 			return toReturn, nil
 
 		case core.SetOperationUserset_INTERSECTION:
-			if len(typed.IntermediateNode.ChildNodes) == 0 {
+			if len(typed.IntermediateNode.GetChildNodes()) == 0 {
 				return &TrackingSubjectSet{setByType: make(map[tuple.RelationReference]datasets.BaseSubjectSet[FoundSubject])}, nil
 			}
 
-			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.ChildNodes[0])
+			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.GetChildNodes()[0])
 			if err != nil {
 				return nil, err
 			}
@@ -98,7 +98,7 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 				return nil, err
 			}
 
-			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
+			for _, child := range typed.IntermediateNode.GetChildNodes()[1:] {
 				childSet, err := populateFoundSubjects(rootONR, child)
 				if err != nil {
 					return nil, err
@@ -112,15 +112,15 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 				toReturn = updated
 			}
 
-			toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
+			toReturn.ApplyParentCaveatExpression(treeNode.GetCaveatExpression())
 			return toReturn, nil
 
 		case core.SetOperationUserset_EXCLUSION:
-			if len(typed.IntermediateNode.ChildNodes) == 0 {
+			if len(typed.IntermediateNode.GetChildNodes()) == 0 {
 				return nil, errors.New("found exclusion with no children")
 			}
 
-			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.ChildNodes[0])
+			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.GetChildNodes()[0])
 			if err != nil {
 				return nil, err
 			}
@@ -131,7 +131,7 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 				return nil, err
 			}
 
-			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
+			for _, child := range typed.IntermediateNode.GetChildNodes()[1:] {
 				childSet, err := populateFoundSubjects(rootONR, child)
 				if err != nil {
 					return nil, err
@@ -139,7 +139,7 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 				toReturn = toReturn.Exclude(childSet)
 			}
 
-			toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
+			toReturn.ApplyParentCaveatExpression(treeNode.GetCaveatExpression())
 			return toReturn, nil
 
 		default:
@@ -148,7 +148,7 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 
 	case *core.RelationTupleTreeNode_LeafNode:
 		toReturn := NewTrackingSubjectSet()
-		for _, subject := range typed.LeafNode.Subjects {
+		for _, subject := range typed.LeafNode.GetSubjects() {
 			fs := NewFoundSubject(subject)
 			err := toReturn.Add(fs)
 			if err != nil {
@@ -158,7 +158,7 @@ func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.Relat
 			fs.resources.Add(resource)
 		}
 
-		toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
+		toReturn.ApplyParentCaveatExpression(treeNode.GetCaveatExpression())
 		return toReturn, nil
 
 	default:

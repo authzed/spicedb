@@ -567,12 +567,12 @@ func TestConvertDiff(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			require.NotNil(t, resp.ReadAt)
+			require.NotNil(t, resp.GetReadAt())
 			resp.ReadAt = nil
 
 			testutil.RequireProtoEqual(t, tc.expectedResponse, resp, "got mismatch")
 
-			for _, diff := range resp.Diffs {
+			for _, diff := range resp.GetDiffs() {
 				name := reflect.TypeOf(diff.GetDiff()).String()
 				encounteredDiffTypes.Add(strings.ToLower(strings.Split(name, "_")[1]))
 			}

@@ -209,10 +209,10 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 
 			require.Len(stream.Results(), 1)
 
-			found.Insert(stream.Results()[0].Resource.ResourceId)
+			found.Insert(stream.Results()[0].GetResource().GetResourceId())
 			require.Equal(tc.expectedFirst, found.AsSlice())
 
-			cursor := stream.Results()[0].AfterResponseCursor
+			cursor := stream.Results()[0].GetAfterResponseCursor()
 			require.NotNil(cursor)
 
 			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
@@ -232,7 +232,7 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 			require.NoError(err)
 
 			for _, result := range stream.Results() {
-				found.Insert(result.Resource.ResourceId)
+				found.Insert(result.GetResource().GetResourceId())
 			}
 
 			foundResults := found.AsSlice()
@@ -268,7 +268,7 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 	require.NoError(err)
 	require.Len(stream.Results(), 2)
 
-	cursor := stream.Results()[1].AfterResponseCursor
+	cursor := stream.Results()[1].GetAfterResponseCursor()
 	require.NotNil(cursor)
 
 	// Make the same request and ensure the cursor has not changed.
@@ -290,7 +290,7 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 	require.NoError(err)
 	require.Len(stream.Results(), 2)
 
-	cursorAgain := stream.Results()[1].AfterResponseCursor
+	cursorAgain := stream.Results()[1].GetAfterResponseCursor()
 	require.NotNil(cursor)
 	require.Equal(cursor, cursorAgain)
 }
@@ -302,10 +302,10 @@ func processResults2(stream *dispatch.CollectingDispatchStream[*v1.DispatchLooku
 	var maxCachedDispatchCount uint32
 	for _, result := range stream.Results() {
 		result.Resource.ForSubjectIds = nil
-		foundResources = append(foundResources, result.Resource)
-		maxDepthRequired = max(maxDepthRequired, result.Metadata.DepthRequired)
-		maxDispatchCount = max(maxDispatchCount, result.Metadata.DispatchCount)
-		maxCachedDispatchCount = max(maxCachedDispatchCount, result.Metadata.CachedDispatchCount)
+		foundResources = append(foundResources, result.GetResource())
+		maxDepthRequired = max(maxDepthRequired, result.GetMetadata().GetDepthRequired())
+		maxDispatchCount = max(maxDispatchCount, result.GetMetadata().GetDispatchCount())
+		maxCachedDispatchCount = max(maxCachedDispatchCount, result.GetMetadata().GetCachedDispatchCount())
 	}
 	return foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount
 }
@@ -805,9 +805,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 						foundChunks = append(foundChunks, stream.Results())
 
 						for _, result := range stream.Results() {
-							require.ElementsMatch(tc.expectedMissingFields, result.Resource.MissingContextParams)
-							foundResourceIDs.Insert(result.Resource.ResourceId)
-							currentCursor = result.AfterResponseCursor
+							require.ElementsMatch(tc.expectedMissingFields, result.GetResource().GetMissingContextParams())
+							foundResourceIDs.Insert(result.GetResource().GetResourceId())
+							currentCursor = result.GetAfterResponseCursor()
 						}
 
 						if pageSize == 0 || len(stream.Results()) < pageSize {
@@ -1389,12 +1389,12 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 
 			foundResourceIDs := mapz.NewSet[string]()
 			for _, result := range stream.Results() {
-				if len(result.Resource.MissingContextParams) > 0 {
-					foundResourceIDs.Insert(result.Resource.ResourceId + "[" + strings.Join(result.Resource.MissingContextParams, ",") + "]")
+				if len(result.GetResource().GetMissingContextParams()) > 0 {
+					foundResourceIDs.Insert(result.GetResource().GetResourceId() + "[" + strings.Join(result.GetResource().GetMissingContextParams(), ",") + "]")
 					continue
 				}
 
-				foundResourceIDs.Insert(result.Resource.ResourceId)
+				foundResourceIDs.Insert(result.GetResource().GetResourceId())
 			}
 
 			foundResourceIDsSlice := foundResourceIDs.AsSlice()
@@ -1506,10 +1506,10 @@ func processResults(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookup
 	var maxDispatchCount uint32
 	var maxCachedDispatchCount uint32
 	for _, result := range stream.Results() {
-		foundResources = append(foundResources, result.Resource)
-		maxDepthRequired = max(maxDepthRequired, result.Metadata.DepthRequired)
-		maxDispatchCount = max(maxDispatchCount, result.Metadata.DispatchCount)
-		maxCachedDispatchCount = max(maxCachedDispatchCount, result.Metadata.CachedDispatchCount)
+		foundResources = append(foundResources, result.GetResource())
+		maxDepthRequired = max(maxDepthRequired, result.GetMetadata().GetDepthRequired())
+		maxDispatchCount = max(maxDispatchCount, result.GetMetadata().GetDispatchCount())
+		maxCachedDispatchCount = max(maxCachedDispatchCount, result.GetMetadata().GetCachedDispatchCount())
 	}
 	return foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount
 }

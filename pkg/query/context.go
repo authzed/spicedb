@@ -68,7 +68,7 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 		if p.Caveat != nil {
 			// Extract caveat name from CaveatExpression
 			if p.Caveat.GetCaveat() != nil {
-				caveatInfo = fmt.Sprintf("[%s]", p.Caveat.GetCaveat().CaveatName)
+				caveatInfo = fmt.Sprintf("[%s]", p.Caveat.GetCaveat().GetCaveatName())
 			} else {
 				caveatInfo = "[complex_caveat]"
 			}

@@ -63,7 +63,7 @@ func (hsv hashableStructValue) AppendToHash(hasher HasherInterface) {
 		hasher.WriteString(strconv.FormatBool(t.BoolValue))
 
 	case *structpb.Value_ListValue:
-		for _, value := range t.ListValue.Values {
+		for _, value := range t.ListValue.GetValues() {
 			hashableStructValue{value}.AppendToHash(hasher)
 			hasher.WriteString(",")
 		}

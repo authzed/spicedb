@@ -46,25 +46,25 @@ type bulkChecker struct {
 const maxBulkCheckCount = 10000
 
 func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
-	telemetry.LogicalChecks.Add(float64(len(req.Items)))
+	telemetry.LogicalChecks.Add(float64(len(req.GetItems())))
 
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(req.Items) > maxBulkCheckCount {
-		return nil, NewExceedsMaximumChecksErr(uint64(len(req.Items)), maxBulkCheckCount)
+	if len(req.GetItems()) > maxBulkCheckCount {
+		return nil, NewExceedsMaximumChecksErr(uint64(len(req.GetItems())), maxBulkCheckCount)
 	}
 
 	// Compute a hash for each requested item and record its index(es) for the items, to be used for sorting of results.
-	itemCount, err := genutil.EnsureUInt32(len(req.Items))
+	itemCount, err := genutil.EnsureUInt32(len(req.GetItems()))
 	if err != nil {
 		return nil, err
 	}
 
 	itemIndexByHash := mapz.NewMultiMapWithCap[string, int](itemCount)
-	for index, item := range req.Items {
+	for index, item := range req.GetItems() {
 		itemHash, err := computeCheckBulkPermissionsItemHash(item)
 		if err != nil {
 			return nil, err
@@ -79,8 +79,8 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 		atRevision:           atRevision,
 		maxCaveatContextSize: bc.maxCaveatContextSize,
 		maximumAPIDepth:      bc.maxAPIDepth,
-		withTracing:          req.WithTracing,
-	}, req.Items)
+		withTracing:          req.GetWithTracing(),
+	}, req.GetItems())
 	if err != nil {
 		return nil, err
 	}
@@ -101,10 +101,10 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
-	orderedPairs := make([]*v1.CheckBulkPermissionsPair, len(req.Items))
+	orderedPairs := make([]*v1.CheckBulkPermissionsPair, len(req.GetItems()))
 
 	addPair := func(pair *v1.CheckBulkPermissionsPair) error {
-		pairItemHash, err := computeCheckBulkPermissionsItemHash(pair.Request)
+		pairItemHash, err := computeCheckBulkPermissionsItemHash(pair.GetRequest())
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 				// Find the debug info that matches the resource ID.
 				var debugInfo *dispatchv1.DebugInformation
 				for _, di := range debugInfos {
-					if slices.Contains(di.Check.Request.ResourceIds, resourceID) {
+					if slices.Contains(di.GetCheck().GetRequest().GetResourceIds(), resourceID) {
 						debugInfo = di
 						break
 					}
@@ -196,21 +196,21 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 					wrappedDebugInfo := &dispatchv1.DebugInformation{
 						Check: &dispatchv1.CheckDebugTrace{
 							Request: &dispatchv1.DispatchCheckRequest{
-								ResourceRelation: debugInfo.Check.Request.ResourceRelation,
+								ResourceRelation: debugInfo.GetCheck().GetRequest().GetResourceRelation(),
 								ResourceIds:      []string{resourceID},
-								Subject:          debugInfo.Check.Request.Subject,
-								ResultsSetting:   debugInfo.Check.Request.ResultsSetting,
-								Debug:            debugInfo.Check.Request.Debug,
+								Subject:          debugInfo.GetCheck().GetRequest().GetSubject(),
+								ResultsSetting:   debugInfo.GetCheck().GetRequest().GetResultsSetting(),
+								Debug:            debugInfo.GetCheck().GetRequest().GetDebug(),
 							},
-							ResourceRelationType: debugInfo.Check.ResourceRelationType,
+							ResourceRelationType: debugInfo.GetCheck().GetResourceRelationType(),
 							IsCachedResult:       false,
 							SubProblems: []*dispatchv1.CheckDebugTrace{
-								debugInfo.Check,
+								debugInfo.GetCheck(),
 							},
 							Results:  localResults,
 							Duration: durationpb.New(time.Duration(0)),
 							TraceId:  graph.NewTraceID(),
-							SourceId: debugInfo.Check.SourceId,
+							SourceId: debugInfo.GetCheck().GetSourceId(),
 						},
 					}
 
@@ -236,8 +236,8 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 			}
 		}
 
-		respMetadata.DispatchCount += metadata.DispatchCount
-		respMetadata.CachedDispatchCount += metadata.CachedDispatchCount
+		respMetadata.DispatchCount += metadata.GetDispatchCount()
+		respMetadata.CachedDispatchCount += metadata.GetCachedDispatchCount()
 		return nil
 	}
 
@@ -296,13 +296,13 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 }
 
 func toCheckBulkPermissionsRequest(req *v1.BulkCheckPermissionRequest) *v1.CheckBulkPermissionsRequest {
-	items := make([]*v1.CheckBulkPermissionsRequestItem, len(req.Items))
-	for i, item := range req.Items {
+	items := make([]*v1.CheckBulkPermissionsRequestItem, len(req.GetItems()))
+	for i, item := range req.GetItems() {
 		items[i] = &v1.CheckBulkPermissionsRequestItem{
-			Resource:   item.Resource,
-			Permission: item.Permission,
-			Subject:    item.Subject,
-			Context:    item.Context,
+			Resource:   item.GetResource(),
+			Permission: item.GetPermission(),
+			Subject:    item.GetSubject(),
+			Context:    item.GetContext(),
 		}
 	}
 
@@ -310,22 +310,22 @@ func toCheckBulkPermissionsRequest(req *v1.BulkCheckPermissionRequest) *v1.Check
 }
 
 func toBulkCheckPermissionResponse(resp *v1.CheckBulkPermissionsResponse) *v1.BulkCheckPermissionResponse {
-	pairs := make([]*v1.BulkCheckPermissionPair, len(resp.Pairs))
-	for i, pair := range resp.Pairs {
+	pairs := make([]*v1.BulkCheckPermissionPair, len(resp.GetPairs()))
+	for i, pair := range resp.GetPairs() {
 		pairs[i] = &v1.BulkCheckPermissionPair{}
 		pairs[i].Request = &v1.BulkCheckPermissionRequestItem{
-			Resource:   pair.Request.Resource,
-			Permission: pair.Request.Permission,
-			Subject:    pair.Request.Subject,
-			Context:    pair.Request.Context,
+			Resource:   pair.GetRequest().GetResource(),
+			Permission: pair.GetRequest().GetPermission(),
+			Subject:    pair.GetRequest().GetSubject(),
+			Context:    pair.GetRequest().GetContext(),
 		}
 
-		switch t := pair.Response.(type) {
+		switch t := pair.GetResponse().(type) {
 		case *v1.CheckBulkPermissionsPair_Item:
 			pairs[i].Response = &v1.BulkCheckPermissionPair_Item{
 				Item: &v1.BulkCheckPermissionResponseItem{
-					Permissionship:    t.Item.Permissionship,
-					PartialCaveatInfo: t.Item.PartialCaveatInfo,
+					Permissionship:    t.Item.GetPermissionship(),
+					PartialCaveatInfo: t.Item.GetPartialCaveatInfo(),
 				},
 			}
 		case *v1.CheckBulkPermissionsPair_Error:
@@ -338,7 +338,7 @@ func toBulkCheckPermissionResponse(resp *v1.CheckBulkPermissionsResponse) *v1.Bu
 	}
 
 	return &v1.BulkCheckPermissionResponse{
-		CheckedAt: resp.CheckedAt,
+		CheckedAt: resp.GetCheckedAt(),
 		Pairs:     pairs,
 	}
 }

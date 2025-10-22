@@ -14,56 +14,56 @@ import (
 
 func computeCheckBulkPermissionsItemHashWithoutResourceID(req *v1.CheckBulkPermissionsRequestItem) (string, error) {
 	return computeCallHash("v1.checkbulkpermissionsrequestitem", nil, map[string]any{
-		"resource-type":    req.Resource.ObjectType,
-		"permission":       req.Permission,
-		"subject-type":     req.Subject.Object.ObjectType,
-		"subject-id":       req.Subject.Object.ObjectId,
-		"subject-relation": req.Subject.OptionalRelation,
-		"context":          req.Context,
+		"resource-type":    req.GetResource().GetObjectType(),
+		"permission":       req.GetPermission(),
+		"subject-type":     req.GetSubject().GetObject().GetObjectType(),
+		"subject-id":       req.GetSubject().GetObject().GetObjectId(),
+		"subject-relation": req.GetSubject().GetOptionalRelation(),
+		"context":          req.GetContext(),
 	})
 }
 
 func computeCheckBulkPermissionsItemHash(req *v1.CheckBulkPermissionsRequestItem) (string, error) {
 	return computeCallHash("v1.checkbulkpermissionsrequestitem", nil, map[string]any{
-		"resource-type":    req.Resource.ObjectType,
-		"resource-id":      req.Resource.ObjectId,
-		"permission":       req.Permission,
-		"subject-type":     req.Subject.Object.ObjectType,
-		"subject-id":       req.Subject.Object.ObjectId,
-		"subject-relation": req.Subject.OptionalRelation,
-		"context":          req.Context,
+		"resource-type":    req.GetResource().GetObjectType(),
+		"resource-id":      req.GetResource().GetObjectId(),
+		"permission":       req.GetPermission(),
+		"subject-type":     req.GetSubject().GetObject().GetObjectType(),
+		"subject-id":       req.GetSubject().GetObject().GetObjectId(),
+		"subject-relation": req.GetSubject().GetOptionalRelation(),
+		"context":          req.GetContext(),
 	})
 }
 
 func computeReadRelationshipsRequestHash(req *v1.ReadRelationshipsRequest) (string, error) {
-	osf := req.RelationshipFilter.OptionalSubjectFilter
+	osf := req.GetRelationshipFilter().GetOptionalSubjectFilter()
 	if osf == nil {
 		osf = &v1.SubjectFilter{}
 	}
 
 	srf := "(none)"
-	if osf.OptionalRelation != nil {
-		srf = osf.OptionalRelation.Relation
+	if osf.GetOptionalRelation() != nil {
+		srf = osf.GetOptionalRelation().GetRelation()
 	}
 
-	return computeCallHash("v1.readrelationships", req.Consistency, map[string]any{
-		"filter-resource-type": req.RelationshipFilter.ResourceType,
-		"filter-relation":      req.RelationshipFilter.OptionalRelation,
-		"filter-resource-id":   req.RelationshipFilter.OptionalResourceId,
-		"subject-type":         osf.SubjectType,
+	return computeCallHash("v1.readrelationships", req.GetConsistency(), map[string]any{
+		"filter-resource-type": req.GetRelationshipFilter().GetResourceType(),
+		"filter-relation":      req.GetRelationshipFilter().GetOptionalRelation(),
+		"filter-resource-id":   req.GetRelationshipFilter().GetOptionalResourceId(),
+		"subject-type":         osf.GetSubjectType(),
 		"subject-relation":     srf,
-		"subject-resource-id":  osf.OptionalSubjectId,
-		"limit":                req.OptionalLimit,
+		"subject-resource-id":  osf.GetOptionalSubjectId(),
+		"limit":                req.GetOptionalLimit(),
 	})
 }
 
 func computeLRRequestHash(req *v1.LookupResourcesRequest) (string, error) {
-	return computeCallHash("v1.lookupresources", req.Consistency, map[string]any{
-		"resource-type": req.ResourceObjectType,
-		"permission":    req.Permission,
-		"subject":       tuple.V1StringSubjectRef(req.Subject),
-		"limit":         req.OptionalLimit,
-		"context":       req.Context,
+	return computeCallHash("v1.lookupresources", req.GetConsistency(), map[string]any{
+		"resource-type": req.GetResourceObjectType(),
+		"permission":    req.GetPermission(),
+		"subject":       tuple.V1StringSubjectRef(req.GetSubject()),
+		"limit":         req.GetOptionalLimit(),
+		"context":       req.GetContext(),
 	})
 }
 

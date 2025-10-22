@@ -39,7 +39,7 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 			return nil, err
 		}
 
-		newCaveatDefNames.Insert(caveatDef.Name)
+		newCaveatDefNames.Insert(caveatDef.GetName())
 	}
 
 	// 2) Validate the namespaces defined.
@@ -57,8 +57,8 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 			return nil, err
 		}
 
-		validatedTypeSystems[nsdef.Name] = vts
-		newObjectDefNames.Insert(nsdef.Name)
+		validatedTypeSystems[nsdef.GetName()] = vts
+		newObjectDefNames.Insert(nsdef.GetName())
 	}
 
 	return &ValidatedSchemaChanges{
@@ -120,8 +120,8 @@ func ApplySchemaChangesOverExisting(
 	existingCaveatDefNames := mapz.NewSet[string]()
 
 	for _, existingCaveat := range existingCaveats {
-		existingCaveatDefMap[existingCaveat.Name] = existingCaveat
-		existingCaveatDefNames.Insert(existingCaveat.Name)
+		existingCaveatDefMap[existingCaveat.GetName()] = existingCaveat
+		existingCaveatDefNames.Insert(existingCaveat.GetName())
 	}
 
 	// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
@@ -143,8 +143,8 @@ func ApplySchemaChangesOverExisting(
 	existingObjectDefMap := make(map[string]*core.NamespaceDefinition, len(existingObjectDefs))
 	existingObjectDefNames := mapz.NewSet[string]()
 	for _, existingDef := range existingObjectDefs {
-		existingObjectDefMap[existingDef.Name] = existingDef
-		existingObjectDefNames.Insert(existingDef.Name)
+		existingObjectDefMap[existingDef.GetName()] = existingDef
+		existingObjectDefNames.Insert(existingDef.GetName())
 	}
 
 	// For each definition, perform a diff and ensure the changes will not result in any
@@ -159,9 +159,9 @@ func ApplySchemaChangesOverExisting(
 		if len(diff.Deltas()) > 0 {
 			objectDefsWithChanges = append(objectDefsWithChanges, nsdef)
 
-			vts, ok := validated.validatedTypeSystems[nsdef.Name]
+			vts, ok := validated.validatedTypeSystems[nsdef.GetName()]
 			if !ok {
-				return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.Name)
+				return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.GetName())
 			}
 
 			if err := namespace.AnnotateNamespace(vts); err != nil {
@@ -249,7 +249,7 @@ func sanityCheckCaveatChanges(
 	existingDefs map[string]*core.CaveatDefinition,
 ) (*caveatdiff.Diff, error) {
 	// Ensure that the updated namespace does not break the existing tuple data.
-	existing := existingDefs[caveatDef.Name]
+	existing := existingDefs[caveatDef.GetName()]
 	diff, err := caveatdiff.DiffCaveats(existing, caveatDef, caveatTypeSet)
 	if err != nil {
 		return nil, err
@@ -258,15 +258,15 @@ func sanityCheckCaveatChanges(
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case caveatdiff.RemovedParameter:
-			return diff, NewSchemaWriteDataValidationError("cannot remove parameter `%s` on caveat `%s`", []any{delta.ParameterName, caveatDef.Name}, map[string]string{
-				"caveat_name":    caveatDef.Name,
+			return diff, NewSchemaWriteDataValidationError("cannot remove parameter `%s` on caveat `%s`", []any{delta.ParameterName, caveatDef.GetName()}, map[string]string{
+				"caveat_name":    caveatDef.GetName(),
 				"parameter_name": delta.ParameterName,
 				"operation":      "remove_parameter",
 			})
 
 		case caveatdiff.ParameterTypeChanged:
-			return diff, NewSchemaWriteDataValidationError("cannot change the type of parameter `%s` on caveat `%s`", []any{delta.ParameterName, caveatDef.Name}, map[string]string{
-				"caveat_name":    caveatDef.Name,
+			return diff, NewSchemaWriteDataValidationError("cannot change the type of parameter `%s` on caveat `%s`", []any{delta.ParameterName, caveatDef.GetName()}, map[string]string{
+				"caveat_name":    caveatDef.GetName(),
 				"parameter_name": delta.ParameterName,
 				"operation":      "change_parameter_type",
 			})
@@ -309,7 +309,7 @@ func sanityCheckNamespaceChanges(
 	existingDefs map[string]*core.NamespaceDefinition,
 ) (*nsdiff.Diff, error) {
 	// Ensure that the updated namespace does not break the existing tuple data.
-	existing := existingDefs[nsdef.Name]
+	existing := existingDefs[nsdef.GetName()]
 	diff, err := nsdiff.DiffNamespaces(existing, nsdef)
 	if err != nil {
 		return nil, err
@@ -323,8 +323,8 @@ func sanityCheckNamespaceChanges(
 			// *is* an index that has {subject_namespace, subject_relation, namespace, relation}, we can
 			// force the datastore to use the reverse index by adding the subject filters.
 			var previousRelation *core.Relation
-			for _, relation := range existing.Relation {
-				if relation.Name == delta.RelationName {
+			for _, relation := range existing.GetRelation() {
+				if relation.GetName() == delta.RelationName {
 					previousRelation = relation
 					break
 				}
@@ -334,10 +334,10 @@ func sanityCheckNamespaceChanges(
 				return nil, spiceerrors.MustBugf("relation `%s` not found in existing namespace definition", delta.RelationName)
 			}
 
-			subjectSelectors := make([]datastore.SubjectsSelector, 0, len(previousRelation.TypeInformation.AllowedDirectRelations))
-			for _, allowedType := range previousRelation.TypeInformation.AllowedDirectRelations {
+			subjectSelectors := make([]datastore.SubjectsSelector, 0, len(previousRelation.GetTypeInformation().GetAllowedDirectRelations()))
+			for _, allowedType := range previousRelation.GetTypeInformation().GetAllowedDirectRelations() {
 				subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
-					OptionalSubjectType: allowedType.Namespace,
+					OptionalSubjectType: allowedType.GetNamespace(),
 					RelationFilter:      subjectRelationFilterForAllowedType(allowedType),
 				})
 			}
@@ -345,7 +345,7 @@ func sanityCheckNamespaceChanges(
 			qy, qyErr := rwt.QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
-					OptionalResourceType:      nsdef.Name,
+					OptionalResourceType:      nsdef.GetName(),
 					OptionalResourceRelation:  delta.RelationName,
 					OptionalSubjectsSelectors: subjectSelectors,
 				},
@@ -359,9 +359,9 @@ func sanityCheckNamespaceChanges(
 				qy,
 				qyErr,
 				"cannot delete relation `%s` in object definition `%s`, as at least one relationship exists under it",
-				[]any{delta.RelationName, nsdef.Name},
+				[]any{delta.RelationName, nsdef.GetName()},
 				map[string]string{
-					"resource_type": nsdef.Name,
+					"resource_type": nsdef.GetName(),
 					"relation":      delta.RelationName,
 					"operation":     "delete_relation",
 				},
@@ -378,7 +378,7 @@ func sanityCheckNamespaceChanges(
 			qy, qyErr = rwt.ReverseQueryRelationships(
 				ctx,
 				datastore.SubjectsFilter{
-					SubjectType:    nsdef.Name,
+					SubjectType:    nsdef.GetName(),
 					RelationFilter: datastore.SubjectRelationFilter{}.WithRelation(delta.RelationName),
 				},
 				options.WithLimitForReverse(options.LimitOne),
@@ -390,9 +390,9 @@ func sanityCheckNamespaceChanges(
 				qy,
 				qyErr,
 				"cannot delete relation `%s` in object definition `%s`, as at least one relationship references it as part of a subject",
-				[]any{delta.RelationName, nsdef.Name},
+				[]any{delta.RelationName, nsdef.GetName()},
 				map[string]string{
-					"resource_type": nsdef.Name,
+					"resource_type": nsdef.GetName(),
 					"relation":      delta.RelationName,
 					"operation":     "delete_relation_reverse_check",
 				},
@@ -408,25 +408,25 @@ func sanityCheckNamespaceChanges(
 				optionalSubjectIds = []string{tuple.PublicWildcard}
 			}
 
-			if delta.AllowedType.GetRequiredCaveat() != nil && delta.AllowedType.GetRequiredCaveat().CaveatName != "" {
-				optionalCaveatNameFilter = datastore.WithCaveatName(delta.AllowedType.GetRequiredCaveat().CaveatName)
+			if delta.AllowedType.GetRequiredCaveat() != nil && delta.AllowedType.GetRequiredCaveat().GetCaveatName() != "" {
+				optionalCaveatNameFilter = datastore.WithCaveatName(delta.AllowedType.GetRequiredCaveat().GetCaveatName())
 			} else {
 				optionalCaveatNameFilter = datastore.WithNoCaveat()
 			}
 
 			expirationOption := datastore.ExpirationFilterOptionNoExpiration
-			if delta.AllowedType.RequiredExpiration != nil {
+			if delta.AllowedType.GetRequiredExpiration() != nil {
 				expirationOption = datastore.ExpirationFilterOptionHasExpiration
 			}
 
 			qyr, qyrErr := rwt.QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
-					OptionalResourceType:     nsdef.Name,
+					OptionalResourceType:     nsdef.GetName(),
 					OptionalResourceRelation: delta.RelationName,
 					OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 						{
-							OptionalSubjectType: delta.AllowedType.Namespace,
+							OptionalSubjectType: delta.AllowedType.GetNamespace(),
 							OptionalSubjectIds:  optionalSubjectIds,
 							RelationFilter:      subjectRelationFilterForAllowedType(delta.AllowedType),
 						},
@@ -442,9 +442,9 @@ func sanityCheckNamespaceChanges(
 				qyr,
 				qyrErr,
 				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
-				[]any{schema.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name},
+				[]any{schema.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.GetName()},
 				map[string]string{
-					"resource_type": nsdef.Name,
+					"resource_type": nsdef.GetName(),
 					"relation":      delta.RelationName,
 					"allowed_type":  schema.SourceForAllowedRelation(delta.AllowedType),
 					"operation":     "remove_allowed_type",

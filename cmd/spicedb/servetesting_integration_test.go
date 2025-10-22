@@ -113,12 +113,12 @@ func TestTestServer(t *testing.T) {
 
 	v1Resp, err := v1client.CheckPermission(context.Background(), checkReq)
 	require.NoError(err)
-	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
+	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.GetPermissionship())
 
 	// Ensure check against readonly works as well.
 	v1Resp, err = rov1client.CheckPermission(context.Background(), checkReq)
 	require.NoError(err)
-	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
+	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.GetPermissionship())
 
 	// Try a call with a different auth header and ensure it fails.
 	authedConn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.readonlyPort),
