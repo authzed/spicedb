@@ -194,6 +194,14 @@ func (c *CaveatIterator) Explain() Explain {
 	}
 }
 
+func (c *CaveatIterator) Subiterators() []Iterator {
+	return []Iterator{c.subiterator}
+}
+
+func (c *CaveatIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &CaveatIterator{subiterator: newSubs[0], caveat: c.caveat}, nil
+}
+
 // buildExplainInfo creates detailed explanation information for the caveat iterator
 func (c *CaveatIterator) buildExplainInfo() string {
 	if c.caveat == nil {

@@ -32,6 +32,11 @@ func (o Object) Equals(other Object) bool {
 	return o.ObjectID == other.ObjectID && o.ObjectType == other.ObjectType
 }
 
+// Key returns a unique string key for this Object
+func (o Object) Key() string {
+	return o.ObjectType + ":" + o.ObjectID
+}
+
 // NewObject creates a new Object with the given object type and ID.
 func NewObject(objectType, objectID string) Object {
 	return Object{
@@ -67,4 +72,9 @@ func GetObject(oar ObjectAndRelation) Object {
 		ObjectID:   oar.ObjectID,
 		ObjectType: oar.ObjectType,
 	}
+}
+
+// ObjectAndRelationKey returns a unique string key for an ObjectAndRelation
+func ObjectAndRelationKey(oar ObjectAndRelation) string {
+	return oar.ObjectType + ":" + oar.ObjectID + "#" + oar.Relation
 }

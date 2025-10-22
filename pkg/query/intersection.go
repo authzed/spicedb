@@ -48,7 +48,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 		if iterIdx == 0 {
 			// First iterator - initialize pathsByKey using endpoint-based keys
 			for _, path := range paths {
-				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID
+				key := path.Resource.Key()
 				if existing, exists := pathsByKey[key]; !exists {
 					pathsByKey[key] = path
 				} else {
@@ -67,7 +67,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 			// First collect all paths from this iterator by endpoint
 			currentIterPaths := make(map[string]Path)
 			for _, path := range paths {
-				key := path.Resource.ObjectType + ":" + path.Resource.ObjectID
+				key := path.Resource.Key()
 				if existing, exists := currentIterPaths[key]; !exists {
 					currentIterPaths[key] = path
 				} else {
@@ -102,7 +102,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 		// Update valid resources for next iteration (extract unique resources from paths)
 		resourceSet := make(map[string]Object)
 		for _, path := range pathsByKey {
-			resourceKey := path.Resource.ObjectType + ":" + path.Resource.ObjectID
+			resourceKey := path.Resource.Key()
 			resourceSet[resourceKey] = path.Resource
 		}
 		validResources = make([]Object, 0, len(resourceSet))
@@ -148,4 +148,12 @@ func (i *Intersection) Explain() Explain {
 		Info:       "Intersection",
 		SubExplain: subs,
 	}
+}
+
+func (i *Intersection) Subiterators() []Iterator {
+	return i.subIts
+}
+
+func (i *Intersection) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &Intersection{subIts: newSubs}, nil
 }

@@ -23,17 +23,34 @@ type Plan interface {
 	Explain() Explain
 }
 
-// Iterator is an interface for manipulating iterators to create more query plans.
+// Iterator is a Plan that forms a tree structure through its Subiterators,
+// where the tree represents the query execution plan that can be traversed and
+// optimized. While Plan provides a read-only query interface, Iterator adds
+// methods for cloning, inspecting, and rebuilding iterator trees. This enables
+// query optimization by rewriting the tree.
 //
-// A Plan is abstract and more limited, and easier to pass around.
+// Implementations should form a composite tree structure where leaf nodes
+// (e.g., datastore scans) have no subiterators, and composite nodes (e.g.,
+// unions, intersections) combine multiple subiterators.
 //
-// An Iterator is what Iterators (even future datastore-specific ones) implement so that optimizations
-// and reorderings and rebalancing can take place.
+// Most tree transformations should use the Walk helper function rather than
+// manually calling Subiterators and ReplaceSubiterators.
 type Iterator interface {
 	Plan
 
 	// Clone does a deep-copy to duplicate the iterator tree at this point.
 	Clone() Iterator
+
+	// Subiterators returns the child iterators of this iterator, if any.
+	// Returns nil or empty slice for leaf iterators.
+	Subiterators() []Iterator
+
+	// ReplaceSubiterators returns a new iterator with the given subiterators replacing the current ones.
+	// This method always returns a new iterator instance.
+	// For leaf iterators (those with no subiterators), this returns an error.
+	// For composite iterators, the length of newSubs should match the length of Subiterators().
+	// Returns an error if the replacement fails or if the length of newSubs doesn't match expectations.
+	ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
 }
 
 // Explain describes the state of an iterator tree, in a human-readable fashion, with an Info line at

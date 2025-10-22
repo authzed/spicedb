@@ -138,3 +138,11 @@ func (a *Arrow) Explain() Explain {
 		SubExplain: []Explain{a.left.Explain(), a.right.Explain()},
 	}
 }
+
+func (a *Arrow) Subiterators() []Iterator {
+	return []Iterator{a.left, a.right}
+}
+
+func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &Arrow{left: newSubs[0], right: newSubs[1]}, nil
+}
