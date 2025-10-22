@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"time"
 
@@ -147,14 +146,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 				}
 			}
 		case err := <-errchan:
-			switch {
-			case errors.As(err, &datastore.WatchCanceledError{}):
-				return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
-			case errors.As(err, &datastore.WatchDisconnectedError{}):
-				return status.Errorf(codes.ResourceExhausted, "watch disconnected: %s", err)
-			default:
-				return status.Errorf(codes.Internal, "watch error: %s", err)
-			}
+			return ws.rewriteError(ctx, err)
 		}
 	}
 }
