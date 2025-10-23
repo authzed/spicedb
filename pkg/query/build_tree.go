@@ -194,20 +194,20 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 
 		return NewExclusion(mainIt, excludedIt), nil
 
-	case *schema.FunctionedTuplesetOperation:
-		rel, ok := p.Parent().Relations()[perm.TuplesetRelation()]
+	case *schema.FunctionedArrowReference:
+		rel, ok := p.Parent().Relations()[perm.Left()]
 		if !ok {
-			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find tupleset relation `%s` for functioned tupleset `%s.%s(%s)` for permission `%s` in definition `%s`", perm.TuplesetRelation(), perm.TuplesetRelation(), functionTypeString(perm.Function()), perm.ComputedRelation(), p.Name(), p.Parent().Name())
+			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), p.Parent().Name())
 		}
 
 		switch perm.Function() {
 		case schema.FunctionTypeAny:
 			// any() functions just like an arrow
-			return b.buildArrowIterators(rel, perm.ComputedRelation())
+			return b.buildArrowIterators(rel, perm.Right())
 
 		case schema.FunctionTypeAll:
 			// all() requires intersection arrow - user must have permission on ALL left subjects
-			return b.buildIntersectionArrowIterators(rel, perm.ComputedRelation())
+			return b.buildIntersectionArrowIterators(rel, perm.Right())
 
 		default:
 			return nil, fmt.Errorf("unknown function type: %v", perm.Function())

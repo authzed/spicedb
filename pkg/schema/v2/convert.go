@@ -234,10 +234,10 @@ func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &FunctionedTuplesetOperation{
-			tuplesetRelation: childType.FunctionedTupleToUserset.GetTupleset().GetRelation(),
-			function:         functionType,
-			computedRelation: childType.FunctionedTupleToUserset.GetComputedUserset().GetRelation(),
+		return &FunctionedArrowReference{
+			left:     childType.FunctionedTupleToUserset.GetTupleset().GetRelation(),
+			right:    childType.FunctionedTupleToUserset.GetComputedUserset().GetRelation(),
+			function: functionType,
 		}, nil
 	case *corev1.SetOperation_Child_XNil:
 		return &RelationReference{

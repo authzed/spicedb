@@ -222,11 +222,11 @@ var (
 	_ schemaUnit[Operation] = &ResolvedArrowReference{}
 )
 
-// FunctionedTuplesetOperation is an Operation that represents functioned tuplesets like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
-type FunctionedTuplesetOperation struct {
-	tuplesetRelation string
-	function         FunctionType
-	computedRelation string
+// FunctionedArrowReference is an Operation that represents functioned arrows like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
+type FunctionedArrowReference struct {
+	left     string
+	right    string
+	function FunctionType
 }
 
 // FunctionType represents the type of function applied to a tupleset.
@@ -237,39 +237,39 @@ const (
 	FunctionTypeAll
 )
 
-func (f *FunctionedTuplesetOperation) TuplesetRelation() string {
-	return f.tuplesetRelation
+func (f *FunctionedArrowReference) Left() string {
+	return f.left
 }
 
-func (f *FunctionedTuplesetOperation) Function() FunctionType {
+func (f *FunctionedArrowReference) Right() string {
+	return f.right
+}
+
+func (f *FunctionedArrowReference) Function() FunctionType {
 	return f.function
 }
 
-func (f *FunctionedTuplesetOperation) ComputedRelation() string {
-	return f.computedRelation
-}
-
-// clone creates a deep copy of the FunctionedTuplesetOperation.
-func (f *FunctionedTuplesetOperation) clone() Operation {
+// clone creates a deep copy of the FunctionedArrowReference.
+func (f *FunctionedArrowReference) clone() Operation {
 	if f == nil {
 		return nil
 	}
-	return &FunctionedTuplesetOperation{
-		tuplesetRelation: f.tuplesetRelation,
-		function:         f.function,
-		computedRelation: f.computedRelation,
+	return &FunctionedArrowReference{
+		left:     f.left,
+		right:    f.right,
+		function: f.function,
 	}
 }
 
 // We close the enum by implementing the private method.
-func (r *RelationReference) isOperation()           {}
-func (a *ArrowReference) isOperation()              {}
-func (u *UnionOperation) isOperation()              {}
-func (i *IntersectionOperation) isOperation()       {}
-func (e *ExclusionOperation) isOperation()          {}
-func (f *FunctionedTuplesetOperation) isOperation() {}
-func (r *ResolvedRelationReference) isOperation()   {}
-func (a *ResolvedArrowReference) isOperation()      {}
+func (r *RelationReference) isOperation()         {}
+func (a *ArrowReference) isOperation()            {}
+func (u *UnionOperation) isOperation()            {}
+func (i *IntersectionOperation) isOperation()     {}
+func (e *ExclusionOperation) isOperation()        {}
+func (f *FunctionedArrowReference) isOperation()  {}
+func (r *ResolvedRelationReference) isOperation() {}
+func (a *ResolvedArrowReference) isOperation()    {}
 
 var (
 	_ Operation = (*RelationReference)(nil)
@@ -277,7 +277,7 @@ var (
 	_ Operation = (*UnionOperation)(nil)
 	_ Operation = (*IntersectionOperation)(nil)
 	_ Operation = (*ExclusionOperation)(nil)
-	_ Operation = (*FunctionedTuplesetOperation)(nil)
+	_ Operation = (*FunctionedArrowReference)(nil)
 	_ Operation = (*ResolvedRelationReference)(nil)
 	_ Operation = (*ResolvedArrowReference)(nil)
 )
