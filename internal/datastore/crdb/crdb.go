@@ -182,6 +182,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		CommonDecoder:           revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
 		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		dburl:                   url,
+		acquireTimeout:          config.acquireTimeout,
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		watchConnectTimeout:     config.watchConnectTimeout,

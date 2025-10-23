@@ -109,6 +109,7 @@ func TestTxReset(t *testing.T) {
 					RevisionQuantization(5*time.Second),
 					WatchBufferLength(128),
 					MaxRetries(tt.maxRetries),
+					WithAcquireTimeout(5*time.Second),
 				)
 				require.NoError(err)
 				return ds
