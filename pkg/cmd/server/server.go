@@ -37,6 +37,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
@@ -140,6 +141,12 @@ type Config struct {
 	// Middleware for grpc API
 	UnaryMiddlewareModification     []MiddlewareModification[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	StreamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor] `debugmap:"hidden"`
+
+	// Memory Protection
+	MemoryProtectionEnabled                  bool `debugmap:"visible" default:"true"`
+	MemoryProtectionAPIThresholdPercent      int  `debugmap:"visible" default:"90"`
+	MemoryProtectionDispatchThresholdPercent int  `debugmap:"visible" default:"95"`
+	MemoryProtectionSampleIntervalSeconds    int  `debugmap:"visible" default:"1"`
 
 	// Middleware for internal dispatch API
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor  `debugmap:"hidden"`
@@ -335,14 +342,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithError(dispatcher.Close)
 
-	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
-		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram)
-		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram)
-		}
-	}
-
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
 		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](c.ClusterDispatchCacheConfig.WithRevisionParameters(
@@ -432,6 +431,30 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
 	}
 
+	// Configure memory protection for API
+	var apiMemoryProtectionConfig memoryprotection.Config
+	if c.MemoryProtectionEnabled {
+		apiMemoryProtectionConfig = memoryprotection.Config{
+			ThresholdPercent:      c.MemoryProtectionAPIThresholdPercent,
+			SampleIntervalSeconds: c.MemoryProtectionSampleIntervalSeconds,
+		}
+	} else {
+		// Use disabled config (zero values)
+		apiMemoryProtectionConfig = memoryprotection.Config{}
+	}
+
+	// Configure memory protection for dispatch
+	var dispatchMemoryProtectionConfig memoryprotection.Config
+	if c.MemoryProtectionEnabled {
+		dispatchMemoryProtectionConfig = memoryprotection.Config{
+			ThresholdPercent:      c.MemoryProtectionDispatchThresholdPercent,
+			SampleIntervalSeconds: c.MemoryProtectionSampleIntervalSeconds,
+		}
+	} else {
+		// Use disabled config (zero values)
+		dispatchMemoryProtectionConfig = memoryprotection.Config{}
+	}
+
 	opts := MiddlewareOption{
 		log.Logger,
 		c.GRPCAuthFunc,
@@ -442,17 +465,27 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		c.DisableGRPCLatencyHistogram,
 		serverName,
 		mismatchZedTokenOption,
+		apiMemoryProtectionConfig,
 		nil,
 		nil,
 	}
 	opts = opts.WithDatastore(ds)
 
-	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(opts)
+	// Set up dispatch middleware with memory protection if not already configured
+	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
+		if c.GRPCAuthFunc == nil {
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(ctx, log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, dispatchMemoryProtectionConfig)
+		} else {
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(ctx, log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, dispatchMemoryProtectionConfig)
+		}
+	}
+
+	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error building default middlewares: %w", err)
 	}
 
-	defaultStreamingMiddlewareChain, err := DefaultStreamingMiddleware(opts)
+	defaultStreamingMiddlewareChain, err := DefaultStreamingMiddleware(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error building default middlewares: %w", err)
 	}

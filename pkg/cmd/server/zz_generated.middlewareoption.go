@@ -3,6 +3,7 @@ package server
 
 import (
 	dispatch "github.com/authzed/spicedb/internal/dispatch"
+	memoryprotection "github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	consistency "github.com/authzed/spicedb/pkg/middleware/consistency"
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
@@ -43,6 +44,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.DisableGRPCHistogram = m.DisableGRPCHistogram
 		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.MismatchingZedTokenOption = m.MismatchingZedTokenOption
+		to.MemoryProtectionConfig = m.MemoryProtectionConfig
 		to.unaryDatastoreMiddleware = m.unaryDatastoreMiddleware
 		to.streamDatastoreMiddleware = m.streamDatastoreMiddleware
 	}
@@ -57,6 +59,7 @@ func (m MiddlewareOption) DebugMap() map[string]any {
 	debugMap["DisableGRPCHistogram"] = helpers.DebugValue(m.DisableGRPCHistogram, false)
 	debugMap["MiddlewareServiceLabel"] = helpers.DebugValue(m.MiddlewareServiceLabel, false)
 	debugMap["MismatchingZedTokenOption"] = helpers.DebugValue(m.MismatchingZedTokenOption, false)
+	debugMap["MemoryProtectionConfig"] = helpers.DebugValue(m.MemoryProtectionConfig, false)
 	return debugMap
 }
 
@@ -136,5 +139,12 @@ func WithMiddlewareServiceLabel(middlewareServiceLabel string) MiddlewareOptionO
 func WithMismatchingZedTokenOption(mismatchingZedTokenOption consistency.MismatchingTokenOption) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MismatchingZedTokenOption = mismatchingZedTokenOption
+	}
+}
+
+// WithMemoryProtectionConfig returns an option that can set MemoryProtectionConfig on a MiddlewareOption
+func WithMemoryProtectionConfig(memoryProtectionConfig memoryprotection.Config) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.MemoryProtectionConfig = memoryProtectionConfig
 	}
 }

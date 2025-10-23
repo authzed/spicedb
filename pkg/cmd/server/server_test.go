@@ -24,6 +24,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -51,6 +52,7 @@ func TestServerGracefulTermination(t *testing.T) {
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: true}),
 		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
 		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
+		WithMemoryProtectionEnabled(false),
 	)
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
@@ -102,6 +104,7 @@ func TestOTelReporting(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithDatastore(ds),
+		WithMemoryProtectionEnabled(false),
 	}
 
 	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
@@ -294,6 +297,7 @@ func TestRetryPolicy(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithDatastore(ds),
+		WithMemoryProtectionEnabled(false),
 		SetUnaryMiddlewareModification([]MiddlewareModification[grpc.UnaryServerInterceptor]{
 			{
 				Operation:                OperationAppend,
@@ -380,7 +384,7 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 		GRPCServer: util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 		},
-	}, WithPresharedSecureKey("psk"), WithDatastore(ds))
+	}, WithPresharedSecureKey("psk"), WithDatastore(ds), WithMemoryProtectionEnabled(false))
 	cancel()
 	_, err = c.Complete(ctx)
 	require.NoError(t, err)
@@ -440,10 +444,10 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, nil, nil}
 	opt = opt.WithDatastore(nil)
 
-	defaultMw, err := DefaultUnaryMiddleware(opt)
+	defaultMw, err := DefaultUnaryMiddleware(context.Background(), opt)
 	require.NoError(t, err)
 
 	unary, err := c.buildUnaryMiddleware(defaultMw)
@@ -468,10 +472,10 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, nil, nil}
 	opt = opt.WithDatastore(nil)
 
-	defaultMw, err := DefaultStreamingMiddleware(opt)
+	defaultMw, err := DefaultStreamingMiddleware(context.Background(), opt)
 	require.NoError(t, err)
 
 	streaming, err := c.buildStreamingMiddleware(defaultMw)
