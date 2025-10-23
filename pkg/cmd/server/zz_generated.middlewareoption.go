@@ -3,6 +3,7 @@ package server
 
 import (
 	dispatch "github.com/authzed/spicedb/internal/dispatch"
+	memoryprotection "github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	consistency "github.com/authzed/spicedb/pkg/middleware/consistency"
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
@@ -43,6 +44,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.DisableGRPCHistogram = m.DisableGRPCHistogram
 		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.MismatchingZedTokenOption = m.MismatchingZedTokenOption
+		to.MemoryUsageProvider = m.MemoryUsageProvider
 		to.unaryDatastoreMiddleware = m.unaryDatastoreMiddleware
 		to.streamDatastoreMiddleware = m.streamDatastoreMiddleware
 	}
@@ -136,5 +138,12 @@ func WithMiddlewareServiceLabel(middlewareServiceLabel string) MiddlewareOptionO
 func WithMismatchingZedTokenOption(mismatchingZedTokenOption consistency.MismatchingTokenOption) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MismatchingZedTokenOption = mismatchingZedTokenOption
+	}
+}
+
+// WithMemoryUsageProvider returns an option that can set MemoryUsageProvider on a MiddlewareOption
+func WithMemoryUsageProvider(memoryUsageProvider memoryprotection.MemoryUsageProvider) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.MemoryUsageProvider = memoryUsageProvider
 	}
 }
