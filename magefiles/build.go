@@ -16,6 +16,7 @@ func (Build) Binary() error {
 	return sh.RunWithV(
 		map[string]string{},
 		"go", "build",
+		"-ldflags", "-checklinkname=0", // https://github.com/odigos-io/go-rtml#about-ldflags-checklinkname0
 		"-o", "./dist",
 		"./cmd/spicedb/main.go",
 	)
@@ -26,7 +27,8 @@ func (Build) Wasm() error {
 	return sh.RunWithV(map[string]string{"GOOS": "js", "GOARCH": "wasm"},
 		// -s: Omit the symbol table.
 		// -w: Omit the DWARF debugging information.
-		"go", "build", "-ldflags=-s -w", "-o", "dist/development.wasm", "./pkg/development/wasm/...")
+		// -checklinkname=0: for the memory protection middleware
+		"go", "build", "-ldflags=-s -w -checklinkname=0", "-o", "dist/development.wasm", "./pkg/development/wasm/...")
 }
 
 // Testimage Build the spicedb image for tests
@@ -39,6 +41,6 @@ func (Build) Testimage() error {
 // E2e Build the new enemy tests
 func (Build) E2e() error {
 	err1 := sh.Run("go", "get", "./...")
-	err2 := sh.Run("go", "build", "-o", "./e2e/newenemy/spicedb", "./cmd/spicedb")
+	err2 := sh.Run("go", "build", "-ldflags=-checklinkname=0", "-o", "./e2e/newenemy/spicedb", "./cmd/spicedb")
 	return errors.Join(err1, err2)
 }
