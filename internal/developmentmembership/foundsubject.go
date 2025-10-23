@@ -10,7 +10,7 @@ import (
 
 // NewFoundSubject creates a new FoundSubject for a subject and a set of its resources.
 func NewFoundSubject(subject *core.DirectSubject, resources ...tuple.ObjectAndRelation) FoundSubject {
-	return FoundSubject{tuple.FromCoreObjectAndRelation(subject.Subject), nil, subject.CaveatExpression, NewONRSet(resources...)}
+	return FoundSubject{tuple.FromCoreObjectAndRelation(subject.GetSubject()), nil, subject.GetCaveatExpression(), NewONRSet(resources...)}
 }
 
 // FoundSubject contains a single found subject and all the relationships in which that subject

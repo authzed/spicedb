@@ -215,11 +215,11 @@ func TestTypecheckingJustTypes(t *testing.T) {
 			res := ResolverForCompiledSchema(*schema)
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
-				for _, relation := range resource.Relation {
-					types, err := ts.GetRecursiveTerminalTypesForRelation(t.Context(), resource.Name, relation.Name)
+				for _, relation := range resource.GetRelation() {
+					types, err := ts.GetRecursiveTerminalTypesForRelation(t.Context(), resource.GetName(), relation.GetName())
 					require.NoError(t, err)
 
-					rel := resource.Name + "#" + relation.Name
+					rel := resource.GetName() + "#" + relation.GetName()
 					expected, ok := tc.expected[rel]
 					require.True(t, ok, "expected %v to be in %v", rel, tc.expected)
 					require.Len(t, types, len(expected), rel)
@@ -398,11 +398,11 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 			res := ResolverForCompiledSchema(*schema)
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
-				for _, relation := range resource.Relation {
-					types, err := ts.GetFullRecursiveSubjectTypesForRelation(t.Context(), resource.Name, relation.Name)
+				for _, relation := range resource.GetRelation() {
+					types, err := ts.GetFullRecursiveSubjectTypesForRelation(t.Context(), resource.GetName(), relation.GetName())
 					require.NoError(t, err)
 
-					rel := resource.Name + "#" + relation.Name
+					rel := resource.GetName() + "#" + relation.GetName()
 					expected, ok := tc.expected[rel]
 					require.True(t, ok, "expected %v to be in %v", rel, tc.expected)
 					require.Len(t, types, len(expected), rel)
@@ -508,7 +508,7 @@ func TestTypeAnnotationsValidation(t *testing.T) {
 
 			var foundError error
 			for _, resource := range schema.ObjectDefinitions {
-				def, err := ts.GetDefinition(t.Context(), resource.Name)
+				def, err := ts.GetDefinition(t.Context(), resource.GetName())
 				if err != nil {
 					foundError = err
 					break

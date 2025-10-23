@@ -14,43 +14,43 @@ func computePermissionAliases(typeDefinition *schema.ValidatedDefinition) (map[s
 	done := map[string]struct{}{}
 	unresolvedAliases := map[string]string{}
 
-	for _, rel := range typeDefinition.Namespace().Relation {
+	for _, rel := range typeDefinition.Namespace().GetRelation() {
 		// Ensure the relation has a rewrite...
 		if rel.GetUsersetRewrite() == nil {
-			done[rel.Name] = struct{}{}
+			done[rel.GetName()] = struct{}{}
 			continue
 		}
 
 		// ... with a union ...
 		union := rel.GetUsersetRewrite().GetUnion()
 		if union == nil {
-			done[rel.Name] = struct{}{}
+			done[rel.GetName()] = struct{}{}
 			continue
 		}
 
 		// ... with a single child ...
-		if len(union.Child) != 1 {
-			done[rel.Name] = struct{}{}
+		if len(union.GetChild()) != 1 {
+			done[rel.GetName()] = struct{}{}
 			continue
 		}
 
 		// ... that is a computed userset.
-		computedUserset := union.Child[0].GetComputedUserset()
+		computedUserset := union.GetChild()[0].GetComputedUserset()
 		if computedUserset == nil {
-			done[rel.Name] = struct{}{}
+			done[rel.GetName()] = struct{}{}
 			continue
 		}
 
 		// If the aliased item is a relation, then we've found the alias target.
 		aliasedPermOrRel := computedUserset.GetRelation()
 		if !typeDefinition.IsPermission(aliasedPermOrRel) {
-			done[rel.Name] = struct{}{}
-			aliases[rel.Name] = aliasedPermOrRel
+			done[rel.GetName()] = struct{}{}
+			aliases[rel.GetName()] = aliasedPermOrRel
 			continue
 		}
 
 		// Otherwise, add the permission to the working set.
-		unresolvedAliases[rel.Name] = aliasedPermOrRel
+		unresolvedAliases[rel.GetName()] = aliasedPermOrRel
 	}
 
 	for len(unresolvedAliases) > 0 {
@@ -74,7 +74,7 @@ func computePermissionAliases(typeDefinition *schema.ValidatedDefinition) (map[s
 				keys = append(keys, key)
 			}
 			sort.Strings(keys)
-			return nil, NewPermissionsCycleErr(typeDefinition.Namespace().Name, keys)
+			return nil, NewPermissionsCycleErr(typeDefinition.Namespace().GetName(), keys)
 		}
 	}
 

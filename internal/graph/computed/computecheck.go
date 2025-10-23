@@ -66,7 +66,7 @@ func ComputeCheck(
 	}
 
 	spiceerrors.DebugAssertf(func() bool {
-		return (len(di) == 0 && meta.DebugInfo == nil) || (len(di) == 1 && meta.DebugInfo != nil)
+		return (len(di) == 0 && meta.GetDebugInfo() == nil) || (len(di) == 1 && meta.GetDebugInfo() != nil)
 	}, "mismatch in debug information returned from computeCheck")
 
 	return resultsMap[resourceID], meta, err
@@ -133,17 +133,17 @@ func computeCheck(ctx context.Context,
 			CheckHints: params.CheckHints,
 		})
 
-		if checkResult.Metadata.DebugInfo != nil {
-			debugInfo = append(debugInfo, checkResult.Metadata.DebugInfo)
+		if checkResult.GetMetadata().GetDebugInfo() != nil {
+			debugInfo = append(debugInfo, checkResult.GetMetadata().GetDebugInfo())
 		}
 
 		if len(resourceIDs) == 1 {
-			metadata = checkResult.Metadata
+			metadata = checkResult.GetMetadata()
 		} else {
 			metadata = &v1.ResponseMeta{
-				DispatchCount:       metadata.DispatchCount + checkResult.Metadata.DispatchCount,
-				DepthRequired:       max(metadata.DepthRequired, checkResult.Metadata.DepthRequired),
-				CachedDispatchCount: metadata.CachedDispatchCount + checkResult.Metadata.CachedDispatchCount,
+				DispatchCount:       metadata.GetDispatchCount() + checkResult.GetMetadata().GetDispatchCount(),
+				DepthRequired:       max(metadata.GetDepthRequired(), checkResult.GetMetadata().GetDepthRequired()),
+				CachedDispatchCount: metadata.GetCachedDispatchCount() + checkResult.GetMetadata().GetCachedDispatchCount(),
 				DebugInfo:           nil,
 			}
 		}
@@ -166,21 +166,21 @@ func computeCheck(ctx context.Context,
 }
 
 func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
-	result, ok := checkResult.ResultsByResourceId[resourceID]
+	result, ok := checkResult.GetResultsByResourceId()[resourceID]
 	if !ok {
 		return &v1.ResourceCheckResult{
 			Membership: v1.ResourceCheckResult_NOT_MEMBER,
 		}, nil
 	}
 
-	if result.Membership == v1.ResourceCheckResult_MEMBER {
+	if result.GetMembership() == v1.ResourceCheckResult_MEMBER {
 		return result, nil
 	}
 
 	ds := datastoremw.MustFromContext(ctx)
 	reader := ds.SnapshotReader(params.AtRevision)
 
-	caveatResult, err := runner.RunCaveatExpression(ctx, result.Expression, params.CaveatContext, reader, cexpr.RunCaveatExpressionNoDebugging)
+	caveatResult, err := runner.RunCaveatExpression(ctx, result.GetExpression(), params.CaveatContext, reader, cexpr.RunCaveatExpressionNoDebugging)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner,
 		missingFields, _ := caveatResult.MissingVarNames()
 		return &v1.ResourceCheckResult{
 			Membership:        v1.ResourceCheckResult_CAVEATED_MEMBER,
-			Expression:        result.Expression,
+			Expression:        result.GetExpression(),
 			MissingExprFields: missingFields,
 		}, nil
 	}

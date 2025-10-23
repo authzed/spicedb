@@ -80,12 +80,12 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 }
 
 func annotateAndReportForMetadata(ctx context.Context, methodName string, metadata *dispatch.ResponseMeta) error {
-	DispatchedCountHistogram.WithLabelValues(methodName, "false").Observe(float64(metadata.DispatchCount))
-	DispatchedCountHistogram.WithLabelValues(methodName, "true").Observe(float64(metadata.CachedDispatchCount))
+	DispatchedCountHistogram.WithLabelValues(methodName, "false").Observe(float64(metadata.GetDispatchCount()))
+	DispatchedCountHistogram.WithLabelValues(methodName, "true").Observe(float64(metadata.GetCachedDispatchCount()))
 
 	return responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(metadata.DispatchCount)),
-		responsemeta.CachedOperationsCount:     strconv.Itoa(int(metadata.CachedDispatchCount)),
+		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(metadata.GetDispatchCount())),
+		responsemeta.CachedOperationsCount:     strconv.Itoa(int(metadata.GetCachedDispatchCount())),
 	})
 }
 

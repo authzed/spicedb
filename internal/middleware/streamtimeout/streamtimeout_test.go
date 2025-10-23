@@ -83,7 +83,7 @@ func (s *testSuite) TestStreamTimeout() {
 
 		// Ensure that we produced a *maximum* of 6 responses (timeout is 50ms and each response
 		// should take 10ms * counter). This ensures that we timed out (roughly) when expected.
-		maxCounter = resp.Counter
+		maxCounter = resp.GetCounter()
 		s.Require().LessOrEqual(maxCounter, int32(6), "stream was not properly canceled: %d", maxCounter)
 	}
 }

@@ -81,9 +81,9 @@ definition document {
 			// Find the document definition and the expected permission
 			var foundPermission *core.Relation
 			for _, ns := range compiled.ObjectDefinitions {
-				if ns.Name == "document" {
-					for _, rel := range ns.Relation {
-						if rel.Name == tt.expectedPermission {
+				if ns.GetName() == "document" {
+					for _, rel := range ns.GetRelation() {
+						if rel.GetName() == tt.expectedPermission {
 							foundPermission = rel
 							break
 						}
@@ -97,14 +97,14 @@ definition document {
 			if !tt.shouldContainMetadata {
 				// For permissions without type annotations, PERMISSION metadata should still exist (created by namespace.Relation)
 				// but type annotations should be empty
-				require.NotNil(t, foundPermission.Metadata, "All permissions should have metadata")
+				require.NotNil(t, foundPermission.GetMetadata(), "All permissions should have metadata")
 
 				// Find the PERMISSION RelationMetadata
 				var foundMetadata *implv1.RelationMetadata
-				for _, metadataAny := range foundPermission.Metadata.MetadataMessage {
+				for _, metadataAny := range foundPermission.GetMetadata().GetMetadataMessage() {
 					var relationMetadata implv1.RelationMetadata
 					if err := metadataAny.UnmarshalTo(&relationMetadata); err == nil {
-						if relationMetadata.Kind == implv1.RelationMetadata_PERMISSION {
+						if relationMetadata.GetKind() == implv1.RelationMetadata_PERMISSION {
 							foundMetadata = &relationMetadata
 							break
 						}
@@ -112,8 +112,8 @@ definition document {
 				}
 
 				require.NotNil(t, foundMetadata, "Should have PERMISSION RelationMetadata")
-				if foundMetadata.TypeAnnotations != nil {
-					require.Empty(t, foundMetadata.TypeAnnotations.Types, "Type annotations should be empty for permission without type annotations")
+				if foundMetadata.GetTypeAnnotations() != nil {
+					require.Empty(t, foundMetadata.GetTypeAnnotations().GetTypes(), "Type annotations should be empty for permission without type annotations")
 				}
 
 				// Test the helper function for retrieving type annotations
@@ -123,15 +123,15 @@ definition document {
 			}
 
 			// For permissions with type annotations, verify metadata exists
-			require.NotNil(t, foundPermission.Metadata, "Metadata should not be nil for permission with type annotations")
-			require.NotEmpty(t, foundPermission.Metadata.MetadataMessage, "MetadataMessage should not be empty")
+			require.NotNil(t, foundPermission.GetMetadata(), "Metadata should not be nil for permission with type annotations")
+			require.NotEmpty(t, foundPermission.GetMetadata().GetMetadataMessage(), "MetadataMessage should not be empty")
 
 			// Find the RelationMetadata with PERMISSION kind
 			var foundMetadata *implv1.RelationMetadata
-			for _, metadataAny := range foundPermission.Metadata.MetadataMessage {
+			for _, metadataAny := range foundPermission.GetMetadata().GetMetadataMessage() {
 				var relationMetadata implv1.RelationMetadata
 				if err := metadataAny.UnmarshalTo(&relationMetadata); err == nil {
-					if relationMetadata.Kind == implv1.RelationMetadata_PERMISSION {
+					if relationMetadata.GetKind() == implv1.RelationMetadata_PERMISSION {
 						foundMetadata = &relationMetadata
 						break
 					}
@@ -139,9 +139,9 @@ definition document {
 			}
 
 			require.NotNil(t, foundMetadata, "Should have PERMISSION RelationMetadata")
-			require.Equal(t, implv1.RelationMetadata_PERMISSION, foundMetadata.Kind)
-			require.NotNil(t, foundMetadata.TypeAnnotations, "TypeAnnotations should not be nil")
-			require.Equal(t, tt.expectedAnnotations, foundMetadata.TypeAnnotations.Types)
+			require.Equal(t, implv1.RelationMetadata_PERMISSION, foundMetadata.GetKind())
+			require.NotNil(t, foundMetadata.GetTypeAnnotations(), "TypeAnnotations should not be nil")
+			require.Equal(t, tt.expectedAnnotations, foundMetadata.GetTypeAnnotations().GetTypes())
 
 			// Test the helper function for retrieving type annotations
 			retrievedAnnotations := namespace.GetTypeAnnotations(foundPermission)

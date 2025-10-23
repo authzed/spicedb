@@ -13,7 +13,7 @@ func ComputeObjectTypeStats(objTypes []RevisionedNamespace) []ObjectTypeStat {
 	for _, objType := range objTypes {
 		var relations, permissions uint32
 
-		for _, rel := range objType.Definition.Relation {
+		for _, rel := range objType.Definition.GetRelation() {
 			if namespace.GetRelationKind(rel) == iv1.RelationMetadata_PERMISSION {
 				permissions++
 			} else {

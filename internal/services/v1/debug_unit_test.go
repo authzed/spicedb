@@ -77,8 +77,8 @@ func TestConvertCheckTrace_MultipleResourceIds_RequireAllResults(t *testing.T) {
 			req.NoError(err)
 
 			// Verify the expected result
-			req.Equal(tt.expectedResult, converted.Result)
-			req.Equal("resource1,resource2,resource3", converted.Resource.ObjectId)
+			req.Equal(tt.expectedResult, converted.GetResult())
+			req.Equal("resource1,resource2,resource3", converted.GetResource().GetObjectId())
 		})
 	}
 }

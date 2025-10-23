@@ -188,7 +188,7 @@ func cursoredLookupResources(parameters map[string]any, clients stClients) (any,
 			}
 
 			foundResources.Add(formatResolvedResource(resp))
-			currentCursor = resp.AfterResultCursor
+			currentCursor = resp.GetAfterResultCursor()
 			resultCount++
 		}
 
@@ -270,8 +270,8 @@ func bulkImportExportRelationships(parameters map[string]any, clients stClients)
 		return nil, err
 	}
 
-	if uint64(len(importRels)) != resp.NumLoaded {
-		return nil, fmt.Errorf("expected %d relationships to be loaded, got %d", len(importRels), resp.NumLoaded)
+	if uint64(len(importRels)) != resp.GetNumLoaded() {
+		return nil, fmt.Errorf("expected %d relationships to be loaded, got %d", len(importRels), resp.GetNumLoaded())
 	}
 
 	// Run bulk export and return the results.
@@ -317,7 +317,7 @@ func bulkImportExportRelationships(parameters map[string]any, clients stClients)
 			return nil, err
 		}
 
-		for _, rel := range resp.Relationships {
+		for _, rel := range resp.GetRelationships() {
 			exportedRels = append(exportedRels, yaml.Node{
 				Kind:  yaml.ScalarNode,
 				Value: tuple.MustV1RelString(rel),
@@ -343,13 +343,13 @@ func bulkCheckPermissions(parameters map[string]any, clients stClients) (any, er
 
 		var context *structpb.Struct
 		if parsed.GetOptionalCaveat() != nil {
-			context = parsed.GetOptionalCaveat().Context
+			context = parsed.GetOptionalCaveat().GetContext()
 		}
 
 		checkRequests = append(checkRequests, &v1.CheckBulkPermissionsRequestItem{
-			Resource:   parsed.Resource,
-			Permission: parsed.Relation,
-			Subject:    parsed.Subject,
+			Resource:   parsed.GetResource(),
+			Permission: parsed.GetRelation(),
+			Subject:    parsed.GetSubject(),
 			Context:    context,
 		})
 	}
@@ -367,10 +367,10 @@ func bulkCheckPermissions(parameters map[string]any, clients stClients) (any, er
 	}
 
 	respItems := make([]yaml.Node, 0)
-	for index, pair := range resp.Pairs {
+	for index, pair := range resp.GetPairs() {
 		prefix := itemStrings[index] + " -> "
 		if pair.GetItem() != nil {
-			resultStr := pair.GetItem().Permissionship.String()
+			resultStr := pair.GetItem().GetPermissionship().String()
 			respItems = append(respItems, yaml.Node{
 				Kind:  yaml.ScalarNode,
 				Value: prefix + resultStr,
@@ -379,7 +379,7 @@ func bulkCheckPermissions(parameters map[string]any, clients stClients) (any, er
 		} else {
 			respItems = append(respItems, yaml.Node{
 				Kind:  yaml.ScalarNode,
-				Value: prefix + pair.GetError().Message,
+				Value: prefix + pair.GetError().GetMessage(),
 				Style: yaml.SingleQuotedStyle,
 			})
 		}
@@ -417,9 +417,9 @@ var operations = map[string]stOperation{
 
 func formatResolvedResource(resource *v1.LookupResourcesResponse) string {
 	var sb strings.Builder
-	sb.WriteString(resource.ResourceObjectId)
+	sb.WriteString(resource.GetResourceObjectId())
 
-	if resource.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
+	if resource.GetPermissionship() == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
 		sb.WriteString(" (conditional)")
 	}
 
@@ -428,13 +428,13 @@ func formatResolvedResource(resource *v1.LookupResourcesResponse) string {
 
 func formatResolvedSubject(sub *v1.LookupSubjectsResponse) string {
 	var sb strings.Builder
-	sb.WriteString(sub.Subject.SubjectObjectId)
+	sb.WriteString(sub.GetSubject().GetSubjectObjectId())
 
-	if len(sub.ExcludedSubjects) > 0 {
-		excludedSubjectStrings := make([]string, 0, len(sub.ExcludedSubjects))
-		for _, excluded := range sub.ExcludedSubjects {
-			excludedSubjectString := excluded.SubjectObjectId
-			if excluded.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
+	if len(sub.GetExcludedSubjects()) > 0 {
+		excludedSubjectStrings := make([]string, 0, len(sub.GetExcludedSubjects()))
+		for _, excluded := range sub.GetExcludedSubjects() {
+			excludedSubjectString := excluded.GetSubjectObjectId()
+			if excluded.GetPermissionship() == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
 				excludedSubjectString += " (conditional)"
 			}
 
@@ -447,7 +447,7 @@ func formatResolvedSubject(sub *v1.LookupSubjectsResponse) string {
 		sb.WriteString("]")
 	}
 
-	if sub.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
+	if sub.GetSubject().GetPermissionship() == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
 		sb.WriteString(" (conditional)")
 	}
 

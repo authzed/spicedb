@@ -585,6 +585,6 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 	// We're asserting that we find the thing we're looking for and don't receive a notfound value
 	found, err := dsReader.LookupNamespacesWithNames(ctx, []string{invalidNamespace, validNamespace})
 	require.Len(found, 1)
-	require.Equal(validNamespace, found[0].Definition.Name)
+	require.Equal(validNamespace, found[0].Definition.GetName())
 	require.NoError(err)
 }

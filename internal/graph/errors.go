@@ -194,7 +194,7 @@ type InvalidCursorError struct {
 // NewInvalidCursorErr constructs a new unimplemented error.
 func NewInvalidCursorErr(dispatchCursorVersion uint32, cursor *dispatch.Cursor) error {
 	return InvalidCursorError{
-		error: fmt.Errorf("the supplied cursor is no longer valid: found version %d, expected version %d", cursor.DispatchVersion, dispatchCursorVersion),
+		error: fmt.Errorf("the supplied cursor is no longer valid: found version %d, expected version %d", cursor.GetDispatchVersion(), dispatchCursorVersion),
 	}
 }
 

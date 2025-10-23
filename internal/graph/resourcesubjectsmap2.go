@@ -71,7 +71,7 @@ func subjectIDsToResourcesMap2(resourceType *core.RelationReference, subjectIDs 
 // the resource of the relationship to the subject, as well as whether the relationship was caveated.
 func (rsm resourcesSubjectMap2) addRelationship(rel tuple.Relationship, missingContextParameters []string) error {
 	spiceerrors.DebugAssertf(func() bool {
-		return rel.Resource.ObjectType == rsm.resourceType.Namespace && rel.Resource.Relation == rsm.resourceType.Relation
+		return rel.Resource.ObjectType == rsm.resourceType.GetNamespace() && rel.Resource.Relation == rsm.resourceType.GetRelation()
 	}, "invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.Resource)
 
 	spiceerrors.DebugAssertf(func() bool {
@@ -143,9 +143,9 @@ func (rsm dispatchableResourcesSubjectMap2) filterSubjectIDsToDispatch(dispatche
 	filtered := make([]string, 0, len(resourceIDs))
 	for _, resourceID := range resourceIDs {
 		if dispatched.Add(&core.ObjectAndRelation{
-			Namespace: dispatchSubjectType.Namespace,
+			Namespace: dispatchSubjectType.GetNamespace(),
 			ObjectId:  resourceID,
-			Relation:  dispatchSubjectType.Relation,
+			Relation:  dispatchSubjectType.GetRelation(),
 		}) {
 			filtered = append(filtered, resourceID)
 		}
@@ -213,7 +213,7 @@ func (rsm dispatchableResourcesSubjectMap2) mapPossibleResource(foundResource *v
 	nonCaveatedSubjectIDs := mapz.NewSet[string]()
 	missingContextParameters := mapz.NewSet[string]()
 
-	for _, forSubjectID := range foundResource.ForSubjectIds {
+	for _, forSubjectID := range foundResource.GetForSubjectIds() {
 		// Map from the incoming subject ID to the subject ID(s) that caused the dispatch.
 		infos, ok := rsm.resourcesAndSubjects.Get(forSubjectID)
 		if !ok {
@@ -233,7 +233,7 @@ func (rsm dispatchableResourcesSubjectMap2) mapPossibleResource(foundResource *v
 	// If there are some non-caveated IDs, return those and mark as the parent status.
 	if nonCaveatedSubjectIDs.Len() > 0 {
 		return &v1.PossibleResource{
-			ResourceId:    foundResource.ResourceId,
+			ResourceId:    foundResource.GetResourceId(),
 			ForSubjectIds: nonCaveatedSubjectIDs.AsSlice(),
 		}, nil
 	}
@@ -241,7 +241,7 @@ func (rsm dispatchableResourcesSubjectMap2) mapPossibleResource(foundResource *v
 	// Otherwise, everything is caveated, so return the full set of subject IDs and mark
 	// as a check is required.
 	return &v1.PossibleResource{
-		ResourceId:           foundResource.ResourceId,
+		ResourceId:           foundResource.GetResourceId(),
 		ForSubjectIds:        forSubjectIDs.AsSlice(),
 		MissingContextParams: missingContextParameters.AsSlice(),
 	}, nil

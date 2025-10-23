@@ -118,15 +118,15 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 
 	for _, resourceType := range ccd.Populated.NamespaceDefinitions {
 		for _, possibleResourceID := range allObjectIds.AsSlice() {
-			for _, relationOrPermission := range resourceType.Relation {
+			for _, relationOrPermission := range resourceType.GetRelation() {
 				for _, subject := range subjectsByNamespace.Values() {
 					if subject.ObjectID == tuple.PublicWildcard {
 						continue
 					}
 
 					resourceRelation := tuple.RelationReference{
-						ObjectType: resourceType.Name,
-						Relation:   relationOrPermission.Name,
+						ObjectType: resourceType.GetName(),
+						Relation:   relationOrPermission.GetName(),
 					}
 
 					results, err := dispatcher.DispatchCheck(ccd.Ctx, &dispatchv1.DispatchCheckRequest{
@@ -143,9 +143,9 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 					require.NoError(t, err)
 
 					resourceAndRelation := tuple.ObjectAndRelation{
-						ObjectType: resourceType.Name,
+						ObjectType: resourceType.GetName(),
 						ObjectID:   possibleResourceID,
-						Relation:   relationOrPermission.Name,
+						Relation:   relationOrPermission.GetName(),
 					}
 					permString := tuple.MustString(tuple.Relationship{
 						RelationshipReference: tuple.RelationshipReference{
@@ -154,8 +154,8 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						},
 					})
 
-					if result, ok := results.ResultsByResourceId[possibleResourceID]; ok {
-						membership := result.Membership
+					if result, ok := results.GetResultsByResourceId()[possibleResourceID]; ok {
+						membership := result.GetMembership()
 						uncomputedPermissionshipByRelationship[permString] = membership
 
 						// If the subject is caveated, run a computed check to determine if it
@@ -175,7 +175,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 								100,
 							)
 							require.NoError(t, err)
-							membership = cr.Membership
+							membership = cr.GetMembership()
 						}
 
 						permissionshipByRelationship[permString] = membership
@@ -374,7 +374,7 @@ func isAccessibleViaWildcardOnly(
 	})
 	require.NoError(t, err)
 
-	subjectsFound, err := developmentmembership.AccessibleExpansionSubjects(resp.TreeNode)
+	subjectsFound, err := developmentmembership.AccessibleExpansionSubjects(resp.GetTreeNode())
 	require.NoError(t, err)
 	return !subjectsFound.Contains(subject)
 }

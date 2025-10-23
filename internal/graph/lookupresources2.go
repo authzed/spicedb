@@ -82,8 +82,8 @@ func (crr *CursoredLookupResources2) LookupResources2(
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			// If the resource type matches the subject type, yield directly as a one-to-one result
 			// for each subjectID.
-			if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
-				req.SubjectRelation.Relation == req.ResourceRelation.Relation {
+			if req.SubjectRelation.GetNamespace() == req.ResourceRelation.GetNamespace() &&
+				req.SubjectRelation.GetRelation() == req.ResourceRelation.GetRelation() {
 				for index, subjectID := range req.SubjectIds {
 					if index < currentOffset {
 						continue
@@ -119,7 +119,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 	req ValidatedLookupResources2Request,
 	parentStream dispatch.LookupResources2Stream,
 ) error {
-	reachabilityForString := req.ResourceRelation.Namespace + "#" + req.ResourceRelation.Relation
+	reachabilityForString := req.ResourceRelation.GetNamespace() + "#" + req.ResourceRelation.GetRelation()
 	ctx, span := tracer.Start(ctx, "reachability: "+reachabilityForString)
 	defer span.End()
 
@@ -129,15 +129,15 @@ func (crr *CursoredLookupResources2) afterSameType(
 	ds := datastoremw.MustFromContext(ctx)
 	reader := ds.SnapshotReader(req.Revision)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
-	vdef, err := ts.GetValidatedDefinition(ctx, req.ResourceRelation.Namespace)
+	vdef, err := ts.GetValidatedDefinition(ctx, req.ResourceRelation.GetNamespace())
 	if err != nil {
 		return err
 	}
 
 	rg := vdef.Reachability()
 	entrypoints, err := rg.FirstEntrypointsForSubjectToResource(ctx, &core.RelationReference{
-		Namespace: req.SubjectRelation.Namespace,
-		Relation:  req.SubjectRelation.Relation,
+		Namespace: req.SubjectRelation.GetNamespace(),
+		Relation:  req.SubjectRelation.GetRelation(),
 	}, req.ResourceRelation)
 	if err != nil {
 		return err
@@ -160,8 +160,8 @@ func (crr *CursoredLookupResources2) afterSameType(
 			case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
 				containingRelation := entrypoint.ContainingRelationOrPermission()
 				rewrittenSubjectRelation := &core.RelationReference{
-					Namespace: containingRelation.Namespace,
-					Relation:  containingRelation.Relation,
+					Namespace: containingRelation.GetNamespace(),
+					Relation:  containingRelation.GetRelation(),
 				}
 
 				rsm := subjectIDsToResourcesMap2(rewrittenSubjectRelation, req.SubjectIds)
@@ -204,16 +204,16 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 		return err
 	}
 
-	relDefinition, err := ts.GetValidatedDefinition(ctx, relationReference.Namespace)
+	relDefinition, err := ts.GetValidatedDefinition(ctx, relationReference.GetNamespace())
 	if err != nil {
 		return err
 	}
 
 	// Build the list of subjects to lookup based on the type information available.
 	isDirectAllowed, err := relDefinition.IsAllowedDirectRelation(
-		relationReference.Relation,
-		req.SubjectRelation.Namespace,
-		req.SubjectRelation.Relation,
+		relationReference.GetRelation(),
+		req.SubjectRelation.GetNamespace(),
+		req.SubjectRelation.GetRelation(),
 	)
 	if err != nil {
 		return err
@@ -224,8 +224,8 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 		subjectIds = append(subjectIds, req.SubjectIds...)
 	}
 
-	if req.SubjectRelation.Relation == tuple.Ellipsis {
-		isWildcardAllowed, err := relDefinition.IsAllowedPublicNamespace(relationReference.Relation, req.SubjectRelation.Namespace)
+	if req.SubjectRelation.GetRelation() == tuple.Ellipsis {
+		isWildcardAllowed, err := relDefinition.IsAllowedPublicNamespace(relationReference.GetRelation(), req.SubjectRelation.GetNamespace())
 		if err != nil {
 			return err
 		}
@@ -237,17 +237,17 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 
 	// Lookup the subjects and then redispatch/report results.
 	relationFilter := datastore.SubjectRelationFilter{
-		NonEllipsisRelation: req.SubjectRelation.Relation,
+		NonEllipsisRelation: req.SubjectRelation.GetRelation(),
 	}
 
-	if req.SubjectRelation.Relation == tuple.Ellipsis {
+	if req.SubjectRelation.GetRelation() == tuple.Ellipsis {
 		relationFilter = datastore.SubjectRelationFilter{
 			IncludeEllipsisRelation: true,
 		}
 	}
 
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType:        req.SubjectRelation.Namespace,
+		SubjectType:        req.SubjectRelation.GetNamespace(),
 		OptionalSubjectIds: subjectIds,
 		RelationFilter:     relationFilter,
 	}
@@ -297,19 +297,19 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 	config redispatchOverDatabaseConfig2,
 ) error {
 	ctx, span := tracer.Start(ctx, "datastorequery", trace.WithAttributes(
-		attribute.String(otelconv.AttrGraphSourceResourceTypeNamespace, config.sourceResourceType.Namespace),
-		attribute.String(otelconv.AttrGraphSourceResourceTypeRelation, config.sourceResourceType.Relation),
+		attribute.String(otelconv.AttrGraphSourceResourceTypeNamespace, config.sourceResourceType.GetNamespace()),
+		attribute.String(otelconv.AttrGraphSourceResourceTypeRelation, config.sourceResourceType.GetRelation()),
 		attribute.String(otelconv.AttrGraphSubjectsFilterSubjectType, config.subjectsFilter.SubjectType),
 		attribute.Int(otelconv.AttrGraphSubjectsFilterSubjectIdsCount, len(config.subjectsFilter.OptionalSubjectIds)),
 	))
 	defer span.End()
 
-	vts, err := config.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
+	vts, err := config.ts.GetValidatedDefinition(ctx, config.sourceResourceType.GetNamespace())
 	if err != nil {
 		return err
 	}
 
-	possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.Relation, config.subjectsFilter.SubjectType)
+	possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.GetRelation(), config.subjectsFilter.SubjectType)
 	if err != nil {
 		return err
 	}
@@ -324,8 +324,8 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 				ctx,
 				config.subjectsFilter,
 				options.WithResRelation(&options.ResourceRelation{
-					Namespace: config.sourceResourceType.Namespace,
-					Relation:  config.sourceResourceType.Relation,
+					Namespace: config.sourceResourceType.GetNamespace(),
+					Relation:  config.sourceResourceType.GetRelation(),
 				}),
 				options.WithSortForReverse(options.BySubject),
 				options.WithAfterForReverse(queryCursor),
@@ -352,7 +352,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 				var missingContextParameters []string
 
 				// If a caveat exists on the relationship, run it and filter the results, marking those that have missing context.
-				if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
+				if rel.OptionalCaveat != nil && rel.OptionalCaveat.GetCaveatName() != "" {
 					caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
 					runResult, err := caveatRunner.RunCaveatExpression(ctx, caveatExpr, config.parentRequest.Context.AsMap(), config.reader, caveats.RunCaveatExpressionNoDebugging)
 					if err != nil {
@@ -431,7 +431,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 ) error {
 	containingRelation := entrypoint.ContainingRelationOrPermission()
 
-	ttuDef, err := ts.GetValidatedDefinition(ctx, containingRelation.Namespace)
+	ttuDef, err := ts.GetValidatedDefinition(ctx, containingRelation.GetNamespace())
 	if err != nil {
 		return err
 	}
@@ -444,7 +444,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 	// Determine whether this TTU should be followed, which will be the case if the subject relation's namespace
 	// is allowed in any form on the relation; since arrows ignore the subject's relation (if any), we check
 	// for the subject namespace as a whole.
-	allowedRelations, err := ttuDef.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, req.SubjectRelation.Namespace)
+	allowedRelations, err := ttuDef.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, req.SubjectRelation.GetNamespace())
 	if err != nil {
 		return err
 	}
@@ -455,7 +455,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 
 	// Search for the resolved subjects in the tupleset of the TTU.
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType:        req.SubjectRelation.Namespace,
+		SubjectType:        req.SubjectRelation.GetNamespace(),
 		OptionalSubjectIds: req.SubjectIds,
 	}
 
@@ -467,7 +467,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 	}
 
 	tuplesetRelationReference := &core.RelationReference{
-		Namespace: containingRelation.Namespace,
+		Namespace: containingRelation.GetNamespace(),
 		Relation:  tuplesetRelation,
 	}
 
@@ -528,7 +528,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			if !hasResourceEntrypoints {
 				// If the found resource matches the target resource type and relation, potentially yield the resource.
-				if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace && foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
+				if foundResourceType.GetNamespace() == parentRequest.ResourceRelation.GetNamespace() && foundResourceType.GetRelation() == parentRequest.ResourceRelation.GetRelation() {
 					resources := foundResources.asPossibleResources()
 					if len(resources) == 0 {
 						return nil
@@ -558,11 +558,11 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 						resourceIDs := make([]string, 0, len(offsetted))
 						checkHints := make([]*v1.CheckHint, 0, len(offsetted))
 						for _, resource := range offsetted {
-							resourceIDs = append(resourceIDs, resource.ResourceId)
+							resourceIDs = append(resourceIDs, resource.GetResourceId())
 
 							checkHint, err := hints.HintForEntrypoint(
 								entrypoint,
-								resource.ResourceId,
+								resource.GetResourceId(),
 								tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
 								&v1.ResourceCheckResult{
 									Membership: v1.ResourceCheckResult_MEMBER,
@@ -578,7 +578,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							Subject:       tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
 							CaveatContext: parentRequest.Context.AsMap(),
 							AtRevision:    parentRequest.Revision,
-							MaximumDepth:  parentRequest.Metadata.DepthRemaining - 1,
+							MaximumDepth:  parentRequest.Metadata.GetDepthRemaining() - 1,
 							DebugOption:   computed.NoDebugging,
 							CheckHints:    checkHints,
 						}, resourceIDs, crr.dispatchChunkSize)
@@ -590,12 +590,12 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 
 						filtered = make([]possibleResourceAndIndex, 0, len(offsetted))
 						for index, resource := range offsetted {
-							result, ok := resultsByResourceID[resource.ResourceId]
+							result, ok := resultsByResourceID[resource.GetResourceId()]
 							if !ok {
 								continue
 							}
 
-							switch result.Membership {
+							switch result.GetMembership() {
 							case v1.ResourceCheckResult_MEMBER:
 								filtered = append(filtered, possibleResourceAndIndex{
 									resource: resource,
@@ -603,13 +603,13 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 								})
 
 							case v1.ResourceCheckResult_CAVEATED_MEMBER:
-								missingContextParams := mapz.NewSet(result.MissingExprFields...)
-								missingContextParams.Extend(resource.MissingContextParams)
+								missingContextParams := mapz.NewSet(result.GetMissingExprFields()...)
+								missingContextParams.Extend(resource.GetMissingContextParams())
 
 								filtered = append(filtered, possibleResourceAndIndex{
 									resource: &v1.PossibleResource{
-										ResourceId:           resource.ResourceId,
-										ForSubjectIds:        resource.ForSubjectIds,
+										ResourceId:           resource.GetResourceId(),
+										ForSubjectIds:        resource.GetForSubjectIds(),
 										MissingContextParams: missingContextParams.AsSlice(),
 									},
 									index: index,
@@ -619,7 +619,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 								// Skip.
 
 							default:
-								return spiceerrors.MustBugf("unexpected result from check: %v", result.Membership)
+								return spiceerrors.MustBugf("unexpected result from check: %v", result.GetMembership())
 							}
 						}
 					}
@@ -669,7 +669,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 					TerminalSubject:  parentRequest.TerminalSubject,
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     parentRequest.Revision.String(),
-						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+						DepthRemaining: parentRequest.Metadata.GetDepthRemaining() - 1,
 					},
 					OptionalCursor: ci.currentCursor,
 					OptionalLimit:  parentRequest.OptionalLimit,

@@ -94,23 +94,23 @@ func TestSerialization(t *testing.T) {
 				for _, objectDef := range compiled.ObjectDefinitions {
 					protoSerialized, err := proto.Marshal(objectDef)
 					require.NoError(err)
-					err = os.WriteFile(fmt.Sprintf("testdata/proto/%s-definition-%s.proto", test.schema, objectDef.Name), protoSerialized, 0o600)
+					err = os.WriteFile(fmt.Sprintf("testdata/proto/%s-definition-%s.proto", test.schema, objectDef.GetName()), protoSerialized, 0o600)
 					require.NoError(err)
 
 					vtSerialized, err := objectDef.MarshalVT()
 					require.NoError(err)
-					err = os.WriteFile(fmt.Sprintf("testdata/proto/%s-definition-%s.vtproto", test.schema, objectDef.Name), vtSerialized, 0o600)
+					err = os.WriteFile(fmt.Sprintf("testdata/proto/%s-definition-%s.vtproto", test.schema, objectDef.GetName()), vtSerialized, 0o600)
 					require.NoError(err)
 				}
 				for _, caveatDef := range compiled.CaveatDefinitions {
 					protoSerialized, err := proto.Marshal(caveatDef)
 					require.NoError(err)
-					err = os.WriteFile(fmt.Sprintf("testdata/proto/%s-caveat-%s.proto", test.schema, caveatDef.Name), protoSerialized, 0o600)
+					err = os.WriteFile(fmt.Sprintf("testdata/proto/%s-caveat-%s.proto", test.schema, caveatDef.GetName()), protoSerialized, 0o600)
 					require.NoError(err)
 
 					vtSerialized, err := caveatDef.MarshalVT()
 					require.NoError(err)
-					err = os.WriteFile(fmt.Sprintf("testdata/proto/%s-caveat-%s.vtproto", test.schema, caveatDef.Name), vtSerialized, 0o600)
+					err = os.WriteFile(fmt.Sprintf("testdata/proto/%s-caveat-%s.vtproto", test.schema, caveatDef.GetName()), vtSerialized, 0o600)
 					require.NoError(err)
 				}
 			} else {

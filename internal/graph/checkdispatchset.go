@@ -76,7 +76,7 @@ func (s *checkDispatchSet) addForRelationship(rel tuple.Relationship) {
 	// Add the subject ID to the map of subjects for the type of subject.
 	siac := subjectIDAndHasCaveat{
 		objectID:           rel.Subject.ObjectID,
-		hasIncomingCaveats: rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "",
+		hasIncomingCaveats: rel.OptionalCaveat != nil && rel.OptionalCaveat.GetCaveatName() != "",
 	}
 
 	subjectIDsForType, ok := s.bySubjectType[rel.Subject.RelationReference()]

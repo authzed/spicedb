@@ -64,7 +64,7 @@ func cv1rel(resType, resID, relation, subType, subID, subRel, caveatName string,
 		panic(err)
 	}
 
-	if len(context.Fields) == 0 {
+	if len(context.GetFields()) == 0 {
 		context = nil
 	}
 
@@ -94,7 +94,7 @@ func ecv1rel(resType, resID, relation, subType, subID, subRel string, expiration
 		panic(err)
 	}
 
-	if len(context.Fields) == 0 {
+	if len(context.GetFields()) == 0 {
 		context = nil
 	}
 
@@ -678,8 +678,8 @@ func TestValidate(t *testing.T) {
 		t.Run("validate/"+tc.input, func(t *testing.T) {
 			parsed, err := ParseV1Rel(tc.input)
 			if err == nil {
-				require.NoError(t, ValidateResourceID(parsed.Resource.ObjectId))
-				require.NoError(t, ValidateSubjectID(parsed.Subject.Object.ObjectId))
+				require.NoError(t, ValidateResourceID(parsed.GetResource().GetObjectId()))
+				require.NoError(t, ValidateSubjectID(parsed.GetSubject().GetObject().GetObjectId()))
 			}
 		})
 	}

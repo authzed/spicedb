@@ -125,8 +125,8 @@ func (rwt *mysqlReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.
 			return fmt.Errorf("unable to write caveat: %w", err)
 		}
 
-		writeQuery = writeQuery.Values(newCaveat.Name, serialized, rwt.newTxnID)
-		caveatNamesToWrite = append(caveatNamesToWrite, newCaveat.Name)
+		writeQuery = writeQuery.Values(newCaveat.GetName(), serialized, rwt.newTxnID)
+		caveatNamesToWrite = append(caveatNamesToWrite, newCaveat.GetName())
 	}
 
 	err := rwt.deleteCaveatsFromNames(ctx, caveatNamesToWrite)

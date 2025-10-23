@@ -98,11 +98,11 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 	// NOTE: We do not use the canonicalized cache key when checking within the same namespace, as
 	// we may get different results if the subject being checked matches the resource exactly, e.g.
 	// a check for `somenamespace:someobject#somerel@somenamespace:someobject#somerel`.
-	if req.ResourceRelation.Namespace != req.Subject.Namespace {
+	if req.GetResourceRelation().GetNamespace() != req.GetSubject().GetNamespace() {
 		// Load the relation to get its computed cache key, if any.
 		ds := datastoremw.MustFromContext(ctx)
 
-		revision, err := ds.RevisionFromString(req.Metadata.AtRevision)
+		revision, err := ds.RevisionFromString(req.GetMetadata().GetAtRevision())
 		if err != nil {
 			return emptyDispatchCacheKey, err
 		}
@@ -110,16 +110,16 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 
 		_, relation, err := namespace.ReadNamespaceAndRelation(
 			ctx,
-			req.ResourceRelation.Namespace,
-			req.ResourceRelation.Relation,
+			req.GetResourceRelation().GetNamespace(),
+			req.GetResourceRelation().GetRelation(),
 			r,
 		)
 		if err != nil {
 			return emptyDispatchCacheKey, err
 		}
 
-		if relation.CanonicalCacheKey != "" {
-			return checkRequestToKeyWithCanonical(req, relation.CanonicalCacheKey)
+		if relation.GetCanonicalCacheKey() != "" {
+			return checkRequestToKeyWithCanonical(req, relation.GetCanonicalCacheKey())
 		}
 	}
 

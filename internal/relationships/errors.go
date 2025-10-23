@@ -45,12 +45,12 @@ func NewInvalidSubjectTypeError(
 		allowedCaveatsForSubject := mapz.NewSet[string]()
 
 		for _, allowedType := range allowedTypes {
-			if allowedType.RequiredCaveat != nil &&
-				allowedType.RequiredCaveat.CaveatName != "" &&
-				allowedType.Namespace == relationship.Subject.ObjectType &&
+			if allowedType.GetRequiredCaveat() != nil &&
+				allowedType.GetRequiredCaveat().GetCaveatName() != "" &&
+				allowedType.GetNamespace() == relationship.Subject.ObjectType &&
 				allowedType.GetRelation() == relationship.Subject.Relation &&
-				(allowedType.RequiredExpiration != nil) == (relationship.OptionalExpiration != nil) {
-				allowedCaveatsForSubject.Add(allowedType.RequiredCaveat.CaveatName)
+				(allowedType.GetRequiredExpiration() != nil) == (relationship.OptionalExpiration != nil) {
+				allowedCaveatsForSubject.Add(allowedType.GetRequiredCaveat().GetCaveatName())
 			}
 		}
 
@@ -173,7 +173,7 @@ func NewCaveatNotFoundError(relationship tuple.Relationship) CaveatNotFoundError
 	return CaveatNotFoundError{
 		error: fmt.Errorf(
 			"the caveat `%s` was not found for relationship `%s`",
-			relationship.OptionalCaveat.CaveatName,
+			relationship.OptionalCaveat.GetCaveatName(),
 			tuple.MustString(relationship),
 		),
 		relationship: relationship,
@@ -188,7 +188,7 @@ func (err CaveatNotFoundError) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT,
 			map[string]string{
-				"caveat_name": err.relationship.OptionalCaveat.CaveatName,
+				"caveat_name": err.relationship.OptionalCaveat.GetCaveatName(),
 			},
 		),
 	)

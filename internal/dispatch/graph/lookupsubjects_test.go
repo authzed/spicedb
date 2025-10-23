@@ -155,14 +155,14 @@ func TestSimpleLookupSubjects(t *testing.T) {
 
 			foundSubjectIds := []string{}
 			for _, result := range stream.Results() {
-				results, ok := result.FoundSubjectsByResourceId[tc.resourceID]
+				results, ok := result.GetFoundSubjectsByResourceId()[tc.resourceID]
 				if ok {
-					for _, found := range results.FoundSubjects {
-						if len(found.ExcludedSubjects) > 0 {
+					for _, found := range results.GetFoundSubjects() {
+						if len(found.GetExcludedSubjects()) > 0 {
 							continue
 						}
 
-						foundSubjectIds = append(foundSubjectIds, found.SubjectId)
+						foundSubjectIds = append(foundSubjectIds, found.GetSubjectId())
 					}
 				}
 			}
@@ -185,7 +185,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 				})
 
 				require.NoError(err)
-				require.Equal(v1.ResourceCheckResult_MEMBER, checkResult.ResultsByResourceId[tc.resourceID].Membership)
+				require.Equal(v1.ResourceCheckResult_MEMBER, checkResult.GetResultsByResourceId()[tc.resourceID].GetMembership())
 			}
 			dis.Close()
 		})
@@ -274,7 +274,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 
 			require.NoError(err)
 			for _, result := range stream.Results() {
-				require.LessOrEqual(int(result.Metadata.DispatchCount), tc.expectedDispatchCount, "Found dispatch count greater than expected")
+				require.LessOrEqual(int(result.GetMetadata().GetDispatchCount()), tc.expectedDispatchCount, "Found dispatch count greater than expected")
 			}
 		})
 	}
@@ -1027,8 +1027,8 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 
 			results := []*v1.FoundSubject{}
 			for _, streamResult := range stream.Results() {
-				for _, foundSubjects := range streamResult.FoundSubjectsByResourceId {
-					results = append(results, foundSubjects.FoundSubjects...)
+				for _, foundSubjects := range streamResult.GetFoundSubjectsByResourceId() {
+					results = append(results, foundSubjects.GetFoundSubjects()...)
 				}
 			}
 

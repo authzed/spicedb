@@ -205,7 +205,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			}
 
 			for _, namespaceDef := range namespaces {
-				err := p.namespaceCache.updateDefinition(namespaceDef.Definition.Name, namespaceDef.Definition, false, headRev)
+				err := p.namespaceCache.updateDefinition(namespaceDef.Definition.GetName(), namespaceDef.Definition, false, headRev)
 				if err != nil {
 					p.namespaceCache.setFallbackMode()
 					p.caveatCache.setFallbackMode()
@@ -227,7 +227,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			}
 
 			for _, caveatDef := range caveats {
-				err := p.caveatCache.updateDefinition(caveatDef.Definition.Name, caveatDef.Definition, false, headRev)
+				err := p.caveatCache.updateDefinition(caveatDef.Definition.GetName(), caveatDef.Definition, false, headRev)
 				if err != nil {
 					p.namespaceCache.setFallbackMode()
 					p.caveatCache.setFallbackMode()
@@ -285,14 +285,14 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 					for _, changeDef := range ss.ChangedDefinitions {
 						switch t := changeDef.(type) {
 						case *core.NamespaceDefinition:
-							err := p.namespaceCache.updateDefinition(t.Name, t, false, ss.Revision)
+							err := p.namespaceCache.updateDefinition(t.GetName(), t, false, ss.Revision)
 							if err != nil {
 								p.namespaceCache.setFallbackMode()
 								log.Warn().Err(err).Msg("received error in schema watch")
 							}
 
 						case *core.CaveatDefinition:
-							err := p.caveatCache.updateDefinition(t.Name, t, false, ss.Revision)
+							err := p.caveatCache.updateDefinition(t.GetName(), t, false, ss.Revision)
 							if err != nil {
 								p.caveatCache.setFallbackMode()
 								log.Warn().Err(err).Msg("received error in schema watch")

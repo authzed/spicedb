@@ -269,7 +269,7 @@ func (rwt *definitionCachingRWT) WriteNamespaces(ctx context.Context, newConfigs
 	}
 
 	for _, nsDef := range newConfigs {
-		rwt.definitionCache.Delete("namespace:" + nsDef.Name)
+		rwt.definitionCache.Delete("namespace:" + nsDef.GetName())
 	}
 
 	return nil
@@ -281,7 +281,7 @@ func (rwt *definitionCachingRWT) WriteCaveats(ctx context.Context, newConfigs []
 	}
 
 	for _, caveatDef := range newConfigs {
-		rwt.definitionCache.Delete("caveat:" + caveatDef.Name)
+		rwt.definitionCache.Delete("caveat:" + caveatDef.GetName())
 	}
 
 	return nil

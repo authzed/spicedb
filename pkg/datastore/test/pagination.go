@@ -23,13 +23,13 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 		resourceType string
 		ordering     options.SortOrder
 	}{
-		{testfixtures.DocumentNS.Name, options.ByResource},
-		{testfixtures.FolderNS.Name, options.ByResource},
-		{testfixtures.UserNS.Name, options.ByResource},
+		{testfixtures.DocumentNS.GetName(), options.ByResource},
+		{testfixtures.FolderNS.GetName(), options.ByResource},
+		{testfixtures.UserNS.GetName(), options.ByResource},
 
-		{testfixtures.DocumentNS.Name, options.BySubject},
-		{testfixtures.FolderNS.Name, options.BySubject},
-		{testfixtures.UserNS.Name, options.BySubject},
+		{testfixtures.DocumentNS.GetName(), options.BySubject},
+		{testfixtures.FolderNS.GetName(), options.BySubject},
+		{testfixtures.UserNS.GetName(), options.BySubject},
 	}
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
@@ -71,9 +71,9 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 
 func LimitTest(t *testing.T, tester DatastoreTester) {
 	testCases := []string{
-		testfixtures.DocumentNS.Name,
-		testfixtures.UserNS.Name,
-		testfixtures.FolderNS.Name,
+		testfixtures.DocumentNS.GetName(),
+		testfixtures.UserNS.GetName(),
+		testfixtures.FolderNS.GetName(),
 	}
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
@@ -151,25 +151,25 @@ var orderedTestCases = []struct {
 }{
 	{
 		"document resources by resource",
-		testfixtures.DocumentNS.Name,
+		testfixtures.DocumentNS.GetName(),
 		options.ByResource,
 		true,
 	},
 	{
 		"folder resources by resource",
-		testfixtures.FolderNS.Name,
+		testfixtures.FolderNS.GetName(),
 		options.ByResource,
 		true,
 	},
 	{
 		"user resources by resource",
-		testfixtures.UserNS.Name,
+		testfixtures.UserNS.GetName(),
 		options.ByResource,
 		true,
 	},
 	{
 		"resources with user subject",
-		testfixtures.UserNS.Name,
+		testfixtures.UserNS.GetName(),
 		options.ByResource,
 		false,
 	},
@@ -295,7 +295,7 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 				iter, err := reader.ReverseQueryRelationships(
 					t.Context(),
 					datastore.SubjectsFilter{
-						SubjectType:        testfixtures.UserNS.Name,
+						SubjectType:        testfixtures.UserNS.GetName(),
 						OptionalSubjectIds: []string{"alice", "tom", "fred", "*"},
 					},
 					options.WithResRelation(&options.ResourceRelation{
@@ -362,7 +362,7 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 				iter, err := reader.ReverseQueryRelationships(
 					t.Context(),
 					datastore.SubjectsFilter{
-						SubjectType: testfixtures.UserNS.Name,
+						SubjectType: testfixtures.UserNS.GetName(),
 					},
 					options.WithSortForReverse(sortBy),
 					options.WithLimitForReverse(&limit),

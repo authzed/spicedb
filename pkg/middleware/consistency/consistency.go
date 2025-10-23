@@ -290,7 +290,7 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 		if status == zedtoken.StatusMismatchedDatastoreID {
 			switch option {
 			case TreatMismatchingTokensAsFullConsistency:
-				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to treat this as a full consistency request")
+				log.Warn().Str("zedtoken", requested.GetToken()).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to treat this as a full consistency request")
 				headRev, err := ds.HeadRevision(ctx)
 				if err != nil {
 					return datastore.NoRevision, false, err
@@ -299,11 +299,11 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 				return headRev, false, nil
 
 			case TreatMismatchingTokensAsMinLatency:
-				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to treat this as a min latency request")
+				log.Warn().Str("zedtoken", requested.GetToken()).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to treat this as a min latency request")
 				return databaseRev, false, nil
 
 			case TreatMismatchingTokensAsError:
-				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
+				log.Warn().Str("zedtoken", requested.GetToken()).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
 				return datastore.NoRevision, false, errors.New("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
 
 			default:

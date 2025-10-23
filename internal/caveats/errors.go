@@ -24,13 +24,13 @@ type EvaluationError struct {
 
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
 func (err EvaluationError) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err.error).Str("caveat_name", err.caveatExpr.GetCaveat().CaveatName).Interface("context", err.caveatExpr.GetCaveat().Context)
+	e.Err(err.error).Str("caveat_name", err.caveatExpr.GetCaveat().GetCaveatName()).Interface("context", err.caveatExpr.GetCaveat().GetContext())
 }
 
 // DetailsMetadata returns the metadata for details for this error.
 func (err EvaluationError) DetailsMetadata() map[string]string {
 	return spiceerrors.CombineMetadata(err.evalErr, map[string]string{
-		"caveat_name": err.caveatExpr.GetCaveat().CaveatName,
+		"caveat_name": err.caveatExpr.GetCaveat().GetCaveatName(),
 	})
 }
 
@@ -47,7 +47,7 @@ func (err EvaluationError) GRPCStatus() *status.Status {
 
 func NewEvaluationError(caveatExpr *core.CaveatExpression, err caveats.EvaluationError) EvaluationError {
 	return EvaluationError{
-		fmt.Errorf("evaluation error for caveat %s: %w", caveatExpr.GetCaveat().CaveatName, err), caveatExpr, err,
+		fmt.Errorf("evaluation error for caveat %s: %w", caveatExpr.GetCaveat().GetCaveatName(), err), caveatExpr, err,
 	}
 }
 
@@ -61,8 +61,8 @@ type ParameterTypeError struct {
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
 func (err ParameterTypeError) MarshalZerologObject(e *zerolog.Event) {
 	evt := e.Err(err.error).
-		Str("caveat_name", err.caveatExpr.GetCaveat().CaveatName).
-		Interface("context", err.caveatExpr.GetCaveat().Context)
+		Str("caveat_name", err.caveatExpr.GetCaveat().GetCaveatName()).
+		Interface("context", err.caveatExpr.GetCaveat().GetContext())
 
 	if err.conversionError != nil {
 		evt.Str("parameter_name", err.conversionError.ParameterName())
@@ -73,12 +73,12 @@ func (err ParameterTypeError) MarshalZerologObject(e *zerolog.Event) {
 func (err ParameterTypeError) DetailsMetadata() map[string]string {
 	if err.conversionError != nil {
 		return spiceerrors.CombineMetadata(err.conversionError, map[string]string{
-			"caveat_name": err.caveatExpr.GetCaveat().CaveatName,
+			"caveat_name": err.caveatExpr.GetCaveat().GetCaveatName(),
 		})
 	}
 
 	return map[string]string{
-		"caveat_name": err.caveatExpr.GetCaveat().CaveatName,
+		"caveat_name": err.caveatExpr.GetCaveat().GetCaveatName(),
 	}
 }
 
@@ -100,7 +100,7 @@ func NewParameterTypeError(caveatExpr *core.CaveatExpression, err error) Paramet
 	}
 
 	return ParameterTypeError{
-		fmt.Errorf("type error for parameters for caveat `%s`: %w", caveatExpr.GetCaveat().CaveatName, err),
+		fmt.Errorf("type error for parameters for caveat `%s`: %w", caveatExpr.GetCaveat().GetCaveatName(), err),
 		caveatExpr,
 		conversionError,
 	}

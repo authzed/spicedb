@@ -185,12 +185,12 @@ func TestGroupItems(t *testing.T) {
 				require.NoError(t, err)
 
 				item := &v1.CheckBulkPermissionsRequestItem{
-					Resource:   rel.Resource,
-					Permission: rel.Relation,
-					Subject:    rel.Subject,
+					Resource:   rel.GetResource(),
+					Permission: rel.GetRelation(),
+					Subject:    rel.GetSubject(),
 				}
-				if rel.OptionalCaveat != nil {
-					item.Context = rel.OptionalCaveat.Context
+				if rel.GetOptionalCaveat() != nil {
+					item.Context = rel.GetOptionalCaveat().GetContext()
 				}
 				items = append(items, item)
 			}
@@ -260,10 +260,10 @@ func TestCaveatContextSizeLimitIsEnforced(t *testing.T) {
 
 	items := []*v1.CheckBulkPermissionsRequestItem{
 		{
-			Resource:   rel.Resource,
-			Permission: rel.Relation,
-			Subject:    rel.Subject,
-			Context:    rel.OptionalCaveat.Context,
+			Resource:   rel.GetResource(),
+			Permission: rel.GetRelation(),
+			Subject:    rel.GetSubject(),
+			Context:    rel.GetOptionalCaveat().GetContext(),
 		},
 	}
 	_, err = groupItems(t.Context(), cp, items)

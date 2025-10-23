@@ -191,7 +191,7 @@ func translateCaveatDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		return nil, err
 	}
 
-	def.Metadata = addComments(def.Metadata, defNode)
+	def.Metadata = addComments(def.GetMetadata(), defNode)
 	def.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 	return def, nil
 }
@@ -247,7 +247,7 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 
 	if len(relationsAndPermissions) == 0 {
 		ns := namespace.Namespace(nspath)
-		ns.Metadata = addComments(ns.Metadata, defNode)
+		ns.Metadata = addComments(ns.GetMetadata(), defNode)
 		ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
 		if !tctx.skipValidate {
@@ -260,7 +260,7 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 	}
 
 	ns := namespace.Namespace(nspath, relationsAndPermissions...)
-	ns.Metadata = addComments(ns.Metadata, defNode)
+	ns.Metadata = addComments(ns.GetMetadata(), defNode)
 	ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
 	if !tctx.skipValidate {
@@ -326,7 +326,7 @@ func translateRelationOrPermission(tctx *translationContext, relOrPermNode *dslN
 		if err != nil {
 			return nil, err
 		}
-		rel.Metadata = addComments(rel.Metadata, relOrPermNode)
+		rel.Metadata = addComments(rel.GetMetadata(), relOrPermNode)
 		rel.SourcePosition = getSourcePosition(relOrPermNode, tctx.mapper)
 		return rel, err
 
@@ -335,7 +335,7 @@ func translateRelationOrPermission(tctx *translationContext, relOrPermNode *dslN
 		if err != nil {
 			return nil, err
 		}
-		rel.Metadata = addComments(rel.Metadata, relOrPermNode)
+		rel.Metadata = addComments(rel.GetMetadata(), relOrPermNode)
 		rel.SourcePosition = getSourcePosition(relOrPermNode, tctx.mapper)
 		return rel, err
 
@@ -485,8 +485,8 @@ func collapseOps(op *core.SetOperation_Child, handler func(rewrite *core.Userset
 		return []*core.SetOperation_Child{op}
 	}
 
-	collapsed := make([]*core.SetOperation_Child, 0, len(operation.Child))
-	for _, child := range operation.Child {
+	collapsed := make([]*core.SetOperation_Child, 0, len(operation.GetChild()))
+	for _, child := range operation.GetChild() {
 		collapsed = append(collapsed, collapseOps(child, handler)...)
 	}
 	return collapsed

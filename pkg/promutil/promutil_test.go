@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMustCounterValue(t *testing.T) {
@@ -13,29 +14,23 @@ func TestMustCounterValue(t *testing.T) {
 	})
 
 	result := MustCounterValue(counter)
-	if result != 0.0 {
-		t.Errorf("Initial counter value should be 0.0, got %v", result)
-	}
+	require.Equal(t, 0.0, result, "Initial counter value should be 0.0")
 
 	counter.Add(15)
 	result = MustCounterValue(counter)
-	if result != 15 {
-		t.Errorf("Counter value should be 15.5 after Add(15.5), got %v", result)
-	}
+	require.Equal(t, 15.0, result, "Counter value should be 15 after Add(15)")
 
 	counter.Inc()
 	result = MustCounterValue(counter)
-	if result != 16 {
-		t.Errorf("Counter value should be 16.5 after Inc(), got %v", result)
-	}
+	require.Equal(t, 16.0, result, "Counter value should be 16 after Inc()")
 }
 
 func TestMustCounterValue_Panics(t *testing.T) {
-	defer func() { _ = recover() }()
 	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name: "test",
 		Help: "A test histogram for unit testing",
 	})
-	MustCounterValue(histogram)
-	t.Fatal("did not panic when provided a non-counter")
+	require.Panics(t, func() {
+		MustCounterValue(histogram)
+	})
 }

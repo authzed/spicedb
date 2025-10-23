@@ -67,7 +67,7 @@ type DatastoreResolver struct {
 func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error) {
 	if len(r.predefined.Definitions) > 0 {
 		for _, def := range r.predefined.Definitions {
-			if def.Name == name {
+			if def.GetName() == name {
 				return def, false, nil
 			}
 		}

@@ -183,23 +183,23 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 				return fmt.Errorf("error writing metric: %w", err)
 			}
 
-			buckets := make(map[float64]uint64, len(m.Histogram.Bucket))
-			for _, bucket := range m.Histogram.Bucket {
-				buckets[*bucket.UpperBound] = *bucket.CumulativeCount
+			buckets := make(map[float64]uint64, len(m.GetHistogram().GetBucket()))
+			for _, bucket := range m.GetHistogram().GetBucket() {
+				buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
 			}
 
 			dynamicLabels := make([]string, len(usagemetrics.DispatchedCountLabels))
 			for i, labelName := range usagemetrics.DispatchedCountLabels {
-				for _, labelVal := range m.Label {
-					if *labelVal.Name == labelName {
-						dynamicLabels[i] = *labelVal.Value
+				for _, labelVal := range m.GetLabel() {
+					if labelVal.GetName() == labelName {
+						dynamicLabels[i] = labelVal.GetValue()
 					}
 				}
 			}
 			ch <- prometheus.MustNewConstHistogram(
 				c.dispatchedDesc,
-				*m.Histogram.SampleCount,
-				*m.Histogram.SampleSum,
+				m.GetHistogram().GetSampleCount(),
+				m.GetHistogram().GetSampleSum(),
 				buckets,
 				dynamicLabels...,
 			)

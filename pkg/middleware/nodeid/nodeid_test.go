@@ -80,7 +80,7 @@ func (s *nodeIDMiddlewareTestSuite) TestStreamInterceptor_SetsNodeID() {
 
 	resp, err := stream.Recv()
 	s.Require().NoError(err)
-	s.Require().Equal(s.testNodeID, resp.Value)
+	s.Require().Equal(s.testNodeID, resp.GetValue())
 }
 
 // Test suite for default node ID behavior
@@ -122,8 +122,8 @@ func (s *nodeIDDefaultMiddlewareTestSuite) TestStreamInterceptor_UsesDefaultNode
 
 	resp, err := stream.Recv()
 	s.Require().NoError(err)
-	s.Require().NotEmpty(resp.Value)
-	s.Require().Contains(resp.Value, spiceDBPrefix)
+	s.Require().NotEmpty(resp.GetValue())
+	s.Require().Contains(resp.GetValue(), spiceDBPrefix)
 }
 
 // Test ContextWithHandle and FromContext functions directly
