@@ -83,6 +83,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
+				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
 			return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
@@ -96,6 +97,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		StreamingWatchTest,
 		RevisionQuantization(0),
 		GCWindow(veryLargeGCWindow),
+		WithAcquireTimeout(5*time.Second),
 	))
 
 	t.Run("TestTransactionMetadataMarking", createDatastoreTest(
@@ -103,6 +105,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		TransactionMetadataMarkingTest,
 		RevisionQuantization(0),
 		GCWindow(veryLargeGCWindow),
+		WithAcquireTimeout(5*time.Second),
 	))
 }
 
@@ -147,6 +150,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 					RevisionQuantization(quantization),
 					FollowerReadDelay(followerReadDelay),
 					DebugAnalyzeBeforeStatistics(),
+					WithAcquireTimeout(5*time.Second),
 				)
 				require.NoError(err)
 				return ds
@@ -202,6 +206,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
 				WithIntegrity(true),
+				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
 
@@ -225,6 +230,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
 				WithIntegrity(true),
+				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
 			return ds
@@ -296,7 +302,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 
 			tt.postInit(ctx, adminConn)
 
-			ds, err := NewCRDBDatastore(ctx, connStrings[unprivileged])
+			ds, err := NewCRDBDatastore(ctx, connStrings[unprivileged], WithAcquireTimeout(5*time.Second))
 			require.NoError(t, err)
 
 			features, err := ds.Features(ctx)
@@ -772,11 +778,11 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 
 	ds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
 		caveat somecaveat(somecondition int) {
-			somecondition == 42	
+			somecondition == 42
 		}
 
 		caveat somecaveat2(somecondition int) {
-			somecondition == 42	
+			somecondition == 42
 		}
 
 		definition user {}

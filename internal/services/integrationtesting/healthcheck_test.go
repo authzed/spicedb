@@ -43,7 +43,8 @@ func TestHealthCheck(t *testing.T) {
 				dsconfig.WithMaxRetries(50),
 				dsconfig.WithReadConnPool(*connPoolConfig),
 				dsconfig.WithWriteConnPool(*connPoolConfig),
-				dsconfig.WithRequestHedgingEnabled(false)))
+				dsconfig.WithRequestHedgingEnabled(false),
+				dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
 			ds, _ = tf.StandardDatastoreWithData(ds, require)
 
 			dispatchConns, cleanup := testserver.TestClusterWithDispatch(t, 2, ds)

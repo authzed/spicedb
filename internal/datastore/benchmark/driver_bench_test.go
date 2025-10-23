@@ -68,7 +68,8 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 					dsconfig.WithRevisionQuantization(revisionQuantization),
 					dsconfig.WithGCWindow(gcWindow),
 					dsconfig.WithGCInterval(gcInterval),
-					dsconfig.WithWatchBufferLength(watchBufferLength))...,
+					dsconfig.WithWatchBufferLength(watchBufferLength),
+					dsconfig.WithWriteAcquisitionTimeout(5*time.Second))...,
 			))
 
 			ctx := context.Background()

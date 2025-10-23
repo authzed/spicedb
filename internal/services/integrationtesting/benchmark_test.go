@@ -181,6 +181,7 @@ func BenchmarkServices(b *testing.B) {
 						dsconfig.WithRevisionQuantization(10),
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithRequestHedgingEnabled(false),
+						dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
 					))
 
 					contents, err := testFiles.ReadFile(bt.fileName)
