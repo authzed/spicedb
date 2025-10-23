@@ -6,6 +6,7 @@ package main
 import (
 	"testing"
 
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -274,7 +275,7 @@ func TestCheckOperation(t *testing.T) {
 			&editCheckResult{
 				Relationship: tuple.MustParse("document:someobj#viewer@user:foo"),
 				Error: &devinterface.DeveloperError{
-					Message: "max depth exceeded: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth",
+					Message: "max depth exceeded: this usually indicates a recursive or too deep data dependency. See " + sharederrors.MaxDepthErrorLink,
 					Kind:    devinterface.DeveloperError_MAXIMUM_RECURSION,
 					Source:  devinterface.DeveloperError_CHECK_WATCH,
 					Context: "document:someobj#viewer@user:foo",

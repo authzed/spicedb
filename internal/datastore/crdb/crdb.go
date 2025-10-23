@@ -30,6 +30,7 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -140,7 +141,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		log.Warn().
 			Int64("cockroach_cluster_gc_window_nanos", clusterTTLNanos).
 			Int64("spicedb_gc_window_nanos", gcWindowNanos).
-			Msg("configured CockroachDB cluster gc window is less than configured SpiceDB gc window, falling back to CRDB value - see https://spicedb.dev/d/crdb-gc-window-warning")
+			Msg("configured CockroachDB cluster gc window is less than configured SpiceDB gc window, falling back to CRDB value. See " + sharederrors.CrdbGcWindowErrorLink)
 		config.gcWindow = time.Duration(clusterTTLNanos) * time.Nanosecond
 	}
 

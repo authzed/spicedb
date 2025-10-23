@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -117,7 +118,7 @@ func createMultiDatastoreTest(b testdatastore.RunningEngineForTest, tf multiData
 
 func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql")
-	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
+	require.ErrorContains(t, err, sharederrors.MySQLParseErrorLink)
 }
 
 func TestMySQL8Datastore(t *testing.T) {
