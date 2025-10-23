@@ -31,6 +31,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -702,7 +703,7 @@ func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, e
 	// Ensure a datastore ID is present. This ensures the tables have not been truncated.
 	uniqueID, err := pgd.UniqueID(ctx)
 	if err != nil {
-		return datastore.ReadyState{}, fmt.Errorf("database validation failed: %w; if you have previously run `TRUNCATE`, this database is no longer valid and must be remigrated. See: https://spicedb.dev/d/truncate-unsupported", err)
+		return datastore.ReadyState{}, fmt.Errorf("database validation failed: %w; if you have previously run `TRUNCATE`, this database is no longer valid and must be remigrated. See "+sharederrors.TruncateUnsupportedErrorLink, err)
 	}
 	log.Trace().Str("unique_id", uniqueID).Msg("postgres datastore unique ID")
 	return state, nil

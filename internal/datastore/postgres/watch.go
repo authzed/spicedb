@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -76,7 +77,7 @@ func (pgd *pgDatastore) Watch(
 
 	if !pgd.watchEnabled {
 		close(updates)
-		errs <- datastore.NewWatchDisabledErr("postgres must be run with track_commit_timestamp=on for watch to be enabled. See https://spicedb.dev/d/enable-watch-api-postgres")
+		errs <- datastore.NewWatchDisabledErr("postgres must be run with track_commit_timestamp=on for watch to be enabled. See " + sharederrors.PostgresEnableWatchErrorLink)
 		return updates, errs
 	}
 

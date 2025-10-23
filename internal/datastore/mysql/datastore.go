@@ -24,6 +24,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 )
@@ -137,7 +138,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	}
 
 	if !mysqlConfig.ParseTime {
-		return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see https://spicedb.dev/d/parse-time-mysql for more details")
+		return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see " + sharederrors.MySQLParseErrorLink + " for more details")
 	}
 
 	// Setup the credentials provider

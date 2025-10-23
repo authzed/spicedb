@@ -18,6 +18,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -319,6 +320,6 @@ func ConfigureDefaultQueryExecMode(config *pgx.ConnConfig) {
 	}
 
 	log.Info().
-		Str("details-url", "https://spicedb.dev/d/query-exec-mode").
+		Str("details-url", sharederrors.QueryExecModeErrorLink).
 		Msg("found default_query_exec_mode in DB URI; leaving as-is")
 }

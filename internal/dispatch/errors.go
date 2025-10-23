@@ -8,6 +8,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -22,7 +23,7 @@ type MaxDepthExceededError struct {
 // NewMaxDepthExceededError creates a new MaxDepthExceededError.
 func NewMaxDepthExceededError(req DispatchableRequest) error {
 	return MaxDepthExceededError{
-		errors.New("max depth exceeded: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth"),
+		errors.New("max depth exceeded: this usually indicates a recursive or too deep data dependency. See " + sharederrors.MaxDepthErrorLink),
 		req,
 	}
 }

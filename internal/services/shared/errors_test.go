@@ -77,7 +77,7 @@ func TestRewriteError(t *testing.T) {
 				MaximumAPIDepth: 50,
 			},
 			expectedCode:     codes.ResourceExhausted,
-			expectedContains: "max depth exceeded: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth",
+			expectedContains: "max depth exceeded: this usually indicates a recursive or too deep data dependency. See https://spicedb.dev/d/debug-max-depth",
 		},
 		// pool
 		{

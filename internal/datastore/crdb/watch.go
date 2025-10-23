@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -94,7 +95,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 		if features.Watch.Status != datastore.FeatureSupported {
 			close(updates)
-			errs <- datastore.NewWatchDisabledErr(features.Watch.Reason + ". See https://spicedb.dev/d/enable-watch-api-crdb")
+			errs <- datastore.NewWatchDisabledErr(features.Watch.Reason + ". See " + sharederrors.CrdbEnableWatchErrorLink)
 			return updates, errs
 		}
 	}
