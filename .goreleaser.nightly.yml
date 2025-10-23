@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
 ---
 version: 2
 builds:
@@ -133,7 +134,7 @@ kos:
       - "quay.io/authzed/spicedb-git"
       - "ghcr.io/authzed/spicedb-git"
       - "authzed/spicedb-git"
-    base_image: "docker.io/busybox"
+    base_image: "riscv64/busybox"
     platforms:
       - "linux/riscv64"
     tags:
