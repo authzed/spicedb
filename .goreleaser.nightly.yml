@@ -9,7 +9,6 @@ builds:
     goarch:
       - "amd64"
       - "arm64"
-      - "riscv64"
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - "-s -w"
@@ -107,37 +106,6 @@ kos:
       - "linux/amd64"
     tags:
       - "v{{ .Version }}-amd64-debug"
-    creation_time: "{{ .CommitTimestamp }}"
-    ko_data_creation_time: "{{ .CommitTimestamp }}"
-    bare: true
-    sbom: "none"
-
-  # RISCV64
-  - id: "riscv64"
-    build: "spicedb"
-    repositories:
-      - "quay.io/authzed/spicedb-git"
-      - "ghcr.io/authzed/spicedb-git"
-      - "authzed/spicedb-git"
-    platforms:
-      - "linux/riscv64"
-    tags:
-      - "v{{ .Version }}-riscv64"
-    creation_time: "{{ .CommitTimestamp }}"
-    ko_data_creation_time: "{{ .CommitTimestamp }}"
-    bare: true
-    sbom: "none"
-  - id: "riscv64-debug"
-    build: "spicedb"
-    repositories:
-      - "quay.io/authzed/spicedb-git"
-      - "ghcr.io/authzed/spicedb-git"
-      - "authzed/spicedb-git"
-    base_image: "docker.io/busybox"
-    platforms:
-      - "linux/riscv64"
-    tags:
-      - "v{{ .Version }}-riscv64-debug"
     creation_time: "{{ .CommitTimestamp }}"
     ko_data_creation_time: "{{ .CommitTimestamp }}"
     bare: true
