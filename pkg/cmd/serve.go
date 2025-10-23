@@ -122,10 +122,10 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	apiFlags.StringVar(&config.MismatchZedTokenBehavior, "mismatch-zed-token-behavior", "full-consistency", "behavior to enforce when an API call receives a zedtoken that was originally intended for a different kind of datastore. One of: full-consistency (treat as a full-consistency call, ignoring the zedtoken), min-latency (treat as a min-latency call, ignoring the zedtoken), error (return an error). defaults to full-consistency for safety.")
 
 	// Memory Protection flags
-	apiFlags.BoolVar(&config.MemoryProtectionEnabled, "memory-protection-enabled", true, "enables memory-based admission control to prevent OOM conditions")
-	apiFlags.IntVar(&config.MemoryProtectionAPIThresholdPercent, "memory-protection-api-threshold", 90, "memory usage threshold percentage for regular API requests (0-100)")
-	apiFlags.IntVar(&config.MemoryProtectionDispatchThresholdPercent, "memory-protection-dispatch-threshold", 95, "memory usage threshold percentage for dispatch API requests (0-100)")
-	apiFlags.IntVar(&config.MemoryProtectionSampleIntervalSeconds, "memory-protection-sample-interval", 1, "how often to sample memory usage in seconds")
+	apiFlags.BoolVar(&config.MemoryProtectionEnabled, "memory-protection-enabled", true, "enables a memory-based middleware that rejects requests with error code ResourceExhausted when memory usage is too high. Use in conjunction with GOMEMLIMIT.")
+	apiFlags.Float64Var(&config.MemoryProtectionNormalAPIThresholdPercent, "memory-protection-normal-api-threshold", 0.90, "float percentage (where 1 = 100%) of memory usage such that when the server receives an external API request and the server exceeeds this usage, it will reject it")
+	apiFlags.Float64Var(&config.MemoryProtectionDispatchAPIThresholdPercent, "memory-protection-dispatch-api-threshold", 0.95, "float percentage (where 1 = 100%) of memory usage such that when the server receives an internal (dispatch) API request and the server exceeeds this usage, it will reject it")
+	apiFlags.IntVar(&config.MemoryProtectionSampleIntervalSeconds, "memory-protection-sample-interval", 1, "how often to sample current memory usage in seconds")
 
 	datastoreFlags := nfs.FlagSet(BoldBlue("Datastore"))
 	// Flags for the datastore

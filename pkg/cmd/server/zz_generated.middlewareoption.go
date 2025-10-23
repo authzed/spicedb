@@ -45,6 +45,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.MismatchingZedTokenOption = m.MismatchingZedTokenOption
 		to.MemoryProtectionConfig = m.MemoryProtectionConfig
+		to.MemorySampler = m.MemorySampler
 		to.unaryDatastoreMiddleware = m.unaryDatastoreMiddleware
 		to.streamDatastoreMiddleware = m.streamDatastoreMiddleware
 	}
@@ -146,5 +147,12 @@ func WithMismatchingZedTokenOption(mismatchingZedTokenOption consistency.Mismatc
 func WithMemoryProtectionConfig(memoryProtectionConfig memoryprotection.Config) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MemoryProtectionConfig = memoryProtectionConfig
+	}
+}
+
+// WithMemorySampler returns an option that can set MemorySampler on a MiddlewareOption
+func WithMemorySampler(memorySampler memoryprotection.MemorySampler) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.MemorySampler = memorySampler
 	}
 }

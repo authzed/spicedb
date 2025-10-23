@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -25,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
+	"github.com/authzed/spicedb/internal/mocks"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -444,10 +446,10 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}), nil, nil}
 	opt = opt.WithDatastore(nil)
 
-	defaultMw, err := DefaultUnaryMiddleware(context.Background(), opt)
+	defaultMw, err := DefaultUnaryMiddleware(opt)
 	require.NoError(t, err)
 
 	unary, err := c.buildUnaryMiddleware(defaultMw)
@@ -472,10 +474,10 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}), nil, nil}
 	opt = opt.WithDatastore(nil)
 
-	defaultMw, err := DefaultStreamingMiddleware(context.Background(), opt)
+	defaultMw, err := DefaultStreamingMiddleware(opt)
 	require.NoError(t, err)
 
 	streaming, err := c.buildStreamingMiddleware(defaultMw)
@@ -579,6 +581,131 @@ func TestSupportOldAndNewReadReplicaConnectionPoolFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.opts.supportOldAndNewReadReplicaConnectionPoolFlags()
 			require.Equal(t, tt.expected, tt.opts.DatastoreConfig.ReadReplicaConnPool)
+		})
+	}
+}
+
+func TestBuildMemoryProtectionConfig(t *testing.T) {
+	testcases := map[string]struct {
+		config                  *Config
+		expectedAPIConfig       memoryprotection.Config
+		expectedDispatchConfig  memoryprotection.Config
+		expectedSamplerInterval int
+		expectAddToCloseables   bool
+		expectedErr             string
+	}{
+		`disabled`: {
+			config: &Config{
+				MemoryProtectionEnabled: false,
+			},
+			expectedAPIConfig: memoryprotection.Config{
+				ThresholdPercent: 0,
+			},
+			expectedDispatchConfig: memoryprotection.Config{
+				ThresholdPercent: 0,
+			},
+			expectedSamplerInterval: 0,
+			expectAddToCloseables:   false,
+		},
+		`enabled`: {
+			config: &Config{
+				MemoryProtectionEnabled:                     true,
+				MemoryProtectionSampleIntervalSeconds:       10,
+				MemoryProtectionNormalAPIThresholdPercent:   0.80,
+				MemoryProtectionDispatchAPIThresholdPercent: 0.70,
+			},
+			expectedAPIConfig: memoryprotection.Config{
+				ThresholdPercent: 0.80,
+			},
+			expectedDispatchConfig: memoryprotection.Config{
+				ThresholdPercent: 0.70,
+			},
+			expectedSamplerInterval: 10,
+			expectAddToCloseables:   true,
+		},
+		`err_invalid`: {
+			config: &Config{
+				MemoryProtectionEnabled:                     true,
+				MemoryProtectionSampleIntervalSeconds:       10,
+				MemoryProtectionNormalAPIThresholdPercent:   1.1,
+				MemoryProtectionDispatchAPIThresholdPercent: 0.70,
+			},
+			expectedSamplerInterval: 0,
+			expectedErr:             "invalid memory protection configuration",
+			expectAddToCloseables:   false,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			closeables := closeableStack{}
+			actualAPIConfig, actualDispatchConfig, sampler, err := tc.config.buildMemoryProtectionConfigs(&closeables)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			require.InDelta(t, tc.expectedAPIConfig.ThresholdPercent, actualAPIConfig.ThresholdPercent, 0.01)
+			require.InDelta(t, tc.expectedDispatchConfig.ThresholdPercent, actualDispatchConfig.ThresholdPercent, 0.01)
+			require.NotNil(t, sampler)
+			require.Equal(t, tc.expectedSamplerInterval, sampler.GetIntervalSeconds())
+			if tc.expectAddToCloseables {
+				require.Len(t, closeables.closers, 1)
+			} else {
+				require.Len(t, closeables.closers, 0)
+			}
+		})
+	}
+}
+
+func TestBuildDispatchServer(t *testing.T) {
+	testcases := map[string]struct {
+		config                              *Config
+		expectedDispatchUnnaryMiddleware    int
+		expectedDispatchStreamingMiddleware int
+	}{
+		`auth:preshared key`: {
+			config: &Config{
+				PresharedSecureKey: []string{"securekey"},
+			},
+			expectedDispatchUnnaryMiddleware:    8,
+			expectedDispatchStreamingMiddleware: 6,
+		},
+		`auth:custom`: {
+			config: &Config{
+				GRPCAuthFunc: func(ctx context.Context) (context.Context, error) {
+					return ctx, nil
+				},
+			},
+			expectedDispatchUnnaryMiddleware:    8,
+			expectedDispatchStreamingMiddleware: 6,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDatastore := mocks.NewMockDatastore(ctrl)
+			mockDispatcher := mocks.NewMockDispatcher(ctrl)
+
+			mp := memoryprotection.DefaultDispatchConfig()
+
+			closeables := closeableStack{}
+			t.Cleanup(func() {
+				_ = closeables.Close()
+			})
+
+			sampler := memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{})
+			t.Cleanup(sampler.Close)
+
+			srv, err := tc.config.buildDispatchServer(mp, sampler, mockDatastore, mockDispatcher, &closeables, nil)
+			require.NoError(t, err)
+			require.NotNil(t, srv)
+			require.Len(t, closeables.closers, 1)
+			require.Len(t, tc.config.DispatchUnaryMiddleware, tc.expectedDispatchUnnaryMiddleware)
+			require.Len(t, tc.config.DispatchStreamingMiddleware, tc.expectedDispatchStreamingMiddleware)
 		})
 	}
 }

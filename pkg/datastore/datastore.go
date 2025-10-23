@@ -1,3 +1,5 @@
+//go:generate go run go.uber.org/mock/mockgen -source datastore.go -destination ../../internal/mocks/mock_datastore.go -package mocks Datastore
+
 package datastore
 
 import (

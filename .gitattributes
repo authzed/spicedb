@@ -1,0 +1,4 @@
+internal/mocks/*.go linguist-generated=true
+*.pb.go linguist-generated=true
+*.pb.*.go linguist-generated=true
+proto/internal/buf.lock linguist-generated=true
