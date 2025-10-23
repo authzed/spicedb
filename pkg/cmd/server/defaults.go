@@ -301,7 +301,7 @@ func DefaultUnaryMiddleware(ctx context.Context, opts MiddlewareOption) (*Middle
 	if memoryConfig == (memoryprotection.Config{}) {
 		memoryConfig = memoryprotection.DefaultConfig()
 	}
-	memoryProtectionUnaryInterceptor := memoryprotection.New(ctx, memoryConfig)
+	memoryProtectionUnaryInterceptor := memoryprotection.New(ctx, memoryConfig, &memoryprotection.DefaultMemoryLimitProvider{})
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -386,7 +386,7 @@ func DefaultStreamingMiddleware(ctx context.Context, opts MiddlewareOption) (*Mi
 	if memoryConfig == (memoryprotection.Config{}) {
 		memoryConfig = memoryprotection.DefaultConfig()
 	}
-	memoryProtectionStreamInterceptor := memoryprotection.New(ctx, memoryConfig)
+	memoryProtectionStreamInterceptor := memoryprotection.New(ctx, memoryConfig, &memoryprotection.DefaultMemoryLimitProvider{})
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -487,7 +487,7 @@ func DefaultDispatchMiddleware(ctx context.Context, logger zerolog.Logger, authF
 	if dispatchMemoryConfig == (memoryprotection.Config{}) {
 		dispatchMemoryConfig = memoryprotection.DefaultDispatchConfig()
 	}
-	dispatchMemoryProtection := memoryprotection.New(ctx, dispatchMemoryConfig)
+	dispatchMemoryProtection := memoryprotection.New(ctx, dispatchMemoryConfig, &memoryprotection.DefaultMemoryLimitProvider{})
 
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),

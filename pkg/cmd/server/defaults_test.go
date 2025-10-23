@@ -11,7 +11,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
-
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
