@@ -520,6 +520,7 @@ spicedb serve [flags]
       --max-lookup-resources-limit uint32                                               maximum number of resources that can be looked up in a single request (default 1000)
       --max-read-relationships-limit uint32                                             maximum number of relationships that can be read in a single request (default 1000)
       --max-relationship-context-size int                                               maximum allowed size of the context to be stored in a relationship (default 25000)
+      --memory-protection-enabled                                                       enables a memory-based middleware that rejects requests with error code ResourceExhausted when memory usage is too high. Use in conjunction with GOMEMLIMIT. (default true)
       --metrics-addr string                                                             address to listen on to serve metrics (default ":9090")
       --metrics-enabled                                                                 enable http metrics server (default true)
       --metrics-tls-cert-path string                                                    local path to the TLS certificate used to serve metrics

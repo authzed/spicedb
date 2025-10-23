@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -23,6 +25,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
+	"github.com/authzed/spicedb/internal/mocks"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -50,6 +54,7 @@ func TestServerGracefulTermination(t *testing.T) {
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: true}),
 		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
 		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
+		WithMemoryProtectionEnabled(false),
 	)
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
@@ -101,6 +106,7 @@ func TestOTelReporting(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithDatastore(ds),
+		WithMemoryProtectionEnabled(false),
 	}
 
 	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
@@ -293,6 +299,7 @@ func TestRetryPolicy(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithDatastore(ds),
+		WithMemoryProtectionEnabled(false),
 		SetUnaryMiddlewareModification([]MiddlewareModification[grpc.UnaryServerInterceptor]{
 			{
 				Operation:                OperationAppend,
@@ -379,7 +386,7 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 		GRPCServer: util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 		},
-	}, WithPresharedSecureKey("psk"), WithDatastore(ds))
+	}, WithPresharedSecureKey("psk"), WithDatastore(ds), WithMemoryProtectionEnabled(false))
 	cancel()
 	_, err = c.Complete(ctx)
 	require.NoError(t, err)
@@ -439,7 +446,7 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewRealTimeMemoryUsageProvider(), nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultUnaryMiddleware(opt)
@@ -467,7 +474,7 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewRealTimeMemoryUsageProvider(), nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultStreamingMiddleware(opt)
@@ -574,6 +581,84 @@ func TestSupportOldAndNewReadReplicaConnectionPoolFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.opts.supportOldAndNewReadReplicaConnectionPoolFlags()
 			require.Equal(t, tt.expected, tt.opts.DatastoreConfig.ReadReplicaConnPool)
+		})
+	}
+}
+
+func TestBuildMemoryProtectionConfig(t *testing.T) {
+	testcases := map[string]struct {
+		config       *Config
+		expectedErr  string
+		expectedType string
+	}{
+		`disabled`: {
+			config: &Config{
+				MemoryProtectionEnabled: false,
+			},
+			expectedType: "*memoryprotection.HarcodedMemoryLimitProvider",
+		},
+		`enabled`: {
+			config: &Config{
+				MemoryProtectionEnabled: true,
+			},
+			expectedType: "*memoryprotection.GoRealTimeMemoryLimiter",
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			memoryUsageProvider := tc.config.buildMemoryUsageProvider()
+			require.NotNil(t, memoryUsageProvider)
+			require.Equal(t, tc.expectedType, reflect.TypeOf(memoryUsageProvider).String())
+		})
+	}
+}
+
+func TestBuildDispatchServer(t *testing.T) {
+	testcases := map[string]struct {
+		config                              *Config
+		expectedDispatchUnnaryMiddleware    int
+		expectedDispatchStreamingMiddleware int
+	}{
+		`auth:preshared key`: {
+			config: &Config{
+				PresharedSecureKey: []string{"securekey"},
+			},
+			expectedDispatchUnnaryMiddleware:    8,
+			expectedDispatchStreamingMiddleware: 6,
+		},
+		`auth:custom`: {
+			config: &Config{
+				GRPCAuthFunc: func(ctx context.Context) (context.Context, error) {
+					return ctx, nil
+				},
+			},
+			expectedDispatchUnnaryMiddleware:    8,
+			expectedDispatchStreamingMiddleware: 6,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDatastore := mocks.NewMockDatastore(ctrl)
+			mockDispatcher := mocks.NewMockDispatcher(ctrl)
+
+			closeables := closeableStack{}
+			t.Cleanup(func() {
+				_ = closeables.Close()
+			})
+
+			sampler := memoryprotection.NewRealTimeMemoryUsageProvider()
+
+			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, &closeables, nil)
+			require.NoError(t, err)
+			require.NotNil(t, srv)
+			require.Len(t, closeables.closers, 1)
+			require.Len(t, tc.config.DispatchUnaryMiddleware, tc.expectedDispatchUnnaryMiddleware)
+			require.Len(t, tc.config.DispatchStreamingMiddleware, tc.expectedDispatchStreamingMiddleware)
 		})
 	}
 }

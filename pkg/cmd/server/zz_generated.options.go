@@ -100,6 +100,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
+		to.MemoryProtectionEnabled = c.MemoryProtectionEnabled
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
@@ -174,6 +175,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
 	debugMap["MismatchZedTokenBehavior"] = helpers.DebugValue(c.MismatchZedTokenBehavior, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
+	debugMap["MemoryProtectionEnabled"] = helpers.DebugValue(c.MemoryProtectionEnabled, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
 	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
@@ -680,6 +682,13 @@ func WithStreamingMiddlewareModification(streamingMiddlewareModification Middlew
 func SetStreamingMiddlewareModification(streamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor]) ConfigOption {
 	return func(c *Config) {
 		c.StreamingMiddlewareModification = streamingMiddlewareModification
+	}
+}
+
+// WithMemoryProtectionEnabled returns an option that can set MemoryProtectionEnabled on a Config
+func WithMemoryProtectionEnabled(memoryProtectionEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.MemoryProtectionEnabled = memoryProtectionEnabled
 	}
 }
 
