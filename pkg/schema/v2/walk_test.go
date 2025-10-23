@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 var errTestError = errors.New("test error")
@@ -806,4 +809,244 @@ func TestWalkOperation_ExclusionValueThreading(t *testing.T) {
 	// - RelationReference (banned): +1000000 (OperationVisitor) +10000000 (RelationReferenceVisitor) = 11,000,000
 	// Total: 1,000,004 + 11,000,000 + 11,000,000 = 23,000,004
 	require.Equal(t, 23000004, result)
+}
+
+func TestArrowOperationInterface(t *testing.T) {
+	tests := []struct {
+		name             string
+		operation        ArrowOperation
+		expectedLeft     string
+		expectedRight    string
+		expectedFunction FunctionType
+	}{
+		{
+			name: "ArrowReference",
+			operation: &ArrowReference{
+				left:  "parent",
+				right: "viewer",
+			},
+			expectedLeft:     "parent",
+			expectedRight:    "viewer",
+			expectedFunction: FunctionTypeAny,
+		},
+		{
+			name: "FunctionedArrowReference with any",
+			operation: &FunctionedArrowReference{
+				left:     "parent",
+				right:    "viewer",
+				function: FunctionTypeAny,
+			},
+			expectedLeft:     "parent",
+			expectedRight:    "viewer",
+			expectedFunction: FunctionTypeAny,
+		},
+		{
+			name: "FunctionedArrowReference with all",
+			operation: &FunctionedArrowReference{
+				left:     "parent",
+				right:    "viewer",
+				function: FunctionTypeAll,
+			},
+			expectedLeft:     "parent",
+			expectedRight:    "viewer",
+			expectedFunction: FunctionTypeAll,
+		},
+		{
+			name: "ResolvedArrowReference",
+			operation: &ResolvedArrowReference{
+				left:         "parent",
+				resolvedLeft: &Relation{name: "parent"},
+				right:        "viewer",
+			},
+			expectedLeft:     "parent",
+			expectedRight:    "viewer",
+			expectedFunction: FunctionTypeAny,
+		},
+		{
+			name: "ResolvedFunctionedArrowReference with any",
+			operation: &ResolvedFunctionedArrowReference{
+				left:         "parent",
+				resolvedLeft: &Relation{name: "parent"},
+				right:        "viewer",
+				function:     FunctionTypeAny,
+			},
+			expectedLeft:     "parent",
+			expectedRight:    "viewer",
+			expectedFunction: FunctionTypeAny,
+		},
+		{
+			name: "ResolvedFunctionedArrowReference with all",
+			operation: &ResolvedFunctionedArrowReference{
+				left:         "parent",
+				resolvedLeft: &Relation{name: "parent"},
+				right:        "viewer",
+				function:     FunctionTypeAll,
+			},
+			expectedLeft:     "parent",
+			expectedRight:    "viewer",
+			expectedFunction: FunctionTypeAll,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expectedLeft, tt.operation.Left())
+			require.Equal(t, tt.expectedRight, tt.operation.Right())
+			require.Equal(t, tt.expectedFunction, tt.operation.Function())
+
+			// Verify it implements Operation interface
+			var _ Operation = tt.operation
+		})
+	}
+}
+
+// arrowCounter counts arrow operations by function type
+type arrowCounter struct {
+	anyCount int
+	allCount int
+	arrows   []ArrowOperation
+}
+
+func (ac *arrowCounter) VisitArrowOperation(ao ArrowOperation, value struct{}) (struct{}, error) {
+	ac.arrows = append(ac.arrows, ao)
+	if ao.Function() == FunctionTypeAny {
+		ac.anyCount++
+	} else if ao.Function() == FunctionTypeAll {
+		ac.allCount++
+	}
+	return value, nil
+}
+
+func TestArrowOperationVisitor(t *testing.T) {
+	// Create a test schema with different arrow types
+	rel := &Relation{
+		name:          "parent",
+		baseRelations: []*BaseRelation{},
+	}
+
+	perm := &Permission{
+		name: "view",
+		operation: &UnionOperation{
+			children: []Operation{
+				&ArrowReference{left: "parent", right: "viewer"},
+				&FunctionedArrowReference{left: "parent", right: "editor", function: FunctionTypeAny},
+				&FunctionedArrowReference{left: "parent", right: "admin", function: FunctionTypeAll},
+			},
+		},
+	}
+
+	def := &Definition{
+		name: "document",
+		relations: map[string]*Relation{
+			"parent": rel,
+		},
+		permissions: map[string]*Permission{
+			"view": perm,
+		},
+	}
+	rel.parent = def
+	perm.parent = def
+
+	schema := &Schema{
+		definitions: map[string]*Definition{
+			"document": def,
+		},
+		caveats: make(map[string]*Caveat),
+	}
+	def.parent = schema
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+
+	// Create a visitor that counts arrow operations by function type
+	visitor := &arrowCounter{}
+
+	// Walk the schema and count arrows
+	_, err = WalkSchema(resolved.Schema(), visitor, struct{}{})
+	require.NoError(t, err)
+
+	// Verify we found all three arrows
+	require.Len(t, visitor.arrows, 3)
+	require.Equal(t, 2, visitor.anyCount) // 2 "any" arrows (including standard arrow)
+	require.Equal(t, 1, visitor.allCount) // 1 "all" arrow
+}
+
+// arrowCollector collects all arrow operations
+type arrowCollector struct {
+	arrows []struct {
+		left     string
+		right    string
+		function FunctionType
+	}
+}
+
+func (ac *arrowCollector) VisitArrowOperation(ao ArrowOperation, value struct{}) (struct{}, error) {
+	ac.arrows = append(ac.arrows, struct {
+		left     string
+		right    string
+		function FunctionType
+	}{
+		left:     ao.Left(),
+		right:    ao.Right(),
+		function: ao.Function(),
+	})
+	return value, nil
+}
+
+func TestArrowOperationVisitor_WithCompilerSchema(t *testing.T) {
+	schemaString := `definition document {
+	relation parent: folder
+	relation owner: folder
+	permission view = parent->viewer + parent.any(editor) + owner.all(admin)
+}
+
+definition folder {
+	relation viewer: user
+	relation editor: user
+	relation admin: user
+}
+
+definition user {}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+
+	// Create a visitor that collects all arrow operations
+	visitor := &arrowCollector{}
+
+	// Walk the schema
+	_, err = WalkSchema(resolved.Schema(), visitor, struct{}{})
+	require.NoError(t, err)
+
+	// Verify we found all three arrows
+	require.Len(t, visitor.arrows, 3)
+
+	// Verify the arrows have the correct properties
+	require.Equal(t, "parent", visitor.arrows[0].left)
+	require.Equal(t, "viewer", visitor.arrows[0].right)
+	require.Equal(t, FunctionTypeAny, visitor.arrows[0].function)
+
+	require.Equal(t, "parent", visitor.arrows[1].left)
+	require.Equal(t, "editor", visitor.arrows[1].right)
+	require.Equal(t, FunctionTypeAny, visitor.arrows[1].function)
+
+	require.Equal(t, "owner", visitor.arrows[2].left)
+	require.Equal(t, "admin", visitor.arrows[2].right)
+	require.Equal(t, FunctionTypeAll, visitor.arrows[2].function)
 }

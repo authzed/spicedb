@@ -93,6 +93,12 @@ type ResolvedFunctionedArrowReferenceVisitor[T any] interface {
 	VisitResolvedFunctionedArrowReference(rfar *ResolvedFunctionedArrowReference, value T) (T, error)
 }
 
+// ArrowOperationVisitor is called when visiting any ArrowOperation (ArrowReference, FunctionedArrowReference, ResolvedArrowReference, or ResolvedFunctionedArrowReference).
+// Returns the value to pass to subsequent visits, and error to halt immediately.
+type ArrowOperationVisitor[T any] interface {
+	VisitArrowOperation(ao ArrowOperation, value T) (T, error)
+}
+
 // WalkSchema walks the entire schema tree, calling appropriate visitor methods
 // on the provided Visitor for each node encountered. Returns the final value and error if any visitor returns an error.
 func WalkSchema[T any](s *Schema, v Visitor[T], value T) (T, error) {
@@ -285,8 +291,27 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 		}
 
 	case *ArrowReference:
+		// Call ArrowOperationVisitor if present
+		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
+			newValue, err := aov.VisitArrowOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
 		if arv, ok := v.(ArrowReferenceVisitor[T]); ok {
 			newValue, err := arv.VisitArrowReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *FunctionedArrowReference:
+		// Call ArrowOperationVisitor if present
+		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
+			newValue, err := aov.VisitArrowOperation(o, currentValue)
 			if err != nil {
 				return currentValue, err
 			}
@@ -303,6 +328,15 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 		}
 
 	case *ResolvedArrowReference:
+		// Call ArrowOperationVisitor if present
+		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
+			newValue, err := aov.VisitArrowOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
 		if rarv, ok := v.(ResolvedArrowReferenceVisitor[T]); ok {
 			newValue, err := rarv.VisitResolvedArrowReference(o, currentValue)
 			if err != nil {
@@ -312,6 +346,15 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 		}
 
 	case *ResolvedFunctionedArrowReference:
+		// Call ArrowOperationVisitor if present
+		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
+			newValue, err := aov.VisitArrowOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
 		if rfarv, ok := v.(ResolvedFunctionedArrowReferenceVisitor[T]); ok {
 			newValue, err := rfarv.VisitResolvedFunctionedArrowReference(o, currentValue)
 			if err != nil {

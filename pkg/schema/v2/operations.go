@@ -7,6 +7,23 @@ type Operation interface {
 	clone() Operation
 }
 
+// ArrowOperation is an interface implemented by all arrow-based operations (both standard and functioned arrows).
+// This includes ArrowReference, FunctionedArrowReference, ResolvedArrowReference, and ResolvedFunctionedArrowReference.
+type ArrowOperation interface {
+	Operation
+
+	// Left returns the relation on the resource (left side of the arrow).
+	Left() string
+
+	// Right returns the relation/permission on the subject (right side of the arrow).
+	Right() string
+
+	// Function returns the function type applied to the arrow.
+	// For standard arrows (->), this returns FunctionTypeAny.
+	// For functioned arrows (.any()/.all()), this returns the specific function type.
+	Function() FunctionType
+}
+
 // RelationReference is an Operation that is a simple relation, such as `permission foo = bar`.
 type RelationReference struct {
 	// relationName is the name of the relation or permission being referenced.
@@ -47,6 +64,11 @@ func (a *ArrowReference) Left() string {
 // Right returns the relation/permission on the subject.
 func (a *ArrowReference) Right() string {
 	return a.right
+}
+
+// Function returns FunctionTypeAny for standard arrows.
+func (a *ArrowReference) Function() FunctionType {
+	return FunctionTypeAny
 }
 
 // clone creates a deep copy of the ArrowReference.
@@ -204,6 +226,11 @@ func (a *ResolvedArrowReference) Right() string {
 	return a.right
 }
 
+// Function returns FunctionTypeAny for standard resolved arrows.
+func (a *ResolvedArrowReference) Function() FunctionType {
+	return FunctionTypeAny
+}
+
 // clone creates a deep copy of the ResolvedArrowReference.
 func (a *ResolvedArrowReference) clone() Operation {
 	if a == nil {
@@ -312,15 +339,15 @@ func (f *FunctionedArrowReference) clone() Operation {
 }
 
 // We close the enum by implementing the private method.
-func (r *RelationReference) isOperation()                  {}
-func (a *ArrowReference) isOperation()                     {}
-func (u *UnionOperation) isOperation()                     {}
-func (i *IntersectionOperation) isOperation()              {}
-func (e *ExclusionOperation) isOperation()                 {}
-func (f *FunctionedArrowReference) isOperation()           {}
-func (r *ResolvedRelationReference) isOperation()          {}
-func (a *ResolvedArrowReference) isOperation()             {}
-func (a *ResolvedFunctionedArrowReference) isOperation()   {}
+func (r *RelationReference) isOperation()                {}
+func (a *ArrowReference) isOperation()                   {}
+func (u *UnionOperation) isOperation()                   {}
+func (i *IntersectionOperation) isOperation()            {}
+func (e *ExclusionOperation) isOperation()               {}
+func (f *FunctionedArrowReference) isOperation()         {}
+func (r *ResolvedRelationReference) isOperation()        {}
+func (a *ResolvedArrowReference) isOperation()           {}
+func (a *ResolvedFunctionedArrowReference) isOperation() {}
 
 var (
 	_ Operation = (*RelationReference)(nil)
