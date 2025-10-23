@@ -642,7 +642,7 @@ definition user {}`,
 	}
 }
 
-func TestToNamespaceDefinition_FunctionedArrowReference(t *testing.T) {
+func TestToDefinitions_FunctionedArrowReference(t *testing.T) {
 	schemaString := `definition document {
 	relation parent: folder
 	permission view = parent.any(viewer)
@@ -672,7 +672,7 @@ definition user {}`
 	require.NotNil(t, resolved)
 
 	// Step 4: Convert back to namespace definition
-	defs, caveats, err := resolved.Schema().ToNamespaceDefinition("test")
+	defs, caveats, err := resolved.Schema().ToDefinitions()
 	require.NoError(t, err)
 	require.NotNil(t, defs)
 	require.Empty(t, caveats)

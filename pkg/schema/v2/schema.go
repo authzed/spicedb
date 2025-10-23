@@ -113,12 +113,28 @@ func (d *Definition) cloneWithParent(parentSchema *Schema) *Definition {
 
 var _ schemaUnitWithParent[*Definition, *Schema] = &Definition{}
 
+// CaveatParameter represents a single parameter in a caveat with its name and type.
+type CaveatParameter struct {
+	name string
+	typ  string
+}
+
+// Name returns the name of the parameter.
+func (cp *CaveatParameter) Name() string {
+	return cp.name
+}
+
+// Type returns the type of the parameter.
+func (cp *CaveatParameter) Type() string {
+	return cp.typ
+}
+
 // Caveat is a single, top-level caveat definition and it's internal expresion.
 type Caveat struct {
-	parent         *Schema
-	name           string
-	expression     string
-	parameterTypes []string
+	parent     *Schema
+	name       string
+	expression string
+	parameters []CaveatParameter
 }
 
 // Parent returns the parent schema.
@@ -136,9 +152,9 @@ func (c *Caveat) Expression() string {
 	return c.expression
 }
 
-// ParameterTypes returns the parameter types of the caveat.
-func (c *Caveat) ParameterTypes() []string {
-	return c.parameterTypes
+// Parameters returns the parameters of the caveat.
+func (c *Caveat) Parameters() []CaveatParameter {
+	return c.parameters
 }
 
 // cloneWithParent creates a deep copy of the Caveat with the specified parent.
@@ -147,14 +163,14 @@ func (c *Caveat) cloneWithParent(parentSchema *Schema) *Caveat {
 		return nil
 	}
 
-	parameterTypes := make([]string, len(c.parameterTypes))
-	copy(parameterTypes, c.parameterTypes)
+	parameters := make([]CaveatParameter, len(c.parameters))
+	copy(parameters, c.parameters)
 
 	return &Caveat{
-		parent:         parentSchema,
-		name:           c.name,
-		expression:     c.expression,
-		parameterTypes: parameterTypes,
+		parent:     parentSchema,
+		name:       c.name,
+		expression: c.expression,
+		parameters: parameters,
 	}
 }
 

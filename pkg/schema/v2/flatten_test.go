@@ -291,7 +291,7 @@ definition folder {
 			require.NotNil(t, flattened)
 
 			// Step 5: Convert back to corev1
-			defs, caveats, err := flattened.ResolvedSchema().Schema().ToNamespaceDefinition("test")
+			defs, caveats, err := flattened.ResolvedSchema().Schema().ToDefinitions()
 			require.NoError(t, err)
 			require.NotNil(t, defs)
 
@@ -638,7 +638,7 @@ definition user {}`,
 			require.NotNil(t, flattened)
 
 			// Step 5: Convert back to corev1
-			defs, caveats, err := flattened.ResolvedSchema().Schema().ToNamespaceDefinition("test")
+			defs, caveats, err := flattened.ResolvedSchema().Schema().ToDefinitions()
 			require.NoError(t, err)
 			require.NotNil(t, defs)
 
@@ -991,7 +991,7 @@ definition user {}`,
 			require.NotNil(t, flattened)
 
 			// Step 5: Convert back to corev1
-			defs, caveats, err := flattened.ResolvedSchema().Schema().ToNamespaceDefinition("test")
+			defs, caveats, err := flattened.ResolvedSchema().Schema().ToDefinitions()
 			require.NoError(t, err)
 			require.NotNil(t, defs)
 

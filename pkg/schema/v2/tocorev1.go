@@ -7,9 +7,9 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-// ToNamespaceDefinition converts a Schema to a core.NamespaceDefinition.
+// ToDefinitions converts a Schema to the full set of namespace and caveat definitions.
 // This is useful for converting schemas back to the protobuf format for serialization.
-func (s *Schema) ToNamespaceDefinition(name string) ([]*core.NamespaceDefinition, []*core.CaveatDefinition, error) {
+func (s *Schema) ToDefinitions() ([]*core.NamespaceDefinition, []*core.CaveatDefinition, error) {
 	if s == nil {
 		return nil, nil, errors.New("cannot convert nil schema")
 	}

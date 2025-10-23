@@ -490,7 +490,7 @@ func TestConvertCaveatEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "test_caveat", result.Name())
 		require.Equal(t, "test expression", result.Expression())
-		require.Empty(t, result.ParameterTypes())
+		require.Empty(t, result.Parameters())
 	})
 
 	t.Run("caveat with multiple parameter types", func(t *testing.T) {
@@ -509,10 +509,16 @@ func TestConvertCaveatEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "complex_caveat", result.Name())
 		require.Equal(t, "complex expression", result.Expression())
-		require.Len(t, result.ParameterTypes(), 3)
-		require.Contains(t, result.ParameterTypes(), "param1")
-		require.Contains(t, result.ParameterTypes(), "param2")
-		require.Contains(t, result.ParameterTypes(), "param3")
+		require.Len(t, result.Parameters(), 3)
+
+		// Check that all parameters are present
+		paramMap := make(map[string]string)
+		for _, param := range result.Parameters() {
+			paramMap[param.Name()] = param.Type()
+		}
+		require.Equal(t, "string", paramMap["param1"])
+		require.Equal(t, "int", paramMap["param2"])
+		require.Equal(t, "bool", paramMap["param3"])
 	})
 }
 
