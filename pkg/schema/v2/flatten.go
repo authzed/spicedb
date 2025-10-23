@@ -43,12 +43,45 @@ const (
 	FlattenSeparatorDoubleUnderscore FlattenSeparator = "__"
 )
 
+// FlattenOptions contains options for flattening a schema.
+type FlattenOptions struct {
+	// Separator controls what separator is used between permission names and hashes
+	// in synthetic permissions ($ or __).
+	Separator FlattenSeparator
+
+	// FlattenNonUnionOperations controls whether non-union operations (intersections,
+	// exclusions) should be flattened. When true, nested compound operations are
+	// extracted into synthetic permissions.
+	FlattenNonUnionOperations bool
+
+	// FlattenArrows controls whether arrow operations (->) should be flattened.
+	// When true, arrow operations are treated as leaf nodes and are extracted into
+	// their own synthetic permissions. When false, they remain as-is in the operation tree.
+	FlattenArrows bool
+}
+
 // FlattenSchema takes a resolved schema and recursively flattens all nested operations
 // under each permission's root expression by replacing them with references to new
 // synthetic permissions. The synthetic permissions are named using the pattern:
 // `{permissionName}{separator}{hash}` where hash is computed using rudd BDD canonicalization.
 // The separator parameter controls what separator is used ($ or __).
+//
+// This function uses default flattening options that flatten both non-union operations
+// and arrows.
 func FlattenSchema(rs *ResolvedSchema, separator FlattenSeparator) (*FlattenedSchema, error) {
+	return FlattenSchemaWithOptions(rs, FlattenOptions{
+		Separator:                 separator,
+		FlattenNonUnionOperations: true,
+		FlattenArrows:             true,
+	})
+}
+
+// FlattenSchemaWithOptions takes a resolved schema and recursively flattens operations
+// according to the provided options. Nested operations under each permission's root
+// expression are replaced with references to new synthetic permissions. The synthetic
+// permissions are named using the pattern: `{permissionName}{separator}{hash}` where
+// hash is computed using rudd BDD canonicalization.
+func FlattenSchemaWithOptions(rs *ResolvedSchema, options FlattenOptions) (*FlattenedSchema, error) {
 	if rs == nil {
 		return nil, errors.New("cannot flatten nil resolved schema")
 	}
@@ -58,7 +91,7 @@ func FlattenSchema(rs *ResolvedSchema, separator FlattenSeparator) (*FlattenedSc
 
 	// Walk through all definitions and flatten their permissions
 	for _, def := range schema.definitions {
-		if err := flattenDefinition(def, separator); err != nil {
+		if err := flattenDefinition(def, options); err != nil {
 			return nil, fmt.Errorf("failed to flatten definition %s: %w", def.name, err)
 		}
 	}
@@ -69,10 +102,10 @@ func FlattenSchema(rs *ResolvedSchema, separator FlattenSeparator) (*FlattenedSc
 }
 
 // flattenDefinition recursively flattens all permissions in a definition.
-func flattenDefinition(def *Definition, separator FlattenSeparator) error {
+func flattenDefinition(def *Definition, options FlattenOptions) error {
 	// Process all permissions
 	for _, perm := range def.permissions {
-		flattened, newPerms, err := flattenOperation(perm.operation, def, perm.name, separator)
+		flattened, newPerms, err := flattenOperation(perm.operation, def, perm.name, options)
 		if err != nil {
 			return fmt.Errorf("failed to flatten permission %s: %w", perm.name, err)
 		}
@@ -92,7 +125,7 @@ func flattenDefinition(def *Definition, separator FlattenSeparator) error {
 // flattenOperation recursively flattens an operation tree, replacing nested operations
 // with references to synthetic permissions.
 // Returns: (flattened operation, list of new synthetic permissions, error)
-func flattenOperation(op Operation, def *Definition, baseName string, separator FlattenSeparator) (Operation, []*Permission, error) {
+func flattenOperation(op Operation, def *Definition, baseName string, options FlattenOptions) (Operation, []*Permission, error) {
 	if op == nil {
 		return nil, nil, nil
 	}
@@ -105,7 +138,8 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 		return o, nil, nil
 
 	case *ResolvedArrowReference:
-		// Leaf node, no flattening needed
+		// Arrows are always leaf nodes in the flattened tree
+		// They will be extracted when they appear as children of operations if FlattenArrows is enabled
 		return o, nil, nil
 
 	case *RelationReference:
@@ -113,16 +147,17 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 		return o, nil, nil
 
 	case *ArrowReference:
-		// Unresolved leaf node, no flattening needed
+		// Arrows are always leaf nodes in the flattened tree
+		// They will be extracted when they appear as children of operations if FlattenArrows is enabled
 		return o, nil, nil
 
 	case *UnionOperation:
 		// Flatten children first
 		flattenedChildren := make([]Operation, len(o.children))
 		for i, child := range o.children {
-			if isNestedOperation(child) {
+			if isNestedOperation(child, options) {
 				// Create a synthetic permission for this nested operation
-				synthPerm, newPerms, err := createSyntheticPermission(child, def, baseName, separator)
+				synthPerm, newPerms, err := createSyntheticPermission(child, def, baseName, options)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -133,7 +168,7 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 				allNewPerms = append(allNewPerms, synthPerm)
 				allNewPerms = append(allNewPerms, newPerms...)
 			} else {
-				flattened, newPerms, err := flattenOperation(child, def, baseName, separator)
+				flattened, newPerms, err := flattenOperation(child, def, baseName, options)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -147,9 +182,9 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 		// Flatten children first
 		flattenedChildren := make([]Operation, len(o.children))
 		for i, child := range o.children {
-			if isNestedOperation(child) {
+			if isNestedOperation(child, options) {
 				// Create a synthetic permission for this nested operation
-				synthPerm, newPerms, err := createSyntheticPermission(child, def, baseName, separator)
+				synthPerm, newPerms, err := createSyntheticPermission(child, def, baseName, options)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -160,7 +195,7 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 				allNewPerms = append(allNewPerms, synthPerm)
 				allNewPerms = append(allNewPerms, newPerms...)
 			} else {
-				flattened, newPerms, err := flattenOperation(child, def, baseName, separator)
+				flattened, newPerms, err := flattenOperation(child, def, baseName, options)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -173,8 +208,8 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 	case *ExclusionOperation:
 		// Flatten left side
 		var flattenedLeft Operation
-		if isNestedOperation(o.left) {
-			synthPerm, newPerms, err := createSyntheticPermission(o.left, def, baseName, separator)
+		if isNestedOperation(o.left, options) {
+			synthPerm, newPerms, err := createSyntheticPermission(o.left, def, baseName, options)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -185,7 +220,7 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 			allNewPerms = append(allNewPerms, synthPerm)
 			allNewPerms = append(allNewPerms, newPerms...)
 		} else {
-			flattened, newPerms, err := flattenOperation(o.left, def, baseName, separator)
+			flattened, newPerms, err := flattenOperation(o.left, def, baseName, options)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -195,8 +230,8 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 
 		// Flatten right side
 		var flattenedRight Operation
-		if isNestedOperation(o.right) {
-			synthPerm, newPerms, err := createSyntheticPermission(o.right, def, baseName, separator)
+		if isNestedOperation(o.right, options) {
+			synthPerm, newPerms, err := createSyntheticPermission(o.right, def, baseName, options)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -207,7 +242,7 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 			allNewPerms = append(allNewPerms, synthPerm)
 			allNewPerms = append(allNewPerms, newPerms...)
 		} else {
-			flattened, newPerms, err := flattenOperation(o.right, def, baseName, separator)
+			flattened, newPerms, err := flattenOperation(o.right, def, baseName, options)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -225,12 +260,14 @@ func flattenOperation(op Operation, def *Definition, baseName string, separator 
 	}
 }
 
-// isNestedOperation returns true if the operation is a compound operation (union, intersection, exclusion)
-// that should be extracted into a synthetic permission.
-func isNestedOperation(op Operation) bool {
+// isNestedOperation returns true if the operation should be extracted into a synthetic permission
+// based on the flatten options.
+func isNestedOperation(op Operation, options FlattenOptions) bool {
 	switch op.(type) {
 	case *UnionOperation, *IntersectionOperation, *ExclusionOperation:
-		return true
+		return options.FlattenNonUnionOperations
+	case *ResolvedArrowReference, *ArrowReference:
+		return options.FlattenArrows
 	default:
 		return false
 	}
@@ -238,9 +275,9 @@ func isNestedOperation(op Operation) bool {
 
 // createSyntheticPermission creates a new synthetic permission for the given nested operation.
 // It recursively flattens the operation and computes a hash-based name.
-func createSyntheticPermission(op Operation, def *Definition, baseName string, separator FlattenSeparator) (*Permission, []*Permission, error) {
+func createSyntheticPermission(op Operation, def *Definition, baseName string, options FlattenOptions) (*Permission, []*Permission, error) {
 	// Recursively flatten the operation
-	flattened, newPerms, err := flattenOperation(op, def, baseName, separator)
+	flattened, newPerms, err := flattenOperation(op, def, baseName, options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -252,7 +289,7 @@ func createSyntheticPermission(op Operation, def *Definition, baseName string, s
 	}
 
 	// Create the synthetic permission name
-	synthName := fmt.Sprintf("%s%s%s", baseName, separator, hash)
+	synthName := fmt.Sprintf("%s%s%s", baseName, options.Separator, hash)
 
 	// Check if a synthetic permission with this name already exists
 	if existingPerm, exists := def.permissions[synthName]; exists {
