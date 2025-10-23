@@ -1062,3 +1062,300 @@ definition user {}`,
 		})
 	}
 }
+
+func TestFlattenSchema_AnyFunctionedArrowEqualsRegularArrow(t *testing.T) {
+	// Test that parent.any(viewer) is treated the same as parent->viewer for BDD hash purposes
+	schemaWithAny := `definition document {
+	relation parent: folder
+	permission view = parent.any(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	schemaWithArrow := `definition document {
+	relation parent: folder
+	permission view = parent->viewer
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	// Compile and resolve both schemas
+	compiledAny, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithAny,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaAny, err := BuildSchemaFromCompiledSchema(*compiledAny)
+	require.NoError(t, err)
+
+	resolvedAny, err := ResolveSchema(schemaAny)
+	require.NoError(t, err)
+
+	compiledArrow, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithArrow,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaArrow, err := BuildSchemaFromCompiledSchema(*compiledArrow)
+	require.NoError(t, err)
+
+	resolvedArrow, err := ResolveSchema(schemaArrow)
+	require.NoError(t, err)
+
+	// Get the operations
+	docDefAny := resolvedAny.Schema().definitions["document"]
+	viewPermAny := docDefAny.permissions["view"]
+
+	docDefArrow := resolvedArrow.Schema().definitions["document"]
+	viewPermArrow := docDefArrow.permissions["view"]
+
+	// Compute hashes for both operations
+	hashAny, err := computeOperationHash(viewPermAny.operation)
+	require.NoError(t, err)
+
+	hashArrow, err := computeOperationHash(viewPermArrow.operation)
+	require.NoError(t, err)
+
+	// They should have the same hash because parent.any(viewer) == parent->viewer
+	require.Equal(t, hashArrow, hashAny, "parent.any(viewer) should have same hash as parent->viewer")
+}
+
+func TestFlattenSchema_AllFunctionedArrowDiffersFromRegularArrow(t *testing.T) {
+	// Test that parent.all(viewer) is treated differently from parent->viewer for BDD hash purposes
+	schemaWithAll := `definition document {
+	relation parent: folder
+	permission view = parent.all(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	schemaWithArrow := `definition document {
+	relation parent: folder
+	permission view = parent->viewer
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	// Compile and resolve both schemas
+	compiledAll, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithAll,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaAll, err := BuildSchemaFromCompiledSchema(*compiledAll)
+	require.NoError(t, err)
+
+	resolvedAll, err := ResolveSchema(schemaAll)
+	require.NoError(t, err)
+
+	compiledArrow, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithArrow,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaArrow, err := BuildSchemaFromCompiledSchema(*compiledArrow)
+	require.NoError(t, err)
+
+	resolvedArrow, err := ResolveSchema(schemaArrow)
+	require.NoError(t, err)
+
+	// Get the operations
+	docDefAll := resolvedAll.Schema().definitions["document"]
+	viewPermAll := docDefAll.permissions["view"]
+
+	docDefArrow := resolvedArrow.Schema().definitions["document"]
+	viewPermArrow := docDefArrow.permissions["view"]
+
+	// Compute hashes for both operations
+	hashAll, err := computeOperationHash(viewPermAll.operation)
+	require.NoError(t, err)
+
+	hashArrow, err := computeOperationHash(viewPermArrow.operation)
+	require.NoError(t, err)
+
+	// They should have different hashes because parent.all(viewer) != parent->viewer
+	require.NotEqual(t, hashArrow, hashAll, "parent.all(viewer) should have different hash from parent->viewer")
+}
+
+func TestFlattenSchema_AllFunctionedArrowDiffersFromAnyFunctionedArrow(t *testing.T) {
+	// Test that parent.all(viewer) is treated differently from parent.any(viewer) for BDD hash purposes
+	schemaWithAll := `definition document {
+	relation parent: folder
+	permission view = parent.all(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	schemaWithAny := `definition document {
+	relation parent: folder
+	permission view = parent.any(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	// Compile and resolve both schemas
+	compiledAll, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithAll,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaAll, err := BuildSchemaFromCompiledSchema(*compiledAll)
+	require.NoError(t, err)
+
+	resolvedAll, err := ResolveSchema(schemaAll)
+	require.NoError(t, err)
+
+	compiledAny, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithAny,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaAny, err := BuildSchemaFromCompiledSchema(*compiledAny)
+	require.NoError(t, err)
+
+	resolvedAny, err := ResolveSchema(schemaAny)
+	require.NoError(t, err)
+
+	// Get the operations
+	docDefAll := resolvedAll.Schema().definitions["document"]
+	viewPermAll := docDefAll.permissions["view"]
+
+	docDefAny := resolvedAny.Schema().definitions["document"]
+	viewPermAny := docDefAny.permissions["view"]
+
+	// Compute hashes for both operations
+	hashAll, err := computeOperationHash(viewPermAll.operation)
+	require.NoError(t, err)
+
+	hashAny, err := computeOperationHash(viewPermAny.operation)
+	require.NoError(t, err)
+
+	// They should have different hashes because parent.all(viewer) != parent.any(viewer)
+	require.NotEqual(t, hashAny, hashAll, "parent.all(viewer) should have different hash from parent.any(viewer)")
+}
+
+func TestFlattenSchema_FunctionedArrowReference(t *testing.T) {
+	tests := []struct {
+		name                      string
+		schemaString              string
+		flattenNonUnionOperations bool
+		flattenArrows             bool
+		expectedPermissionCount   int // Expected number of permissions after flattening
+	}{
+		{
+			name: "functioned arrow with flatten arrows enabled (in compound operation)",
+			schemaString: `definition document {
+	relation parent: folder
+	relation viewer: user
+	permission view = parent.any(viewer) + viewer
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedPermissionCount:   2, // view + synthetic permission for functioned arrow
+		},
+		{
+			name: "functioned arrow with flatten arrows disabled",
+			schemaString: `definition document {
+	relation parent: folder
+	permission view = parent.any(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             false,
+			expectedPermissionCount:   1, // just view
+		},
+		{
+			name: "multiple functioned arrows with flatten arrows enabled",
+			schemaString: `definition document {
+	relation parent: folder
+	relation owner: folder
+	permission view = parent.any(viewer) + owner.all(editor)
+}
+
+definition folder {
+	relation viewer: user
+	relation editor: user
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedPermissionCount:   3, // view + 2 synthetic permissions
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Step 1: Compile the schema
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: tt.schemaString,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			// Step 2: Convert to *Schema
+			schema, err := BuildSchemaFromCompiledSchema(*compiled)
+			require.NoError(t, err)
+			require.NotNil(t, schema)
+
+			// Step 3: Resolve the schema
+			resolved, err := ResolveSchema(schema)
+			require.NoError(t, err)
+			require.NotNil(t, resolved)
+
+			// Step 4: Flatten the schema with specified options
+			flattened, err := FlattenSchemaWithOptions(resolved, FlattenOptions{
+				Separator:                 FlattenSeparatorDoubleUnderscore,
+				FlattenNonUnionOperations: tt.flattenNonUnionOperations,
+				FlattenArrows:             tt.flattenArrows,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, flattened)
+
+			// Verify the expected number of permissions
+			flattenedDef := flattened.ResolvedSchema().Schema().definitions["document"]
+			require.Len(t, flattenedDef.permissions, tt.expectedPermissionCount)
+		})
+	}
+}

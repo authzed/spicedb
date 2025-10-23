@@ -142,12 +142,22 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 		// They will be extracted when they appear as children of operations if FlattenArrows is enabled
 		return o, nil, nil
 
+	case *ResolvedFunctionedArrowReference:
+		// Functioned arrows are always leaf nodes in the flattened tree
+		// They will be extracted when they appear as children of operations if FlattenArrows is enabled
+		return o, nil, nil
+
 	case *RelationReference:
 		// Unresolved leaf node, no flattening needed
 		return o, nil, nil
 
 	case *ArrowReference:
 		// Arrows are always leaf nodes in the flattened tree
+		// They will be extracted when they appear as children of operations if FlattenArrows is enabled
+		return o, nil, nil
+
+	case *FunctionedArrowReference:
+		// Functioned arrows are always leaf nodes in the flattened tree
 		// They will be extracted when they appear as children of operations if FlattenArrows is enabled
 		return o, nil, nil
 
@@ -266,7 +276,7 @@ func isNestedOperation(op Operation, options FlattenOptions) bool {
 	switch op.(type) {
 	case *UnionOperation, *IntersectionOperation, *ExclusionOperation:
 		return options.FlattenNonUnionOperations
-	case *ResolvedArrowReference, *ArrowReference:
+	case *ResolvedArrowReference, *ArrowReference, *ResolvedFunctionedArrowReference, *FunctionedArrowReference:
 		return options.FlattenArrows
 	default:
 		return false
@@ -382,6 +392,32 @@ func buildVarMapRecursive(op Operation, varMap map[string]int) {
 		if _, ok := varMap[key]; !ok {
 			varMap[key] = len(varMap)
 		}
+	case *ResolvedFunctionedArrowReference:
+		// "any" functioned arrows are equivalent to regular arrows for BDD purposes
+		// "all" functioned arrows are different and use a distinct key
+		var key string
+		if o.function == FunctionTypeAll {
+			key = o.left + ".all(" + o.right + ")"
+		} else {
+			// FunctionTypeAny uses the same key as regular arrows
+			key = o.left + "->" + o.right
+		}
+		if _, ok := varMap[key]; !ok {
+			varMap[key] = len(varMap)
+		}
+	case *FunctionedArrowReference:
+		// "any" functioned arrows are equivalent to regular arrows for BDD purposes
+		// "all" functioned arrows are different and use a distinct key
+		var key string
+		if o.function == FunctionTypeAll {
+			key = o.left + ".all(" + o.right + ")"
+		} else {
+			// FunctionTypeAny uses the same key as regular arrows
+			key = o.left + "->" + o.right
+		}
+		if _, ok := varMap[key]; !ok {
+			varMap[key] = len(varMap)
+		}
 	case *UnionOperation:
 		for _, child := range o.children {
 			buildVarMapRecursive(child, varMap)
@@ -430,6 +466,38 @@ func operationToBdd(op Operation, bdd *rudd.BDD, varMap map[string]int) (rudd.No
 		idx, ok := varMap[key]
 		if !ok {
 			return nil, fmt.Errorf("arrow %s not in varMap", key)
+		}
+		return bdd.Ithvar(idx), nil
+
+	case *ResolvedFunctionedArrowReference:
+		// "any" functioned arrows are equivalent to regular arrows for BDD purposes
+		// "all" functioned arrows are different and use a distinct key
+		var key string
+		if o.function == FunctionTypeAll {
+			key = o.left + ".all(" + o.right + ")"
+		} else {
+			// FunctionTypeAny uses the same key as regular arrows
+			key = o.left + "->" + o.right
+		}
+		idx, ok := varMap[key]
+		if !ok {
+			return nil, fmt.Errorf("functioned arrow %s not in varMap", key)
+		}
+		return bdd.Ithvar(idx), nil
+
+	case *FunctionedArrowReference:
+		// "any" functioned arrows are equivalent to regular arrows for BDD purposes
+		// "all" functioned arrows are different and use a distinct key
+		var key string
+		if o.function == FunctionTypeAll {
+			key = o.left + ".all(" + o.right + ")"
+		} else {
+			// FunctionTypeAny uses the same key as regular arrows
+			key = o.left + "->" + o.right
+		}
+		idx, ok := varMap[key]
+		if !ok {
+			return nil, fmt.Errorf("functioned arrow %s not in varMap", key)
 		}
 		return bdd.Ithvar(idx), nil
 

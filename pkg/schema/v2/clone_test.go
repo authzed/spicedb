@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 func TestCloneSchema_Nil(t *testing.T) {
@@ -600,4 +603,49 @@ func TestCloneSchema_ComplexOperationWithFunctionedTupleset(t *testing.T) {
 	require.Equal(t, "organization", clonedFuncOp2.left)
 	require.Equal(t, FunctionTypeAll, clonedFuncOp2.function)
 	require.Equal(t, "member", clonedFuncOp2.right)
+}
+
+func TestClone_ResolvedFunctionedArrowReference(t *testing.T) {
+	// Create a test schema with a functioned arrow
+	schemaString := `definition document {
+	relation parent: folder
+	permission view = parent.any(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	// Step 1: Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Step 2: Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
+
+	// Step 3: Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+
+	// Step 4: Clone the resolved schema
+	cloned := resolved.schema.clone()
+	require.NotNil(t, cloned)
+
+	// Verify that cloning worked correctly
+	clonedDef := cloned.definitions["document"]
+	require.NotNil(t, clonedDef)
+	clonedPerm := clonedDef.permissions["view"]
+	require.NotNil(t, clonedPerm)
+
+	// The operation should be a ResolvedFunctionedArrowReference
+	_, ok := clonedPerm.operation.(*ResolvedFunctionedArrowReference)
+	require.True(t, ok, "expected ResolvedFunctionedArrowReference after clone")
 }

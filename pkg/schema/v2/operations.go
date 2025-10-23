@@ -216,10 +216,60 @@ func (a *ResolvedArrowReference) clone() Operation {
 	}
 }
 
+// ResolvedFunctionedArrowReference is an Operation that represents a resolved functioned arrow reference.
+// It contains the resolved left side relation, the name of the right side, and the function type.
+type ResolvedFunctionedArrowReference struct {
+	// left is the name of the relation on the resource.
+	left string
+
+	// resolvedLeft is the actual Relation being referenced on the left side.
+	resolvedLeft *Relation
+
+	// right is the name of the relation/permission on the subject.
+	right string
+
+	// function is the function type (any or all).
+	function FunctionType
+}
+
+// Left returns the name of the relation on the resource.
+func (a *ResolvedFunctionedArrowReference) Left() string {
+	return a.left
+}
+
+// ResolvedLeft returns the actual Relation being referenced on the left side.
+func (a *ResolvedFunctionedArrowReference) ResolvedLeft() *Relation {
+	return a.resolvedLeft
+}
+
+// Right returns the name of the relation/permission on the subject.
+func (a *ResolvedFunctionedArrowReference) Right() string {
+	return a.right
+}
+
+// Function returns the function type.
+func (a *ResolvedFunctionedArrowReference) Function() FunctionType {
+	return a.function
+}
+
+// clone creates a deep copy of the ResolvedFunctionedArrowReference.
+func (a *ResolvedFunctionedArrowReference) clone() Operation {
+	if a == nil {
+		return nil
+	}
+	return &ResolvedFunctionedArrowReference{
+		left:         a.left,
+		resolvedLeft: a.resolvedLeft,
+		right:        a.right,
+		function:     a.function,
+	}
+}
+
 var (
 	_ schemaUnit[Operation] = &ExclusionOperation{}
 	_ schemaUnit[Operation] = &ResolvedRelationReference{}
 	_ schemaUnit[Operation] = &ResolvedArrowReference{}
+	_ schemaUnit[Operation] = &ResolvedFunctionedArrowReference{}
 )
 
 // FunctionedArrowReference is an Operation that represents functioned arrows like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
@@ -262,14 +312,15 @@ func (f *FunctionedArrowReference) clone() Operation {
 }
 
 // We close the enum by implementing the private method.
-func (r *RelationReference) isOperation()         {}
-func (a *ArrowReference) isOperation()            {}
-func (u *UnionOperation) isOperation()            {}
-func (i *IntersectionOperation) isOperation()     {}
-func (e *ExclusionOperation) isOperation()        {}
-func (f *FunctionedArrowReference) isOperation()  {}
-func (r *ResolvedRelationReference) isOperation() {}
-func (a *ResolvedArrowReference) isOperation()    {}
+func (r *RelationReference) isOperation()                  {}
+func (a *ArrowReference) isOperation()                     {}
+func (u *UnionOperation) isOperation()                     {}
+func (i *IntersectionOperation) isOperation()              {}
+func (e *ExclusionOperation) isOperation()                 {}
+func (f *FunctionedArrowReference) isOperation()           {}
+func (r *ResolvedRelationReference) isOperation()          {}
+func (a *ResolvedArrowReference) isOperation()             {}
+func (a *ResolvedFunctionedArrowReference) isOperation()   {}
 
 var (
 	_ Operation = (*RelationReference)(nil)
@@ -280,4 +331,5 @@ var (
 	_ Operation = (*FunctionedArrowReference)(nil)
 	_ Operation = (*ResolvedRelationReference)(nil)
 	_ Operation = (*ResolvedArrowReference)(nil)
+	_ Operation = (*ResolvedFunctionedArrowReference)(nil)
 )

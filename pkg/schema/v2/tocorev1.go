@@ -178,6 +178,54 @@ func operationToUsersetRewrite(op Operation) (*core.UsersetRewrite, error) {
 			},
 		}, nil
 
+	case *ResolvedFunctionedArrowReference:
+		return &core.UsersetRewrite{
+			RewriteOperation: &core.UsersetRewrite_Union{
+				Union: &core.SetOperation{
+					Child: []*core.SetOperation_Child{
+						{
+							ChildType: &core.SetOperation_Child_FunctionedTupleToUserset{
+								FunctionedTupleToUserset: &core.FunctionedTupleToUserset{
+									Function: functionTypeToCore(o.function),
+									Tupleset: &core.FunctionedTupleToUserset_Tupleset{
+										Relation: o.left,
+									},
+									ComputedUserset: &core.ComputedUserset{
+										Relation: o.right,
+										Object:   core.ComputedUserset_TUPLE_USERSET_OBJECT,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, nil
+
+	case *FunctionedArrowReference:
+		return &core.UsersetRewrite{
+			RewriteOperation: &core.UsersetRewrite_Union{
+				Union: &core.SetOperation{
+					Child: []*core.SetOperation_Child{
+						{
+							ChildType: &core.SetOperation_Child_FunctionedTupleToUserset{
+								FunctionedTupleToUserset: &core.FunctionedTupleToUserset{
+									Function: functionTypeToCore(o.function),
+									Tupleset: &core.FunctionedTupleToUserset_Tupleset{
+										Relation: o.left,
+									},
+									ComputedUserset: &core.ComputedUserset{
+										Relation: o.right,
+										Object:   core.ComputedUserset_TUPLE_USERSET_OBJECT,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, nil
+
 	case *ArrowReference:
 		return &core.UsersetRewrite{
 			RewriteOperation: &core.UsersetRewrite_Union{
@@ -313,6 +361,38 @@ func operationToChild(op Operation) (*core.SetOperation_Child, error) {
 			},
 		}, nil
 
+	case *ResolvedFunctionedArrowReference:
+		return &core.SetOperation_Child{
+			ChildType: &core.SetOperation_Child_FunctionedTupleToUserset{
+				FunctionedTupleToUserset: &core.FunctionedTupleToUserset{
+					Function: functionTypeToCore(o.function),
+					Tupleset: &core.FunctionedTupleToUserset_Tupleset{
+						Relation: o.left,
+					},
+					ComputedUserset: &core.ComputedUserset{
+						Relation: o.right,
+						Object:   core.ComputedUserset_TUPLE_USERSET_OBJECT,
+					},
+				},
+			},
+		}, nil
+
+	case *FunctionedArrowReference:
+		return &core.SetOperation_Child{
+			ChildType: &core.SetOperation_Child_FunctionedTupleToUserset{
+				FunctionedTupleToUserset: &core.FunctionedTupleToUserset{
+					Function: functionTypeToCore(o.function),
+					Tupleset: &core.FunctionedTupleToUserset_Tupleset{
+						Relation: o.left,
+					},
+					ComputedUserset: &core.ComputedUserset{
+						Relation: o.right,
+						Object:   core.ComputedUserset_TUPLE_USERSET_OBJECT,
+					},
+				},
+			},
+		}, nil
+
 	case *UnionOperation, *IntersectionOperation, *ExclusionOperation:
 		// Nested operations need to be wrapped in a UsersetRewrite
 		rewrite, err := operationToUsersetRewrite(op)
@@ -327,5 +407,17 @@ func operationToChild(op Operation) (*core.SetOperation_Child, error) {
 
 	default:
 		return nil, fmt.Errorf("unknown operation type: %T", op)
+	}
+}
+
+// functionTypeToCore converts a FunctionType to a core.FunctionedTupleToUserset_Function.
+func functionTypeToCore(ft FunctionType) core.FunctionedTupleToUserset_Function {
+	switch ft {
+	case FunctionTypeAny:
+		return core.FunctionedTupleToUserset_FUNCTION_ANY
+	case FunctionTypeAll:
+		return core.FunctionedTupleToUserset_FUNCTION_ALL
+	default:
+		return core.FunctionedTupleToUserset_FUNCTION_ANY
 	}
 }
