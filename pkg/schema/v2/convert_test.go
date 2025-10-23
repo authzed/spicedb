@@ -638,11 +638,11 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 		result, err := convertChild(child)
 		require.NoError(t, err)
 
-		funcOp, ok := result.(*FunctionedTuplesetOperation)
-		require.True(t, ok, "Should convert to FunctionedTuplesetOperation")
-		require.Equal(t, "team", funcOp.TuplesetRelation())
+		funcOp, ok := result.(*FunctionedArrowReference)
+		require.True(t, ok, "Should convert to FunctionedArrowReference")
+		require.Equal(t, "team", funcOp.Left())
+		require.Equal(t, "member", funcOp.Right())
 		require.Equal(t, FunctionTypeAny, funcOp.Function())
-		require.Equal(t, "member", funcOp.ComputedRelation())
 	})
 
 	t.Run("convert FUNCTION_ALL", func(t *testing.T) {
@@ -665,11 +665,11 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 		result, err := convertChild(child)
 		require.NoError(t, err)
 
-		funcOp, ok := result.(*FunctionedTuplesetOperation)
-		require.True(t, ok, "Should convert to FunctionedTuplesetOperation")
-		require.Equal(t, "group", funcOp.TuplesetRelation())
+		funcOp, ok := result.(*FunctionedArrowReference)
+		require.True(t, ok, "Should convert to FunctionedArrowReference")
+		require.Equal(t, "group", funcOp.Left())
+		require.Equal(t, "viewer", funcOp.Right())
 		require.Equal(t, FunctionTypeAll, funcOp.Function())
-		require.Equal(t, "viewer", funcOp.ComputedRelation())
 	})
 
 	t.Run("convert unknown function type", func(t *testing.T) {
@@ -760,23 +760,23 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, "view", viewPerm.Name())
 
-		// The permission should have a FunctionedTuplesetOperation (might be unwrapped from union if single child)
-		// Check if it's directly a FunctionedTuplesetOperation or wrapped in a union
-		if funcOp, ok := viewPerm.Operation().(*FunctionedTuplesetOperation); ok {
+		// The permission should have a FunctionedArrowReference (might be unwrapped from union if single child)
+		// Check if it's directly a FunctionedArrowReference or wrapped in a union
+		if funcOp, ok := viewPerm.Operation().(*FunctionedArrowReference); ok {
 			// Direct operation (unwrapped by optimization)
-			require.Equal(t, "team", funcOp.TuplesetRelation())
+			require.Equal(t, "team", funcOp.Left())
+			require.Equal(t, "member", funcOp.Right())
 			require.Equal(t, FunctionTypeAll, funcOp.Function())
-			require.Equal(t, "member", funcOp.ComputedRelation())
 		} else if union, ok := viewPerm.Operation().(*UnionOperation); ok {
 			// Wrapped in union
 			require.Len(t, union.Children(), 1)
-			funcOp, ok := union.Children()[0].(*FunctionedTuplesetOperation)
+			funcOp, ok := union.Children()[0].(*FunctionedArrowReference)
 			require.True(t, ok)
-			require.Equal(t, "team", funcOp.TuplesetRelation())
+			require.Equal(t, "team", funcOp.Left())
+			require.Equal(t, "member", funcOp.Right())
 			require.Equal(t, FunctionTypeAll, funcOp.Function())
-			require.Equal(t, "member", funcOp.ComputedRelation())
 		} else {
-			require.Fail(t, "Expected FunctionedTuplesetOperation, got %T", viewPerm.Operation())
+			require.Fail(t, "Expected FunctionedArrowReference, got %T", viewPerm.Operation())
 		}
 	})
 }

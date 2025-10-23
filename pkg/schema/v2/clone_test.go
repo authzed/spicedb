@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 func TestCloneSchema_Nil(t *testing.T) {
@@ -390,18 +393,18 @@ func TestCloneSchema_Mutation(t *testing.T) {
 	require.NotContains(t, original.definitions, "document")
 }
 
-func TestCloneSchema_WithFunctionedTuplesetOperation(t *testing.T) {
-	// Test cloning with FunctionedTuplesetOperation
-	anyOp := &FunctionedTuplesetOperation{
-		tuplesetRelation: "parent",
-		function:         FunctionTypeAny,
-		computedRelation: "viewer",
+func TestCloneSchema_WithFunctionedArrowReference(t *testing.T) {
+	// Test cloning with FunctionedArrowReference
+	anyOp := &FunctionedArrowReference{
+		left:     "parent",
+		function: FunctionTypeAny,
+		right:    "viewer",
 	}
 
-	allOp := &FunctionedTuplesetOperation{
-		tuplesetRelation: "group",
-		function:         FunctionTypeAll,
-		computedRelation: "member",
+	allOp := &FunctionedArrowReference{
+		left:     "group",
+		function: FunctionTypeAll,
+		right:    "member",
 	}
 
 	// Test with both any() and all() functions in a union
@@ -454,19 +457,19 @@ func TestCloneSchema_WithFunctionedTuplesetOperation(t *testing.T) {
 	clonedUnion := clonedPerm.operation.(*UnionOperation)
 	require.Len(t, clonedUnion.children, 3)
 
-	// Check FunctionedTuplesetOperation with any()
-	clonedAnyOp := clonedUnion.children[0].(*FunctionedTuplesetOperation)
+	// Check FunctionedArrowReference with any()
+	clonedAnyOp := clonedUnion.children[0].(*FunctionedArrowReference)
 	require.NotSame(t, anyOp, clonedAnyOp)
-	require.Equal(t, "parent", clonedAnyOp.tuplesetRelation)
+	require.Equal(t, "parent", clonedAnyOp.left)
 	require.Equal(t, FunctionTypeAny, clonedAnyOp.function)
-	require.Equal(t, "viewer", clonedAnyOp.computedRelation)
+	require.Equal(t, "viewer", clonedAnyOp.right)
 
-	// Check FunctionedTuplesetOperation with all()
-	clonedAllOp := clonedUnion.children[1].(*FunctionedTuplesetOperation)
+	// Check FunctionedArrowReference with all()
+	clonedAllOp := clonedUnion.children[1].(*FunctionedArrowReference)
 	require.NotSame(t, allOp, clonedAllOp)
-	require.Equal(t, "group", clonedAllOp.tuplesetRelation)
+	require.Equal(t, "group", clonedAllOp.left)
 	require.Equal(t, FunctionTypeAll, clonedAllOp.function)
-	require.Equal(t, "member", clonedAllOp.computedRelation)
+	require.Equal(t, "member", clonedAllOp.right)
 
 	// Check RelationReference
 	clonedRelRef := clonedUnion.children[2].(*RelationReference)
@@ -474,26 +477,26 @@ func TestCloneSchema_WithFunctionedTuplesetOperation(t *testing.T) {
 	require.Equal(t, "direct_viewer", clonedRelRef.relationName)
 }
 
-func TestCloneOperation_FunctionedTuplesetOperation(t *testing.T) {
-	// Test direct cloning of FunctionedTuplesetOperation
+func TestCloneOperation_FunctionedArrowReference(t *testing.T) {
+	// Test direct cloning of FunctionedArrowReference
 	tests := []struct {
 		name string
-		op   *FunctionedTuplesetOperation
+		op   *FunctionedArrowReference
 	}{
 		{
 			name: "any function",
-			op: &FunctionedTuplesetOperation{
-				tuplesetRelation: "parent",
-				function:         FunctionTypeAny,
-				computedRelation: "viewer",
+			op: &FunctionedArrowReference{
+				left:     "parent",
+				function: FunctionTypeAny,
+				right:    "viewer",
 			},
 		},
 		{
 			name: "all function",
-			op: &FunctionedTuplesetOperation{
-				tuplesetRelation: "group",
-				function:         FunctionTypeAll,
-				computedRelation: "admin",
+			op: &FunctionedArrowReference{
+				left:     "group",
+				function: FunctionTypeAll,
+				right:    "admin",
 			},
 		},
 		{
@@ -514,38 +517,38 @@ func TestCloneOperation_FunctionedTuplesetOperation(t *testing.T) {
 			require.NotNil(t, cloned)
 			require.NotSame(t, tt.op, cloned)
 
-			clonedOp := cloned.(*FunctionedTuplesetOperation)
-			require.Equal(t, tt.op.tuplesetRelation, clonedOp.tuplesetRelation)
+			clonedOp := cloned.(*FunctionedArrowReference)
+			require.Equal(t, tt.op.left, clonedOp.left)
 			require.Equal(t, tt.op.function, clonedOp.function)
-			require.Equal(t, tt.op.computedRelation, clonedOp.computedRelation)
+			require.Equal(t, tt.op.right, clonedOp.right)
 
 			// Test that mutation doesn't affect original
-			clonedOp.tuplesetRelation = "modified"
-			require.NotEqual(t, tt.op.tuplesetRelation, clonedOp.tuplesetRelation)
+			clonedOp.left = "modified"
+			require.NotEqual(t, tt.op.left, clonedOp.left)
 		})
 	}
 }
 
 func TestCloneSchema_ComplexOperationWithFunctionedTupleset(t *testing.T) {
-	// Test a complex nested operation tree that includes FunctionedTuplesetOperation
+	// Test a complex nested operation tree that includes FunctionedArrowReference
 	op := &UnionOperation{
 		children: []Operation{
 			&RelationReference{relationName: "direct"},
 			&IntersectionOperation{
 				children: []Operation{
-					&FunctionedTuplesetOperation{
-						tuplesetRelation: "parent",
-						function:         FunctionTypeAny,
-						computedRelation: "viewer",
+					&FunctionedArrowReference{
+						left:     "parent",
+						function: FunctionTypeAny,
+						right:    "viewer",
 					},
 					&RelationReference{relationName: "approved"},
 				},
 			},
 			&ExclusionOperation{
-				left: &FunctionedTuplesetOperation{
-					tuplesetRelation: "organization",
-					function:         FunctionTypeAll,
-					computedRelation: "member",
+				left: &FunctionedArrowReference{
+					left:     "organization",
+					function: FunctionTypeAll,
+					right:    "member",
 				},
 				right: &RelationReference{relationName: "suspended"},
 			},
@@ -585,19 +588,64 @@ func TestCloneSchema_ComplexOperationWithFunctionedTupleset(t *testing.T) {
 	require.NotSame(t, op, clonedUnion)
 	require.Len(t, clonedUnion.children, 3)
 
-	// Check intersection with FunctionedTuplesetOperation
+	// Check intersection with FunctionedArrowReference
 	clonedIntersection := clonedUnion.children[1].(*IntersectionOperation)
 	require.NotSame(t, op.children[1], clonedIntersection)
-	clonedFuncOp1 := clonedIntersection.children[0].(*FunctionedTuplesetOperation)
-	require.Equal(t, "parent", clonedFuncOp1.tuplesetRelation)
+	clonedFuncOp1 := clonedIntersection.children[0].(*FunctionedArrowReference)
+	require.Equal(t, "parent", clonedFuncOp1.left)
 	require.Equal(t, FunctionTypeAny, clonedFuncOp1.function)
-	require.Equal(t, "viewer", clonedFuncOp1.computedRelation)
+	require.Equal(t, "viewer", clonedFuncOp1.right)
 
-	// Check exclusion with FunctionedTuplesetOperation
+	// Check exclusion with FunctionedArrowReference
 	clonedExclusion := clonedUnion.children[2].(*ExclusionOperation)
 	require.NotSame(t, op.children[2], clonedExclusion)
-	clonedFuncOp2 := clonedExclusion.left.(*FunctionedTuplesetOperation)
-	require.Equal(t, "organization", clonedFuncOp2.tuplesetRelation)
+	clonedFuncOp2 := clonedExclusion.left.(*FunctionedArrowReference)
+	require.Equal(t, "organization", clonedFuncOp2.left)
 	require.Equal(t, FunctionTypeAll, clonedFuncOp2.function)
-	require.Equal(t, "member", clonedFuncOp2.computedRelation)
+	require.Equal(t, "member", clonedFuncOp2.right)
+}
+
+func TestClone_ResolvedFunctionedArrowReference(t *testing.T) {
+	// Create a test schema with a functioned arrow
+	schemaString := `definition document {
+	relation parent: folder
+	permission view = parent.any(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	// Step 1: Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Step 2: Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
+
+	// Step 3: Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+
+	// Step 4: Clone the resolved schema
+	cloned := resolved.schema.clone()
+	require.NotNil(t, cloned)
+
+	// Verify that cloning worked correctly
+	clonedDef := cloned.definitions["document"]
+	require.NotNil(t, clonedDef)
+	clonedPerm := clonedDef.permissions["view"]
+	require.NotNil(t, clonedPerm)
+
+	// The operation should be a ResolvedFunctionedArrowReference
+	_, ok := clonedPerm.operation.(*ResolvedFunctionedArrowReference)
+	require.True(t, ok, "expected ResolvedFunctionedArrowReference after clone")
 }

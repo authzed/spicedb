@@ -228,7 +228,9 @@ definition folder {
 			expectedString: `definition document {
 	relation bar: folder
 	relation foo: folder
-	permission view = foo->bar & bar->baz
+	permission view = view__b6febda281a9a6ff & view__159d4d2471796c72
+	permission view__159d4d2471796c72 = bar->baz
+	permission view__b6febda281a9a6ff = foo->bar
 }
 
 definition folder {
@@ -251,8 +253,10 @@ definition folder {
 			expectedString: `definition document {
 	relation bar: folder
 	relation foo: folder
-	permission view = view__70cbb44675052ab6 - foo->bar
-	permission view__70cbb44675052ab6 = foo->bar & bar->baz
+	permission view = view__6035022e4f2a427e - view__b6febda281a9a6ff
+	permission view__159d4d2471796c72 = bar->baz
+	permission view__6035022e4f2a427e = view__b6febda281a9a6ff & view__159d4d2471796c72
+	permission view__b6febda281a9a6ff = foo->bar
 }
 
 definition folder {
@@ -488,4 +492,870 @@ func TestFlattenSchema_SimpleNesting(t *testing.T) {
 	// Second child should be a reference to the synthetic permission
 	secondChild := union.children[1].(*ResolvedRelationReference)
 	require.Equal(t, synthPermName, secondChild.relationName)
+}
+
+func TestFlattenSchemaWithOptions_FlattenArrows(t *testing.T) {
+	tests := []struct {
+		name           string
+		schemaString   string
+		expectedString string
+	}{
+		{
+			name: "arrow operations flattened in union",
+			schemaString: `definition document {
+	relation foo: folder
+	relation bar: folder
+	permission view = foo->bar + bar->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}`,
+			expectedString: `definition document {
+	relation bar: folder
+	relation foo: folder
+	permission view = view__b6febda281a9a6ff + view__159d4d2471796c72
+	permission view__159d4d2471796c72 = bar->baz
+	permission view__b6febda281a9a6ff = foo->bar
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}`,
+		},
+		{
+			name: "arrow operations flattened in intersection",
+			schemaString: `definition document {
+	relation foo: folder
+	relation bar: folder
+	permission view = foo->bar & bar->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}`,
+			expectedString: `definition document {
+	relation bar: folder
+	relation foo: folder
+	permission view = view__b6febda281a9a6ff & view__159d4d2471796c72
+	permission view__159d4d2471796c72 = bar->baz
+	permission view__b6febda281a9a6ff = foo->bar
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}`,
+		},
+		{
+			name: "arrow operations flattened in exclusion",
+			schemaString: `definition document {
+	relation foo: folder
+	relation bar: folder
+	permission view = foo->bar - bar->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}`,
+			expectedString: `definition document {
+	relation bar: folder
+	relation foo: folder
+	permission view = view__b6febda281a9a6ff - view__159d4d2471796c72
+	permission view__159d4d2471796c72 = bar->baz
+	permission view__b6febda281a9a6ff = foo->bar
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}`,
+		},
+		{
+			name: "complex nested with arrows flattened",
+			schemaString: `definition document {
+	relation foo: folder
+	relation bar: folder
+	relation viewer: user
+	permission view = (foo->bar & viewer) + bar->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+			expectedString: `definition document {
+	relation bar: folder
+	relation foo: folder
+	relation viewer: user
+	permission view = view__3440d68e2a434804 + view__159d4d2471796c72
+	permission view__159d4d2471796c72 = bar->baz
+	permission view__3440d68e2a434804 = view__b6febda281a9a6ff & viewer
+	permission view__b6febda281a9a6ff = foo->bar
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Step 1: Compile the schema
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: tt.schemaString,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			// Step 2: Convert to *Schema
+			schema, err := BuildSchemaFromCompiledSchema(*compiled)
+			require.NoError(t, err)
+			require.NotNil(t, schema)
+
+			// Step 3: Resolve the schema
+			resolved, err := ResolveSchema(schema)
+			require.NoError(t, err)
+			require.NotNil(t, resolved)
+
+			// Step 4: Flatten the schema with FlattenArrows enabled
+			flattened, err := FlattenSchemaWithOptions(resolved, FlattenOptions{
+				Separator:                 FlattenSeparatorDoubleUnderscore,
+				FlattenNonUnionOperations: true,
+				FlattenArrows:             true,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, flattened)
+
+			// Step 5: Convert back to corev1
+			defs, caveats, err := flattened.ResolvedSchema().Schema().ToNamespaceDefinition("test")
+			require.NoError(t, err)
+			require.NotNil(t, defs)
+
+			// Step 6: Generate schema string
+			// Sort definitions by name for deterministic output
+			sort.Slice(defs, func(i, j int) bool {
+				return defs[i].Name < defs[j].Name
+			})
+
+			// Sort relations within each definition for deterministic output
+			for _, def := range defs {
+				sort.Slice(def.Relation, func(i, j int) bool {
+					return def.Relation[i].Name < def.Relation[j].Name
+				})
+			}
+
+			var schemaDefinitions []compiler.SchemaDefinition
+			for _, def := range defs {
+				schemaDefinitions = append(schemaDefinitions, def)
+			}
+			for _, caveat := range caveats {
+				schemaDefinitions = append(schemaDefinitions, caveat)
+			}
+
+			generatedSchema, _, err := generator.GenerateSchema(schemaDefinitions)
+			require.NoError(t, err)
+
+			// Verify the generated schema compiles
+			recompiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("regenerated"),
+				SchemaString: generatedSchema,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+			require.NotNil(t, recompiled)
+
+			// Compare the generated schema with expected
+			// We use a second compilation to normalize both schemas for comparison
+			expectedCompiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("expected"),
+				SchemaString: tt.expectedString,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			// Sort expected definitions and relations the same way
+			sort.Slice(expectedCompiled.ObjectDefinitions, func(i, j int) bool {
+				return expectedCompiled.ObjectDefinitions[i].Name < expectedCompiled.ObjectDefinitions[j].Name
+			})
+
+			for _, def := range expectedCompiled.ObjectDefinitions {
+				sort.Slice(def.Relation, func(i, j int) bool {
+					return def.Relation[i].Name < def.Relation[j].Name
+				})
+			}
+
+			var expectedSchemaDefinitions []compiler.SchemaDefinition
+			for _, def := range expectedCompiled.ObjectDefinitions {
+				expectedSchemaDefinitions = append(expectedSchemaDefinitions, def)
+			}
+			for _, caveat := range expectedCompiled.CaveatDefinitions {
+				expectedSchemaDefinitions = append(expectedSchemaDefinitions, caveat)
+			}
+
+			expectedGenerated, _, err := generator.GenerateSchema(expectedSchemaDefinitions)
+			require.NoError(t, err)
+
+			// Compare the two generated schemas
+			require.Equal(t, expectedGenerated, generatedSchema, "Generated schema does not match expected")
+		})
+	}
+}
+
+func TestFlattenSchemaWithOptions_NoFlattenNonUnionOperations(t *testing.T) {
+	schemaString := `definition document {
+	relation viewer: user
+	relation editor: user
+	relation owner: user
+	permission view = (viewer + editor) & owner
+}
+
+definition user {}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+
+	// Flatten the schema with FlattenNonUnionOperations disabled
+	flattened, err := FlattenSchemaWithOptions(resolved, FlattenOptions{
+		Separator:                 FlattenSeparatorDoubleUnderscore,
+		FlattenNonUnionOperations: false,
+		FlattenArrows:             false,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, flattened)
+
+	// When FlattenNonUnionOperations is false, nested operations (including nested unions inside
+	// intersections) should NOT be extracted. Only the original permission should remain.
+	flattenedDef := flattened.ResolvedSchema().Schema().definitions["document"]
+	require.Len(t, flattenedDef.permissions, 1)
+
+	// The view permission should still be an intersection
+	viewPerm := flattenedDef.permissions["view"]
+	_, ok := viewPerm.operation.(*IntersectionOperation)
+	require.True(t, ok, "expected top-level intersection to remain")
+}
+
+func TestFlattenSchemaWithOptions_Combinations(t *testing.T) {
+	tests := []struct {
+		name                      string
+		schemaString              string
+		flattenNonUnionOperations bool
+		flattenArrows             bool
+		expectedString            string
+	}{
+		{
+			name: "flatten both non-union ops and arrows",
+			schemaString: `definition document {
+	relation foo: folder
+	relation viewer: user
+	permission view = (foo->bar & viewer) - foo->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedString: `definition document {
+	relation foo: folder
+	relation viewer: user
+	permission view = view__3440d68e2a434804 - view__b719eda281c0c047
+	permission view__3440d68e2a434804 = view__b6febda281a9a6ff & viewer
+	permission view__b6febda281a9a6ff = foo->bar
+	permission view__b719eda281c0c047 = foo->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+		},
+		{
+			name: "flatten non-union ops only (not arrows)",
+			schemaString: `definition document {
+	relation foo: folder
+	relation viewer: user
+	permission view = (foo->bar & viewer) - foo->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             false,
+			expectedString: `definition document {
+	relation foo: folder
+	relation viewer: user
+	permission view = view__65817a3f96207a61 - foo->baz
+	permission view__65817a3f96207a61 = foo->bar & viewer
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+		},
+		{
+			name: "flatten arrows only (not non-union ops)",
+			schemaString: `definition document {
+	relation foo: folder
+	relation viewer: user
+	permission view = (foo->bar & viewer) - foo->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+			flattenNonUnionOperations: false,
+			flattenArrows:             true,
+			expectedString: `definition document {
+	relation foo: folder
+	relation viewer: user
+	permission view = (view__b6febda281a9a6ff & viewer) - view__b719eda281c0c047
+	permission view__b6febda281a9a6ff = foo->bar
+	permission view__b719eda281c0c047 = foo->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+		},
+		{
+			name: "flatten nothing (both options false)",
+			schemaString: `definition document {
+	relation foo: folder
+	relation viewer: user
+	permission view = (foo->bar & viewer) - foo->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+			flattenNonUnionOperations: false,
+			flattenArrows:             false,
+			expectedString: `definition document {
+	relation foo: folder
+	relation viewer: user
+	permission view = (foo->bar & viewer) - foo->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}
+
+definition user {}`,
+		},
+		{
+			name: "complex with unions, intersections, and arrows - flatten all",
+			schemaString: `definition document {
+	relation alpha: folder
+	relation beta: folder
+	relation gamma: user
+	permission view = ((alpha->foo + beta->bar) & gamma) - (alpha->baz)
+}
+
+definition folder {
+	relation foo: folder
+	permission bar = foo
+	permission baz = foo
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedString: `definition document {
+	relation alpha: folder
+	relation beta: folder
+	relation gamma: user
+	permission view = view__fba7d0a3b79bde21 - view__723235cbec1b4a8b
+	permission view__723235cbec1b4a8b = alpha->baz
+	permission view__a7014dcc35ec916f = beta->bar
+	permission view__b05635a82a557ee4 = alpha->foo
+	permission view__eeff390875360d87 = view__b05635a82a557ee4 + view__a7014dcc35ec916f
+	permission view__fba7d0a3b79bde21 = view__eeff390875360d87 & gamma
+}
+
+definition folder {
+	relation foo: folder
+	permission bar = foo
+	permission baz = foo
+}
+
+definition user {}`,
+		},
+		{
+			name: "complex with unions, intersections, and arrows - flatten non-union ops only",
+			schemaString: `definition document {
+	relation alpha: folder
+	relation beta: folder
+	relation gamma: user
+	permission view = ((alpha->foo + beta->bar) & gamma) - (alpha->baz)
+}
+
+definition folder {
+	relation foo: folder
+	permission bar = foo
+	permission baz = foo
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             false,
+			expectedString: `definition document {
+	relation alpha: folder
+	relation beta: folder
+	relation gamma: user
+	permission view = view__ad6d6d250c6b1d43 - alpha->baz
+	permission view__878eacc4f55f355f = alpha->foo + beta->bar
+	permission view__ad6d6d250c6b1d43 = view__878eacc4f55f355f & gamma
+}
+
+definition folder {
+	relation foo: folder
+	permission bar = foo
+	permission baz = foo
+}
+
+definition user {}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Step 1: Compile the schema
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: tt.schemaString,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			// Step 2: Convert to *Schema
+			schema, err := BuildSchemaFromCompiledSchema(*compiled)
+			require.NoError(t, err)
+			require.NotNil(t, schema)
+
+			// Step 3: Resolve the schema
+			resolved, err := ResolveSchema(schema)
+			require.NoError(t, err)
+			require.NotNil(t, resolved)
+
+			// Step 4: Flatten the schema with specified options
+			flattened, err := FlattenSchemaWithOptions(resolved, FlattenOptions{
+				Separator:                 FlattenSeparatorDoubleUnderscore,
+				FlattenNonUnionOperations: tt.flattenNonUnionOperations,
+				FlattenArrows:             tt.flattenArrows,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, flattened)
+
+			// Step 5: Convert back to corev1
+			defs, caveats, err := flattened.ResolvedSchema().Schema().ToNamespaceDefinition("test")
+			require.NoError(t, err)
+			require.NotNil(t, defs)
+
+			// Step 6: Generate schema string
+			// Sort definitions by name for deterministic output
+			sort.Slice(defs, func(i, j int) bool {
+				return defs[i].Name < defs[j].Name
+			})
+
+			// Sort relations within each definition for deterministic output
+			for _, def := range defs {
+				sort.Slice(def.Relation, func(i, j int) bool {
+					return def.Relation[i].Name < def.Relation[j].Name
+				})
+			}
+
+			var schemaDefinitions []compiler.SchemaDefinition
+			for _, def := range defs {
+				schemaDefinitions = append(schemaDefinitions, def)
+			}
+			for _, caveat := range caveats {
+				schemaDefinitions = append(schemaDefinitions, caveat)
+			}
+
+			generatedSchema, _, err := generator.GenerateSchema(schemaDefinitions)
+			require.NoError(t, err)
+
+			// Verify the generated schema compiles
+			recompiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("regenerated"),
+				SchemaString: generatedSchema,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+			require.NotNil(t, recompiled)
+
+			// Compare the generated schema with expected
+			// We use a second compilation to normalize both schemas for comparison
+			expectedCompiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("expected"),
+				SchemaString: tt.expectedString,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			// Sort expected definitions and relations the same way
+			sort.Slice(expectedCompiled.ObjectDefinitions, func(i, j int) bool {
+				return expectedCompiled.ObjectDefinitions[i].Name < expectedCompiled.ObjectDefinitions[j].Name
+			})
+
+			for _, def := range expectedCompiled.ObjectDefinitions {
+				sort.Slice(def.Relation, func(i, j int) bool {
+					return def.Relation[i].Name < def.Relation[j].Name
+				})
+			}
+
+			var expectedSchemaDefinitions []compiler.SchemaDefinition
+			for _, def := range expectedCompiled.ObjectDefinitions {
+				expectedSchemaDefinitions = append(expectedSchemaDefinitions, def)
+			}
+			for _, caveat := range expectedCompiled.CaveatDefinitions {
+				expectedSchemaDefinitions = append(expectedSchemaDefinitions, caveat)
+			}
+
+			expectedGenerated, _, err := generator.GenerateSchema(expectedSchemaDefinitions)
+			require.NoError(t, err)
+
+			// Compare the two generated schemas
+			require.Equal(t, expectedGenerated, generatedSchema, "Generated schema does not match expected")
+		})
+	}
+}
+
+func TestFlattenSchema_AnyFunctionedArrowEqualsRegularArrow(t *testing.T) {
+	// Test that parent.any(viewer) is treated the same as parent->viewer for BDD hash purposes
+	schemaWithAny := `definition document {
+	relation parent: folder
+	permission view = parent.any(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	schemaWithArrow := `definition document {
+	relation parent: folder
+	permission view = parent->viewer
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	// Compile and resolve both schemas
+	compiledAny, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithAny,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaAny, err := BuildSchemaFromCompiledSchema(*compiledAny)
+	require.NoError(t, err)
+
+	resolvedAny, err := ResolveSchema(schemaAny)
+	require.NoError(t, err)
+
+	compiledArrow, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithArrow,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaArrow, err := BuildSchemaFromCompiledSchema(*compiledArrow)
+	require.NoError(t, err)
+
+	resolvedArrow, err := ResolveSchema(schemaArrow)
+	require.NoError(t, err)
+
+	// Get the operations
+	docDefAny := resolvedAny.Schema().definitions["document"]
+	viewPermAny := docDefAny.permissions["view"]
+
+	docDefArrow := resolvedArrow.Schema().definitions["document"]
+	viewPermArrow := docDefArrow.permissions["view"]
+
+	// Compute hashes for both operations
+	hashAny, err := computeOperationHash(viewPermAny.operation)
+	require.NoError(t, err)
+
+	hashArrow, err := computeOperationHash(viewPermArrow.operation)
+	require.NoError(t, err)
+
+	// They should have the same hash because parent.any(viewer) == parent->viewer
+	require.Equal(t, hashArrow, hashAny, "parent.any(viewer) should have same hash as parent->viewer")
+}
+
+func TestFlattenSchema_AllFunctionedArrowDiffersFromRegularArrow(t *testing.T) {
+	// Test that parent.all(viewer) is treated differently from parent->viewer for BDD hash purposes
+	schemaWithAll := `definition document {
+	relation parent: folder
+	permission view = parent.all(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	schemaWithArrow := `definition document {
+	relation parent: folder
+	permission view = parent->viewer
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	// Compile and resolve both schemas
+	compiledAll, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithAll,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaAll, err := BuildSchemaFromCompiledSchema(*compiledAll)
+	require.NoError(t, err)
+
+	resolvedAll, err := ResolveSchema(schemaAll)
+	require.NoError(t, err)
+
+	compiledArrow, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithArrow,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaArrow, err := BuildSchemaFromCompiledSchema(*compiledArrow)
+	require.NoError(t, err)
+
+	resolvedArrow, err := ResolveSchema(schemaArrow)
+	require.NoError(t, err)
+
+	// Get the operations
+	docDefAll := resolvedAll.Schema().definitions["document"]
+	viewPermAll := docDefAll.permissions["view"]
+
+	docDefArrow := resolvedArrow.Schema().definitions["document"]
+	viewPermArrow := docDefArrow.permissions["view"]
+
+	// Compute hashes for both operations
+	hashAll, err := computeOperationHash(viewPermAll.operation)
+	require.NoError(t, err)
+
+	hashArrow, err := computeOperationHash(viewPermArrow.operation)
+	require.NoError(t, err)
+
+	// They should have different hashes because parent.all(viewer) != parent->viewer
+	require.NotEqual(t, hashArrow, hashAll, "parent.all(viewer) should have different hash from parent->viewer")
+}
+
+func TestFlattenSchema_AllFunctionedArrowDiffersFromAnyFunctionedArrow(t *testing.T) {
+	// Test that parent.all(viewer) is treated differently from parent.any(viewer) for BDD hash purposes
+	schemaWithAll := `definition document {
+	relation parent: folder
+	permission view = parent.all(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	schemaWithAny := `definition document {
+	relation parent: folder
+	permission view = parent.any(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`
+
+	// Compile and resolve both schemas
+	compiledAll, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithAll,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaAll, err := BuildSchemaFromCompiledSchema(*compiledAll)
+	require.NoError(t, err)
+
+	resolvedAll, err := ResolveSchema(schemaAll)
+	require.NoError(t, err)
+
+	compiledAny, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaWithAny,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schemaAny, err := BuildSchemaFromCompiledSchema(*compiledAny)
+	require.NoError(t, err)
+
+	resolvedAny, err := ResolveSchema(schemaAny)
+	require.NoError(t, err)
+
+	// Get the operations
+	docDefAll := resolvedAll.Schema().definitions["document"]
+	viewPermAll := docDefAll.permissions["view"]
+
+	docDefAny := resolvedAny.Schema().definitions["document"]
+	viewPermAny := docDefAny.permissions["view"]
+
+	// Compute hashes for both operations
+	hashAll, err := computeOperationHash(viewPermAll.operation)
+	require.NoError(t, err)
+
+	hashAny, err := computeOperationHash(viewPermAny.operation)
+	require.NoError(t, err)
+
+	// They should have different hashes because parent.all(viewer) != parent.any(viewer)
+	require.NotEqual(t, hashAny, hashAll, "parent.all(viewer) should have different hash from parent.any(viewer)")
+}
+
+func TestFlattenSchema_FunctionedArrowReference(t *testing.T) {
+	tests := []struct {
+		name                      string
+		schemaString              string
+		flattenNonUnionOperations bool
+		flattenArrows             bool
+		expectedPermissionCount   int // Expected number of permissions after flattening
+	}{
+		{
+			name: "functioned arrow with flatten arrows enabled (in compound operation)",
+			schemaString: `definition document {
+	relation parent: folder
+	relation viewer: user
+	permission view = parent.any(viewer) + viewer
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedPermissionCount:   2, // view + synthetic permission for functioned arrow
+		},
+		{
+			name: "functioned arrow with flatten arrows disabled",
+			schemaString: `definition document {
+	relation parent: folder
+	permission view = parent.any(viewer)
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             false,
+			expectedPermissionCount:   1, // just view
+		},
+		{
+			name: "multiple functioned arrows with flatten arrows enabled",
+			schemaString: `definition document {
+	relation parent: folder
+	relation owner: folder
+	permission view = parent.any(viewer) + owner.all(editor)
+}
+
+definition folder {
+	relation viewer: user
+	relation editor: user
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedPermissionCount:   3, // view + 2 synthetic permissions
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Step 1: Compile the schema
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: tt.schemaString,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			// Step 2: Convert to *Schema
+			schema, err := BuildSchemaFromCompiledSchema(*compiled)
+			require.NoError(t, err)
+			require.NotNil(t, schema)
+
+			// Step 3: Resolve the schema
+			resolved, err := ResolveSchema(schema)
+			require.NoError(t, err)
+			require.NotNil(t, resolved)
+
+			// Step 4: Flatten the schema with specified options
+			flattened, err := FlattenSchemaWithOptions(resolved, FlattenOptions{
+				Separator:                 FlattenSeparatorDoubleUnderscore,
+				FlattenNonUnionOperations: tt.flattenNonUnionOperations,
+				FlattenArrows:             tt.flattenArrows,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, flattened)
+
+			// Verify the expected number of permissions
+			flattenedDef := flattened.ResolvedSchema().Schema().definitions["document"]
+			require.Len(t, flattenedDef.permissions, tt.expectedPermissionCount)
+		})
+	}
 }

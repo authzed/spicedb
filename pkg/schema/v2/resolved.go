@@ -82,6 +82,19 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 			right:        o.right,
 		}, nil
 
+	case *FunctionedArrowReference:
+		// Look up the left side relation in the current definition
+		relation, ok := def.relations[o.left]
+		if !ok {
+			return nil, fmt.Errorf("relation '%s' not found in definition '%s' (left side of functioned arrow)", o.left, def.name)
+		}
+		return &ResolvedFunctionedArrowReference{
+			left:         o.left,
+			resolvedLeft: relation,
+			right:        o.right,
+			function:     o.function,
+		}, nil
+
 	case *UnionOperation:
 		children := make([]Operation, len(o.children))
 		for i, child := range o.children {
@@ -127,6 +140,10 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 		return o, nil
 
 	case *ResolvedArrowReference:
+		// Already resolved, just return it
+		return o, nil
+
+	case *ResolvedFunctionedArrowReference:
 		// Already resolved, just return it
 		return o, nil
 

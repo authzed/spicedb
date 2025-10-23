@@ -7,6 +7,23 @@ type Operation interface {
 	clone() Operation
 }
 
+// ArrowOperation is an interface implemented by all arrow-based operations (both standard and functioned arrows).
+// This includes ArrowReference, FunctionedArrowReference, ResolvedArrowReference, and ResolvedFunctionedArrowReference.
+type ArrowOperation interface {
+	Operation
+
+	// Left returns the relation on the resource (left side of the arrow).
+	Left() string
+
+	// Right returns the relation/permission on the subject (right side of the arrow).
+	Right() string
+
+	// Function returns the function type applied to the arrow.
+	// For standard arrows (->), this returns FunctionTypeAny.
+	// For functioned arrows (.any()/.all()), this returns the specific function type.
+	Function() FunctionType
+}
+
 // RelationReference is an Operation that is a simple relation, such as `permission foo = bar`.
 type RelationReference struct {
 	// relationName is the name of the relation or permission being referenced.
@@ -47,6 +64,11 @@ func (a *ArrowReference) Left() string {
 // Right returns the relation/permission on the subject.
 func (a *ArrowReference) Right() string {
 	return a.right
+}
+
+// Function returns FunctionTypeAny for standard arrows.
+func (a *ArrowReference) Function() FunctionType {
+	return FunctionTypeAny
 }
 
 // clone creates a deep copy of the ArrowReference.
@@ -204,6 +226,11 @@ func (a *ResolvedArrowReference) Right() string {
 	return a.right
 }
 
+// Function returns FunctionTypeAny for standard resolved arrows.
+func (a *ResolvedArrowReference) Function() FunctionType {
+	return FunctionTypeAny
+}
+
 // clone creates a deep copy of the ResolvedArrowReference.
 func (a *ResolvedArrowReference) clone() Operation {
 	if a == nil {
@@ -216,17 +243,67 @@ func (a *ResolvedArrowReference) clone() Operation {
 	}
 }
 
+// ResolvedFunctionedArrowReference is an Operation that represents a resolved functioned arrow reference.
+// It contains the resolved left side relation, the name of the right side, and the function type.
+type ResolvedFunctionedArrowReference struct {
+	// left is the name of the relation on the resource.
+	left string
+
+	// resolvedLeft is the actual Relation being referenced on the left side.
+	resolvedLeft *Relation
+
+	// right is the name of the relation/permission on the subject.
+	right string
+
+	// function is the function type (any or all).
+	function FunctionType
+}
+
+// Left returns the name of the relation on the resource.
+func (a *ResolvedFunctionedArrowReference) Left() string {
+	return a.left
+}
+
+// ResolvedLeft returns the actual Relation being referenced on the left side.
+func (a *ResolvedFunctionedArrowReference) ResolvedLeft() *Relation {
+	return a.resolvedLeft
+}
+
+// Right returns the name of the relation/permission on the subject.
+func (a *ResolvedFunctionedArrowReference) Right() string {
+	return a.right
+}
+
+// Function returns the function type.
+func (a *ResolvedFunctionedArrowReference) Function() FunctionType {
+	return a.function
+}
+
+// clone creates a deep copy of the ResolvedFunctionedArrowReference.
+func (a *ResolvedFunctionedArrowReference) clone() Operation {
+	if a == nil {
+		return nil
+	}
+	return &ResolvedFunctionedArrowReference{
+		left:         a.left,
+		resolvedLeft: a.resolvedLeft,
+		right:        a.right,
+		function:     a.function,
+	}
+}
+
 var (
 	_ schemaUnit[Operation] = &ExclusionOperation{}
 	_ schemaUnit[Operation] = &ResolvedRelationReference{}
 	_ schemaUnit[Operation] = &ResolvedArrowReference{}
+	_ schemaUnit[Operation] = &ResolvedFunctionedArrowReference{}
 )
 
-// FunctionedTuplesetOperation is an Operation that represents functioned tuplesets like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
-type FunctionedTuplesetOperation struct {
-	tuplesetRelation string
-	function         FunctionType
-	computedRelation string
+// FunctionedArrowReference is an Operation that represents functioned arrows like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
+type FunctionedArrowReference struct {
+	left     string
+	right    string
+	function FunctionType
 }
 
 // FunctionType represents the type of function applied to a tupleset.
@@ -237,39 +314,40 @@ const (
 	FunctionTypeAll
 )
 
-func (f *FunctionedTuplesetOperation) TuplesetRelation() string {
-	return f.tuplesetRelation
+func (f *FunctionedArrowReference) Left() string {
+	return f.left
 }
 
-func (f *FunctionedTuplesetOperation) Function() FunctionType {
+func (f *FunctionedArrowReference) Right() string {
+	return f.right
+}
+
+func (f *FunctionedArrowReference) Function() FunctionType {
 	return f.function
 }
 
-func (f *FunctionedTuplesetOperation) ComputedRelation() string {
-	return f.computedRelation
-}
-
-// clone creates a deep copy of the FunctionedTuplesetOperation.
-func (f *FunctionedTuplesetOperation) clone() Operation {
+// clone creates a deep copy of the FunctionedArrowReference.
+func (f *FunctionedArrowReference) clone() Operation {
 	if f == nil {
 		return nil
 	}
-	return &FunctionedTuplesetOperation{
-		tuplesetRelation: f.tuplesetRelation,
-		function:         f.function,
-		computedRelation: f.computedRelation,
+	return &FunctionedArrowReference{
+		left:     f.left,
+		right:    f.right,
+		function: f.function,
 	}
 }
 
 // We close the enum by implementing the private method.
-func (r *RelationReference) isOperation()           {}
-func (a *ArrowReference) isOperation()              {}
-func (u *UnionOperation) isOperation()              {}
-func (i *IntersectionOperation) isOperation()       {}
-func (e *ExclusionOperation) isOperation()          {}
-func (f *FunctionedTuplesetOperation) isOperation() {}
-func (r *ResolvedRelationReference) isOperation()   {}
-func (a *ResolvedArrowReference) isOperation()      {}
+func (r *RelationReference) isOperation()                {}
+func (a *ArrowReference) isOperation()                   {}
+func (u *UnionOperation) isOperation()                   {}
+func (i *IntersectionOperation) isOperation()            {}
+func (e *ExclusionOperation) isOperation()               {}
+func (f *FunctionedArrowReference) isOperation()         {}
+func (r *ResolvedRelationReference) isOperation()        {}
+func (a *ResolvedArrowReference) isOperation()           {}
+func (a *ResolvedFunctionedArrowReference) isOperation() {}
 
 var (
 	_ Operation = (*RelationReference)(nil)
@@ -277,7 +355,8 @@ var (
 	_ Operation = (*UnionOperation)(nil)
 	_ Operation = (*IntersectionOperation)(nil)
 	_ Operation = (*ExclusionOperation)(nil)
-	_ Operation = (*FunctionedTuplesetOperation)(nil)
+	_ Operation = (*FunctionedArrowReference)(nil)
 	_ Operation = (*ResolvedRelationReference)(nil)
 	_ Operation = (*ResolvedArrowReference)(nil)
+	_ Operation = (*ResolvedFunctionedArrowReference)(nil)
 )
