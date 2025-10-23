@@ -20,6 +20,9 @@ replace github.com/influxdata/tdigest => github.com/hdrodz/tdigest v0.0.0-202304
 // FIXME undo this
 replace github.com/ecordell/optgen => github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 
+// See https://github.com/ory/dockertest/issues/614 and https://pkg.go.dev/vuln/GO-2025-3829
+replace github.com/docker/docker => github.com/docker/docker v28.0.0+incompatible
+
 require (
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.6-20250320161912-af2aab87b1b3.1
 	cloud.google.com/go/spanner v1.85.0
