@@ -580,7 +580,7 @@ func TestCanonicalizationComparison(t *testing.T) {
 
 			cacheKeys, cerr := computeCanonicalCacheKeys(vts, aliases)
 			require.NoError(cerr)
-			require.Equal((cacheKeys["first"] == cacheKeys["second"]), tc.expectedSame)
+			require.Equal(tc.expectedSame, cacheKeys["first"] == cacheKeys["second"])
 		})
 	}
 }

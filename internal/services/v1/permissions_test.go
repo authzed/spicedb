@@ -398,7 +398,7 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 			return tf.DatastoreFromSchemaAndTestRelationships(
 				ds,
 				`definition user {}
-				
+
 				 definition document {
 					relation viewer: user | document#view
 					permission view = viewer
@@ -1106,7 +1106,7 @@ func TestCheckWithCaveatErrors(t *testing.T) {
 				 caveat somecaveat(somemap map<any>) {
 					  somemap.first == 42 && somemap.second < 56
 				 }
-				
+
 				 definition document {
 					relation viewer: user with somecaveat
 					permission view = viewer
@@ -2043,7 +2043,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 							if pair.GetItem() != nil {
 								parsed := tuple.MustParse(tt.requests[index])
 								require.NotNil(t, pair.GetItem().DebugTrace, "missing debug trace in response for item %v", pair.GetItem())
-								require.NotEqual(t, pair.GetItem().DebugTrace.Check, nil, "missing check trace in response for item %v", pair.GetItem())
+								require.NotNil(t, pair.GetItem().DebugTrace.Check, "missing check trace in response for item %v", pair.GetItem())
 								require.Equal(t, parsed.Resource.ObjectID, pair.GetItem().DebugTrace.Check.Resource.ObjectId, "resource in debug trace does not match")
 								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.TraceOperationId, "trace operation ID in debug trace is empty")
 								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.Source, "source in debug trace is empty")
