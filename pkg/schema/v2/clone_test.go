@@ -73,9 +73,11 @@ func TestCloneSchema_WithCaveats(t *testing.T) {
 		definitions: make(map[string]*Definition),
 		caveats: map[string]*Caveat{
 			"is_admin": {
-				name:           "is_admin",
-				expression:     "admin == true",
-				parameterTypes: []string{"admin"},
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
 			},
 		},
 	}
@@ -96,11 +98,14 @@ func TestCloneSchema_WithCaveats(t *testing.T) {
 	// Check that values are preserved
 	require.Equal(t, "is_admin", cloned.caveats["is_admin"].name)
 	require.Equal(t, "admin == true", cloned.caveats["is_admin"].expression)
-	require.Equal(t, []string{"admin"}, cloned.caveats["is_admin"].parameterTypes)
+	require.Len(t, cloned.caveats["is_admin"].parameters, 1)
+	require.Equal(t, "admin", cloned.caveats["is_admin"].parameters[0].name)
+	require.Equal(t, "bool", cloned.caveats["is_admin"].parameters[0].typ)
 
-	// Check that parameter types slice is a new slice by verifying mutations don't affect original
-	cloned.caveats["is_admin"].parameterTypes[0] = "modified"
-	require.Equal(t, "admin", original.caveats["is_admin"].parameterTypes[0])
+	// Check that parameters slice is a new slice by verifying mutations don't affect original
+	cloned.caveats["is_admin"].parameters[0] = CaveatParameter{name: "modified", typ: "string"}
+	require.Equal(t, "admin", original.caveats["is_admin"].parameters[0].name)
+	require.Equal(t, "bool", original.caveats["is_admin"].parameters[0].typ)
 }
 
 func TestCloneSchema_WithRelations(t *testing.T) {
@@ -303,9 +308,11 @@ func TestCloneSchema_CompleteSchema(t *testing.T) {
 	perm1.parent = def1
 
 	caveat1 := &Caveat{
-		name:           "is_admin",
-		expression:     "admin == true",
-		parameterTypes: []string{"admin"},
+		name:       "is_admin",
+		expression: "admin == true",
+		parameters: []CaveatParameter{
+			{name: "admin", typ: "bool"},
+		},
 	}
 
 	original := &Schema{

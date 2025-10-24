@@ -38,13 +38,16 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 
 func convertCaveat(def *corev1.CaveatDefinition) (*Caveat, error) {
 	out := &Caveat{
-		name:           def.GetName(),
-		expression:     string(def.GetSerializedExpression()),
-		parameterTypes: make([]string, 0, len(def.GetParameterTypes())),
+		name:       def.GetName(),
+		expression: string(def.GetSerializedExpression()),
+		parameters: make([]CaveatParameter, 0, len(def.GetParameterTypes())),
 	}
 
-	for paramName := range def.GetParameterTypes() {
-		out.parameterTypes = append(out.parameterTypes, paramName)
+	for paramName, paramType := range def.GetParameterTypes() {
+		out.parameters = append(out.parameters, CaveatParameter{
+			name: paramName,
+			typ:  paramType.GetTypeName(),
+		})
 	}
 
 	return out, nil
