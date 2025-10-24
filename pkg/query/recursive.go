@@ -157,7 +157,7 @@ func unwrapRecursiveIterators(tree Iterator, depth int) (Iterator, error) {
 	})
 }
 
-// replaceSentinelsWithTree walks the iterator tree and replaces RecursiveSentinel instances
+// replaceSentinelsInTree walks the iterator tree and replaces RecursiveSentinel instances
 // that match this RecursiveIterator's definition and relation with a clone of the provided replacement tree.
 // Non-matching sentinels are left alone as they belong to different RecursiveIterators.
 func (r *RecursiveIterator) replaceSentinelsInTree(tree Iterator, replacement Iterator) (Iterator, error) {

@@ -936,15 +936,23 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 		}
 		walk(it)
 
-		// We should have at least one RecursiveIterator
-		require.NotEmpty(recursiveIterators, "should find at least one RecursiveIterator")
+		for _, recursiveIterator := range recursiveIterators {
+			require.NotEmpty(recursiveIterator.definitionName)
+			require.NotEmpty(recursiveIterator.relationName)
 
-		// Verify each RecursiveIterator has matching definition/relation names
-		for _, rec := range recursiveIterators {
-			// Each sentinel in this RecursiveIterator should match its definition/relation
-			// or be from a different schema (which is fine - they'll be left alone)
-			require.NotEmpty(rec.definitionName, "RecursiveIterator should have definitionName set")
-			require.NotEmpty(rec.relationName, "RecursiveIterator should have relationName set")
+			var recursiveSentinels []*RecursiveSentinel
+			_, _ = Walk(recursiveIterator.templateTree, func(it Iterator) (Iterator, error) {
+				if sentinel, ok := it.(*RecursiveSentinel); ok {
+					recursiveSentinels = append(recursiveSentinels, sentinel)
+				}
+				return it, nil
+			})
+
+			// Verify each sentinel matches THIS RecursiveIterator
+			for _, recursiveSentinel := range recursiveSentinels {
+				require.Equal(recursiveIterator.definitionName, recursiveSentinel.DefinitionName())
+				require.Equal(recursiveIterator.relationName, recursiveSentinel.RelationName())
+			}
 		}
 	})
 }
