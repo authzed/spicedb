@@ -22,6 +22,7 @@ type testVisitor struct {
 	permissions        []*Permission
 	operations         []Operation
 	relationReferences []*RelationReference
+	nilReferences      []*NilReference
 	arrowReferences    []*ArrowReference
 	unionOperations    []*UnionOperation
 	intersectionOps    []*IntersectionOperation
@@ -65,6 +66,11 @@ func (tv *testVisitor) VisitOperation(op Operation, value struct{}) (struct{}, b
 
 func (tv *testVisitor) VisitRelationReference(rr *RelationReference, value struct{}) (struct{}, error) {
 	tv.relationReferences = append(tv.relationReferences, rr)
+	return value, nil
+}
+
+func (tv *testVisitor) VisitNilReference(nr *NilReference, value struct{}) (struct{}, error) {
+	tv.nilReferences = append(tv.nilReferences, nr)
 	return value, nil
 }
 
@@ -237,6 +243,18 @@ func TestWalkOperation_RelationReference(t *testing.T) {
 	require.Len(t, visitor.operations, 1)
 	require.Len(t, visitor.relationReferences, 1)
 	require.Equal(t, "viewer", visitor.relationReferences[0].RelationName())
+}
+
+func TestWalkOperation_NilReference(t *testing.T) {
+	op := &NilReference{}
+
+	visitor := &testVisitor{}
+	_, err := WalkOperation(op, visitor, struct{}{})
+	require.NoError(t, err)
+
+	require.Len(t, visitor.operations, 1)
+	require.Len(t, visitor.nilReferences, 1)
+	require.NotNil(t, visitor.nilReferences[0])
 }
 
 func TestWalkOperation_ArrowReference(t *testing.T) {
@@ -1049,4 +1067,42 @@ definition user {}`
 	require.Equal(t, "owner", visitor.arrows[2].left)
 	require.Equal(t, "admin", visitor.arrows[2].right)
 	require.Equal(t, FunctionTypeAll, visitor.arrows[2].function)
+}
+
+func TestWalkOperation_UnionWithNilReference(t *testing.T) {
+	op := &UnionOperation{
+		children: []Operation{
+			&RelationReference{relationName: "viewer"},
+			&NilReference{},
+			&RelationReference{relationName: "editor"},
+		},
+	}
+
+	visitor := &testVisitor{}
+	_, err := WalkOperation(op, visitor, struct{}{})
+	require.NoError(t, err)
+
+	require.Len(t, visitor.operations, 4) // 1 union + 3 children
+	require.Len(t, visitor.unionOperations, 1)
+	require.Len(t, visitor.relationReferences, 2)
+	require.Len(t, visitor.nilReferences, 1)
+}
+
+type nilRefErrorVisitor struct{}
+
+func (ev *nilRefErrorVisitor) VisitOperation(op Operation, value struct{}) (struct{}, bool, error) {
+	return value, true, nil
+}
+
+func (ev *nilRefErrorVisitor) VisitNilReference(nr *NilReference, value struct{}) (struct{}, error) {
+	return value, errTestError
+}
+
+func TestNilReferenceVisitor_ErrorHandling(t *testing.T) {
+	op := &NilReference{}
+	visitor := &nilRefErrorVisitor{}
+
+	_, err := WalkOperation(op, visitor, struct{}{})
+	require.Error(t, err)
+	require.Equal(t, errTestError, err)
 }

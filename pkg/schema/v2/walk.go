@@ -51,6 +51,12 @@ type RelationReferenceVisitor[T any] interface {
 	VisitRelationReference(rr *RelationReference, value T) (T, error)
 }
 
+// NilReferenceVisitor is called when visiting a NilReference.
+// Returns the value to pass to subsequent visits, and error to halt immediately.
+type NilReferenceVisitor[T any] interface {
+	VisitNilReference(nr *NilReference, value T) (T, error)
+}
+
 // ArrowReferenceVisitor is called when visiting an ArrowReference.
 // Returns the value to pass to subsequent visits, and error to halt immediately.
 type ArrowReferenceVisitor[T any] interface {
@@ -284,6 +290,15 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 	case *RelationReference:
 		if rrv, ok := v.(RelationReferenceVisitor[T]); ok {
 			newValue, err := rrv.VisitRelationReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *NilReference:
+		if nrv, ok := v.(NilReferenceVisitor[T]); ok {
+			newValue, err := nrv.VisitNilReference(o, currentValue)
 			if err != nil {
 				return currentValue, err
 			}

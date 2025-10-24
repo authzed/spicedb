@@ -161,6 +161,10 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 		// They will be extracted when they appear as children of operations if FlattenArrows is enabled
 		return o, nil, nil
 
+	case *NilReference:
+		// Nil reference is a leaf node, no flattening needed
+		return o, nil, nil
+
 	case *UnionOperation:
 		// Flatten children first
 		flattenedChildren := make([]Operation, len(o.children))
@@ -429,6 +433,8 @@ func buildVarMapRecursive(op Operation, varMap map[string]int) {
 	case *ExclusionOperation:
 		buildVarMapRecursive(o.left, varMap)
 		buildVarMapRecursive(o.right, varMap)
+	case *NilReference:
+		// NilReference has no variables to add to the map
 	}
 }
 
@@ -536,6 +542,10 @@ func operationToBdd(op Operation, bdd *rudd.BDD, varMap map[string]int) (rudd.No
 		// We need to negate the right node
 		notRight := bdd.Not(rightNode)
 		return bdd.And(leftNode, notRight), nil
+
+	case *NilReference:
+		// NilReference represents an empty set, so return the BDD false node
+		return bdd.False(), nil
 
 	default:
 		return nil, fmt.Errorf("unknown operation type: %T", op)

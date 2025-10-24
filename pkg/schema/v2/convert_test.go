@@ -458,9 +458,9 @@ func TestConvertChildEdgeCases(t *testing.T) {
 		result, err := convertChild(child)
 		require.NoError(t, err)
 
-		relRef, ok := result.(*RelationReference)
+		nilRef, ok := result.(*NilReference)
 		require.True(t, ok)
-		require.Equal(t, "_nil", relRef.RelationName())
+		require.NotNil(t, nilRef)
 	})
 
 	t.Run("unknown child type", func(t *testing.T) {

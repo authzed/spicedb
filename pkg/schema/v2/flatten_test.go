@@ -960,6 +960,23 @@ definition folder {
 
 definition user {}`,
 		},
+		{
+			name: "union with nil",
+			schemaString: `definition document {
+	relation viewer: user
+	permission view = viewer + nil
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedString: `definition document {
+	relation viewer: user
+	permission view = viewer + nil
+}
+
+definition user {}`,
+		},
 	}
 
 	for _, tt := range tests {

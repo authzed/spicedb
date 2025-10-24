@@ -47,6 +47,20 @@ func (r *RelationReference) clone() Operation {
 
 var _ schemaUnit[Operation] = &RelationReference{}
 
+// NilReference is a specialized Operation that represents a nil/empty operation.
+// Unlike RelationReference, it is not replaced during resolution.
+type NilReference struct{}
+
+// clone creates a copy of the NilReference.
+func (n *NilReference) clone() Operation {
+	if n == nil {
+		return nil
+	}
+	return &NilReference{}
+}
+
+var _ schemaUnit[Operation] = &NilReference{}
+
 // ArrowReference is an Operation that represents `permission foo = Left->Right`.
 type ArrowReference struct {
 	// left is the relation on the resource.
@@ -340,6 +354,7 @@ func (f *FunctionedArrowReference) clone() Operation {
 
 // We close the enum by implementing the private method.
 func (r *RelationReference) isOperation()                {}
+func (n *NilReference) isOperation()                     {}
 func (a *ArrowReference) isOperation()                   {}
 func (u *UnionOperation) isOperation()                   {}
 func (i *IntersectionOperation) isOperation()            {}
@@ -351,6 +366,7 @@ func (a *ResolvedFunctionedArrowReference) isOperation() {}
 
 var (
 	_ Operation = (*RelationReference)(nil)
+	_ Operation = (*NilReference)(nil)
 	_ Operation = (*ArrowReference)(nil)
 	_ Operation = (*UnionOperation)(nil)
 	_ Operation = (*IntersectionOperation)(nil)

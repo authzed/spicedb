@@ -166,10 +166,10 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		}
 		return b.buildArrowIterators(rel, perm.Right())
 
+	case *schema.NilReference:
+		return NewEmptyFixedIterator(), nil
+
 	case *schema.RelationReference:
-		if perm.RelationName() == "_nil" {
-			return NewEmptyFixedIterator(), nil
-		}
 		return b.buildIteratorFromSchemaInternal(p.Parent().Name(), perm.RelationName(), true)
 
 	case *schema.UnionOperation:
