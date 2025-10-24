@@ -144,3 +144,35 @@ mage gen:proto
 
 [Protobuf]: https://developers.google.com/protocol-buffers/
 [buf]: https://docs.buf.build/installation
+
+### Test a local change with Docker Compose
+
+Run `docker compose up --build`.
+
+You can then use `zed` against it, for example:
+
+```sh
+zed context set example localhost:50051 foobar --insecure
+zed import development/schema.yaml
+```
+
+You can also run a load test against it with [Apache Benchmark](https://httpd.apache.org/docs/2.4/programs/ab.html). For example:
+
+```sh
+{
+    echo '{"items":['
+    for i in $(seq 1 200); do
+      d=$(( (RANDOM % 9999) + 1 ))
+      echo -n "{\"resource\":{\"objectType\":\"document\",\"objectId\": \"${d}\"}, \"permission\":\"view\",\"subject\":{ \"object\": {\"objectType\": \"user\", \"objectId\": \"1\"}}}"
+      [ $i -lt 200 ] && echo -n ","
+    done
+    echo "], \"with_tracing\": true}"
+} > payload.json
+ab -n 100000 -c 200 -T 'application/json' -H 'Authorization: Bearer foobar' -p payload.json http://localhost:8443/v1/permissions/checkbulk
+```
+
+You can also do things like:
+
+- Access CockroachDB Admin UI: http://localhost:8080
+- Access Grafana: http://localhost:3000
+- Run profiler, for example: `go tool pprof --http=:6060 "http://localhost:9090/debug/pprof/profile?seconds=60"`

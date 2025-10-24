@@ -1,0 +1,40 @@
+---
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+        grpc:
+
+ingester:
+  trace_idle_period: "10s"
+  max_block_bytes: 100_000
+  max_block_duration: "1m"
+
+compactor:
+  compaction:
+    compaction_window: "1h"
+    max_block_bytes: 100_000_000
+    block_retention: "1h"
+    compacted_block_retention: "10m"
+
+storage:
+  trace:
+    backend: "local"
+    block:
+      bloom_filter_false_positive: .05
+      index_downsample_bytes: 1000
+      encoding: "zstd"
+    wal:
+      path: "/tmp/tempo/wal"
+      encoding: "snappy"
+    local:
+      path: "/tmp/tempo/blocks"
+    pool:
+      max_workers: 100
+      queue_depth: 10000
