@@ -1,0 +1,56 @@
+---
+name: "Main"
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - "main"
+
+permissions:
+  contents: "read"
+
+jobs:
+  benchmarks:
+    name: "Run Go benchmarks on Main"
+    runs-on: "depot-ubuntu-24.04-4"
+    timeout-minutes: 15
+    steps:
+      - uses: "actions/checkout@v5"
+        with:
+          fetch-depth: 0
+
+      - uses: "actions/setup-go@v6"
+        with:
+          go-version-file: "./go.mod"
+          cache-dependency-path: "./go.sum"
+          check-latest: true
+
+      - name: "Run benchmark on Main"
+        run: |
+          set -o pipefail
+          go run mage.go benchmark:all | tee bench_output.txt
+
+      - name: "Get JSON for benchmark"
+        uses: "benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b" # v1.20.7
+        with:
+          # What benchmark tool the output.txt came from
+          tool: "go"
+          # Where the output from the benchmark tool is stored
+          output-file-path: "bench_output.txt"
+          # Updates the file content instead of generating a Git commit in GitHub Pages branch
+          external-data-json-path: "./cache/benchmark-data.json"
+          # Workflow will fail when an alert happens
+          fail-on-alert: true
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          comment-on-alert: true
+
+      - name: "Get CPU information"
+        uses: "kenchan0130/actions-system-info@master"
+        id: "system-info"
+
+      - name: "Save benchmark JSON"
+        uses: "actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684" # v4.2.3
+        with:
+          path: "./cache/benchmark-data.json"
+          # Save with commit hash to avoid "cache already exists"
+          # Save with OS & CPU info to prevent comparing against results from different CPUs
+          key: "${{ github.sha }}-${{ runner.os }}-${{ steps.system-info.outputs.cpu-model }}-go-benchmark"
