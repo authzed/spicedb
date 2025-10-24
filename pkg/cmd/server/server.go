@@ -18,9 +18,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/sean-/sysexits"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
+	"google.golang.org/grpc/stats"
 
 	"github.com/authzed/consistent"
 	"github.com/authzed/grpcutil"
@@ -369,13 +371,19 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		closeables.AddWithError(cachingClusterDispatch.Close)
 	}
 
+	// Build OTel stats handler options (shared by both gRPC servers)
+	// Always disable health check tracing to reduce trace volume
+	statsHandlerOpts := []otelgrpc.Option{
+		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
+	}
+
 	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
 		},
 		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
 		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
@@ -571,6 +579,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		presharedKeys:       c.PresharedSecureKey,
 		telemetryReporter:   reporter,
 		healthManager:       healthManager,
+		statsHandler:        otelgrpc.NewServerHandler(statsHandlerOpts...),
 		closeFunc:           closeables.Close,
 	}, nil
 }
@@ -717,6 +726,7 @@ type completedServerConfig struct {
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
 	presharedKeys       []string
+	statsHandler        stats.Handler
 	closeFunc           func() error
 }
 
@@ -758,7 +768,7 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	grpcServer := c.gRPCServer.WithOpts(
 		grpc.ChainUnaryInterceptor(c.unaryMiddleware...),
 		grpc.ChainStreamInterceptor(c.streamingMiddleware...),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()))
+		grpc.StatsHandler(c.statsHandler))
 
 	g.Go(c.healthManager.Checker(ctx))
 	g.Go(grpcServer.Listen(ctx))

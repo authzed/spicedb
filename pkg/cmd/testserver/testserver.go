@@ -8,6 +8,7 @@ import (
 	helpers "github.com/ecordell/optgen/helpers"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
@@ -121,10 +122,16 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, err
 	}
 
+	// Build OTel stats handler options
+	// Always disable health check tracing to reduce trace volume
+	statsHandlerOpts := []otelgrpc.Option{
+		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
+	}
+
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,
 		grpc.ChainUnaryInterceptor(unaryMiddleware.ToGRPCInterceptors()...),
 		grpc.ChainStreamInterceptor(streamMiddleware.ToGRPCInterceptors()...),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
 	)
 	if err != nil {
 		return nil, err
@@ -137,7 +144,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		grpc.ChainStreamInterceptor(
 			append(streamMiddleware.ToGRPCInterceptors(), readonly.StreamServerInterceptor())...,
 		),
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
 	)
 	if err != nil {
 		return nil, err

@@ -11,7 +11,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	grpcfilters "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	httpfilters "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/filters"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
@@ -40,8 +42,13 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 		return nil, errors.New("upstreamAddr must not be empty")
 	}
 
+	// Always disable health check tracing to reduce trace volume
+	clientHandlerOpts := []otelgrpc.Option{
+		otelgrpc.WithFilter(grpcfilters.Not(grpcfilters.HealthCheck())),
+	}
+
 	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(clientHandlerOpts...)),
 	}
 	if upstreamTLSCertPath == "" {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -85,7 +92,12 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	}))
 	mux.Handle("/", gwMux)
 
-	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway"))
+	// Always disable health check tracing to reduce trace volume
+	otelHandlerOpts := []otelhttp.Option{
+		otelhttp.WithFilter(httpfilters.Not(httpfilters.Path("/healthz"))),
+	}
+
+	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway", otelHandlerOpts...))
 	return newCloserHandler(finalHandler, schemaConn, permissionsConn, watchConn, healthConn, experimentalConn), nil
 }
 
