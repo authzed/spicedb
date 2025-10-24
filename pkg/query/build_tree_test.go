@@ -847,3 +847,112 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		require.Contains(explainStr, "user:*", "should contain wildcard relation")
 	})
 }
+
+func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	// Create a schema with mutual recursion between document and otherdocument
+	// This is the exact scenario from walkbackandforth.yaml
+	userDef := testfixtures.UserNS.CloneVT()
+
+	otherdocumentDef := namespace.Namespace("otherdocument",
+		namespace.MustRelation("viewer", nil,
+			namespace.AllowedRelation("user", "..."),
+			namespace.AllowedRelation("document", "viewer"),
+		),
+		namespace.MustRelation("view",
+			namespace.Union(
+				namespace.ComputedUserset("viewer"),
+			),
+		),
+	)
+
+	documentDef := namespace.Namespace("document",
+		namespace.MustRelation("viewer", nil,
+			namespace.AllowedRelation("user", "..."),
+			namespace.AllowedRelation("otherdocument", "viewer"),
+		),
+		namespace.MustRelation("view",
+			namespace.Union(
+				namespace.ComputedUserset("viewer"),
+			),
+		),
+	)
+
+	objectDefs := []*corev1.NamespaceDefinition{userDef, documentDef, otherdocumentDef}
+	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
+	require.NoError(err)
+
+	t.Run("document viewer builds successfully with mutual recursion", func(t *testing.T) {
+		t.Parallel()
+		// Build iterator for document#viewer - should detect recursion and wrap properly
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// The tree should contain RecursiveIterator(s) due to mutual recursion
+		explain := it.Explain()
+		explainStr := explain.String()
+		require.Contains(explainStr, "RecursiveIterator", "should contain RecursiveIterator for mutual recursion")
+	})
+
+	t.Run("otherdocument viewer builds successfully with mutual recursion", func(t *testing.T) {
+		t.Parallel()
+		// Build iterator for otherdocument#viewer - should also handle mutual recursion
+		it, err := BuildIteratorFromSchema(dsSchema, "otherdocument", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// The tree should contain RecursiveIterator(s)
+		explain := it.Explain()
+		explainStr := explain.String()
+		require.Contains(explainStr, "RecursiveIterator", "should contain RecursiveIterator for mutual recursion")
+	})
+
+	t.Run("sentinels are filtered by definition/relation", func(t *testing.T) {
+		t.Parallel()
+		// This test verifies that when building document#viewer, which encounters
+		// otherdocument#viewer, which then encounters document#viewer again (recursion),
+		// the sentinels are properly filtered so each RecursiveIterator only handles
+		// its own sentinels.
+
+		// Build the tree
+		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		require.NoError(err)
+		require.NotNil(it)
+
+		// Walk the tree to find RecursiveIterators and verify their sentinels
+		var recursiveIterators []*RecursiveIterator
+		var walk func(Iterator)
+		walk = func(it Iterator) {
+			if rec, ok := it.(*RecursiveIterator); ok {
+				recursiveIterators = append(recursiveIterators, rec)
+			}
+			for _, sub := range it.Subiterators() {
+				walk(sub)
+			}
+		}
+		walk(it)
+
+		for _, recursiveIterator := range recursiveIterators {
+			require.NotEmpty(recursiveIterator.definitionName)
+			require.NotEmpty(recursiveIterator.relationName)
+
+			var recursiveSentinels []*RecursiveSentinel
+			_, _ = Walk(recursiveIterator.templateTree, func(it Iterator) (Iterator, error) {
+				if sentinel, ok := it.(*RecursiveSentinel); ok {
+					recursiveSentinels = append(recursiveSentinels, sentinel)
+				}
+				return it, nil
+			})
+
+			// Verify each sentinel matches THIS RecursiveIterator
+			for _, recursiveSentinel := range recursiveSentinels {
+				require.Equal(recursiveIterator.definitionName, recursiveSentinel.DefinitionName())
+				require.Equal(recursiveIterator.relationName, recursiveSentinel.RelationName())
+			}
+		}
+	})
+}

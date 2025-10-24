@@ -5,7 +5,6 @@ package integrationtesting_test
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,10 +27,6 @@ import (
 
 func TestQueryPlanConsistency(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("TEST_QUERY_PLAN") == "" {
-		t.Skip("Skipping incomplete query plan consistency while it is a work in progress")
-		return
-	}
 	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
 	require.NoError(t, err)
 	for _, filePath := range consistencyTestFiles {

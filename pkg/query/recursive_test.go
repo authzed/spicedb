@@ -59,7 +59,7 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	union.addSubIterator(emptyIterator)
 	union.addSubIterator(sentinel)
 
-	recursive := NewRecursiveIterator(union)
+	recursive := NewRecursiveIterator(union, "folder", "view")
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -94,8 +94,11 @@ func TestReplaceSentinels(t *testing.T) {
 	// Create a replacement tree
 	replacementTree := NewEmptyFixedIterator()
 
+	// Create a RecursiveIterator to access the replaceSentinelsInTree method
+	recursive := NewRecursiveIterator(union, "folder", "view")
+
 	// Replace sentinels with the tree
-	result, err := replaceSentinelsInTree(union, replacementTree)
+	result, err := recursive.replaceSentinelsInTree(union, replacementTree)
 	require.NoError(t, err)
 
 	// Verify sentinels were replaced
@@ -118,7 +121,7 @@ func TestRecursiveIteratorClone(t *testing.T) {
 	union.addSubIterator(NewEmptyFixedIterator())
 	union.addSubIterator(sentinel)
 
-	recursive := NewRecursiveIterator(union)
+	recursive := NewRecursiveIterator(union, "folder", "view")
 
 	// Clone it
 	cloned := recursive.Clone()
@@ -144,7 +147,7 @@ func TestRecursiveIteratorSubiteratorsAndReplace(t *testing.T) {
 	union.addSubIterator(NewEmptyFixedIterator())
 	union.addSubIterator(sentinel)
 
-	recursive := NewRecursiveIterator(union)
+	recursive := NewRecursiveIterator(union, "folder", "view")
 
 	// Test Subiterators
 	subs := recursive.Subiterators()
@@ -169,7 +172,7 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	// This tests when CheckImpl/IterSubjects/IterResources fails during execution
 
 	faultyIter := NewFaultyIterator(true, false) // Fails on Check
-	recursive := NewRecursiveIterator(faultyIter)
+	recursive := NewRecursiveIterator(faultyIter, "folder", "view")
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -197,7 +200,7 @@ func TestRecursiveIteratorCollectionError(t *testing.T) {
 	// This tests when the returned PathSeq fails during collection
 
 	faultyIter := NewFaultyIterator(false, true) // Fails on collection
-	recursive := NewRecursiveIterator(faultyIter)
+	recursive := NewRecursiveIterator(faultyIter, "folder", "view")
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
