@@ -35,6 +35,7 @@ import (
 	"github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
+	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/pkg/datastore"
 	consistencymw "github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -166,13 +167,14 @@ var alwaysDebugOption = grpclog.WithLevels(func(code codes.Code) grpclog.Level {
 })
 
 const (
-	DefaultMiddlewareRequestID     = "requestid"
-	DefaultMiddlewareNodeID        = "nodeid"
-	DefaultMiddlewareLog           = "log"
-	DefaultMiddlewareGRPCLog       = "grpclog"
-	DefaultMiddlewareGRPCAuth      = "grpcauth"
-	DefaultMiddlewareGRPCProm      = "grpcprom"
-	DefaultMiddlewareServerVersion = "serverversion"
+	DefaultMiddlewareRequestID        = "requestid"
+	DefaultMiddlewareNodeID           = "nodeid"
+	DefaultMiddlewareLog              = "log"
+	DefaultMiddlewareGRPCLog          = "grpclog"
+	DefaultMiddlewareGRPCAuth         = "grpcauth"
+	DefaultMiddlewareGRPCProm         = "grpcprom"
+	DefaultMiddlewareMemoryProtection = "memoryprotection"
+	DefaultMiddlewareServerVersion    = "serverversion"
 
 	DefaultInternalMiddlewareDispatch       = "dispatch"
 	DefaultInternalMiddlewareDatastore      = "datastore"
@@ -191,6 +193,9 @@ type MiddlewareOption struct {
 	DisableGRPCHistogram      bool                                 `debugmap:"visible"`
 	MiddlewareServiceLabel    string                               `debugmap:"visible"`
 	MismatchingZedTokenOption consistencymw.MismatchingTokenOption `debugmap:"visible"`
+
+	// Memory Protection
+	MemoryProtectionConfig memoryprotection.Config `debugmap:"visible"`
 
 	unaryDatastoreMiddleware  *ReferenceableMiddleware[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	streamDatastoreMiddleware *ReferenceableMiddleware[grpc.StreamServerInterceptor] `debugmap:"hidden"`
@@ -289,8 +294,14 @@ func doesNotMatchRoute(route string) func(_ context.Context, c interceptors.Call
 }
 
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
-func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
+func DefaultUnaryMiddleware(ctx context.Context, opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
 	grpcMetricsUnaryInterceptor, _ := GRPCMetrics(opts.DisableGRPCHistogram)
+
+	memoryConfig := opts.MemoryProtectionConfig
+	if memoryConfig == (memoryprotection.Config{}) {
+		memoryConfig = memoryprotection.DefaultConfig()
+	}
+	memoryProtectionUnaryInterceptor := memoryprotection.New(ctx, memoryConfig, &memoryprotection.DefaultMemoryLimitProvider{})
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -329,9 +340,15 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareMemoryProtection).
+			WithInterceptor(memoryProtectionUnaryInterceptor.UnaryServerInterceptor()).
+			Done(),
+
+		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCAuth).
 			WithInterceptor(grpcauth.UnaryServerInterceptor(opts.AuthFunc)).
-			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports auth failures
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm).         // so that prom middleware reports auth failures
+			EnsureAlreadyExecuted(DefaultMiddlewareMemoryProtection). // so that memory protection happens before auth
 			Done(),
 
 		NewUnaryMiddleware().
@@ -362,8 +379,14 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 }
 
 // DefaultStreamingMiddleware generates the default middleware chain used for the public SpiceDB Streaming gRPC methods
-func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
+func DefaultStreamingMiddleware(ctx context.Context, opts MiddlewareOption) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
 	_, grpcMetricsStreamingInterceptor := GRPCMetrics(opts.DisableGRPCHistogram)
+
+	memoryConfig := opts.MemoryProtectionConfig
+	if memoryConfig == (memoryprotection.Config{}) {
+		memoryConfig = memoryprotection.DefaultConfig()
+	}
+	memoryProtectionStreamInterceptor := memoryprotection.New(ctx, memoryConfig, &memoryprotection.DefaultMemoryLimitProvider{})
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -402,9 +425,15 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			Done(),
 
 		NewStreamMiddleware().
+			WithName(DefaultMiddlewareMemoryProtection).
+			WithInterceptor(memoryProtectionStreamInterceptor.StreamServerInterceptor()).
+			Done(),
+
+		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCAuth).
 			WithInterceptor(grpcauth.StreamServerInterceptor(opts.AuthFunc)).
-			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports auth failures
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm).         // so that prom middleware reports auth failures
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareMemoryProtection). // so that memory protection happens before auth
 			Done(),
 
 		NewStreamMiddleware().
@@ -448,16 +477,25 @@ func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
 }
 
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
-func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore,
-	disableGRPCLatencyHistogram bool,
+func DefaultDispatchMiddleware(ctx context.Context, logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore,
+	disableGRPCLatencyHistogram bool, memoryConfig memoryprotection.Config,
 ) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
+
+	// Create memory protection middleware for dispatch API
+	dispatchMemoryConfig := memoryConfig
+	if dispatchMemoryConfig == (memoryprotection.Config{}) {
+		dispatchMemoryConfig = memoryprotection.DefaultDispatchConfig()
+	}
+	dispatchMemoryProtection := memoryprotection.New(ctx, dispatchMemoryConfig, &memoryprotection.DefaultMemoryLimitProvider{})
+
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			nodeid.UnaryServerInterceptor(""),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
 			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsUnaryInterceptor,
+			dispatchMemoryProtection.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
 			datastoremw.UnaryServerInterceptor(ds),
 			servicespecific.UnaryServerInterceptor,
@@ -467,6 +505,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			nodeid.StreamServerInterceptor(""),
 			grpcMetricsStreamingInterceptor,
+			dispatchMemoryProtection.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
 			servicespecific.StreamServerInterceptor,

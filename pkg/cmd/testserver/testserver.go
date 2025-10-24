@@ -112,12 +112,12 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	opts := *server.NewMiddlewareOptionWithOptions(noAuth, server.WithLogger(log.Logger))
 	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
 
-	unaryMiddleware, err := server.DefaultUnaryMiddleware(opts)
+	unaryMiddleware, err := server.DefaultUnaryMiddleware(context.Background(), opts)
 	if err != nil {
 		return nil, err
 	}
 
-	streamMiddleware, err := server.DefaultStreamingMiddleware(opts)
+	streamMiddleware, err := server.DefaultStreamingMiddleware(context.Background(), opts)
 	if err != nil {
 		return nil, err
 	}
