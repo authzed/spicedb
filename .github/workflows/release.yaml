@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
-      - uses: "nowsprinting/check-version-format-action@c7180d5aa53d69af70c364c047482fc71e133f55" # v4.0.6
+      - uses: "nowsprinting/check-version-format-action@bb1181a02ee5d9ae4feead2842236183c85152c6" # v4.0.7
         id: "version"
         with:
           prefix: "v"
