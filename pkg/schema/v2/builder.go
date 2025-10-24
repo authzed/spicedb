@@ -471,6 +471,14 @@ func (ub *UnionExprBuilder) Done() *PermissionBuilder {
 	return ub.permissionBuilder
 }
 
+// Build completes the union expression and returns it as an Operation.
+// This is used when building operations outside of a permission builder context.
+func (ub *UnionExprBuilder) Build() Operation {
+	return &UnionOperation{
+		children: ub.children,
+	}
+}
+
 // IntersectionExprBuilder allows building intersection operations incrementally.
 type IntersectionExprBuilder struct {
 	permissionBuilder *PermissionBuilder
@@ -506,6 +514,14 @@ func (ib *IntersectionExprBuilder) Done() *PermissionBuilder {
 		children: ib.children,
 	}
 	return ib.permissionBuilder
+}
+
+// Build completes the intersection expression and returns it as an Operation.
+// This is used when building operations outside of a permission builder context.
+func (ib *IntersectionExprBuilder) Build() Operation {
+	return &IntersectionOperation{
+		children: ib.children,
+	}
 }
 
 // ExclusionExprBuilder allows building exclusion operations incrementally.
@@ -568,6 +584,15 @@ func (eb *ExclusionExprBuilder) Done() *PermissionBuilder {
 		right: eb.excluded,
 	}
 	return eb.permissionBuilder
+}
+
+// Build completes the exclusion expression and returns it as an Operation.
+// This is used when building operations outside of a permission builder context.
+func (eb *ExclusionExprBuilder) Build() Operation {
+	return &ExclusionOperation{
+		left:  eb.base,
+		right: eb.excluded,
+	}
 }
 
 // CaveatBuilder provides a fluent API for constructing caveats.
@@ -705,5 +730,44 @@ func NewCaveat(name string) *CaveatBuilder {
 	}
 	return &CaveatBuilder{
 		caveat: cav,
+	}
+}
+
+// NewUnion creates a new UnionExprBuilder for constructing a union operation.
+// This is useful when you want to build a union expression outside of a permission builder context.
+func NewUnion() *UnionExprBuilder {
+	return &UnionExprBuilder{
+		children: []Operation{},
+	}
+}
+
+// NewIntersection creates a new IntersectionExprBuilder for constructing an intersection operation.
+// This is useful when you want to build an intersection expression outside of a permission builder context.
+func NewIntersection() *IntersectionExprBuilder {
+	return &IntersectionExprBuilder{
+		children: []Operation{},
+	}
+}
+
+// NewExclusion creates a new ExclusionExprBuilder for constructing an exclusion operation.
+// This is useful when you want to build an exclusion expression outside of a permission builder context.
+func NewExclusion() *ExclusionExprBuilder {
+	return &ExclusionExprBuilder{}
+}
+
+// NewRelationRef creates a RelationReference operation for the given relation name.
+// This is an alternative to RelRef() that follows the New* naming convention.
+func NewRelationRef(relationName string) Operation {
+	return &RelationReference{
+		relationName: relationName,
+	}
+}
+
+// NewArrow creates an ArrowReference operation for the given relation and permission names.
+// This is an alternative to ArrowRef() that follows the New* naming convention.
+func NewArrow(relationName, permissionName string) Operation {
+	return &ArrowReference{
+		left:  relationName,
+		right: permissionName,
 	}
 }
