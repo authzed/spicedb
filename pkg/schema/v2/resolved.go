@@ -147,6 +147,10 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 		// Already resolved, just return it
 		return o, nil
 
+	case *NilReference:
+		// NilReference is not replaced during resolution
+		return o, nil
+
 	default:
 		return nil, fmt.Errorf("unknown operation type: %T", op)
 	}

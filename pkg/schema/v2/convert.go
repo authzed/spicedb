@@ -240,9 +240,7 @@ func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 			function: functionType,
 		}, nil
 	case *corev1.SetOperation_Child_XNil:
-		return &RelationReference{
-			relationName: "_nil",
-		}, nil
+		return &NilReference{}, nil
 	default:
 		return nil, fmt.Errorf("unknown child type: %#v", child.GetChildType())
 	}
