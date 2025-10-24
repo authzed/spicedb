@@ -47,7 +47,6 @@ type Config struct {
 	MaxDeleteRelationshipsLimit     uint32                `debugmap:"visible"`
 	MaxLookupResourcesLimit         uint32                `debugmap:"visible"`
 	MaxBulkExportRelationshipsLimit uint32                `debugmap:"visible"`
-	OtelDisableHealthcheckTracing   bool                  `debugmap:"visible" default:"true"`
 	CaveatTypeSet                   *caveattypes.TypeSet  `debugmap:"hidden"`
 }
 
@@ -124,9 +123,9 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	}
 
 	// Build OTel stats handler options
-	var statsHandlerOpts []otelgrpc.Option
-	if c.OtelDisableHealthcheckTracing {
-		statsHandlerOpts = append(statsHandlerOpts, otelgrpc.WithFilter(filters.Not(filters.HealthCheck())))
+	// Always disable health check tracing to reduce trace volume
+	statsHandlerOpts := []otelgrpc.Option{
+		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
 	}
 
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,
@@ -151,7 +150,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, err
 	}
 
-	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath, c.OtelDisableHealthcheckTracing)
+	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
@@ -165,7 +164,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
 
-	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath, c.OtelDisableHealthcheckTracing)
+	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}

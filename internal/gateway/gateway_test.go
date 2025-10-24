@@ -48,7 +48,7 @@ func TestOtelForwarding(t *testing.T) {
 func TestCloseConnections(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
-	gatewayHandler, err := NewHandler(t.Context(), "192.0.2.0:4321", "", false)
+	gatewayHandler, err := NewHandler(t.Context(), "192.0.2.0:4321", "")
 	require.NoError(t, err)
 	// 4 conns for permission+schema+watch+experimental services, 1 for health check
 	require.Len(t, gatewayHandler.closers, 5)

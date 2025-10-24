@@ -37,14 +37,14 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 // NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream
 // configuration.
-func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string, disableHealthCheckTracing bool) (*CloserHandler, error) {
+func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (*CloserHandler, error) {
 	if upstreamAddr == "" {
 		return nil, fmt.Errorf("upstreamAddr must not be empty")
 	}
 
-	var clientHandlerOpts []otelgrpc.Option
-	if disableHealthCheckTracing {
-		clientHandlerOpts = append(clientHandlerOpts, otelgrpc.WithFilter(grpcfilters.Not(grpcfilters.HealthCheck())))
+	// Always disable health check tracing to reduce trace volume
+	clientHandlerOpts := []otelgrpc.Option{
+		otelgrpc.WithFilter(grpcfilters.Not(grpcfilters.HealthCheck())),
 	}
 
 	opts := []grpc.DialOption{
@@ -92,10 +92,9 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string, d
 	}))
 	mux.Handle("/", gwMux)
 
-	var otelHandlerOpts []otelhttp.Option
-	if disableHealthCheckTracing {
-		// Filter out /healthz endpoint from tracing
-		otelHandlerOpts = append(otelHandlerOpts, otelhttp.WithFilter(httpfilters.Not(httpfilters.Path("/healthz"))))
+	// Always disable health check tracing to reduce trace volume
+	otelHandlerOpts := []otelhttp.Option{
+		otelhttp.WithFilter(httpfilters.Not(httpfilters.Path("/healthz"))),
 	}
 
 	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway", otelHandlerOpts...))

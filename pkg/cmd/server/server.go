@@ -145,11 +145,10 @@ type Config struct {
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor `debugmap:"hidden"`
 
 	// Telemetry
-	SilentlyDisableTelemetry      bool          `debugmap:"visible"`
-	TelemetryCAOverridePath       string        `debugmap:"visible"`
-	TelemetryEndpoint             string        `debugmap:"visible"`
-	TelemetryInterval             time.Duration `debugmap:"visible"`
-	OtelDisableHealthcheckTracing bool          `debugmap:"visible" default:"true"`
+	SilentlyDisableTelemetry bool          `debugmap:"visible"`
+	TelemetryCAOverridePath  string        `debugmap:"visible"`
+	TelemetryEndpoint        string        `debugmap:"visible"`
+	TelemetryInterval        time.Duration `debugmap:"visible"`
 
 	// Logs
 	EnableRequestLogs  bool `debugmap:"visible"`
@@ -374,9 +373,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 
 	// Build OTel stats handler options (shared by both gRPC servers)
-	var statsHandlerOpts []otelgrpc.Option
-	if c.OtelDisableHealthcheckTracing {
-		statsHandlerOpts = append(statsHandlerOpts, otelgrpc.WithFilter(filters.Not(filters.HealthCheck())))
+	// Always disable health check tracing to reduce trace volume
+	statsHandlerOpts := []otelgrpc.Option{
+		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
 	}
 
 	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
@@ -678,7 +677,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	var gatewayHandler http.Handler
-	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, c.OtelDisableHealthcheckTracing)
+	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
