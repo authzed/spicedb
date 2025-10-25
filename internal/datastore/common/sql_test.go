@@ -1471,6 +1471,10 @@ func (f *fakeIndexingHint) SQLPrefix() (string, error) {
 	return "/*+ IndexHint */", nil
 }
 
+func (f *fakeIndexingHint) SortOrder() options.SortOrder {
+	return options.ByResource
+}
+
 var _ IndexingHint = &fakeIndexingHint{}
 
 func TestIndexHint(t *testing.T) {
@@ -1518,6 +1522,134 @@ func TestIndexHint(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, wasRun)
 }
+
+func TestIndexHintWithPreferredSort(t *testing.T) {
+	tests := []struct {
+		name              string
+		hintSortOrder     options.SortOrder
+		querySortOption   options.QueryOptionsOption
+		expectedOrderBy   string
+		expectedNoOrderBy bool
+	}{
+		{
+			name:            "ChooseEfficient with hint ByResource uses hint's sort order",
+			hintSortOrder:   options.ByResource,
+			querySortOption: options.WithSort(options.ChooseEfficient),
+			expectedOrderBy: " ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
+		},
+		{
+			name:            "ChooseEfficient with hint BySubject uses hint's sort order",
+			hintSortOrder:   options.BySubject,
+			querySortOption: options.WithSort(options.ChooseEfficient),
+			expectedOrderBy: " ORDER BY subject_ns, subject_object_id, subject_relation, ns, object_id, relation",
+		},
+		{
+			name:              "ChooseEfficient with hint Unsorted does not add ordering",
+			hintSortOrder:     options.Unsorted,
+			querySortOption:   options.WithSort(options.ChooseEfficient),
+			expectedNoOrderBy: true,
+		},
+		{
+			name:            "Explicit ByResource overrides hint's BySubject",
+			hintSortOrder:   options.BySubject,
+			querySortOption: options.WithSort(options.ByResource),
+			expectedOrderBy: " ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
+		},
+		{
+			name:            "Explicit BySubject overrides hint's ByResource",
+			hintSortOrder:   options.ByResource,
+			querySortOption: options.WithSort(options.BySubject),
+			expectedOrderBy: " ORDER BY subject_ns, subject_object_id, subject_relation, ns, object_id, relation",
+		},
+		{
+			name:              "Explicit Unsorted overrides hint's ByResource",
+			hintSortOrder:     options.ByResource,
+			querySortOption:   options.WithSort(options.Unsorted),
+			expectedNoOrderBy: true,
+		},
+		{
+			name:              "No sort option with hint ByResource keeps unsorted",
+			hintSortOrder:     options.ByResource,
+			querySortOption:   nil,
+			expectedNoOrderBy: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			schema := NewSchemaInformationWithOptions(
+				WithRelationshipTableName("relationtuples"),
+				WithColNamespace("ns"),
+				WithColObjectID("object_id"),
+				WithColRelation("relation"),
+				WithColUsersetNamespace("subject_ns"),
+				WithColUsersetObjectID("subject_object_id"),
+				WithColUsersetRelation("subject_relation"),
+				WithColCaveatName("caveat"),
+				WithColCaveatContext("caveat_context"),
+				WithColExpiration("expiration"),
+				WithPlaceholderFormat(sq.Question),
+				WithPaginationFilterType(TupleComparison),
+				WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+				WithNowFunction("NOW"),
+				WithExpirationDisabled(true),
+			)
+
+			hint := &fakeIndexingHintWithSort{sortOrder: test.hintSortOrder}
+			filterer := NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100)
+			filterer = filterer.WithIndexingHint(hint)
+			filterer = filterer.FilterToResourceType("sometype")
+
+			var wasRun bool
+			fake := QueryRelationshipsExecutor{
+				Executor: func(ctx context.Context, builder RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
+					sql, _, err := builder.SelectSQL()
+					require.NoError(t, err)
+
+					if test.expectedNoOrderBy {
+						require.NotContains(t, sql, "ORDER BY", "Expected no ORDER BY clause in SQL")
+					} else {
+						require.Contains(t, sql, test.expectedOrderBy, "Expected ORDER BY clause not found in SQL")
+					}
+
+					wasRun = true
+					return nil, nil
+				},
+			}
+
+			var opts []options.QueryOptionsOption
+			if test.querySortOption != nil {
+				opts = []options.QueryOptionsOption{test.querySortOption}
+			}
+
+			_, err := fake.ExecuteQuery(t.Context(), filterer, opts...)
+			require.NoError(t, err)
+			require.True(t, wasRun)
+		})
+	}
+}
+
+type fakeIndexingHintWithSort struct {
+	sortOrder options.SortOrder
+}
+
+func (f *fakeIndexingHintWithSort) FromSQLSuffix() (string, error) {
+	return "", nil
+}
+
+func (f *fakeIndexingHintWithSort) FromTable(existingTableName string) (string, error) {
+	return existingTableName, nil
+}
+
+func (f *fakeIndexingHintWithSort) SQLPrefix() (string, error) {
+	return "", nil
+}
+
+func (f *fakeIndexingHintWithSort) SortOrder() options.SortOrder {
+	return f.sortOrder
+}
+
+var _ IndexingHint = &fakeIndexingHintWithSort{}
 
 func TestBuildLikeCla(t *testing.T) {
 	tcs := []struct {

@@ -150,6 +150,9 @@ func (r *memdbReader) QueryRelationships(
 	case options.Unsorted:
 		fallthrough
 
+	case options.ChooseEfficient:
+		fallthrough
+
 	case options.ByResource:
 		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.Limit, queryOpts.SkipCaveats, queryOpts.SkipExpiration)
 		return iter, nil
@@ -211,6 +214,9 @@ func (r *memdbReader) ReverseQueryRelationships(
 
 	switch queryOpts.SortForReverse {
 	case options.Unsorted:
+		fallthrough
+
+	case options.ChooseEfficient:
 		fallthrough
 
 	case options.ByResource:

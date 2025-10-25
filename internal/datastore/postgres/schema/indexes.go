@@ -2,6 +2,7 @@ package schema
 
 import (
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
@@ -14,6 +15,7 @@ var UniqueLivingRelationshipIndex = common.IndexDefinition{
 		queryshape.CheckPermissionSelectDirectSubjects,
 		queryshape.CheckPermissionSelectIndirectSubjects,
 	},
+	PreferredSortOrder: options.ByResource,
 }
 
 // IndexRelationshipBySubject is an index for relationships by subject. It is used for
@@ -25,6 +27,7 @@ var IndexRelationshipBySubject = common.IndexDefinition{
 		queryshape.CheckPermissionSelectDirectSubjects,
 		queryshape.CheckPermissionSelectIndirectSubjects,
 	},
+	PreferredSortOrder: options.BySubject,
 }
 
 // IndexRelationshipBySubjectRelation is an index for relationships by subject and relation.
@@ -37,6 +40,7 @@ var IndexRelationshipBySubjectRelation = common.IndexDefinition{
 		queryshape.CheckPermissionSelectDirectSubjects,
 		queryshape.CheckPermissionSelectIndirectSubjects,
 	},
+	PreferredSortOrder: options.BySubject,
 }
 
 // IndexRelationshipAliveByResourceRelationSubjectCovering is an index for alive relationships
@@ -46,20 +50,23 @@ var IndexRelationshipAliveByResourceRelationSubjectCovering = common.IndexDefini
 	ColumnsSQL: `relation_tuple (namespace, relation, userset_namespace)
     			 INCLUDE (userset_object_id, userset_relation, caveat_name, caveat_context)
     			 WHERE deleted_xid = '9223372036854775807'::xid8`,
+	PreferredSortOrder: options.ByResource,
 }
 
 // IndexWatchAPI is an index for the Watch API. It is used for the Watch API, and provides
 // filtering of alive relationships.
 var IndexWatchAPI = common.IndexDefinition{
-	Name:       `ix_watch_api_index`,
-	ColumnsSQL: `relation_tuple (created_xid)`,
+	Name:               `ix_watch_api_index`,
+	ColumnsSQL:         `relation_tuple (created_xid)`,
+	PreferredSortOrder: options.Unsorted,
 }
 
 // IndexExpiringRelationships is an index for (possibly) expiring relationships. It is used
 // for the GC process which checks for expired relationships.
 var IndexExpiringRelationships = common.IndexDefinition{
-	Name:       `ix_relation_tuple_expired`,
-	ColumnsSQL: `relation_tuple (expiration) WHERE expiration IS NOT NULL`,
+	Name:               `ix_relation_tuple_expired`,
+	ColumnsSQL:         `relation_tuple (expiration) WHERE expiration IS NOT NULL`,
+	PreferredSortOrder: options.Unsorted,
 }
 
 // IndexSortedRelationTupleTransaction adds an index to relation_tuple_transaction table
@@ -76,22 +83,25 @@ var IndexExpiringRelationships = common.IndexDefinition{
 // Planning Time: 0.098 ms
 // Execution Time: 5706.192 ms
 var IndexSortedRelationTupleTransaction = common.IndexDefinition{
-	Name:       `ix_relation_tuple_transaction_xid_desc_timestamp`,
-	ColumnsSQL: `relation_tuple_transaction (xid DESC, timestamp)`,
+	Name:               `ix_relation_tuple_transaction_xid_desc_timestamp`,
+	ColumnsSQL:         `relation_tuple_transaction (xid DESC, timestamp)`,
+	PreferredSortOrder: options.Unsorted,
 }
 
 // IndexRelationTupleTransactionTimestamp adds an index to relation_tuple_transaction table
 // to support optimized revision lookup.
 var IndexRelationTupleTransactionTimestamp = common.IndexDefinition{
-	Name:       `ix_relation_tuple_transaction_by_timestamp`,
-	ColumnsSQL: `relation_tuple_transaction(timestamp)`,
+	Name:               `ix_relation_tuple_transaction_by_timestamp`,
+	ColumnsSQL:         `relation_tuple_transaction(timestamp)`,
+	PreferredSortOrder: options.Unsorted,
 }
 
 // IndexGCDeadRelationships is an index for the GC process to quickly find dead relationships
 // to be garbage collected.
 var IndexGCDeadRelationships = common.IndexDefinition{
-	Name:       `ix_gc_index`,
-	ColumnsSQL: `relation_tuple (deleted_xid DESC) WHERE deleted_xid < '9223372036854775807'::xid8`,
+	Name:               `ix_gc_index`,
+	ColumnsSQL:         `relation_tuple (deleted_xid DESC) WHERE deleted_xid < '9223372036854775807'::xid8`,
+	PreferredSortOrder: options.Unsorted,
 }
 
 var pgIndexes = []common.IndexDefinition{
@@ -134,6 +144,10 @@ func (f forcedIndex) FromTable(existingTableName string) (string, error) {
 
 func (f forcedIndex) SQLPrefix() (string, error) {
 	return "/*+ IndexOnlyScan(" + f.tableName + " " + f.index.Name + ") */", nil
+}
+
+func (f forcedIndex) SortOrder() options.SortOrder {
+	return f.index.PreferredSortOrder
 }
 
 var _ common.IndexingHint = forcedIndex{}
