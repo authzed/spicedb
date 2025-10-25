@@ -42,21 +42,28 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
+		resp1, err := disp.DispatchCheck(t.Context(), req.CloneVT())
+		require.NoError(t, err)
+		// this goroutine mutates the response; other goroutines that read should be unaffected
+		resp1.GetMetadata().GetDebugInfo().GetCheck().GetSubProblems()[0].IsCachedResult = false
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
+		resp2, _ := disp.DispatchCheck(t.Context(), req.CloneVT())
+		// this goroutine reads the response
+		t.Log(resp2)
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
+		resp3, _ := disp.DispatchCheck(t.Context(), req.CloneVT())
+		t.Log(resp3)
 		wg.Done()
 	}()
 	go func() {
 		anotherReq := req.CloneVT()
 		anotherReq.ResourceIds = []string{"foo", "baz"}
-		_, _ = disp.DispatchCheck(t.Context(), anotherReq)
+		resp4, _ := disp.DispatchCheck(t.Context(), anotherReq)
+		t.Log(resp4)
 		wg.Done()
 	}()
 
@@ -363,7 +370,9 @@ type mockDispatcher struct {
 
 func (m mockDispatcher) DispatchCheck(_ context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	m.f()
-	return &v1.DispatchCheckResponse{}, nil
+	return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DebugInfo: &v1.DebugInformation{Check: &v1.CheckDebugTrace{
+		SubProblems: []*v1.CheckDebugTrace{{IsCachedResult: true}},
+	}}}}, nil
 }
 
 func (m mockDispatcher) DispatchExpand(_ context.Context, _ *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
