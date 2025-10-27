@@ -3,7 +3,6 @@ package usagemetrics
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"testing"
 
@@ -21,15 +20,7 @@ type testServer struct {
 	testpb.UnimplementedTestServiceServer
 }
 
-func (t testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
-	SetInContext(ctx, &dispatch.ResponseMeta{
-		DispatchCount:       1,
-		CachedDispatchCount: 1,
-	})
-	return &testpb.PingEmptyResponse{}, nil
-}
-
-func (t testServer) Ping(ctx context.Context, _ *testpb.PingRequest) (*testpb.PingResponse, error) {
+func (t *testServer) Ping(ctx context.Context, _ *testpb.PingRequest) (*testpb.PingResponse, error) {
 	SetInContext(ctx, &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
@@ -37,34 +28,17 @@ func (t testServer) Ping(ctx context.Context, _ *testpb.PingRequest) (*testpb.Pi
 	return &testpb.PingResponse{Value: ""}, nil
 }
 
-func (t testServer) PingError(ctx context.Context, _ *testpb.PingErrorRequest) (*testpb.PingErrorResponse, error) {
-	SetInContext(ctx, &dispatch.ResponseMeta{
-		DispatchCount:       1,
-		CachedDispatchCount: 1,
-	})
-	return nil, fmt.Errorf("err")
+// PingError returns the context error
+func (t *testServer) PingError(ctx context.Context, _ *testpb.PingErrorRequest) (*testpb.PingErrorResponse, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
 }
 
-func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
+func (t *testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	SetInContext(server.Context(), &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
 	})
-	return nil
-}
-
-func (t testServer) PingStream(stream testpb.TestService_PingStreamServer) error {
-	count := int32(0)
-	for {
-		_, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return err
-		}
-		_ = stream.Send(&testpb.PingStreamResponse{Value: "", Counter: count})
-		count++
-	}
 	return nil
 }
 
@@ -130,4 +104,30 @@ func (s *metricsMiddlewareTestSuite) TestTrailers_Stream() {
 	)
 	s.Require().NoError(err)
 	s.Require().Equal(1, cachedCount)
+}
+
+func (s *metricsMiddlewareTestSuite) TestErrCtx() {
+	var trailerMD metadata.MD
+
+	// SimpleCtx times out after two seconds
+	_, err := s.Client.PingError(s.SimpleCtx(), &testpb.PingErrorRequest{}, grpc.Trailer(&trailerMD))
+	s.Require().ErrorContains(err, context.DeadlineExceeded.Error())
+
+	// TODO ideally, this test would assert that no error log has been written
+	// but right now we have no way of capturing the logs
+
+	// No metadata should have been sent
+	dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(
+		trailerMD,
+		responsemeta.DispatchedOperationsCount,
+	)
+	s.Require().ErrorContains(err, "key `io.spicedb.respmeta.dispatchedoperationscount` not found in trailer")
+	s.Require().Equal(0, dispatchCount)
+
+	cachedCount, err := responsemeta.GetIntResponseTrailerMetadata(
+		trailerMD,
+		responsemeta.CachedOperationsCount,
+	)
+	s.Require().ErrorContains(err, "key `io.spicedb.respmeta.cachedoperationscount` not found in trailer")
+	s.Require().Equal(0, cachedCount)
 }

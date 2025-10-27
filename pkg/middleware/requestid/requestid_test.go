@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -358,17 +359,29 @@ func TestRequestIDMiddlewareTimeout(t *testing.T) {
 	suite.Run(t, s)
 }
 
+// If a stream receives a context that is already cancelled,
+// the middleware will not be invoked at all. Therefore, we try to induce
+// what happens when the context errors *while the middleware is running*.
+// However, right now, this test is only useful when ran by hand and inspecting logs manually,
+// because we don't have a way of asserting what logs were emmitted by the middleware.
 func (s *requestIDTimeoutTestSuite) TestContextTimeout() {
-	// Create a context that's already cancelled
-	ctx, cancel := context.WithTimeout(s.SimpleCtx(), time.Nanosecond)
-	defer cancel()
+	var wg sync.WaitGroup
+	for i := 0; i < 10_000; i++ {
+		wg.Add(1)
+		wg.Go(func() {
+			defer wg.Done()
 
-	// Wait for context to be cancelled
-	time.Sleep(time.Millisecond)
+			// context will be cancelled in the middle of the middleware (if we are lucky)
+			ctx, cancel := context.WithTimeout(s.T().Context(), 1*time.Millisecond)
+			defer cancel()
 
-	var trailer metadata.MD
-	_, err := s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
+			var trailer metadata.MD
+			_, err := s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
 
-	// The RPC should fail due to context cancellation, but middleware should handle it gracefully
-	require.Error(s.T(), err)
+			// The RPC should fail due to context cancellation, but middleware should handle it gracefully
+			require.Error(s.T(), err)
+		})
+	}
+
+	wg.Wait()
 }
