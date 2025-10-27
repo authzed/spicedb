@@ -2,6 +2,7 @@ package requestid
 
 import (
 	"context"
+	"strings"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/rs/xid"
@@ -54,6 +55,7 @@ func (r *handleRequestID) ClientReporter(ctx context.Context, meta interceptors.
 	return interceptors.NoopReporter{}, ctx
 }
 
+// ServerReporter is invoked before the request begins processing.
 func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.CallMeta) (interceptors.Reporter, context.Context) {
 	haveRequestID, requestID, ctx := r.fromContextOrGenerate(ctx)
 
@@ -67,7 +69,11 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 			responsemeta.ResponseMetadataTrailerKey(responsemeta.RequestID): requestID,
 		})
 		if err != nil {
-			log.Ctx(ctx).Warn().Err(err).Msg("requestid: could not report metadata")
+			// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite (which is private)
+			// this prevents logging unnecessary error messages
+			if !strings.Contains(err.Error(), "SendHeader called multiple times") {
+				log.Ctx(ctx).Warn().Err(err).Msg("requestid: could not report metadata")
+			}
 		}
 	}
 

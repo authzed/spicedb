@@ -37,7 +37,7 @@ func (r *HandleServerVersion) ServerReporter(ctx context.Context, _ interceptors
 				err = responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
 					responsemeta.ResponseMetadataTrailerKey(responsemeta.ServerVersion): version,
 				})
-				// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite
+				// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite (which is private)
 				// this prevents logging unnecessary error messages
 				if err := ctx.Err(); err != nil {
 					return interceptors.NoopReporter{}, ctx

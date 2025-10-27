@@ -3,6 +3,7 @@ package usagemetrics
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
@@ -38,7 +39,7 @@ type reporter struct{}
 
 func (r *reporter) ServerReporter(ctx context.Context, callMeta interceptors.CallMeta) (interceptors.Reporter, context.Context) {
 	_, methodName := grpcutil.SplitMethodName(callMeta.FullMethod())
-	ctx = ContextWithHandle(ctx)
+	ctx = contextWithHandle(ctx)
 	return &serverReporter{ctx: ctx, methodName: methodName}, ctx
 }
 
@@ -48,19 +49,25 @@ type serverReporter struct {
 	methodName string
 }
 
+// PostCall is invoked after all PostMsgSend operations.
 func (r *serverReporter) PostCall(_ error, _ time.Duration) {
 	responseMeta := FromContext(r.ctx)
 	if responseMeta == nil {
 		responseMeta = &dispatch.ResponseMeta{}
 	}
 
-	err := annotateAndReportForMetadata(r.ctx, r.methodName, responseMeta)
-	// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite
-	// this prevents logging unnecessary error messages
-	if r.ctx.Err() != nil {
-		return
-	}
+	DispatchedCountHistogram.WithLabelValues(r.methodName, "false").Observe(float64(responseMeta.DispatchCount))
+	DispatchedCountHistogram.WithLabelValues(r.methodName, "true").Observe(float64(responseMeta.CachedDispatchCount))
+	err := responsemeta.SetResponseTrailerMetadata(r.ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
+		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(responseMeta.DispatchCount)),
+		responsemeta.CachedOperationsCount:     strconv.Itoa(int(responseMeta.CachedDispatchCount)),
+	})
 	if err != nil {
+		// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite (which is private)
+		// this prevents logging unnecessary error messages
+		if strings.Contains(err.Error(), "SendHeader called multiple times") {
+			return
+		}
 		log.Ctx(r.ctx).Warn().Err(err).Msg("usagemetrics: could not report metadata")
 	}
 }
@@ -77,16 +84,6 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 // metrics
 func StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return interceptors.StreamServerInterceptor(&reporter{})
-}
-
-func annotateAndReportForMetadata(ctx context.Context, methodName string, metadata *dispatch.ResponseMeta) error {
-	DispatchedCountHistogram.WithLabelValues(methodName, "false").Observe(float64(metadata.DispatchCount))
-	DispatchedCountHistogram.WithLabelValues(methodName, "true").Observe(float64(metadata.CachedDispatchCount))
-
-	return responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(metadata.DispatchCount)),
-		responsemeta.CachedOperationsCount:     strconv.Itoa(int(metadata.CachedDispatchCount)),
-	})
 }
 
 // Create a new type to prevent context collisions
@@ -119,11 +116,11 @@ func FromContext(ctx context.Context) *dispatch.ResponseMeta {
 	return possibleHandle.(*metaHandle).metadata
 }
 
-// ContextWithHandle creates a new context with a location to store metadata
+// contextWithHandle creates a new context with a location to store metadata
 // returned from a dispatched request.
 //
 // This should only be called in middleware or testing functions.
-func ContextWithHandle(ctx context.Context) context.Context {
+func contextWithHandle(ctx context.Context) context.Context {
 	var handle metaHandle
 	return context.WithValue(ctx, metadataCtxKey, &handle)
 }
