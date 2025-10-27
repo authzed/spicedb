@@ -124,8 +124,7 @@ func (t *TraceLogger) DumpTrace() string {
 type Context struct {
 	context.Context
 	Executor          Executor
-	Datastore         datastore.ReadOnlyDatastore
-	Revision          datastore.Revision
+	Reader            datastore.Reader // Datastore reader for this query at a specific revision
 	CaveatContext     map[string]any
 	CaveatRunner      *caveats.CaveatRunner
 	TraceLogger       *TraceLogger // For debugging iterator execution

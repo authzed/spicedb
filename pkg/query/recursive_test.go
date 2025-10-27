@@ -23,10 +23,9 @@ func TestRecursiveSentinel(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := &Context{
-		Context:   context.Background(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  datastore.NoRevision,
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(datastore.NoRevision),
 	}
 
 	// CheckImpl should return empty
@@ -65,10 +64,9 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := &Context{
-		Context:   context.Background(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  datastore.NoRevision,
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(datastore.NoRevision),
 	}
 
 	// Execute - should terminate immediately with empty result
@@ -178,10 +176,9 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := &Context{
-		Context:   context.Background(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  datastore.NoRevision,
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(datastore.NoRevision),
 	}
 
 	// Test CheckImpl with a faulty iterator
@@ -206,10 +203,9 @@ func TestRecursiveIteratorCollectionError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := &Context{
-		Context:   context.Background(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  datastore.NoRevision,
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(datastore.NoRevision),
 	}
 
 	// Test CheckImpl with a faulty iterator that fails on collection

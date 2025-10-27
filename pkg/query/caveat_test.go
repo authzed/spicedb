@@ -111,8 +111,7 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 			queryCtx := &Context{
 				Context:       context.Background(),
 				Executor:      LocalExecutor{},
-				Datastore:     ds,
-				Revision:      rev,
+				Reader:        ds.SnapshotReader(rev),
 				CaveatContext: tc.caveatContext,
 				CaveatRunner:  caveats.NewCaveatRunner(types.NewTypeSet()),
 			}
@@ -207,8 +206,7 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			queryCtx := &Context{
 				Context:       context.Background(),
 				Executor:      LocalExecutor{},
-				Datastore:     ds,
-				Revision:      rev,
+				Reader:        ds.SnapshotReader(rev),
 				CaveatContext: tc.caveatContext,
 				CaveatRunner:  caveats.NewCaveatRunner(types.NewTypeSet()),
 			}

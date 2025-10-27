@@ -37,10 +37,9 @@ func TestCheck(t *testing.T) {
 	it.addSubIterator(edit)
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
@@ -67,10 +66,9 @@ func TestBaseIterSubjects(t *testing.T) {
 	vande := NewRelationIterator(dsSchema.Definitions()["document"].Relations()["viewer_and_editor"].BaseRelations()[0])
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	relSeq, err := ctx.IterSubjects(vande, NewObject("document", "specialplan"))
@@ -100,10 +98,9 @@ func TestCheckArrow(t *testing.T) {
 	it := NewArrow(folders, view)
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
