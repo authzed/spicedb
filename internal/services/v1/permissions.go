@@ -98,6 +98,10 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	if ps.config.ExperimentalQueryPlan {
+		return ps.checkPermissionWithQueryPlan(ctx, req)
+	}
+
 	debugOption := computed.NoDebugging
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {

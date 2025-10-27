@@ -92,6 +92,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.ExperimentalLookupResourcesVersion = c.ExperimentalLookupResourcesVersion
+		to.ExperimentalQueryPlan = c.ExperimentalQueryPlan
 		to.EnableRelationshipExpiration = c.EnableRelationshipExpiration
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 		to.EnablePerformanceInsightMetrics = c.EnablePerformanceInsightMetrics
@@ -167,6 +168,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
 	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
 	debugMap["ExperimentalLookupResourcesVersion"] = helpers.DebugValue(c.ExperimentalLookupResourcesVersion, false)
+	debugMap["ExperimentalQueryPlan"] = helpers.DebugValue(c.ExperimentalQueryPlan, false)
 	debugMap["EnableRelationshipExpiration"] = helpers.DebugValue(c.EnableRelationshipExpiration, false)
 	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
@@ -608,6 +610,13 @@ func WithEnableExperimentalLookupResources(enableExperimentalLookupResources boo
 func WithExperimentalLookupResourcesVersion(experimentalLookupResourcesVersion string) ConfigOption {
 	return func(c *Config) {
 		c.ExperimentalLookupResourcesVersion = experimentalLookupResourcesVersion
+	}
+}
+
+// WithExperimentalQueryPlan returns an option that can set ExperimentalQueryPlan on a Config
+func WithExperimentalQueryPlan(experimentalQueryPlan bool) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalQueryPlan = experimentalQueryPlan
 	}
 }
 
