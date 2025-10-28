@@ -75,7 +75,7 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	// Track the position in the sentinels list before building
 	sentinelsLenBefore := len(b.recursiveSentinels)
 
-	def, ok := b.schema.Definitions()[definitionName]
+	def, ok := b.schema.GetTypeDefinition(definitionName)
 	if !ok {
 		// Remove before returning error
 		delete(b.building, id)
@@ -84,9 +84,9 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 
 	var result Iterator
 	var err error
-	if p, ok := def.Permissions()[relationName]; ok {
+	if p, ok := def.GetPermission(relationName); ok {
 		result, err = b.buildIteratorFromPermission(p)
-	} else if r, ok := def.Relations()[relationName]; ok {
+	} else if r, ok := def.GetRelation(relationName); ok {
 		result, err = b.buildIteratorFromRelation(r, withSubRelations)
 	} else {
 		err = fmt.Errorf("BuildIteratorFromSchema: couldn't find a relation or permission named `%s` in definition `%s`", relationName, definitionName)
@@ -160,7 +160,7 @@ func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Ite
 func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
 	switch perm := op.(type) {
 	case *schema.ArrowReference:
-		rel, ok := p.Parent().Relations()[perm.Left()]
+		rel, ok := p.Parent().GetRelation(perm.Left())
 		if !ok {
 			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), p.Parent().Name())
 		}
@@ -208,7 +208,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return NewExclusion(mainIt, excludedIt), nil
 
 	case *schema.FunctionedArrowReference:
-		rel, ok := p.Parent().Relations()[perm.Left()]
+		rel, ok := p.Parent().GetRelation(perm.Left())
 		if !ok {
 			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), p.Parent().Name())
 		}

@@ -189,10 +189,10 @@ func TestBuildTreeArrowOperation(t *testing.T) {
 	require.NotNil(dsSchema)
 
 	// Verify that the schema contains definitions with arrow-like operations
-	docDef, ok := dsSchema.Definitions()["document"]
+	docDef, ok := dsSchema.GetTypeDefinition("document")
 	require.True(ok, "should find document definition")
 
-	viewPerm, ok := docDef.Permissions()["view"]
+	viewPerm, ok := docDef.GetPermission("view")
 	require.True(ok, "should find view permission that contains arrow operations")
 	require.NotNil(viewPerm.Operation, "view permission should have operation defined")
 }
@@ -781,10 +781,10 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 	require.NoError(err)
 
 	// Verify the schema has the wildcard BaseRelation
-	documentDef := dsSchema.Definitions()["document"]
-	require.NotNil(documentDef)
-	viewerRelation := documentDef.Relations()["viewer"]
-	require.NotNil(viewerRelation)
+	documentDef, ok := dsSchema.GetTypeDefinition("document")
+	require.True(ok)
+	viewerRelation, ok := documentDef.GetRelation("viewer")
+	require.True(ok)
 	require.Len(viewerRelation.BaseRelations(), 1)
 	baseRel := viewerRelation.BaseRelations()[0]
 	require.True(baseRel.Wildcard(), "BaseRelation should have Wildcard: true")
