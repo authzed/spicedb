@@ -1,5 +1,5 @@
-//go:build docker && !skipintegrationtests
-// +build docker,!skipintegrationtests
+//go:build !skipintegrationtests
+// +build !skipintegrationtests
 
 package integrationtesting_test
 
@@ -13,6 +13,8 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/datastore/crdb"
+	"github.com/authzed/spicedb/internal/datastore/postgres"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/internal/testserver"
@@ -29,6 +31,13 @@ import (
 var testFiles embed.FS
 
 func BenchmarkServices(b *testing.B) {
+	enginesToBenchmark := []string{
+		crdb.Engine,
+		postgres.Engine,
+		"memory",
+		// spanner is a simulator so not useful
+	}
+
 	bts := []struct {
 		title    string
 		fileName string
@@ -120,11 +129,11 @@ func BenchmarkServices(b *testing.B) {
 			"testconfigs/quay.yaml",
 			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, tuple.ObjectAndRelation{
-					ObjectType: "quay/repo",
+					ObjectType: "repo",
 					ObjectID:   "buynlarge/orgrepo",
 					Relation:   "view",
 				}, tuple.ObjectAndRelation{
-					ObjectType: "quay/user",
+					ObjectType: "user",
 					ObjectID:   "cto",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil)
@@ -170,8 +179,10 @@ func BenchmarkServices(b *testing.B) {
 
 	for _, bt := range bts {
 		b.Run(bt.title, func(b *testing.B) {
-			for _, engineID := range datastore.Engines {
+			for _, engineID := range enginesToBenchmark {
 				b.Run(engineID, func(b *testing.B) {
+					b.StopTimer()
+
 					brequire := require.New(b)
 
 					rde := testdatastore.RunDatastoreEngine(b, engineID)
@@ -199,6 +210,8 @@ func BenchmarkServices(b *testing.B) {
 					brequire.NoError(datastoremw.SetInContext(dsCtx, ds))
 
 					testers := consistencytestutil.ServiceTesters(conn[0])
+
+					b.StartTimer()
 
 					for _, tester := range testers {
 						b.Run(tester.Name(), func(b *testing.B) {

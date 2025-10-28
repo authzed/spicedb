@@ -1,6 +1,3 @@
-//go:build ci && docker
-// +build ci,docker
-
 package benchmark
 
 import (
@@ -24,6 +21,7 @@ import (
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -42,15 +40,15 @@ var drivers = []struct {
 	suffix      string
 	extraConfig []dsconfig.ConfigOption
 }{
-	{"memory", "", nil},
-	{postgres.Engine, "", nil},
 	{crdb.Engine, "-overlap-static", []dsconfig.ConfigOption{dsconfig.WithOverlapStrategy("static")}},
 	{crdb.Engine, "-overlap-insecure", []dsconfig.ConfigOption{dsconfig.WithOverlapStrategy("insecure")}},
-	{mysql.Engine, "", nil},
 }
 
 var skipped = []string{
 	spanner.Engine, // Not useful to benchmark a simulator
+	postgres.Engine,
+	mysql.Engine,
+	"memory",
 }
 
 var sortOrders = map[string]options.SortOrder{
@@ -61,6 +59,7 @@ var sortOrders = map[string]options.SortOrder{
 func BenchmarkDatastoreDriver(b *testing.B) {
 	for _, driver := range drivers {
 		b.Run(driver.name+driver.suffix, func(b *testing.B) {
+			b.StopTimer()
 			engine := testdatastore.RunDatastoreEngine(b, driver.name)
 			ds := engine.NewDatastore(b, config.DatastoreConfigInitFunc(
 				b,
@@ -71,6 +70,9 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 					dsconfig.WithWatchBufferLength(watchBufferLength),
 					dsconfig.WithWriteAcquisitionTimeout(5*time.Second))...,
 			))
+			b.Cleanup(func() {
+				_ = ds.Close()
+			})
 
 			ctx := context.Background()
 
@@ -96,6 +98,8 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 			headRev, err := ds.HeadRevision(ctx)
 			require.NoError(b, err)
 
+			b.StartTimer()
+
 			b.Run("TestTuple", func(b *testing.B) {
 				b.Run("SnapshotRead", func(b *testing.B) {
 					for n := 0; n < b.N; n++ {
@@ -104,7 +108,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 							OptionalResourceType:     testfixtures.DocumentNS.Name,
 							OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},
 							OptionalResourceRelation: "viewer",
-						})
+						}, options.WithQueryShape(queryshape.AllSubjectsForResources))
 						require.NoError(b, err)
 						var count int
 						for _, err := range iter {
@@ -118,7 +122,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 					for n := 0; n < b.N; n++ {
 						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 							OptionalResourceType: testfixtures.DocumentNS.Name,
-						})
+						}, options.WithQueryShape(queryshape.FindResourceOfType))
 						require.NoError(b, err)
 						var count int
 						for _, err := range iter {
@@ -134,7 +138,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 							for n := 0; n < b.N; n++ {
 								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 									OptionalResourceType: testfixtures.DocumentNS.Name,
-								}, options.WithSort(order))
+								}, options.WithSort(order), options.WithQueryShape(queryshape.FindResourceOfType))
 								require.NoError(b, err)
 								var count int
 								for _, err := range iter {
@@ -153,7 +157,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 									OptionalResourceType:     testfixtures.DocumentNS.Name,
 									OptionalResourceRelation: "viewer",
-								}, options.WithSort(order))
+								}, options.WithSort(order), options.WithQueryShape(queryshape.Varying))
 								require.NoError(b, err)
 								var count int
 								for _, err := range iter {
@@ -174,7 +178,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 									OptionalResourceType:     testfixtures.DocumentNS.Name,
 									OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},
 									OptionalResourceRelation: "viewer",
-								}, options.WithSort(order))
+								}, options.WithSort(order), options.WithQueryShape(queryshape.AllSubjectsForResources))
 								require.NoError(b, err)
 								var count int
 								for _, err := range iter {
@@ -189,7 +193,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 					for n := 0; n < b.N; n++ {
 						iter, err := ds.SnapshotReader(headRev).ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 							SubjectType: testfixtures.UserNS.Name,
-						}, options.WithSortForReverse(options.ByResource))
+						}, options.WithSortForReverse(options.ByResource), options.WithQueryShapeForReverse(queryshape.Varying))
 						require.NoError(b, err)
 						var count int
 						for _, err := range iter {

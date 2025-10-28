@@ -406,3 +406,76 @@ jobs:
           input: "proto/internal"
           against: "https://github.com/authzed/spicedb.git#branch=main,subdir=proto/internal"
           buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
+
+  benchmarks:
+    name: "Run Go benchmarks"
+    runs-on: "depot-ubuntu-24.04-8"
+    timeout-minutes: 30
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
+    steps:
+      - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - uses: "actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b" # v5.4.0
+        with:
+          go-version-file: "./go.mod"
+          cache-dependency-path: "./go.sum"
+          check-latest: true
+
+      - name: "Run benchmark on PR"
+        run: |
+          set -o pipefail
+          go run mage.go benchmark:all | tee ${{ github.sha }}_bench_output.txt
+
+      - name: "Get CPU information"
+        uses: "kenchan0130/actions-system-info@master"
+        id: "system-info"
+
+      - name: "Get Main branch SHA"
+        id: "get-main-branch-sha"
+        run: |
+          SHA=$(git rev-parse origin/main)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: "Download benchmark from Main"
+        uses: "actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684" # v4.2.3
+        id: "downloadbenchmark"
+        with:
+          path: "./cache/benchmark-data.json"
+          key: "${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-${{ steps.system-info.outputs.cpu-model }}-go-benchmark"
+
+      - name: "Compare benchmarks with Main"
+        uses: "benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b" # v1.20.7
+        if: "steps.downloadbenchmark.outputs.cache-hit == 'true'"
+        with:
+          alert-threshold: "200%"
+          # What benchmark tool the output.txt came from
+          tool: "go"
+          # Where the output from the benchmark tool is stored
+          output-file-path: "${{ github.sha }}_bench_output.txt"
+          # Where the benchmarks in main are (to compare)
+          external-data-json-path: "./cache/benchmark-data.json"
+          # Do not save the data
+          save-data-file: false
+          # Workflow will fail when an alert happens
+          fail-on-alert: true
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          # Enable Job Summary for PRs
+          summary-always: true
+
+      - name: "Run benchmarks but don't compare to Main branch"
+        uses: "benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b" # v1.20.7
+        if: "steps.downloadbenchmark.outputs.cache-hit != 'true'"
+        with:
+          # What benchmark tool the output.txt came from
+          tool: "go"
+          # Where the output from the benchmark tool is stored
+          output-file-path: "${{ github.sha }}_bench_output.txt"
+          # Do not save the data anywhere, just publish summary
+          save-data-file: false
+          external-data-json-path: "ignoreme"
+          # Enable Job Summary for PRs
+          summary-always: true

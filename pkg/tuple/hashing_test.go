@@ -35,19 +35,3 @@ func TestCanonicalBytes(t *testing.T) {
 		})
 	}
 }
-
-func BenchmarkCanonicalBytes(b *testing.B) {
-	for _, tc := range testCases {
-		tc := tc
-		if tc.relFormat.Resource.ObjectType == "" {
-			continue
-		}
-
-		b.Run(tc.input, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				_, err := CanonicalBytes(tc.relFormat)
-				require.NoError(b, err)
-			}
-		})
-	}
-}
