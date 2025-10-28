@@ -241,10 +241,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	resourceType := tuple.StringCoreRR(req.ResourceRelation)
 	spanName := "DispatchCheck → " + resourceType + "@" + req.Subject.Namespace + "#" + req.Subject.Relation
 
-	nodeID, err := nodeid.FromContext(ctx)
-	if err != nil {
-		log.Err(err).Msg("failed to get node ID")
-	}
+	nodeID := nodeid.Get()
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithAttributes(
 		attribute.String(otelconv.AttrDispatchResourceType, resourceType),
@@ -261,12 +258,6 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 					DispatchCount: 0,
 				},
 			}, rewriteError(ctx, err)
-		}
-
-		// NOTE: we return debug information here to ensure tooling can see the cycle.
-		nodeID, nerr := nodeid.FromContext(ctx)
-		if nerr != nil {
-			log.Err(nerr).Msg("failed to get nodeID from context")
 		}
 
 		return &v1.DispatchCheckResponse{
@@ -337,11 +328,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 
 // DispatchExpand implements dispatch.Expand interface
 func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
-	nodeID, err := nodeid.FromContext(ctx)
-	if err != nil {
-		log.Err(err).Msg("failed to get node ID")
-	}
-
+	nodeID := nodeid.Get()
 	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
 		attribute.String(otelconv.AttrDispatchStart, tuple.StringCoreONR(req.ResourceAndRelation)),
 		attribute.String(otelconv.AttrDispatchNodeID, nodeID),
@@ -377,10 +364,7 @@ func (ld *localDispatcher) DispatchLookupResources2(
 	req *v1.DispatchLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
 ) error {
-	nodeID, err := nodeid.FromContext(stream.Context())
-	if err != nil {
-		log.Err(err).Msg("failed to get node ID")
-	}
+	nodeID := nodeid.Get()
 
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
 		attribute.String(otelconv.AttrDispatchResourceType, tuple.StringCoreRR(req.ResourceRelation)),
@@ -413,10 +397,7 @@ func (ld *localDispatcher) DispatchLookupResources3(
 	req *v1.DispatchLookupResources3Request,
 	stream dispatch.LookupResources3Stream,
 ) error {
-	nodeID, err := nodeid.FromContext(stream.Context())
-	if err != nil {
-		log.Err(err).Msg("failed to get node ID")
-	}
+	nodeID := nodeid.Get()
 
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources3", trace.WithAttributes(
 		attribute.String(otelconv.AttrDispatchResourceType, tuple.StringCoreRR(req.ResourceRelation)),
@@ -450,10 +431,7 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	req *v1.DispatchLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
 ) error {
-	nodeID, err := nodeid.FromContext(stream.Context())
-	if err != nil {
-		log.Err(err).Msg("failed to get node ID")
-	}
+	nodeID := nodeid.Get()
 
 	resourceType := tuple.StringCoreRR(req.ResourceRelation)
 	subjectRelation := tuple.StringCoreRR(req.SubjectRelation)

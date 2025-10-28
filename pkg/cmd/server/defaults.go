@@ -39,7 +39,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	consistencymw "github.com/authzed/spicedb/pkg/middleware/consistency"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
-	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/middleware/serverversion"
 	"github.com/authzed/spicedb/pkg/releases"
@@ -167,7 +166,6 @@ var alwaysDebugOption = grpclog.WithLevels(func(code codes.Code) grpclog.Level {
 
 const (
 	DefaultMiddlewareRequestID     = "requestid"
-	DefaultMiddlewareNodeID        = "nodeid"
 	DefaultMiddlewareLog           = "log"
 	DefaultMiddlewareGRPCLog       = "grpclog"
 	DefaultMiddlewareGRPCAuth      = "grpcauth"
@@ -303,16 +301,10 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
-			WithName(DefaultMiddlewareNodeID).
-			WithInterceptor(nodeid.UnaryServerInterceptor("")).
-			Done(),
-
-		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog + "-debug").
 			WithInterceptor(selector.UnaryServerInterceptor(
 				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, traceIDFieldOption),
 				selector.MatchFunc(matchesRoute(healthCheckRoute)))).
-			EnsureAlreadyExecuted(DefaultMiddlewareNodeID).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -320,7 +312,6 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			WithInterceptor(selector.UnaryServerInterceptor(
 				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
-			EnsureAlreadyExecuted(DefaultMiddlewareNodeID).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -376,16 +367,10 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			Done(),
 
 		NewStreamMiddleware().
-			WithName(DefaultMiddlewareNodeID).
-			WithInterceptor(nodeid.StreamServerInterceptor("")).
-			Done(),
-
-		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog + "-debug").
 			WithInterceptor(selector.StreamServerInterceptor(
 				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, traceIDFieldOption),
 				selector.MatchFunc(matchesRoute(healthCheckRoute)))).
-			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareNodeID).
 			Done(),
 
 		NewStreamMiddleware().
@@ -393,7 +378,6 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			WithInterceptor(selector.StreamServerInterceptor(
 				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
-			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareNodeID).
 			Done(),
 
 		NewStreamMiddleware().
@@ -454,7 +438,6 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
-			nodeid.UnaryServerInterceptor(""),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
 			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsUnaryInterceptor,
@@ -465,7 +448,6 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			// NOTE: the logging middlewares are not present here in streaming, to remove their significant overhead
 			// when returning streaming messages.
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
-			nodeid.StreamServerInterceptor(""),
 			grpcMetricsStreamingInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
