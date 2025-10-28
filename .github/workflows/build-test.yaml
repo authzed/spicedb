@@ -412,8 +412,10 @@ jobs:
     runs-on: "depot-ubuntu-24.04-8"
     timeout-minutes: 30
     needs: "paths-filter"
+    # Benchmarks on Main are ran through a different workflow
     if: |
-      needs.paths-filter.outputs.codechange == 'true'
+      needs.paths-filter.outputs.codechange == 'true' &&
+      github.ref_name != 'main'
     steps:
       - uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" # v4.2.2
         with:
