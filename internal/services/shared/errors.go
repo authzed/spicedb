@@ -177,6 +177,9 @@ func rewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 		return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 	case errors.As(err, &datastore.WatchDisconnectedError{}):
 		return status.Errorf(codes.ResourceExhausted, "watch disconnected: %s", err)
+	case errors.As(err, &datastore.WatchRetryableError{}):
+		// Unavailable is safe to retry
+		return status.Error(codes.Unavailable, err.Error())
 	case errors.As(err, &datastore.CounterAlreadyRegisteredError{}):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_COUNTER_ALREADY_REGISTERED)
 	case errors.As(err, &datastore.CounterNotRegisteredError{}):
