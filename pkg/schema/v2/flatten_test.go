@@ -977,6 +977,78 @@ definition user {}`,
 
 definition user {}`,
 		},
+		{
+			name: "union with arrow and nil",
+			schemaString: `definition organization {
+	relation member: user
+}
+definition document {
+	relation org: organization
+	permission view = org->member + nil
+}
+
+definition user {}`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedString: `definition organization {
+	relation member: user
+}
+definition document {
+	relation org: organization
+    permission view = view__c1dc49f4d1e680d0 + nil
+    permission view__c1dc49f4d1e680d0 = org->member
+}
+
+definition user {}`,
+		},
+		{
+			name: "multi-flatten with arrows and non-union ops",
+			schemaString: `definition user {}
+
+    definition document {
+    	relation owner: user
+    	relation editor: user
+    	relation parent: folder
+    	relation viewer: user
+
+        permission edit = editor + owner
+        permission view = viewer + edit + parent->view
+        permission view_and_edit = view & edit
+    }
+
+    definition folder {
+    	relation parent: folder
+    	relation owner: user
+    	relation editor: user
+    	relation viewer: user | folder#view
+
+        permission view = viewer + editor + owner + parent->view
+    }`,
+			flattenNonUnionOperations: true,
+			flattenArrows:             true,
+			expectedString: `definition document {
+	permission edit = editor + owner
+	relation editor: user
+	relation owner: user
+	relation parent: folder
+	permission view = viewer + edit + view__0b0ed894546431d9
+	permission view__0b0ed894546431d9 = parent->view
+	permission view_and_edit = view & edit
+	relation viewer: user
+}
+	
+definition folder {
+	relation editor: user
+	relation owner: user
+	relation parent: folder
+	permission view = viewer + editor + owner + view__0b0ed894546431d9
+	permission view__0b0ed894546431d9 = parent->view
+	relation viewer: user | folder#view
+}
+
+definition user {}
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1375,4 +1447,206 @@ definition user {}`,
 			require.Len(t, flattenedDef.permissions, tt.expectedPermissionCount)
 		})
 	}
+}
+
+func TestFlattenSchema_ResolvedReferences(t *testing.T) {
+	tests := []struct {
+		name         string
+		schemaString string
+	}{
+		{
+			name: "nested operations create resolved references",
+			schemaString: `definition document {
+	relation viewer: user
+	relation editor: user
+	relation owner: user
+	permission view = (viewer + editor) & owner
+}
+
+definition user {}`,
+		},
+		{
+			name: "deeply nested operations",
+			schemaString: `definition document {
+	relation alpha: user
+	relation beta: user
+	relation gamma: user
+	relation delta: user
+	permission view = ((alpha & beta) - gamma) & delta
+}
+
+definition user {}`,
+		},
+		{
+			name: "arrow operations flattened",
+			schemaString: `definition document {
+	relation foo: folder
+	relation bar: folder
+	permission view = foo->bar & bar->baz
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}`,
+		},
+		{
+			name: "functioned arrow operations",
+			schemaString: `definition document {
+	relation parent: folder
+	relation viewer: user
+	permission view = parent.any(viewer) + viewer
+}
+
+definition folder {
+	relation viewer: user
+}
+
+definition user {}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Step 1: Compile the schema
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: tt.schemaString,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			// Step 2: Convert to *Schema
+			schema, err := BuildSchemaFromCompiledSchema(*compiled)
+			require.NoError(t, err)
+			require.NotNil(t, schema)
+
+			// Step 3: Resolve the schema
+			resolved, err := ResolveSchema(schema)
+			require.NoError(t, err)
+			require.NotNil(t, resolved)
+
+			// Step 4: Flatten the schema
+			flattened, err := FlattenSchema(resolved, FlattenSeparatorDoubleUnderscore)
+			require.NoError(t, err)
+			require.NotNil(t, flattened)
+
+			// Step 5: Verify all ResolvedRelationReferences point to valid permissions
+			flattenedSchema := flattened.ResolvedSchema().Schema()
+			for _, def := range flattenedSchema.definitions {
+				for _, perm := range def.permissions {
+					verifyResolvedReferencesInOperation(t, perm.operation, def)
+				}
+			}
+		})
+	}
+}
+
+// verifyResolvedReferencesInOperation recursively checks that all ResolvedRelationReferences
+// point to valid relations or permissions in the definition.
+func verifyResolvedReferencesInOperation(t *testing.T, op Operation, def *Definition) {
+	if op == nil {
+		return
+	}
+
+	switch o := op.(type) {
+	case *ResolvedRelationReference:
+		// Verify the resolved field points to either a relation or permission
+		require.NotNil(t, o.resolved, "ResolvedRelationReference.resolved should not be nil for %s", o.relationName)
+
+		// Check if it's a relation
+		if rel, ok := o.resolved.(*Relation); ok {
+			// Verify the relation exists in the definition
+			foundRel, exists := def.relations[o.relationName]
+			require.True(t, exists, "Relation %s should exist in definition %s", o.relationName, def.name)
+			// Verify they have the same name (pointer equality won't work after cloning)
+			require.Equal(t, foundRel.name, rel.name, "Resolved relation should have same name")
+			require.Equal(t, foundRel.parent, rel.parent, "Resolved relation should have same parent")
+		} else if perm, ok := o.resolved.(*Permission); ok {
+			// Verify the permission exists in the definition
+			foundPerm, exists := def.permissions[o.relationName]
+			require.True(t, exists, "Permission %s should exist in definition %s", o.relationName, def.name)
+			// Verify they have the same name (pointer equality won't work after cloning)
+			require.Equal(t, foundPerm.name, perm.name, "Resolved permission should have same name")
+			require.Equal(t, foundPerm.parent, perm.parent, "Resolved permission should have same parent")
+			// Most importantly, verify that the resolved field points to the exact same permission
+			// object that's in the definition map (same pointer)
+			require.Same(t, foundPerm, o.resolved, "ResolvedRelationReference should point to the exact permission object in the definition")
+		} else {
+			t.Fatalf("ResolvedRelationReference.resolved should be either *Relation or *Permission, got %T", o.resolved)
+		}
+
+	case *UnionOperation:
+		for _, child := range o.children {
+			verifyResolvedReferencesInOperation(t, child, def)
+		}
+
+	case *IntersectionOperation:
+		for _, child := range o.children {
+			verifyResolvedReferencesInOperation(t, child, def)
+		}
+
+	case *ExclusionOperation:
+		verifyResolvedReferencesInOperation(t, o.left, def)
+		verifyResolvedReferencesInOperation(t, o.right, def)
+
+	case *ResolvedArrowReference, *ResolvedFunctionedArrowReference, *RelationReference, *ArrowReference, *FunctionedArrowReference, *NilReference:
+		// These are leaf nodes, no further verification needed
+		return
+
+	default:
+		t.Fatalf("Unknown operation type: %T", op)
+	}
+}
+
+func TestFlattenSchema_SyntheticPermissionsAreResolved(t *testing.T) {
+	schemaString := `definition document {
+	relation viewer: user
+	relation editor: user
+	relation owner: user
+	permission view = (viewer + editor) & owner
+}
+
+definition user {}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+
+	// Flatten the schema
+	flattened, err := FlattenSchema(resolved, FlattenSeparatorDoubleUnderscore)
+	require.NoError(t, err)
+
+	// Get the flattened definition
+	flattenedDef := flattened.ResolvedSchema().Schema().definitions["document"]
+
+	// Find the view permission
+	viewPerm, exists := flattenedDef.permissions["view"]
+	require.True(t, exists)
+
+	// The view permission should have an intersection operation
+	intersection, ok := viewPerm.operation.(*IntersectionOperation)
+	require.True(t, ok, "view permission should be an intersection")
+
+	// The first child should be a resolved reference to a synthetic permission
+	firstChild, ok := intersection.children[0].(*ResolvedRelationReference)
+	require.True(t, ok, "first child should be a ResolvedRelationReference")
+
+	// Verify the synthetic permission exists
+	synthPerm, exists := flattenedDef.permissions[firstChild.relationName]
+	require.True(t, exists, "synthetic permission %s should exist", firstChild.relationName)
+	require.True(t, synthPerm.IsSynthetic(), "permission should be marked as synthetic")
+
+	// Verify the resolved field points to the correct synthetic permission
+	require.Equal(t, synthPerm, firstChild.resolved, "ResolvedRelationReference should point to the synthetic permission")
 }
