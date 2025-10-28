@@ -25,6 +25,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	reader := ds.SnapshotReader(atRevision)
 
 	// Load all namespace and caveat definitions to build the schema
+	// TODO: Better schema caching
 	namespaces, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -45,6 +46,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	}
 
 	// Build iterator tree from schema
+	// TODO: Better iterator caching
 	it, err := query.BuildIteratorFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -65,17 +67,12 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		CaveatRunner:  caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
 	}
 
-	// Enable tracing if requested
-	if req.WithTracing {
-		qctx.TraceLogger = query.NewTraceLogger()
-	}
-
 	// Execute the check
-	resource := query.GetObject(query.ObjectAndRelation{
+	resource := query.Object{
 		ObjectType: req.Resource.ObjectType,
 		ObjectID:   req.Resource.ObjectId,
-		Relation:   "",
-	})
+	}
+
 	subject := query.ObjectAndRelation{
 		ObjectType: req.Subject.Object.ObjectType,
 		ObjectID:   req.Subject.Object.ObjectId,
@@ -97,12 +94,6 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		CheckedAt:         checkedAt,
 		Permissionship:    permissionship,
 		PartialCaveatInfo: partialCaveat,
-	}
-
-	// Add debug trace if tracing was enabled
-	if req.WithTracing && qctx.TraceLogger != nil {
-		// TODO: Convert trace to v1.DebugInformation
-		// For now, we'll leave this empty but note that tracing is available
 	}
 
 	return resp, nil
