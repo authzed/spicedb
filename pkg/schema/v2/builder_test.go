@@ -973,3 +973,280 @@ func TestSchemaBuilderHelperFunctions(t *testing.T) {
 	require.Equal(t, "parent", funcOpTyped.Left())
 	require.Equal(t, "viewer", funcOpTyped.Right())
 }
+
+func TestNewRelationRef(t *testing.T) {
+	// Test creating a relation reference using NewRelationRef
+	relRef := NewRelationRef("viewer")
+	require.NotNil(t, relRef)
+
+	relRefTyped, ok := relRef.(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "viewer", relRefTyped.RelationName())
+}
+
+func TestNewRelationRefWithPermission(t *testing.T) {
+	// Test using NewRelationRef with NewPermission
+	schema := NewSchemaBuilder().
+		AddDefinition("document").
+		AddRelation("viewer").AllowedDirectRelation("user").Done().
+		Permission(NewPermission("view", NewRelationRef("viewer"))).
+		Done().
+		Build()
+
+	require.NotNil(t, schema)
+	docDef := schema.definitions["document"]
+	require.NotNil(t, docDef)
+
+	viewPerm := docDef.permissions["view"]
+	require.NotNil(t, viewPerm)
+
+	relRef, ok := viewPerm.operation.(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "viewer", relRef.RelationName())
+}
+
+func TestNewArrow(t *testing.T) {
+	// Test creating an arrow reference using NewArrow
+	arrow := NewArrow("parent", "view")
+	require.NotNil(t, arrow)
+
+	arrowTyped, ok := arrow.(*ArrowReference)
+	require.True(t, ok)
+	require.Equal(t, "parent", arrowTyped.Left())
+	require.Equal(t, "view", arrowTyped.Right())
+}
+
+func TestNewArrowWithPermission(t *testing.T) {
+	// Test using NewArrow with NewPermission
+	schema := NewSchemaBuilder().
+		AddDefinition("folder").
+		AddRelation("viewer").AllowedDirectRelation("user").Done().
+		Permission(NewPermission("view", NewRelationRef("viewer"))).
+		Done().
+		AddDefinition("document").
+		AddRelation("parent").AllowedDirectRelation("folder").Done().
+		Permission(NewPermission("view", NewArrow("parent", "view"))).
+		Done().
+		Build()
+
+	require.NotNil(t, schema)
+	docDef := schema.definitions["document"]
+	require.NotNil(t, docDef)
+
+	viewPerm := docDef.permissions["view"]
+	require.NotNil(t, viewPerm)
+
+	arrow, ok := viewPerm.operation.(*ArrowReference)
+	require.True(t, ok)
+	require.Equal(t, "parent", arrow.Left())
+	require.Equal(t, "view", arrow.Right())
+}
+
+func TestNewArrowWithBuilders(t *testing.T) {
+	// Test using NewArrow with operation builders
+	unionOp := NewUnion().
+		Add(NewRelationRef("owner")).
+		Add(NewArrow("parent", "view")).
+		Build()
+
+	require.NotNil(t, unionOp)
+	unionOpTyped, ok := unionOp.(*UnionOperation)
+	require.True(t, ok)
+	require.Len(t, unionOpTyped.Children(), 2)
+
+	// Check first child (relation reference)
+	relRef, ok := unionOpTyped.Children()[0].(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "owner", relRef.RelationName())
+
+	// Check second child (arrow reference)
+	arrow, ok := unionOpTyped.Children()[1].(*ArrowReference)
+	require.True(t, ok)
+	require.Equal(t, "parent", arrow.Left())
+	require.Equal(t, "view", arrow.Right())
+}
+
+func TestNewUnionBuilder(t *testing.T) {
+	// Test building a union operation standalone
+	unionOp := NewUnion().
+		AddRelationRef("owner").
+		AddRelationRef("viewer").
+		AddArrow("parent", "view").
+		Build()
+
+	require.NotNil(t, unionOp)
+	unionOpTyped, ok := unionOp.(*UnionOperation)
+	require.True(t, ok)
+	require.Len(t, unionOpTyped.Children(), 3)
+
+	// Check first child (relation reference)
+	relRef1, ok := unionOpTyped.Children()[0].(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "owner", relRef1.RelationName())
+
+	// Check second child (relation reference)
+	relRef2, ok := unionOpTyped.Children()[1].(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "viewer", relRef2.RelationName())
+
+	// Check third child (arrow reference)
+	arrowRef, ok := unionOpTyped.Children()[2].(*ArrowReference)
+	require.True(t, ok)
+	require.Equal(t, "parent", arrowRef.Left())
+	require.Equal(t, "view", arrowRef.Right())
+}
+
+func TestNewIntersectionBuilder(t *testing.T) {
+	// Test building an intersection operation standalone
+	intersectionOp := NewIntersection().
+		AddRelationRef("owner").
+		AddRelationRef("approved").
+		AddArrow("org", "member").
+		Build()
+
+	require.NotNil(t, intersectionOp)
+	intersectionOpTyped, ok := intersectionOp.(*IntersectionOperation)
+	require.True(t, ok)
+	require.Len(t, intersectionOpTyped.Children(), 3)
+
+	// Check first child (relation reference)
+	relRef1, ok := intersectionOpTyped.Children()[0].(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "owner", relRef1.RelationName())
+
+	// Check second child (relation reference)
+	relRef2, ok := intersectionOpTyped.Children()[1].(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "approved", relRef2.RelationName())
+
+	// Check third child (arrow reference)
+	arrowRef, ok := intersectionOpTyped.Children()[2].(*ArrowReference)
+	require.True(t, ok)
+	require.Equal(t, "org", arrowRef.Left())
+	require.Equal(t, "member", arrowRef.Right())
+}
+
+func TestNewExclusionBuilder(t *testing.T) {
+	// Test building an exclusion operation standalone
+	exclusionOp := NewExclusion().
+		BaseRelationRef("viewer").
+		ExcludeRelationRef("banned").
+		Build()
+
+	require.NotNil(t, exclusionOp)
+	exclusionOpTyped, ok := exclusionOp.(*ExclusionOperation)
+	require.True(t, ok)
+
+	// Check base (left side)
+	baseRef, ok := exclusionOpTyped.Left().(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "viewer", baseRef.RelationName())
+
+	// Check excluded (right side)
+	excludedRef, ok := exclusionOpTyped.Right().(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "banned", excludedRef.RelationName())
+}
+
+func TestNewExclusionBuilderWithArrows(t *testing.T) {
+	// Test building an exclusion operation with arrows
+	exclusionOp := NewExclusion().
+		BaseArrow("parent", "view").
+		ExcludeArrow("parent", "blocked").
+		Build()
+
+	require.NotNil(t, exclusionOp)
+	exclusionOpTyped, ok := exclusionOp.(*ExclusionOperation)
+	require.True(t, ok)
+
+	// Check base (left side)
+	baseArrow, ok := exclusionOpTyped.Left().(*ArrowReference)
+	require.True(t, ok)
+	require.Equal(t, "parent", baseArrow.Left())
+	require.Equal(t, "view", baseArrow.Right())
+
+	// Check excluded (right side)
+	excludedArrow, ok := exclusionOpTyped.Right().(*ArrowReference)
+	require.True(t, ok)
+	require.Equal(t, "parent", excludedArrow.Left())
+	require.Equal(t, "blocked", excludedArrow.Right())
+}
+
+func TestNewBuilderWithComplexNesting(t *testing.T) {
+	// Test building complex nested operations using the new builders
+	complexOp := NewUnion().
+		Add(RelRef("owner")).
+		Add(NewIntersection().
+			AddRelationRef("editor").
+			AddRelationRef("approved").
+			Build()).
+		Add(NewExclusion().
+			BaseArrow("parent", "view").
+			ExcludeRelationRef("blocked").
+			Build()).
+		Build()
+
+	require.NotNil(t, complexOp)
+	unionOpTyped, ok := complexOp.(*UnionOperation)
+	require.True(t, ok)
+	require.Len(t, unionOpTyped.Children(), 3)
+
+	// Check first child (simple relation reference)
+	relRef, ok := unionOpTyped.Children()[0].(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "owner", relRef.RelationName())
+
+	// Check second child (intersection)
+	intersectionOp, ok := unionOpTyped.Children()[1].(*IntersectionOperation)
+	require.True(t, ok)
+	require.Len(t, intersectionOp.Children(), 2)
+
+	// Check third child (exclusion)
+	exclusionOp, ok := unionOpTyped.Children()[2].(*ExclusionOperation)
+	require.True(t, ok)
+	require.NotNil(t, exclusionOp.Left())
+	require.NotNil(t, exclusionOp.Right())
+}
+
+func TestNewBuilderWithPermission(t *testing.T) {
+	// Test using the new builders with NewPermission
+	schema := NewSchemaBuilder().
+		AddDefinition("document").
+		AddRelation("owner").AllowedDirectRelation("user").Done().
+		AddRelation("editor").AllowedDirectRelation("user").Done().
+		AddRelation("banned").AllowedDirectRelation("user").Done().
+		Permission(
+			NewPermission("edit", NewIntersection().
+				AddRelationRef("owner").
+				Add(NewExclusion().
+					BaseRelationRef("editor").
+					ExcludeRelationRef("banned").
+					Build()).
+				Build()),
+		).
+		Done().
+		Build()
+
+	require.NotNil(t, schema)
+	docDef := schema.definitions["document"]
+	require.NotNil(t, docDef)
+
+	editPerm := docDef.permissions["edit"]
+	require.NotNil(t, editPerm)
+
+	// Verify the intersection operation
+	intersectionOp, ok := editPerm.operation.(*IntersectionOperation)
+	require.True(t, ok)
+	require.Len(t, intersectionOp.Children(), 2)
+
+	// Verify first child is owner relation ref
+	ownerRef, ok := intersectionOp.Children()[0].(*RelationReference)
+	require.True(t, ok)
+	require.Equal(t, "owner", ownerRef.RelationName())
+
+	// Verify second child is exclusion
+	exclusionOp, ok := intersectionOp.Children()[1].(*ExclusionOperation)
+	require.True(t, ok)
+	require.NotNil(t, exclusionOp.Left())
+	require.NotNil(t, exclusionOp.Right())
+}

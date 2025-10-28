@@ -31,6 +31,13 @@ func (s *Schema) Caveats() map[string]*Caveat {
 	return s.caveats
 }
 
+// GetTypeDefinition returns the type definition with the given name and a boolean
+// indicating whether it exists in the schema.
+func (s *Schema) GetTypeDefinition(name string) (*Definition, bool) {
+	def, ok := s.definitions[name]
+	return def, ok
+}
+
 // clone creates a deep copy of the Schema.
 func (s *Schema) clone() *Schema {
 	if s == nil {
@@ -83,6 +90,20 @@ func (d *Definition) Relations() map[string]*Relation {
 // Permissions returns the permissions in the definition.
 func (d *Definition) Permissions() map[string]*Permission {
 	return d.permissions
+}
+
+// GetRelation returns the relation with the given name and a boolean
+// indicating whether it exists in the definition.
+func (d *Definition) GetRelation(name string) (*Relation, bool) {
+	rel, ok := d.relations[name]
+	return rel, ok
+}
+
+// GetPermission returns the permission with the given name and a boolean
+// indicating whether it exists in the definition.
+func (d *Definition) GetPermission(name string) (*Permission, bool) {
+	perm, ok := d.permissions[name]
+	return perm, ok
 }
 
 // cloneWithParent creates a deep copy of the Definition with the specified parent.
