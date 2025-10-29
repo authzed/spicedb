@@ -134,7 +134,27 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 
 	switch o := op.(type) {
 	case *ResolvedRelationReference:
-		// Leaf node, no flattening needed
+		// Leaf node, but we need to update the resolved reference to point to the cloned schema
+		// Check if this references a relation or permission in the definition
+		if rel, ok := o.resolved.(*Relation); ok {
+			// Find the corresponding relation in the cloned definition
+			if clonedRel, exists := def.relations[rel.name]; exists {
+				return &ResolvedRelationReference{
+					relationName: o.relationName,
+					resolved:     clonedRel,
+				}, nil, nil
+			}
+		} else if perm, ok := o.resolved.(*Permission); ok {
+			// Find the corresponding permission in the cloned definition
+			if clonedPerm, exists := def.permissions[perm.name]; exists {
+				return &ResolvedRelationReference{
+					relationName: o.relationName,
+					resolved:     clonedPerm,
+				}, nil, nil
+			}
+		}
+		// If we can't find the referenced object, just return the original reference
+		// This shouldn't happen in a properly resolved schema
 		return o, nil, nil
 
 	case *ResolvedArrowReference:
