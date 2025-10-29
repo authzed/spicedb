@@ -46,6 +46,12 @@ func (p Path) Key() string {
 	return fmt.Sprintf("%s#%s@%s", p.Resource.Key(), p.Relation, ObjectAndRelationKey(p.Subject))
 }
 
+// EndpointsKey returns a unique string key for this Path based on its resource and subject only,
+// excluding the relation. This matches the semantics of EqualsEndpoints.
+func (p Path) EndpointsKey() string {
+	return fmt.Sprintf("%s@%s", p.Resource.Key(), ObjectAndRelationKey(p.Subject))
+}
+
 // MergeOr combines the paths, ORing the caveats and expiration and metadata together.
 // Returns a new Path with the merged values.
 func (p Path) MergeOr(other Path) (Path, error) {
@@ -299,4 +305,40 @@ func CollectAll(seq PathSeq) ([]Path, error) {
 		out = append(out, x)
 	}
 	return out, nil
+}
+
+// DeduplicatePathSeq returns a new PathSeq that deduplicates paths based on their
+// endpoints (resource and subject, excluding relation). Paths with the same endpoints
+// are merged using OR semantics (caveats are OR'd, no caveat wins over caveat).
+// This collects all paths first, deduplicates with merging, then yields results.
+func DeduplicatePathSeq(seq PathSeq) PathSeq {
+	return func(yield func(Path, error) bool) {
+		seen := make(map[string]Path)
+		for path, err := range seq {
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			key := path.EndpointsKey()
+			if existing, exists := seen[key]; !exists {
+				seen[key] = path
+			} else {
+				// Merge with existing path using OR semantics
+				merged, err := existing.MergeOr(path)
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+				seen[key] = merged
+			}
+		}
+
+		// Yield all deduplicated paths
+		for _, path := range seen {
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}
 }
