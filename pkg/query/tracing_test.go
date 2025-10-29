@@ -26,8 +26,7 @@ func TestIteratorTracing(t *testing.T) {
 	ctx := &Context{
 		Context:     context.Background(),
 		Executor:    LocalExecutor{},
-		Datastore:   ds,
-		Revision:    revision,
+		Reader:      ds.SnapshotReader(revision),
 		TraceLogger: traceLogger,
 	}
 

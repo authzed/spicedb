@@ -31,10 +31,9 @@ func TestBuildTree(t *testing.T) {
 	require.NoError(err)
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
@@ -65,10 +64,9 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 	require.Contains(explain.String(), "Union", "edit permission should create a union iterator")
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
@@ -120,10 +118,9 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	require.NotEmpty(explain.String())
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	// Just test that the iterator can be executed without error
@@ -223,10 +220,9 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	require.Contains(explain.String(), "Intersection", "should create intersection iterator")
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	// Test execution
@@ -290,10 +286,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	userDef := testfixtures.UserNS.CloneVT()
@@ -554,10 +549,9 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	require.Contains(explain.String(), "Relation", "should create relation iterator")
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	// Test execution
@@ -578,10 +572,9 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := &Context{
-		Context:   t.Context(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	userDef := testfixtures.UserNS.CloneVT()

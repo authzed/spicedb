@@ -40,10 +40,9 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := &Context{
-			Context:   context.Background(),
-			Executor:  LocalExecutor{},
-			Datastore: ds,
-			Revision:  revision,
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+			Reader:   ds.SnapshotReader(revision),
 		}
 
 		// Test: alice should have access because she's a member of ALL teams (team1 and team2)
@@ -93,10 +92,9 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := &Context{
-			Context:   context.Background(),
-			Executor:  LocalExecutor{},
-			Datastore: ds,
-			Revision:  revision,
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+			Reader:   ds.SnapshotReader(revision),
 		}
 
 		// Test: alice should NOT have access because she's not a member of ALL teams
@@ -137,10 +135,9 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := &Context{
-			Context:   context.Background(),
-			Executor:  LocalExecutor{},
-			Datastore: ds,
-			Revision:  revision,
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+			Reader:   ds.SnapshotReader(revision),
 		}
 
 		// Test: alice should have access because she's a member of the only team
@@ -186,10 +183,9 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := &Context{
-			Context:   context.Background(),
-			Executor:  LocalExecutor{},
-			Datastore: ds,
-			Revision:  revision,
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+			Reader:   ds.SnapshotReader(revision),
 		}
 
 		resources := []Object{NewObject("document", "doc1")}
@@ -233,10 +229,9 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := &Context{
-			Context:   context.Background(),
-			Executor:  LocalExecutor{},
-			Datastore: ds,
-			Revision:  revision,
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+			Reader:   ds.SnapshotReader(revision),
 		}
 
 		resources := []Object{NewObject("document", "doc1")}
@@ -276,10 +271,9 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := &Context{
-			Context:   context.Background(),
-			Executor:  LocalExecutor{},
-			Datastore: ds,
-			Revision:  revision,
+			Context:  context.Background(),
+			Executor: LocalExecutor{},
+			Reader:   ds.SnapshotReader(revision),
 		}
 
 		resources := []Object{}
@@ -309,10 +303,9 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 	require.NoError(err)
 
 	ctx := &Context{
-		Context:   context.Background(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
@@ -540,10 +533,9 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	require.NoError(err)
 
 	ctx := &Context{
-		Context:   context.Background(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	// Test that both iterators produce the same results
@@ -605,10 +597,9 @@ func TestIntersectionArrowIteratorUnimplementedMethods(t *testing.T) {
 	require.NoError(err)
 
 	ctx := &Context{
-		Context:   context.Background(),
-		Executor:  LocalExecutor{},
-		Datastore: ds,
-		Revision:  revision,
+		Context:  context.Background(),
+		Executor: LocalExecutor{},
+		Reader:   ds.SnapshotReader(revision),
 	}
 
 	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {

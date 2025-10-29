@@ -125,16 +125,13 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path Path) (*core.CaveatEx
 		return nil, false, errors.New("no caveat runner available for caveat evaluation")
 	}
 
-	// Get a snapshot reader which should implement CaveatReader
-	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
-
 	// Use the SimplifyCaveatExpression function to properly handle AND/OR logic
 	simplified, passes, err := SimplifyCaveatExpression(
 		ctx,
 		ctx.CaveatRunner,
 		path.Caveat,
 		ctx.CaveatContext,
-		reader,
+		ctx.Reader,
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to simplify caveat: %w", err)

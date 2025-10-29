@@ -115,6 +115,9 @@ type PermissionsServerConfig struct {
 
 	// EnableExperimentalLookupResources3 is used to enable LookupResources v3 for testing.
 	EnableExperimentalLookupResources3 bool // TODO: remove when LookupResources v3 is fully enabled
+
+	// ExperimentalQueryPlan enables the experimental query plan for API calls.
+	ExperimentalQueryPlan bool
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -140,6 +143,7 @@ func NewPermissionsServer(
 		ExpiringRelationshipsEnabled:       config.ExpiringRelationshipsEnabled,
 		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
+		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 	}
 
 	return &permissionServer{

@@ -70,6 +70,10 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	telemetry.LogicalChecks.Inc()
 
+	if ps.config.ExperimentalQueryPlan {
+		return ps.checkPermissionWithQueryPlan(ctx, req)
+	}
+
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)

@@ -50,8 +50,7 @@ func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 	return &query.Context{
 		Context:      t.Context(),
 		Executor:     query.LocalExecutor{},
-		Datastore:    q.ds,
-		Revision:     q.revision,
+		Reader:       q.ds.SnapshotReader(q.revision),
 		CaveatRunner: caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 		TraceLogger:  query.NewTraceLogger(), // Enable tracing for debugging
 	}

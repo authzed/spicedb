@@ -98,11 +98,9 @@ func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, sub
 		},
 	}
 
-	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
-
 	ctx.TraceStep(r, "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), resourceIDs)
 
-	relIter, err := reader.QueryRelationships(ctx, filter,
+	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(r.base.Caveat() == ""),
 		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -134,9 +132,7 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 		},
 	}
 
-	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
-
-	relIter, err := reader.QueryRelationships(ctx, filter,
+	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(r.base.Caveat() == ""),
 		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -188,9 +184,7 @@ func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object)
 		},
 	}
 
-	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
-
-	relIter, err := reader.QueryRelationships(ctx, filter,
+	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(r.base.Caveat() == ""),
 		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.AllSubjectsForResources),
@@ -216,9 +210,7 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 		},
 	}
 
-	reader := ctx.Datastore.SnapshotReader(ctx.Revision)
-
-	relIter, err := reader.QueryRelationships(ctx, filter,
+	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(r.base.Caveat() == ""),
 		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.AllSubjectsForResources),
