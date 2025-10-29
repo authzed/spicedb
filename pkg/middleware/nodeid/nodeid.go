@@ -1,27 +1,16 @@
 package nodeid
 
 import (
-	"context"
 	"encoding/hex"
 	"os"
 
 	"github.com/cespare/xxhash/v2"
-	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/grpc"
 )
 
 const spiceDBPrefix = "spicedb:"
 
-type ctxKeyType struct{}
-
-var nodeIDKey ctxKeyType = struct{}{}
-
-type nodeIDHandle struct {
-	nodeID string
-}
-
-var defaultNodeID string
+var computedNodeID string
 
 func init() {
 	hostname, err := os.Hostname()
@@ -37,66 +26,10 @@ func init() {
 		return
 	}
 
-	defaultNodeID = spiceDBPrefix + hex.EncodeToString(hasher.Sum(nil))
+	computedNodeID = spiceDBPrefix + hex.EncodeToString(hasher.Sum(nil))
 }
 
-// ContextWithHandle adds a placeholder to a context that will later be
-// filled by the Node ID.
-func ContextWithHandle(ctx context.Context) context.Context {
-	return context.WithValue(ctx, nodeIDKey, &nodeIDHandle{})
-}
-
-// FromContext reads the node's ID out of a context.Context.
-func FromContext(ctx context.Context) (string, error) {
-	if c := ctx.Value(nodeIDKey); c != nil {
-		handle := c.(*nodeIDHandle)
-		if handle.nodeID != "" {
-			return handle.nodeID, nil
-		}
-	}
-
-	if err := setInContext(ctx, defaultNodeID); err != nil {
-		return "", err
-	}
-
-	return defaultNodeID, nil
-}
-
-// setInContext adds a node ID to the given context
-func setInContext(ctx context.Context, nodeID string) error {
-	handle := ctx.Value(nodeIDKey)
-	if handle == nil {
-		return nil
-	}
-	handle.(*nodeIDHandle).nodeID = nodeID
-	return nil
-}
-
-// UnaryServerInterceptor returns a new unary server interceptor that adds the
-// node ID to the context. If empty, spicedb:$hostname is used.
-func UnaryServerInterceptor(nodeID string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		newCtx := ContextWithHandle(ctx)
-		if nodeID != "" {
-			if err := setInContext(newCtx, nodeID); err != nil {
-				return nil, err
-			}
-		}
-		return handler(newCtx, req)
-	}
-}
-
-// StreamServerInterceptor returns a new stream server interceptor that adds the
-// node ID to the context. If empty, spicedb:$hostname is used.
-func StreamServerInterceptor(nodeID string) grpc.StreamServerInterceptor {
-	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		wrapped := middleware.WrapServerStream(stream)
-		wrapped.WrappedContext = ContextWithHandle(wrapped.WrappedContext)
-		if nodeID != "" {
-			if err := setInContext(wrapped.WrappedContext, nodeID); err != nil {
-				return err
-			}
-		}
-		return handler(srv, wrapped)
-	}
+// Get returns the hostname.
+func Get() string {
+	return computedNodeID
 }

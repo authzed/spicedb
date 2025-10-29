@@ -116,12 +116,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 		return resolved.Resp, resolved.Err
 	}
 
-	nodeID, err := nodeid.FromContext(ctx)
-	if err != nil {
-		// NOTE: we ignore this error here as if the node ID is missing, the debug
-		// trace is still valid.
-		log.Err(err).Msg("failed to get node ID")
-	}
+	nodeID := nodeid.Get()
 
 	// Add debug information if requested.
 	debugInfo := resolved.Resp.Metadata.DebugInfo
@@ -1326,15 +1321,10 @@ func combineResponseMetadata(ctx context.Context, existing *v1.ResponseMeta, res
 		return combined
 	}
 
-	nodeID, err := nodeid.FromContext(ctx)
-	if err != nil {
-		log.Err(err).Msg("failed to get nodeID from context")
-	}
-
 	debugInfo := &v1.DebugInformation{
 		Check: &v1.CheckDebugTrace{
 			TraceId:  NewTraceID(),
-			SourceId: nodeID,
+			SourceId: nodeid.Get(),
 		},
 	}
 
