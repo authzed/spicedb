@@ -371,15 +371,29 @@ jobs:
         run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
-    runs-on: "ubuntu-22.04" # do not run Depot runners due to somehow triggering https://github.com/agnivade/wasmbrowsertest/issues/40
+    runs-on: "depot-ubuntu-24.04-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
       - uses: "authzed/actions/setup-go@f00cad69713a135d0b55c16bae64171367f319d5" # main
+      - name: "Disable AppArmor"
+        if:
+          "runner.os == 'Linux'"
+          # Disable AppArmor for Ubuntu 23.10+.
+          # https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md
+        run: "echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns"
+      # cleanenv is a util provided by the wasmbrowsertest package that removes
+      # environment variables from the environment handed to wasmbrowsertest.
+      # this works around https://github.com/agnivade/wasmbrowsertest/issues/40,
+      # which we were experiencing on depot.
+      - name: "Install cleanenv"
+        run: "go install github.com/agnivade/wasmbrowsertest/cmd/cleanenv@latest"
       - name: "WASM tests"
-        run: "go run mage.go test:wasm"
+        # There's a whole bunch of vars in the environment that aren't needed for running this test, so we clear them out.
+        # NOTE: if you need to do this in the future, I recommend bashing into the container and running `env | sort | less`
+        run: "cleanenv -remove-prefix GITHUB_ -remove-prefix ANDROID_ -remove-prefix JAVA_ -remove-prefix DOTNET_ -remove-prefix RUNNER_ -remove-prefix HOMEBREW_ -remove-prefix runner_ -- go run mage.go test:wasm"
 
   protobuf:
     name: "Generate Protobufs"
