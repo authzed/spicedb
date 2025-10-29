@@ -34,6 +34,10 @@ func RemoveNullIterators(it Iterator) (Iterator, bool, error) {
 			}
 		}
 		if hasEmpty {
+			// If all subiterators were empty, return empty
+			if len(newSubs) == 0 {
+				return NewEmptyFixedIterator(), true, nil
+			}
 			newit, err := it.ReplaceSubiterators(newSubs)
 			return newit, true, err
 		}
@@ -53,11 +57,4 @@ func isEmptyFixed(it Iterator) bool {
 		}
 	}
 	return false
-}
-
-// StaticOptimizations is a list of optimization functions that can be safely applied
-// to any iterator tree without needing runtime information or context.
-var StaticOptimizations = []OptimizerFunc{
-	RemoveNullIterators,
-	ElideSingletonUnionAndIntersection,
 }
