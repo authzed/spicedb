@@ -52,7 +52,7 @@ func TestCompile(t *testing.T) {
 			"nested parse error",
 			withTenantPrefix,
 			`definition foo {
-				relation something: rela | relb + relc	
+				relation something: rela | relb + relc
 			}`,
 			"parse error in `nested parse error`, line 2, column 37: Expected end of statement or definition, found: TokenTypePlus",
 			[]SchemaDefinition{},
@@ -695,7 +695,7 @@ func TestCompile(t *testing.T) {
 						"thirdParam":   caveattypes.Default.MustListType(caveattypes.Default.IntType),
 					},
 				), "sometenant/foo",
-					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56 
+					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56
 					&& anotherParam == "hi there" && 42 in thirdParam`),
 			},
 		},
@@ -995,7 +995,7 @@ func TestCompile(t *testing.T) {
 			"relation with expiration trait",
 			withTenantPrefix,
 			`use expiration
-			
+
 			definition simple {
 				relation viewer: user with expiration
 			}`,
@@ -1044,7 +1044,7 @@ func TestCompile(t *testing.T) {
 			"relation with expiration trait and caveat",
 			withTenantPrefix,
 			`use expiration
-			
+
 			definition simple {
 				relation viewer: user with somecaveat and expiration
 			}`,
@@ -1117,24 +1117,23 @@ func TestCompile(t *testing.T) {
 
 func filterSourcePositions(m protoreflect.Message) {
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-		if fd.Kind() == protoreflect.MessageKind {
-			if fd.IsList() {
-				l := v.List()
-				for i := 0; i < l.Len(); i++ {
-					filterSourcePositions(l.Get(i).Message())
-				}
-			} else if fd.IsMap() {
-				m := v.Map()
-				m.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
-					filterSourcePositions(v.Message())
-					return true
-				})
+		switch {
+		case fd.Kind() == protoreflect.MessageKind && fd.IsList():
+			l := v.List()
+			for i := 0; i < l.Len(); i++ {
+				filterSourcePositions(l.Get(i).Message())
+			}
+		case fd.Kind() == protoreflect.MessageKind && fd.IsMap():
+			m := v.Map()
+			m.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
+				filterSourcePositions(v.Message())
+				return true
+			})
+		case fd.Kind() == protoreflect.MessageKind:
+			if string(fd.Message().Name()) == "SourcePosition" {
+				m.Clear(fd)
 			} else {
-				if string(fd.Message().Name()) == "SourcePosition" {
-					m.Clear(fd)
-				} else {
-					filterSourcePositions(v.Message())
-				}
+				filterSourcePositions(v.Message())
 			}
 		}
 		return true

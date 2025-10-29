@@ -99,7 +99,7 @@ func TestAreProtoEqual(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			err := AreProtoEqual(tc.first, tc.second, "something went wrong")
-			require.Equal(t, (err == nil), (tc.expectedEqual))
+			require.Equal(t, tc.expectedEqual, err == nil)
 		})
 	}
 }
@@ -224,7 +224,7 @@ func TestAreProtoSlicesEqual(t *testing.T) {
 			err := AreProtoSlicesEqual(tc.first, tc.second, func(first, second *core.ObjectAndRelation) int {
 				return strings.Compare(first.ObjectId, second.ObjectId)
 			}, "something went wrong")
-			require.Equal(t, (err == nil), (tc.expectedEqual))
+			require.Equal(t, tc.expectedEqual, err == nil)
 		})
 	}
 }

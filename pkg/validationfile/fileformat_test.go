@@ -91,11 +91,11 @@ validation:
 				require.NoError(t, err)
 
 				require.NotNil(t, decoded)
-				require.Equal(t, tt.expectedRelCount, len(decoded.Relationships.Relationships))
+				require.Len(t, decoded.Relationships.Relationships, tt.expectedRelCount)
 
-				require.Equal(t, tt.expectedAssertTrueCount, len(decoded.Assertions.AssertTrue))
-				require.Equal(t, tt.expectedAssertFalseCount, len(decoded.Assertions.AssertFalse))
-				require.Equal(t, tt.expectedValidationCount, len(decoded.ExpectedRelations.ValidationMap))
+				require.Len(t, decoded.Assertions.AssertTrue, tt.expectedAssertTrueCount)
+				require.Len(t, decoded.Assertions.AssertFalse, tt.expectedAssertFalseCount)
+				require.Len(t, decoded.ExpectedRelations.ValidationMap, tt.expectedValidationCount)
 			}
 		})
 	}

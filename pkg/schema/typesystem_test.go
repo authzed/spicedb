@@ -39,19 +39,28 @@ func TestTypeSystemConcurrency(t *testing.T) {
 	ctx := t.Context()
 	ts := NewTypeSystem(ResolverForPredefinedDefinitions(*setup))
 	require := require.New(t)
+
+	// 10 outer iterations, 20 inner iterations, three namespaces
+	errs := make(chan error, 600)
+
 	for range 10 {
 		wg.Add(1)
 		go func() {
 			for range 20 {
 				for _, n := range []string{"document", "user", "team"} {
 					_, err := ts.GetValidatedDefinition(ctx, n)
-					require.NoError(err)
+					errs <- err
 				}
 			}
 			wg.Done()
 		}()
 	}
 	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(err, "expected no errors in concurrent GetValidatedDefinition calls")
+	}
 }
 
 func TestApplyExpirationFilter(t *testing.T) {
