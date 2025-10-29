@@ -24,6 +24,14 @@ func WrapOptimizer[T Iterator](fn TypedOptimizerFunc[T]) OptimizerFunc {
 	}
 }
 
+// StaticOptimizations is a list of optimization functions that can be safely applied
+// to any iterator tree without needing runtime information or context.
+var StaticOptimizations = []OptimizerFunc{
+	RemoveNullIterators,
+	ElideSingletonUnionAndIntersection,
+	WrapOptimizer(PushdownCaveatEvaluation),
+}
+
 // ApplyOptimizations recursively applies a list of optimizer functions to an iterator
 // tree, transforming it into an optimized form.
 //
@@ -40,9 +48,13 @@ func WrapOptimizer[T Iterator](fn TypedOptimizerFunc[T]) OptimizerFunc {
 //   - An error if any optimization failed
 func ApplyOptimizations(it Iterator, fns []OptimizerFunc) (Iterator, bool, error) {
 	var err error
-	subs := it.Subiterators()
+	origSubs := it.Subiterators()
 	changed := false
-	if len(subs) != 0 {
+	if len(origSubs) != 0 {
+		// Make a copy of the subiterators slice to avoid mutating the original iterator
+		subs := make([]Iterator, len(origSubs))
+		copy(subs, origSubs)
+
 		subChanged := false
 		for i, subit := range subs {
 			newit, ok, err := ApplyOptimizations(subit, fns)
@@ -63,23 +75,22 @@ func ApplyOptimizations(it Iterator, fns []OptimizerFunc) (Iterator, bool, error
 		}
 	}
 
-	// Apply optimizers in a loop until no more changes occur
-	// This ensures optimizations compose correctly regardless of order
-	for {
-		outerChanged := false
-		for _, fn := range fns {
-			newit, fnChanged, err := fn(it)
+	// Apply each optimizer to the current iterator
+	// If any optimizer transforms the iterator, recursively optimize the new tree
+	for _, fn := range fns {
+		newit, fnChanged, err := fn(it)
+		if err != nil {
+			return nil, false, err
+		}
+		if fnChanged {
+			// The iterator was transformed - recursively optimize the new tree
+			// to ensure all optimizations are fully applied
+			optimizedIt, _, err := ApplyOptimizations(newit, fns)
 			if err != nil {
 				return nil, false, err
 			}
-			if fnChanged {
-				it = newit
-				outerChanged = true
-				changed = true
-			}
-		}
-		if !outerChanged {
-			break
+			// Return true for changed since we did transform the iterator
+			return optimizedIt, true, nil
 		}
 	}
 	return it, changed, nil
