@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/stretchr/testify/require"
@@ -337,51 +335,4 @@ func (s *requestIDCustomGeneratorTestSuite) TestCustomGenerator() {
 	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
 	require.NotEmpty(s.T(), requestIDs)
 	require.Contains(s.T(), requestIDs[0], s.customIDPrefix, "Custom generator should be used")
-}
-
-// Test suite for timeout handling
-type requestIDTimeoutTestSuite struct {
-	*testpb.InterceptorTestSuite
-}
-
-func TestRequestIDMiddlewareTimeout(t *testing.T) {
-	s := &requestIDTimeoutTestSuite{
-		InterceptorTestSuite: &testpb.InterceptorTestSuite{
-			TestService: &testServer{},
-			ServerOpts: []grpc.ServerOption{
-				grpc.ChainUnaryInterceptor(
-					UnaryServerInterceptor(GenerateIfMissing(true)),
-				),
-			},
-			ClientOpts: []grpc.DialOption{},
-		},
-	}
-	suite.Run(t, s)
-}
-
-// If a stream receives a context that is already cancelled,
-// the middleware will not be invoked at all. Therefore, we try to induce
-// what happens when the context errors *while the middleware is running*.
-// However, right now, this test is only useful when ran by hand and inspecting logs manually,
-// because we don't have a way of asserting what logs were emmitted by the middleware.
-func (s *requestIDTimeoutTestSuite) TestContextTimeout() {
-	var wg sync.WaitGroup
-	for i := 0; i < 10_000; i++ {
-		wg.Add(1)
-		wg.Go(func() {
-			defer wg.Done()
-
-			// context will be cancelled in the middle of the middleware (if we are lucky)
-			ctx, cancel := context.WithTimeout(s.T().Context(), 1*time.Millisecond)
-			defer cancel()
-
-			var trailer metadata.MD
-			_, err := s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
-
-			// The RPC should fail due to context cancellation, but middleware should handle it gracefully
-			require.Error(s.T(), err)
-		})
-	}
-
-	wg.Wait()
 }
