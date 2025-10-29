@@ -167,7 +167,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	experimentalFlags := nfs.FlagSet(BoldBlue("Experimental"))
 	// Flags for experimental features
-	experimentalFlags.BoolVar(&config.ExperimentalQueryPlan, "experimental-query-plan", false, "enables experimental query plan within the API")
+	experimentalFlags.StringVar(&config.ExperimentalQueryPlan, "experimental-query-plan", "", "if non-empty, the version of the experimental query plan to use: `check` or empty")
 	if err := experimentalFlags.MarkHidden("experimental-query-plan"); err != nil {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}

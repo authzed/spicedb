@@ -614,7 +614,7 @@ func WithExperimentalLookupResourcesVersion(experimentalLookupResourcesVersion s
 }
 
 // WithExperimentalQueryPlan returns an option that can set ExperimentalQueryPlan on a Config
-func WithExperimentalQueryPlan(experimentalQueryPlan bool) ConfigOption {
+func WithExperimentalQueryPlan(experimentalQueryPlan string) ConfigOption {
 	return func(c *Config) {
 		c.ExperimentalQueryPlan = experimentalQueryPlan
 	}
