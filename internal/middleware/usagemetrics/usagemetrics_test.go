@@ -9,7 +9,9 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 
@@ -111,7 +113,9 @@ func (s *metricsMiddlewareTestSuite) TestErrCtx() {
 
 	// SimpleCtx times out after two seconds
 	_, err := s.Client.PingError(s.SimpleCtx(), &testpb.PingErrorRequest{}, grpc.Trailer(&trailerMD))
-	s.Require().ErrorContains(err, context.DeadlineExceeded.Error())
+
+	// the error may come from the grpc framework (client-side timeout) or from the API itself (it's a race)
+	s.Require().Equal(codes.DeadlineExceeded, status.Code(err))
 
 	// TODO ideally, this test would assert that no error log has been written
 	// but right now we have no way of capturing the logs
