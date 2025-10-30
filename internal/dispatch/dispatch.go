@@ -37,6 +37,7 @@ type Dispatcher interface {
 // Check interface describes just the methods required to dispatch check requests.
 type Check interface {
 	// DispatchCheck submits a single check request and returns its result.
+	// The result should be safe to access from multiple goroutines.
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error)
 }
 
