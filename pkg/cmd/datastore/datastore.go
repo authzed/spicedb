@@ -70,14 +70,14 @@ func DefaultReadConnPool() *ConnPoolConfig {
 
 func DefaultWriteConnPool() *ConnPoolConfig {
 	cfg := DefaultReadConnPool()
-	cfg.MaxOpenConns = cfg.MaxOpenConns / 2
-	cfg.MinOpenConns = cfg.MinOpenConns / 2
+	cfg.MaxOpenConns /= 2
+	cfg.MinOpenConns /= 2
 	return cfg
 }
 
 func RegisterConnPoolFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, defaults, opts *ConnPoolConfig) {
 	if prefix != "" {
-		prefix = prefix + "-"
+		prefix += "-"
 	}
 	flagName := func(flag string) string {
 		return prefix + flag
@@ -199,7 +199,7 @@ func RegisterDatastoreFlags(flagset *pflag.FlagSet, opts *Config) error {
 // prefix argument. If left empty, the datastore flags are not prefixed.
 func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opts *Config) error {
 	if prefix != "" {
-		prefix = prefix + "-"
+		prefix += "-"
 	}
 	flagName := func(flag string) string {
 		return prefix + flag

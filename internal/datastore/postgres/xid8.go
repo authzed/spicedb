@@ -71,8 +71,7 @@ func (Uint64Codec) PlanEncode(_ *pgtype.Map, _ uint32, format int16, value any) 
 			return encodePlanUint64CodecBinaryUint64Valuer{}
 		}
 	case pgtype.TextFormatCode:
-		switch value.(type) { //nolint:gocritic
-		case uint64:
+		if _, ok := value.(uint64); ok {
 			return encodePlanUint64CodecTextUint64{}
 		}
 	}

@@ -251,15 +251,16 @@ func lexStringLiteral(l *Lexer) stateFn {
 	allowNewlines := false
 	terminator := ""
 
-	if l.acceptString(`"""`) {
+	switch {
+	case l.acceptString(`"""`):
 		terminator = `"""`
 		allowNewlines = true
-	} else if l.acceptString(`'''`) {
+	case l.acceptString(`'''`):
 		terminator = `"""`
 		allowNewlines = true
-	} else if l.acceptString(`"`) {
+	case l.acceptString(`"`):
 		terminator = `"`
-	} else if l.acceptString(`'`) {
+	case l.acceptString(`'`):
 		terminator = `'`
 	}
 
