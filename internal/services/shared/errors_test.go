@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -115,6 +116,13 @@ func TestRewriteError(t *testing.T) {
 			config:           nil,
 			expectedCode:     codes.FailedPrecondition,
 			expectedContains: "watch is currently disabled: it was disabled",
+		},
+		{
+			name:             "watch retryable",
+			inputError:       datastore.NewWatchTemporaryErr(errors.New("server is shutting down")),
+			config:           nil,
+			expectedCode:     codes.Unavailable,
+			expectedContains: "watch has failed with a temporary condition: server is shutting down. Please retry",
 		},
 		{
 			name:             "counter already registered",

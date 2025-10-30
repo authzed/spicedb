@@ -136,7 +136,7 @@ func NewWatchDisabledErr(reason string) error {
 // a temporary condition and clients may consider retrying by calling watch again (vs a fatal error).
 func NewWatchTemporaryErr(wrapped error) error {
 	return WatchRetryableError{
-		error: fmt.Errorf("watch has failed with a temporary condition: %w. please retry the watch", wrapped),
+		error: fmt.Errorf("watch has failed with a temporary condition: %w. Please retry", wrapped),
 	}
 }
 
