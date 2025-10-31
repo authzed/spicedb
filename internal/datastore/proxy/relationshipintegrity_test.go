@@ -248,17 +248,11 @@ func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
-	headRev, err := ds.HeadRevision(t.Context())
-	require.NoError(t, err)
-
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
 	require.NoError(t, err)
 
-	watchEvents, errChan := pds.Watch(t.Context(), headRev, datastore.WatchJustRelationships())
-
-	// Insert an invalid integrity hash for one of the relationships to be invalid by bypassing
-	// the proxy.
-	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	// Insert an invalid relationship to get a working revision to watch from.
+	validWriteRev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		invalidTpl := tuple.MustParse("resource:foo#viewer@user:jimmy")
 		invalidTpl.OptionalIntegrity = &core.RelationshipIntegrity{
 			KeyId:    "defaultfortest",
@@ -272,10 +266,28 @@ func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Insert another invalid integrity hash for one of the relationships to be invalid by bypassing
+	// the proxy.
+	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		invalidTpl := tuple.MustParse("resource:foo#viewer@user:timmy")
+		invalidTpl.OptionalIntegrity = &core.RelationshipIntegrity{
+			KeyId:    "defaultfortest",
+			Hash:     append([]byte{0x01}, []byte("someinvalidhashaasd")[0:hashLength]...),
+			HashedAt: timestamppb.Now(),
+		}
+
+		return tx.WriteRelationships(t.Context(), []tuple.RelationshipUpdate{
+			tuple.Create(invalidTpl),
+		})
+	})
+	require.NoError(t, err)
+
+	watchEvents, errChan := pds.Watch(t.Context(), validWriteRev, datastore.WatchJustRelationships())
+
 	// Ensure a watch error is raised.
 	select {
-	case <-watchEvents:
-		require.Fail(t, "watch event received")
+	case we := <-watchEvents:
+		require.Fail(t, "watch event received: %v", we)
 
 	case err := <-errChan:
 		require.Error(t, err)
