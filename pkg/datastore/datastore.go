@@ -73,25 +73,25 @@ func (rc RevisionChanges) DebugString() string {
 		return "[checkpoint]"
 	}
 
-	debugString := ""
+	var debugString strings.Builder
 
 	for _, relChange := range rc.RelationshipChanges {
-		debugString += relChange.DebugString() + "\n"
+		debugString.WriteString(relChange.DebugString() + "\n")
 	}
 
 	for _, def := range rc.ChangedDefinitions {
-		debugString += fmt.Sprintf("Definition: %T:%s\n", def, def.GetName())
+		debugString.WriteString(fmt.Sprintf("Definition: %T:%s\n", def, def.GetName()))
 	}
 
 	for _, ns := range rc.DeletedNamespaces {
-		debugString += fmt.Sprintf("DeletedNamespace: %s\n", ns)
+		debugString.WriteString(fmt.Sprintf("DeletedNamespace: %s\n", ns))
 	}
 
 	for _, caveat := range rc.DeletedCaveats {
-		debugString += fmt.Sprintf("DeletedCaveat: %s\n", caveat)
+		debugString.WriteString(fmt.Sprintf("DeletedCaveat: %s\n", caveat))
 	}
 
-	return debugString
+	return debugString.String()
 }
 
 func (rc RevisionChanges) MarshalZerologObject(e *zerolog.Event) {

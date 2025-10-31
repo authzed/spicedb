@@ -211,6 +211,7 @@ require (
 	github.com/butuzov/mirror v1.3.0 // indirect
 	github.com/catenacyber/perfsprint v0.9.1 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.4 // indirect
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
 	github.com/charithe/durationcheck v0.0.10 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect

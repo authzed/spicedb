@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ccoveille/go-safecast"
 
@@ -66,7 +67,7 @@ func PopulateFromFiles(ctx context.Context, ds datastore.Datastore, caveatTypeSe
 // PopulateFromFilesContents populates the given datastore with the namespaces and tuples found in
 // the validation file(s) contents specified.
 func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, caveatTypeSet *caveattypes.TypeSet, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
-	var schemaStr string
+	var schemaBuilder strings.Builder
 	var objectDefs []*core.NamespaceDefinition
 	var caveatDefs []*core.CaveatDefinition
 	var rels []tuple.Relationship
@@ -143,7 +144,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 		if compiled != nil {
 			defs := compiled.ObjectDefinitions
 			if len(defs) > 0 {
-				schemaStr += parsed.Schema.Schema + "\n\n"
+				schemaBuilder.WriteString(parsed.Schema.Schema + "\n\n")
 			}
 
 			log.Ctx(ctx).Info().Str("filePath", filePath).
@@ -220,7 +221,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 		return nil, nil, err
 	}
 
-	return &PopulatedValidationFile{schemaStr, objectDefs, caveatDefs, rels, files}, revision, err
+	return &PopulatedValidationFile{schemaBuilder.String(), objectDefs, caveatDefs, rels, files}, revision, err
 }
 
 // CompileSchema takes an InputSchema and returns the compiled schema, or else an error.

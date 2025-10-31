@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"strings"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -46,11 +48,11 @@ func (nc *NodeChain) FindNodeOfType(nodeType dslshape.NodeType) DSLNode {
 }
 
 func (nc *NodeChain) String() string {
-	var out string
+	var out strings.Builder
 	for _, node := range nc.nodes {
-		out += node.GetType().String() + " "
+		out.WriteString(node.GetType().String() + " ")
 	}
-	return out
+	return out.String()
 }
 
 // PositionToAstNodeChain returns the AST node, and its parents (if any), found at the given position in the source, if any.

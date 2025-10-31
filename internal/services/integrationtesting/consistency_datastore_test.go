@@ -1,5 +1,4 @@
 //go:build ci && docker && datastoreconsistency
-// +build ci,docker,datastoreconsistency
 
 package integrationtesting_test
 

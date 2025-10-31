@@ -1,5 +1,4 @@
 //go:build ci && docker
-// +build ci,docker
 
 package crdb
 
