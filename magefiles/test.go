@@ -22,7 +22,7 @@ func (t Test) All(ctx context.Context) {
 	c := Testcons{}
 	mg.CtxDeps(ctx, t.Unit, t.Integration, t.Steelthread, t.Image, t.Analyzers,
 		ds.Crdb, ds.Postgres, ds.Spanner, ds.Mysql,
-		c.Crdb, c.Spanner, c.Postgres, c.Mysql)
+		c.Crdb, c.Postgres, c.Spanner, c.Mysql)
 }
 
 // UnitCover Runs the unit tests and generates a coverage report
@@ -62,7 +62,7 @@ func (Test) Integration(ctx context.Context) error {
 	return goTest(ctx, "./internal/services/integrationtesting/...", "-tags", "ci,docker", "-timeout", "15m")
 }
 
-// Integration Run integration tests with cover
+// IntegrationCover Run integration tests with cover
 func (Test) IntegrationCover(ctx context.Context) error {
 	mg.Deps(checkDocker)
 	args := []string{"-tags", "ci,docker", "-timeout", "15m", "-count=1"}
