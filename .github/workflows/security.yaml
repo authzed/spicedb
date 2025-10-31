@@ -53,7 +53,7 @@ jobs:
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
-      - uses: "docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1" # v3.5.0
+      - uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef" # v3.6.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -62,7 +62,7 @@ jobs:
           sudo snap install snapcraft --channel=8.x/stable --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages
-      - uses: "aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808" # master
+      - uses: "aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8" # master
         with:
           scan-type: "fs"
           ignore-unfixed: true
