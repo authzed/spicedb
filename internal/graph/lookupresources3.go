@@ -1399,7 +1399,7 @@ func mustDatastoreIndexToString(index datastoreIndex) (string, error) {
 		return dsIndexPrefix + index.chunkID, nil
 	}
 
-	return dsIndexPrefix + index.chunkID + ":" + (*index.dbCursor).String(), nil
+	return dsIndexPrefix + index.chunkID + ":" + index.dbCursor.RelationshipReference.String(), nil
 }
 
 type datastoreIndex struct {

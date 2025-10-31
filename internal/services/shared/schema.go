@@ -489,7 +489,11 @@ func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.Relations
 			fullMetadata = make(map[string]string)
 		}
 		fullMetadata["relationship"] = strValue
-		newArgs := append(args, strValue)
+		// NOTE: gocritic doesn't like this form of an append,
+		// but creating a new slice of []any and then running it through
+		// the rest of the code produces different error messages,
+		// so we're leaving it as-is
+		newArgs := append(args, strValue) //nolint:gocritic
 		return NewSchemaWriteDataValidationError(message+": %s", newArgs, fullMetadata)
 	}
 

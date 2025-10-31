@@ -406,9 +406,7 @@ func foreachTxType(
 }
 
 func sortedStandardData(resourceType string, order options.SortOrder) []tuple.Relationship {
-	asTuples := slicez.Map(testfixtures.StandardRelationships, func(item string) tuple.Relationship {
-		return tuple.MustParse(item)
-	})
+	asTuples := slicez.Map(testfixtures.StandardRelationships, tuple.MustParse)
 
 	filteredToType := slicez.Filter(asTuples, func(item tuple.Relationship) bool {
 		return item.Resource.ObjectType == resourceType
@@ -433,9 +431,7 @@ func sortedStandardData(resourceType string, order options.SortOrder) []tuple.Re
 }
 
 func sortedStandardDataBySubject(subjectType string, order options.SortOrder) []tuple.Relationship {
-	asTuples := slicez.Map(testfixtures.StandardRelationships, func(item string) tuple.Relationship {
-		return tuple.MustParse(item)
-	})
+	asTuples := slicez.Map(testfixtures.StandardRelationships, tuple.MustParse)
 
 	filteredToType := slicez.Filter(asTuples, func(item tuple.Relationship) bool {
 		if subjectType == "" {

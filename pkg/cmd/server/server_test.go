@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"testing"
 	"time"
 
@@ -276,7 +275,7 @@ func TestRetryPolicy(t *testing.T) {
 		datastore.WithRequestHedgingEnabled(false),
 	)
 	if err != nil {
-		log.Fatalf("unable to start memdb datastore: %s", err)
+		t.Fatalf("unable to start memdb datastore: %s", err)
 	}
 
 	var interceptor countingInterceptor
