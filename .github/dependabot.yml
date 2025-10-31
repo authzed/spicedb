@@ -2,9 +2,13 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
-    directory: "/"
+    directories:
+      - "/"
+      - "/magefiles"
+      - "/e2e"
+      - "/tools/analyzers"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     labels:
       - "area/dependencies"
     groups:
@@ -13,7 +17,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     labels:
       - "area/dependencies"
     groups:
