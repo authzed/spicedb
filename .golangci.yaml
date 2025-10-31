@@ -24,7 +24,7 @@ linters:
     # - "gocritic" TODO: fix issues
     - "goprintffuncname"
     - "gosec"
-    # - "govet" TODO: fix issues
+    - "govet"
     - "importas"
     - "ineffassign"
     - "makezero"
