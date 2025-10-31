@@ -142,12 +142,15 @@ func (r *memdbReader) QueryRelationships(
 		filter.OptionalSubjectsSelectors,
 		filter.OptionalCaveatNameFilter,
 		filter.OptionalExpirationOption,
-		makeCursorFilterFn(queryOpts.After, queryOpts.Sort),
+		mustMakeCursorFilterFn(queryOpts.After, queryOpts.Sort),
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
 
 	switch queryOpts.Sort {
 	case options.Unsorted:
+		fallthrough
+
+	case options.ChooseEfficient:
 		fallthrough
 
 	case options.ByResource:
@@ -205,12 +208,15 @@ func (r *memdbReader) ReverseQueryRelationships(
 		[]datastore.SubjectsSelector{subjectsFilter.AsSelector()},
 		datastore.CaveatNameFilter{},
 		datastore.ExpirationFilterOptionNone,
-		makeCursorFilterFn(queryOpts.AfterForReverse, queryOpts.SortForReverse),
+		mustMakeCursorFilterFn(queryOpts.AfterForReverse, queryOpts.SortForReverse),
 	)
 	filteredIterator := memdb.NewFilterIterator(iterator, matchingRelationshipsFilterFunc)
 
 	switch queryOpts.SortForReverse {
 	case options.Unsorted:
+		fallthrough
+
+	case options.ChooseEfficient:
 		fallthrough
 
 	case options.ByResource:
@@ -456,9 +462,15 @@ func filterFuncForFilters(
 	}
 }
 
-func makeCursorFilterFn(after options.Cursor, order options.SortOrder) func(tpl *relationship) bool {
+func mustMakeCursorFilterFn(after options.Cursor, order options.SortOrder) func(tpl *relationship) bool {
 	if after != nil {
 		switch order {
+		case options.Unsorted:
+			return noopCursorFilter
+
+		case options.ChooseEfficient:
+			fallthrough
+
 		case options.ByResource:
 			return func(tpl *relationship) bool {
 				return less(tpl.namespace, tpl.resourceID, tpl.relation, after.Resource) ||
@@ -473,8 +485,12 @@ func makeCursorFilterFn(after options.Cursor, order options.SortOrder) func(tpl 
 						(less(tpl.namespace, tpl.resourceID, tpl.relation, after.Resource) ||
 							eq(tpl.namespace, tpl.resourceID, tpl.relation, after.Resource)))
 			}
+
+		default:
+			panic("unhandled cursor filter case")
 		}
 	}
+
 	return noopCursorFilter
 }
 
