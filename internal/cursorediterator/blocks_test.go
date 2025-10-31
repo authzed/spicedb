@@ -639,9 +639,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 			}
 
 			// Cursor converter functions for int
-			intFromString := func(s string) (int, error) {
-				return strconv.Atoi(s)
-			}
+			intFromString := strconv.Atoi
 
 			intToString := func(i int) (string, error) {
 				return strconv.Itoa(i), nil
@@ -1084,9 +1082,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 		}
 
 		// Cursor converter functions for int
-		intFromString := func(s string) (int, error) {
-			return strconv.Atoi(s)
-		}
+		intFromString := strconv.Atoi
 
 		intToString := func(i int) (string, error) {
 			return strconv.Itoa(i), nil
@@ -1383,9 +1379,7 @@ func TestCursoredProducerMapperIteratorConcurrency1SpecialCase(t *testing.T) {
 	ctx := t.Context()
 
 	// Cursor converter functions for int
-	intFromString := func(s string) (int, error) {
-		return strconv.Atoi(s)
-	}
+	intFromString := strconv.Atoi
 
 	intToString := func(i int) (string, error) {
 		return strconv.Itoa(i), nil
@@ -1718,9 +1712,7 @@ func TestConcurrencyConsistency(t *testing.T) {
 
 	t.Run("CursoredProducerMapperIterator consistency", func(t *testing.T) {
 		// Cursor converter functions
-		intFromString := func(s string) (int, error) {
-			return strconv.Atoi(s)
-		}
+		intFromString := strconv.Atoi
 		intToString := func(i int) (string, error) {
 			return strconv.Itoa(i), nil
 		}
@@ -1972,9 +1964,7 @@ func TestDisableCursorsInContext(t *testing.T) {
 	t.Run("CursoredProducerMapperIterator with cursors disabled", func(t *testing.T) {
 		ctxWithoutCursors := DisableCursorsInContext(ctx)
 
-		intFromString := func(s string) (int, error) {
-			return strconv.Atoi(s)
-		}
+		intFromString := strconv.Atoi
 
 		intToString := func(i int) (string, error) {
 			return strconv.Itoa(i), nil
@@ -2024,9 +2014,7 @@ func TestDisableCursorsInContext(t *testing.T) {
 	})
 
 	t.Run("CursoredProducerMapperIterator with cursors enabled", func(t *testing.T) {
-		intFromString := func(s string) (int, error) {
-			return strconv.Atoi(s)
-		}
+		intFromString := strconv.Atoi
 
 		intToString := func(i int) (string, error) {
 			return strconv.Itoa(i), nil
@@ -2071,9 +2059,7 @@ func TestDisableCursorsInContext(t *testing.T) {
 	t.Run("CursoredProducerMapperIterator with cursors disabled concurrency=1", func(t *testing.T) {
 		ctxWithoutCursors := DisableCursorsInContext(ctx)
 
-		intFromString := func(s string) (int, error) {
-			return strconv.Atoi(s)
-		}
+		intFromString := strconv.Atoi
 
 		intToString := func(i int) (string, error) {
 			return strconv.Itoa(i), nil

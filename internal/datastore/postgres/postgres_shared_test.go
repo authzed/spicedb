@@ -1981,11 +1981,9 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 				require.True(transactionIDPresent, "expected transactionID to be present in revision")
 
 				checkedUpdate = true
-			} else {
 				// we wait for a checkpoint right after the update. Checkpoints could happen at any time off band.
-				if checkedUpdate {
-					checkedCheckpoint = true
-				}
+			} else if checkedUpdate {
+				checkedCheckpoint = true
 			}
 
 			time.Sleep(1 * time.Millisecond)

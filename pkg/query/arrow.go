@@ -77,13 +77,14 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 					// Combine caveats from both sides using Path-based approach
 					// For arrow operations (left->right), both conditions must be satisfied (AND logic)
 					var combinedCaveat *core.CaveatExpression
-					if path.Caveat != nil && checkPath.Caveat != nil {
+					switch {
+					case path.Caveat != nil && checkPath.Caveat != nil:
 						// Both sides have caveats - create combined caveat expression
 						combinedCaveat = caveats.And(path.Caveat, checkPath.Caveat)
-					} else if path.Caveat != nil {
+					case path.Caveat != nil:
 						// Only left side has caveat
 						combinedCaveat = path.Caveat
-					} else if checkPath.Caveat != nil {
+					case checkPath.Caveat != nil:
 						// Only right side has caveat
 						combinedCaveat = checkPath.Caveat
 					}

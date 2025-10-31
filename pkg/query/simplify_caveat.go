@@ -178,13 +178,14 @@ func simplifyAndOperation(
 			return nil, false, err
 		}
 
-		if simplified == nil && passes {
+		switch {
+		case simplified == nil && passes:
 			// Child evaluated to true unconditionally - remove it from AND
 			continue
-		} else if !passes {
+		case !passes:
 			// Child failed - entire AND fails
 			return simplified, false, nil
-		} else {
+		default:
 			// Child is conditional - keep it
 			simplifiedChildren = append(simplifiedChildren, simplified)
 		}
@@ -227,13 +228,14 @@ func simplifyOrOperation(
 			return nil, false, err
 		}
 
-		if simplified == nil && passes {
+		switch {
+		case simplified == nil && passes:
 			// Child evaluated to true unconditionally - entire OR is true
 			return nil, true, nil
-		} else if !passes {
+		case !passes:
 			// Child failed - remove it from OR
 			continue
-		} else {
+		default:
 			// Child is conditional - keep it
 			simplifiedChildren = append(simplifiedChildren, simplified)
 		}

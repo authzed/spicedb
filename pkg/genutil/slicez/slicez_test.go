@@ -162,7 +162,7 @@ func TestMapDifferentTypes(t *testing.T) {
 		{
 			name:     "convert int to string",
 			input:    []int{1, 2, 3},
-			fn:       func(x int) string { return strconv.Itoa(x) },
+			fn:       strconv.Itoa,
 			expected: []string{"1", "2", "3"},
 		},
 		{
@@ -174,7 +174,7 @@ func TestMapDifferentTypes(t *testing.T) {
 		{
 			name:     "empty slice different types",
 			input:    []int{},
-			fn:       func(x int) string { return strconv.Itoa(x) },
+			fn:       strconv.Itoa,
 			expected: []string{},
 		},
 	}

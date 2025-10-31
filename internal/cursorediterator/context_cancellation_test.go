@@ -281,9 +281,7 @@ func TestContextCancellationComprehensive(t *testing.T) {
 		concurrencyLevels := []uint16{1, 2, 4}
 
 		// Cursor converter functions
-		intFromString := func(s string) (int, error) {
-			return strconv.Atoi(s)
-		}
+		intFromString := strconv.Atoi
 		intToString := func(i int) (string, error) {
 			return strconv.Itoa(i), nil
 		}

@@ -181,7 +181,7 @@ func TestRewriteError(t *testing.T) {
 			expectedCode:     codes.FailedPrecondition,
 			expectedContains: "failed precondition: relation/permission `view` under definition `document` is missing type information",
 		},
-		//{ TODO this doesn't pass
+		// { TODO this doesn't pass
 		//	name: "compiler error",
 		//	inputError: &compiler.WithContextError{
 		//		BaseCompilerError: compiler.BaseCompilerError{
@@ -191,7 +191,7 @@ func TestRewriteError(t *testing.T) {
 		//	config:           nil,
 		//	expectedCode:     codes.InvalidArgument,
 		//	expectedContains: "syntax error in schema",
-		//},
+		// },
 		{
 			name: "source error",
 			inputError: spiceerrors.NewWithSourceError(

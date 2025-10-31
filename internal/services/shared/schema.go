@@ -489,7 +489,9 @@ func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.Relations
 			fullMetadata = make(map[string]string)
 		}
 		fullMetadata["relationship"] = strValue
-		newArgs := append(args, strValue)
+		newArgs := make([]any, 0, len(args)+len(strValue))
+		newArgs = append(newArgs, args)
+		newArgs = append(newArgs, strValue)
 		return NewSchemaWriteDataValidationError(message+": %s", newArgs, fullMetadata)
 	}
 

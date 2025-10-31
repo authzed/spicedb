@@ -41,7 +41,7 @@ func TestTestServer(t *testing.T) {
 				"--http-addr", ":8443",
 				"--readonly-http-addr", ":8444",
 				"--http-enabled",
-				//"--readonly-http-enabled",
+				// "--readonly-http-enabled",
 			},
 			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
 		},
