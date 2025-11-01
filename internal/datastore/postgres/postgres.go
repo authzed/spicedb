@@ -364,7 +364,7 @@ func newPostgresDatastore(
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
 
-	// Start a goroutine for garbage collection.
+	// Start a goroutine for garbage collection and the revision heartbeat.
 	if isPrimary {
 		datastore.workerGroup, datastore.workerCtx = errgroup.WithContext(datastore.workerCtx)
 		if config.revisionHeartbeatEnabled {
