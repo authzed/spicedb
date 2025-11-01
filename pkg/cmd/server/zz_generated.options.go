@@ -100,6 +100,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
+		to.MemoryProtectionEnabled = c.MemoryProtectionEnabled
+		to.MemoryProtectionNormalAPIThresholdPercent = c.MemoryProtectionNormalAPIThresholdPercent
+		to.MemoryProtectionDispatchAPIThresholdPercent = c.MemoryProtectionDispatchAPIThresholdPercent
+		to.MemoryProtectionSampleIntervalSeconds = c.MemoryProtectionSampleIntervalSeconds
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
@@ -174,6 +178,10 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
 	debugMap["MismatchZedTokenBehavior"] = helpers.DebugValue(c.MismatchZedTokenBehavior, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
+	debugMap["MemoryProtectionEnabled"] = helpers.DebugValue(c.MemoryProtectionEnabled, false)
+	debugMap["MemoryProtectionNormalAPIThresholdPercent"] = helpers.DebugValue(c.MemoryProtectionNormalAPIThresholdPercent, false)
+	debugMap["MemoryProtectionDispatchAPIThresholdPercent"] = helpers.DebugValue(c.MemoryProtectionDispatchAPIThresholdPercent, false)
+	debugMap["MemoryProtectionSampleIntervalSeconds"] = helpers.DebugValue(c.MemoryProtectionSampleIntervalSeconds, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
 	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
@@ -680,6 +688,34 @@ func WithStreamingMiddlewareModification(streamingMiddlewareModification Middlew
 func SetStreamingMiddlewareModification(streamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor]) ConfigOption {
 	return func(c *Config) {
 		c.StreamingMiddlewareModification = streamingMiddlewareModification
+	}
+}
+
+// WithMemoryProtectionEnabled returns an option that can set MemoryProtectionEnabled on a Config
+func WithMemoryProtectionEnabled(memoryProtectionEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.MemoryProtectionEnabled = memoryProtectionEnabled
+	}
+}
+
+// WithMemoryProtectionNormalAPIThresholdPercent returns an option that can set MemoryProtectionNormalAPIThresholdPercent on a Config
+func WithMemoryProtectionNormalAPIThresholdPercent(memoryProtectionNormalAPIThresholdPercent float64) ConfigOption {
+	return func(c *Config) {
+		c.MemoryProtectionNormalAPIThresholdPercent = memoryProtectionNormalAPIThresholdPercent
+	}
+}
+
+// WithMemoryProtectionDispatchAPIThresholdPercent returns an option that can set MemoryProtectionDispatchAPIThresholdPercent on a Config
+func WithMemoryProtectionDispatchAPIThresholdPercent(memoryProtectionDispatchAPIThresholdPercent float64) ConfigOption {
+	return func(c *Config) {
+		c.MemoryProtectionDispatchAPIThresholdPercent = memoryProtectionDispatchAPIThresholdPercent
+	}
+}
+
+// WithMemoryProtectionSampleIntervalSeconds returns an option that can set MemoryProtectionSampleIntervalSeconds on a Config
+func WithMemoryProtectionSampleIntervalSeconds(memoryProtectionSampleIntervalSeconds int) ConfigOption {
+	return func(c *Config) {
+		c.MemoryProtectionSampleIntervalSeconds = memoryProtectionSampleIntervalSeconds
 	}
 }
 

@@ -37,6 +37,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
@@ -140,6 +141,12 @@ type Config struct {
 	// Middleware for grpc API
 	UnaryMiddlewareModification     []MiddlewareModification[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	StreamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor] `debugmap:"hidden"`
+
+	// Memory Protection
+	MemoryProtectionEnabled                     bool    `debugmap:"visible" default:"true"`
+	MemoryProtectionNormalAPIThresholdPercent   float64 `debugmap:"visible" default:"0.90"`
+	MemoryProtectionDispatchAPIThresholdPercent float64 `debugmap:"visible" default:"0.95"`
+	MemoryProtectionSampleIntervalSeconds       int     `debugmap:"visible" default:"1"`
 
 	// Middleware for internal dispatch API
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor  `debugmap:"hidden"`
@@ -335,14 +342,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithError(dispatcher.Close)
 
-	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
-		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram)
-		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram)
-		}
-	}
-
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
 		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](c.ClusterDispatchCacheConfig.WithRevisionParameters(
@@ -371,25 +370,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		}
 		closeables.AddWithError(cachingClusterDispatch.Close)
 	}
-
-	// Build OTel stats handler options (shared by both gRPC servers)
-	// Always disable health check tracing to reduce trace volume
-	statsHandlerOpts := []otelgrpc.Option{
-		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
-	}
-
-	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
-		func(server *grpc.Server) {
-			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
-		},
-		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
-		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
-		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
-	}
-	closeables.AddWithoutError(dispatchGrpcServer.GracefulStop)
 
 	datastoreFeatures, err := ds.Features(ctx)
 	if err != nil {
@@ -432,20 +412,36 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
 	}
 
+	apiMemoryProtectionConfig, dispatchMemoryProtectionConfig, sharedMemorySampler, err := c.buildMemoryProtectionConfigs(&closeables)
+	if err != nil {
+		return nil, err
+	}
+
 	opts := MiddlewareOption{
-		log.Logger,
-		c.GRPCAuthFunc,
-		!c.DisableVersionResponse,
-		dispatcher,
-		c.EnableRequestLogs,
-		c.EnableResponseLogs,
-		c.DisableGRPCLatencyHistogram,
-		serverName,
-		mismatchZedTokenOption,
-		nil,
-		nil,
+		Logger:                    log.Logger,
+		AuthFunc:                  c.GRPCAuthFunc,
+		EnableVersionResponse:     !c.DisableVersionResponse,
+		DispatcherForMiddleware:   dispatcher,
+		EnableRequestLog:          c.EnableRequestLogs,
+		EnableResponseLog:         c.EnableResponseLogs,
+		DisableGRPCHistogram:      c.DisableGRPCLatencyHistogram,
+		MiddlewareServiceLabel:    serverName,
+		MismatchingZedTokenOption: mismatchZedTokenOption,
+		MemoryProtectionConfig:    apiMemoryProtectionConfig,
+		MemorySampler:             sharedMemorySampler,
 	}
 	opts = opts.WithDatastore(ds)
+
+	// Build OTel stats handler options (shared by both gRPC servers)
+	// Always disable health check tracing to reduce trace volume
+	statsHandlerOpts := []otelgrpc.Option{
+		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
+	}
+
+	dispatchGrpcServer, err := c.buildDispatchServer(dispatchMemoryProtectionConfig, sharedMemorySampler, ds, cachingClusterDispatch, &closeables, statsHandlerOpts)
+	if err != nil {
+		return nil, err
+	}
 
 	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(opts)
 	if err != nil {
@@ -585,6 +581,51 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		statsHandler:        otelgrpc.NewServerHandler(statsHandlerOpts...),
 		closeFunc:           closeables.Close,
 	}, nil
+}
+
+// buildMemoryProtectionConfigs returns the API config and the Dispatch API config.
+func (c *Config) buildMemoryProtectionConfigs(closeables *closeableStack) (memoryprotection.Config, memoryprotection.Config, memoryprotection.MemorySampler, error) {
+	var apiConfig, dispatchConfig memoryprotection.Config // default is zero value
+	var sampler memoryprotection.MemorySampler
+	sampler = memoryprotection.NoOpSampler{}
+	if c.MemoryProtectionNormalAPIThresholdPercent > 1 || c.MemoryProtectionDispatchAPIThresholdPercent > 1 {
+		return apiConfig, dispatchConfig, sampler, errors.New("invalid memory protection configuration")
+	}
+	if c.MemoryProtectionEnabled {
+		apiConfig = memoryprotection.Config{
+			ThresholdPercent: c.MemoryProtectionNormalAPIThresholdPercent,
+		}
+		dispatchConfig = memoryprotection.Config{
+			ThresholdPercent: c.MemoryProtectionDispatchAPIThresholdPercent,
+		}
+		sampler = memoryprotection.NewMemorySampler(c.MemoryProtectionSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{})
+		closeables.AddWithoutError(sampler.Close)
+	}
+	return apiConfig, dispatchConfig, sampler, nil
+}
+
+func (c *Config) buildDispatchServer(m memoryprotection.Config, sampler memoryprotection.MemorySampler, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, closeables *closeableStack, otelOpts []otelgrpc.Option) (util.RunnableGRPCServer, error) {
+	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
+		if c.GRPCAuthFunc == nil {
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, m, sampler)
+		} else {
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, m, sampler)
+		}
+	}
+
+	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
+		func(server *grpc.Server) {
+			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
+		},
+		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
+		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(otelOpts...)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
+	}
+	closeables.AddWithoutError(dispatchGrpcServer.GracefulStop)
+	return dispatchGrpcServer, nil
 }
 
 func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {

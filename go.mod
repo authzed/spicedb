@@ -112,6 +112,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.38.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.3.0
+	go.uber.org/mock v0.6.0
 	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b
 	golang.org/x/mod v0.28.0
 	golang.org/x/sync v0.17.0
@@ -138,6 +139,8 @@ tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	// support running mage with go run mage.go
 	github.com/magefile/mage/mage
+	// mocks are generated with go:generate directives.
+	go.uber.org/mock/mockgen
 	// vulncheck always uses the current directory's go.mod.
 	golang.org/x/vuln/cmd/govulncheck
 )
@@ -314,6 +317,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/kulti/thelper v0.7.1 // indirect
 	github.com/kunwardeep/paralleltest v1.0.14 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lasiar/canonicalheader v1.1.2 // indirect

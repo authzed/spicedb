@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -33,6 +34,8 @@ func TestWithDatastore(t *testing.T) {
 		false,
 		"service",
 		consistency.TreatMismatchingTokensAsError,
+		memoryprotection.Config{ThresholdPercent: 0},
+		memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}),
 		nil,
 		nil,
 	}
@@ -73,8 +76,10 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		true,
 		true,
 		false,
-		"anotherservice",
+		"service",
 		consistency.TreatMismatchingTokensAsError,
+		memoryprotection.Config{ThresholdPercent: 0},
+		memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}),
 		nil,
 		nil,
 	}

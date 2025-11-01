@@ -1,3 +1,5 @@
+//go:generate go run go.uber.org/mock/mockgen -source dispatch.go -destination ../mocks/mock_dispatcher.go -package mocks Dispatcher
+
 package dispatch
 
 import (

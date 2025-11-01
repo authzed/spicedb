@@ -121,6 +121,12 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	apiFlags.BoolVar(&config.EnablePerformanceInsightMetrics, "enable-performance-insight-metrics", false, "enables performance insight metrics, which are used to track the latency of API calls by shape")
 	apiFlags.StringVar(&config.MismatchZedTokenBehavior, "mismatch-zed-token-behavior", "full-consistency", "behavior to enforce when an API call receives a zedtoken that was originally intended for a different kind of datastore. One of: full-consistency (treat as a full-consistency call, ignoring the zedtoken), min-latency (treat as a min-latency call, ignoring the zedtoken), error (return an error). defaults to full-consistency for safety.")
 
+	// Memory Protection flags
+	apiFlags.BoolVar(&config.MemoryProtectionEnabled, "memory-protection-enabled", true, "enables a memory-based middleware that rejects requests with error code ResourceExhausted when memory usage is too high. Use in conjunction with GOMEMLIMIT.")
+	apiFlags.Float64Var(&config.MemoryProtectionNormalAPIThresholdPercent, "memory-protection-normal-api-threshold", 0.90, "float percentage (where 1 = 100%) of memory usage such that when the server receives an external API request and the server exceeeds this usage, it will reject it")
+	apiFlags.Float64Var(&config.MemoryProtectionDispatchAPIThresholdPercent, "memory-protection-dispatch-api-threshold", 0.95, "float percentage (where 1 = 100%) of memory usage such that when the server receives an internal (dispatch) API request and the server exceeeds this usage, it will reject it")
+	apiFlags.IntVar(&config.MemoryProtectionSampleIntervalSeconds, "memory-protection-sample-interval", 1, "how often to sample current memory usage in seconds")
+
 	datastoreFlags := nfs.FlagSet(BoldBlue("Datastore"))
 	// Flags for the datastore
 	if err := datastore.RegisterDatastoreFlags(datastoreFlags, &config.DatastoreConfig); err != nil {
