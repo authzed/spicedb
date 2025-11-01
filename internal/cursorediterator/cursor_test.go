@@ -151,9 +151,7 @@ func TestCursorCustomHeadValue(t *testing.T) {
 	})
 
 	// Test with bool converter
-	boolConverter := func(s string) (bool, error) {
-		return strconv.ParseBool(s)
-	}
+	boolConverter := strconv.ParseBool
 
 	t.Run("bool converter success", func(t *testing.T) {
 		c := Cursor{"true", "false"}
