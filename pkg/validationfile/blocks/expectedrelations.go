@@ -58,11 +58,11 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
-	line, err := safecast.ToUint64(node.Line)
+	line, err := safecast.Convert[uint64](node.Line)
 	if err != nil {
 		return err
 	}
-	column, err := safecast.ToUint64(node.Column)
+	column, err := safecast.Convert[uint64](node.Column)
 	if err != nil {
 		return err
 	}
@@ -130,11 +130,11 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
-	line, err := safecast.ToUint64(node.Line)
+	line, err := safecast.Convert[uint64](node.Line)
 	if err != nil {
 		return err
 	}
-	column, err := safecast.ToUint64(node.Column)
+	column, err := safecast.Convert[uint64](node.Column)
 	if err != nil {
 		return err
 	}

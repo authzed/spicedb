@@ -528,7 +528,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		return nil, errors.New("read replicas are not supported for the CockroachDB datastore engine")
 	}
 
-	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	maxRetries, err := safecast.Convert[uint8](opts.MaxRetries)
 	if err != nil {
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}
@@ -583,7 +583,7 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 
 	replicas := make([]datastore.StrictReadDatastore, 0, len(opts.ReadReplicaURIs))
 	for index, replicaURI := range opts.ReadReplicaURIs {
-		uintIndex, err := safecast.ToUint32(index)
+		uintIndex, err := safecast.Convert[uint32](index)
 		if err != nil {
 			return nil, errors.New("too many replicas")
 		}
@@ -598,7 +598,7 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 }
 
 func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
-	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	maxRetries, err := safecast.Convert[uint8](opts.MaxRetries)
 	if err != nil {
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}
@@ -719,7 +719,7 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 
 	replicas := make([]datastore.ReadOnlyDatastore, 0, len(opts.ReadReplicaURIs))
 	for index, replicaURI := range opts.ReadReplicaURIs {
-		uintIndex, err := safecast.ToUint32(index)
+		uintIndex, err := safecast.Convert[uint32](index)
 		if err != nil {
 			return nil, errors.New("too many replicas")
 		}
@@ -734,7 +734,7 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 }
 
 func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
-	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	maxRetries, err := safecast.Convert[uint8](opts.MaxRetries)
 	if err != nil {
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}

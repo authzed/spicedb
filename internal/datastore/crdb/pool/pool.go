@@ -107,8 +107,8 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 		return !ok
 	}
 
-	beforeAcquire := config.BeforeAcquire
-	config.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+	beforeAcquire := config.BeforeAcquire                                   //nolint:staticcheck
+	config.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool { //nolint:staticcheck
 		if beforeAcquire != nil {
 			if !beforeAcquire(ctx, conn) {
 				return false
@@ -156,14 +156,14 @@ func (p *RetryPool) ID() string {
 // MaxConns returns the MaxConns configured on the underlying pool
 func (p *RetryPool) MaxConns() uint32 {
 	// This should be non-negative
-	maxConns, _ := safecast.ToUint32(p.pool.Config().MaxConns)
+	maxConns, _ := safecast.Convert[uint32](p.pool.Config().MaxConns)
 	return maxConns
 }
 
 // MinConns returns the MinConns configured on the underlying pool
 func (p *RetryPool) MinConns() uint32 {
 	// This should be non-negative
-	minConns, _ := safecast.ToUint32(p.pool.Config().MinConns)
+	minConns, _ := safecast.Convert[uint32](p.pool.Config().MinConns)
 	return minConns
 }
 

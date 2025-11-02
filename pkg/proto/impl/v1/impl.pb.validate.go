@@ -119,7 +119,7 @@ type DecodedCaveatMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecodedCaveatMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -308,7 +308,7 @@ type DecodedZookieMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecodedZookieMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -495,7 +495,7 @@ type DecodedZedTokenMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecodedZedTokenMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -641,7 +641,7 @@ type DecodedCursorMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecodedCursorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -750,7 +750,7 @@ type V1CursorMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m V1CursorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -851,7 +851,7 @@ type DocCommentMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DocCommentMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -951,7 +951,7 @@ type TypeAnnotationsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TypeAnnotationsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1082,7 +1082,7 @@ type RelationMetadataMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RelationMetadataMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1186,7 +1186,7 @@ type NamespaceAndRevisionMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m NamespaceAndRevisionMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1322,7 +1322,7 @@ type V1Alpha1RevisionMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m V1Alpha1RevisionMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1424,7 +1424,7 @@ type DecodedZookie_V1ZookieMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecodedZookie_V1ZookieMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1528,7 +1528,7 @@ type DecodedZookie_V2ZookieMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecodedZookie_V2ZookieMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1632,7 +1632,7 @@ type DecodedZedToken_V1ZookieMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecodedZedToken_V1ZookieMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1738,7 +1738,7 @@ type DecodedZedToken_V1ZedTokenMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecodedZedToken_V1ZedTokenMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

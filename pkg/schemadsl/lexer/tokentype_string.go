@@ -57,8 +57,9 @@ const _TokenType_name = "TokenTypeErrorTokenTypeSyntheticSemicolonTokenTypeEOFTo
 var _TokenType_index = [...]uint16{0, 14, 41, 53, 72, 98, 123, 139, 155, 174, 189, 207, 226, 244, 263, 276, 289, 303, 315, 327, 342, 356, 374, 393, 406, 423, 436, 457, 479, 502, 527, 547, 568, 583, 597, 613, 630, 650, 674, 701, 720, 737, 752}
 
 func (i TokenType) String() string {
-	if i < 0 || i >= TokenType(len(_TokenType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_TokenType_index)-1 {
 		return "TokenType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _TokenType_name[_TokenType_index[i]:_TokenType_index[i+1]]
+	return _TokenType_name[_TokenType_index[idx]:_TokenType_index[idx+1]]
 }

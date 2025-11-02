@@ -223,7 +223,7 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 				return fmt.Errorf("unable to decode new revision: %w", err)
 			}
 
-			nanosTimestamp, err := safecast.ToUint64(timestamp.UnixNano())
+			nanosTimestamp, err := safecast.Convert[uint64](timestamp.UnixNano())
 			if err != nil {
 				return spiceerrors.MustBugf("could not cast timestamp to uint64")
 			}

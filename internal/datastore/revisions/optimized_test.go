@@ -193,7 +193,7 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 		validForNS := nowNS % quantization.Nanoseconds()
 		roundedNS := nowNS - validForNS
 		// This should be non-negative.
-		uintRoundedNs, _ := safecast.ToUint64(roundedNS)
+		uintRoundedNs, _ := safecast.Convert[uint64](roundedNS)
 		rev := NewForTransactionID(uintRoundedNs)
 		return rev, time.Duration(validForNS) * time.Nanosecond, nil
 	})

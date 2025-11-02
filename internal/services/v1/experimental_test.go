@@ -201,7 +201,7 @@ func TestBulkExportRelationships(t *testing.T) {
 
 	resp, err := writer.CloseAndRecv()
 	require.NoError(t, err)
-	numLoaded, err := safecast.ToInt(resp.NumLoaded)
+	numLoaded, err := safecast.Convert[int](resp.NumLoaded)
 	require.NoError(t, err)
 	require.Equal(t, totalToWrite, numLoaded)
 
@@ -389,7 +389,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				}
 
 				require.NoError(err)
-				relLength, err := safecast.ToUint32(len(batch.Relationships))
+				relLength, err := safecast.Convert[uint32](len(batch.Relationships))
 				require.NoError(err)
 				require.LessOrEqual(relLength, batchSize)
 				require.NotNil(batch.AfterResultCursor)
@@ -414,7 +414,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 			}
 
 			// These are statically defined.
-			expectedCount, _ := safecast.ToUint64(tc.expectedCount)
+			expectedCount, _ := safecast.Convert[uint64](tc.expectedCount)
 			require.Equal(expectedCount, totalRead, "found: %v", foundRels.AsSlice())
 			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.AsSlice())
 		})

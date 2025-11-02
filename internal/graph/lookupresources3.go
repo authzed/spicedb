@@ -436,7 +436,7 @@ func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[pos
 
 		// Execute the iterators in parallel, yielding results for each entrypoint in the proper order.
 		iter := estimatedConcurrencyLimit(crr, refs, keyedEntrypoints(entrypoints), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
-			ccl, err := safecast.ToInt64(computedConcurrencyLimit)
+			ccl, err := safecast.Convert[int64](computedConcurrencyLimit)
 			if err != nil {
 				return cter.YieldsError[result](err)
 			}
@@ -708,7 +708,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 			datastoreIndexFromString,
 			mustDatastoreIndexToString,
 			func(ctx context.Context, currentIndex datastoreIndex, remainingCursor cter.Cursor) iter.Seq2[coh, error] {
-				ccl, err := safecast.ToInt64(computedConcurrencyLimit)
+				ccl, err := safecast.Convert[int64](computedConcurrencyLimit)
 				if err != nil {
 					return cter.YieldsError[coh](err)
 				}

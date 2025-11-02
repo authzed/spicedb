@@ -93,7 +93,7 @@ func newNodeConnectionBalancer[P balancePoolConn[C], C balanceConn](pool balance
 		// we get a seed that fits in the box.
 		// Subtracting math.MaxInt64 should mean that we retain the entire range of
 		// possible values.
-		seed, _ = safecast.ToInt64(new(maphash.Hash).Sum64() - math.MaxInt64)
+		seed, _ = safecast.Convert[int64](new(maphash.Hash).Sum64() - math.MaxInt64)
 	}
 	return &nodeConnectionBalancer[P, C]{
 		ticker:        time.NewTicker(interval),
@@ -159,7 +159,7 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 
 	// It's highly unlikely that we'll ever have an overflow in
 	// this context, so we cast directly.
-	nodeCount, _ := safecast.ToUint32(p.healthTracker.HealthyNodeCount())
+	nodeCount, _ := safecast.Convert[uint32](p.healthTracker.HealthyNodeCount())
 	if nodeCount == 0 {
 		nodeCount = 1
 	}

@@ -279,11 +279,11 @@ func loadCompiled(
 		errWithSource, ok := spiceerrors.AsWithSourceError(cverr)
 		if ok {
 			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			lineNumber, err := safecast.Convert[uint32](errWithSource.LineNumber)
 			if err != nil {
 				log.Err(err).Msg("could not cast lineNumber to uint32")
 			}
-			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			columnPosition, err := safecast.Convert[uint32](errWithSource.ColumnPosition)
 			if err != nil {
 				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}
@@ -310,11 +310,11 @@ func loadCompiled(
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsWithSourceError(terr)
 			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			lineNumber, err := safecast.Convert[uint32](errWithSource.LineNumber)
 			if err != nil {
 				log.Err(err).Msg("could not cast lineNumber to uint32")
 			}
-			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			columnPosition, err := safecast.Convert[uint32](errWithSource.ColumnPosition)
 			if err != nil {
 				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}
@@ -350,11 +350,11 @@ func loadCompiled(
 		errWithSource, ok := spiceerrors.AsWithSourceError(tverr)
 		if ok {
 			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			lineNumber, err := safecast.Convert[uint32](errWithSource.LineNumber)
 			if err != nil {
 				log.Err(err).Msg("could not cast lineNumber to uint32")
 			}
-			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			columnPosition, err := safecast.Convert[uint32](errWithSource.ColumnPosition)
 			if err != nil {
 				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}

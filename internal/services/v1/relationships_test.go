@@ -297,7 +297,7 @@ func TestReadRelationships(t *testing.T) {
 								testExpected[k] = struct{}{}
 							}
 
-							uintPageSize, err := safecast.ToUint32(pageSize)
+							uintPageSize, err := safecast.Convert[uint32](pageSize)
 							require.NoError(err)
 							for i := 0; i < 20; i++ {
 								stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
@@ -1360,7 +1360,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 			t.Cleanup(cleanup)
 
 			iterations := 0
-			uintBatchSize, err := safecast.ToUint32(batchSize)
+			uintBatchSize, err := safecast.Convert[uint32](batchSize)
 			require.NoError(err)
 			for i := 0; i < 10; i++ {
 				iterations++
@@ -1385,7 +1385,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
 
-				bs, _ := safecast.ToUint64(batchSize)
+				bs, _ := safecast.Convert[uint64](batchSize)
 				require.LessOrEqual(resp.RelationshipsDeletedCount, bs)
 
 				if i == 0 {

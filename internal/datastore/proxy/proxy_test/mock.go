@@ -307,7 +307,7 @@ func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames 
 func (dm *MockReadWriteTransaction) BulkLoad(_ context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	args := dm.Called(iter)
 	// We're assuming this is non-negative.
-	uintArg, _ := safecast.ToUint64(args.Int(0))
+	uintArg, _ := safecast.Convert[uint64](args.Int(0))
 	return uintArg, args.Error(1)
 }
 
