@@ -14,7 +14,7 @@ type Gen mg.Namespace
 
 // All Run all generators in parallel
 func (g Gen) All() error {
-	mg.Deps(g.Go, g.Proto)
+	mg.Deps(g.Go, g.Proto, g.Docs)
 	return nil
 }
 
