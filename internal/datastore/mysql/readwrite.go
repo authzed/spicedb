@@ -404,7 +404,7 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	uintRowsAffected, err := safecast.ToUint64(rowsAffected)
+	uintRowsAffected, err := safecast.Convert[uint64](rowsAffected)
 	if err != nil {
 		return 0, false, spiceerrors.MustBugf("rowsAffected was negative: %v", err)
 	}

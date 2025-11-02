@@ -53,7 +53,7 @@ type Config struct {
 }
 
 func (c *Config) MarshalZerologObject(e *zerolog.Event) {
-	maxCost, _ := safecast.ToUint64(c.MaxCost)
+	maxCost, _ := safecast.Convert[uint64](c.MaxCost)
 	e.
 		Str("maxCost", humanize.IBytes(maxCost)).
 		Int64("numCounters", c.NumCounters).

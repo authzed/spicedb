@@ -184,7 +184,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Check limit.
 			if len(testRels) > 1 {
-				limit, _ := safecast.ToUint64(len(testRels) - 1)
+				limit, _ := safecast.Convert[uint64](len(testRels) - 1)
 				iter, err := dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 					SubjectType: testUserNamespace,
 				}, options.WithLimitForReverse(&limit), options.WithQueryShapeForReverse(queryshape.Varying))

@@ -98,7 +98,7 @@ func (mcc *mysqlGarbageCollector) TxIDBefore(ctx context.Context, before time.Ti
 		return datastore.NoRevision, nil
 	}
 
-	uintValue, err := safecast.ToUint64(value.Int64)
+	uintValue, err := safecast.Convert[uint64](value.Int64)
 	if err != nil {
 		return datastore.NoRevision, spiceerrors.MustBugf("value could not be cast to uint64: %v", err)
 	}

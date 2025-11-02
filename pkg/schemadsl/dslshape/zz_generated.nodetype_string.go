@@ -37,8 +37,9 @@ const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagN
 var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 200, 221, 250, 273, 295, 318, 345, 372, 395, 413, 434, 461}
 
 func (i NodeType) String() string {
-	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_NodeType_index)-1 {
 		return "NodeType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _NodeType_name[_NodeType_index[i]:_NodeType_index[i+1]]
+	return _NodeType_name[_NodeType_index[idx]:_NodeType_index[idx+1]]
 }

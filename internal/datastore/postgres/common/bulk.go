@@ -77,7 +77,7 @@ func BulkLoad(
 		colNames:     colNames,
 	}
 	copied, err := tx.CopyFrom(ctx, pgx.Identifier{tupleTableName}, colNames, adapter)
-	uintCopied, castErr := safecast.ToUint64(copied)
+	uintCopied, castErr := safecast.Convert[uint64](copied)
 	if castErr != nil {
 		return 0, spiceerrors.MustBugf("number copied was negative: %v", castErr)
 	}

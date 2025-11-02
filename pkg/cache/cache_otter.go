@@ -22,7 +22,7 @@ type valueAndCost[V any] struct {
 }
 
 func NewOtterCache[K KeyString, V any](config *Config) (Cache[K, V], error) {
-	uintCost, err := safecast.ToUint64(config.MaxCost)
+	uintCost, err := safecast.Convert[uint64](config.MaxCost)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (wtc *otterCache[K, V]) Get(key K) (V, bool) {
 }
 
 func (wtc *otterCache[K, V]) Set(key K, value V, cost int64) bool {
-	uintCost, err := safecast.ToUint32(cost)
+	uintCost, err := safecast.Convert[uint32](cost)
 	if err != nil {
 		// We make an assumption that if the cast fails, it's because the value
 		// was too big, so we set to maxint in that case.

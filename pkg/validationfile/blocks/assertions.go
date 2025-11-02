@@ -81,11 +81,11 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 
 	trimmed := strings.TrimSpace(relationshipWithContextString)
 
-	line, err := safecast.ToUint64(node.Line)
+	line, err := safecast.Convert[uint64](node.Line)
 	if err != nil {
 		return err
 	}
-	column, err := safecast.ToUint64(node.Column)
+	column, err := safecast.Convert[uint64](node.Column)
 	if err != nil {
 		return err
 	}

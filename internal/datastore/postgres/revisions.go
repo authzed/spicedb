@@ -199,7 +199,7 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 		return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
 	}
 
-	xminInt, err := safecast.ToInt64(decoded.Xmin)
+	xminInt, err := safecast.Convert[int64](decoded.Xmin)
 	if err != nil {
 		return datastore.NoRevision, spiceerrors.MustBugf("could not cast xmin to int64")
 	}
@@ -209,7 +209,7 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 		xips = make([]uint64, len(decoded.RelativeXips))
 		for i, relativeXip := range decoded.RelativeXips {
 			xip := xminInt + relativeXip
-			uintXip, err := safecast.ToUint64(xip)
+			uintXip, err := safecast.Convert[uint64](xip)
 			if err != nil {
 				return datastore.NoRevision, spiceerrors.MustBugf("could not cast xip to int64")
 			}
@@ -217,7 +217,7 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 		}
 	}
 
-	xmax, err := safecast.ToUint64(xminInt + decoded.RelativeXmax)
+	xmax, err := safecast.Convert[uint64](xminInt + decoded.RelativeXmax)
 	if err != nil {
 		return datastore.NoRevision, spiceerrors.MustBugf("could not cast xmax to int64")
 	}
@@ -386,20 +386,20 @@ func (pr postgresRevision) OptionalNanosTimestamp() (uint64, bool) {
 // for xmax and xip list values to save bytes when encoded as varint protos.
 // For example, snapshot 1001:1004:1001,1003 becomes 1000:3:0,2.
 func (pr postgresRevision) MarshalBinary() ([]byte, error) {
-	xminInt, err := safecast.ToInt64(pr.snapshot.xmin)
+	xminInt, err := safecast.Convert[int64](pr.snapshot.xmin)
 	if err != nil {
 		return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64: %v", err)
 	}
 	relativeXips := make([]int64, len(pr.snapshot.xipList))
 	for i, xip := range pr.snapshot.xipList {
-		intXip, err := safecast.ToInt64(xip)
+		intXip, err := safecast.Convert[int64](xip)
 		if err != nil {
 			return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64: %v", err)
 		}
 		relativeXips[i] = intXip - xminInt
 	}
 
-	relativeXmax, err := safecast.ToInt64(pr.snapshot.xmax)
+	relativeXmax, err := safecast.Convert[int64](pr.snapshot.xmax)
 	if err != nil {
 		return nil, spiceerrors.MustBugf("could not safely cast snapshot xmax to int64: %v", err)
 	}

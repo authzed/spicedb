@@ -220,7 +220,7 @@ type PoolOptions struct {
 // ConfigurePgx applies PoolOptions to a pgx connection pool confiugration.
 func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config, includeQueryParametersInTraces bool) error {
 	if opts.MaxOpenConns != nil {
-		maxConns, err := safecast.ToInt32(*opts.MaxOpenConns)
+		maxConns, err := safecast.Convert[int32](*opts.MaxOpenConns)
 		if err != nil {
 			return err
 		}
@@ -230,7 +230,7 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config, includeQueryPara
 	// Default to keeping the pool maxed out at all times.
 	pgxConfig.MinConns = pgxConfig.MaxConns
 	if opts.MinOpenConns != nil {
-		minConns, err := safecast.ToInt32(*opts.MinOpenConns)
+		minConns, err := safecast.Convert[int32](*opts.MinOpenConns)
 		if err != nil {
 			return err
 		}

@@ -774,7 +774,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 					for {
 						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 
-						uintPageSize, err := safecast.ToUint32(pageSize)
+						uintPageSize, err := safecast.Convert[uint32](pageSize)
 						require.NoError(err)
 
 						var caveatContext *structpb.Struct

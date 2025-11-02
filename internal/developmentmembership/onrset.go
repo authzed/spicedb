@@ -26,7 +26,7 @@ func NewONRSet(onrs ...tuple.ObjectAndRelation) ONRSet {
 // Length returns the size of the set.
 func (ons ONRSet) Length() uint64 {
 	// This is the length of a set so we should never fall out of bounds.
-	length, _ := safecast.ToUint64(ons.onrs.Len())
+	length, _ := safecast.Convert[uint64](ons.onrs.Len())
 	return length
 }
 

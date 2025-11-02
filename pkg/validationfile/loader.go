@@ -237,11 +237,11 @@ func CompileSchema(schema compiler.InputSchema, cts *caveattypes.TypeSet) (*comp
 				return nil, lerr
 			}
 
-			uintLine, err := safecast.ToUint64(line)
+			uintLine, err := safecast.Convert[uint64](line)
 			if err != nil {
 				return nil, err
 			}
-			uintCol, err := safecast.ToUint64(col)
+			uintCol, err := safecast.Convert[uint64](col)
 			if err != nil {
 				return nil, err
 			}

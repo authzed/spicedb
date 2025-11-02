@@ -45,11 +45,11 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 		}
 
 		// +1 for the key, and *2 for newlines in YAML
-		errorLine, err := safecast.ToUint64(node.Line + 1 + (index * 2))
+		errorLine, err := safecast.Convert[uint64](node.Line + 1 + (index * 2))
 		if err != nil {
 			return err
 		}
-		column, err := safecast.ToUint64(node.Column)
+		column, err := safecast.Convert[uint64](node.Column)
 		if err != nil {
 			return err
 		}

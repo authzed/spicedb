@@ -116,7 +116,7 @@ func buildLabels(methodName string, shape APIShapeLabels) []string {
 			labels[index+1] = strconv.Itoa(t)
 
 		case uint32:
-			intValue, err := safecast.ToInt(t)
+			intValue, err := safecast.Convert[int](t)
 			if err != nil {
 				log.Warn().Str("method", methodName).
 					Str("key", label).
@@ -127,7 +127,7 @@ func buildLabels(methodName string, shape APIShapeLabels) []string {
 			labels[index+1] = strconv.Itoa(intValue)
 
 		case int64:
-			intValue, err := safecast.ToInt(t)
+			intValue, err := safecast.Convert[int](t)
 			if err != nil {
 				log.Warn().Str("method", methodName).
 					Str("key", label).

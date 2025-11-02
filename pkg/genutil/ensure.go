@@ -17,7 +17,7 @@ func MustEnsureUInt32(value int) uint32 {
 
 // EnsureUInt32 ensures that the specified value can be represented as a uint32.
 func EnsureUInt32(value int) (uint32, error) {
-	uint32Value, err := safecast.ToUint32(value)
+	uint32Value, err := safecast.Convert[uint32](value)
 	if err != nil {
 		return 0, spiceerrors.MustBugf("specified value could not be cast to a uint32")
 	}
@@ -26,7 +26,7 @@ func EnsureUInt32(value int) (uint32, error) {
 
 // EnsureUInt8 ensures that the specified value can be represented as a uint8.
 func EnsureUInt8(value int) (uint8, error) {
-	uint8Value, err := safecast.ToUint8(value)
+	uint8Value, err := safecast.Convert[uint8](value)
 	if err != nil {
 		return 0, spiceerrors.MustBugf("specified value could not be cast to a uint8")
 	}

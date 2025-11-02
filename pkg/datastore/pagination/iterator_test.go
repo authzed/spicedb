@@ -63,7 +63,7 @@ func TestPaginatedIterator(t *testing.T) {
 
 			ds := generateMock(t, rels, tc.pageSize, options.ByResource)
 
-			pageSize, err := safecast.ToUint64(tc.pageSize)
+			pageSize, err := safecast.Convert[uint64](tc.pageSize)
 			require.NoError(err)
 
 			ctx := t.Context()
@@ -93,7 +93,7 @@ func generateMock(t *testing.T, rels []tuple.Relationship, pageSize int, order o
 			pastLastIndex = relsLen
 		}
 
-		pageSize64, err := safecast.ToUint64(pageSize)
+		pageSize64, err := safecast.Convert[uint64](pageSize)
 		require.NoError(t, err)
 
 		iter := common.NewSliceRelationshipIterator(rels[i:pastLastIndex])

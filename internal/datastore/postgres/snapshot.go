@@ -279,7 +279,7 @@ func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 	startingXipLen := len(newSnapshot.xipList)
 	for numToDrop = 0; numToDrop < startingXipLen; numToDrop++ {
 		// numToDrop should be nonnegative
-		uintNumToDrop, _ := safecast.ToUint64(numToDrop)
+		uintNumToDrop, _ := safecast.Convert[uint64](numToDrop)
 		if newSnapshot.xipList[startingXipLen-1-numToDrop] != newSnapshot.xmax-uintNumToDrop-1 {
 			break
 		}

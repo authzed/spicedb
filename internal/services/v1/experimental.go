@@ -807,7 +807,7 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	uintCount, err := safecast.ToUint64(count)
+	uintCount, err := safecast.Convert[uint64](count)
 	if err != nil {
 		return nil, spiceerrors.MustBugf("count should not be negative")
 	}

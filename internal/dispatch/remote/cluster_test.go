@@ -1159,7 +1159,7 @@ func TestDALCount(t *testing.T) {
 	}
 
 	for i := 0; i < minimumDigestCount-1; i++ {
-		uintValue, err := safecast.ToUint64(i + 1)
+		uintValue, err := safecast.Convert[uint64](i + 1)
 		require.NoError(t, err)
 
 		dal.addResultTime(3 * time.Millisecond)

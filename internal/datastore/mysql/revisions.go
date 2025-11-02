@@ -193,7 +193,7 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx, meta
 		return 0, fmt.Errorf("createNewTransaction: failed to get last inserted id: %w", err)
 	}
 
-	uintLastInsertID, err := safecast.ToUint64(lastInsertID)
+	uintLastInsertID, err := safecast.Convert[uint64](lastInsertID)
 	if err != nil {
 		return 0, spiceerrors.MustBugf("lastInsertID was negative: %v", err)
 	}

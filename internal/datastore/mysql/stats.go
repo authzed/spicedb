@@ -76,7 +76,7 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 		return datastore.Stats{}, fmt.Errorf("unable to load namespaces: %w", err)
 	}
 
-	uintCount, err := safecast.ToUint64(count.Int64)
+	uintCount, err := safecast.Convert[uint64](count.Int64)
 	if err != nil {
 		return datastore.Stats{}, spiceerrors.MustBugf("could not cast count to uint64: %v", err)
 	}

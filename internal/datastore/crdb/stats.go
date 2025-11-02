@@ -131,7 +131,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 					return nil
 				}
 
-				uintRowCount, err := safecast.ToUint64(rowCount)
+				uintRowCount, err := safecast.Convert[uint64](rowCount)
 				if err != nil {
 					return spiceerrors.MustBugf("row count was negative: %v", err)
 				}

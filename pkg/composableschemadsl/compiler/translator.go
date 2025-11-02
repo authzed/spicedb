@@ -335,8 +335,8 @@ func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.Sour
 	}
 
 	// We're okay with these being zero if the cast fails.
-	uintLine, _ := safecast.ToUint64(line)
-	uintCol, _ := safecast.ToUint64(col)
+	uintLine, _ := safecast.Convert[uint64](line)
+	uintCol, _ := safecast.Convert[uint64](col)
 
 	return &core.SourcePosition{
 		ZeroIndexedLineNumber:     uintLine,

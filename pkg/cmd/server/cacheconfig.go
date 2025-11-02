@@ -75,7 +75,7 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 		return nil, fmt.Errorf("error parsing cache max memory: `%s`: %w", cc.MaxCost, err)
 	}
 
-	intMaxCost, err := safecast.ToInt64(maxCost)
+	intMaxCost, err := safecast.Convert[int64](maxCost)
 	if err != nil {
 		return nil, errors.New("could not cast max cost to int64")
 	}

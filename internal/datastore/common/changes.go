@@ -128,7 +128,7 @@ func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
 		return spiceerrors.MustBugf("byte size underflow")
 	}
 
-	currentByteSize, err := safecast.ToUint64(ch.currentByteSize)
+	currentByteSize, err := safecast.Convert[uint64](ch.currentByteSize)
 	if err != nil {
 		return spiceerrors.MustBugf("could not cast currentByteSize to uint64: %v", err)
 	}

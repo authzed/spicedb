@@ -441,7 +441,7 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.R
 
 func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, filter *v1.RelationshipFilter, limit uint64) (uint64, bool, error) {
 	// validate the limit
-	intLimit, err := safecast.ToInt64(limit)
+	intLimit, err := safecast.Convert[int64](limit)
 	if err != nil {
 		return 0, false, fmt.Errorf("limit argument could not safely be cast to int64: %w", err)
 	}
@@ -507,7 +507,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	numDeleted, err := safecast.ToUint64(result.RowsAffected())
+	numDeleted, err := safecast.Convert[uint64](result.RowsAffected())
 	if err != nil {
 		return 0, false, fmt.Errorf("unable to cast rows affected to uint64: %w", err)
 	}
@@ -556,7 +556,7 @@ func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.R
 		return 0, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	numDeleted, err := safecast.ToUint64(result.RowsAffected())
+	numDeleted, err := safecast.Convert[uint64](result.RowsAffected())
 	if err != nil {
 		return 0, fmt.Errorf("unable to cast rows affected to uint64: %w", err)
 	}
