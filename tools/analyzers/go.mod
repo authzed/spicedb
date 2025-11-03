@@ -4,7 +4,7 @@ go 1.25.3
 
 require (
 	github.com/samber/lo v1.52.0
-	golang.org/x/tools v0.37.0
+	golang.org/x/tools v0.38.0
 )
 
 require (
