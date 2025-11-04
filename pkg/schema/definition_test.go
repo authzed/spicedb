@@ -1615,7 +1615,7 @@ func TestTypeSystemAccessors(t *testing.T) {
 						traits, err = vts.PossibleTraitsForAnySubject("viewer")
 						require.NoError(t, err)
 						require.False(t, traits.AllowsCaveats)
-						require.False(t, traits.AllowsExpiration)
+						require.True(t, traits.AllowsExpiration)
 
 						traits, err = vts.PossibleTraitsForAnySubject("caveated_viewer")
 						require.NoError(t, err)

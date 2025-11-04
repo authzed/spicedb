@@ -724,38 +724,6 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 		return nil, typeRefNode.Errorf("%w", err)
 	}
 
-	if typeRefNode.Has(dslshape.NodeSpecificReferencePredicateWildcard) {
-		ref := &core.AllowedRelation{
-			Namespace: nspath,
-			RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
-				PublicWildcard: &core.AllowedRelation_PublicWildcard{},
-			},
-		}
-
-		err = addWithCaveats(tctx, typeRefNode, ref)
-		if err != nil {
-			return nil, typeRefNode.Errorf("invalid caveat: %w", err)
-		}
-
-		// Add the deprecation, if any.
-		if depChild, err := typeRefNode.Lookup(dslshape.NodeTypeReferenceDeprecatedType); err == nil && depChild.GetType() == dslshape.NodeTypeDeprecation {
-			dep, err := translateDeprecation(tctx, depChild)
-			if err != nil {
-				return nil, err
-			}
-			ref.Deprecation = dep
-		}
-
-		if !tctx.skipValidate {
-			if err := ref.Validate(); err != nil {
-				return nil, typeRefNode.Errorf("invalid type relation: %w", err)
-			}
-		}
-
-		ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
-		return ref, nil
-	}
-
 	relationName := Ellipsis
 	if typeRefNode.Has(dslshape.NodeSpecificReferencePredicateRelation) {
 		relationName, err = typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateRelation)
@@ -786,24 +754,6 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 	err = addWithExpiration(tctx, typeRefNode, ref)
 	if err != nil {
 		return nil, typeRefNode.Errorf("invalid expiration: %w", err)
-	}
-
-	// Add the deprecation, if any.
-	if depChild, err := typeRefNode.Lookup(dslshape.NodeTypeReferenceDeprecatedType); err == nil && depChild.GetType() == dslshape.NodeTypeDeprecation {
-		dep, err := translateDeprecation(tctx, depChild)
-		if err != nil {
-			return nil, err
-		}
-		ref.Deprecation = dep
-	}
-
-	// Add the deprecation, if any.
-	if depChild, err := typeRefNode.Lookup(dslshape.NodeTypeReferenceDeprecatedType); err == nil && depChild.GetType() == dslshape.NodeTypeDeprecation {
-		dep, err := translateDeprecation(tctx, depChild)
-		if err != nil {
-			return nil, err
-		}
-		ref.Deprecation = dep
 	}
 
 	// Add the deprecation, if any.

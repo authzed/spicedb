@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/authzed/spicedb/pkg/datastore"
-	"sync"
-
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -371,6 +369,8 @@ func applyExpirationFilter(traits Traits, expirationOption datastore.ExpirationF
 		// Unknown option, return traits as-is
 		return traits, nil
 	}
+}
+
 func logOrErrorOnDeprecation(objectType, relation string, dep *core.Deprecation, logMessage string, caveatName string, hasExpiration bool) error {
 	extra := ""
 	if caveatName != "" {
