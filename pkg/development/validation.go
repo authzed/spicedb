@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/google/go-cmp/cmp"
 	yaml "gopkg.in/yaml.v2"
 

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
 
@@ -334,9 +334,14 @@ func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.Sour
 		return nil
 	}
 
-	// We're okay with these being zero if the cast fails.
-	uintLine, _ := safecast.Convert[uint64](line)
-	uintCol, _ := safecast.Convert[uint64](col)
+	uintLine, err := safecast.Convert[uint64](line)
+	if err != nil {
+		uintLine = 0
+	}
+	uintCol, err := safecast.Convert[uint64](col)
+	if err != nil {
+		uintCol = 0
+	}
 
 	return &core.SourcePosition{
 		ZeroIndexedLineNumber:     uintLine,

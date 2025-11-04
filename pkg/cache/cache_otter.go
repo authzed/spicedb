@@ -6,7 +6,7 @@ import (
 	"math"
 	"sync/atomic"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/maypok86/otter/v2"
 	"github.com/maypok86/otter/v2/stats"
 	"github.com/rs/zerolog"

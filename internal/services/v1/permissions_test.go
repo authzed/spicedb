@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -2458,8 +2458,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 				cancel()
 			}
 
-			// These are statically defined.
-			expectedCount, _ := safecast.Convert[uint64](tc.expectedCount)
+			expectedCount := safecast.RequireConvert[uint64](t, tc.expectedCount)
 			require.Equal(expectedCount, totalRead, "found: %v", foundRels.AsSlice())
 			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.AsSlice())
 		})
