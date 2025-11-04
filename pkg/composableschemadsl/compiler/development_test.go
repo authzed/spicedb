@@ -255,3 +255,159 @@ func TestPositionToAstNode(t *testing.T) {
 		})
 	}
 }
+
+func TestNodeChainString(t *testing.T) {
+	t.Parallel()
+
+	tcs := []struct {
+		name           string
+		schema         string
+		line           int
+		column         int
+		expectedString string
+	}{
+		{
+			name:           "single definition node",
+			schema:         `definition user {}`,
+			line:           0,
+			column:         0,
+			expectedString: "NodeTypeDefinition NodeTypeFile ",
+		},
+		{
+			name: "relation node chain",
+			schema: `definition resource {
+				relation viewer: user
+			}`,
+			line:           1,
+			column:         10,
+			expectedString: "NodeTypeRelation NodeTypeDefinition NodeTypeFile ",
+		},
+		{
+			name: "type reference in relation",
+			schema: `definition resource {
+				relation viewer: user
+			}`,
+			line:           1,
+			column:         22,
+			expectedString: "NodeTypeSpecificTypeReference NodeTypeTypeReference NodeTypeRelation NodeTypeDefinition NodeTypeFile ",
+		},
+		{
+			name: "identifier in permission",
+			schema: `definition resource {
+				relation viewer: user
+				permission view = viewer
+			}`,
+			line:           2,
+			column:         26,
+			expectedString: "NodeTypeIdentifier NodeTypePermission NodeTypeDefinition NodeTypeFile ",
+		},
+		{
+			name: "identifier in union expression",
+			schema: `definition resource {
+				relation viewer: user
+				relation editor: user
+				permission view = viewer + editor
+			}`,
+			line:           3,
+			column:         34,
+			expectedString: "NodeTypeIdentifier NodeTypeUnionExpression NodeTypePermission NodeTypeDefinition NodeTypeFile ",
+		},
+		{
+			name: "caveat expression node chain",
+			schema: `
+			caveat some_caveat(someparam int) {
+				someparam > 42
+			}
+
+			definition resource {
+				relation viewer: user
+				permission view = viewer
+			}`,
+			line:           2,
+			column:         6,
+			expectedString: "NodeTypeCaveatExpression NodeTypeCaveatDefinition NodeTypeFile ",
+		},
+		{
+			name: "caveat parameter node chain",
+			schema: `
+			caveat some_caveat(someparam int) {
+				someparam > 42
+			}
+
+			definition resource {
+				relation viewer: user
+				permission view = viewer
+			}`,
+			line:           1,
+			column:         26,
+			expectedString: "NodeTypeCaveatParameter NodeTypeCaveatDefinition NodeTypeFile ",
+		},
+		{
+			name: "caveat type reference node chain",
+			schema: `
+			caveat some_caveat(someparam int) {
+				someparam > 42
+			}
+
+			definition resource {
+				relation viewer: user
+				permission view = viewer
+			}`,
+			line:           1,
+			column:         33,
+			expectedString: "NodeTypeCaveatTypeReference NodeTypeCaveatParameter NodeTypeCaveatDefinition NodeTypeFile ",
+		},
+		{
+			name: "caveat reference node chain",
+			schema: `
+			caveat some_caveat(someparam int) {
+				someparam > 42
+			}
+
+			definition resource {
+				relation viewer: user with some_caveat
+				permission view = viewer
+			}`,
+			line:           6,
+			column:         40,
+			expectedString: "NodeTypeCaveatReference NodeTypeSpecificTypeReference NodeTypeTypeReference NodeTypeRelation NodeTypeDefinition NodeTypeFile ",
+		},
+		{
+			name: "relation with comment",
+			schema: `
+				definition user {}
+
+				definition resource {
+					// viewer is some sort of relation
+					relation viewer: user
+				}
+			`,
+			line:           5,
+			column:         10,
+			expectedString: "NodeTypeRelation NodeTypeDefinition NodeTypeFile ",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			compiled, err := Compile(InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: tc.schema,
+			}, AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			nodeChain, err := PositionToAstNodeChain(compiled, input.Source("test"), input.Position{
+				LineNumber:     tc.line,
+				ColumnPosition: tc.column,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, nodeChain)
+
+			actualString := nodeChain.String()
+			require.Equal(t, tc.expectedString, actualString)
+		})
+	}
+}
