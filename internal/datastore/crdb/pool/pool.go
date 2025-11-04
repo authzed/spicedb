@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -156,14 +156,20 @@ func (p *RetryPool) ID() string {
 // MaxConns returns the MaxConns configured on the underlying pool
 func (p *RetryPool) MaxConns() uint32 {
 	// This should be non-negative
-	maxConns, _ := safecast.Convert[uint32](p.pool.Config().MaxConns)
+	maxConns, err := safecast.Convert[uint32](p.pool.Config().MaxConns)
+	if err != nil {
+		maxConns = 0
+	}
 	return maxConns
 }
 
 // MinConns returns the MinConns configured on the underlying pool
 func (p *RetryPool) MinConns() uint32 {
 	// This should be non-negative
-	minConns, _ := safecast.Convert[uint32](p.pool.Config().MinConns)
+	minConns, err := safecast.Convert[uint32](p.pool.Config().MinConns)
+	if err != nil {
+		minConns = 0
+	}
 	return minConns
 }
 

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -279,7 +279,11 @@ func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 	startingXipLen := len(newSnapshot.xipList)
 	for numToDrop = 0; numToDrop < startingXipLen; numToDrop++ {
 		// numToDrop should be nonnegative
-		uintNumToDrop, _ := safecast.Convert[uint64](numToDrop)
+		uintNumToDrop, err := safecast.Convert[uint64](numToDrop)
+		if err != nil {
+			uintNumToDrop = 0
+		}
+
 		if newSnapshot.xipList[startingXipLen-1-numToDrop] != newSnapshot.xmax-uintNumToDrop-1 {
 			break
 		}

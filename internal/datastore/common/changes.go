@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	log "github.com/authzed/spicedb/internal/logging"

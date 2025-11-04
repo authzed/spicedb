@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
@@ -87,13 +87,17 @@ type nodeConnectionBalancer[P balancePoolConn[C], C balanceConn] struct {
 // testing purposes. Callers should use the exported NewNodeConnectionBalancer.
 func newNodeConnectionBalancer[P balancePoolConn[C], C balanceConn](pool balanceablePool[P, C], healthTracker *NodeHealthTracker, interval time.Duration) *nodeConnectionBalancer[P, C] {
 	seed := int64(0)
+	var err error
 	for seed == 0 {
-		// Sum64 returns a uint64, and safecast will return 0 if it's not castable,
+		// Sum64 returns a uint64, and safecast will return an error if it's not castable,
 		// which will happen about half the time (?). We just keep running it until
 		// we get a seed that fits in the box.
 		// Subtracting math.MaxInt64 should mean that we retain the entire range of
 		// possible values.
-		seed, _ = safecast.Convert[int64](new(maphash.Hash).Sum64() - math.MaxInt64)
+		seed, err = safecast.Convert[int64](new(maphash.Hash).Sum64() - math.MaxInt64)
+		if err != nil {
+			seed = 0
+		}
 	}
 	return &nodeConnectionBalancer[P, C]{
 		ticker:        time.NewTicker(interval),
@@ -159,8 +163,8 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 
 	// It's highly unlikely that we'll ever have an overflow in
 	// this context, so we cast directly.
-	nodeCount, _ := safecast.Convert[uint32](p.healthTracker.HealthyNodeCount())
-	if nodeCount == 0 {
+	nodeCount, err := safecast.Convert[uint32](p.healthTracker.HealthyNodeCount())
+	if err != nil || nodeCount == 0 {
 		nodeCount = 1
 	}
 

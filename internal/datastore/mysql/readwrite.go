@@ -14,7 +14,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/go-sql-driver/mysql"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
