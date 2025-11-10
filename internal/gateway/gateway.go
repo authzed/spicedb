@@ -65,7 +65,11 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 		return nil, err
 	}
 
-	gwMux := runtime.NewServeMux(runtime.WithMetadata(OtelAnnotator), runtime.WithHealthzEndpoint(healthpb.NewHealthClient(healthConn)))
+	gwMux := runtime.NewServeMux(
+		runtime.WithMetadata(OtelAnnotator),
+		runtime.WithOutgoingHeaderMatcher(customOutgoingHeaderMatcher),
+		runtime.WithHealthzEndpoint(healthpb.NewHealthClient(healthConn)),
+	)
 	schemaConn, err := registerHandler(ctx, gwMux, upstreamAddr, opts, v1.RegisterSchemaServiceHandler)
 	if err != nil {
 		return nil, err
@@ -169,4 +173,18 @@ func OtelAnnotator(ctx context.Context, r *http.Request) metadata.MD {
 	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header))
 	otelgrpc.Inject(ctx, &metadataCopy, defaultOtelOpts...) // nolint:staticcheck
 	return metadataCopy
+}
+
+// customOutgoingHeaderMatcher translates gRPC metadata/trailers to HTTP headers.
+// This ensures x-request-id is visible to HTTP clients.
+func customOutgoingHeaderMatcher(key string) (string, bool) {
+	switch key {
+	case "x-request-id":
+		return "x-request-id", true
+	case "io.spicedb.respmeta.requestid":
+		// Support legacy key during transition period
+		return "x-request-id", true
+	default:
+		return runtime.DefaultHeaderMatcher(key)
+	}
 }
