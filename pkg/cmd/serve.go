@@ -117,7 +117,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	apiFlags.Uint32Var(&config.MaxDeleteRelationshipsLimit, "max-delete-relationships-limit", 1000, "maximum number of relationships that can be deleted in a single request")
 	apiFlags.Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", 1000, "maximum number of resources that can be looked up in a single request")
 	apiFlags.Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
-	apiFlags.BoolVar(&config.EnableRevisionHeartbeat, "enable-revision-heartbeat", true, "enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (postgres only)")
+	apiFlags.BoolVar(&config.EnableRevisionHeartbeat, "enable-revision-heartbeat", true, "enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (Postgres driver only)")
 	apiFlags.BoolVar(&config.EnablePerformanceInsightMetrics, "enable-performance-insight-metrics", false, "enables performance insight metrics, which are used to track the latency of API calls by shape")
 	apiFlags.StringVar(&config.MismatchZedTokenBehavior, "mismatch-zed-token-behavior", "full-consistency", "behavior to enforce when an API call receives a zedtoken that was originally intended for a different kind of datastore. One of: full-consistency (treat as a full-consistency call, ignoring the zedtoken), min-latency (treat as a min-latency call, ignoring the zedtoken), error (return an error). defaults to full-consistency for safety.")
 
@@ -135,13 +135,13 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 	namespaceCacheFlags.DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 1*time.Second, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
-	server.MustRegisterCacheFlags(namespaceCacheFlags, "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
+	server.MustRegisterCacheFlags(namespaceCacheFlags, "ns-cache", "schema", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
 	dispatchFlags := nfs.FlagSet(BoldBlue("Dispatch"))
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(dispatchFlags, &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
-	server.MustRegisterCacheFlags(dispatchFlags, "dispatch-cache", &config.DispatchCacheConfig, dispatchCacheDefaults)
-	server.MustRegisterCacheFlags(dispatchFlags, "dispatch-cluster-cache", &config.ClusterDispatchCacheConfig, dispatchClusterCacheDefaults)
+	server.MustRegisterCacheFlags(dispatchFlags, "dispatch-cache", "dispatch calls this server makes to other servers", &config.DispatchCacheConfig, dispatchCacheDefaults)
+	server.MustRegisterCacheFlags(dispatchFlags, "dispatch-cluster-cache", "dispatch calls this server receives from other servers", &config.ClusterDispatchCacheConfig, dispatchClusterCacheDefaults)
 
 	// Flags for configuring dispatch requests
 	dispatchFlags.Uint16Var(&config.DispatchChunkSize, "dispatch-chunk-size", 100, "maximum number of object IDs in a dispatched request")
@@ -191,7 +191,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
 
-	server.MustRegisterCacheFlags(experimentalFlags, "lookup-resources-chunk-cache", &config.LR3ResourceChunkCacheConfig, lr3ChunkCacheDefaults)
+	server.MustRegisterCacheFlags(experimentalFlags, "lookup-resources-chunk-cache", "LookupResources3 chunks", &config.LR3ResourceChunkCacheConfig, lr3ChunkCacheDefaults)
 
 	tracingFlags := nfs.FlagSet(BoldBlue("Tracing"))
 	// Flags for tracing
