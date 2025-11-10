@@ -19,12 +19,12 @@ var MemoryUsageGauge = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "memory_middleware",
 	Name:      "memory_usage_percent",
-	Help:      "Current memory usage as percentage of GOMEMLIMIT",
+	Help:      "Current memory usage as percentage of GOMEMLIMIT (1-100)",
 })
 
 // MemorySampler provides memory usage sampling capabilities.
 type MemorySampler interface {
-	// GetMemoryUsagePercent returns the most recent memory usage (0-100)
+	// GetMemoryUsagePercent returns a number in the range [0,1]
 	GetMemoryUsagePercent() float64
 	// GetTimestampLastMemorySample returns the timestamp of the most recent memory sample
 	GetTimestampLastMemorySample() time.Time
@@ -74,9 +74,9 @@ func (s *MemorySamplerOnInterval) GetIntervalSeconds() int {
 	return s.sampleIntervalSeconds
 }
 
-// NewMemorySampler sets the current usage immediately and starts a goroutine to fetch memory usage on an interval.
+// NewMemorySamplerOnInterval sets the current usage immediately and starts a goroutine to fetch memory usage on an interval.
 // The goroutine stops when Close is called.
-func NewMemorySampler(sampleIntervalSeconds int, limitProvider MemoryLimitProvider) *MemorySamplerOnInterval {
+func NewMemorySamplerOnInterval(sampleIntervalSeconds int, limitProvider MemoryLimitProvider) *MemorySamplerOnInterval {
 	if sampleIntervalSeconds <= 0 {
 		log.Warn().Msgf("memory sampler sample interval cannot be zero or negative; using default value of %d seconds", DefaultSampleIntervalSeconds)
 		sampleIntervalSeconds = DefaultSampleIntervalSeconds
@@ -107,14 +107,14 @@ func NewMemorySampler(sampleIntervalSeconds int, limitProvider MemoryLimitProvid
 	return sampler
 }
 
-// GetLastMemorySampleInBytes returns the most recent memory sample in bytes
+// GetMemoryUsagePercent returns a number in the range [0,1]
 func (s *MemorySamplerOnInterval) GetMemoryUsagePercent() float64 {
 	s.usageLock.RLock()
 	defer s.usageLock.RUnlock()
 	if s.memoryLimitInBytes <= 0 {
 		return 0
 	}
-	return ((float64(s.lastMemorySampleInBytes) / float64(s.memoryLimitInBytes)) * 100)
+	return min(float64(1), float64(s.lastMemorySampleInBytes)/float64(s.memoryLimitInBytes))
 }
 
 // GetTimestampLastMemorySample returns the timestamp of the most recent memory sample
@@ -159,7 +159,7 @@ func (s *MemorySamplerOnInterval) sampleMemory() {
 	s.timestampLastMemorySample = time.Now()
 	s.usageLock.Unlock()
 
-	MemoryUsageGauge.Set(s.GetMemoryUsagePercent())
+	MemoryUsageGauge.Set(s.GetMemoryUsagePercent() * 100)
 }
 
 func (s *MemorySamplerOnInterval) Close() {

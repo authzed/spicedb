@@ -446,7 +446,7 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}), nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, memoryprotection.NewMemorySamplerOnInterval(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}), nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultUnaryMiddleware(opt)
@@ -474,7 +474,7 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}), nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.Config{ThresholdPercent: 0}, memoryprotection.NewMemorySamplerOnInterval(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}), nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultStreamingMiddleware(opt)
@@ -623,12 +623,23 @@ func TestBuildMemoryProtectionConfig(t *testing.T) {
 			expectedSamplerInterval: 10,
 			expectAddToCloseables:   true,
 		},
-		`err_invalid`: {
+		`err_invalid_above_one_1`: {
 			config: &Config{
 				MemoryProtectionEnabled:                     true,
 				MemoryProtectionSampleIntervalSeconds:       10,
 				MemoryProtectionNormalAPIThresholdPercent:   1.1,
 				MemoryProtectionDispatchAPIThresholdPercent: 0.70,
+			},
+			expectedSamplerInterval: 0,
+			expectedErr:             "invalid memory protection configuration",
+			expectAddToCloseables:   false,
+		},
+		`err_invalid_above_one_2`: {
+			config: &Config{
+				MemoryProtectionEnabled:                     true,
+				MemoryProtectionSampleIntervalSeconds:       10,
+				MemoryProtectionNormalAPIThresholdPercent:   0.70,
+				MemoryProtectionDispatchAPIThresholdPercent: 1.1,
 			},
 			expectedSamplerInterval: 0,
 			expectedErr:             "invalid memory protection configuration",
@@ -697,7 +708,7 @@ func TestBuildDispatchServer(t *testing.T) {
 				_ = closeables.Close()
 			})
 
-			sampler := memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{})
+			sampler := memoryprotection.NewMemorySamplerOnInterval(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{})
 			t.Cleanup(sampler.Close)
 
 			srv, err := tc.config.buildDispatchServer(mp, sampler, mockDatastore, mockDispatcher, &closeables, nil)

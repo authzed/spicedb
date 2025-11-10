@@ -35,7 +35,7 @@ func TestWithDatastore(t *testing.T) {
 		"service",
 		consistency.TreatMismatchingTokensAsError,
 		memoryprotection.Config{ThresholdPercent: 0},
-		memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}),
+		memoryprotection.NewMemorySamplerOnInterval(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}),
 		nil,
 		nil,
 	}
@@ -79,7 +79,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		"service",
 		consistency.TreatMismatchingTokensAsError,
 		memoryprotection.Config{ThresholdPercent: 0},
-		memoryprotection.NewMemorySampler(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}),
+		memoryprotection.NewMemorySamplerOnInterval(memoryprotection.DefaultSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{}),
 		nil,
 		nil,
 	}

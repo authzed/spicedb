@@ -26,7 +26,8 @@ var RequestsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
 
 // Config holds configuration for the memory protection middleware
 type Config struct {
-	// ThresholdPercent is the memory usage threshold for requests. If zero or negative, this middleware has no effect
+	// ThresholdPercent is the memory usage threshold for requests, in the range [0,1]
+	// If zero or negative, this middleware has no effect.
 	ThresholdPercent float64
 }
 

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMemorySampler(t *testing.T) {
+func TestMemorySamplerOnInterval(t *testing.T) {
 	intervalSeconds := 1000
 	interval := time.Duration(intervalSeconds) * time.Second
 
@@ -19,6 +19,10 @@ func TestMemorySampler(t *testing.T) {
 	}{
 		`positive_limit`: {
 			limit:                     100 * 1024 * 1024,
+			expectGaugeAndUsageUpdate: true,
+		},
+		`very_low_limit`: {
+			limit:                     1,
 			expectGaugeAndUsageUpdate: true,
 		},
 		`negative_limit`: {
@@ -34,7 +38,7 @@ func TestMemorySampler(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				sampler := NewMemorySampler(intervalSeconds, &HardCodedMemoryLimitProvider{Hardcodedlimit: tc.limit})
+				sampler := NewMemorySamplerOnInterval(intervalSeconds, &HardCodedMemoryLimitProvider{Hardcodedlimit: tc.limit})
 				t.Cleanup(sampler.Close)
 
 				now := time.Now()
@@ -54,6 +58,7 @@ func TestMemorySampler(t *testing.T) {
 				if tc.expectGaugeAndUsageUpdate {
 					require.Greater(t, gaugeValue, float64(0))
 					require.Greater(t, sampler.GetMemoryUsagePercent(), float64(0))
+					require.LessOrEqual(t, sampler.GetMemoryUsagePercent(), float64(1), "percentage should be between 0 and 1")
 				} else {
 					require.InDelta(t, 0, gaugeValue, 0.001) // near zero
 				}

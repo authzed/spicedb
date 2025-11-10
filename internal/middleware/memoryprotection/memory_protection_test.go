@@ -60,7 +60,7 @@ func TestNew(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			lp := HardCodedMemoryLimitProvider{Hardcodedlimit: 100}
 
-			sampler := NewMemorySampler(100, &lp)
+			sampler := NewMemorySamplerOnInterval(100, &lp)
 			t.Cleanup(sampler.Close)
 
 			am := New(tt.inputConfig, sampler, "name")
@@ -111,7 +111,7 @@ func TestMemoryProtectionMiddleware_RecordRejection(t *testing.T) {
 
 	lp := HardCodedMemoryLimitProvider{Hardcodedlimit: 100}
 
-	sampler := NewMemorySampler(DefaultSampleIntervalSeconds, &lp)
+	sampler := NewMemorySamplerOnInterval(DefaultSampleIntervalSeconds, &lp)
 	t.Cleanup(sampler.Close)
 
 	am := New(DefaultConfig(), sampler, "test")

@@ -598,7 +598,7 @@ func (c *Config) buildMemoryProtectionConfigs(closeables *closeableStack) (memor
 		dispatchConfig = memoryprotection.Config{
 			ThresholdPercent: c.MemoryProtectionDispatchAPIThresholdPercent,
 		}
-		sampler = memoryprotection.NewMemorySampler(c.MemoryProtectionSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{})
+		sampler = memoryprotection.NewMemorySamplerOnInterval(c.MemoryProtectionSampleIntervalSeconds, &memoryprotection.DefaultMemoryLimitProvider{})
 		closeables.AddWithoutError(sampler.Close)
 	}
 	return apiConfig, dispatchConfig, sampler, nil
