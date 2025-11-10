@@ -42,9 +42,9 @@ func TestAliasIterator(t *testing.T) {
 			require.Equal("...", rel.Subject.Relation)
 		}
 
-		// Should have same number of relations as original sub-iterator
-		// (alice has viewer, editor, owner on doc1)
-		require.Len(rels, 3, "should have 3 rewritten relations")
+		// Should have 1 deduplicated relation after rewriting
+		// (alice has viewer, editor, owner on doc1, but all get rewritten to "read" and deduplicated)
+		require.Len(rels, 1, "should have 1 deduplicated relation after rewriting")
 	})
 
 	t.Run("Check_SelfEdgeDetection", func(t *testing.T) {

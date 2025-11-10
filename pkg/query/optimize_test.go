@@ -460,11 +460,11 @@ func TestApplyOptimizations(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, changed2)
 
-		// Both should result in an empty union (no subiterators)
-		// After removing all empties, we get Union[] which has 0 elements
+		// Both should result in an empty fixed iterator
+		// After removing all empties, we get Union[], which then gets optimized
+		// to an empty fixed iterator by ElideSingletonUnionAndIntersection
 		require.Equal(t, result1, result2)
-		resultUnion1, ok := result1.(*Union)
-		require.True(t, ok)
-		require.Len(t, resultUnion1.subIts, 0)
+		_, ok := result1.(*FixedIterator)
+		require.True(t, ok, "result1 should be a FixedIterator (empty), got %T", result1)
 	})
 }
