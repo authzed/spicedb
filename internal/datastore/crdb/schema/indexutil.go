@@ -188,11 +188,12 @@ func checkFilterColumnMatchesFilter(colName string, filter datastore.Relationshi
 				foundCount++
 			}
 		}
-		if foundCount == 0 {
+		switch {
+		case foundCount == 0:
 			return columnFilterNoMatch, nil
-		} else if foundCount < len(filter.OptionalSubjectsSelectors) {
+		case foundCount < len(filter.OptionalSubjectsSelectors):
 			return columnFilterForceNoMatch, nil
-		} else {
+		default:
 			return columnFilterMatch, nil
 		}
 
@@ -207,11 +208,12 @@ func checkFilterColumnMatchesFilter(colName string, filter datastore.Relationshi
 				foundCount++
 			}
 		}
-		if foundCount == 0 {
+		switch {
+		case foundCount == 0:
 			return columnFilterNoMatch, nil
-		} else if foundCount < len(filter.OptionalSubjectsSelectors) {
+		case foundCount < len(filter.OptionalSubjectsSelectors):
 			return columnFilterForceNoMatch, nil
-		} else {
+		default:
 			return columnFilterMatch, nil
 		}
 
@@ -226,11 +228,12 @@ func checkFilterColumnMatchesFilter(colName string, filter datastore.Relationshi
 				foundCount++
 			}
 		}
-		if foundCount == 0 {
+		switch {
+		case foundCount == 0:
 			return columnFilterNoMatch, nil
-		} else if foundCount < len(filter.OptionalSubjectsSelectors) {
+		case foundCount < len(filter.OptionalSubjectsSelectors):
 			return columnFilterForceNoMatch, nil
-		} else {
+		default:
 			return columnFilterMatch, nil
 		}
 

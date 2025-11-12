@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	cter "github.com/authzed/spicedb/internal/cursorediterator"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -488,4 +489,23 @@ func TestYieldingStreamPublishMultipleItems(t *testing.T) {
 	require.Len(t, yieldedResults, 2)
 	require.Equal(t, "resource1", yieldedResults[0].Item.resourceID)
 	require.Equal(t, "resource2", yieldedResults[1].Item.resourceID)
+}
+
+func TestMustDatastoreIndexToString(t *testing.T) {
+	t.Run("nil dbCursor", func(t *testing.T) {
+		index := datastoreIndex{
+			chunkID: "someChunkID",
+		}
+		indexString, _ := mustDatastoreIndexToString(index)
+		require.Equal(t, "$dsi:someChunkID", indexString)
+	})
+	t.Run("defined dbCursor", func(t *testing.T) {
+		relation := tuple.MustParse("group:second#member@user:tom")
+		index := datastoreIndex{
+			chunkID:  "someChunkID",
+			dbCursor: options.Cursor(&relation),
+		}
+		indexString, _ := mustDatastoreIndexToString(index)
+		require.Equal(t, "$dsi:someChunkID:group:second#member@user:tom#...", indexString)
+	})
 }

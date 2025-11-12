@@ -21,7 +21,7 @@ linters:
     - "errcheck"
     - "errname"
     - "errorlint"
-    # - "gocritic" TODO: fix issues
+    - "gocritic"
     - "goprintffuncname"
     - "gosec"
     - "govet"
