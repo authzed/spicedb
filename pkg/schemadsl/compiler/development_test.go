@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -252,6 +253,118 @@ func TestPositionToAstNode(t *testing.T) {
 
 				require.Equal(t, tc.expected, nodeTypes)
 			}
+		})
+	}
+}
+
+func TestNodeChainString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		schema   string
+		line     int
+		column   int
+		expected []string
+	}{
+		{
+			name:     "definition node chain",
+			schema:   `definition user {}`,
+			line:     0,
+			column:   0,
+			expected: []string{"NodeTypeDefinition", "NodeTypeFile"},
+		},
+		{
+			name: "relation node chain",
+			schema: `definition resource {
+				relation viewer: user
+			}`,
+			line:     1,
+			column:   10,
+			expected: []string{"NodeTypeRelation", "NodeTypeDefinition", "NodeTypeFile"},
+		},
+		{
+			name: "type reference in relation",
+			schema: `definition resource {
+				relation viewer: user
+			}`,
+			line:     1,
+			column:   22,
+			expected: []string{"NodeTypeSpecificTypeReference", "NodeTypeTypeReference", "NodeTypeRelation", "NodeTypeDefinition", "NodeTypeFile"},
+		},
+		{
+			name: "identifier in permission",
+			schema: `definition resource {
+				relation viewer: user
+				permission view = viewer
+			}`,
+			line:     2,
+			column:   26,
+			expected: []string{"NodeTypeIdentifier", "NodeTypePermission", "NodeTypeDefinition", "NodeTypeFile"},
+		},
+		{
+			name: "union expression",
+			schema: `definition resource {
+				relation viewer: user
+				relation editor: user
+				permission view = viewer + editor
+			}`,
+			line:     3,
+			column:   34,
+			expected: []string{"NodeTypeIdentifier", "NodeTypeUnionExpression", "NodeTypePermission", "NodeTypeDefinition", "NodeTypeFile"},
+		},
+		{
+			name: "caveat expression",
+			schema: `
+			caveat some_caveat(someparam int) {
+				someparam > 42
+			}
+
+			definition resource {
+				relation viewer: user
+			}`,
+			line:     2,
+			column:   6,
+			expected: []string{"NodeTypeCaveatExpression", "NodeTypeCaveatDefinition", "NodeTypeFile"},
+		},
+		{
+			name: "caveat parameter",
+			schema: `
+			caveat some_caveat(someparam int) {
+				someparam > 42
+			}
+
+			definition resource {
+				relation viewer: user
+			}`,
+			line:     1,
+			column:   26,
+			expected: []string{"NodeTypeCaveatParameter", "NodeTypeCaveatDefinition", "NodeTypeFile"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			compiled, err := Compile(InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: tt.schema,
+			}, AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			nodeChain, err := PositionToAstNodeChain(compiled, input.Source("test"), input.Position{
+				LineNumber:     tt.line,
+				ColumnPosition: tt.column,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, nodeChain)
+
+			result := nodeChain.String()
+			// Split on whitespace to avoid brittleness from formatting details like trailing spaces
+			nodeTypes := strings.Fields(result)
+			require.Equal(t, tt.expected, nodeTypes)
 		})
 	}
 }
