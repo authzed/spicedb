@@ -12,8 +12,13 @@ type Intersection struct {
 
 var _ Iterator = &Intersection{}
 
-func NewIntersection() *Intersection {
-	return &Intersection{}
+func NewIntersection(subiterators ...Iterator) *Intersection {
+	if len(subiterators) == 0 {
+		return &Intersection{}
+	}
+	return &Intersection{
+		subIts: subiterators,
+	}
 }
 
 func (i *Intersection) addSubIterator(subIt Iterator) {

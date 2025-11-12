@@ -12,8 +12,13 @@ type Union struct {
 
 var _ Iterator = &Union{}
 
-func NewUnion() *Union {
-	return &Union{}
+func NewUnion(subiterators ...Iterator) *Union {
+	if len(subiterators) == 0 {
+		return &Union{}
+	}
+	return &Union{
+		subIts: subiterators,
+	}
 }
 
 func (u *Union) addSubIterator(subIt Iterator) {
