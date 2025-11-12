@@ -2,9 +2,9 @@ package query
 
 import "slices"
 
-// ElideSingletonUnionAndIntersection removes unnecessary union and intersection wrappers
+// CollapseSingletonUnionAndIntersection removes unnecessary union and intersection wrappers
 // that contain only a single subiterator.
-func ElideSingletonUnionAndIntersection(it Iterator) (Iterator, bool, error) {
+func CollapseSingletonUnionAndIntersection(it Iterator) (Iterator, bool, error) {
 	switch v := it.(type) {
 	case *Union:
 		if len(v.subIts) == 1 {

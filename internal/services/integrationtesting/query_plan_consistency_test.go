@@ -100,10 +100,8 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			} {
-				entry := entry
 				t.Run(entry.name, func(t *testing.T) {
 					for _, assertion := range entry.assertions {
-						assertion := assertion
 						t.Run(assertion.RelationshipWithContextString, func(t *testing.T) {
 							// Run both unoptimized and optimized versions
 							for _, optimizationMode := range []struct {
@@ -113,7 +111,6 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 								{"unoptimized", false},
 								{"optimized", true},
 							} {
-								optimizationMode := optimizationMode
 								t.Run(optimizationMode.name, func(t *testing.T) {
 									require := require.New(t)
 

@@ -39,11 +39,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(with caveat), Relation(with caveat)]
-		union := NewUnion()
 		rel1 := createTestRelationIterator("test_caveat")
 		rel2 := createTestRelationIterator("test_caveat")
-		union.addSubIterator(rel1)
-		union.addSubIterator(rel2)
+		union := NewUnion(rel1, rel2)
 
 		// Wrap in caveat: Caveat(Union[Rel1, Rel2])
 		caveatIterator := NewCaveatIterator(union, caveat)
@@ -73,11 +71,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(with caveat), Relation(no caveat)]
-		union := NewUnion()
 		rel1 := createTestRelationIterator("test_caveat")
 		rel2 := createTestRelationIteratorNoCaveat()
-		union.addSubIterator(rel1)
-		union.addSubIterator(rel2)
+		union := NewUnion(rel1, rel2)
 
 		// Wrap in caveat: Caveat(Union[Rel1, Rel2])
 		caveatIterator := NewCaveatIterator(union, caveat)
@@ -140,11 +136,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(no caveat), Relation(no caveat)]
-		union := NewUnion()
 		rel1 := createTestRelationIteratorNoCaveat()
 		rel2 := createTestRelationIteratorNoCaveat()
-		union.addSubIterator(rel1)
-		union.addSubIterator(rel2)
+		union := NewUnion(rel1, rel2)
 
 		// Wrap in caveat: Caveat(Union[Rel1, Rel2])
 		caveatIterator := NewCaveatIterator(union, caveat)
@@ -190,16 +184,12 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Union[Union[Rel1, Rel2], Rel3])
-		innerUnion := NewUnion()
 		rel1 := createTestRelationIterator("test_caveat")
 		rel2 := createTestRelationIteratorNoCaveat()
-		innerUnion.addSubIterator(rel1)
-		innerUnion.addSubIterator(rel2)
+		innerUnion := NewUnion(rel1, rel2)
 
-		outerUnion := NewUnion()
 		rel3 := createTestRelationIterator("test_caveat")
-		outerUnion.addSubIterator(innerUnion)
-		outerUnion.addSubIterator(rel3)
+		outerUnion := NewUnion(innerUnion, rel3)
 
 		caveatIterator := NewCaveatIterator(outerUnion, caveat)
 
@@ -240,11 +230,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Intersection[Rel1(with caveat), Rel2(no caveat)])
-		intersection := NewIntersection()
 		rel1 := createTestRelationIterator("test_caveat")
 		rel2 := createTestRelationIteratorNoCaveat()
-		intersection.addSubIterator(rel1)
-		intersection.addSubIterator(rel2)
+		intersection := NewIntersection(rel1, rel2)
 
 		caveatIterator := NewCaveatIterator(intersection, caveat)
 
@@ -297,11 +285,9 @@ func TestContainsCaveat(t *testing.T) {
 	t.Run("detects caveat in nested structure", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
 		rel1 := createTestRelationIteratorNoCaveat()
 		rel2 := createTestRelationIterator("test_caveat")
-		union.addSubIterator(rel1)
-		union.addSubIterator(rel2)
+		union := NewUnion(rel1, rel2)
 
 		require.True(t, containsCaveat(union, caveat))
 	})
@@ -309,12 +295,54 @@ func TestContainsCaveat(t *testing.T) {
 	t.Run("does not detect caveat in structure without it", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
 		rel1 := createTestRelationIteratorNoCaveat()
 		rel2 := createTestRelationIteratorNoCaveat()
-		union.addSubIterator(rel1)
-		union.addSubIterator(rel2)
+		union := NewUnion(rel1, rel2)
 
 		require.False(t, containsCaveat(union, caveat))
+	})
+
+	t.Run("handles nil caveat in relationContainsCaveat", func(t *testing.T) {
+		t.Parallel()
+
+		rel := createTestRelationIterator("test_caveat")
+		require.False(t, relationContainsCaveat(rel, nil))
+	})
+
+	t.Run("handles relation with nil base in relationContainsCaveat", func(t *testing.T) {
+		t.Parallel()
+
+		caveat := createTestCaveatForPushdown("test_caveat")
+		// Create a RelationIterator with nil base
+		rel := &RelationIterator{base: nil}
+		require.False(t, relationContainsCaveat(rel, caveat))
+	})
+}
+
+func TestPushdownCaveatEvaluationEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	t.Run("does not push through nested CaveatIterator", func(t *testing.T) {
+		t.Parallel()
+
+		caveat := createTestCaveatForPushdown("test_caveat")
+
+		// Create Caveat(Caveat(Relation))
+		rel := createTestRelationIterator("test_caveat")
+		innerCaveat := NewCaveatIterator(rel, caveat)
+		outerCaveat := NewCaveatIterator(innerCaveat, caveat)
+
+		// Apply optimization
+		result, changed, err := ApplyOptimizations(outerCaveat, []OptimizerFunc{
+			WrapOptimizer[*CaveatIterator](PushdownCaveatEvaluation),
+		})
+		require.NoError(t, err)
+		require.False(t, changed, "Should not push through nested CaveatIterator to prevent infinite recursion")
+
+		// Should remain unchanged
+		resultCaveat, ok := result.(*CaveatIterator)
+		require.True(t, ok)
+		_, ok = resultCaveat.subiterator.(*CaveatIterator)
+		require.True(t, ok, "Subiterator should still be a CaveatIterator")
 	})
 }

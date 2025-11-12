@@ -276,11 +276,8 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 	}
 
 	// We must check the effective arrow of a subrelation if we have one
-	union := NewUnion()
-	union.addSubIterator(base)
-
 	arrow := NewArrow(base.Clone(), rightside)
-	union.addSubIterator(arrow)
+	union := NewUnion(base, arrow)
 	return union, nil
 }
 

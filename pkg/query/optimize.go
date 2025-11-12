@@ -28,7 +28,7 @@ func WrapOptimizer[T Iterator](fn TypedOptimizerFunc[T]) OptimizerFunc {
 // to any iterator tree without needing runtime information or context.
 var StaticOptimizations = []OptimizerFunc{
 	RemoveNullIterators,
-	ElideSingletonUnionAndIntersection,
+	CollapseSingletonUnionAndIntersection,
 	WrapOptimizer(PushdownCaveatEvaluation),
 }
 

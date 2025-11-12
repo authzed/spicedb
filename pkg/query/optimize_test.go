@@ -37,9 +37,8 @@ func TestWrapOptimizer(t *testing.T) {
 		wrapped := WrapOptimizer[*Union](typedOptimizer)
 
 		// Test with a Union - should match and optimize
-		union := NewUnion()
 		fixed := newNonEmptyFixedIterator()
-		union.addSubIterator(fixed)
+		union := NewUnion(fixed)
 
 		result, changed, err := ApplyOptimizations(union, []OptimizerFunc{wrapped})
 		require.NoError(t, err)
@@ -67,66 +66,60 @@ func TestWrapOptimizer(t *testing.T) {
 	})
 }
 
-func TestElideSingletonUnionAndIntersection(t *testing.T) {
+func TestCollapseSingletonUnionAndIntersection(t *testing.T) {
 	t.Parallel()
 
-	t.Run("elides singleton union", func(t *testing.T) {
+	t.Run("collapses singleton union", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
 		fixed := newNonEmptyFixedIterator()
-		union.addSubIterator(fixed)
+		union := NewUnion(fixed)
 
-		result, changed, err := ApplyOptimizations(union, []OptimizerFunc{ElideSingletonUnionAndIntersection})
+		result, changed, err := ApplyOptimizations(union, []OptimizerFunc{CollapseSingletonUnionAndIntersection})
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.Equal(t, fixed, result)
 	})
 
-	t.Run("elides singleton intersection", func(t *testing.T) {
+	t.Run("collapses singleton intersection", func(t *testing.T) {
 		t.Parallel()
 
-		intersection := NewIntersection()
 		fixed := newNonEmptyFixedIterator()
-		intersection.addSubIterator(fixed)
+		intersection := NewIntersection(fixed)
 
-		result, changed, err := ApplyOptimizations(intersection, []OptimizerFunc{ElideSingletonUnionAndIntersection})
+		result, changed, err := ApplyOptimizations(intersection, []OptimizerFunc{CollapseSingletonUnionAndIntersection})
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.Equal(t, fixed, result)
 	})
 
-	t.Run("does not elide multi-element union", func(t *testing.T) {
+	t.Run("does not collapse multi-element union", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-		union.addSubIterator(newNonEmptyFixedIterator())
-		union.addSubIterator(newNonEmptyFixedIterator())
+		union := NewUnion(newNonEmptyFixedIterator(), newNonEmptyFixedIterator())
 
-		result, changed, err := ApplyOptimizations(union, []OptimizerFunc{ElideSingletonUnionAndIntersection})
+		result, changed, err := ApplyOptimizations(union, []OptimizerFunc{CollapseSingletonUnionAndIntersection})
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Equal(t, union, result)
 	})
 
-	t.Run("does not elide multi-element intersection", func(t *testing.T) {
+	t.Run("does not collapse multi-element intersection", func(t *testing.T) {
 		t.Parallel()
 
-		intersection := NewIntersection()
-		intersection.addSubIterator(newNonEmptyFixedIterator())
-		intersection.addSubIterator(newNonEmptyFixedIterator())
+		intersection := NewIntersection(newNonEmptyFixedIterator(), newNonEmptyFixedIterator())
 
-		result, changed, err := ApplyOptimizations(intersection, []OptimizerFunc{ElideSingletonUnionAndIntersection})
+		result, changed, err := ApplyOptimizations(intersection, []OptimizerFunc{CollapseSingletonUnionAndIntersection})
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Equal(t, intersection, result)
 	})
 
-	t.Run("does not elide other iterator types", func(t *testing.T) {
+	t.Run("does not collapse other iterator types", func(t *testing.T) {
 		t.Parallel()
 
 		fixed := newNonEmptyFixedIterator()
-		result, changed, err := ApplyOptimizations(fixed, []OptimizerFunc{ElideSingletonUnionAndIntersection})
+		result, changed, err := ApplyOptimizations(fixed, []OptimizerFunc{CollapseSingletonUnionAndIntersection})
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Equal(t, fixed, result)
@@ -139,32 +132,26 @@ func TestRemoveNullIterators(t *testing.T) {
 	t.Run("removes empty fixed from union", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
 		fixed := newNonEmptyFixedIterator()
 		empty := NewEmptyFixedIterator()
-		union.addSubIterator(fixed)
-		union.addSubIterator(empty)
+		union := NewUnion(fixed, empty)
 
 		result, changed, err := ApplyOptimizations(union, StaticOptimizations)
 		require.NoError(t, err)
 		require.True(t, changed)
 
-		// Should remove the empty iterator, leaving a singleton union, which then gets elided
+		// Should remove the empty iterator, leaving a singleton union, which then gets collapsed
 		require.Equal(t, fixed, result)
 	})
 
 	t.Run("removes multiple empty fixed from union", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
 		fixed1 := newNonEmptyFixedIterator()
 		fixed2 := newNonEmptyFixedIterator()
 		empty1 := NewEmptyFixedIterator()
 		empty2 := NewEmptyFixedIterator()
-		union.addSubIterator(fixed1)
-		union.addSubIterator(empty1)
-		union.addSubIterator(fixed2)
-		union.addSubIterator(empty2)
+		union := NewUnion(fixed1, empty1, fixed2, empty2)
 
 		result, changed, err := ApplyOptimizations(union, StaticOptimizations)
 		require.NoError(t, err)
@@ -178,14 +165,12 @@ func TestRemoveNullIterators(t *testing.T) {
 		require.Equal(t, fixed2, resultUnion.subIts[1])
 	})
 
-	t.Run("replaces intersection with empty if it contains empty fixed", func(t *testing.T) {
+	t.Run("replaces intersection with empty if it contains empty and fixed", func(t *testing.T) {
 		t.Parallel()
 
-		intersection := NewIntersection()
 		fixed := newNonEmptyFixedIterator()
 		empty := NewEmptyFixedIterator()
-		intersection.addSubIterator(fixed)
-		intersection.addSubIterator(empty)
+		intersection := NewIntersection(fixed, empty)
 
 		result, changed, err := ApplyOptimizations(intersection, StaticOptimizations)
 		require.NoError(t, err)
@@ -200,11 +185,9 @@ func TestRemoveNullIterators(t *testing.T) {
 	t.Run("does not change union without empty iterators", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
 		fixed1 := newNonEmptyFixedIterator()
 		fixed2 := newNonEmptyFixedIterator()
-		union.addSubIterator(fixed1)
-		union.addSubIterator(fixed2)
+		union := NewUnion(fixed1, fixed2)
 
 		result, changed, err := ApplyOptimizations(union, StaticOptimizations)
 		require.NoError(t, err)
@@ -215,53 +198,52 @@ func TestRemoveNullIterators(t *testing.T) {
 	t.Run("does not change intersection without empty iterators", func(t *testing.T) {
 		t.Parallel()
 
-		intersection := NewIntersection()
 		fixed1 := newNonEmptyFixedIterator()
 		fixed2 := newNonEmptyFixedIterator()
-		intersection.addSubIterator(fixed1)
-		intersection.addSubIterator(fixed2)
+		intersection := NewIntersection(fixed1, fixed2)
 
 		result, changed, err := ApplyOptimizations(intersection, StaticOptimizations)
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Equal(t, intersection, result)
 	})
+
+	t.Run("returns empty when all union subiterators are empty", func(t *testing.T) {
+		t.Parallel()
+
+		empty1 := NewEmptyFixedIterator()
+		empty2 := NewEmptyFixedIterator()
+		empty3 := NewEmptyFixedIterator()
+		union := NewUnion(empty1, empty2, empty3)
+
+		result, changed, err := ApplyOptimizations(union, []OptimizerFunc{RemoveNullIterators})
+		require.NoError(t, err)
+		require.True(t, changed)
+
+		// Should return an empty fixed iterator
+		resultFixed, ok := result.(*FixedIterator)
+		require.True(t, ok)
+		require.Len(t, resultFixed.paths, 0)
+	})
 }
 
 func TestApplyOptimizations(t *testing.T) {
 	t.Parallel()
 
-	t.Run("applies optimization to iterator", func(t *testing.T) {
-		t.Parallel()
-
-		// Create a singleton union
-		union := NewUnion()
-		fixed := newNonEmptyFixedIterator()
-		union.addSubIterator(fixed)
-
-		result, changed, err := ApplyOptimizations(union, StaticOptimizations)
-		require.NoError(t, err)
-		require.True(t, changed)
-		require.Equal(t, fixed, result)
-	})
-
 	t.Run("applies optimization to nested iterators", func(t *testing.T) {
 		t.Parallel()
 
 		// Create a union with a nested singleton union
-		outerUnion := NewUnion()
-		innerUnion := NewUnion()
 		fixed := newNonEmptyFixedIterator()
-		innerUnion.addSubIterator(fixed)
-		outerUnion.addSubIterator(innerUnion)
-		outerUnion.addSubIterator(newNonEmptyFixedIterator())
+		innerUnion := NewUnion(fixed)
+		outerUnion := NewUnion(innerUnion, newNonEmptyFixedIterator())
 
 		result, changed, err := ApplyOptimizations(outerUnion, StaticOptimizations)
 		require.NoError(t, err)
 		require.True(t, changed)
 
 		// The outer union should still be a union (has 2 elements)
-		// but the inner singleton union should be elided
+		// but the inner singleton union should be collapsed
 		resultUnion, ok := result.(*Union)
 		require.True(t, ok)
 		require.Len(t, resultUnion.subIts, 2)
@@ -272,27 +254,23 @@ func TestApplyOptimizations(t *testing.T) {
 		t.Parallel()
 
 		// Create a union with a singleton union inside
-		outerUnion := NewUnion()
-		innerUnion := NewUnion()
 		fixed := newNonEmptyFixedIterator()
-		innerUnion.addSubIterator(fixed)
-		outerUnion.addSubIterator(innerUnion)
+		innerUnion := NewUnion(fixed)
+		outerUnion := NewUnion(innerUnion)
 
 		result, changed, err := ApplyOptimizations(outerUnion, StaticOptimizations)
 		require.NoError(t, err)
 		require.True(t, changed)
 		// After optimizations:
-		// 1. Inner union elided: outerUnion has [fixed]
-		// 2. Outer union elided: returns fixed
+		// 1. Inner union collapsed: outerUnion has [fixed]
+		// 2. Outer union collapsed: returns fixed
 		require.Equal(t, fixed, result)
 	})
 
 	t.Run("returns unchanged when no optimizations apply", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-		union.addSubIterator(newNonEmptyFixedIterator())
-		union.addSubIterator(newNonEmptyFixedIterator())
+		union := NewUnion(newNonEmptyFixedIterator(), newNonEmptyFixedIterator())
 
 		result, changed, err := ApplyOptimizations(union, StaticOptimizations)
 		require.NoError(t, err)
@@ -319,24 +297,21 @@ func TestApplyOptimizations(t *testing.T) {
 		}
 
 		// Test that both are applied
-		union := NewUnion()
-		intersection := NewIntersection()
 		fixed := newNonEmptyFixedIterator()
-		intersection.addSubIterator(fixed)
-		union.addSubIterator(intersection)
+		intersection := NewIntersection(fixed)
+		union := NewUnion(intersection)
 
 		result, changed, err := ApplyOptimizations(union, []OptimizerFunc{unionOptimizer, intersectionOptimizer})
 		require.NoError(t, err)
 		require.True(t, changed)
-		// Both the union and intersection should be elided
+		// Both the union and intersection should be collapsed
 		require.Equal(t, fixed, result)
 	})
 
 	t.Run("handles empty optimizer list", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-		union.addSubIterator(newNonEmptyFixedIterator())
+		union := NewUnion(newNonEmptyFixedIterator())
 
 		result, changed, err := ApplyOptimizations(union, []OptimizerFunc{})
 		require.NoError(t, err)
@@ -344,33 +319,26 @@ func TestApplyOptimizations(t *testing.T) {
 		require.Equal(t, union, result)
 	})
 
-	t.Run("optimizer order independence - removes empty then elides singleton", func(t *testing.T) {
+	t.Run("optimizer order independence - removes empty then collapses singleton", func(t *testing.T) {
 		t.Parallel()
 
 		// Create a union with an empty iterator and one non-empty iterator
-		// After removing the empty, we have a singleton union that should be elided
-		union1 := NewUnion()
+		// After removing the empty, we have a singleton union that should be collapsed
 		fixed := newNonEmptyFixedIterator()
 		empty := NewEmptyFixedIterator()
-		union1.addSubIterator(fixed)
-		union1.addSubIterator(empty)
+		union := NewUnion(fixed, empty)
 
-		// Test with RemoveNullIterators first, then ElideSingletonUnionAndIntersection
-		result1, changed1, err := ApplyOptimizations(union1, []OptimizerFunc{
+		// Test with RemoveNullIterators first, then CollapseSingletonUnionAndIntersection
+		result1, changed1, err := ApplyOptimizations(union, []OptimizerFunc{
 			RemoveNullIterators,
-			ElideSingletonUnionAndIntersection,
+			CollapseSingletonUnionAndIntersection,
 		})
 		require.NoError(t, err)
 		require.True(t, changed1)
 
-		// Create the same structure again
-		union2 := NewUnion()
-		union2.addSubIterator(fixed)
-		union2.addSubIterator(empty)
-
-		// Test with ElideSingletonUnionAndIntersection first, then RemoveNullIterators
-		result2, changed2, err := ApplyOptimizations(union2, []OptimizerFunc{
-			ElideSingletonUnionAndIntersection,
+		// Test with CollapseSingletonUnionAndIntersection first, then RemoveNullIterators
+		result2, changed2, err := ApplyOptimizations(union, []OptimizerFunc{
+			CollapseSingletonUnionAndIntersection,
 			RemoveNullIterators,
 		})
 		require.NoError(t, err)
@@ -391,33 +359,21 @@ func TestApplyOptimizations(t *testing.T) {
 		// After RemoveNullIterators: Union[Empty, Fixed] -> Union[Fixed] -> Fixed
 		// OR after processing intersection first: Union[Empty, Fixed] -> Union[Fixed] -> Fixed
 
-		outerUnion1 := NewUnion()
-		innerIntersection1 := NewIntersection()
 		fixed1 := newNonEmptyFixedIterator()
 		fixed2 := newNonEmptyFixedIterator()
 		empty := NewEmptyFixedIterator()
-		innerIntersection1.addSubIterator(fixed1)
-		innerIntersection1.addSubIterator(empty)
-		outerUnion1.addSubIterator(innerIntersection1)
-		outerUnion1.addSubIterator(fixed2)
+		innerIntersection := NewIntersection(fixed1, empty)
+		outerUnion := NewUnion(innerIntersection, fixed2)
 
-		result1, changed1, err := ApplyOptimizations(outerUnion1, []OptimizerFunc{
+		result1, changed1, err := ApplyOptimizations(outerUnion, []OptimizerFunc{
 			RemoveNullIterators,
-			ElideSingletonUnionAndIntersection,
+			CollapseSingletonUnionAndIntersection,
 		})
 		require.NoError(t, err)
 		require.True(t, changed1)
 
-		// Create the same structure again
-		outerUnion2 := NewUnion()
-		innerIntersection2 := NewIntersection()
-		innerIntersection2.addSubIterator(fixed1)
-		innerIntersection2.addSubIterator(empty)
-		outerUnion2.addSubIterator(innerIntersection2)
-		outerUnion2.addSubIterator(fixed2)
-
-		result2, changed2, err := ApplyOptimizations(outerUnion2, []OptimizerFunc{
-			ElideSingletonUnionAndIntersection,
+		result2, changed2, err := ApplyOptimizations(outerUnion, []OptimizerFunc{
+			CollapseSingletonUnionAndIntersection,
 			RemoveNullIterators,
 		})
 		require.NoError(t, err)
@@ -425,7 +381,7 @@ func TestApplyOptimizations(t *testing.T) {
 
 		// Both should result in the same structure
 		// The intersection with empty should become empty, leaving Union[Empty, Fixed2]
-		// Then removing empty gives Union[Fixed2], which elides to Fixed2
+		// Then removing empty gives Union[Fixed2], which collapses to Fixed2
 		require.Equal(t, result1, result2)
 		require.Equal(t, fixed2, result1)
 		require.Equal(t, fixed2, result2)
@@ -435,26 +391,19 @@ func TestApplyOptimizations(t *testing.T) {
 		t.Parallel()
 
 		// Union[Empty, Empty] should become Empty regardless of order
-		union1 := NewUnion()
 		empty1 := NewEmptyFixedIterator()
 		empty2 := NewEmptyFixedIterator()
-		union1.addSubIterator(empty1)
-		union1.addSubIterator(empty2)
+		union := NewUnion(empty1, empty2)
 
-		result1, changed1, err := ApplyOptimizations(union1, []OptimizerFunc{
+		result1, changed1, err := ApplyOptimizations(union, []OptimizerFunc{
 			RemoveNullIterators,
-			ElideSingletonUnionAndIntersection,
+			CollapseSingletonUnionAndIntersection,
 		})
 		require.NoError(t, err)
 		require.True(t, changed1)
 
-		// Create the same structure again
-		union2 := NewUnion()
-		union2.addSubIterator(empty1)
-		union2.addSubIterator(empty2)
-
-		result2, changed2, err := ApplyOptimizations(union2, []OptimizerFunc{
-			ElideSingletonUnionAndIntersection,
+		result2, changed2, err := ApplyOptimizations(union, []OptimizerFunc{
+			CollapseSingletonUnionAndIntersection,
 			RemoveNullIterators,
 		})
 		require.NoError(t, err)
@@ -462,7 +411,7 @@ func TestApplyOptimizations(t *testing.T) {
 
 		// Both should result in an empty fixed iterator
 		// After removing all empties, we get Union[], which then gets optimized
-		// to an empty fixed iterator by ElideSingletonUnionAndIntersection
+		// to an empty fixed iterator by CollapseSingletonUnionAndIntersection
 		require.Equal(t, result1, result2)
 		_, ok := result1.(*FixedIterator)
 		require.True(t, ok, "result1 should be a FixedIterator (empty), got %T", result1)
