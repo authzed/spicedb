@@ -124,20 +124,15 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "histogram_quantile(0.95, sum by(le, grpc_method, grpc_service) (rate(grpc_server_handling_seconds_bucket{job=\"spicedb\"}[$__rate_interval])))",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": true,
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by(le, grpc_method, grpc_service) (rate(grpc_server_handling_seconds_bucket{job=\"spicedb\"}[$__rate_interval])))",
           "key": "Q-52ee0e33-980f-4a19-9821-39530de9f304-0",
           "legendFormat": "{{grpc_service}}/{{grpc_method}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
-      "title": "p95 Latency by Method",
+      "title": "p99 Latency by Method",
       "type": "timeseries"
     },
     {
@@ -238,7 +233,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "5xx errors",
+      "description": "Response codes",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -318,107 +313,13 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by(grpc_method, grpc_code) (increase(grpc_server_handled_total{grpc_code!=\"OK\", grpc_code!=\"AlreadyExists\", grpc_code!=\"Canceled\", grpc_code!=\"InvalidArgument\", grpc_code!=\"NotFound\", grpc_code!=\"PermissionDenied\", grpc_code!=\"FailedPrecondition\", grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService\"}[$__rate_interval]))",
+          "expr": "sum by(grpc_method, grpc_code) (increase(grpc_server_handled_total{grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService\"}[$__rate_interval]))",
           "legendFormat": "{{grpc_method}} ({{grpc_code}})",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "5xx Errors",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "All other (non-5xx) errors",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 11
-      },
-      "id": 29,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "sum by(grpc_code,grpc_method) (increase(grpc_server_handled_total{grpc_code!=\"OK\", grpc_code!=\"Canceled\", grpc_code!=\"DeadlineExceeded\", grpc_code!=\"Unavailable\", grpc_code!=\"Internal\", grpc_code!=\"Unknown\", grpc_service=~\".*PermissionsService|.*SchemaService|authzed.api.v1.ExperimentalService\"}[$__rate_interval]))",
-          "legendFormat": "{{grpc_method}} ({{grpc_code}})",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Other Errors",
+      "title": "Response Codes",
       "type": "timeseries"
     },
     {
@@ -519,12 +420,12 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by(le, operation) (rate(spicedb_datastore_query_latency_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by(le, operation) (rate(spicedb_datastore_query_latency_bucket[$__rate_interval])))",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "p95 Latency by Datastore Operation",
+      "title": "p99 Latency by Datastore Operation",
       "type": "timeseries"
     },
     {
@@ -811,7 +712,7 @@
           },
           "editorMode": "builder",
           "expr": "go_goroutines{job=\"spicedb\"}",
-          "legendFormat": "Goroutines (Count)",
+          "legendFormat": "Goroutines ({{instance}})",
           "range": true,
           "refId": "A"
         },
@@ -823,7 +724,7 @@
           "editorMode": "builder",
           "expr": "irate(go_goroutines{job=\"spicedb\"}[$__rate_interval])",
           "hide": false,
-          "legendFormat": "Goroutine (Derivative)",
+          "legendFormat": "Goroutine Derivative ({{instance}})",
           "range": true,
           "refId": "B"
         }
@@ -888,7 +789,24 @@
           },
           "unit": "s"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "count.*"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -915,14 +833,26 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "histogram_quantile(0.95, sum by(le) (rate(go_sched_pauses_total_gc_seconds_bucket[$__rate_interval])))",
-          "legendFormat": "p95",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by(le, instance) (rate(go_sched_pauses_total_gc_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p99 of duration ({{instance}})",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "go_gc_cycles_total_gc_cycles_total",
+          "hide": false,
+          "legendFormat": "count ({{instance}})",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "Go GC Pause Duration",
+      "title": "GC (garbage collection)",
       "type": "timeseries"
     },
     {
@@ -938,7 +868,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "bytes",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -981,7 +911,28 @@
           },
           "unit": "bytes"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Usage % .*"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "usage %"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -995,7 +946,7 @@
           "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": false
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1009,10 +960,32 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "go_memstats_heap_alloc_bytes{job=\"spicedb\"}",
-          "legendFormat": "{{label_name}}",
+          "expr": "go_memstats_heap_inuse_bytes{job=\"spicedb\"}",
+          "legendFormat": "Heap In Use ({{instance}})",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "go_gc_gomemlimit_bytes{job=\"spicedb\"}",
+          "legendFormat": "GOMEMLIMIT ({{instance}})",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "spicedb_memory_middleware_memory_usage_percent{job=\"spicedb\"}",
+          "legendFormat": "Usage % ({{instance}})",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Heap Memory Usage",
@@ -1059,7 +1032,7 @@
               "mode": "off"
             }
           },
-          "displayName": "malloc/sec",
+          "displayName": "malloc/sec ({{instance}})",
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -1104,7 +1077,7 @@
           },
           "editorMode": "builder",
           "expr": "rate(go_memstats_mallocs_total{job=\"spicedb\"}[$__rate_interval])",
-          "legendFormat": "__auto",
+          "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
@@ -1197,7 +1170,7 @@
           },
           "editorMode": "builder",
           "expr": "rate(go_sync_mutex_wait_total_seconds_total[$__rate_interval])",
-          "legendFormat": "__auto",
+          "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
@@ -1291,12 +1264,12 @@
           },
           "editorMode": "builder",
           "expr": "rate(go_memstats_alloc_bytes_total{job=\"spicedb\"}[$__rate_interval])",
-          "legendFormat": "__auto",
+          "legendFormat": "bytes/sec ({{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Heap Allocation Rate (bytes/sec)",
+      "title": "Heap Allocation Rate",
       "type": "timeseries"
     }
   ],
@@ -1329,13 +1302,13 @@
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "SpiceDB Dashboard",
   "uid": "qvsJJ_6Hk",
-  "version": 1,
+  "version": 7,
   "weekStart": ""
 }
