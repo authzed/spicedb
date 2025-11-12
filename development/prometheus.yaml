@@ -6,6 +6,9 @@ global:
 scrape_configs:
   - job_name: "spicedb"
     static_configs:
-      - targets: ["spicedb:9090"]
+      - targets: ["spicedb-1:9090"]
         labels:
-          service: "spicedb"
+          service: "spicedb-1"
+      - targets: ["spicedb-2:9090"]
+        labels:
+          service: "spicedb-2"
