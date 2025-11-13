@@ -38,7 +38,6 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 		true,
 	)
 	require.NoError(t, err)
-	defer tester.cleanup()
 
 	for i := 0; i < 1000; i++ {
 		conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.port),
