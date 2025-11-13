@@ -354,7 +354,7 @@ func (def *Definition) RelationDoesNotAllowCaveatsOrTraitsForSubject(relationNam
 		return false, err
 	}
 
-	return !possibleTraits.AllowsCaveats && !possibleTraits.AllowsExpiration, nil
+	return !possibleTraits.AllowsCaveats && !possibleTraits.AllowsExpiration && !possibleTraits.AllowsDeprecation, nil
 }
 
 // Traits represents the traits that a relation allows for a subject type.
@@ -364,6 +364,9 @@ type Traits struct {
 
 	// AllowsExpiration indicates whether the relation allows expiration on the subject type.
 	AllowsExpiration bool
+
+	// AllowsDeprecation indicates whether the relation allows deprecation on the subject type.
+	AllowsDeprecation bool
 }
 
 func (t Traits) union(other Traits) Traits {
@@ -398,6 +401,9 @@ func (def *Definition) PossibleTraitsForSubject(relationName string, subjectType
 			}
 			if allowedRelation.GetRequiredExpiration() != nil {
 				foundTraits.AllowsExpiration = true
+			}
+			if allowedRelation.GetDeprecation() != nil {
+				foundTraits.AllowsDeprecation = true
 			}
 		}
 	}
