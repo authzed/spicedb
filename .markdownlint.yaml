@@ -3,3 +3,8 @@ line-length: false
 no-hard-tabs: false
 no-inline-html: false
 no-bare-urls: false
+first-line-heading: false
+no-multiple-blanks: false
+fenced-code-language: false
+no-duplicate-heading: false
+blanks-around-fences: false

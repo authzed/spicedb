@@ -8,12 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 func TestMainCommandStructure(t *testing.T) {
 	// Use the same root command structure as main()
-	rootCmd, err := buildRootCommand()
+	rootCmd, err := cmd.BuildRootCommand()
 	require.NoError(t, err)
 	require.NotNil(t, rootCmd)
 
@@ -49,7 +50,7 @@ func TestMainCommandStructure(t *testing.T) {
 }
 
 func TestMainCommandFlagErrorFunc(t *testing.T) {
-	rootCmd, err := buildRootCommand()
+	rootCmd, err := cmd.BuildRootCommand()
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
@@ -59,14 +60,14 @@ func TestMainCommandFlagErrorFunc(t *testing.T) {
 	testErr := errors.New("test flag error")
 	resultErr := rootCmd.FlagErrorFunc()(rootCmd, testErr)
 
-	require.Equal(t, errParsing, resultErr)
+	require.Equal(t, cmd.ErrParsing, resultErr)
 	output := buf.String()
 	require.Contains(t, output, "test flag error")
 	require.Contains(t, output, "Usage:")
 }
 
 func TestBuildRootCommand(t *testing.T) {
-	rootCmd, err := buildRootCommand()
+	rootCmd, err := cmd.BuildRootCommand()
 	require.NoError(t, err)
 	require.NotNil(t, rootCmd)
 	require.Equal(t, "spicedb", rootCmd.Use)
@@ -76,7 +77,7 @@ func TestBuildRootCommand(t *testing.T) {
 }
 
 func TestErrorParsing(t *testing.T) {
-	require.Equal(t, "parsing error", errParsing.Error())
+	require.Equal(t, "parsing error", cmd.ErrParsing.Error())
 }
 
 func TestTerminationErrorHandling(t *testing.T) {
@@ -106,7 +107,7 @@ func TestMainIntegration(t *testing.T) {
 	os.Args = []string{"spicedb", "--help"}
 
 	// Use the same command structure as main()
-	rootCmd, err := buildRootCommand()
+	rootCmd, err := cmd.BuildRootCommand()
 	require.NoError(t, err)
 
 	// Close write end and read the output
@@ -123,7 +124,7 @@ func TestMainIntegration(t *testing.T) {
 }
 
 func TestManCommandExecution(t *testing.T) {
-	rootCmd, err := buildRootCommand()
+	rootCmd, err := cmd.BuildRootCommand()
 	require.NoError(t, err)
 
 	manCmd, _, err := rootCmd.Find([]string{"man"})
