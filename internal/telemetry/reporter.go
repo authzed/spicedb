@@ -14,7 +14,7 @@ import (
 	"time"
 
 	prompb "buf.build/gen/go/prometheus/prometheus/protocolbuffers/go"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
@@ -176,7 +176,6 @@ func RemoteReporter(
 		backoffInterval := backoff.NewExponentialBackOff()
 		backoffInterval.InitialInterval = interval
 		backoffInterval.MaxInterval = MaxElapsedTimeBetweenReports
-		backoffInterval.MaxElapsedTime = 0
 
 		// Must reset the backoff object after changing parameters
 		backoffInterval.Reset()

@@ -60,7 +60,8 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 		Long:    "Executes garbage collection against the datastore. Deletes stale relationships, expired relationships, and stale transactions.",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx, cancel := context.WithTimeout(cmd.Context(), cfg.GCMaxOperationTime)
+			defer cancel()
 
 			// Disable background GC and hedging.
 			cfg.GCInterval = -1 * time.Hour
@@ -81,7 +82,7 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 				Float64("gc_max_operation_time_seconds", cfg.GCMaxOperationTime.Seconds()).
 				Msg("Running garbage collection...")
 
-			err = common.RunGarbageCollection(gcds, cfg.GCWindow, cfg.GCMaxOperationTime)
+			err = common.RunGarbageCollection(ctx, gcds, cfg.GCWindow)
 			if err != nil {
 				return err
 			}
