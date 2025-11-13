@@ -31,9 +31,6 @@ func TestSpannerDatastore(t *testing.T) {
 	ctx := context.Background()
 	b := testdatastore.RunSpannerForTesting(t, "", "head")
 
-	// TODO(jschorr): Once https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/issues/74 has been resolved,
-	// change back to `All` to re-enable watch and GC tests.
-	// GC tests are disabled because they depend also on the ability to configure change streams with custom retention.
 	test.AllWithExceptions(t, test.DatastoreTesterFunc(func(revisionQuantization, _, _ time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(ctx, uri,
@@ -43,7 +40,7 @@ func TestSpannerDatastore(t *testing.T) {
 			return ds
 		})
 		return ds, nil
-	}), test.WithCategories(test.GCCategory, test.WatchCategory, test.StatsCategory, test.TransactionCategory), false)
+	}), test.WithCategories(test.GCCategory, test.StatsCategory), false)
 
 	t.Run("TestFakeStats", createDatastoreTest(
 		b,
