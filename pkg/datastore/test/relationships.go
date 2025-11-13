@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
@@ -184,7 +184,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Check limit.
 			if len(testRels) > 1 {
-				limit, _ := safecast.Convert[uint64](len(testRels) - 1)
+				limit := safecast.RequireConvert[uint64](t, len(testRels)-1)
 				iter, err := dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 					SubjectType: testUserNamespace,
 				}, options.WithLimitForReverse(&limit), options.WithQueryShapeForReverse(queryshape.Varying))

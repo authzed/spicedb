@@ -3,7 +3,7 @@ package proxy_test
 import (
 	"context"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/mock"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -308,7 +308,10 @@ func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames 
 func (dm *MockReadWriteTransaction) BulkLoad(_ context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	args := dm.Called(iter)
 	// We're assuming this is non-negative.
-	uintArg, _ := safecast.Convert[uint64](args.Int(0))
+	uintArg, err := safecast.Convert[uint64](args.Int(0))
+	if err != nil {
+		uintArg = 0
+	}
 	return uintArg, args.Error(1)
 }
 

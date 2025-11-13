@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -193,7 +193,7 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 		validForNS := nowNS % quantization.Nanoseconds()
 		roundedNS := nowNS - validForNS
 		// This should be non-negative.
-		uintRoundedNs, _ := safecast.Convert[uint64](roundedNS)
+		uintRoundedNs := safecast.RequireConvert[uint64](b, roundedNS)
 		rev := NewForTransactionID(uintRoundedNs)
 		return rev, time.Duration(validForNS) * time.Nanosecond, nil
 	})

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"

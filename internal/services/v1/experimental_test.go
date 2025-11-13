@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -413,8 +413,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				cancel()
 			}
 
-			// These are statically defined.
-			expectedCount, _ := safecast.Convert[uint64](tc.expectedCount)
+			expectedCount := safecast.RequireConvert[uint64](t, tc.expectedCount)
 			require.Equal(expectedCount, totalRead, "found: %v", foundRels.AsSlice())
 			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.AsSlice())
 		})
@@ -1641,7 +1640,7 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	// Write the schema.
 	_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}
-		
+
 		definition document {
 			relation viewer: user
 			relation editor: user
