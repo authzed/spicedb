@@ -205,9 +205,10 @@ func ApplySchemaChangesOverExisting(
 	}
 
 	if !validated.additiveOnly {
-		// Delete the removed namespaces.
+		// Delete the removed namespaces. Note that we don't need to delete relationships here,
+		// as that is handled by the ensureNoRelationshipsExistWithResourceType call above.
 		if removedObjectDefNames.Len() > 0 {
-			if err := rwt.DeleteNamespaces(ctx, removedObjectDefNames.AsSlice()...); err != nil {
+			if err := rwt.DeleteNamespaces(ctx, removedObjectDefNames.AsSlice(), datastore.DeleteNamespacesOnly); err != nil {
 				return nil, err
 			}
 		}

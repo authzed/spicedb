@@ -606,7 +606,11 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	if len(nsNames) == 0 {
+		return nil
+	}
+
 	aliveFilter := func(original sq.SelectBuilder) sq.SelectBuilder {
 		return original.Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 	}
@@ -642,17 +646,19 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
-		Set(schema.ColDeletedXid, rwt.newXID).
-		Where(sq.Or(tplClauses)).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf(errUnableToDeleteConfig, err)
-	}
+	if delOption == datastore.DeleteNamespacesAndRelationships {
+		deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
+			Set(schema.ColDeletedXid, rwt.newXID).
+			Where(sq.Or(tplClauses)).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
 
-	_, err = rwt.tx.Exec(ctx, deleteTupleSQL, deleteTupleArgs...)
-	if err != nil {
-		return fmt.Errorf(errUnableToDeleteConfig, err)
+		_, err = rwt.tx.Exec(ctx, deleteTupleSQL, deleteTupleArgs...)
+		if err != nil {
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
 	}
 
 	return nil

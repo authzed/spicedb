@@ -456,9 +456,13 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	if len(nsNames) == 0 {
+		return nil
+	}
+
 	// For each namespace, check they exist and collect predicates for the
-	// "WHERE" clause to delete the namespaces and associated tuples.
+	// "WHERE" clause to delete the namespaces and (if requested) associated tuples.
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	for _, nsName := range nsNames {
@@ -490,17 +494,19 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := rwt.DeleteNamespaceRelationshipsQuery.
-		Set(colDeletedTxn, rwt.newTxnID).
-		Where(sq.Or(tplClauses)).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf(errUnableToDeleteConfig, err)
-	}
+	if delOption == datastore.DeleteNamespacesAndRelationships {
+		deleteTupleSQL, deleteTupleArgs, err := rwt.DeleteNamespaceRelationshipsQuery.
+			Set(colDeletedTxn, rwt.newTxnID).
+			Where(sq.Or(tplClauses)).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
 
-	_, err = rwt.tx.ExecContext(ctx, deleteTupleSQL, deleteTupleArgs...)
-	if err != nil {
-		return fmt.Errorf(errUnableToDeleteConfig, err)
+		_, err = rwt.tx.ExecContext(ctx, deleteTupleSQL, deleteTupleArgs...)
+		if err != nil {
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
 	}
 
 	return nil

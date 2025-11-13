@@ -53,7 +53,7 @@ func DeleteAllData(ctx context.Context, ds Datastore) error {
 		}
 
 		// Delete all namespaces.
-		if err := rwt.DeleteNamespaces(ctx, namespaceNames...); err != nil {
+		if err := rwt.DeleteNamespaces(ctx, namespaceNames, DeleteNamespacesAndRelationships); err != nil {
 			return err
 		}
 

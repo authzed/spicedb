@@ -294,11 +294,12 @@ func (dm *MockReadWriteTransaction) WriteNamespaces(_ context.Context, newConfig
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames ...string) error {
-	xs := make([]any, 0, len(nsNames))
+func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	xs := make([]any, 0, len(nsNames)+1)
 	for _, nsName := range nsNames {
 		xs = append(xs, nsName)
 	}
+	xs = append(xs, delOption)
 
 	args := dm.Called(xs...)
 	return args.Error(0)

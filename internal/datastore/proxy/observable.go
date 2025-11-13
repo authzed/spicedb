@@ -357,13 +357,13 @@ func (rwt *observableRWT) WriteNamespaces(ctx context.Context, newConfigs ...*co
 	return rwt.delegate.WriteNamespaces(ctx, newConfigs...)
 }
 
-func (rwt *observableRWT) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+func (rwt *observableRWT) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	ctx, closer := observe(ctx, "DeleteNamespaces", "", trace.WithAttributes(
 		attribute.StringSlice(otelconv.AttrDatastoreNames, nsNames),
 	))
 	defer closer()
 
-	return rwt.delegate.DeleteNamespaces(ctx, nsNames...)
+	return rwt.delegate.DeleteNamespaces(ctx, nsNames, delOption)
 }
 
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {

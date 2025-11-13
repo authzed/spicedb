@@ -373,7 +373,11 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 	return rwt.spannerRWT.BufferWrite(mutations)
 }
 
-func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	if len(nsNames) == 0 {
+		return nil
+	}
+
 	namespaces, err := rwt.LookupNamespacesWithNames(ctx, nsNames)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -389,11 +393,11 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...
 	}
 
 	for _, nsName := range nsNames {
-		// Ensure the namespace exists.
-
-		relFilter := &v1.RelationshipFilter{ResourceType: nsName}
-		if _, _, err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter); err != nil {
-			return fmt.Errorf(errUnableToDeleteConfig, err)
+		if delOption == datastore.DeleteNamespacesAndRelationships {
+			relFilter := &v1.RelationshipFilter{ResourceType: nsName}
+			if _, _, err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter); err != nil {
+				return fmt.Errorf(errUnableToDeleteConfig, err)
+			}
 		}
 
 		err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{
