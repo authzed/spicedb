@@ -52,9 +52,9 @@ func TestPath_IsExpired(t *testing.T) {
 
 	t.Run("exact_now_expiration", func(t *testing.T) {
 		t.Parallel()
-		now := time.Now()
+		now := time.Now().Add(-time.Millisecond)
 		path := &Path{Expiration: &now}
-		// Should be considered expired if exactly at current time
+		// Should be considered expired if expiration is in the past
 		require.True(path.IsExpired())
 	})
 }

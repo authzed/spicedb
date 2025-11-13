@@ -39,7 +39,8 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 				return nil, err
 			}
 
-			return func(yield func(Path, error) bool) {
+			// Create combined sequence with self-edge and rewritten paths
+			combined := func(yield func(Path, error) bool) {
 				// Yield the self-edge first
 				if !yield(selfPath, nil) {
 					return
@@ -57,7 +58,10 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 						return
 					}
 				}
-			}, nil
+			}
+
+			// Wrap with deduplication to handle duplicate paths after rewriting
+			return DeduplicatePathSeq(combined), nil
 		}
 	}
 
@@ -67,7 +71,7 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 		return nil, err
 	}
 
-	return func(yield func(Path, error) bool) {
+	rewritten := func(yield func(Path, error) bool) {
 		for path, err := range subSeq {
 			if err != nil {
 				yield(Path{}, err)
@@ -79,7 +83,10 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 				return
 			}
 		}
-	}, nil
+	}
+
+	// Wrap with deduplication to handle duplicate paths after rewriting
+	return DeduplicatePathSeq(rewritten), nil
 }
 
 func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {

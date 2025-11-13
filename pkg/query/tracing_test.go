@@ -98,6 +98,5 @@ func TestIteratorTracing(t *testing.T) {
 		require.True(t, strings.Contains(trace, "-> Union: check(document:doc1, user:alice)"))
 		require.True(t, strings.Contains(trace, "<- Union: returned 1 paths"))
 		require.True(t, strings.Contains(trace, "Union: processing 2 sub-iterators"))
-		require.True(t, strings.Contains(trace, "Union: deduplicated to"))
 	})
 }

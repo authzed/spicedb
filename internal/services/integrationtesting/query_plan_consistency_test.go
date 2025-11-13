@@ -3,9 +3,7 @@
 package integrationtesting_test
 
 import (
-	"fmt"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -102,55 +100,70 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			} {
-				entry := entry
 				t.Run(entry.name, func(t *testing.T) {
 					for _, assertion := range entry.assertions {
-						assertion := assertion
 						t.Run(assertion.RelationshipWithContextString, func(t *testing.T) {
-							require := require.New(t)
+							// Run both unoptimized and optimized versions
+							for _, optimizationMode := range []struct {
+								name     string
+								optimize bool
+							}{
+								{"unoptimized", false},
+								{"optimized", true},
+							} {
+								t.Run(optimizationMode.name, func(t *testing.T) {
+									require := require.New(t)
 
-							rel := assertion.Relationship
-							it, err := query.BuildIteratorFromSchema(handle.schema, rel.Resource.ObjectType, rel.Resource.Relation)
-							require.NoError(err)
+									rel := assertion.Relationship
+									it, err := query.BuildIteratorFromSchema(handle.schema, rel.Resource.ObjectType, rel.Resource.Relation)
+									require.NoError(err)
 
-							qctx := handle.buildContext(t)
-
-							// Add caveat context from assertion if available
-							if len(assertion.CaveatContext) > 0 {
-								qctx.CaveatContext = assertion.CaveatContext
-							}
-
-							seq, err := qctx.Check(it, []query.Object{query.GetObject(rel.Resource)}, rel.Subject)
-							require.NoError(err)
-
-							rels, err := query.CollectAll(seq)
-							require.NoError(err)
-
-							// Print trace if test fails
-							if qctx.TraceLogger != nil {
-								defer func() {
-									if t.Failed() {
-										t.Logf("Trace for %s:\n%s", entry.name, qctx.TraceLogger.DumpTrace())
-										// Also print the tree structure for debugging
-										if it != nil {
-											t.Logf("Tree structure:\n%s", explainTree(it, 0))
-										}
+									// Apply static optimizations if requested
+									if optimizationMode.optimize {
+										it, _, err = query.ApplyOptimizations(it, query.StaticOptimizations)
+										require.NoError(err)
 									}
-								}()
-							}
 
-							switch entry.expectedPermissionship {
-							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
-								require.Len(rels, 1)
-								require.NotNil(rels[0].Caveat)
-							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
-								require.Len(rels, 1)
-								require.Nil(rels[0].Caveat)
-							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
-								if len(rels) != 0 && qctx.TraceLogger != nil {
-									t.Logf("Expected 0 relations but got %d. Trace:\n%s", len(rels), qctx.TraceLogger.DumpTrace())
-								}
-								require.Len(rels, 0)
+									qctx := handle.buildContext(t)
+
+									// Add caveat context from assertion if available
+									if len(assertion.CaveatContext) > 0 {
+										qctx.CaveatContext = assertion.CaveatContext
+									}
+
+									seq, err := qctx.Check(it, []query.Object{query.GetObject(rel.Resource)}, rel.Subject)
+									require.NoError(err)
+
+									rels, err := query.CollectAll(seq)
+									require.NoError(err)
+
+									// Print trace if test fails
+									if qctx.TraceLogger != nil {
+										defer func() {
+											if t.Failed() {
+												t.Logf("Trace for %s:\n%s", entry.name, qctx.TraceLogger.DumpTrace())
+												// Also print the tree structure for debugging
+												if it != nil {
+													t.Logf("Tree structure:\n%s", it.Explain().String())
+												}
+											}
+										}()
+									}
+
+									switch entry.expectedPermissionship {
+									case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
+										require.Len(rels, 1)
+										require.NotNil(rels[0].Caveat)
+									case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
+										require.Len(rels, 1)
+										require.Nil(rels[0].Caveat)
+									case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
+										if len(rels) != 0 && qctx.TraceLogger != nil {
+											t.Logf("Expected 0 relations but got %d. Trace:\n%s", len(rels), qctx.TraceLogger.DumpTrace())
+										}
+										require.Len(rels, 0)
+									}
+								})
 							}
 						})
 					}
@@ -158,22 +171,4 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 			}
 		}
 	})
-}
-
-// explainTree recursively explains the tree structure for debugging
-func explainTree(iter query.Iterator, depth int) string {
-	indent := strings.Repeat("  ", depth)
-	explain := iter.Explain()
-	result := fmt.Sprintf("%s%s: %s\n", indent, explain.Name, explain.Info)
-
-	for _, subExplain := range explain.SubExplain {
-		// For SubExplain, we need to create a dummy iterator to get the tree structure
-		// This is a simplified approach - in practice we'd need access to the actual sub-iterators
-		subResult := fmt.Sprintf("%s  %s: %s\n", indent, subExplain.Name, subExplain.Info)
-		result += subResult
-		// Note: We can't recursively call explainTree on SubExplain because it's not an Iterator
-		// This gives us one level of detail which should be sufficient for debugging
-	}
-
-	return result
 }
