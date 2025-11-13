@@ -301,7 +301,9 @@ func (sd *spannerDatastore) MetricsID() (string, error) {
 	return sd.database, nil
 }
 
-func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transactionTag string) (map[string]any, error) {
+type TransactionMetadata map[string]any
+
+func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transactionTag string) (TransactionMetadata, error) {
 	row, err := sd.client.Single().ReadRow(ctx, tableTransactionMetadata, spanner.Key{transactionTag}, []string{colMetadata})
 	if err != nil {
 		if spanner.ErrCode(err) == codes.NotFound {

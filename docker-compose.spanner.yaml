@@ -1,0 +1,159 @@
+---
+# FOR DEVELOPMENT ONLY. Run with
+# docker-compose -f docker-compose.spanner.yaml up --build
+services:
+  spanner:
+    image: "gcr.io/cloud-spanner-emulator/emulator"
+    restart: "no"
+    ports:
+      - "9010:9010"
+  spanner-init:
+    image: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    command: >
+      bash -c 'gcloud config configurations create emulator &&
+              gcloud config set auth/disable_credentials true &&
+              gcloud config set project $${PROJECT_ID} &&
+              gcloud config set api_endpoint_overrides/spanner $${SPANNER_EMULATOR_URL} &&
+              gcloud config set auth/disable_credentials true &&
+              gcloud spanner instances create $${INSTANCE_NAME} --config=emulator-config --description=Emulator --nodes=1 &&
+              gcloud spanner databases create $${DATABASE_NAME} --instance=$${INSTANCE_NAME}'
+    environment:
+      PROJECT_ID: "test-project"
+      SPANNER_EMULATOR_URL: "http://spanner:9020/"
+      INSTANCE_NAME: "test-instance"
+      DATABASE_NAME: "test-database"
+  migrate:
+    depends_on:
+      spanner-init:
+        condition: "service_completed_successfully"
+        required: false
+    build: "."
+    container_name: "migrate"
+    environment:
+      - "SPICEDB_DATASTORE_ENGINE=spanner"
+      - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
+      - "SPANNER_EMULATOR_HOST=spanner:9010"
+    command: "datastore migrate head"
+    networks:
+      - "default"
+  spicedb-1:
+    container_name: "spicedb-1"
+    build: "."
+    command: "serve"
+    restart: "no"
+    ports:
+      - "9090:9090" # prometheus metrics
+      - "50051:50051" # grpc endpoint
+      - "8443:8443" # http endpoint
+      - "50053" # dispatch endpoint
+    environment:
+      - "SPICEDB_LOG_FORMAT=json"
+      - "SPICEDB_LOG_LEVEL=info"
+      - "SPICEDB_HTTP_ENABLED=true"
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=spanner"
+      - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
+      - "SPANNER_EMULATOR_HOST=spanner:9010"
+      - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
+      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-2:50053"
+      - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
+      - "SPICEDB_OTEL_SAMPLE_RATIO=1"
+      - "SPICEDB_TELEMETRY_ENDPOINT="
+      - "SPICEDB_GRPC_LOG_REQUESTS_ENABLED=false"
+      - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
+      - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+    depends_on:
+      migrate:
+        condition: "service_completed_successfully"
+      otel-collector:
+        condition: "service_started"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=spicedb:50051"]
+      interval: "5s"
+      timeout: "30s"
+      retries: 3
+  spicedb-2:
+    container_name: "spicedb-2"
+    build: "."
+    command: "serve"
+    restart: "no"
+    ports:
+      - "9090" # prometheus metrics
+      - "50051" # grpc endpoint
+      - "50053" # dispatch endpoint
+    environment:
+      - "SPICEDB_LOG_FORMAT=json"
+      - "SPICEDB_LOG_LEVEL=info"
+      - "SPICEDB_HTTP_ENABLED=false"
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=spanner"
+      - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
+      - "SPANNER_EMULATOR_HOST=spanner:9010"
+      - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
+      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-1:50053"
+      - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
+      - "SPICEDB_OTEL_SAMPLE_RATIO=1"
+      - "SPICEDB_TELEMETRY_ENDPOINT="
+      - "SPICEDB_GRPC_LOG_REQUESTS_ENABLED=true"
+      - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
+      - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+    depends_on:
+      migrate:
+        condition: "service_completed_successfully"
+      otel-collector:
+        condition: "service_started"
+  prometheus:
+    image: "prom/prometheus:v2.47.0"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - "./development/prometheus.yaml:/etc/prometheus/prometheus.yaml"
+    ports:
+      - "9091:9090" # Prometheus UI
+    restart: "unless-stopped"
+  otel-collector:
+    image: "otel/opentelemetry-collector:0.60.0"
+    command: "--config /etc/otel-config.yaml"
+    volumes:
+      - "./development/otel-config.yaml:/etc/otel-config.yaml"
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "8888" # Prometheus metrics for collector
+    depends_on:
+      - "tempo"
+  loki:
+    image: "grafana/loki:2.9.0"
+    command: "-config.file=/etc/loki/loki.yaml"
+    volumes:
+      - "./development/loki.yaml:/etc/loki/loki.yaml"
+    ports:
+      - "3100" # Loki API
+    restart: "unless-stopped"
+  tempo:
+    image: "grafana/tempo:1.5.0"
+    command: "-search.enabled=true -config.file=/etc/tempo.yaml"
+    volumes:
+      - "./development/tempo.yaml:/etc/tempo.yaml"
+    restart: "unless-stopped"
+    ports:
+      - "4317" # OTLP gRPC
+      - "3100" # tempo
+  grafana:
+    image: "grafana/grafana:9.1.5-ubuntu"
+    volumes:
+      - "./development/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources"
+      - "./development/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards"
+      - "./development/grafana/dashboards:/etc/grafana/dashboards"
+    environment:
+      - "GF_AUTH_ANONYMOUS_ENABLED=true"
+      - "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin"
+      - "GF_AUTH_DISABLE_LOGIN_FORM=true"
+    ports:
+      - "3000:3000" # UI
+    depends_on:
+      - "tempo"
+      - "prometheus"
+      - "loki"
