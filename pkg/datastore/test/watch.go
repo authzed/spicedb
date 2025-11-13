@@ -635,7 +635,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	// Removed
 	// Delete some namespaces and caveats.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.DeleteNamespaces(ctx, "somenewnamespace")
+		err := rwt.DeleteNamespaces(ctx, []string{"somenewnamespace"}, datastore.DeleteNamespacesAndRelationships)
 		if err != nil {
 			return err
 		}
@@ -713,7 +713,7 @@ func WatchAllTest(t *testing.T, tester DatastoreTester) {
 
 	// Delete some namespaces and caveats.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.DeleteNamespaces(ctx, "somenewnamespace")
+		err := rwt.DeleteNamespaces(ctx, []string{"somenewnamespace"}, datastore.DeleteNamespacesAndRelationships)
 		if err != nil {
 			return err
 		}

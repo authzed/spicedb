@@ -162,7 +162,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	tRequire.RelationshipExists(ctx, folderTpl, revision)
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, testfixtures.DocumentNS.Name)
+		return rwt.DeleteNamespaces(ctx, []string{testfixtures.DocumentNS.Name}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
@@ -193,6 +193,42 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	tRequire.RelationshipExists(ctx, folderTpl, deletedRevision)
 }
 
+func NamespaceDeleteNoRelationshipsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ctx := t.Context()
+
+	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
+	docTpl, err := tuple.Parse(testfixtures.StandardRelationships[0])
+	require.NoError(err)
+	require.NotNil(docTpl)
+	tRequire.NoRelationshipExists(ctx, docTpl, revision)
+
+	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.DeleteNamespaces(ctx, []string{testfixtures.DocumentNS.Name}, datastore.DeleteNamespacesOnly)
+	})
+	require.NoError(err)
+	require.True(deletedRev.GreaterThan(revision))
+
+	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
+	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
+
+	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
+	require.NoError(err)
+	require.NotNil(found)
+	require.True(nsCreatedRev.LessThan(deletedRev))
+
+	allNamespaces, err := ds.SnapshotReader(deletedRev).ListAllNamespaces(ctx)
+	require.NoError(err)
+	for _, ns := range allNamespaces {
+		require.NotEqual(testfixtures.DocumentNS.Name, ns.Definition.Name, "deleted namespace '%s' should not be in namespace list", ns.Definition.Name)
+	}
+}
+
 func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
@@ -209,7 +245,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, nsNames...)
+		return rwt.DeleteNamespaces(ctx, nsNames, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.NoError(t, err)
 
@@ -229,7 +265,7 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	ctx := t.Context()
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, testfixtures.UserNS.Name)
+		return rwt.DeleteNamespaces(ctx, []string{testfixtures.UserNS.Name}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
@@ -273,7 +309,7 @@ definition document {
 
 	// Attempt to delete the invalid namespace.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, "invalid")
+		return rwt.DeleteNamespaces(ctx, []string{"invalid"}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.Error(err)
 	require.ErrorContains(err, "not found")

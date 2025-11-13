@@ -215,8 +215,8 @@ func (vrwt validatingReadWriteTransaction) WriteNamespaces(ctx context.Context, 
 	return vrwt.delegate.WriteNamespaces(ctx, newConfigs...)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
-	return vrwt.delegate.DeleteNamespaces(ctx, nsNames...)
+func (vrwt validatingReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	return vrwt.delegate.DeleteNamespaces(ctx, nsNames, delOption)
 }
 
 func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {

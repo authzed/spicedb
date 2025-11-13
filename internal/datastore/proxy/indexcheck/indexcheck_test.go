@@ -275,7 +275,7 @@ func TestIndexCheckingRWT(t *testing.T) {
 		})
 
 		t.Run("DeleteNamespaces", func(t *testing.T) {
-			err := indexRWT.DeleteNamespaces(ctx, "test")
+			err := indexRWT.DeleteNamespaces(ctx, []string{"test"}, datastore.DeleteNamespacesAndRelationships)
 			require.NoError(t, err)
 		})
 

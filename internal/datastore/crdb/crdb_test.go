@@ -809,7 +809,7 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 		})
 		require.NoError(err)
 
-		err = rwt.DeleteNamespaces(ctx, "resource2")
+		err = rwt.DeleteNamespaces(ctx, []string{"resource2"}, datastore.DeleteNamespacesAndRelationships)
 		require.NoError(err)
 
 		err = rwt.DeleteCaveats(ctx, []string{"somecaveat2"})

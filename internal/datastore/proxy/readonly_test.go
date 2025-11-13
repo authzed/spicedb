@@ -34,7 +34,7 @@ func TestRWOperationErrors(t *testing.T) {
 	ctx := t.Context()
 
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, "fake")
+		return rwt.DeleteNamespaces(ctx, []string{"fake"}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.ErrorAs(err, &datastore.ReadOnlyError{})
 	require.Equal(datastore.NoRevision, rev)

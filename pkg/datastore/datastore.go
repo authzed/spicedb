@@ -544,6 +544,19 @@ type Reader interface {
 	LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]RevisionedNamespace, error)
 }
 
+// DeleteNamespacesRelationshipsOption is an option for deleting namespaces and their relationships.
+type DeleteNamespacesRelationshipsOption int
+
+const (
+	// DeleteNamespacesOnly indicates that only namespaces should be deleted.
+	// It is therefore the caller's responsibility to delete any relationships in those namespaces.
+	DeleteNamespacesOnly DeleteNamespacesRelationshipsOption = iota
+
+	// DeleteNamespacesAndRelationships indicates that namespaces and all relationships
+	// in those namespaces should be deleted.
+	DeleteNamespacesAndRelationships
+)
+
 type ReadWriteTransaction interface {
 	Reader
 	CaveatStorer
@@ -563,8 +576,8 @@ type ReadWriteTransaction interface {
 	// WriteNamespaces takes proto namespace definitions and persists them.
 	WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error
 
-	// DeleteNamespaces deletes namespaces including associated relationships.
-	DeleteNamespaces(ctx context.Context, nsNames ...string) error
+	// DeleteNamespaces deletes namespaces.
+	DeleteNamespaces(ctx context.Context, nsNames []string, delOption DeleteNamespacesRelationshipsOption) error
 
 	// BulkLoad takes a relationship source iterator, and writes all of the
 	// relationships to the backing datastore in an optimized fashion. This
