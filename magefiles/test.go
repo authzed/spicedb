@@ -163,7 +163,7 @@ func datastoreTest(ctx context.Context, datastore string, env map[string]string,
 	mergedTags := append([]string{"ci", "docker"}, tags...)
 	tagString := strings.Join(mergedTags, ",")
 	mg.Deps(checkDocker)
-	args := []string{"-tags", tagString, "-timeout", "15m"}
+	args := []string{"-tags", tagString}
 	args = append(args, coverageFlags...)
 	return goDirTestWithEnv(ctx, ".", fmt.Sprintf("./internal/datastore/%s/...", datastore), env, args...)
 }
@@ -225,7 +225,6 @@ func consistencyTest(ctx context.Context, datastore string, env map[string]strin
 	mg.Deps(checkDocker)
 	args := []string{
 		"-tags", "ci,docker,datastoreconsistency",
-		"-timeout", "10m",
 		"-run", fmt.Sprintf("TestConsistencyPerDatastore/%s", datastore),
 	}
 	args = append(args, coverageFlags...)

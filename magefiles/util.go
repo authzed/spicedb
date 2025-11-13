@@ -17,12 +17,12 @@ import (
 
 var coverageFlags = []string{"-coverpkg=./...", "-covermode=atomic", "-coverprofile=coverage.txt"}
 
-// run go test in the root
+// goDirTest runs go test in the root with a timeout
 func goTest(ctx context.Context, path string, args ...string) error {
 	return goDirTest(ctx, ".", path, args...)
 }
 
-// run go test in a directory
+// goDirTest runs go test in a directory with a timeout
 func goDirTest(ctx context.Context, dir string, path string, args ...string) error {
 	testArgs, err := testWithArgs(ctx, args...)
 	if err != nil {
@@ -31,6 +31,7 @@ func goDirTest(ctx context.Context, dir string, path string, args ...string) err
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithArgs(testArgs...))(path)
 }
 
+// goDirTestWithEnv runs go test in a directory with a timeout and environment variables
 func goDirTestWithEnv(ctx context.Context, dir string, path string, env map[string]string, args ...string) error {
 	testArgs, err := testWithArgs(ctx, args...)
 	if err != nil {
@@ -39,12 +40,14 @@ func goDirTestWithEnv(ctx context.Context, dir string, path string, env map[stri
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
 }
 
+// testWithArgs includes -race and -timeout=20m.
 func testWithArgs(ctx context.Context, args ...string) ([]string, error) {
 	testArgs := append([]string{
 		"test",
 		"-failfast",
 		"-count=1",
 		"-race",
+		"-timeout=20m",
 	}, args...)
 
 	return testArgs, nil

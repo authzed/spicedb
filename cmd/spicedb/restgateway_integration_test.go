@@ -26,7 +26,6 @@ func TestRESTGateway(t *testing.T) {
 		false,
 	)
 	require.NoError(err)
-	defer tester.cleanup()
 
 	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", tester.HTTPPort))
 	require.NoError(err)

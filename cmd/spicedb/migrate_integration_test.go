@@ -4,11 +4,9 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
@@ -65,19 +63,19 @@ func TestMigrate(t *testing.T) {
 				}
 			})
 			require.NoError(t, err)
-
-			waitCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
+			t.Cleanup(func() {
+				_ = pool.Purge(resource)
+			})
 
 			// Ensure the command completed successfully.
-			status, err := pool.Client.WaitContainerWithContext(resource.Container.ID, waitCtx)
+			status, err := pool.Client.WaitContainerWithContext(resource.Container.ID, t.Context())
 			require.NoError(t, err)
 
 			if status != 0 {
 				stream := new(bytes.Buffer)
 
 				lerr := pool.Client.Logs(docker.LogsOptions{
-					Context:      waitCtx,
+					Context:      t.Context(),
 					OutputStream: stream,
 					ErrorStream:  stream,
 					Stdout:       true,
@@ -88,11 +86,6 @@ func TestMigrate(t *testing.T) {
 
 				require.Fail(t, "Got non-zero exit code", stream.String())
 			}
-
-			t.Cleanup(func() {
-				// When you're done, kill and remove the container
-				_ = pool.Purge(resource)
-			})
 		})
 	}
 }

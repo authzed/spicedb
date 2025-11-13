@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -49,7 +48,6 @@ func TestTestServer(t *testing.T) {
 		false,
 	)
 	require.NoError(err)
-	defer tester.cleanup()
 
 	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken(key)}
 	conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.port), options...)
@@ -184,11 +182,13 @@ type spicedbHandle struct {
 	readonlyPort     string
 	HTTPPort         string
 	readonlyHTTPPort string
-	cleanup          func()
 }
 
 const retryCount = 8
 
+// newTester spins up a SpiceDB server running against a specific datastore with a specific access token.
+// It also writes or reads a schema.
+// On test termination it cleans up all resources.
 func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string, withExistingSchema bool) (*spicedbHandle, error) {
 	for i := 0; i < retryCount; i++ {
 		pool, err := dockertest.NewPool("")
@@ -208,12 +208,9 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 		httpPort := resource.GetPort("8443/tcp")
 		readonlyHTTPPort := resource.GetPort("8444/tcp")
 
-		cleanup := func() {
-			// When you're done, kill and remove the container
-			if err = pool.Purge(resource); err != nil {
-				log.Fatalf("Could not purge resource: %s", err)
-			}
-		}
+		t.Cleanup(func() {
+			_ = pool.Purge(resource)
+		})
 
 		// Give the service time to boot.
 		err = pool.Retry(func() error {
@@ -223,8 +220,12 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 				grpcutil.WithInsecureBearerToken(token),
 			)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not create connection: %w", err)
 			}
+
+			t.Cleanup(func() {
+				_ = conn.Close()
+			})
 
 			client := v1.NewSchemaServiceClient(conn)
 
@@ -252,11 +253,8 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 		if err != nil {
 			stream := new(bytes.Buffer)
 
-			waitCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-
 			lerr := pool.Client.Logs(docker.LogsOptions{
-				Context:      waitCtx,
+				Context:      t.Context(),
 				OutputStream: stream,
 				ErrorStream:  stream,
 				Stdout:       true,
@@ -266,7 +264,6 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			require.NoError(t, lerr)
 
 			fmt.Printf("got error on startup: %v\ncontainer logs: %s\n", err, stream.String())
-			cleanup()
 			continue
 		}
 
@@ -275,9 +272,8 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			readonlyPort:     readonlyPort,
 			HTTPPort:         httpPort,
 			readonlyHTTPPort: readonlyHTTPPort,
-			cleanup:          cleanup,
 		}, nil
 	}
 
-	return nil, fmt.Errorf("hit maximum retries when trying to spawn test server")
+	return nil, fmt.Errorf("hit maximum retries when trying to boot SpiceDB server")
 }
