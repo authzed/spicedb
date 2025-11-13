@@ -574,4 +574,106 @@ definition resource {
 			},
 		},
 	},
+	{
+		name:     "read relationships by resource",
+		datafile: "read-relationships-sorting.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "cursored read by resource, page size 1",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"resource_type": "document",
+					"resource_id":   "target-doc",
+					"page_size":     1,
+				},
+			},
+			{
+				name:          "cursored read by resource, page size 2",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"resource_type": "document",
+					"resource_id":   "target-doc",
+					"page_size":     2,
+				},
+			},
+			{
+				name:          "cursored read by resource, page size 5",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"resource_type": "document",
+					"resource_id":   "target-doc",
+					"page_size":     5,
+				},
+			},
+			{
+				name:          "cursored read by resource, page size 10",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"resource_type": "document",
+					"resource_id":   "target-doc",
+					"page_size":     10,
+				},
+			},
+			{
+				name:          "cursored read by resource, page size 100",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"resource_type": "document",
+					"resource_id":   "target-doc",
+					"page_size":     100,
+				},
+			},
+		},
+	},
+	{
+		name:     "read relationships by subject",
+		datafile: "read-relationships-sorting.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "cursored read by subject, page size 1",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"subject_type": "user",
+					"subject_id":   "target-user",
+					"page_size":    1,
+				},
+			},
+			{
+				name:          "cursored read by subject, page size 2",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"subject_type": "user",
+					"subject_id":   "target-user",
+					"page_size":    2,
+				},
+			},
+			{
+				name:          "cursored read by subject, page size 5",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"subject_type": "user",
+					"subject_id":   "target-user",
+					"page_size":    5,
+				},
+			},
+			{
+				name:          "cursored read by subject, page size 10",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"subject_type": "user",
+					"subject_id":   "target-user",
+					"page_size":    10,
+				},
+			},
+			{
+				name:          "cursored read by subject, page size 100",
+				operationName: "cursoredReadRelationships",
+				arguments: map[string]any{
+					"subject_type": "user",
+					"subject_id":   "target-user",
+					"page_size":    100,
+				},
+			},
+		},
+	},
 }

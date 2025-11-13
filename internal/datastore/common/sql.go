@@ -706,10 +706,17 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 
 	// Add sort order.
 	sort := queryOpts.Sort
-	if sort == options.ChooseEfficient && query.indexingHint != nil {
-		hintSort := query.indexingHint.SortOrder()
-		if hintSort != options.Unsorted {
-			sort = hintSort
+	if sort == options.ChooseEfficient {
+		if query.indexingHint != nil {
+			hintSort := query.indexingHint.SortOrder()
+			if hintSort != options.Unsorted {
+				sort = hintSort
+			}
+		}
+
+		// Default to resource sort if no hint provided.
+		if sort == options.ChooseEfficient {
+			sort = options.ByResource
 		}
 	}
 	query = query.TupleOrder(sort)
