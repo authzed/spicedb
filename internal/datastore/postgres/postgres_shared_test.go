@@ -895,6 +895,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 					GCWindow(24*time.Hour),
 					WatchBufferLength(1),
 					FollowerReadDelay(tc.followerReadDelay),
+					WithRevisionHeartbeat(false),
 				)
 				require.NoError(err)
 
@@ -972,6 +973,7 @@ func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest)
 					GCWindow(24*time.Hour),
 					WatchBufferLength(1),
 					FollowerReadDelay(tc.followerReadDelay),
+					WithRevisionHeartbeat(false),
 				)
 				require.NoError(err)
 
