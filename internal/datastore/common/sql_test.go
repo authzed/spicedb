@@ -1544,10 +1544,10 @@ func TestIndexHintWithPreferredSort(t *testing.T) {
 			expectedOrderBy: " ORDER BY subject_ns, subject_object_id, subject_relation, ns, object_id, relation",
 		},
 		{
-			name:              "ChooseEfficient with hint Unsorted does not add ordering",
-			hintSortOrder:     options.Unsorted,
-			querySortOption:   options.WithSort(options.ChooseEfficient),
-			expectedNoOrderBy: true,
+			name:            "ChooseEfficient with hint Unsorted defaults to ByResource",
+			hintSortOrder:   options.Unsorted,
+			querySortOption: options.WithSort(options.ChooseEfficient),
+			expectedOrderBy: " ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
 		},
 		{
 			name:            "Explicit ByResource overrides hint's BySubject",
@@ -1650,6 +1650,118 @@ func (f *fakeIndexingHintWithSort) SortOrder() options.SortOrder {
 }
 
 var _ IndexingHint = &fakeIndexingHintWithSort{}
+
+func TestExecuteQuerySortOrderDefaulting(t *testing.T) {
+	tests := []struct {
+		name            string
+		withHint        bool
+		hintSortOrder   options.SortOrder
+		querySortOption options.QueryOptionsOption
+		expectedOrderBy string
+		expectNoOrder   bool
+	}{
+		{
+			name:            "ChooseEfficient without hint defaults to ByResource",
+			withHint:        false,
+			querySortOption: options.WithSort(options.ChooseEfficient),
+			expectedOrderBy: " ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
+		},
+		{
+			name:            "ChooseEfficient with Unsorted hint defaults to ByResource",
+			withHint:        true,
+			hintSortOrder:   options.Unsorted,
+			querySortOption: options.WithSort(options.ChooseEfficient),
+			expectedOrderBy: " ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
+		},
+		{
+			name:            "ChooseEfficient with ByResource hint uses hint",
+			withHint:        true,
+			hintSortOrder:   options.ByResource,
+			querySortOption: options.WithSort(options.ChooseEfficient),
+			expectedOrderBy: " ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
+		},
+		{
+			name:            "ChooseEfficient with BySubject hint uses hint",
+			withHint:        true,
+			hintSortOrder:   options.BySubject,
+			querySortOption: options.WithSort(options.ChooseEfficient),
+			expectedOrderBy: " ORDER BY subject_ns, subject_object_id, subject_relation, ns, object_id, relation",
+		},
+		{
+			name:            "Explicit ByResource overrides hint",
+			withHint:        true,
+			hintSortOrder:   options.BySubject,
+			querySortOption: options.WithSort(options.ByResource),
+			expectedOrderBy: " ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
+		},
+		{
+			name:            "Explicit Unsorted without hint",
+			withHint:        false,
+			querySortOption: options.WithSort(options.Unsorted),
+			expectNoOrder:   true,
+		},
+		{
+			name:          "No sort option without hint",
+			withHint:      false,
+			expectNoOrder: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			schema := NewSchemaInformationWithOptions(
+				WithRelationshipTableName("relationtuples"),
+				WithColNamespace("ns"),
+				WithColObjectID("object_id"),
+				WithColRelation("relation"),
+				WithColUsersetNamespace("subject_ns"),
+				WithColUsersetObjectID("subject_object_id"),
+				WithColUsersetRelation("subject_relation"),
+				WithColCaveatName("caveat"),
+				WithColCaveatContext("caveat_context"),
+				WithColExpiration("expiration"),
+				WithPlaceholderFormat(sq.Question),
+				WithPaginationFilterType(TupleComparison),
+				WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+				WithNowFunction("NOW"),
+				WithExpirationDisabled(true),
+			)
+
+			filterer := NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100)
+			if test.withHint {
+				hint := &fakeIndexingHintWithSort{sortOrder: test.hintSortOrder}
+				filterer = filterer.WithIndexingHint(hint)
+			}
+			filterer = filterer.FilterToResourceType("sometype")
+
+			var wasRun bool
+			fake := QueryRelationshipsExecutor{
+				Executor: func(ctx context.Context, builder RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
+					sql, _, err := builder.SelectSQL()
+					require.NoError(t, err)
+
+					if test.expectNoOrder {
+						require.NotContains(t, sql, "ORDER BY", "Expected no ORDER BY clause in SQL")
+					} else {
+						require.Contains(t, sql, test.expectedOrderBy, "Expected ORDER BY clause not found in SQL")
+					}
+
+					wasRun = true
+					return nil, nil
+				},
+			}
+
+			var opts []options.QueryOptionsOption
+			if test.querySortOption != nil {
+				opts = []options.QueryOptionsOption{test.querySortOption}
+			}
+
+			_, err := fake.ExecuteQuery(t.Context(), filterer, opts...)
+			require.NoError(t, err)
+			require.True(t, wasRun)
+		})
+	}
+}
 
 func TestBuildLikeCla(t *testing.T) {
 	tcs := []struct {

@@ -405,10 +405,119 @@ func writeSchema(parameters map[string]any, clients stClients) (any, error) {
 	return map[string]any{}, nil
 }
 
+func cursoredReadRelationships(parameters map[string]any, clients stClients) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	filter := &v1.RelationshipFilter{}
+
+	if resourceType, ok := parameters["resource_type"].(string); ok {
+		filter.ResourceType = resourceType
+	}
+
+	if resourceID, ok := parameters["resource_id"].(string); ok {
+		filter.OptionalResourceId = resourceID
+	}
+
+	if subjectType, ok := parameters["subject_type"].(string); ok {
+		filter.OptionalSubjectFilter = &v1.SubjectFilter{
+			SubjectType: subjectType,
+		}
+	}
+
+	if subjectID, ok := parameters["subject_id"].(string); ok {
+		if filter.OptionalSubjectFilter == nil {
+			filter.OptionalSubjectFilter = &v1.SubjectFilter{}
+		}
+		filter.OptionalSubjectFilter.OptionalSubjectId = subjectID
+	}
+
+	var currentCursor *v1.Cursor
+	nodeSets := make([][]yaml.Node, 0)
+	resultCounts := make([]int, 0)
+
+	for {
+		req := &v1.ReadRelationshipsRequest{
+			RelationshipFilter: filter,
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_FullyConsistent{
+					FullyConsistent: true,
+				},
+			},
+			OptionalLimit:  uint32(parameters["page_size"].(int)), //nolint:gosec
+			OptionalCursor: currentCursor,
+		}
+
+		r, err := clients.PermissionsClient.ReadRelationships(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		foundRelationships := mapz.NewSet[string]()
+		resultCount := 0
+		var lastCursor *v1.Cursor
+
+		for {
+			resp, err := r.Recv()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+
+				return nil, err
+			}
+
+			foundRelationships.Add(tuple.MustV1RelString(resp.Relationship))
+			lastCursor = resp.AfterResultCursor
+			resultCount++
+		}
+
+		if foundRelationships.IsEmpty() {
+			break
+		}
+
+		resultCounts = append(resultCounts, resultCount)
+
+		foundRelationshipsSlice := foundRelationships.AsSlice()
+		sort.Strings(foundRelationshipsSlice)
+
+		yamlNodes := make([]yaml.Node, 0, len(foundRelationshipsSlice))
+		for _, rel := range foundRelationshipsSlice {
+			yamlNodes = append(yamlNodes, yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: rel,
+				Style: yaml.SingleQuotedStyle,
+			})
+		}
+
+		nodeSets = append(nodeSets, yamlNodes)
+
+		// If we got fewer results than the page size, we're done
+		if resultCount < parameters["page_size"].(int) {
+			break
+		}
+
+		currentCursor = lastCursor
+	}
+
+	for index, count := range resultCounts {
+		if index == len(resultCounts)-1 {
+			continue
+		}
+
+		if count != parameters["page_size"].(int) {
+			return nil, fmt.Errorf("expected full page size of %d for page #%d (of %d), got %d\npage sizes: %v", parameters["page_size"].(int), index, len(resultCounts), count, resultCounts)
+		}
+	}
+
+	return nodeSets, nil
+}
+
 var operations = map[string]stOperation{
 	"lookupSubjects":                lookupSubjects,
 	"lookupResources":               lookupResources,
 	"cursoredLookupResources":       cursoredLookupResources,
+	"cursoredReadRelationships":     cursoredReadRelationships,
 	"bulkImportExportRelationships": bulkImportExportRelationships,
 	"bulkCheckPermissions":          bulkCheckPermissions,
 	"writeSchema":                   writeSchema,
