@@ -326,6 +326,10 @@ jobs:
     name: "E2E"
     runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
+    strategy:
+      fail-fast: false
+      matrix:
+        crdbversion: ["22.1.5"] # TODO update to 25.x when we figure out how to override the clock
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
@@ -334,20 +338,8 @@ jobs:
         with:
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
-      - name: "Install cockroachdb and chaosd"
-        if: "steps.cache-binaries.outputs.cache-hit != 'true'"
-        working-directory: "e2e/newenemy"
-        run: |
-          curl https://binaries.cockroachdb.com/cockroach-v22.1.5.linux-amd64.tgz | tar -xz && mv cockroach-v22.1.5.linux-amd64/cockroach ./cockroach
-          curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.1.1-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.1.1-linux-amd64/chaosd ./chaosd
-      - name: "Build SpiceDB"
-        run: |
-          go get -d ./...
-          go build -o ./e2e/newenemy/spicedb ./cmd/spicedb/...
       - name: "Run e2e"
-        working-directory: "e2e/newenemy"
-        run: |
-          go test -v -timeout 11m ./...
+        run: "go run mage.go test:e2e ${{ matrix.crdbversion }}"
       - uses: "actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4" # v5.0.0
         if: "always()"
         # this upload step is really flaky, don't fail the job if it fails
