@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestExampleRunWithSchemaForTesting(t *testing.T) {
@@ -35,6 +36,22 @@ func TestExampleRunWithSchemaForTesting(t *testing.T) {
 			t.Logf("Generated relationship: %s\n", relationship.String())
 			counter++
 			if counter >= 5 {
+				break
+			}
+		}
+	})
+}
+
+func TestGenerateRelationshipsConformsToRegex(t *testing.T) {
+	CheckWithSchema(t, func(t *rapid.T, schema *schema.Schema, relGenerator RelationshipGenerator) {
+		require.NotNil(t, schema)
+
+		counter := 0
+		total := 1000
+		for relationship := range relGenerator.GenerateRelationships(t) {
+			_ = tuple.MustParse(relationship.String())
+			counter++
+			if counter >= total {
 				break
 			}
 		}
