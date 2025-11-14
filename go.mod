@@ -138,6 +138,8 @@ tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	// support running mage with go run mage.go
 	github.com/magefile/mage/mage
+	// mocks are generated with go:generate directives.
+	go.uber.org/mock/mockgen
 	// vulncheck always uses the current directory's go.mod.
 	golang.org/x/vuln/cmd/govulncheck
 )
@@ -429,6 +431,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.38.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
+	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
