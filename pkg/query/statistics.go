@@ -6,25 +6,58 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
+// Estimate represents the estimated cost and selectivity metrics for an iterator.
+// These estimates are used by the query optimizer to make decisions about query plan structure.
 type Estimate struct {
-	Cardinality       int
-	CheckCost         int
-	CheckSelectivity  float64
+	Cardinality int // Cardinality is the estimated number of results this iterator will produce.
+
+	// CheckSelectivity is the estimated probability (0.0-1.0) that a Check operation
+	// will return true. Higher values mean the check is more likely to pass.
+	CheckSelectivity float64
+
+	// CheckCost is the estimated cost to perform a Check operation on this iterator.
+	// This represents the computational cost of verifying if a specific resource-subject
+	// relationship exists.
+	CheckCost int
+
+	// IterResourcesCost is the estimated cost to iterate over all resources
+	// accessible through this iterator.
 	IterResourcesCost int
-	IterSubjectsCost  int
+
+	// IterSubjectsCost is the estimated cost to iterate over all subjects
+	// that have access through this iterator.
+	IterSubjectsCost int
 }
 
+// StatisticsSource provides cost estimates for iterators.
+// Implementations can provide static estimates or dynamic estimates based on
+// actual datastore statistics.
 type StatisticsSource interface {
+	// Cost returns a cost estimate for the given iterator.
 	Cost(it Iterator) (Estimate, error)
 }
 
+// StaticStatistics provides static cost estimates for iterators based on
+// configurable parameters. This is useful for basic query planning and
+// when dynamic statistics are not available.
 type StaticStatistics struct {
-	DatastoreSize              int
-	Fanout                     int
-	CheckSelectivity           float64
+	// DatastoreSize is the assumed number of tuples in a relation.
+	DatastoreSize int
+
+	// Fanout is the assumed average number of subjects per resource or
+	// resources per subject.
+	Fanout int
+
+	// CheckSelectivity is the default probability (0.0-1.0) that a Check
+	// operation will return true.
+	CheckSelectivity float64
+
+	// IntersectionArrowReduction is an additional reduction factor for
+	// IntersectionArrow selectivity to account for "all subjects" semantics.
 	IntersectionArrowReduction float64
 }
 
+// DefaultStaticStatistics returns a StaticStatistics instance with default values
 func DefaultStaticStatistics() StaticStatistics {
 	return StaticStatistics{
 		DatastoreSize:              10,
@@ -34,6 +67,9 @@ func DefaultStaticStatistics() StaticStatistics {
 	}
 }
 
+// Cost returns a cost estimate for the given iterator using static assumptions.
+// It recursively estimates costs for composite iterators by combining the costs
+// of their subiterators according to their operational semantics.
 func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 	switch it := iterator.(type) {
 	case *FixedIterator:
