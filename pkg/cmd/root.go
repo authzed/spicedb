@@ -115,7 +115,7 @@ func BuildRootCommand() (*cobra.Command, error) {
 		Use:   "man",
 		Short: "Generate man page",
 		Long: "Generate a man page for SpiceDB.\n" +
-			" The output can be redirected to a file and installed to the system:\n" +
+			" The output can be redirected to a file and installed to the system:\n\n" +
 			"```\n" +
 			`  spicedb man > spicedb.1
   sudo mv spicedb.1 /usr/share/man/man1/
