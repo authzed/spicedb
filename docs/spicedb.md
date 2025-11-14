@@ -348,6 +348,7 @@ spicedb lsp [flags]
 
 Generate a man page for SpiceDB.
  The output can be redirected to a file and installed to the system:
+
 ```
   spicedb man > spicedb.1
   sudo mv spicedb.1 /usr/share/man/man1/
