@@ -1,6 +1,7 @@
 package query
 
 import (
+	"cmp"
 	"slices"
 )
 
@@ -26,57 +27,13 @@ func (s StatisticsOptimizer) Optimize(it Iterator) (Iterator, bool, error) {
 // Higher selectivity branches are more likely to short-circuit, making unions more efficient.
 func (s StatisticsOptimizer) reorderUnion(it Iterator) (Iterator, bool, error) {
 	union, ok := it.(*Union)
-	if !ok || len(union.subIts) <= 1 {
+	if !ok {
 		return it, false, nil
 	}
 
-	// Get cost estimates for each subiterator
-	type subWithCost struct {
-		iterator    Iterator
-		selectivity float64
-	}
-
-	subs := make([]subWithCost, len(union.subIts))
-	for i, sub := range union.subIts {
-		est, err := s.Source.Cost(sub)
-		if err != nil {
-			return it, false, err
-		}
-		subs[i] = subWithCost{
-			iterator:    sub,
-			selectivity: est.CheckSelectivity,
-		}
-	}
-
-	// Sort by selectivity (higher first)
-	slices.SortFunc(subs, func(a, b subWithCost) int {
-		// Higher selectivity first (descending order)
-		if a.selectivity > b.selectivity {
-			return -1
-		}
-		if a.selectivity < b.selectivity {
-			return 1
-		}
-		return 0
-	})
-
-	// Check if order changed
-	changed := false
-	for i, sub := range subs {
-		if sub.iterator != union.subIts[i] {
-			changed = true
-			break
-		}
-	}
-
-	if !changed {
-		return it, false, nil
-	}
-
-	// Build new subiterators slice
-	newSubs := make([]Iterator, len(subs))
-	for i, sub := range subs {
-		newSubs[i] = sub.iterator
+	newSubs, changed, err := s.reorderBySelectivity(union.subIts, false)
+	if err != nil || !changed {
+		return it, changed, err
 	}
 
 	return NewUnion(newSubs...), true, nil
@@ -87,60 +44,47 @@ func (s StatisticsOptimizer) reorderUnion(it Iterator) (Iterator, bool, error) {
 // reducing work for subsequent branches.
 func (s StatisticsOptimizer) reorderIntersection(it Iterator) (Iterator, bool, error) {
 	intersection, ok := it.(*Intersection)
-	if !ok || len(intersection.subIts) <= 1 {
+	if !ok {
 		return it, false, nil
 	}
 
-	// Get cost estimates for each subiterator
-	type subWithCost struct {
-		iterator    Iterator
-		selectivity float64
-	}
-
-	subs := make([]subWithCost, len(intersection.subIts))
-	for i, sub := range intersection.subIts {
-		est, err := s.Source.Cost(sub)
-		if err != nil {
-			return it, false, err
-		}
-		subs[i] = subWithCost{
-			iterator:    sub,
-			selectivity: est.CheckSelectivity,
-		}
-	}
-
-	// Sort by selectivity (lower first - more selective first)
-	slices.SortFunc(subs, func(a, b subWithCost) int {
-		// Lower selectivity first (ascending order)
-		if a.selectivity < b.selectivity {
-			return -1
-		}
-		if a.selectivity > b.selectivity {
-			return 1
-		}
-		return 0
-	})
-
-	// Check if order changed
-	changed := false
-	for i, sub := range subs {
-		if sub.iterator != intersection.subIts[i] {
-			changed = true
-			break
-		}
-	}
-
-	if !changed {
-		return it, false, nil
-	}
-
-	// Build new subiterators slice
-	newSubs := make([]Iterator, len(subs))
-	for i, sub := range subs {
-		newSubs[i] = sub.iterator
+	newSubs, changed, err := s.reorderBySelectivity(intersection.subIts, true)
+	if err != nil || !changed {
+		return it, changed, err
 	}
 
 	return NewIntersection(newSubs...), true, nil
+}
+
+// rebalanceArrow rebalances arrow operators to minimize total cost.
+// If an arrow contains nested arrows on either side (possibly through wrapper
+// iterators like Alias or CaveatIterator), we can restructure them to reduce
+// the overall computation cost.
+//
+// For example: (A->B)->C can be rebalanced to A->(B->C) if that's cheaper.
+// The key insight is that arrow operators are left-associative but we can
+// restructure them based on cost estimates.
+func (s StatisticsOptimizer) rebalanceArrow(it Iterator) (Iterator, bool, error) {
+	arrow, ok := it.(*Arrow)
+	if !ok {
+		return it, false, nil
+	}
+
+	// Check if left side contains an arrow (possibly wrapped): wrapped(A->B)->C
+	if leftArrow, leftWrappers := unwrapToArrow(arrow.left); leftArrow != nil {
+		if alternative, changed, err := s.tryRebalance(arrow, leftArrow, leftWrappers, true); err != nil || changed {
+			return alternative, changed, err
+		}
+	}
+
+	// Check if right side contains an arrow (possibly wrapped): A->wrapped(B->C)
+	if rightArrow, rightWrappers := unwrapToArrow(arrow.right); rightArrow != nil {
+		if alternative, changed, err := s.tryRebalance(arrow, rightArrow, rightWrappers, false); err != nil || changed {
+			return alternative, changed, err
+		}
+	}
+
+	return it, false, nil
 }
 
 // unwrapToArrow looks through single-subiterator wrapper iterators
@@ -209,95 +153,116 @@ func rewrapIterator(inner Iterator, wrappers []Iterator, leftBranch, rightBranch
 	return result, nil
 }
 
-// rebalanceArrow rebalances arrow operators to minimize total cost.
-// If an arrow contains nested arrows on either side (possibly through wrapper
-// iterators like Alias or CaveatIterator), we can restructure them to reduce
-// the overall computation cost.
-//
-// For example: (A->B)->C can be rebalanced to A->(B->C) if that's cheaper.
-// The key insight is that arrow operators are left-associative but we can
-// restructure them based on cost estimates.
-func (s StatisticsOptimizer) rebalanceArrow(it Iterator) (Iterator, bool, error) {
-	arrow, ok := it.(*Arrow)
-	if !ok {
-		return it, false, nil
+// tryRebalance attempts to rebalance an arrow with a nested arrow on one side.
+// Returns the rebalanced iterator and true if the rebalancing was cheaper, nil and false otherwise.
+func (s StatisticsOptimizer) tryRebalance(original *Arrow, nestedArrow *Arrow, wrappers []Iterator, isLeftSide bool) (Iterator, bool, error) {
+	// Calculate cost of original
+	originalCost, err := s.Source.Cost(original)
+	if err != nil {
+		return nil, false, err
 	}
 
-	// Check if left side contains an arrow (possibly wrapped): wrapped(A->B)->C
-	leftArrow, leftWrappers := unwrapToArrow(arrow.left)
-	if leftArrow != nil {
-		// We have wrapped(A->B)->C, consider rebalancing to A->wrapped(B->C)
+	// Build the alternative based on which side the nested arrow is on
+	var innerArrow *Arrow
+	var alternative *Arrow
+	var leftBranch, rightBranch Iterator
+
+	if isLeftSide {
 		// Original: wrapped(A->B)->C
 		// Alternative: A->wrapped(B->C)
+		leftBranch = nestedArrow.right
+		rightBranch = original.right
+		innerArrow = NewArrow(leftBranch, rightBranch)
 
-		// Calculate cost of original
-		originalCost, err := s.Source.Cost(arrow)
+		wrappedInner, err := rewrapIterator(innerArrow, wrappers, leftBranch, rightBranch)
 		if err != nil {
-			return it, false, err
+			return nil, false, err
 		}
 
-		// Calculate cost of alternative: A->wrapped(B->C)
-		// Create the inner arrow: B->C
-		innerArrow := NewArrow(leftArrow.right, arrow.right)
-
-		// Rewrap the inner arrow with the same wrappers
-		// Pass branch info so caveats stay on the correct branch
-		wrappedInner, err := rewrapIterator(innerArrow, leftWrappers, leftArrow.right, arrow.right)
-		if err != nil {
-			return it, false, err
-		}
-
-		// Create the alternative: A->wrapped(B->C)
-		alternative := NewArrow(leftArrow.left, wrappedInner)
-
-		alternativeCost, err := s.Source.Cost(alternative)
-		if err != nil {
-			return it, false, err
-		}
-
-		// If alternative is cheaper, use it
-		if alternativeCost.CheckCost < originalCost.CheckCost {
-			return alternative, true, nil
-		}
-	}
-
-	// Check if right side contains an arrow (possibly wrapped): A->wrapped(B->C)
-	rightArrow, rightWrappers := unwrapToArrow(arrow.right)
-	if rightArrow != nil {
-		// We have A->wrapped(B->C), consider rebalancing to wrapped(A->B)->C
+		alternative = NewArrow(nestedArrow.left, wrappedInner)
+	} else {
 		// Original: A->wrapped(B->C)
 		// Alternative: wrapped(A->B)->C
+		leftBranch = original.left
+		rightBranch = nestedArrow.left
+		innerArrow = NewArrow(leftBranch, rightBranch)
 
-		// Calculate cost of original
-		originalCost, err := s.Source.Cost(arrow)
+		wrappedInner, err := rewrapIterator(innerArrow, wrappers, leftBranch, rightBranch)
 		if err != nil {
-			return it, false, err
+			return nil, false, err
 		}
 
-		// Calculate cost of alternative: wrapped(A->B)->C
-		// Create the inner arrow: A->B
-		innerArrow := NewArrow(arrow.left, rightArrow.left)
+		alternative = NewArrow(wrappedInner, nestedArrow.right)
+	}
 
-		// Rewrap the inner arrow with the same wrappers
-		// Pass branch info so caveats stay on the correct branch
-		wrappedInner, err := rewrapIterator(innerArrow, rightWrappers, arrow.left, rightArrow.left)
+	// Calculate cost of alternative
+	alternativeCost, err := s.Source.Cost(alternative)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// Return alternative if cheaper
+	if alternativeCost.CheckCost < originalCost.CheckCost {
+		return alternative, true, nil
+	}
+
+	return nil, false, nil
+}
+
+// subWithCost pairs an iterator with its selectivity for sorting.
+type subWithCost struct {
+	iterator    Iterator
+	selectivity float64
+}
+
+// reorderBySelectivity reorders subiterators by selectivity.
+// If ascending is true, sorts by lower selectivity first (for intersections).
+// If ascending is false, sorts by higher selectivity first (for unions).
+func (s StatisticsOptimizer) reorderBySelectivity(subs []Iterator, ascending bool) ([]Iterator, bool, error) {
+	if len(subs) <= 1 {
+		return subs, false, nil
+	}
+
+	// Get cost estimates for each subiterator
+	subsWithCost := make([]subWithCost, len(subs))
+	for i, sub := range subs {
+		est, err := s.Source.Cost(sub)
 		if err != nil {
-			return it, false, err
+			return nil, false, err
 		}
-
-		// Create the alternative: wrapped(A->B)->C
-		alternative := NewArrow(wrappedInner, rightArrow.right)
-
-		alternativeCost, err := s.Source.Cost(alternative)
-		if err != nil {
-			return it, false, err
-		}
-
-		// If alternative is cheaper, use it
-		if alternativeCost.CheckCost < originalCost.CheckCost {
-			return alternative, true, nil
+		subsWithCost[i] = subWithCost{
+			iterator:    sub,
+			selectivity: est.CheckSelectivity,
 		}
 	}
 
-	return it, false, nil
+	// Sort by selectivity
+	slices.SortFunc(subsWithCost, func(a, b subWithCost) int {
+		result := cmp.Compare(a.selectivity, b.selectivity)
+		if !ascending {
+			result = -result // Reverse for descending order
+		}
+		return result
+	})
+
+	// Check if order changed
+	changed := false
+	for i, sub := range subsWithCost {
+		if sub.iterator != subs[i] {
+			changed = true
+			break
+		}
+	}
+
+	if !changed {
+		return subs, false, nil
+	}
+
+	// Build new subiterators slice
+	newSubs := make([]Iterator, len(subsWithCost))
+	for i, sub := range subsWithCost {
+		newSubs[i] = sub.iterator
+	}
+
+	return newSubs, true, nil
 }
