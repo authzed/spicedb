@@ -12,7 +12,7 @@ builds:
       - "arm64"
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
-      - "-s -w"
+      - "-s -w -checklinkname=0"
       - "-X github.com/jzelinskie/cobrautil/v2.Version=v{{ .Version }}"
 kos:
   - id: "spicedb"

@@ -48,6 +48,7 @@ func testWithArgs(ctx context.Context, args ...string) ([]string, error) {
 		"-count=1",
 		"-race",
 		"-timeout=20m",
+		`-ldflags=-checklinkname=0`,
 	}, args...)
 
 	return testArgs, nil
