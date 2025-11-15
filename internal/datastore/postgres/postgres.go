@@ -240,31 +240,9 @@ func newPostgresDatastore(
 		}
 	}
 
-	if config.enablePrometheusStats {
-		replicaIndexStr := strconv.Itoa(replicaIndex)
-		dbname := "spicedb"
-		if replicaIndex != primaryInstanceID {
-			dbname = "spicedb_replica_" + replicaIndexStr
-		}
-
-		if err := prometheus.Register(pgxpoolprometheus.NewCollector(readPool, map[string]string{
-			"db_name":    dbname,
-			"pool_usage": "read",
-		})); err != nil {
-			return nil, err
-		}
-
-		if isPrimary {
-			if err := prometheus.Register(pgxpoolprometheus.NewCollector(writePool, map[string]string{
-				"db_name":    "spicedb",
-				"pool_usage": "write",
-			})); err != nil {
-				return nil, err
-			}
-			if err := common.RegisterGCMetrics(); err != nil {
-				return nil, err
-			}
-		}
+	collectors, err := registerAndReturnPrometheusCollectors(replicaIndex, isPrimary, readPool, writePool, config.enablePrometheusStats)
+	if err != nil {
+		return nil, err
 	}
 
 	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
@@ -331,6 +309,7 @@ func newPostgresDatastore(
 		dburl:                   pgURL,
 		readPool:                pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
 		writePool:               nil, /* disabled by default */
+		collectors:              collectors,
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		optimizedRevisionQuery:  revisionQuery,
@@ -397,6 +376,7 @@ type pgDatastore struct {
 
 	dburl                          string
 	readPool, writePool            pgxcommon.ConnPooler
+	collectors                     []prometheus.Collector
 	watchBufferLength              uint16
 	watchBufferWriteTimeout        time.Duration
 	optimizedRevisionQuery         string
@@ -662,7 +642,9 @@ func (pgd *pgDatastore) Close() error {
 	if pgd.writePool != nil {
 		pgd.writePool.Close()
 	}
-
+	for _, collector := range pgd.collectors {
+		prometheus.Unregister(collector)
+	}
 	return nil
 }
 
@@ -823,3 +805,45 @@ func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 }
 
 var _ datastore.Datastore = &pgDatastore{}
+
+func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, readPool, writePool *pgxpool.Pool, enablePrometheusStats bool) ([]prometheus.Collector, error) {
+	collectors := []prometheus.Collector{}
+	if !enablePrometheusStats {
+		return collectors, nil
+	}
+
+	replicaIndexStr := strconv.Itoa(replicaIndex)
+	dbname := "spicedb"
+	if replicaIndex != primaryInstanceID {
+		dbname = "spicedb_replica_" + replicaIndexStr
+	}
+
+	readCollector := pgxpoolprometheus.NewCollector(readPool, map[string]string{
+		"db_name":    dbname,
+		"pool_usage": "read",
+	})
+	if err := prometheus.Register(readCollector); err != nil {
+		return collectors, err
+	}
+	collectors = append(collectors, readCollector)
+
+	if isPrimary {
+		writeCollector := pgxpoolprometheus.NewCollector(writePool, map[string]string{
+			"db_name":    "spicedb",
+			"pool_usage": "write",
+		})
+
+		if err := prometheus.Register(writeCollector); err != nil {
+			return collectors, nil
+		}
+		collectors = append(collectors, writeCollector)
+
+		gcCollectors, err := common.RegisterGCMetrics()
+		if err != nil {
+			return collectors, err
+		}
+		collectors = append(collectors, gcCollectors...)
+	}
+
+	return collectors, nil
+}
