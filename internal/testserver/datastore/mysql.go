@@ -124,6 +124,7 @@ func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create mysql driver: %w", err)
 	}
+	defer driver.Close(t.Context())
 
 	err = migrations.Manager.Run(context.Background(), driver, migrate.Head, migrate.LiveRun)
 	if err != nil {
