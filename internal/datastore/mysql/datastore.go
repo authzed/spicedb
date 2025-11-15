@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"math"
@@ -174,31 +175,9 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		}
 	}
 
-	var db *sql.DB
-	if config.enablePrometheusStats {
-		connector, err = instrumentConnector(connector)
-		if err != nil {
-			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: unable to instrument connector", err, uri)
-		}
-
-		dbName := "spicedb"
-		if replicaIndex != primaryInstanceID {
-			dbName = fmt.Sprintf("spicedb_replica_%d", replicaIndex)
-		}
-
-		db = sql.OpenDB(connector)
-		collector := sqlstats.NewStatsCollector(dbName, db)
-		if err := prometheus.Register(collector); err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
-		}
-
-		if isPrimary {
-			if err := common.RegisterGCMetrics(); err != nil {
-				return nil, fmt.Errorf(errUnableToInstantiate, err)
-			}
-		}
-	} else {
-		db = sql.OpenDB(connector)
+	db, collectors, err := registerAndReturnPrometheusCollectors(replicaIndex, isPrimary, connector, config.enablePrometheusStats)
+	if err != nil {
+		return nil, err
 	}
 
 	db.SetConnMaxLifetime(config.connMaxLifetime)
@@ -275,6 +254,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		db:                      db,
 		driver:                  driver,
+		collectors:              collectors,
 		url:                     uri,
 		revisionQuantization:    config.revisionQuantization,
 		gcWindow:                config.gcWindow,
@@ -496,6 +476,7 @@ type Datastore struct {
 	readTxOptions      *sql.TxOptions
 	url                string
 	analyzeBeforeStats bool
+	collectors         []prometheus.Collector
 
 	revisionQuantization    time.Duration
 	gcWindow                time.Duration
@@ -533,6 +514,9 @@ func (mds *Datastore) Close() error {
 		if err := mds.gcGroup.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error().Err(err).Msg("error waiting for garbage collector to shutdown")
 		}
+	}
+	for _, collector := range mds.collectors {
+		_ = prometheus.Unregister(collector)
 	}
 	return mds.db.Close()
 }
@@ -697,4 +681,36 @@ type debugLogger struct{}
 
 func (debugLogger) Print(v ...any) {
 	log.Logger.Debug().CallerSkipFrame(1).Str("datastore", "mysql").Msg(fmt.Sprint(v...))
+}
+
+func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, connector driver.Connector, enablePrometheusStats bool) (*sql.DB, []prometheus.Collector, error) {
+	if !enablePrometheusStats {
+		return sql.OpenDB(connector), nil, nil
+	}
+
+	connector, collectors, err := instrumentConnector(connector, strconv.Itoa(replicaIndex))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dbName := "spicedb"
+	if replicaIndex != primaryInstanceID {
+		dbName = fmt.Sprintf("spicedb_replica_%d", replicaIndex)
+	}
+
+	db := sql.OpenDB(connector)
+	collector := sqlstats.NewStatsCollector(dbName, db)
+	if err := prometheus.Register(collector); err != nil {
+		return nil, nil, err
+	}
+	collectors = append(collectors, collector)
+
+	if isPrimary {
+		gcMetrics, err := common.RegisterGCMetrics()
+		if err != nil {
+			return nil, nil, err
+		}
+		collectors = append(collectors, gcMetrics...)
+	}
+	return db, collectors, nil
 }
