@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,6 +23,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/authzed/authzed-go/proto"
+	protobuf "google.golang.org/protobuf/proto"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 
@@ -67,7 +69,8 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 
 	gwMux := runtime.NewServeMux(
 		runtime.WithMetadata(OtelAnnotator),
-		runtime.WithOutgoingHeaderMatcher(customOutgoingHeaderMatcher),
+		runtime.WithIncomingHeaderMatcher(customIncomingHeaderMatcher),
+		runtime.WithForwardResponseOption(forwardRequestIDTrailer),
 		runtime.WithHealthzEndpoint(healthpb.NewHealthClient(healthConn)),
 	)
 	schemaConn, err := registerHandler(ctx, gwMux, upstreamAddr, opts, v1.RegisterSchemaServiceHandler)
@@ -175,14 +178,34 @@ func OtelAnnotator(ctx context.Context, r *http.Request) metadata.MD {
 	return metadataCopy
 }
 
-// customOutgoingHeaderMatcher translates gRPC metadata/trailers to HTTP headers.
-// This ensures x-request-id is visible to HTTP clients.
-func customOutgoingHeaderMatcher(key string) (string, bool) {
-	switch key {
+// forwardRequestIDTrailer copies the request ID from gRPC trailers to HTTP response headers.
+// This ensures x-request-id is visible to HTTP clients while maintaining gRPC retry policy compliance.
+func forwardRequestIDTrailer(ctx context.Context, w http.ResponseWriter, _ protobuf.Message) error {
+	md, ok := runtime.ServerMetadataFromContext(ctx)
+	if !ok {
+		return nil
+	}
+
+	// Check standard x-request-id key
+	if vals := md.TrailerMD.Get("x-request-id"); len(vals) > 0 {
+		w.Header().Set("X-Request-Id", vals[0])
+		return nil
+	}
+
+	// Check legacy key for backward compatibility
+	if vals := md.TrailerMD.Get("io.spicedb.respmeta.requestid"); len(vals) > 0 {
+		w.Header().Set("X-Request-Id", vals[0])
+	}
+
+	return nil
+}
+
+// customIncomingHeaderMatcher translates HTTP headers to gRPC metadata.
+// This ensures x-request-id from HTTP clients is passed through without the
+// grpcgateway- prefix, making it available to the request ID middleware.
+func customIncomingHeaderMatcher(key string) (string, bool) {
+	switch strings.ToLower(key) {
 	case "x-request-id":
-		return "x-request-id", true
-	case "io.spicedb.respmeta.requestid":
-		// Support legacy key during transition period
 		return "x-request-id", true
 	default:
 		return runtime.DefaultHeaderMatcher(key)
