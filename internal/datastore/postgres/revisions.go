@@ -404,9 +404,11 @@ func (pr postgresRevision) MarshalBinary() ([]byte, error) {
 		return nil, spiceerrors.MustBugf("could not safely cast snapshot xmax to int64: %v", err)
 	}
 	protoRevision := implv1.PostgresRevision{
-		Xmin:         pr.snapshot.xmin,
-		RelativeXmax: relativeXmax - xminInt,
-		RelativeXips: relativeXips,
+		Xmin:              pr.snapshot.xmin,
+		RelativeXmax:      relativeXmax - xminInt,
+		RelativeXips:      relativeXips,
+		OptionalTxid:      pr.optionalTxID.Uint64,
+		OptionalTimestamp: pr.optionalNanosTimestamp,
 	}
 
 	return protoRevision.MarshalVT()

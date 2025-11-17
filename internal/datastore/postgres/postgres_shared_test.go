@@ -1215,7 +1215,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.Eventually(func() bool {
 		seenWatchRevisionsLock.Lock()
 		defer seenWatchRevisionsLock.Unlock()
-		return len(seenWatchRevisions) == 3 && seenWatchRevisions[len(seenWatchRevisions)-1].String() == afterRev.String()
+		return len(seenWatchRevisions) == 3 && seenWatchRevisions[len(seenWatchRevisions)-1].Equal(afterRev)
 	}, 2*time.Second, 5*time.Millisecond)
 }
 
