@@ -22,10 +22,14 @@ type RelationshipGenerator struct {
 	subjectTypeNames  []string
 }
 
+// See parsing.go for reference regexes. max length is 64. We subtract 4 due to "o_" and first and last character
+// expressed in the regex first and last segments.
+const objectExpr = "[a-z0-9_][a-z0-9_]{0,59}[a-z0-9]+"
+
 // GenerateRelationships generates an infinite sequence of relationships for the schema.
 // Relationships are randomly generated but valid according to the schema.
 func (rg *RelationshipGenerator) GenerateRelationships(t *rapid.T) iter.Seq[tuple.Relationship] {
-	rapidObjectString := rapid.StringMatching("o_\\w\\w\\w+")
+	rapidObjectString := rapid.StringMatching("o_" + objectExpr)
 
 	return func(yield func(tuple.Relationship) bool) {
 		for {
@@ -76,9 +80,9 @@ func (rg *RelationshipGenerator) GenerateRelationships(t *rapid.T) iter.Seq[tupl
 func CheckWithSchema(t *testing.T, handler func(t *rapid.T, schema *schema.Schema, relationshipGenerator RelationshipGenerator)) {
 	t.Helper()
 	rapid.Check(t, func(t *rapid.T) {
-		rapidRelationString := rapid.StringMatching("r_\\w\\w\\w+")
-		rapidPermissionString := rapid.StringMatching("p_\\w\\w\\w+")
-		rapidDefinitionString := rapid.StringMatching("d_\\w\\w\\w+")
+		rapidRelationString := rapid.StringMatching("r_" + objectExpr)
+		rapidPermissionString := rapid.StringMatching("p_" + objectExpr)
+		rapidDefinitionString := rapid.StringMatching("d_" + objectExpr)
 
 		builder := schema.NewSchemaBuilder()
 
