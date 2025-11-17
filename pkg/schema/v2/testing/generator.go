@@ -24,7 +24,7 @@ type RelationshipGenerator struct {
 
 // See parsing.go for reference regexes. max length is 64. We subtract 4 due to "o_" and first and last character
 // expressed in the regex first and last segments.
-const objectExpr = "[a-z0-9_][a-z0-9_]{0,59}[a-z0-9]+"
+const objectExpr = "[a-z0-9_][a-z0-9_]{0,59}[a-z0-9]"
 
 // GenerateRelationships generates an infinite sequence of relationships for the schema.
 // Relationships are randomly generated but valid according to the schema.
