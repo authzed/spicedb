@@ -213,22 +213,10 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
-	if config.enablePrometheusStats {
-		if err := prometheus.Register(pgxpoolprometheus.NewCollector(ds.writePool, map[string]string{
-			"db_name":    "spicedb",
-			"pool_usage": "write",
-		})); err != nil {
-			ds.cancel()
-			return nil, err
-		}
-
-		if err := prometheus.Register(pgxpoolprometheus.NewCollector(ds.readPool, map[string]string{
-			"db_name":    "spicedb",
-			"pool_usage": "read",
-		})); err != nil {
-			ds.cancel()
-			return nil, err
-		}
+	err = ds.registerPrometheusCollectors(config.enablePrometheusStats)
+	if err != nil {
+		ds.cancel()
+		return nil, err
 	}
 
 	// TODO: this (and the GC startup that it's based on for mysql/pg) should
@@ -275,6 +263,7 @@ type crdbDatastore struct {
 
 	dburl                   string
 	readPool, writePool     *pool.RetryPool
+	collectors              []prometheus.Collector
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	watchConnectTimeout     time.Duration
@@ -475,6 +464,9 @@ func (cds *crdbDatastore) Close() error {
 	cds.cancel()
 	cds.readPool.Close()
 	cds.writePool.Close()
+	for _, collector := range cds.collectors {
+		_ = prometheus.Unregister(collector)
+	}
 	return nil
 }
 
@@ -639,4 +631,32 @@ func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int
 	}
 
 	return gcSeconds * 1_000_000_000, nil
+}
+
+func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats bool) error {
+	if !enablePrometheusStats {
+		return nil
+	}
+
+	readCollector := pgxpoolprometheus.NewCollector(cds.writePool, map[string]string{
+		"db_name":    "spicedb",
+		"pool_usage": "read",
+	})
+
+	if err := prometheus.Register(readCollector); err != nil {
+		return err
+	}
+	cds.collectors = append(cds.collectors, readCollector)
+
+	writeCollector := pgxpoolprometheus.NewCollector(cds.readPool, map[string]string{
+		"db_name":    "spicedb",
+		"pool_usage": "write",
+	})
+
+	if err := prometheus.Register(writeCollector); err != nil {
+		return err
+	}
+	cds.collectors = append(cds.collectors, writeCollector)
+
+	return nil
 }
