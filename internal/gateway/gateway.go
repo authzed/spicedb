@@ -21,9 +21,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/authzed/authzed-go/proto"
-	protobuf "google.golang.org/protobuf/proto"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 
