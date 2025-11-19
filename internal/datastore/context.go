@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -56,6 +57,15 @@ func (p *ctxProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, e
 
 func (p *ctxProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	return p.delegate.CheckRevision(context.WithoutCancel(ctx), revision)
+}
+
+func (p *ctxProxy) LastObservedRevision(ctx context.Context) (datastore.Revision, error) {
+	if ds, ok := p.delegate.(interface {
+		LastObservedRevision(ctx context.Context) (datastore.Revision, error)
+	}); ok {
+		return ds.LastObservedRevision(ctx)
+	}
+	return datastore.NoRevision, fmt.Errorf("LastObservedRevision() method not found")
 }
 
 func (p *ctxProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {

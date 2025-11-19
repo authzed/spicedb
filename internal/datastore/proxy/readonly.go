@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -25,4 +26,13 @@ func (rd roDatastore) ReadWriteTx(
 	...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	return datastore.NoRevision, errReadOnly
+}
+
+func (pgd roDatastore) LastObservedRevision(ctx context.Context) (datastore.Revision, error) {
+	if ds, ok := pgd.Datastore.(interface {
+		LastObservedRevision(ctx context.Context) (datastore.Revision, error)
+	}); ok {
+		return ds.LastObservedRevision(ctx)
+	}
+	return datastore.NoRevision, fmt.Errorf("LastObservedRevision() method not found")
 }
