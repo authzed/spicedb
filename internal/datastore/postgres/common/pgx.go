@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/exaring/otelpgx"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	zerologadapter "github.com/jackc/pgx-zerolog"

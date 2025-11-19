@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"

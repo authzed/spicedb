@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
@@ -1385,7 +1385,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
 
-				bs, _ := safecast.Convert[uint64](batchSize)
+				bs := safecast.RequireConvert[uint64](t, batchSize)
 				require.LessOrEqual(resp.RelationshipsDeletedCount, bs)
 
 				if i == 0 {

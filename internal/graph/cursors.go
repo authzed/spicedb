@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/taskrunner"

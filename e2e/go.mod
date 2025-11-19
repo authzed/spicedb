@@ -39,7 +39,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.39.0 // indirect
 	github.com/aws/smithy-go v1.23.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
-	github.com/ccoveille/go-safecast v1.8.1 // indirect
+	github.com/ccoveille/go-safecast/v2 v2.0.0 // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
 	github.com/creasty/defaults v1.8.0 // indirect
 	github.com/dave/jennifer v1.7.1 // indirect

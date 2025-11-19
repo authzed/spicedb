@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
@@ -40,8 +40,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 				t,
 			)
 
-			// This is statically defined so we can cast straight.
-			uintTc, _ := safecast.Convert[uint64](tc)
+			uintTc := safecast.RequireConvert[uint64](t, tc)
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				loaded, err := rwt.BulkLoad(ctx, bulkSource)
 				require.NoError(err)
@@ -141,8 +140,7 @@ func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 	)
 	bulkSource.WithCaveat = true
 
-	// This is statically defined so we can cast straight.
-	uintTc, _ := safecast.Convert[uint64](tc)
+	uintTc := safecast.RequireConvert[uint64](t, tc)
 	lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		loaded, err := rwt.BulkLoad(ctx, bulkSource)
 		require.NoError(err)
@@ -184,8 +182,7 @@ func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 	)
 	bulkSource.WithExpiration = true
 
-	// This is statically defined so we can cast straight.
-	uintTc, _ := safecast.Convert[uint64](tc)
+	uintTc := safecast.RequireConvert[uint64](t, tc)
 	lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		loaded, err := rwt.BulkLoad(ctx, bulkSource)
 		require.NoError(err)
@@ -222,8 +219,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 		t,
 	)
 
-	// This is statically defined so we can cast straight.
-	uintTc, _ := safecast.Convert[uint64](tc)
+	uintTc := safecast.RequireConvert[uint64](t, tc)
 	lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		loaded, err := rwt.BulkLoad(ctx, bulkSource)
 		require.NoError(err)
