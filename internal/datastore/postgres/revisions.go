@@ -146,6 +146,30 @@ func (pgd *pgDatastore) getHeadRevision(ctx context.Context, querier common.Quer
 	return &postgresRevision{snapshot: snapshot}, nil
 }
 
+func (pgd *pgDatastore) LastObservedRevision(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "LastObservedRevision")
+	defer span.End()
+
+	return pgd.getLastObservedRevision(ctx, pgd.readPool)
+}
+
+func (pgd *pgDatastore) getLastObservedRevision(ctx context.Context, querier common.Querier) (datastore.Revision, error) {
+	var latestTxID uint64
+	if err := querier.QueryRow(ctx, queryLatestXID).Scan(&latestTxID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return datastore.NoRevision, nil
+		}
+		return nil, fmt.Errorf(errRevision, err)
+	}
+
+	return &postgresRevision{
+		snapshot: pgSnapshot{
+			xmin: latestTxID,
+			xmax: latestTxID,
+		},
+	}, nil
+}
+
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
 	revision, ok := revisionRaw.(postgresRevision)
 	if !ok {
