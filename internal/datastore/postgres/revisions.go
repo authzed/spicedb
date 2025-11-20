@@ -104,7 +104,7 @@ const (
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
 )
 
-var queryLatestObservedTX = fmt.Sprintf(`SELECT %[1]s, %[2]s, %[3]s, %[4]s FROM %[5]s`, schema.ColXID, schema.ColSnapshot, schema.ColMetadata, schema.ColTimestamp, schema.TableTransaction)
+var queryLatestObservedTX = fmt.Sprintf(`SELECT %[1]s, %[2]s, %[3]s, %[4]s FROM %[5]s ORDER BY %[1]s DESC LIMIT 1`, schema.ColXID, schema.ColSnapshot, schema.ColMetadata, schema.ColTimestamp, schema.TableTransaction)
 
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	var revision xid8
