@@ -104,6 +104,8 @@ const (
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
 )
 
+var queryLatestObservedTX = fmt.Sprintf(`SELECT %[1]s, %[2]s, %[3]s, %[4]s FROM %[5]s`, schema.ColXID, schema.ColSnapshot, schema.ColMetadata, schema.ColTimestamp, schema.TableTransaction)
+
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	var revision xid8
 	var snapshot pgSnapshot
@@ -154,19 +156,30 @@ func (pgd *pgDatastore) LastObservedRevision(ctx context.Context) (datastore.Rev
 }
 
 func (pgd *pgDatastore) getLastObservedRevision(ctx context.Context, querier common.Querier) (datastore.Revision, error) {
-	var latestTxID uint64
-	if err := querier.QueryRow(ctx, queryLatestXID).Scan(&latestTxID); err != nil {
+	var (
+		xid       xid8
+		snapshot  pgSnapshot
+		metadata  map[string]any
+		timestamp time.Time
+	)
+
+	if err := querier.QueryRow(ctx, queryLatestObservedTX).Scan(&xid, &snapshot, &metadata, &timestamp); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return datastore.NoRevision, nil
 		}
 		return nil, fmt.Errorf(errRevision, err)
 	}
 
-	return &postgresRevision{
-		snapshot: pgSnapshot{
-			xmin: latestTxID,
-			xmax: latestTxID,
-		},
+	nanosTimestamp, err := safecast.Convert[uint64](timestamp.UnixNano())
+	if err != nil {
+		return nil, spiceerrors.MustBugf("could not cast timestamp to uint64")
+	}
+
+	return postgresRevision{
+		snapshot:               snapshot.markComplete(xid.Uint64),
+		optionalTxID:           xid,
+		optionalNanosTimestamp: nanosTimestamp,
+		optionalMetadata:       metadata,
 	}, nil
 }
 
