@@ -447,14 +447,14 @@ func revisionKeyFunc(rev postgresRevision) uint64 {
 func (r postgresRevision) PrettyPrint() string {
 	var sb strings.Builder
 	sb.WriteString("Datastore: postgres\n")
-	sb.WriteString(fmt.Sprintf("  Snapshot: %v\n", r.snapshot))
-	sb.WriteString(fmt.Sprintf("  OptionalTxID: %v\n", r.optionalTxID))
-	sb.WriteString(fmt.Sprintf("  OptionalNanosTimestamp: %d\n", r.optionalNanosTimestamp))
+	sb.WriteString(fmt.Sprintf("Snapshot: %v\n", r.snapshot))
+	sb.WriteString(fmt.Sprintf("OptionalTxID: %v\n", r.optionalTxID))
+	sb.WriteString(fmt.Sprintf("OptionalNanosTimestamp: %d\n", r.optionalNanosTimestamp))
 
 	if len(r.optionalMetadata) == 0 {
-		sb.WriteString("  OptionalMetadata: {}\n")
+		sb.WriteString("OptionalMetadata: {}\n")
 	} else {
-		sb.WriteString("  OptionalMetadata:\n")
+		sb.WriteString("OptionalMetadata:\n")
 		for k, v := range r.optionalMetadata {
 			sb.WriteString(fmt.Sprintf("    %s: %#v\n", k, v))
 		}
