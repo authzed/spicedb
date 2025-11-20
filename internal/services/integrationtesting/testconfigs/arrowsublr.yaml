@@ -1,0 +1,30 @@
+schema: |+
+  definition special_user {}
+
+  definition user {
+  	relation special_user_mapping: special_user
+  	permission special_user = special_user_mapping
+  }
+
+  definition group {
+  	relation member: user
+  	permission membership = member + member->special_user
+  }
+
+  definition system {
+  	relation viewer: user | group#membership
+  	permission view = viewer + viewer->special_user
+  }
+
+
+relationships: |-
+  system:somesystem#viewer@group:somegroup#membership
+
+  group:somegroup#member@user:someuser1
+
+  user:someuser1#special_user_mapping@special_user:specialuser
+assertions:
+  assertTrue:
+    - system:somesystem#view@special_user:specialuser
+  assertFalse: []
+validation: {}

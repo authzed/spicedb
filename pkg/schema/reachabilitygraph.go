@@ -37,7 +37,7 @@ func (rg *DefinitionReachability) RelationsEncounteredForResource(
 	ctx context.Context,
 	resourceType *core.RelationReference,
 ) ([]*core.RelationReference, error) {
-	_, relationNames, err := rg.computeEntrypoints(ctx, resourceType, nil /* include all entrypoints */, reachabilityFull, entrypointLookupFindAll)
+	_, relationNames, err := rg.computeEntrypoints(ctx, resourceType, nil, reachabilityFull /* include all entrypoints */, entrypointLookupFindAll)
 	if err != nil {
 		return nil, err
 	}
@@ -85,11 +85,12 @@ func (rg *DefinitionReachability) RelationsEncounteredForSubject(
 						continue
 					}
 
-					encounteredRelations := map[string]struct{}{}
+					allEncounteredRelations := mapz.NewSet[string]()
+					encounteredRelationsForComputation := mapz.NewSet[string]()
 					err := nrg.collectEntrypoints(ctx, &core.RelationReference{
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
-					}, subjectType, collected, encounteredRelations, reachabilityFull, entrypointLookupFindAll)
+					}, subjectType, collected, allEncounteredRelations, encounteredRelationsForComputation, reachabilityFull, entrypointLookupFindAll)
 					if err != nil {
 						return nil, err
 					}
@@ -193,10 +194,13 @@ func (rg *DefinitionReachability) computeEntrypoints(
 	}
 
 	collected := &[]ReachabilityEntrypoint{}
-	encounteredRelations := map[string]struct{}{}
-	err := rg.collectEntrypoints(ctx, resourceType, optionalSubjectType, collected, encounteredRelations, reachabilityOption, entrypointLookupOption)
+
+	allEncounteredRelations := mapz.NewSet[string]()
+	encounteredRelationsForComputation := mapz.NewSet[string]()
+
+	err := rg.collectEntrypoints(ctx, resourceType, optionalSubjectType, collected, allEncounteredRelations, encounteredRelationsForComputation, reachabilityOption, entrypointLookupOption)
 	if err != nil {
-		return nil, slices.Collect(maps.Keys(encounteredRelations)), err
+		return nil, allEncounteredRelations.AsSlice(), err
 	}
 
 	collectedEntrypoints := *collected
@@ -213,7 +217,7 @@ func (rg *DefinitionReachability) computeEntrypoints(
 	for _, entrypoint := range collectedEntrypoints {
 		hash, err := entrypoint.Hash()
 		if err != nil {
-			return nil, slices.Collect(maps.Keys(encounteredRelations)), err
+			return nil, allEncounteredRelations.AsSlice(), err
 		}
 
 		if _, ok := entrypointMap[hash]; !ok {
@@ -222,7 +226,7 @@ func (rg *DefinitionReachability) computeEntrypoints(
 		}
 	}
 
-	return uniqueEntrypoints, slices.Collect(maps.Keys(encounteredRelations)), nil
+	return uniqueEntrypoints, allEncounteredRelations.AsSlice(), nil
 }
 
 func (rg *DefinitionReachability) getOrBuildGraph(ctx context.Context, resourceType *core.RelationReference, reachabilityOption reachabilityOption) (*core.ReachabilityGraph, error) {
@@ -253,17 +257,17 @@ func (rg *DefinitionReachability) collectEntrypoints(
 	resourceType *core.RelationReference,
 	optionalSubjectType *core.RelationReference,
 	collected *[]ReachabilityEntrypoint,
-	encounteredRelations map[string]struct{},
+	allEncounteredRelations *mapz.Set[string],
+	encounteredRelationsForComputation *mapz.Set[string],
 	reachabilityOption reachabilityOption,
 	entrypointLookupOption entrypointLookupOption,
 ) error {
 	// Ensure that we only process each relation once.
 	key := tuple.JoinRelRef(resourceType.Namespace, resourceType.Relation)
-	if _, ok := encounteredRelations[key]; ok {
+	if !encounteredRelationsForComputation.Add(key) {
 		return nil
 	}
-
-	encounteredRelations[key] = struct{}{}
+	allEncounteredRelations.Add(key)
 
 	rrg, err := rg.getOrBuildGraph(ctx, resourceType, reachabilityOption)
 	if err != nil {
@@ -274,7 +278,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 		// Add subject type entrypoints.
 		subjectTypeEntrypoints, ok := rrg.EntrypointsBySubjectType[optionalSubjectType.Namespace]
 		if ok {
-			addEntrypoints(subjectTypeEntrypoints, resourceType, collected, encounteredRelations)
+			addEntrypoints(subjectTypeEntrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
 		}
 
 		if entrypointLookupOption == entrypointLookupFindOne && len(*collected) > 0 {
@@ -284,7 +288,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 		// Add subject relation entrypoints.
 		subjectRelationEntrypoints, ok := rrg.EntrypointsBySubjectRelation[tuple.JoinRelRef(optionalSubjectType.Namespace, optionalSubjectType.Relation)]
 		if ok {
-			addEntrypoints(subjectRelationEntrypoints, resourceType, collected, encounteredRelations)
+			addEntrypoints(subjectRelationEntrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
 		}
 
 		if entrypointLookupOption == entrypointLookupFindOne && len(*collected) > 0 {
@@ -293,11 +297,11 @@ func (rg *DefinitionReachability) collectEntrypoints(
 	} else {
 		// Add all entrypoints.
 		for _, entrypoints := range rrg.EntrypointsBySubjectType {
-			addEntrypoints(entrypoints, resourceType, collected, encounteredRelations)
+			addEntrypoints(entrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
 		}
 
 		for _, entrypoints := range rrg.EntrypointsBySubjectRelation {
-			addEntrypoints(entrypoints, resourceType, collected, encounteredRelations)
+			addEntrypoints(entrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
 		}
 	}
 
@@ -309,7 +313,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 	for _, entrypointSetKey := range keys {
 		entrypointSet := rrg.EntrypointsBySubjectRelation[entrypointSetKey]
 		if entrypointSet.SubjectRelation != nil && entrypointSet.SubjectRelation.Relation != tuple.Ellipsis {
-			err := rg.collectEntrypoints(ctx, entrypointSet.SubjectRelation, optionalSubjectType, collected, encounteredRelations, reachabilityOption, entrypointLookupOption)
+			err := rg.collectEntrypoints(ctx, entrypointSet.SubjectRelation, optionalSubjectType, collected, allEncounteredRelations, encounteredRelationsForComputation, reachabilityOption, entrypointLookupOption)
 			if err != nil {
 				return err
 			}
@@ -323,13 +327,12 @@ func (rg *DefinitionReachability) collectEntrypoints(
 	return nil
 }
 
-func addEntrypoints(entrypoints *core.ReachabilityEntrypoints, parentRelation *core.RelationReference, collected *[]ReachabilityEntrypoint, encounteredRelations map[string]struct{}) {
+func addEntrypoints(entrypoints *core.ReachabilityEntrypoints, parentRelation *core.RelationReference, collected *[]ReachabilityEntrypoint, allEncounteredRelations *mapz.Set[string], encounteredRelationsForComputation *mapz.Set[string]) {
 	for _, entrypoint := range entrypoints.Entrypoints {
 		if entrypoint.TuplesetRelation != "" {
 			key := tuple.JoinRelRef(entrypoint.TargetRelation.Namespace, entrypoint.TuplesetRelation)
-			encounteredRelations[key] = struct{}{}
+			allEncounteredRelations.Add(key)
 		}
-
 		*collected = append(*collected, ReachabilityEntrypoint{entrypoint, parentRelation})
 	}
 }

@@ -1180,6 +1180,62 @@ func TestReachabilityGraph(t *testing.T) {
 				rrt("document", "view", false),
 			},
 		},
+		{
+			"multiple arrows with same starting point",
+			`definition special_user {}
+
+  definition user {
+  	relation special_user_mapping: special_user
+  	permission special_user = special_user_mapping
+  }
+
+  definition group {
+  	relation member: user
+  	permission membership = member + member->special_user
+  }
+
+  definition system {
+  	relation viewer: user | group#membership
+  	permission view = viewer + viewer->special_user
+  }`,
+			rr("system", "view"),
+			rr("special_user", "..."),
+			[]rrtStruct{
+				rrt("user", "special_user_mapping", true),
+			},
+			[]rrtStruct{
+				rrt("user", "special_user_mapping", true),
+			},
+		},
+		{
+			"multiple arrows with same non-terminal starting point",
+			`definition special_user {}
+
+  definition user {
+  	relation special_user_mapping: special_user
+  	permission special_user = special_user_mapping
+  }
+
+  definition group {
+  	relation member: user
+  	permission membership = member + member->special_user
+  }
+
+  definition system {
+  	relation viewer: user | group#membership
+  	permission view = viewer + viewer->special_user
+  }`,
+			rr("system", "view"),
+			rr("user", "special_user"),
+			[]rrtStruct{
+				rrt("system", "view", true),
+				rrt("group", "membership", true),
+			},
+			[]rrtStruct{
+				rrt("system", "view", true),
+				rrt("group", "membership", true),
+			},
+		},
 	}
 
 	for _, tc := range testCases {

@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -89,7 +90,10 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	} else if r, ok := def.GetRelation(relationName); ok {
 		result, err = b.buildIteratorFromRelation(r, withSubRelations)
 	} else {
-		err = fmt.Errorf("BuildIteratorFromSchema: couldn't find a relation or permission named `%s` in definition `%s`", relationName, definitionName)
+		err = RelationNotFoundError{
+			definitionName: definitionName,
+			relationName:   relationName,
+		}
 	}
 
 	// Remove from building after we're done (allows reuse in other branches)
@@ -284,6 +288,9 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 // buildArrowIterators creates a union of arrow iterators for the given relation and right-hand side
 func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
 	union := NewUnion()
+	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
+	var lastNotFoundError error
+
 	for _, br := range rel.BaseRelations() {
 		left, err := b.buildBaseRelationIterator(br, false)
 		if err != nil {
@@ -291,17 +298,37 @@ func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide st
 		}
 		right, err := b.buildIteratorFromSchemaInternal(br.Type(), rightSide, false)
 		if err != nil {
+			// If the right side doesn't exist on this type, the arrow produces an empty set.
+			// This is valid when a relation has multiple types and the arrow only
+			// applies to some of them. If there's only one base relation, we should error.
+			if errors.As(err, &RelationNotFoundError{}) {
+				if hasMultipleBaseRelations {
+					union.addSubIterator(NewEmptyFixedIterator())
+					continue
+				}
+				lastNotFoundError = err
+				continue
+			}
 			return nil, err
 		}
 		arrow := NewArrow(left, right)
 		union.addSubIterator(arrow)
 	}
+
+	// If we have no sub-iterators and only have a not-found error, return that error
+	if len(union.Subiterators()) == 0 && lastNotFoundError != nil {
+		return nil, lastNotFoundError
+	}
+
 	return union, nil
 }
 
 // buildIntersectionArrowIterators creates a union of intersection arrow iterators for the given relation and right-hand side
 func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
 	union := NewUnion()
+	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
+	var lastNotFoundError error
+
 	for _, br := range rel.BaseRelations() {
 		left, err := b.buildBaseRelationIterator(br, false)
 		if err != nil {
@@ -309,11 +336,28 @@ func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, 
 		}
 		right, err := b.buildIteratorFromSchemaInternal(br.Type(), rightSide, false)
 		if err != nil {
+			// If the right side doesn't exist on this type, the intersection arrow produces an empty set.
+			// This is valid when a relation has multiple types and the arrow only
+			// applies to some of them. If there's only one base relation, we should error.
+			if errors.As(err, &RelationNotFoundError{}) {
+				if hasMultipleBaseRelations {
+					union.addSubIterator(NewEmptyFixedIterator())
+					continue
+				}
+				lastNotFoundError = err
+				continue
+			}
 			return nil, err
 		}
 		intersectionArrow := NewIntersectionArrow(left, right)
 		union.addSubIterator(intersectionArrow)
 	}
+
+	// If we have no sub-iterators and only have a not-found error, return that error
+	if len(union.Subiterators()) == 0 && lastNotFoundError != nil {
+		return nil, lastNotFoundError
+	}
+
 	return union, nil
 }
 
@@ -326,4 +370,14 @@ func functionTypeString(ft schema.FunctionType) string {
 	default:
 		return "unknown"
 	}
+}
+
+// RelationNotFoundError is returned when a relation or permission is not found in a definition
+type RelationNotFoundError struct {
+	definitionName string
+	relationName   string
+}
+
+func (e RelationNotFoundError) Error() string {
+	return fmt.Sprintf("BuildIteratorFromSchema: couldn't find a relation or permission named `%s` in definition `%s`", e.relationName, e.definitionName)
 }
