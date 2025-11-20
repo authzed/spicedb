@@ -11,7 +11,7 @@ WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 RUN git clone https://github.com/authzed/grpc-health-probe.git
 WORKDIR /go/src/app/grpc-health-probe
-RUN git checkout master
+RUN git checkout main
 RUN CGO_ENABLED=0 go install -a -tags netgo -ldflags=-w
 
 # use `crane digest <image>` to get the multi-platform sha256
