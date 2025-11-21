@@ -24,11 +24,12 @@ import (
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	dispatchmocks "github.com/authzed/spicedb/internal/dispatch/mocks"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
-	"github.com/authzed/spicedb/internal/mocks"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	dsmocks "github.com/authzed/spicedb/pkg/datastore/mocks"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -643,8 +644,8 @@ func TestBuildDispatchServer(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockDatastore := mocks.NewMockDatastore(ctrl)
-			mockDispatcher := mocks.NewMockDispatcher(ctrl)
+			mockDatastore := dsmocks.NewMockDatastore(ctrl)
+			mockDispatcher := dispatchmocks.NewMockDispatcher(ctrl)
 
 			closeables := closeableStack{}
 			t.Cleanup(func() {
