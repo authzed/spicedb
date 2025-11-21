@@ -309,15 +309,15 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareMemoryProtection).
 			WithInterceptor(selector.UnaryServerInterceptor(
-				memoryProtectionUnaryInterceptor.UnaryServerInterceptor(),
-				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
-			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm).         // so that prom middleware reports OOM status
+										memoryProtectionUnaryInterceptor.UnaryServerInterceptor(),
+										selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports OOM status
 			Done(),
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCAuth).
 			WithInterceptor(grpcauth.UnaryServerInterceptor(opts.AuthFunc)).
-			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm).         // so that prom middleware reports auth failures
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports auth failures
 			Done(),
 
 		NewUnaryMiddleware().
@@ -384,13 +384,13 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareMemoryProtection).
 			WithInterceptor(memoryProtectionStreamInterceptor.StreamServerInterceptor()).
-			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm).         // so that prom middleware reports OOM backpressure
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports OOM backpressure
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCAuth).
 			WithInterceptor(grpcauth.StreamServerInterceptor(opts.AuthFunc)).
-			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm).         // so that prom middleware reports auth failures
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports auth failures
 			Done(),
 
 		NewStreamMiddleware().
