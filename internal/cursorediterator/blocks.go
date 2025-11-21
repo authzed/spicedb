@@ -349,10 +349,11 @@ type HoldForMappingComplete[K any, C any] struct{}
 
 func (HoldForMappingComplete[K, C]) chunkOrHold() {}
 
-// producerChunk is a struct that holds a chunk of items or indicates that the chunking has completed.
+// producerChunkOrError is a struct that holds a chunk of items or an error or indicates that the chunking has completed.
 type producerChunkOrError[P any, C any, I any] struct {
 	producerCompleted bool
 
+	err                     error
 	chunkAndCursor          Chunk[P, C]
 	mappedResultChan        chan mapperResultOrError[I, C]
 	wereMappingsYieldedChan chan bool
@@ -460,7 +461,6 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 	}
 
 	orderedProducerChunks := make(chan *producerChunkOrError[P, C, I], producerChunksBufferSize)
-	producerErrChan := make(chan error, 1)
 
 	// Helper function to check if a chunk is HoldForMappingComplete
 	isHoldForMappingComplete := func(chunk ChunkOrHold[P, C]) bool {
@@ -486,14 +486,14 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 		}
 	}
 
-	producerFunc := func(ctx context.Context) {
+	producerFunc := func(ctx context.Context) error {
 		var precedingConcreteChunk *producerChunkOrError[P, C, I]
 		chunkRemainingCursor := remainingCursor
 
 		for p, err := range producer(ctx, headValue, remainingCursor) {
 			if err != nil {
-				producerErrChan <- err
-				return
+				orderedProducerChunks <- &producerChunkOrError[P, C, I]{err: err}
+				return nil
 			}
 
 			// If a HoldForMappingComplete is yielded, we need to wait for the *mapper* to complete
@@ -502,14 +502,13 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 				if precedingConcreteChunk == nil {
 					// This is an error state: we cannot yield a HoldForMappingComplete
 					// before yielding any chunks. We should return an error to the caller.
-					producerErrChan <- spiceerrors.MustBugf("HoldForMappingComplete cannot be yielded before any chunks")
-					return
+					orderedProducerChunks <- &producerChunkOrError[P, C, I]{err: spiceerrors.MustBugf("HoldForMappingComplete cannot be yielded before any chunks")}
+					return nil
 				}
 
 				select {
 				case <-ctx.Done():
-					producerErrChan <- ctx.Err()
-					return
+					return ctx.Err()
 
 				case <-precedingConcreteChunk.wereMappingsYieldedChan:
 					precedingConcreteChunk = nil
@@ -527,8 +526,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 			select {
 			case <-ctx.Done():
-				producerErrChan <- ctx.Err()
-				return
+				return ctx.Err()
 
 			case orderedProducerChunks <- chunk:
 				// Continue processing chunks.
@@ -550,11 +548,11 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 		select {
 		case <-ctx.Done():
-			producerErrChan <- ctx.Err()
-			return
+			return ctx.Err()
 
 		case orderedProducerChunks <- chunk:
 			// Send the completion signal.
+			return nil
 		}
 	}
 
@@ -563,8 +561,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 		// Start the producer.
 		tr.Schedule(func(ctx context.Context) error {
-			producerFunc(ctx)
-			return nil
+			return producerFunc(ctx)
 		})
 
 		for {
@@ -573,11 +570,11 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 				_ = yield(ItemAndCursor[I]{}, ctx.Err())
 				return
 
-			case err := <-producerErrChan:
-				_ = yield(ItemAndCursor[I]{}, err)
-				return
-
 			case chunk := <-orderedProducerChunks:
+				if chunk.err != nil {
+					_ = yield(ItemAndCursor[I]{}, chunk.err)
+					return
+				}
 				if chunk.producerCompleted {
 					return
 				}
@@ -590,6 +587,9 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 				select {
 				case <-ctx.Done():
+					// If we cancel, we wait for the taskrunner to complete
+					// so that there are no hanging goroutines.
+					_ = tr.Wait()
 					_ = yield(ItemAndCursor[I]{}, ctx.Err())
 					return
 
