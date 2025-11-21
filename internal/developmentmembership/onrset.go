@@ -1,9 +1,8 @@
 package developmentmembership
 
 import (
-	"github.com/ccoveille/go-safecast/v2"
-
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -26,11 +25,7 @@ func NewONRSet(onrs ...tuple.ObjectAndRelation) ONRSet {
 // Length returns the size of the set.
 func (ons ONRSet) Length() uint64 {
 	// This is the length of a set so we should never fall out of bounds.
-	length, err := safecast.Convert[uint64](ons.onrs.Len())
-	if err != nil {
-		return 0
-	}
-	return length
+	return spiceerrors.MustSafecast[uint64](ons.onrs.Len())
 }
 
 // IsEmpty returns whether the set is empty.
