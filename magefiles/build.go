@@ -13,8 +13,7 @@ type Build mg.Namespace
 
 // Binary builds the binary
 func (Build) Binary() error {
-	return sh.RunWithV(
-		map[string]string{},
+	return sh.RunV(
 		"go", "build",
 		"-ldflags", "-checklinkname=0", // https://github.com/odigos-io/go-rtml#about-ldflags-checklinkname0
 		"-o", "./dist",
