@@ -1,3 +1,4 @@
+---
 schema: |+
   definition special_user {}
 
@@ -25,6 +26,6 @@ relationships: |-
   user:someuser1#special_user_mapping@special_user:specialuser
 assertions:
   assertTrue:
-    - system:somesystem#view@special_user:specialuser
+    - "system:somesystem#view@special_user:specialuser"
   assertFalse: []
 validation: {}
