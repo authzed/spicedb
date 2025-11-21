@@ -54,15 +54,21 @@ func (tr *PreloadedTaskRunner) Start() {
 	}
 }
 
-// StartAndWait starts running the tasks in the task runner and waits for them to complete.
-func (tr *PreloadedTaskRunner) StartAndWait() error {
-	tr.Start()
+// Wait calls .Wait() on the underlying waitgroup, allowing for e.g.
+// cleanup of existing tasks to happen.
+func (tr *PreloadedTaskRunner) Wait() error {
 	tr.wg.Wait()
 
 	tr.lock.Lock()
 	defer tr.lock.Unlock()
 
 	return tr.err
+}
+
+// StartAndWait starts running the tasks in the task runner and waits for them to complete.
+func (tr *PreloadedTaskRunner) StartAndWait() error {
+	tr.Start()
+	return tr.Wait()
 }
 
 func (tr *PreloadedTaskRunner) spawnIfAvailable() {

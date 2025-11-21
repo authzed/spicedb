@@ -146,6 +146,7 @@ func CursoredWithIntegerHeader[I any](
 // item is a struct that holds an item or an error.
 type item[I any] struct {
 	itemAndCursor ItemAndCursor[I]
+	err           error
 	completed     bool
 }
 
@@ -239,15 +240,11 @@ func CursoredParallelIterators[I any](
 
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrency, len(itersToRun))
 	collectors := make([]chan item[I], len(itersToRun))
-	errChannels := make([]chan error, len(itersToRun))
 	for i, iter := range itersToRun {
 		i := i
 		iter := iter
 		collector := make(chan item[I], parallelIteratorResultsBufferSize)
 		collectors[i] = collector
-
-		errChannel := make(chan error, 1)
-		errChannels[i] = errChannel
 
 		// If not the first iterator being executed by this invocation, then we set
 		// the remaining Cursor to nil, as it cannot apply to subsequent iterators,
@@ -260,17 +257,17 @@ func CursoredParallelIterators[I any](
 
 		tr.Add(func(ctx context.Context) error {
 			for r, err := range iter(ctx, iteratorRemainingCursor) {
-				if err != nil {
-					errChannel <- err
-					return nil
-				}
-
 				select {
 				case <-ctx.Done():
-					errChannel <- ctx.Err()
-					return nil
+					return ctx.Err()
 
-				case collector <- item[I]{r, false}:
+				// Propagate the result and the error up to the collector
+				case collector <- item[I]{r, err, false}:
+					if err != nil {
+						// Stop processing if an error was encountered
+						return nil
+					}
+					// Otherwise continue
 					continue
 				}
 			}
@@ -290,19 +287,23 @@ func CursoredParallelIterators[I any](
 	parent:
 		for collectorOffsetIndex := range collectors {
 			collector := collectors[collectorOffsetIndex]
-			errChannel := errChannels[collectorOffsetIndex]
 
 			for {
 				select {
 				case <-ctx.Done():
+					// Wait for taskrunner tasks to complete, so that
+					// we tear down producers to the collector channels
+					// before we tear down the consumer
+					_ = tr.Wait()
 					_ = yield(ItemAndCursor[I]{}, ctx.Err())
 					return
 
-				case err := <-errChannel:
-					_ = yield(ItemAndCursor[I]{}, err)
-					return
-
 				case r := <-collector:
+					if r.err != nil {
+						_ = yield(ItemAndCursor[I]{}, r.err)
+						return
+					}
+
 					if r.completed {
 						continue parent
 					}
