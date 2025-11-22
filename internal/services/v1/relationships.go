@@ -106,6 +106,9 @@ type PermissionsServerConfig struct {
 	// ExpiringRelationshipsEnabled defines whether or not expiring relationships are enabled.
 	ExpiringRelationshipsEnabled bool
 
+	// DeprecatedRelationshipsEnabled defines whether or not deprecated relationships are enabled.
+	DeprecatedRelationshipsAndObjectsEnabled bool
+
 	// CaveatTypeSet is the set of caveat types to use for caveats. If not specified,
 	// the default type set is used.
 	CaveatTypeSet *caveattypes.TypeSet
@@ -126,24 +129,25 @@ func NewPermissionsServer(
 	config PermissionsServerConfig,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
-		MaxPreconditionsCount:              defaultIfZero(config.MaxPreconditionsCount, 1000),
-		MaxUpdatesPerWrite:                 defaultIfZero(config.MaxUpdatesPerWrite, 1000),
-		MaximumAPIDepth:                    defaultIfZero(config.MaximumAPIDepth, 50),
-		StreamingAPITimeout:                defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:               defaultIfZero(config.MaxCaveatContextSize, 4096),
-		MaxRelationshipContextSize:         defaultIfZero(config.MaxRelationshipContextSize, 25_000),
-		MaxDatastoreReadPageSize:           defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
-		MaxReadRelationshipsLimit:          defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
-		MaxDeleteRelationshipsLimit:        defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
-		MaxLookupResourcesLimit:            defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
-		MaxBulkExportRelationshipsLimit:    defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
-		DispatchChunkSize:                  defaultIfZero(config.DispatchChunkSize, 100),
-		MaxCheckBulkConcurrency:            defaultIfZero(config.MaxCheckBulkConcurrency, 50),
-		CaveatTypeSet:                      caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
-		ExpiringRelationshipsEnabled:       config.ExpiringRelationshipsEnabled,
-		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
-		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
-		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
+		MaxPreconditionsCount:                    defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:                       defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:                          defaultIfZero(config.MaximumAPIDepth, 50),
+		StreamingAPITimeout:                      defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:                     defaultIfZero(config.MaxCaveatContextSize, 4096),
+		MaxRelationshipContextSize:               defaultIfZero(config.MaxRelationshipContextSize, 25_000),
+		MaxDatastoreReadPageSize:                 defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
+		MaxReadRelationshipsLimit:                defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
+		MaxDeleteRelationshipsLimit:              defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
+		MaxLookupResourcesLimit:                  defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
+		MaxBulkExportRelationshipsLimit:          defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
+		DispatchChunkSize:                        defaultIfZero(config.DispatchChunkSize, 100),
+		MaxCheckBulkConcurrency:                  defaultIfZero(config.MaxCheckBulkConcurrency, 50),
+		CaveatTypeSet:                            caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
+		ExpiringRelationshipsEnabled:             config.ExpiringRelationshipsEnabled,
+		PerformanceInsightMetricsEnabled:         config.PerformanceInsightMetricsEnabled,
+		EnableExperimentalLookupResources3:       config.EnableExperimentalLookupResources3,
+		ExperimentalQueryPlan:                    config.ExperimentalQueryPlan,
+		DeprecatedRelationshipsAndObjectsEnabled: config.DeprecatedRelationshipsAndObjectsEnabled,
 	}
 
 	return &permissionServer{
@@ -346,6 +350,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
 		// TODO(jschorr): Change to struct-based keys.
+
 		tupleStr := tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
 			return nil, ps.rewriteError(
