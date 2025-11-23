@@ -55,7 +55,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {
 				nsDef := nsDef
-				t.Run("namespace "+nsDef.Name, func(t *testing.T) {
+				t.Run("namespace "+nsDef.GetName(), func(t *testing.T) {
 					serialized, _ := nsDef.MarshalVT()
 					sizevt := nsDef.SizeVT()
 					estimated := estimatedNamespaceDefinitionSize(sizevt)
@@ -91,7 +91,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 
 			for _, caveatDef := range fullyResolved.CaveatDefinitions {
 				caveatDef := caveatDef
-				t.Run("caveat "+caveatDef.Name, func(t *testing.T) {
+				t.Run("caveat "+caveatDef.GetName(), func(t *testing.T) {
 					t.Parallel()
 
 					serialized, _ := caveatDef.MarshalVT()

@@ -120,9 +120,9 @@ func TestDiscoverTimeseries(t *testing.T) {
 	require.Len(t, ts, 2)
 
 	for _, timeSeries := range ts {
-		require.NotEmpty(t, timeSeries.Labels)
-		require.Len(t, timeSeries.Samples, 1)
-		require.NotZero(t, timeSeries.Samples[0].Timestamp)
+		require.NotEmpty(t, timeSeries.GetLabels())
+		require.Len(t, timeSeries.GetSamples(), 1)
+		require.NotZero(t, timeSeries.GetSamples()[0].GetTimestamp())
 	}
 }
 
@@ -361,12 +361,12 @@ func TestConvertLabels(t *testing.T) {
 			// Convert to map for easier comparison since order might vary
 			resultMap := make(map[string]string)
 			for _, label := range result {
-				resultMap[label.Name] = label.Value
+				resultMap[label.GetName()] = label.GetValue()
 			}
 
 			expectedMap := make(map[string]string)
 			for _, label := range tt.expected {
-				expectedMap[label.Name] = label.Value
+				expectedMap[label.GetName()] = label.GetValue()
 			}
 
 			require.Equal(t, expectedMap, resultMap)

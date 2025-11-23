@@ -61,10 +61,10 @@ func (ps *permissionServer) rewriteErrorWithOptionalDebugTrace(ctx context.Conte
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
-			perfinsights.ResourceRelationLabel: req.Permission,
-			perfinsights.SubjectTypeLabel:      req.Subject.Object.ObjectType,
-			perfinsights.SubjectRelationLabel:  req.Subject.OptionalRelation,
+			perfinsights.ResourceTypeLabel:     req.GetResource().GetObjectType(),
+			perfinsights.ResourceRelationLabel: req.GetPermission(),
+			perfinsights.SubjectTypeLabel:      req.GetSubject().GetObject().GetObjectType(),
+			perfinsights.SubjectRelationLabel:  req.GetSubject().GetOptionalRelation(),
 		}
 	})
 
@@ -81,7 +81,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	caveatContext, err := GetCaveatContext(ctx, req.GetContext(), ps.config.MaxCaveatContextSize)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -89,13 +89,13 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	if err := namespace.CheckNamespaceAndRelations(ctx,
 		[]namespace.TypeAndRelationToCheck{
 			{
-				NamespaceName: req.Resource.ObjectType,
-				RelationName:  req.Permission,
+				NamespaceName: req.GetResource().GetObjectType(),
+				RelationName:  req.GetPermission(),
 				AllowEllipsis: false,
 			},
 			{
-				NamespaceName: req.Subject.Object.ObjectType,
-				RelationName:  normalizeSubjectRelation(req.Subject),
+				NamespaceName: req.GetSubject().GetObject().GetObjectType(),
+				RelationName:  normalizeSubjectRelation(req.GetSubject()),
 				AllowEllipsis: true,
 			},
 		}, ds); err != nil {
@@ -111,29 +111,29 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		}
 	}
 
-	if req.WithTracing {
+	if req.GetWithTracing() {
 		debugOption = computed.BasicDebuggingEnabled
 	}
 
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
 		ps.config.CaveatTypeSet,
 		computed.CheckParameters{
-			ResourceType:  tuple.RR(req.Resource.ObjectType, req.Permission),
-			Subject:       tuple.ONR(req.Subject.Object.ObjectType, req.Subject.Object.ObjectId, normalizeSubjectRelation(req.Subject)),
+			ResourceType:  tuple.RR(req.GetResource().GetObjectType(), req.GetPermission()),
+			Subject:       tuple.ONR(req.GetSubject().GetObject().GetObjectType(), req.GetSubject().GetObject().GetObjectId(), normalizeSubjectRelation(req.GetSubject())),
 			CaveatContext: caveatContext,
 			AtRevision:    atRevision,
 			MaximumDepth:  ps.config.MaximumAPIDepth,
 			DebugOption:   debugOption,
 		},
-		req.Resource.ObjectId,
+		req.GetResource().GetObjectId(),
 		ps.config.DispatchChunkSize,
 	)
 	usagemetrics.SetInContext(ctx, metadata)
 
 	var debugTrace *v1.DebugInformation
-	if debugOption != computed.NoDebugging && metadata.DebugInfo != nil {
+	if debugOption != computed.NoDebugging && metadata.GetDebugInfo() != nil {
 		// Convert the dispatch debug information into API debug information.
-		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, metadata.DebugInfo, ds)
+		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, metadata.GetDebugInfo(), ds)
 		if cerr != nil {
 			return nil, ps.rewriteError(ctx, cerr)
 		}
@@ -171,13 +171,13 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermissionResponse_Permissionship, *v1.PartialCaveatInfo) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
-	switch cr.Membership {
+	switch cr.GetMembership() {
 	case dispatch.ResourceCheckResult_MEMBER:
 		permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
 	case dispatch.ResourceCheckResult_CAVEATED_MEMBER:
 		permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 		partialCaveat = &v1.PartialCaveatInfo{
-			MissingRequiredContext: cr.MissingExprFields,
+			MissingRequiredContext: cr.GetMissingExprFields(),
 		}
 	}
 	return permissionship, partialCaveat
@@ -234,8 +234,8 @@ func requestItemFromResourceAndParameters(params *computed.CheckParameters, reso
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
-			perfinsights.ResourceRelationLabel: req.Permission,
+			perfinsights.ResourceTypeLabel:     req.GetResource().GetObjectType(),
+			perfinsights.ResourceRelationLabel: req.GetPermission(),
 		}
 	})
 
@@ -248,7 +248,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	err = namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
+	err = namespace.CheckNamespaceAndRelation(ctx, req.GetResource().GetObjectType(), req.GetPermission(), false, ds)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -265,13 +265,13 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 			TraversalBloom: bf,
 		},
 		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: req.Resource.ObjectType,
-			ObjectId:  req.Resource.ObjectId,
-			Relation:  req.Permission,
+			Namespace: req.GetResource().GetObjectType(),
+			ObjectId:  req.GetResource().GetObjectId(),
+			Relation:  req.GetPermission(),
 		},
 		ExpansionMode: dispatch.DispatchExpandRequest_SHALLOW,
 	})
-	usagemetrics.SetInContext(ctx, resp.Metadata)
+	usagemetrics.SetInContext(ctx, resp.GetMetadata())
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -279,7 +279,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	// TODO(jschorr): Change to either using shared interfaces for nodes, or switch the internal
 	// dispatched expand to return V1 node types.
 	return &v1.ExpandPermissionTreeResponse{
-		TreeRoot:   TranslateExpansionTree(resp.TreeNode),
+		TreeRoot:   TranslateExpansionTree(resp.GetTreeNode()),
 		ExpandedAt: expandedAt,
 	}, nil
 }
@@ -287,18 +287,18 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 // TranslateRelationshipTree translates a V1 PermissionRelationshipTree into a RelationTupleTreeNode.
 func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.RelationTupleTreeNode {
 	var expanded *core.ObjectAndRelation
-	if tree.ExpandedObject != nil {
+	if tree.GetExpandedObject() != nil {
 		expanded = &core.ObjectAndRelation{
-			Namespace: tree.ExpandedObject.ObjectType,
-			ObjectId:  tree.ExpandedObject.ObjectId,
-			Relation:  tree.ExpandedRelation,
+			Namespace: tree.GetExpandedObject().GetObjectType(),
+			ObjectId:  tree.GetExpandedObject().GetObjectId(),
+			Relation:  tree.GetExpandedRelation(),
 		}
 	}
 
-	switch t := tree.TreeType.(type) {
+	switch t := tree.GetTreeType().(type) {
 	case *v1.PermissionRelationshipTree_Intermediate:
 		var operation core.SetOperationUserset_Operation
-		switch t.Intermediate.Operation {
+		switch t.Intermediate.GetOperation() {
 		case v1.AlgebraicSubjectSet_OPERATION_EXCLUSION:
 			operation = core.SetOperationUserset_EXCLUSION
 		case v1.AlgebraicSubjectSet_OPERATION_INTERSECTION:
@@ -310,7 +310,7 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.Relati
 		}
 
 		children := []*core.RelationTupleTreeNode{}
-		for _, child := range t.Intermediate.Children {
+		for _, child := range t.Intermediate.GetChildren() {
 			children = append(children, TranslateRelationshipTree(child))
 		}
 
@@ -326,12 +326,12 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.Relati
 
 	case *v1.PermissionRelationshipTree_Leaf:
 		var subjects []*core.DirectSubject
-		for _, subj := range t.Leaf.Subjects {
+		for _, subj := range t.Leaf.GetSubjects() {
 			subjects = append(subjects, &core.DirectSubject{
 				Subject: &core.ObjectAndRelation{
-					Namespace: subj.Object.ObjectType,
-					ObjectId:  subj.Object.ObjectId,
-					Relation:  cmp.Or(subj.OptionalRelation, graph.Ellipsis),
+					Namespace: subj.GetObject().GetObjectType(),
+					ObjectId:  subj.GetObject().GetObjectId(),
+					Relation:  cmp.Or(subj.GetOptionalRelation(), graph.Ellipsis),
 				},
 			})
 		}
@@ -349,10 +349,10 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.Relati
 }
 
 func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRelationshipTree {
-	switch t := node.NodeType.(type) {
+	switch t := node.GetNodeType().(type) {
 	case *core.RelationTupleTreeNode_IntermediateNode:
 		var operation v1.AlgebraicSubjectSet_Operation
-		switch t.IntermediateNode.Operation {
+		switch t.IntermediateNode.GetOperation() {
 		case core.SetOperationUserset_EXCLUSION:
 			operation = v1.AlgebraicSubjectSet_OPERATION_EXCLUSION
 		case core.SetOperationUserset_INTERSECTION:
@@ -364,18 +364,18 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 		}
 
 		var children []*v1.PermissionRelationshipTree
-		for _, child := range node.GetIntermediateNode().ChildNodes {
+		for _, child := range node.GetIntermediateNode().GetChildNodes() {
 			children = append(children, TranslateExpansionTree(child))
 		}
 
 		var objRef *v1.ObjectReference
 		var objRel string
-		if node.Expanded != nil {
+		if node.GetExpanded() != nil {
 			objRef = &v1.ObjectReference{
-				ObjectType: node.Expanded.Namespace,
-				ObjectId:   node.Expanded.ObjectId,
+				ObjectType: node.GetExpanded().GetNamespace(),
+				ObjectId:   node.GetExpanded().GetObjectId(),
 			}
-			objRel = node.Expanded.Relation
+			objRel = node.GetExpanded().GetRelation()
 		}
 
 		return &v1.PermissionRelationshipTree{
@@ -391,17 +391,17 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 
 	case *core.RelationTupleTreeNode_LeafNode:
 		var subjects []*v1.SubjectReference
-		for _, found := range t.LeafNode.Subjects {
+		for _, found := range t.LeafNode.GetSubjects() {
 			subjects = append(subjects, &v1.SubjectReference{
 				Object: &v1.ObjectReference{
-					ObjectType: found.Subject.Namespace,
-					ObjectId:   found.Subject.ObjectId,
+					ObjectType: found.GetSubject().GetNamespace(),
+					ObjectId:   found.GetSubject().GetObjectId(),
 				},
-				OptionalRelation: denormalizeSubjectRelation(found.Subject.Relation),
+				OptionalRelation: denormalizeSubjectRelation(found.GetSubject().GetRelation()),
 			})
 		}
 
-		if node.Expanded == nil {
+		if node.GetExpanded() == nil {
 			return &v1.PermissionRelationshipTree{
 				TreeType: &v1.PermissionRelationshipTree_Leaf{
 					Leaf: &v1.DirectSubjectSet{
@@ -418,10 +418,10 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 				},
 			},
 			ExpandedObject: &v1.ObjectReference{
-				ObjectType: node.Expanded.Namespace,
-				ObjectId:   node.Expanded.ObjectId,
+				ObjectType: node.GetExpanded().GetNamespace(),
+				ObjectId:   node.GetExpanded().GetObjectId(),
 			},
-			ExpandedRelation: node.Expanded.Relation,
+			ExpandedRelation: node.GetExpanded().GetRelation(),
 		}
 
 	default:
@@ -437,15 +437,15 @@ const (
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     req.ResourceObjectType,
-			perfinsights.ResourceRelationLabel: req.Permission,
-			perfinsights.SubjectTypeLabel:      req.Subject.Object.ObjectType,
-			perfinsights.SubjectRelationLabel:  req.Subject.OptionalRelation,
+			perfinsights.ResourceTypeLabel:     req.GetResourceObjectType(),
+			perfinsights.ResourceRelationLabel: req.GetPermission(),
+			perfinsights.SubjectTypeLabel:      req.GetSubject().GetObject().GetObjectType(),
+			perfinsights.SubjectRelationLabel:  req.GetSubject().GetOptionalRelation(),
 		}
 	})
 
-	if req.OptionalCursor != nil {
-		_, isLR3, err := cursor.GetCursorFlag(req.OptionalCursor, lrv3CursorFlag)
+	if req.GetOptionalCursor() != nil {
+		_, isLR3, err := cursor.GetCursorFlag(req.GetOptionalCursor(), lrv3CursorFlag)
 		if err != nil {
 			return ps.rewriteError(resp.Context(), err)
 		}
@@ -454,7 +454,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			return ps.lookupResources3(req, resp)
 		}
 
-		_, isLR2, err := cursor.GetCursorFlag(req.OptionalCursor, lrv2CursorFlag)
+		_, isLR2, err := cursor.GetCursorFlag(req.GetOptionalCursor(), lrv2CursorFlag)
 		if err != nil {
 			return ps.rewriteError(resp.Context(), err)
 		}
@@ -472,8 +472,8 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 }
 
 func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
-	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
-		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
+	if req.GetOptionalLimit() > 0 && req.GetOptionalLimit() > ps.config.MaxLookupResourcesLimit {
+		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.GetOptionalLimit()), uint64(ps.config.MaxLookupResourcesLimit)))
 	}
 
 	ctx := resp.Context()
@@ -488,13 +488,13 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	if err := namespace.CheckNamespaceAndRelations(ctx,
 		[]namespace.TypeAndRelationToCheck{
 			{
-				NamespaceName: req.ResourceObjectType,
-				RelationName:  req.Permission,
+				NamespaceName: req.GetResourceObjectType(),
+				RelationName:  req.GetPermission(),
 				AllowEllipsis: false,
 			},
 			{
-				NamespaceName: req.Subject.Object.ObjectType,
-				RelationName:  normalizeSubjectRelation(req.Subject),
+				NamespaceName: req.GetSubject().GetObject().GetObjectType(),
+				RelationName:  normalizeSubjectRelation(req.GetSubject()),
 				AllowEllipsis: true,
 			},
 		}, ds); err != nil {
@@ -516,12 +516,12 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		return ps.rewriteError(ctx, err)
 	}
 
-	if req.OptionalCursor != nil {
-		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
+	if req.GetOptionalCursor() != nil {
+		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.GetOptionalCursor(), lrRequestHash)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
-		currentCursor = decodedCursor.Sections
+		currentCursor = decodedCursor.GetSections()
 	}
 
 	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
@@ -531,27 +531,27 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources3Response) error {
-		for _, item := range result.Items {
+		for _, item := range result.GetItems() {
 			var partial *v1.PartialCaveatInfo
 			permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
-			if len(item.MissingContextParams) > 0 {
+			if len(item.GetMissingContextParams()) > 0 {
 				permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 				partial = &v1.PartialCaveatInfo{
-					MissingRequiredContext: item.MissingContextParams,
+					MissingRequiredContext: item.GetMissingContextParams(),
 				}
-			} else if req.OptionalLimit == 0 {
-				if _, ok := alreadyPublishedPermissionedResourceIds[item.ResourceId]; ok {
+			} else if req.GetOptionalLimit() == 0 {
+				if _, ok := alreadyPublishedPermissionedResourceIds[item.GetResourceId()]; ok {
 					// Skip publishing the duplicate.
 					continue
 				}
 
 				// TODO(jschorr): Investigate something like a Trie here for better memory efficiency.
-				alreadyPublishedPermissionedResourceIds[item.ResourceId] = struct{}{}
+				alreadyPublishedPermissionedResourceIds[item.GetResourceId()] = struct{}{}
 			}
 
 			var encodedCursor *v1.Cursor
-			if len(item.AfterResponseCursorSections) > 0 {
-				currentCursor = item.AfterResponseCursorSections
+			if len(item.GetAfterResponseCursorSections()) > 0 {
+				currentCursor = item.GetAfterResponseCursorSections()
 
 				ec, err := cursor.EncodeFromDispatchCursorSections(currentCursor, lrRequestHash, atRevision, map[string]string{
 					lrv3CursorFlag: "1",
@@ -564,7 +564,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 
 			err = resp.Send(&v1.LookupResourcesResponse{
 				LookedUpAt:        revisionReadAt,
-				ResourceObjectId:  item.ResourceId,
+				ResourceObjectId:  item.GetResourceId(),
 				Permissionship:    permissionship,
 				PartialCaveatInfo: partial,
 				AfterResultCursor: encodedCursor,
@@ -592,22 +592,22 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				TraversalBloom: bf,
 			},
 			ResourceRelation: &core.RelationReference{
-				Namespace: req.ResourceObjectType,
-				Relation:  req.Permission,
+				Namespace: req.GetResourceObjectType(),
+				Relation:  req.GetPermission(),
 			},
 			SubjectRelation: &core.RelationReference{
-				Namespace: req.Subject.Object.ObjectType,
-				Relation:  normalizeSubjectRelation(req.Subject),
+				Namespace: req.GetSubject().GetObject().GetObjectType(),
+				Relation:  normalizeSubjectRelation(req.GetSubject()),
 			},
-			SubjectIds: []string{req.Subject.Object.ObjectId},
+			SubjectIds: []string{req.GetSubject().GetObject().GetObjectId()},
 			TerminalSubject: &core.ObjectAndRelation{
-				Namespace: req.Subject.Object.ObjectType,
-				ObjectId:  req.Subject.Object.ObjectId,
-				Relation:  normalizeSubjectRelation(req.Subject),
+				Namespace: req.GetSubject().GetObject().GetObjectType(),
+				ObjectId:  req.GetSubject().GetObject().GetObjectId(),
+				Relation:  normalizeSubjectRelation(req.GetSubject()),
 			},
-			Context:        req.Context,
+			Context:        req.GetContext(),
 			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			OptionalLimit:  req.GetOptionalLimit(),
 		},
 		stream)
 	if err != nil {
@@ -618,8 +618,8 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 }
 
 func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
-	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
-		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
+	if req.GetOptionalLimit() > 0 && req.GetOptionalLimit() > ps.config.MaxLookupResourcesLimit {
+		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.GetOptionalLimit()), uint64(ps.config.MaxLookupResourcesLimit)))
 	}
 
 	ctx := resp.Context()
@@ -634,13 +634,13 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	if err := namespace.CheckNamespaceAndRelations(ctx,
 		[]namespace.TypeAndRelationToCheck{
 			{
-				NamespaceName: req.ResourceObjectType,
-				RelationName:  req.Permission,
+				NamespaceName: req.GetResourceObjectType(),
+				RelationName:  req.GetPermission(),
 				AllowEllipsis: false,
 			},
 			{
-				NamespaceName: req.Subject.Object.ObjectType,
-				RelationName:  normalizeSubjectRelation(req.Subject),
+				NamespaceName: req.GetSubject().GetObject().GetObjectType(),
+				RelationName:  normalizeSubjectRelation(req.GetSubject()),
 				AllowEllipsis: true,
 			},
 		}, ds); err != nil {
@@ -662,8 +662,8 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		return ps.rewriteError(ctx, err)
 	}
 
-	if req.OptionalCursor != nil {
-		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
+	if req.GetOptionalCursor() != nil {
+		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.GetOptionalCursor(), lrRequestHash)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -677,29 +677,29 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources2Response) error {
-		found := result.Resource
+		found := result.GetResource()
 
-		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
-		currentCursor = result.AfterResponseCursor
+		dispatchpkg.AddResponseMetadata(respMetadata, result.GetMetadata())
+		currentCursor = result.GetAfterResponseCursor()
 
 		var partial *v1.PartialCaveatInfo
 		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
-		if len(found.MissingContextParams) > 0 {
+		if len(found.GetMissingContextParams()) > 0 {
 			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 			partial = &v1.PartialCaveatInfo{
-				MissingRequiredContext: found.MissingContextParams,
+				MissingRequiredContext: found.GetMissingContextParams(),
 			}
-		} else if req.OptionalLimit == 0 {
-			if _, ok := alreadyPublishedPermissionedResourceIds[found.ResourceId]; ok {
+		} else if req.GetOptionalLimit() == 0 {
+			if _, ok := alreadyPublishedPermissionedResourceIds[found.GetResourceId()]; ok {
 				// Skip publishing the duplicate.
 				return nil
 			}
 
 			// TODO(jschorr): Investigate something like a Trie here for better memory efficiency.
-			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
+			alreadyPublishedPermissionedResourceIds[found.GetResourceId()] = struct{}{}
 		}
 
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, map[string]string{
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.GetAfterResponseCursor(), lrRequestHash, atRevision, map[string]string{
 			lrv2CursorFlag: "1",
 		})
 		if err != nil {
@@ -708,7 +708,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 
 		err = resp.Send(&v1.LookupResourcesResponse{
 			LookedUpAt:        revisionReadAt,
-			ResourceObjectId:  found.ResourceId,
+			ResourceObjectId:  found.GetResourceId(),
 			Permissionship:    permissionship,
 			PartialCaveatInfo: partial,
 			AfterResultCursor: encodedCursor,
@@ -734,22 +734,22 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 				TraversalBloom: bf,
 			},
 			ResourceRelation: &core.RelationReference{
-				Namespace: req.ResourceObjectType,
-				Relation:  req.Permission,
+				Namespace: req.GetResourceObjectType(),
+				Relation:  req.GetPermission(),
 			},
 			SubjectRelation: &core.RelationReference{
-				Namespace: req.Subject.Object.ObjectType,
-				Relation:  normalizeSubjectRelation(req.Subject),
+				Namespace: req.GetSubject().GetObject().GetObjectType(),
+				Relation:  normalizeSubjectRelation(req.GetSubject()),
 			},
-			SubjectIds: []string{req.Subject.Object.ObjectId},
+			SubjectIds: []string{req.GetSubject().GetObject().GetObjectId()},
 			TerminalSubject: &core.ObjectAndRelation{
-				Namespace: req.Subject.Object.ObjectType,
-				ObjectId:  req.Subject.Object.ObjectId,
-				Relation:  normalizeSubjectRelation(req.Subject),
+				Namespace: req.GetSubject().GetObject().GetObjectType(),
+				ObjectId:  req.GetSubject().GetObject().GetObjectId(),
+				Relation:  normalizeSubjectRelation(req.GetSubject()),
 			},
-			Context:        req.Context,
+			Context:        req.GetContext(),
 			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			OptionalLimit:  req.GetOptionalLimit(),
 		},
 		stream)
 	if err != nil {
@@ -762,16 +762,16 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
 	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
-			perfinsights.ResourceRelationLabel: req.Permission,
-			perfinsights.SubjectTypeLabel:      req.SubjectObjectType,
-			perfinsights.SubjectRelationLabel:  req.OptionalSubjectRelation,
+			perfinsights.ResourceTypeLabel:     req.GetResource().GetObjectType(),
+			perfinsights.ResourceRelationLabel: req.GetPermission(),
+			perfinsights.SubjectTypeLabel:      req.GetSubjectObjectType(),
+			perfinsights.SubjectRelationLabel:  req.GetOptionalSubjectRelation(),
 		}
 	})
 
 	ctx := resp.Context()
 
-	if req.OptionalConcreteLimit != 0 {
+	if req.GetOptionalConcreteLimit() != 0 {
 		return ps.rewriteError(ctx, status.Errorf(codes.Unimplemented, "concrete limit is not yet supported"))
 	}
 
@@ -782,7 +782,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	caveatContext, err := GetCaveatContext(ctx, req.GetContext(), ps.config.MaxCaveatContextSize)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -790,13 +790,13 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	if err := namespace.CheckNamespaceAndRelations(ctx,
 		[]namespace.TypeAndRelationToCheck{
 			{
-				NamespaceName: req.Resource.ObjectType,
-				RelationName:  req.Permission,
+				NamespaceName: req.GetResource().GetObjectType(),
+				RelationName:  req.GetPermission(),
 				AllowEllipsis: false,
 			},
 			{
-				NamespaceName: req.SubjectObjectType,
-				RelationName:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
+				NamespaceName: req.GetSubjectObjectType(),
+				RelationName:  cmp.Or(req.GetOptionalSubjectRelation(), tuple.Ellipsis),
 				AllowEllipsis: true,
 			},
 		}, ds); err != nil {
@@ -817,19 +817,19 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	}()
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
-		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
+		foundSubjects, ok := result.GetFoundSubjectsByResourceId()[req.GetResource().GetObjectId()]
 		if !ok {
 			return errors.New("missing resource ID in returned LS")
 		}
 
-		for _, foundSubject := range foundSubjects.FoundSubjects {
-			excludedSubjectIDs := make([]string, 0, len(foundSubject.ExcludedSubjects))
-			for _, excludedSubject := range foundSubject.ExcludedSubjects {
-				excludedSubjectIDs = append(excludedSubjectIDs, excludedSubject.SubjectId)
+		for _, foundSubject := range foundSubjects.GetFoundSubjects() {
+			excludedSubjectIDs := make([]string, 0, len(foundSubject.GetExcludedSubjects()))
+			for _, excludedSubject := range foundSubject.GetExcludedSubjects() {
+				excludedSubjectIDs = append(excludedSubjectIDs, excludedSubject.GetSubjectId())
 			}
 
-			excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.ExcludedSubjects))
-			for _, excludedSubject := range foundSubject.ExcludedSubjects {
+			excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.GetExcludedSubjects()))
+			for _, excludedSubject := range foundSubject.GetExcludedSubjects() {
 				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds, ps.config.CaveatTypeSet)
 				if err != nil {
 					return err
@@ -854,10 +854,10 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				Subject:            subject,
 				ExcludedSubjects:   excludedSubjects,
 				LookedUpAt:         revisionReadAt,
-				SubjectObjectId:    foundSubject.SubjectId,    // Deprecated
-				ExcludedSubjectIds: excludedSubjectIDs,        // Deprecated
-				Permissionship:     subject.Permissionship,    // Deprecated
-				PartialCaveatInfo:  subject.PartialCaveatInfo, // Deprecated
+				SubjectObjectId:    foundSubject.GetSubjectId(),    // Deprecated
+				ExcludedSubjectIds: excludedSubjectIDs,             // Deprecated
+				Permissionship:     subject.GetPermissionship(),    // Deprecated
+				PartialCaveatInfo:  subject.GetPartialCaveatInfo(), // Deprecated
 			})
 			if err != nil {
 				return err
@@ -865,7 +865,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		}
 
 		totalCountPublished++
-		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
+		dispatchpkg.AddResponseMetadata(respMetadata, result.GetMetadata())
 		return nil
 	})
 
@@ -882,13 +882,13 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				TraversalBloom: bf,
 			},
 			ResourceRelation: &core.RelationReference{
-				Namespace: req.Resource.ObjectType,
-				Relation:  req.Permission,
+				Namespace: req.GetResource().GetObjectType(),
+				Relation:  req.GetPermission(),
 			},
-			ResourceIds: []string{req.Resource.ObjectId},
+			ResourceIds: []string{req.GetResource().GetObjectId()},
 			SubjectRelation: &core.RelationReference{
-				Namespace: req.SubjectObjectType,
-				Relation:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
+				Namespace: req.GetSubjectObjectType(),
+				Relation:  cmp.Or(req.GetOptionalSubjectRelation(), tuple.Ellipsis),
 			},
 		},
 		stream)
@@ -925,17 +925,17 @@ func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.F
 	}
 
 	return &v1.ResolvedSubject{
-		SubjectObjectId:   foundSubject.SubjectId,
+		SubjectObjectId:   foundSubject.GetSubjectId(),
 		Permissionship:    permissionship,
 		PartialCaveatInfo: partialCaveat,
 	}, nil
 }
 
 func normalizeSubjectRelation(sub *v1.SubjectReference) string {
-	if sub.OptionalRelation == "" {
+	if sub.GetOptionalRelation() == "" {
 		return graph.Ellipsis
 	}
-	return sub.OptionalRelation
+	return sub.GetOptionalRelation()
 }
 
 func denormalizeSubjectRelation(relation string) string {
@@ -993,7 +993,7 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 			return nil, a.err
 		}
 
-		a.currentBatch = batch.Relationships
+		a.currentBatch = batch.GetRelationships()
 		a.numSent = 0
 
 		a.awaitingNamespaces, a.awaitingCaveats = extractBatchNewReferencedNamespacesAndCaveats(
@@ -1008,23 +1008,23 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
-	a.current.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
-	a.current.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
-	a.current.Resource.Relation = a.currentBatch[a.numSent].Relation
-	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
-	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
-	a.current.Subject.Relation = cmp.Or(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
+	a.current.Resource.ObjectType = a.currentBatch[a.numSent].GetResource().GetObjectType()
+	a.current.Resource.ObjectID = a.currentBatch[a.numSent].GetResource().GetObjectId()
+	a.current.Resource.Relation = a.currentBatch[a.numSent].GetRelation()
+	a.current.Subject.ObjectType = a.currentBatch[a.numSent].GetSubject().GetObject().GetObjectType()
+	a.current.Subject.ObjectID = a.currentBatch[a.numSent].GetSubject().GetObject().GetObjectId()
+	a.current.Subject.Relation = cmp.Or(a.currentBatch[a.numSent].GetSubject().GetOptionalRelation(), tuple.Ellipsis)
 
-	if a.currentBatch[a.numSent].OptionalCaveat != nil {
-		a.caveat.CaveatName = a.currentBatch[a.numSent].OptionalCaveat.CaveatName
-		a.caveat.Context = a.currentBatch[a.numSent].OptionalCaveat.Context
+	if a.currentBatch[a.numSent].GetOptionalCaveat() != nil {
+		a.caveat.CaveatName = a.currentBatch[a.numSent].GetOptionalCaveat().GetCaveatName()
+		a.caveat.Context = a.currentBatch[a.numSent].GetOptionalCaveat().GetContext()
 		a.current.OptionalCaveat = &a.caveat
 	} else {
 		a.current.OptionalCaveat = nil
 	}
 
-	if a.currentBatch[a.numSent].OptionalExpiresAt != nil {
-		t := a.currentBatch[a.numSent].OptionalExpiresAt.AsTime()
+	if a.currentBatch[a.numSent].GetOptionalExpiresAt() != nil {
+		t := a.currentBatch[a.numSent].GetOptionalExpiresAt().AsTime()
 		a.current.OptionalExpiration = &t
 	} else {
 		a.current.OptionalExpiration = nil
@@ -1084,7 +1084,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 						return err
 					}
 
-					loadedNamespaces[nsDef.Definition.Name] = newDef
+					loadedNamespaces[nsDef.Definition.GetName()] = newDef
 				}
 				adapter.awaitingNamespaces = nil
 			}
@@ -1096,7 +1096,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 				}
 
 				for _, caveat := range caveats {
-					loadedCaveats[caveat.Definition.Name] = caveat.Definition
+					loadedCaveats[caveat.Definition.GetName()] = caveat.Definition
 				}
 				adapter.awaitingCaveats = nil
 			}
@@ -1124,7 +1124,7 @@ func (ps *permissionServer) ExportBulkRelationships(
 ) error {
 	ctx := resp.Context()
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
-		return labelsForFilter(req.OptionalRelationshipFilter)
+		return labelsForFilter(req.GetOptionalRelationshipFilter())
 	})
 
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
@@ -1139,16 +1139,16 @@ func (ps *permissionServer) ExportBulkRelationships(
 // export stream via the sender all relationships matched by the incoming request.
 // If no cursor is provided, it will fallback to the provided revision.
 func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, req *v1.ExportBulkRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.ExportBulkRelationshipsResponse) error) error {
-	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
-		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
+	if req.GetOptionalLimit() > 0 && uint64(req.GetOptionalLimit()) > batchSize {
+		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.GetOptionalLimit()), batchSize))
 	}
 
 	atRevision := fallbackRevision
 	var curNamespace string
 	var cur dsoptions.Cursor
-	if req.OptionalCursor != nil {
+	if req.GetOptionalCursor() != nil {
 		var err error
-		atRevision, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
+		atRevision, curNamespace, cur, err = decodeCursor(ds, req.GetOptionalCursor())
 		if err != nil {
 			return shared.RewriteErrorWithoutConfig(ctx, err)
 		}
@@ -1166,17 +1166,17 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 		lhs datastore.RevisionedDefinition[*core.NamespaceDefinition],
 		rhs datastore.RevisionedDefinition[*core.NamespaceDefinition],
 	) int {
-		return strings.Compare(lhs.Definition.Name, rhs.Definition.Name)
+		return strings.Compare(lhs.Definition.GetName(), rhs.Definition.GetName())
 	})
 
 	// Skip the namespaces that are already fully returned
-	for cur != nil && len(namespaces) > 0 && namespaces[0].Definition.Name < curNamespace {
+	for cur != nil && len(namespaces) > 0 && namespaces[0].Definition.GetName() < curNamespace {
 		namespaces = namespaces[1:]
 	}
 
 	limit := batchSize
-	if req.OptionalLimit > 0 {
-		limit = uint64(req.OptionalLimit)
+	if req.GetOptionalLimit() > 0 {
+		limit = uint64(req.GetOptionalLimit())
 	}
 
 	// Pre-allocate all of the relationships that we might need in order to
@@ -1199,27 +1199,27 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 		rels := emptyRels
 
 		// Reset the cursor between namespaces.
-		if ns.Definition.Name != curNamespace {
+		if ns.Definition.GetName() != curNamespace {
 			cur = nil
 		}
 
 		// Skip this namespace if a resource type filter was specified.
-		if req.OptionalRelationshipFilter != nil && req.OptionalRelationshipFilter.ResourceType != "" {
-			if ns.Definition.Name != req.OptionalRelationshipFilter.ResourceType {
+		if req.GetOptionalRelationshipFilter() != nil && req.GetOptionalRelationshipFilter().GetResourceType() != "" {
+			if ns.Definition.GetName() != req.GetOptionalRelationshipFilter().GetResourceType() {
 				continue
 			}
 		}
 
 		// Setup the filter to use for the relationships.
-		relationshipFilter := datastore.RelationshipsFilter{OptionalResourceType: ns.Definition.Name}
-		if req.OptionalRelationshipFilter != nil {
-			rf, err := datastore.RelationshipsFilterFromPublicFilter(req.OptionalRelationshipFilter)
+		relationshipFilter := datastore.RelationshipsFilter{OptionalResourceType: ns.Definition.GetName()}
+		if req.GetOptionalRelationshipFilter() != nil {
+			rf, err := datastore.RelationshipsFilterFromPublicFilter(req.GetOptionalRelationshipFilter())
 			if err != nil {
 				return shared.RewriteErrorWithoutConfig(ctx, err)
 			}
 
 			// Overload the namespace name with the one from the request, because each iteration is for a different namespace.
-			rf.OptionalResourceType = ns.Definition.Name
+			rf.OptionalResourceType = ns.Definition.GetName()
 			relationshipFilter = rf
 		}
 
@@ -1243,8 +1243,8 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.Subject.Relation)
 
 				if rel.OptionalCaveat != nil {
-					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
-					caveatArray[offset].Context = rel.OptionalCaveat.Context
+					caveatArray[offset].CaveatName = rel.OptionalCaveat.GetCaveatName()
+					caveatArray[offset].Context = rel.OptionalCaveat.GetContext()
 					v1Rel.OptionalCaveat = &caveatArray[offset]
 				} else {
 					caveatArray[offset].CaveatName = ""
@@ -1282,7 +1282,7 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 					V1: &implv1.V1Cursor{
 						Revision: atRevision.String(),
 						Sections: []string{
-							ns.Definition.Name,
+							ns.Definition.GetName(),
 							tuple.MustString(*dsoptions.ToRelationship(cur)),
 						},
 					},

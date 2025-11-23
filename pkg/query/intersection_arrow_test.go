@@ -358,7 +358,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		pathCaveat := paths[0].Caveat
 		require.NotNil(pathCaveat, "Result should have combined caveat")
 		require.NotNil(pathCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(pathCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(pathCaveat.GetOperation().GetOp(), core.CaveatOperation_AND, "Caveat should be an AND")
 		require.Len(pathCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children")
 	})
 
@@ -404,7 +404,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 
 		// Verify caveat preservation
 		require.NotNil(paths[0].Caveat, "Left caveat should be preserved")
-		require.Equal("left_caveat", paths[0].Caveat.GetCaveat().CaveatName)
+		require.Equal("left_caveat", paths[0].Caveat.GetCaveat().GetCaveatName())
 	})
 
 	t.Run("MultiplePaths_CombineCaveats_AND_Logic", func(t *testing.T) {
@@ -496,8 +496,8 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		// Verify it's an AND operation
 		caveatOp := paths[0].Caveat.GetOperation()
 		require.NotNil(caveatOp, "Result caveat should be an operation")
-		require.Equal(core.CaveatOperation_AND, caveatOp.Op, "Combined caveat should use AND operation")
-		require.NotEmpty(caveatOp.Children, "Combined caveat should have children")
+		require.Equal(core.CaveatOperation_AND, caveatOp.GetOp(), "Combined caveat should use AND operation")
+		require.NotEmpty(caveatOp.GetChildren(), "Combined caveat should have children")
 	})
 }
 

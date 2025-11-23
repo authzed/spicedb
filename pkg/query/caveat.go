@@ -57,7 +57,7 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 	}
 
 	return func(yield func(Path, error) bool) {
-		ctx.TraceStep(c, "applying caveat '%s' to sub-iterator results", c.caveat.CaveatName)
+		ctx.TraceStep(c, "applying caveat '%s' to sub-iterator results", c.caveat.GetCaveatName())
 
 		processedCount := 0
 		passedCount := 0
@@ -148,7 +148,7 @@ func (c *CaveatIterator) containsExpectedCaveat(expr *core.CaveatExpression) boo
 		return true // No expected caveat, so any expression passes
 	}
 
-	return c.containsCaveatName(expr, c.caveat.CaveatName)
+	return c.containsCaveatName(expr, c.caveat.GetCaveatName())
 }
 
 // containsCaveatName recursively checks if a caveat expression contains a specific caveat name
@@ -159,12 +159,12 @@ func (c *CaveatIterator) containsCaveatName(expr *core.CaveatExpression, expecte
 
 	// Check if this is a leaf caveat
 	if expr.GetCaveat() != nil {
-		return expr.GetCaveat().CaveatName == expectedName
+		return expr.GetCaveat().GetCaveatName() == expectedName
 	}
 
 	// Check if this is an operation with children
 	if expr.GetOperation() != nil {
-		for _, child := range expr.GetOperation().Children {
+		for _, child := range expr.GetOperation().GetChildren() {
 			if c.containsCaveatName(child, expectedName) {
 				return true
 			}
@@ -206,12 +206,12 @@ func (c *CaveatIterator) buildExplainInfo() string {
 	}
 
 	// Build basic caveat information
-	info := "Caveat(" + c.caveat.CaveatName
+	info := "Caveat(" + c.caveat.GetCaveatName()
 
 	// Add context information if available
-	if c.caveat.Context != nil && len(c.caveat.Context.GetFields()) > 0 {
-		contextInfo := make([]string, 0, len(c.caveat.Context.GetFields()))
-		for key := range c.caveat.Context.GetFields() {
+	if c.caveat.GetContext() != nil && len(c.caveat.GetContext().GetFields()) > 0 {
+		contextInfo := make([]string, 0, len(c.caveat.GetContext().GetFields()))
+		for key := range c.caveat.GetContext().GetFields() {
 			contextInfo = append(contextInfo, key)
 		}
 		info += fmt.Sprintf(", context: [%v]", contextInfo)

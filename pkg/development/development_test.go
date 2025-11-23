@@ -137,7 +137,7 @@ definition document {
 	client := v1.NewSchemaServiceClient(conn)
 	resp, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
-	require.Contains(t, resp.SchemaText, "definition document")
+	require.Contains(t, resp.GetSchemaText(), "definition document")
 
 	shutdown()
 }

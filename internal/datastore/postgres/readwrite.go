@@ -88,8 +88,8 @@ func appendForInsertion(builder sq.InsertBuilder, tpl tuple.Relationship) sq.Ins
 	var caveatName string
 	var caveatContext map[string]any
 	if tpl.OptionalCaveat != nil {
-		caveatName = tpl.OptionalCaveat.CaveatName
-		caveatContext = tpl.OptionalCaveat.Context.AsMap()
+		caveatName = tpl.OptionalCaveat.GetCaveatName()
+		caveatContext = tpl.OptionalCaveat.GetContext().AsMap()
 	}
 
 	valuesToWrite := []any{
@@ -134,7 +134,7 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 
 	nsDefByName := make(map[string]*core.NamespaceDefinition, len(namespaces))
 	for _, ns := range namespaces {
-		nsDefByName[ns.Definition.Name] = ns.Definition
+		nsDefByName[ns.Definition.GetName()] = ns.Definition
 	}
 
 	for _, mut := range mutations {
@@ -160,7 +160,7 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 		}
 
 		if notAllowed {
-			relationSupportSimplifiedTouch.Add(nsDef.Name + "#" + rel.Resource.Relation + "@" + rel.Subject.ObjectType)
+			relationSupportSimplifiedTouch.Add(nsDef.GetName() + "#" + rel.Resource.Relation + "@" + rel.Subject.ObjectType)
 			continue
 		}
 	}
@@ -449,17 +449,17 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 	// Construct a select query for the relationships to be removed.
 	query := selectForDelete
 
-	if filter.ResourceType != "" {
-		query = query.Where(sq.Eq{schema.ColNamespace: filter.ResourceType})
+	if filter.GetResourceType() != "" {
+		query = query.Where(sq.Eq{schema.ColNamespace: filter.GetResourceType()})
 	}
-	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{schema.ColObjectID: filter.OptionalResourceId})
+	if filter.GetOptionalResourceId() != "" {
+		query = query.Where(sq.Eq{schema.ColObjectID: filter.GetOptionalResourceId()})
 	}
-	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{schema.ColRelation: filter.OptionalRelation})
+	if filter.GetOptionalRelation() != "" {
+		query = query.Where(sq.Eq{schema.ColRelation: filter.GetOptionalRelation()})
 	}
-	if filter.OptionalResourceIdPrefix != "" {
-		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.OptionalResourceIdPrefix)
+	if filter.GetOptionalResourceIdPrefix() != "" {
+		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.GetOptionalResourceIdPrefix())
 		if err != nil {
 			return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 		}
@@ -467,13 +467,13 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 	}
 
 	// Add clauses for the SubjectFilter
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.SubjectType})
-		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.OptionalSubjectId})
+	if subjectFilter := filter.GetOptionalSubjectFilter(); subjectFilter != nil {
+		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.GetSubjectType()})
+		if subjectFilter.GetOptionalSubjectId() != "" {
+			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.GetOptionalSubjectId()})
 		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{schema.ColUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
+		if relationFilter := subjectFilter.GetOptionalRelation(); relationFilter != nil {
+			query = query.Where(sq.Eq{schema.ColUsersetRelation: cmp.Or(relationFilter.GetRelation(), datastore.Ellipsis)})
 		}
 	}
 
@@ -518,17 +518,17 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) (uint64, error) {
 	// Add clauses for the ResourceFilter
 	query := deleteTuple
-	if filter.ResourceType != "" {
-		query = query.Where(sq.Eq{schema.ColNamespace: filter.ResourceType})
+	if filter.GetResourceType() != "" {
+		query = query.Where(sq.Eq{schema.ColNamespace: filter.GetResourceType()})
 	}
-	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{schema.ColObjectID: filter.OptionalResourceId})
+	if filter.GetOptionalResourceId() != "" {
+		query = query.Where(sq.Eq{schema.ColObjectID: filter.GetOptionalResourceId()})
 	}
-	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{schema.ColRelation: filter.OptionalRelation})
+	if filter.GetOptionalRelation() != "" {
+		query = query.Where(sq.Eq{schema.ColRelation: filter.GetOptionalRelation()})
 	}
-	if filter.OptionalResourceIdPrefix != "" {
-		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.OptionalResourceIdPrefix)
+	if filter.GetOptionalResourceIdPrefix() != "" {
+		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.GetOptionalResourceIdPrefix())
 		if err != nil {
 			return 0, fmt.Errorf(errUnableToDeleteRelationships, err)
 		}
@@ -536,13 +536,13 @@ func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.R
 	}
 
 	// Add clauses for the SubjectFilter
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.SubjectType})
-		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.OptionalSubjectId})
+	if subjectFilter := filter.GetOptionalSubjectFilter(); subjectFilter != nil {
+		query = query.Where(sq.Eq{schema.ColUsersetNamespace: subjectFilter.GetSubjectType()})
+		if subjectFilter.GetOptionalSubjectId() != "" {
+			query = query.Where(sq.Eq{schema.ColUsersetObjectID: subjectFilter.GetOptionalSubjectId()})
 		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{schema.ColUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
+		if relationFilter := subjectFilter.GetOptionalRelation(); relationFilter != nil {
+			query = query.Where(sq.Eq{schema.ColUsersetRelation: cmp.Or(relationFilter.GetRelation(), datastore.Ellipsis)})
 		}
 	}
 
@@ -574,9 +574,9 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}
 
-		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{schema.ColNamespace: newNamespace.Name})
+		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{schema.ColNamespace: newNamespace.GetName()})
 
-		valuesToWrite := []any{newNamespace.Name, serialized}
+		valuesToWrite := []any{newNamespace.GetName(), serialized}
 
 		writeQuery = writeQuery.Values(valuesToWrite...)
 	}
@@ -791,8 +791,8 @@ func exactRelationshipDifferentCaveatAndExpirationClause(r tuple.Relationship) s
 	var caveatName string
 	var caveatContext map[string]any
 	if r.OptionalCaveat != nil {
-		caveatName = r.OptionalCaveat.CaveatName
-		caveatContext = r.OptionalCaveat.Context.AsMap()
+		caveatName = r.OptionalCaveat.GetCaveatName()
+		caveatContext = r.OptionalCaveat.GetContext().AsMap()
 	}
 
 	expiration := r.OptionalExpiration

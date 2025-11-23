@@ -63,8 +63,8 @@ definition document {
 	ms, devErrors, err := RunValidation(devCtx, validation)
 	require.NoError(t, err)
 	require.Len(t, devErrors, 1)
-	require.Equal(t, devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP, devErrors[0].Kind)
-	require.Contains(t, devErrors[0].Message, "missing expected subject")
+	require.Equal(t, devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP, devErrors[0].GetKind())
+	require.Contains(t, devErrors[0].GetMessage(), "missing expected subject")
 	require.NotNil(t, ms)
 }
 

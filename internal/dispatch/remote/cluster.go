@@ -222,15 +222,15 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 		cr,
 		"check",
 		req,
-		tuple.FromCoreRelationReference(req.ResourceRelation),
-		tuple.RR(req.Subject.Namespace, req.Subject.Relation),
+		tuple.FromCoreRelationReference(req.GetResourceRelation()),
+		tuple.RR(req.GetSubject().GetNamespace(), req.GetSubject().GetRelation()),
 		func(ctx context.Context, client ClusterClient) (*v1.DispatchCheckResponse, error) {
 			resp, err := client.DispatchCheck(ctx, req)
 			if err != nil {
 				return resp, err
 			}
 
-			err = adjustMetadataForDispatch(resp.Metadata)
+			err = adjustMetadataForDispatch(resp.GetMetadata())
 			return resp, err
 		})
 	if err != nil {
@@ -456,7 +456,7 @@ func publishClient[R any](ctx context.Context, client receiver[R], reqKey string
 				if afterResponseCursor == nil {
 					return spiceerrors.MustBugf("received a nil after response cursor for secondary dispatch")
 				}
-				afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.Sections...)
+				afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.GetSections()...)
 			}
 		}
 
@@ -500,10 +500,10 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	cursorLockedSecondaryName := ""
 	if cursorSupports, ok := any(req).(requestMessageWithCursor); ok {
 		cursor := cursorSupports.GetOptionalCursor()
-		if cursor != nil && len(cursor.Sections) > 0 {
-			if strings.HasPrefix(cursor.Sections[0], secondaryCursorPrefix) {
-				cursorLockedSecondaryName = strings.TrimPrefix(cursor.Sections[0], secondaryCursorPrefix)
-				cursor.Sections = cursor.Sections[1:]
+		if cursor != nil && len(cursor.GetSections()) > 0 {
+			if strings.HasPrefix(cursor.GetSections()[0], secondaryCursorPrefix) {
+				cursorLockedSecondaryName = strings.TrimPrefix(cursor.GetSections()[0], secondaryCursorPrefix)
+				cursor.Sections = cursor.GetSections()[1:]
 			}
 		}
 	}
@@ -738,7 +738,7 @@ func adjustMetadataForDispatch(metadata *v1.ResponseMeta) error {
 
 	// NOTE: We only add 1 to the dispatch count if it was not already handled by the downstream dispatch,
 	// which will only be the case in a fully cached or further undispatched call.
-	if metadata.DispatchCount == 0 {
+	if metadata.GetDispatchCount() == 0 {
 		metadata.DispatchCount++
 	}
 
@@ -765,7 +765,7 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, err
 	}
 
-	err = adjustMetadataForDispatch(resp.Metadata)
+	err = adjustMetadataForDispatch(resp.GetMetadata())
 	return resp, err
 }
 
@@ -952,9 +952,9 @@ func (srst *supportedResourceSubjectTracker) updateForError(err error) {
 		}
 
 		// If the error is an unsupported resource or subject, add it to the tracker.
-		if errDetail.Reason == "UNSUPPORTED_RESOURCE_RELATION" {
-			definitionName := errDetail.Metadata["definition_name"]
-			relationName := errDetail.Metadata["relation_name"]
+		if errDetail.GetReason() == "UNSUPPORTED_RESOURCE_RELATION" {
+			definitionName := errDetail.GetMetadata()["definition_name"]
+			relationName := errDetail.GetMetadata()["relation_name"]
 			rr := tuple.RR(definitionName, relationName)
 			existing, loaded := srst.unsupportedResources.LoadOrStore(rr, true)
 			if !loaded || !existing.(bool) {
@@ -962,9 +962,9 @@ func (srst *supportedResourceSubjectTracker) updateForError(err error) {
 			}
 		}
 
-		if errDetail.Reason == "UNSUPPORTED_SUBJECT_RELATION" {
-			definitionName := errDetail.Metadata["definition_name"]
-			relationName := errDetail.Metadata["relation_name"]
+		if errDetail.GetReason() == "UNSUPPORTED_SUBJECT_RELATION" {
+			definitionName := errDetail.GetMetadata()["definition_name"]
+			relationName := errDetail.GetMetadata()["relation_name"]
 			rr := tuple.RR(definitionName, relationName)
 			existing, loaded := srst.unsupportedSubjects.LoadOrStore(rr, true)
 			if !loaded || !existing.(bool) {

@@ -252,30 +252,30 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 
 	switch t := def.(type) {
 	case *core.NamespaceDefinition:
-		delete(record.namespacesDeleted, t.Name)
+		delete(record.namespacesDeleted, t.GetName())
 
-		if existing, ok := record.definitionsChanged[nsPrefix+t.Name]; ok {
+		if existing, ok := record.definitionsChanged[nsPrefix+t.GetName()]; ok {
 			if err := ch.adjustByteSize(existing, -1); err != nil {
 				return err
 			}
 		}
 
-		record.definitionsChanged[nsPrefix+t.Name] = t
+		record.definitionsChanged[nsPrefix+t.GetName()] = t
 
 		if err := ch.adjustByteSize(t, 1); err != nil {
 			return err
 		}
 
 	case *core.CaveatDefinition:
-		delete(record.caveatsDeleted, t.Name)
+		delete(record.caveatsDeleted, t.GetName())
 
-		if existing, ok := record.definitionsChanged[nsPrefix+t.Name]; ok {
+		if existing, ok := record.definitionsChanged[nsPrefix+t.GetName()]; ok {
 			if err := ch.adjustByteSize(existing, -1); err != nil {
 				return err
 			}
 		}
 
-		record.definitionsChanged[caveatPrefix+t.Name] = t
+		record.definitionsChanged[caveatPrefix+t.GetName()] = t
 
 		if err := ch.adjustByteSize(t, 1); err != nil {
 			return err

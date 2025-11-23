@@ -66,7 +66,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	// The caveat can be looked up by name
 	cr := ds.SnapshotReader(rev)
-	cv, _, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err := cr.ReadCaveatByName(ctx, coreCaveat.GetName())
 	req.NoError(err)
 
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
@@ -74,11 +74,11 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	// All caveats can be listed when no arg is provided
 	// Manually check the caveat's contents.
-	req.Equal(coreCaveat.Name, cv.Name)
-	req.Len(cv.ParameterTypes, 2)
-	req.Equal("int", cv.ParameterTypes["foo"].TypeName)
-	req.Equal("map", cv.ParameterTypes["bar"].TypeName)
-	req.Equal("bytes", cv.ParameterTypes["bar"].ChildTypes[0].TypeName)
+	req.Equal(coreCaveat.GetName(), cv.GetName())
+	req.Len(cv.GetParameterTypes(), 2)
+	req.Equal("int", cv.GetParameterTypes()["foo"].GetTypeName())
+	req.Equal("map", cv.GetParameterTypes()["bar"].GetTypeName())
+	req.Equal("bytes", cv.GetParameterTypes()["bar"].GetChildTypes()[0].GetTypeName())
 
 	// All caveats can be listed
 	cvs, err := cr.ListAllCaveats(ctx)
@@ -91,7 +91,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Empty(foundDiff)
 
 	// Caveats can be found by names
-	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{coreCaveat.Name})
+	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{coreCaveat.GetName()})
 	req.NoError(err)
 	req.Len(cvs, 1)
 
@@ -115,11 +115,11 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.DeleteCaveats(ctx, []string{coreCaveat.Name})
+		return tx.DeleteCaveats(ctx, []string{coreCaveat.GetName()})
 	})
 	req.NoError(err)
 	cr = ds.SnapshotReader(rev)
-	_, _, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	_, _, err = cr.ReadCaveatByName(ctx, coreCaveat.GetName())
 	req.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 
 	// Returns an error if caveat name or ID does not exist
@@ -144,7 +144,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	_, err = writeCaveats(ctx, ds, coreCaveat, anotherCoreCaveat)
 	req.NoError(err)
 
-	rel := createTestCaveatedRel(t, "document:companyplan#somerelation@folder:company#...", coreCaveat.Name)
+	rel := createTestCaveatedRel(t, "document:companyplan#somerelation@folder:company#...", coreCaveat.GetName())
 	rev, err := common.WriteRelationships(ctx, sds, tuple.UpdateOperationCreate, rel)
 	req.NoError(err)
 	assertRelCorrectlyStored(req, ds, rev, rel)
@@ -154,7 +154,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req.ErrorAs(err, &common.CreateRelationshipExistsError{})
 
 	// RelationTupleUpdate_TOUCH does update the caveat context for a caveated relationship that already exists
-	currentMap := rel.OptionalCaveat.Context.AsMap()
+	currentMap := rel.OptionalCaveat.GetContext().AsMap()
 	delete(currentMap, "b")
 	st, err := structpb.NewStruct(currentMap)
 	require.NoError(t, err)
@@ -165,7 +165,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	assertRelCorrectlyStored(req, ds, rev, rel)
 
 	// RelationTupleUpdate_TOUCH does update the caveat name for a caveated relationship that already exists
-	rel.OptionalCaveat.CaveatName = anotherCoreCaveat.Name
+	rel.OptionalCaveat.CaveatName = anotherCoreCaveat.GetName()
 	rev, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationTouch, rel)
 	req.NoError(err)
 	assertRelCorrectlyStored(req, ds, rev, rel)
@@ -220,8 +220,8 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	_, err = writeCaveats(ctx, ds, coreCaveat, anotherCoreCaveat)
 	req.NoError(err)
 
-	rel := createTestCaveatedRel(t, "document:companyplan#parent@folder:company#...", coreCaveat.Name)
-	anotherTpl := createTestCaveatedRel(t, "document:anothercompanyplan#parent@folder:company#...", anotherCoreCaveat.Name)
+	rel := createTestCaveatedRel(t, "document:companyplan#parent@folder:company#...", coreCaveat.GetName())
+	anotherTpl := createTestCaveatedRel(t, "document:anothercompanyplan#parent@folder:company#...", anotherCoreCaveat.GetName())
 	nonCaveatedTpl := tuple.MustParse("document:yetanothercompanyplan#parent@folder:company#...")
 	rev, err := common.WriteRelationships(ctx, sds, tuple.UpdateOperationCreate, rel, anotherTpl, nonCaveatedTpl)
 	req.NoError(err)
@@ -229,7 +229,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	// filter by first caveat
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     rel.Resource.ObjectType,
-		OptionalCaveatNameFilter: datastore.WithCaveatName(coreCaveat.Name),
+		OptionalCaveatNameFilter: datastore.WithCaveatName(coreCaveat.GetName()),
 	}, options.WithQueryShape(queryshape.Varying))
 	req.NoError(err)
 	expectRel(req, iter, rel)
@@ -237,7 +237,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	// filter by second caveat
 	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     anotherTpl.Resource.ObjectType,
-		OptionalCaveatNameFilter: datastore.WithCaveatName(anotherCoreCaveat.Name),
+		OptionalCaveatNameFilter: datastore.WithCaveatName(anotherCoreCaveat.GetName()),
 	}, options.WithQueryShape(queryshape.Varying))
 	req.NoError(err)
 	expectRel(req, iter, anotherTpl)
@@ -266,7 +266,7 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	// Modify caveat and update
-	oldExpression := coreCaveat.SerializedExpression
+	oldExpression := coreCaveat.GetSerializedExpression()
 	newExpression := []byte{0x0a}
 	coreCaveat.SerializedExpression = newExpression
 	newRev, err := writeCaveat(ctx, ds, coreCaveat)
@@ -274,15 +274,15 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 
 	// check most recent revision
 	cr := ds.SnapshotReader(newRev)
-	cv, _, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err := cr.ReadCaveatByName(ctx, coreCaveat.GetName())
 	req.NoError(err)
-	req.Equal(newExpression, cv.SerializedExpression)
+	req.Equal(newExpression, cv.GetSerializedExpression())
 
 	// check previous revision
 	cr = ds.SnapshotReader(oldRev)
-	cv, _, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err = cr.ReadCaveatByName(ctx, coreCaveat.GetName())
 	req.NoError(err)
-	req.Equal(oldExpression, cv.SerializedExpression)
+	req.Equal(oldExpression, cv.GetSerializedExpression())
 }
 
 func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
@@ -301,7 +301,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	// test relationship with caveat and context
-	relWithContext := createTestCaveatedRel(t, "document:a#parent@folder:company#...", coreCaveat.Name)
+	relWithContext := createTestCaveatedRel(t, "document:a#parent@folder:company#...", coreCaveat.GetName())
 
 	revBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
@@ -313,7 +313,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	expectRelChange(t, ds, revBeforeWrite, relWithContext)
 
 	// test relationship with caveat and empty context
-	tupleWithEmptyContext := createTestCaveatedRel(t, "document:b#parent@folder:company#...", coreCaveat.Name)
+	tupleWithEmptyContext := createTestCaveatedRel(t, "document:b#parent@folder:company#...", coreCaveat.GetName())
 	strct, err := structpb.NewStruct(nil)
 
 	req.NoError(err)
@@ -329,7 +329,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	expectRelChange(t, ds, secondRevBeforeWrite, tupleWithEmptyContext)
 
 	// test relationship with caveat and empty context
-	tupleWithNilContext := createTestCaveatedRel(t, "document:c#parent@folder:company#...", coreCaveat.Name)
+	tupleWithNilContext := createTestCaveatedRel(t, "document:c#parent@folder:company#...", coreCaveat.GetName())
 	tupleWithNilContext.OptionalCaveat.Context = nil
 
 	thirdRevBeforeWrite, err := ds.HeadRevision(ctx)

@@ -138,9 +138,9 @@ func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.C
 		if err != nil {
 			return fmt.Errorf(errWriteCaveat, err)
 		}
-		valuesToWrite := []any{caveat.Name, definitionBytes}
+		valuesToWrite := []any{caveat.GetName(), definitionBytes}
 		write = write.Values(valuesToWrite...)
-		writtenCaveatNames = append(writtenCaveatNames, caveat.Name)
+		writtenCaveatNames = append(writtenCaveatNames, caveat.GetName())
 	}
 
 	// store the new caveat

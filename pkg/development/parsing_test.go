@@ -30,8 +30,8 @@ func TestParseAssertionsYAMLInvalid(t *testing.T) {
 	assertions, devErr := ParseAssertionsYAML(invalidYAML)
 	require.Nil(t, assertions)
 	require.NotNil(t, devErr)
-	require.Equal(t, devinterface.DeveloperError_ASSERTION, devErr.Source)
-	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.Kind)
+	require.Equal(t, devinterface.DeveloperError_ASSERTION, devErr.GetSource())
+	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.GetKind())
 }
 
 func TestParseAssertionsYAMLWithInvalidRelationship(t *testing.T) {
@@ -42,8 +42,8 @@ func TestParseAssertionsYAMLWithInvalidRelationship(t *testing.T) {
 	assertions, devErr := ParseAssertionsYAML(invalidRelYAML)
 	require.Nil(t, assertions)
 	require.NotNil(t, devErr)
-	require.Equal(t, devinterface.DeveloperError_ASSERTION, devErr.Source)
-	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.Kind)
+	require.Equal(t, devinterface.DeveloperError_ASSERTION, devErr.GetSource())
+	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.GetKind())
 }
 
 func TestParseExpectedRelationsYAMLValid(t *testing.T) {
@@ -64,8 +64,8 @@ func TestParseExpectedRelationsYAMLInvalid(t *testing.T) {
 	expectedRels, devErr := ParseExpectedRelationsYAML(invalidYAML)
 	require.Nil(t, expectedRels)
 	require.NotNil(t, devErr)
-	require.Equal(t, devinterface.DeveloperError_VALIDATION_YAML, devErr.Source)
-	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.Kind)
+	require.Equal(t, devinterface.DeveloperError_VALIDATION_YAML, devErr.GetSource())
+	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.GetKind())
 }
 
 func TestConvertError(t *testing.T) {
@@ -77,10 +77,10 @@ func TestConvertError(t *testing.T) {
 	err := &testError{message: "test error"}
 	devErr = convertError(devinterface.DeveloperError_ASSERTION, err)
 	require.NotNil(t, devErr)
-	require.Equal(t, "test error", devErr.Message)
-	require.Equal(t, devinterface.DeveloperError_ASSERTION, devErr.Source)
-	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.Kind)
-	require.Equal(t, uint32(0), devErr.Line)
+	require.Equal(t, "test error", devErr.GetMessage())
+	require.Equal(t, devinterface.DeveloperError_ASSERTION, devErr.GetSource())
+	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.GetKind())
+	require.Equal(t, uint32(0), devErr.GetLine())
 }
 
 func TestConvertSourceError(t *testing.T) {
@@ -93,12 +93,12 @@ func TestConvertSourceError(t *testing.T) {
 
 	devErr := convertSourceError(devinterface.DeveloperError_VALIDATION_YAML, sourceErr)
 	require.NotNil(t, devErr)
-	require.Equal(t, "source error", devErr.Message)
-	require.Equal(t, devinterface.DeveloperError_VALIDATION_YAML, devErr.Source)
-	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.Kind)
-	require.Equal(t, uint32(5), devErr.Line)
-	require.Equal(t, uint32(10), devErr.Column)
-	require.Equal(t, "some source code", devErr.Context)
+	require.Equal(t, "source error", devErr.GetMessage())
+	require.Equal(t, devinterface.DeveloperError_VALIDATION_YAML, devErr.GetSource())
+	require.Equal(t, devinterface.DeveloperError_PARSE_ERROR, devErr.GetKind())
+	require.Equal(t, uint32(5), devErr.GetLine())
+	require.Equal(t, uint32(10), devErr.GetColumn())
+	require.Equal(t, "some source code", devErr.GetContext())
 }
 
 // Helper type for testing

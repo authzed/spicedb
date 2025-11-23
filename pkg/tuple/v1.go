@@ -46,17 +46,17 @@ func MustV1RelString(rel *v1.Relationship) string {
 //
 // This function assumes that the provided values have already been validated.
 func V1StringObjectRef(ref *v1.ObjectReference) string {
-	return JoinObjectRef(ref.ObjectType, ref.ObjectId)
+	return JoinObjectRef(ref.GetObjectType(), ref.GetObjectId())
 }
 
 // StringSubjectRef marshals a *v1.SubjectReference into a string.
 //
 // This function assumes that the provided values have already been validated.
 func V1StringSubjectRef(ref *v1.SubjectReference) string {
-	if ref.OptionalRelation == "" {
-		return V1StringObjectRef(ref.Object)
+	if ref.GetOptionalRelation() == "" {
+		return V1StringObjectRef(ref.GetObject())
 	}
-	return JoinRelRef(V1StringObjectRef(ref.Object), ref.OptionalRelation)
+	return JoinRelRef(V1StringObjectRef(ref.GetObject()), ref.GetOptionalRelation())
 }
 
 // MustV1StringRelationship converts a v1.Relationship to a string.
@@ -70,16 +70,16 @@ func MustV1StringRelationship(rel *v1.Relationship) string {
 
 // V1StringRelationship converts a v1.Relationship to a string.
 func V1StringRelationship(rel *v1.Relationship) (string, error) {
-	if rel == nil || rel.Resource == nil || rel.Subject == nil {
+	if rel == nil || rel.GetResource() == nil || rel.GetSubject() == nil {
 		return "", nil
 	}
 
-	caveatString, err := V1StringCaveatRef(rel.OptionalCaveat)
+	caveatString, err := V1StringCaveatRef(rel.GetOptionalCaveat())
 	if err != nil {
 		return "", err
 	}
 
-	expirationString, err := V1StringExpiration(rel.OptionalExpiresAt)
+	expirationString, err := V1StringExpiration(rel.GetOptionalExpiresAt())
 	if err != nil {
 		return "", err
 	}
@@ -97,20 +97,20 @@ func V1StringExpiration(expiration *timestamppb.Timestamp) (string, error) {
 
 // V1StringRelationshipWithoutCaveatOrExpiration converts a v1.Relationship to a string, excluding any caveat.
 func V1StringRelationshipWithoutCaveatOrExpiration(rel *v1.Relationship) string {
-	if rel == nil || rel.Resource == nil || rel.Subject == nil {
+	if rel == nil || rel.GetResource() == nil || rel.GetSubject() == nil {
 		return ""
 	}
 
-	return V1StringObjectRef(rel.Resource) + "#" + rel.Relation + "@" + V1StringSubjectRef(rel.Subject)
+	return V1StringObjectRef(rel.GetResource()) + "#" + rel.GetRelation() + "@" + V1StringSubjectRef(rel.GetSubject())
 }
 
 // V1StringCaveatRef converts a v1.ContextualizedCaveat to a string.
 func V1StringCaveatRef(caveat *v1.ContextualizedCaveat) (string, error) {
-	if caveat == nil || caveat.CaveatName == "" {
+	if caveat == nil || caveat.GetCaveatName() == "" {
 		return "", nil
 	}
 
-	contextString, err := StringCaveatContext(caveat.Context)
+	contextString, err := StringCaveatContext(caveat.GetContext())
 	if err != nil {
 		return "", err
 	}
@@ -119,7 +119,7 @@ func V1StringCaveatRef(caveat *v1.ContextualizedCaveat) (string, error) {
 		contextString = ":" + contextString
 	}
 
-	return "[" + caveat.CaveatName + contextString + "]", nil
+	return "[" + caveat.GetCaveatName() + contextString + "]", nil
 }
 
 // UpdateToV1RelationshipUpdate converts a RelationshipUpdate into a
@@ -158,7 +158,7 @@ func MustUpdateToV1RelationshipUpdate(update RelationshipUpdate) *v1.Relationshi
 // RelationTupleUpdate.
 func UpdateFromV1RelationshipUpdate(update *v1.RelationshipUpdate) (RelationshipUpdate, error) {
 	var op UpdateOperation
-	switch update.Operation {
+	switch update.GetOperation() {
 	case v1.RelationshipUpdate_OPERATION_CREATE:
 		op = UpdateOperationCreate
 	case v1.RelationshipUpdate_OPERATION_DELETE:
@@ -166,42 +166,42 @@ func UpdateFromV1RelationshipUpdate(update *v1.RelationshipUpdate) (Relationship
 	case v1.RelationshipUpdate_OPERATION_TOUCH:
 		op = UpdateOperationTouch
 	default:
-		return RelationshipUpdate{}, spiceerrors.MustBugf("unknown update operation: %v", update.Operation)
+		return RelationshipUpdate{}, spiceerrors.MustBugf("unknown update operation: %v", update.GetOperation())
 	}
 
 	return RelationshipUpdate{
 		Operation:    op,
-		Relationship: FromV1Relationship(update.Relationship),
+		Relationship: FromV1Relationship(update.GetRelationship()),
 	}, nil
 }
 
 // FromV1Relationship converts a v1.Relationship into a Relationship.
 func FromV1Relationship(rel *v1.Relationship) Relationship {
 	var caveat *core.ContextualizedCaveat
-	if rel.OptionalCaveat != nil {
+	if rel.GetOptionalCaveat() != nil {
 		caveat = &core.ContextualizedCaveat{
-			CaveatName: rel.OptionalCaveat.CaveatName,
-			Context:    rel.OptionalCaveat.Context,
+			CaveatName: rel.GetOptionalCaveat().GetCaveatName(),
+			Context:    rel.GetOptionalCaveat().GetContext(),
 		}
 	}
 
 	var expiration *time.Time
-	if rel.OptionalExpiresAt != nil {
-		t := rel.OptionalExpiresAt.AsTime()
+	if rel.GetOptionalExpiresAt() != nil {
+		t := rel.GetOptionalExpiresAt().AsTime()
 		expiration = &t
 	}
 
 	return Relationship{
 		RelationshipReference: RelationshipReference{
 			Resource: ObjectAndRelation{
-				ObjectID:   rel.Resource.ObjectId,
-				ObjectType: rel.Resource.ObjectType,
-				Relation:   rel.Relation,
+				ObjectID:   rel.GetResource().GetObjectId(),
+				ObjectType: rel.GetResource().GetObjectType(),
+				Relation:   rel.GetRelation(),
 			},
 			Subject: ObjectAndRelation{
-				ObjectID:   rel.Subject.Object.ObjectId,
-				ObjectType: rel.Subject.Object.ObjectType,
-				Relation:   stringz.Default(rel.Subject.OptionalRelation, Ellipsis, ""),
+				ObjectID:   rel.GetSubject().GetObject().GetObjectId(),
+				ObjectType: rel.GetSubject().GetObject().GetObjectType(),
+				Relation:   stringz.Default(rel.GetSubject().GetOptionalRelation(), Ellipsis, ""),
 			},
 		},
 		OptionalCaveat:     caveat,
@@ -214,8 +214,8 @@ func ToV1Relationship(rel Relationship) *v1.Relationship {
 	var caveat *v1.ContextualizedCaveat
 	if rel.OptionalCaveat != nil {
 		caveat = &v1.ContextualizedCaveat{
-			CaveatName: rel.OptionalCaveat.CaveatName,
-			Context:    rel.OptionalCaveat.Context,
+			CaveatName: rel.OptionalCaveat.GetCaveatName(),
+			Context:    rel.OptionalCaveat.GetContext(),
 		}
 	}
 
@@ -252,12 +252,12 @@ func CopyToV1Relationship(rel Relationship, v1rel *v1.Relationship) {
 	v1rel.Subject.OptionalRelation = stringz.Default(rel.Subject.Relation, "", Ellipsis)
 
 	if rel.OptionalCaveat != nil {
-		if v1rel.OptionalCaveat == nil {
+		if v1rel.GetOptionalCaveat() == nil {
 			v1rel.OptionalCaveat = &v1.ContextualizedCaveat{}
 		}
 
-		v1rel.OptionalCaveat.CaveatName = rel.OptionalCaveat.CaveatName
-		v1rel.OptionalCaveat.Context = rel.OptionalCaveat.Context
+		v1rel.OptionalCaveat.CaveatName = rel.OptionalCaveat.GetCaveatName()
+		v1rel.OptionalCaveat.Context = rel.OptionalCaveat.GetContext()
 	} else {
 		v1rel.OptionalCaveat = nil
 	}
@@ -327,14 +327,14 @@ func SubjectONRToSubjectFilter(subject ObjectAndRelation) *v1.SubjectFilter {
 // RelToFilter converts a Relationship into a RelationshipFilter.
 func RelToFilter(rel *v1.Relationship) *v1.RelationshipFilter {
 	return &v1.RelationshipFilter{
-		ResourceType:       rel.Resource.ObjectType,
-		OptionalResourceId: rel.Resource.ObjectId,
-		OptionalRelation:   rel.Relation,
+		ResourceType:       rel.GetResource().GetObjectType(),
+		OptionalResourceId: rel.GetResource().GetObjectId(),
+		OptionalRelation:   rel.GetRelation(),
 		OptionalSubjectFilter: &v1.SubjectFilter{
-			SubjectType:       rel.Subject.Object.ObjectType,
-			OptionalSubjectId: rel.Subject.Object.ObjectId,
+			SubjectType:       rel.GetSubject().GetObject().GetObjectType(),
+			OptionalSubjectId: rel.GetSubject().GetObject().GetObjectId(),
 			OptionalRelation: &v1.SubjectFilter_RelationFilter{
-				Relation: rel.Subject.OptionalRelation,
+				Relation: rel.GetSubject().GetOptionalRelation(),
 			},
 		},
 	}

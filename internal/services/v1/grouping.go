@@ -34,17 +34,17 @@ func groupItems(ctx context.Context, params groupingParameters, items []*v1.Chec
 		}
 
 		if _, ok := res[hash]; !ok {
-			caveatContext, err := GetCaveatContext(ctx, item.Context, params.maxCaveatContextSize)
+			caveatContext, err := GetCaveatContext(ctx, item.GetContext(), params.maxCaveatContextSize)
 			if err != nil {
 				return nil, err
 			}
 
 			res[hash] = &groupedCheckParameters{
 				params:      checkParametersFromCheckBulkPermissionsRequestItem(item, params, caveatContext),
-				resourceIDs: []string{item.Resource.ObjectId},
+				resourceIDs: []string{item.GetResource().GetObjectId()},
 			}
 		} else {
-			res[hash].resourceIDs = append(res[hash].resourceIDs, item.Resource.ObjectId)
+			res[hash].resourceIDs = append(res[hash].resourceIDs, item.GetResource().GetObjectId())
 		}
 	}
 
@@ -62,8 +62,8 @@ func checkParametersFromCheckBulkPermissionsRequestItem(
 	}
 
 	return &computed.CheckParameters{
-		ResourceType:  tuple.RR(bc.Resource.ObjectType, bc.Permission),
-		Subject:       tuple.ONR(bc.Subject.Object.ObjectType, bc.Subject.Object.ObjectId, normalizeSubjectRelation(bc.Subject)),
+		ResourceType:  tuple.RR(bc.GetResource().GetObjectType(), bc.GetPermission()),
+		Subject:       tuple.ONR(bc.GetSubject().GetObject().GetObjectType(), bc.GetSubject().GetObject().GetObjectId(), normalizeSubjectRelation(bc.GetSubject())),
 		CaveatContext: caveatContext,
 		AtRevision:    params.atRevision,
 		MaximumDepth:  params.maximumAPIDepth,

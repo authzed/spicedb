@@ -96,9 +96,9 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 				return err
 			}
 
-			relationshipByteCount := len(nextTuple.ResourceAndRelation.Namespace) + len(nextTuple.ResourceAndRelation.ObjectId) +
-				len(nextTuple.ResourceAndRelation.Relation) + len(nextTuple.Subject.Namespace) + len(nextTuple.Subject.ObjectId) +
-				len(nextTuple.Subject.Relation)
+			relationshipByteCount := len(nextTuple.GetResourceAndRelation().GetNamespace()) + len(nextTuple.GetResourceAndRelation().GetObjectId()) +
+				len(nextTuple.GetResourceAndRelation().GetRelation()) + len(nextTuple.GetSubject().GetNamespace()) + len(nextTuple.GetSubject().GetObjectId()) +
+				len(nextTuple.GetSubject().GetRelation())
 
 			totalRelationships++
 			totalByteCount += relationshipByteCount

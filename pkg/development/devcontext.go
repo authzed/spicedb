@@ -75,7 +75,7 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 
 func newDevContextWithDatastore(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore) (*DevContext, *devinterface.DeveloperErrors, error) {
 	// Compile the schema and load its caveats and namespaces into the datastore.
-	compiled, devError, err := CompileSchema(requestContext.Schema)
+	compiled, devError, err := CompileSchema(requestContext.GetSchema())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,8 +92,8 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		}
 
 		// Load the test relationships into the datastore.
-		relationships := make([]tuple.Relationship, 0, len(requestContext.Relationships))
-		for _, rel := range requestContext.Relationships {
+		relationships := make([]tuple.Relationship, 0, len(requestContext.GetRelationships()))
+		for _, rel := range requestContext.GetRelationships() {
 			if err := rel.Validate(); err != nil {
 				inputErrors = append(inputErrors, &devinterface.DeveloperError{
 					Message: err.Error(),
@@ -300,7 +300,7 @@ func loadCompiled(
 				Message: cverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
-				Context: caveatDef.Name,
+				Context: caveatDef.GetName(),
 			})
 		}
 	}
@@ -334,7 +334,7 @@ func loadCompiled(
 				Message: terr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
-				Context: nsDef.Name,
+				Context: nsDef.GetName(),
 			})
 			continue
 		}
@@ -371,7 +371,7 @@ func loadCompiled(
 				Message: tverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
-				Context: nsDef.Name,
+				Context: nsDef.GetName(),
 			})
 		}
 	}
@@ -403,7 +403,7 @@ func distinguishGraphError(ctx context.Context, dispatchError error, source devi
 	}
 
 	details, ok := spiceerrors.GetDetails[*errdetails.ErrorInfo](dispatchError)
-	if ok && details.Reason == "ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED" {
+	if ok && details.GetReason() == "ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED" {
 		status, _ := status.FromError(dispatchError)
 		return &devinterface.DeveloperError{
 			Message: status.Message(),

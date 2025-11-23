@@ -56,11 +56,11 @@ func (r *serverReporter) PostCall(_ error, _ time.Duration) {
 		responseMeta = &dispatch.ResponseMeta{}
 	}
 
-	DispatchedCountHistogram.WithLabelValues(r.methodName, "false").Observe(float64(responseMeta.DispatchCount))
-	DispatchedCountHistogram.WithLabelValues(r.methodName, "true").Observe(float64(responseMeta.CachedDispatchCount))
+	DispatchedCountHistogram.WithLabelValues(r.methodName, "false").Observe(float64(responseMeta.GetDispatchCount()))
+	DispatchedCountHistogram.WithLabelValues(r.methodName, "true").Observe(float64(responseMeta.GetCachedDispatchCount()))
 	err := responsemeta.SetResponseTrailerMetadata(r.ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(responseMeta.DispatchCount)),
-		responsemeta.CachedOperationsCount:     strconv.Itoa(int(responseMeta.CachedDispatchCount)),
+		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(responseMeta.GetDispatchCount())),
+		responsemeta.CachedOperationsCount:     strconv.Itoa(int(responseMeta.GetCachedDispatchCount())),
 	})
 	if err != nil {
 		// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite (which is private)

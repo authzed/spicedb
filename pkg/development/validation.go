@@ -45,7 +45,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 		}
 
 		// Add the ONR and its expansion to the membership set.
-		foundSubjects, _, aerr := membershipSet.AddExpansion(onrKey.ObjectAndRelation, er.TreeNode)
+		foundSubjects, _, aerr := membershipSet.AddExpansion(onrKey.ObjectAndRelation, er.GetTreeNode())
 		if aerr != nil {
 			devErr, wireErr := DistinguishGraphError(devContext, aerr, devinterface.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
 			if wireErr != nil {

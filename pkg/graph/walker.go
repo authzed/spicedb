@@ -17,7 +17,7 @@ func WalkRewrite(rewrite *core.UsersetRewrite, handler WalkHandler) (any, error)
 		return nil, nil
 	}
 
-	switch rw := rewrite.RewriteOperation.(type) {
+	switch rw := rewrite.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
 		return walkRewriteChildren(rw.Union, handler)
 	case *core.UsersetRewrite_Intersection:
@@ -33,7 +33,7 @@ func WalkRewrite(rewrite *core.UsersetRewrite, handler WalkHandler) (any, error)
 // the rewrite is nil, returns false.
 func HasThis(rewrite *core.UsersetRewrite) (bool, error) {
 	result, err := WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) (any, error) {
-		switch childOneof.ChildType.(type) {
+		switch childOneof.GetChildType().(type) {
 		case *core.SetOperation_Child_XThis:
 			return true, nil
 		default:
@@ -44,7 +44,7 @@ func HasThis(rewrite *core.UsersetRewrite) (bool, error) {
 }
 
 func walkRewriteChildren(so *core.SetOperation, handler WalkHandler) (any, error) {
-	for _, childOneof := range so.Child {
+	for _, childOneof := range so.GetChild() {
 		vle, err := handler(childOneof)
 		if err != nil {
 			return nil, err
@@ -54,7 +54,7 @@ func walkRewriteChildren(so *core.SetOperation, handler WalkHandler) (any, error
 			return vle, nil
 		}
 
-		if child, ok := childOneof.ChildType.(*core.SetOperation_Child_UsersetRewrite); ok {
+		if child, ok := childOneof.GetChildType().(*core.SetOperation_Child_UsersetRewrite); ok {
 			rvle, err := WalkRewrite(child.UsersetRewrite, handler)
 			if err != nil {
 				return nil, err

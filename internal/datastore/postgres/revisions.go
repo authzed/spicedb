@@ -199,15 +199,15 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 		return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
 	}
 
-	xminInt, err := safecast.Convert[int64](decoded.Xmin)
+	xminInt, err := safecast.Convert[int64](decoded.GetXmin())
 	if err != nil {
 		return datastore.NoRevision, spiceerrors.MustBugf("could not cast xmin to int64")
 	}
 
 	var xips []uint64
-	if len(decoded.RelativeXips) > 0 {
-		xips = make([]uint64, len(decoded.RelativeXips))
-		for i, relativeXip := range decoded.RelativeXips {
+	if len(decoded.GetRelativeXips()) > 0 {
+		xips = make([]uint64, len(decoded.GetRelativeXips()))
+		for i, relativeXip := range decoded.GetRelativeXips() {
 			xip := xminInt + relativeXip
 			uintXip, err := safecast.Convert[uint64](xip)
 			if err != nil {
@@ -217,19 +217,19 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 		}
 	}
 
-	xmax, err := safecast.Convert[uint64](xminInt + decoded.RelativeXmax)
+	xmax, err := safecast.Convert[uint64](xminInt + decoded.GetRelativeXmax())
 	if err != nil {
 		return datastore.NoRevision, spiceerrors.MustBugf("could not cast xmax to int64")
 	}
 
 	return postgresRevision{
 		snapshot: pgSnapshot{
-			xmin:    decoded.Xmin,
+			xmin:    decoded.GetXmin(),
 			xmax:    xmax,
 			xipList: xips,
 		},
-		optionalTxID:           xid8{Uint64: decoded.OptionalTxid, Valid: decoded.OptionalTxid != 0},
-		optionalNanosTimestamp: decoded.OptionalTimestamp,
+		optionalTxID:           xid8{Uint64: decoded.GetOptionalTxid(), Valid: decoded.GetOptionalTxid() != 0},
+		optionalNanosTimestamp: decoded.GetOptionalTimestamp(),
 	}, nil
 }
 

@@ -191,7 +191,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 			}
 
 			if err := rwt.WriteNamespaces(ctx, objectDef); err != nil {
-				return fmt.Errorf("error when loading object definition %s: %w", objectDef.Name, err)
+				return fmt.Errorf("error when loading object definition %s: %w", objectDef.GetName(), err)
 			}
 		}
 

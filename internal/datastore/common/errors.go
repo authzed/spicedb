@@ -122,12 +122,12 @@ func (err CreateRelationshipExistsError) GRPCStatus() *status.Status {
 			v1.ErrorReason_ERROR_REASON_ATTEMPT_TO_RECREATE_RELATIONSHIP,
 			map[string]string{
 				"relationship":       tuple.V1StringRelationshipWithoutCaveatOrExpiration(relationship),
-				"resource_type":      relationship.Resource.ObjectType,
-				"resource_object_id": relationship.Resource.ObjectId,
-				"resource_relation":  relationship.Relation,
-				"subject_type":       relationship.Subject.Object.ObjectType,
-				"subject_object_id":  relationship.Subject.Object.ObjectId,
-				"subject_relation":   relationship.Subject.OptionalRelation,
+				"resource_type":      relationship.GetResource().GetObjectType(),
+				"resource_object_id": relationship.GetResource().GetObjectId(),
+				"resource_relation":  relationship.GetRelation(),
+				"subject_type":       relationship.GetSubject().GetObject().GetObjectType(),
+				"subject_object_id":  relationship.GetSubject().GetObject().GetObjectId(),
+				"subject_relation":   relationship.GetSubject().GetOptionalRelation(),
 			},
 		),
 	)

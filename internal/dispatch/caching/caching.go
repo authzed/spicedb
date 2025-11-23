@@ -157,15 +157,15 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 			return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{}}, err
 		}
 
-		if req.Metadata.DepthRemaining >= response.Metadata.DepthRequired {
+		if req.GetMetadata().GetDepthRemaining() >= response.GetMetadata().GetDepthRequired() {
 			cd.checkFromCacheCounter.Inc()
 			// If debugging is requested, add the req and the response to the trace.
-			if req.Debug == v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING {
+			if req.GetDebug() == v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING {
 				nodeID := nodeid.Get()
 				response.Metadata.DebugInfo = &v1.DebugInformation{
 					Check: &v1.CheckDebugTrace{
 						Request:        req,
-						Results:        maps.Clone(response.ResultsByResourceId),
+						Results:        maps.Clone(response.GetResultsByResourceId()),
 						IsCachedResult: true,
 						SourceId:       nodeID,
 					},
@@ -182,7 +182,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 	// We only want to cache the result if there was no error
 	if err == nil {
 		adjustedComputed := computed.CloneVT()
-		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
+		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.GetMetadata().GetDispatchCount()
 		adjustedComputed.Metadata.DispatchCount = 0
 		adjustedComputed.Metadata.DebugInfo = nil
 
@@ -244,7 +244,7 @@ func (cd *Dispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2R
 		Ctx:    stream.Context(),
 		Processor: func(result *v1.DispatchLookupResources2Response) (*v1.DispatchLookupResources2Response, bool, error) {
 			adjustedResult := result.CloneVT()
-			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
+			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.GetMetadata().GetDispatchCount()
 			adjustedResult.Metadata.DispatchCount = 0
 			adjustedResult.Metadata.DebugInfo = nil
 
@@ -368,7 +368,7 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 		Ctx:    stream.Context(),
 		Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
 			adjustedResult := result.CloneVT()
-			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
+			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.GetMetadata().GetDispatchCount()
 			adjustedResult.Metadata.DispatchCount = 0
 			adjustedResult.Metadata.DebugInfo = nil
 

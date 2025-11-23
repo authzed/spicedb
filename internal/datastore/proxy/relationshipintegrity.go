@@ -220,7 +220,7 @@ func (r *relationshipIntegrityProxy) Statistics(ctx context.Context) (datastore.
 
 func (r *relationshipIntegrityProxy) validateRelationTuple(rel tuple.Relationship) error {
 	// Ensure the relationship has integrity data.
-	if rel.OptionalIntegrity == nil || len(rel.OptionalIntegrity.Hash) == 0 || rel.OptionalIntegrity.KeyId == "" {
+	if rel.OptionalIntegrity == nil || len(rel.OptionalIntegrity.GetHash()) == 0 || rel.OptionalIntegrity.GetKeyId() == "" {
 		str, err := tuple.String(rel)
 		if err != nil {
 			return err
@@ -229,18 +229,18 @@ func (r *relationshipIntegrityProxy) validateRelationTuple(rel tuple.Relationshi
 		return fmt.Errorf("relationship %s is missing required integrity data", str)
 	}
 
-	hashWithoutByte := rel.OptionalIntegrity.Hash[1:]
-	if rel.OptionalIntegrity.Hash[0] != versionByte || len(hashWithoutByte) != hashLength {
+	hashWithoutByte := rel.OptionalIntegrity.GetHash()[1:]
+	if rel.OptionalIntegrity.GetHash()[0] != versionByte || len(hashWithoutByte) != hashLength {
 		return fmt.Errorf("relationship %v has invalid integrity data", rel)
 	}
 
 	// Validate the integrity of the relationship.
-	key, err := r.lookupKey(rel.OptionalIntegrity.KeyId)
+	key, err := r.lookupKey(rel.OptionalIntegrity.GetKeyId())
 	if err != nil {
 		return err
 	}
 
-	if key.expiredAt != nil && key.expiredAt.Before(rel.OptionalIntegrity.HashedAt.AsTime()) {
+	if key.expiredAt != nil && key.expiredAt.Before(rel.OptionalIntegrity.GetHashedAt().AsTime()) {
 		return fmt.Errorf("relationship %s is signed by an expired key", rel)
 	}
 

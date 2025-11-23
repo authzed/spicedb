@@ -23,16 +23,16 @@ func TestCursorProduction(t *testing.T) {
 	require.NoError(t, err)
 
 	cursor := ci.responsePartialCursor()
-	require.Equal(t, uint32(42), cursor.DispatchVersion)
-	require.Empty(t, cursor.Sections)
+	require.Equal(t, uint32(42), cursor.GetDispatchVersion())
+	require.Empty(t, cursor.GetSections())
 
 	cci, err := ci.withOutgoingSection("4")
 	require.NoError(t, err)
 
 	ccursor := cci.responsePartialCursor()
 
-	require.Equal(t, uint32(42), ccursor.DispatchVersion)
-	require.Equal(t, []string{"4"}, ccursor.Sections)
+	require.Equal(t, uint32(42), ccursor.GetDispatchVersion())
+	require.Equal(t, []string{"4"}, ccursor.GetSections())
 }
 
 func TestCursorDifferentDispatchVersion(t *testing.T) {
@@ -158,7 +158,7 @@ func TestCombineCursors(t *testing.T) {
 
 	combined, err := combineCursors(cursor1, cursor2)
 	require.NoError(t, err)
-	require.Equal(t, []string{"a", "b", "c", "d", "e", "f"}, combined.Sections)
+	require.Equal(t, []string{"a", "b", "c", "d", "e", "f"}, combined.GetSections())
 }
 
 func TestCombineCursorsWithNil(t *testing.T) {
@@ -169,7 +169,7 @@ func TestCombineCursorsWithNil(t *testing.T) {
 
 	combined, err := combineCursors(nil, cursor2)
 	require.NoError(t, err)
-	require.Equal(t, []string{"d", "e", "f"}, combined.Sections)
+	require.Equal(t, []string{"d", "e", "f"}, combined.GetSections())
 }
 
 func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {

@@ -1267,10 +1267,10 @@ func TestReachabilityGraph(t *testing.T) {
 				})
 				ts := NewTypeSystem(resolver)
 
-				vdef, terr := ts.GetValidatedDefinition(ctx, nsDef.Name)
+				vdef, terr := ts.GetValidatedDefinition(ctx, nsDef.GetName())
 				require.NoError(terr)
 
-				if nsDef.Name == tc.resourceType.Namespace {
+				if nsDef.GetName() == tc.resourceType.GetNamespace() {
 					rdef = vdef
 				}
 			}
@@ -1299,7 +1299,7 @@ func verifyEntrypoints(require *require.Assertions, foundEntrypoints []Reachabil
 	for _, entrypoint := range foundEntrypoints {
 		foundRelations = append(foundRelations, tuple.StringCoreRR(entrypoint.ContainingRelationOrPermission()))
 		if isDirect, ok := isDirectMap[tuple.StringCoreRR(entrypoint.ContainingRelationOrPermission())]; ok {
-			require.Equal(isDirect, entrypoint.IsDirectResult(), "found mismatch for whether a direct result for entrypoint for %s", entrypoint.parentRelation.Relation)
+			require.Equal(isDirect, entrypoint.IsDirectResult(), "found mismatch for whether a direct result for entrypoint for %s", entrypoint.parentRelation.GetRelation())
 		}
 	}
 

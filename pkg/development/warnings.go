@@ -41,11 +41,11 @@ func warningForPosition(warningName string, message string, sourceCode string, s
 	}
 
 	// NOTE: zeroes on failure are fine here.
-	lineNumber, err := safecast.Convert[uint32](sourcePosition.ZeroIndexedLineNumber)
+	lineNumber, err := safecast.Convert[uint32](sourcePosition.GetZeroIndexedLineNumber())
 	if err != nil {
 		log.Err(err).Msg("could not cast lineNumber to uint32")
 	}
-	columnNumber, err := safecast.Convert[uint32](sourcePosition.ZeroIndexedColumnPosition)
+	columnNumber, err := safecast.Convert[uint32](sourcePosition.GetZeroIndexedColumnPosition())
 	if err != nil {
 		log.Err(err).Msg("could not cast columnPosition to uint32")
 	}
@@ -86,11 +86,11 @@ func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinitio
 	}
 
 	warnings := []*devinterface.DeveloperWarning{}
-	for _, rel := range nsDef.Relation {
+	for _, rel := range nsDef.GetRelation() {
 		ctx = context.WithValue(ctx, relationKey, rel)
 
 		for _, check := range allChecks.relationChecks {
-			if shouldSkipCheck(rel.Metadata, check.name) {
+			if shouldSkipCheck(rel.GetMetadata(), check.name) {
 				continue
 			}
 
@@ -104,8 +104,8 @@ func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinitio
 			}
 		}
 
-		if def.IsPermission(rel.Name) {
-			found, err := walkUsersetRewrite(ctx, rel.UsersetRewrite, rel, allChecks, def)
+		if def.IsPermission(rel.GetName()) {
+			found, err := walkUsersetRewrite(ctx, rel.GetUsersetRewrite(), rel, allChecks, def)
 			if err != nil {
 				return nil, err
 			}
@@ -174,15 +174,15 @@ func walkUsersetRewrite(ctx context.Context, rewrite *corev1.UsersetRewrite, rel
 		return nil, nil
 	}
 
-	switch t := (rewrite.RewriteOperation).(type) {
+	switch t := (rewrite.GetRewriteOperation()).(type) {
 	case *corev1.UsersetRewrite_Union:
-		return walkUsersetOperations(ctx, t.Union.Child, relation, checks, def)
+		return walkUsersetOperations(ctx, t.Union.GetChild(), relation, checks, def)
 
 	case *corev1.UsersetRewrite_Intersection:
-		return walkUsersetOperations(ctx, t.Intersection.Child, relation, checks, def)
+		return walkUsersetOperations(ctx, t.Intersection.GetChild(), relation, checks, def)
 
 	case *corev1.UsersetRewrite_Exclusion:
-		return walkUsersetOperations(ctx, t.Exclusion.Child, relation, checks, def)
+		return walkUsersetOperations(ctx, t.Exclusion.GetChild(), relation, checks, def)
 
 	default:
 		return nil, spiceerrors.MustBugf("unexpected rewrite operation type %T", t)
@@ -192,17 +192,17 @@ func walkUsersetRewrite(ctx context.Context, rewrite *corev1.UsersetRewrite, rel
 func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child, relation *corev1.Relation, checks checks, def *schema.Definition) ([]*devinterface.DeveloperWarning, error) {
 	warnings := []*devinterface.DeveloperWarning{}
 	for _, op := range ops {
-		switch t := op.ChildType.(type) {
+		switch t := op.GetChildType().(type) {
 		case *corev1.SetOperation_Child_XThis:
 			continue
 
 		case *corev1.SetOperation_Child_ComputedUserset:
 			for _, check := range checks.computedUsersetChecks {
-				if shouldSkipCheck(relation.Metadata, check.name) {
+				if shouldSkipCheck(relation.GetMetadata(), check.name) {
 					continue
 				}
 
-				checkerWarning, err := check.fn(ctx, t.ComputedUserset, op.SourcePosition, def)
+				checkerWarning, err := check.fn(ctx, t.ComputedUserset, op.GetSourcePosition(), def)
 				if err != nil {
 					return nil, err
 				}
@@ -222,11 +222,11 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 
 		case *corev1.SetOperation_Child_FunctionedTupleToUserset:
 			for _, check := range checks.ttuChecks {
-				if shouldSkipCheck(relation.Metadata, check.name) {
+				if shouldSkipCheck(relation.GetMetadata(), check.name) {
 					continue
 				}
 
-				checkerWarning, err := check.fn(ctx, wrappedFunctionedTTU{t.FunctionedTupleToUserset}, op.SourcePosition, def)
+				checkerWarning, err := check.fn(ctx, wrappedFunctionedTTU{t.FunctionedTupleToUserset}, op.GetSourcePosition(), def)
 				if err != nil {
 					return nil, err
 				}
@@ -238,11 +238,11 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 
 		case *corev1.SetOperation_Child_TupleToUserset:
 			for _, check := range checks.ttuChecks {
-				if shouldSkipCheck(relation.Metadata, check.name) {
+				if shouldSkipCheck(relation.GetMetadata(), check.name) {
 					continue
 				}
 
-				checkerWarning, err := check.fn(ctx, wrappedTTU{t.TupleToUserset}, op.SourcePosition, def)
+				checkerWarning, err := check.fn(ctx, wrappedTTU{t.TupleToUserset}, op.GetSourcePosition(), def)
 				if err != nil {
 					return nil, err
 				}

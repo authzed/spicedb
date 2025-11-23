@@ -312,8 +312,8 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 		var caveatName string
 		var caveatContext structpbWrapper
 		if rel.OptionalCaveat != nil {
-			caveatName = rel.OptionalCaveat.CaveatName
-			caveatContext = rel.OptionalCaveat.Context.AsMap()
+			caveatName = rel.OptionalCaveat.GetCaveatName()
+			caveatContext = rel.OptionalCaveat.GetContext().AsMap()
 		}
 		bulkWrite = bulkWrite.Values(
 			rel.Resource.ObjectType,
@@ -348,17 +348,17 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
 	// Add clauses for the ResourceFilter
 	query := rwt.DeleteRelsQuery
-	if filter.ResourceType != "" {
-		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	if filter.GetResourceType() != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.GetResourceType()})
 	}
-	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+	if filter.GetOptionalResourceId() != "" {
+		query = query.Where(sq.Eq{colObjectID: filter.GetOptionalResourceId()})
 	}
-	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	if filter.GetOptionalRelation() != "" {
+		query = query.Where(sq.Eq{colRelation: filter.GetOptionalRelation()})
 	}
-	if filter.OptionalResourceIdPrefix != "" {
-		likeClause, err := common.BuildLikePrefixClause(colObjectID, filter.OptionalResourceIdPrefix)
+	if filter.GetOptionalResourceIdPrefix() != "" {
+		likeClause, err := common.BuildLikePrefixClause(colObjectID, filter.GetOptionalResourceIdPrefix())
 		if err != nil {
 			return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
 		}
@@ -366,13 +366,13 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 	}
 
 	// Add clauses for the SubjectFilter
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
-		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+	if subjectFilter := filter.GetOptionalSubjectFilter(); subjectFilter != nil {
+		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.GetSubjectType()})
+		if subjectFilter.GetOptionalSubjectId() != "" {
+			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.GetOptionalSubjectId()})
 		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
+		if relationFilter := subjectFilter.GetOptionalRelation(); relationFilter != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: cmp.Or(relationFilter.GetRelation(), datastore.Ellipsis)})
 		}
 	}
 
@@ -426,8 +426,8 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}
 
-		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.Name})
-		writeQuery = writeQuery.Values(newNamespace.Name, serialized, rwt.newTxnID)
+		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.GetName()})
+		writeQuery = writeQuery.Values(newNamespace.GetName(), serialized, rwt.newTxnID)
 	}
 
 	delSQL, delArgs, err := rwt.DeleteNamespaceQuery.
@@ -540,8 +540,8 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 			var caveatName string
 			var caveatContext structpbWrapper
 			if rel.OptionalCaveat != nil {
-				caveatName = rel.OptionalCaveat.CaveatName
-				caveatContext = rel.OptionalCaveat.Context.AsMap()
+				caveatName = rel.OptionalCaveat.GetCaveatName()
+				caveatContext = rel.OptionalCaveat.GetContext().AsMap()
 			}
 			args = append(args,
 				rel.Resource.ObjectType,

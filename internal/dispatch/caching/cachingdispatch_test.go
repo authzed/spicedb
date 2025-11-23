@@ -139,7 +139,7 @@ func TestMaxDepthCaching(t *testing.T) {
 					},
 				})
 				require.NoError(err)
-				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[parsed.ObjectID].Membership)
+				require.Equal(v1.ResourceCheckResult_MEMBER, resp.GetResultsByResourceId()[parsed.ObjectID].GetMembership())
 
 				// We have to sleep a while to let the cache converge
 				time.Sleep(10 * time.Millisecond)

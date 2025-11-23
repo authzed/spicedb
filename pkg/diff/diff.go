@@ -20,7 +20,7 @@ type DiffableSchema struct {
 
 func (ds *DiffableSchema) GetNamespace(namespaceName string) (*core.NamespaceDefinition, bool) {
 	for _, ns := range ds.ObjectDefinitions {
-		if ns.Name == namespaceName {
+		if ns.GetName() == namespaceName {
 			return ns, true
 		}
 	}
@@ -34,8 +34,8 @@ func (ds *DiffableSchema) GetRelation(nsName string, relationName string) (*core
 		return nil, false
 	}
 
-	for _, relation := range ns.Relation {
-		if relation.Name == relationName {
+	for _, relation := range ns.GetRelation() {
+		if relation.GetName() == relationName {
 			return relation, true
 		}
 	}
@@ -45,7 +45,7 @@ func (ds *DiffableSchema) GetRelation(nsName string, relationName string) (*core
 
 func (ds *DiffableSchema) GetCaveat(caveatName string) (*core.CaveatDefinition, bool) {
 	for _, caveat := range ds.CaveatDefinitions {
-		if caveat.Name == caveatName {
+		if caveat.GetName() == caveatName {
 			return caveat, true
 		}
 	}
@@ -87,29 +87,29 @@ func DiffSchemas(existing DiffableSchema, comparison DiffableSchema, caveatTypeS
 	existingNamespacesByName := make(map[string]*core.NamespaceDefinition, len(existing.ObjectDefinitions))
 	existingNamespaceNames := mapz.NewSet[string]()
 	for _, nsDef := range existing.ObjectDefinitions {
-		existingNamespacesByName[nsDef.Name] = nsDef
-		existingNamespaceNames.Add(nsDef.Name)
+		existingNamespacesByName[nsDef.GetName()] = nsDef
+		existingNamespaceNames.Add(nsDef.GetName())
 	}
 
 	existingCaveatsByName := make(map[string]*core.CaveatDefinition, len(existing.CaveatDefinitions))
 	existingCaveatsByNames := mapz.NewSet[string]()
 	for _, caveatDef := range existing.CaveatDefinitions {
-		existingCaveatsByName[caveatDef.Name] = caveatDef
-		existingCaveatsByNames.Add(caveatDef.Name)
+		existingCaveatsByName[caveatDef.GetName()] = caveatDef
+		existingCaveatsByNames.Add(caveatDef.GetName())
 	}
 
 	comparisonNamespacesByName := make(map[string]*core.NamespaceDefinition, len(comparison.ObjectDefinitions))
 	comparisonNamespaceNames := mapz.NewSet[string]()
 	for _, nsDef := range comparison.ObjectDefinitions {
-		comparisonNamespacesByName[nsDef.Name] = nsDef
-		comparisonNamespaceNames.Add(nsDef.Name)
+		comparisonNamespacesByName[nsDef.GetName()] = nsDef
+		comparisonNamespaceNames.Add(nsDef.GetName())
 	}
 
 	comparisonCaveatsByName := make(map[string]*core.CaveatDefinition, len(comparison.CaveatDefinitions))
 	comparisonCaveatsByNames := mapz.NewSet[string]()
 	for _, caveatDef := range comparison.CaveatDefinitions {
-		comparisonCaveatsByName[caveatDef.Name] = caveatDef
-		comparisonCaveatsByNames.Add(caveatDef.Name)
+		comparisonCaveatsByName[caveatDef.GetName()] = caveatDef
+		comparisonCaveatsByNames.Add(caveatDef.GetName())
 	}
 
 	changedNamespaces := make(map[string]namespace.Diff, 0)

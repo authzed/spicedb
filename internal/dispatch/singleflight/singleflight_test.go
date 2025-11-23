@@ -340,8 +340,8 @@ func assertCounterWithLabel(t *testing.T, gatherer prometheus.Gatherer, expected
 	found := false
 	require.Len(t, mf.GetMetric(), expectedMetricsCount)
 	for _, metric := range mf.GetMetric() {
-		for _, label := range metric.Label {
-			if *label.Value == labelName {
+		for _, label := range metric.GetLabel() {
+			if label.GetValue() == labelName {
 				found = true
 			}
 		}

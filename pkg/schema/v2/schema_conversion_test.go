@@ -311,14 +311,14 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 
 			// Check that each compiled definition maps to a v2 definition
 			for _, compiledDef := range compiled.ObjectDefinitions {
-				v2Def, exists := v2Schema.Definitions()[compiledDef.Name]
-				require.True(t, exists, "Compiled definition %s should exist in v2 schema", compiledDef.Name)
-				require.Equal(t, compiledDef.Name, v2Def.Name())
+				v2Def, exists := v2Schema.Definitions()[compiledDef.GetName()]
+				require.True(t, exists, "Compiled definition %s should exist in v2 schema", compiledDef.GetName())
+				require.Equal(t, compiledDef.GetName(), v2Def.Name())
 
 				// Count relations and permissions from compiled schema
 				compiledRelations := 0
 				compiledPermissions := 0
-				for _, relation := range compiledDef.Relation {
+				for _, relation := range compiledDef.GetRelation() {
 					if relation.GetTypeInformation() != nil {
 						compiledRelations++
 					}
@@ -333,10 +333,10 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 
 			// Check that each compiled caveat maps to a v2 caveat
 			for _, compiledCaveat := range compiled.CaveatDefinitions {
-				v2Caveat, exists := v2Schema.Caveats()[compiledCaveat.Name]
-				require.True(t, exists, "Compiled caveat %s should exist in v2 schema", compiledCaveat.Name)
-				require.Equal(t, compiledCaveat.Name, v2Caveat.Name())
-				require.Equal(t, string(compiledCaveat.SerializedExpression), v2Caveat.Expression())
+				v2Caveat, exists := v2Schema.Caveats()[compiledCaveat.GetName()]
+				require.True(t, exists, "Compiled caveat %s should exist in v2 schema", compiledCaveat.GetName())
+				require.Equal(t, compiledCaveat.GetName(), v2Caveat.Name())
+				require.Equal(t, string(compiledCaveat.GetSerializedExpression()), v2Caveat.Expression())
 			}
 		})
 	}

@@ -74,10 +74,10 @@ func TestBulkImportRelationships(t *testing.T) {
 						for i := uint64(0); i < batchSize; i++ {
 							if withCaveats {
 								batch = append(batch, mustRelWithCaveatAndContext(
-									tf.DocumentNS.Name,
+									tf.DocumentNS.GetName(),
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
 									"caveated_viewer",
-									tf.UserNS.Name,
+									tf.UserNS.GetName(),
 									strconv.FormatUint(i, 10),
 									"",
 									"test",
@@ -85,10 +85,10 @@ func TestBulkImportRelationships(t *testing.T) {
 								))
 							} else {
 								batch = append(batch, rel(
-									tf.DocumentNS.Name,
+									tf.DocumentNS.GetName(),
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
 									"viewer",
-									tf.UserNS.Name,
+									tf.UserNS.GetName(),
 									strconv.FormatUint(i, 10),
 									"",
 								))
@@ -105,12 +105,12 @@ func TestBulkImportRelationships(t *testing.T) {
 
 					resp, err := writer.CloseAndRecv()
 					require.NoError(err)
-					require.Equal(expectedTotal, resp.NumLoaded)
+					require.Equal(expectedTotal, resp.GetNumLoaded())
 
 					readerClient := v1.NewPermissionsServiceClient(conn)
 					stream, err := readerClient.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
 						RelationshipFilter: &v1.RelationshipFilter{
-							ResourceType: tf.DocumentNS.Name,
+							ResourceType: tf.DocumentNS.GetName(),
 						},
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
@@ -171,14 +171,14 @@ func TestBulkExportRelationships(t *testing.T) {
 		namespace string
 		relation  string
 	}{
-		{tf.DocumentNS.Name, "viewer"},
-		{tf.FolderNS.Name, "viewer"},
-		{tf.DocumentNS.Name, "owner"},
-		{tf.FolderNS.Name, "owner"},
-		{tf.DocumentNS.Name, "editor"},
-		{tf.FolderNS.Name, "editor"},
-		{tf.DocumentNS.Name, "caveated_viewer"},
-		{tf.DocumentNS.Name, "expiring_viewer"},
+		{tf.DocumentNS.GetName(), "viewer"},
+		{tf.FolderNS.GetName(), "viewer"},
+		{tf.DocumentNS.GetName(), "owner"},
+		{tf.FolderNS.GetName(), "owner"},
+		{tf.DocumentNS.GetName(), "editor"},
+		{tf.FolderNS.GetName(), "editor"},
+		{tf.DocumentNS.GetName(), "caveated_viewer"},
+		{tf.DocumentNS.GetName(), "expiring_viewer"},
 	}
 
 	totalToWrite := 1_000
@@ -201,7 +201,7 @@ func TestBulkExportRelationships(t *testing.T) {
 
 	resp, err := writer.CloseAndRecv()
 	require.NoError(t, err)
-	numLoaded, err := safecast.Convert[int](resp.NumLoaded)
+	numLoaded, err := safecast.Convert[int](resp.GetNumLoaded())
 	require.NoError(t, err)
 	require.Equal(t, totalToWrite, numLoaded)
 
@@ -243,14 +243,14 @@ func TestBulkExportRelationships(t *testing.T) {
 					}
 
 					require.NoError(err)
-					require.LessOrEqual(uint64(len(batch.Relationships)), uint64(tc.batchSize))
-					require.NotNil(batch.AfterResultCursor)
-					require.NotEmpty(batch.AfterResultCursor.Token)
+					require.LessOrEqual(uint64(len(batch.GetRelationships())), uint64(tc.batchSize))
+					require.NotNil(batch.GetAfterResultCursor())
+					require.NotEmpty(batch.GetAfterResultCursor().GetToken())
 
-					cursor = batch.AfterResultCursor
-					totalRead += len(batch.Relationships)
+					cursor = batch.GetAfterResultCursor()
+					totalRead += len(batch.GetRelationships())
 
-					for _, rel := range batch.Relationships {
+					for _, rel := range batch.GetRelationships() {
 						remainingRels.Delete(tuple.MustV1RelString(rel))
 					}
 				}
@@ -275,7 +275,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 		{
 			"basic filter",
 			&v1.RelationshipFilter{
-				ResourceType: tf.DocumentNS.Name,
+				ResourceType: tf.DocumentNS.GetName(),
 			},
 			625,
 		},
@@ -296,7 +296,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 		{
 			"filter by resource ID prefix and resource type",
 			&v1.RelationshipFilter{
-				ResourceType:             tf.DocumentNS.Name,
+				ResourceType:             tf.DocumentNS.GetName(),
 				OptionalResourceIdPrefix: "1",
 			},
 			69,
@@ -326,14 +326,14 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				namespace string
 				relation  string
 			}{
-				{tf.DocumentNS.Name, "viewer"},
-				{tf.FolderNS.Name, "viewer"},
-				{tf.DocumentNS.Name, "owner"},
-				{tf.FolderNS.Name, "owner"},
-				{tf.DocumentNS.Name, "editor"},
-				{tf.FolderNS.Name, "editor"},
-				{tf.DocumentNS.Name, "caveated_viewer"},
-				{tf.DocumentNS.Name, "expiring_viewer"},
+				{tf.DocumentNS.GetName(), "viewer"},
+				{tf.FolderNS.GetName(), "viewer"},
+				{tf.DocumentNS.GetName(), "owner"},
+				{tf.FolderNS.GetName(), "owner"},
+				{tf.DocumentNS.GetName(), "editor"},
+				{tf.FolderNS.GetName(), "editor"},
+				{tf.DocumentNS.GetName(), "caveated_viewer"},
+				{tf.DocumentNS.GetName(), "expiring_viewer"},
 			}
 
 			expectedRels := mapz.NewSet[string]()
@@ -389,16 +389,16 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				}
 
 				require.NoError(err)
-				relLength, err := safecast.Convert[uint32](len(batch.Relationships))
+				relLength, err := safecast.Convert[uint32](len(batch.GetRelationships()))
 				require.NoError(err)
 				require.LessOrEqual(relLength, batchSize)
-				require.NotNil(batch.AfterResultCursor)
-				require.NotEmpty(batch.AfterResultCursor.Token)
+				require.NotNil(batch.GetAfterResultCursor())
+				require.NotEmpty(batch.GetAfterResultCursor().GetToken())
 
-				cursor = batch.AfterResultCursor
-				totalRead += uint64(len(batch.Relationships))
+				cursor = batch.GetAfterResultCursor()
+				totalRead += uint64(len(batch.GetRelationships()))
 
-				for _, rel := range batch.Relationships {
+				for _, rel := range batch.GetRelationships() {
 					if tc.filter != nil {
 						filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 						require.NoError(err)
@@ -634,7 +634,7 @@ func TestBulkCheckPermission(t *testing.T) {
 					Response: resp,
 				}
 				if reqRel.OptionalCaveat != nil {
-					pair.Request.Context = reqRel.OptionalCaveat.Context
+					pair.Request.Context = reqRel.OptionalCaveat.GetContext()
 				}
 				if len(r.partial) > 0 {
 					resp.Item.PartialCaveatInfo = &v1.PartialCaveatInfo{
@@ -657,7 +657,7 @@ func TestBulkCheckPermission(t *testing.T) {
 			actual, err := client.BulkCheckPermission(t.Context(), &req, grpc.Trailer(&trailer))
 			require.NoError(t, err)
 
-			testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, nil, "response bulk check pairs did not match")
+			testutil.RequireProtoSlicesEqual(t, expected, actual.GetPairs(), nil, "response bulk check pairs did not match")
 		})
 	}
 }
@@ -681,7 +681,7 @@ func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
 		},
 	}
 	if r.OptionalCaveat != nil {
-		item.Context = r.OptionalCaveat.Context
+		item.Context = r.OptionalCaveat.GetContext()
 	}
 	return item
 }
@@ -771,7 +771,7 @@ func TestExperimentalSchemaDiff(t *testing.T) {
 				grpcutil.RequireStatus(t, tt.expectedCode, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, actual.ReadAt)
+				require.NotNil(t, actual.GetReadAt())
 				actual.ReadAt = nil
 
 				testutil.RequireProtoEqual(t, tt.expectedResponse, actual, "mismatch in response")
@@ -1185,7 +1185,7 @@ definition user {}`,
 				grpcutil.RequireStatus(t, tt.expectedCode, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, actual.ReadAt)
+				require.NotNil(t, actual.GetReadAt())
 				actual.ReadAt = nil
 
 				testutil.RequireProtoEqual(t, tt.expectedResponse, actual, "mismatch in response")
@@ -1418,7 +1418,7 @@ func TestExperimentalDependentRelations(t *testing.T) {
 				grpcutil.RequireStatus(t, tc.expectedCode, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, actual.ReadAt)
+				require.NotNil(t, actual.GetReadAt())
 				actual.ReadAt = nil
 
 				testutil.RequireProtoEqual(t, &v1.ExperimentalDependentRelationsResponse{
@@ -1619,7 +1619,7 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 				grpcutil.RequireStatus(t, tc.expectedCode, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, actual.ReadAt)
+				require.NotNil(t, actual.GetReadAt())
 				actual.ReadAt = nil
 
 				testutil.RequireProtoEqual(t, &v1.ExperimentalComputablePermissionsResponse{
@@ -1712,14 +1712,14 @@ func TestExperimentalCountRelationships(t *testing.T) {
 		Name: "somedocfilter",
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint64(9), actual.GetReadCounterValue().RelationshipCount)
-	require.NotNil(t, actual.GetReadCounterValue().ReadAt)
+	require.Equal(t, uint64(9), actual.GetReadCounterValue().GetRelationshipCount())
+	require.NotNil(t, actual.GetReadCounterValue().GetReadAt())
 
 	actual, err = expClient.ExperimentalCountRelationships(t.Context(), &v1.ExperimentalCountRelationshipsRequest{
 		Name: "someotherfilter",
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint64(7), actual.GetReadCounterValue().RelationshipCount)
+	require.Equal(t, uint64(7), actual.GetReadCounterValue().GetRelationshipCount())
 
 	// Register one more filter.
 	_, err = expClient.ExperimentalRegisterRelationshipCounter(t.Context(), &v1.ExperimentalRegisterRelationshipCounterRequest{
@@ -1735,5 +1735,5 @@ func TestExperimentalCountRelationships(t *testing.T) {
 		Name: "somethirdfilter",
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint64(2), actual.GetReadCounterValue().RelationshipCount)
+	require.Equal(t, uint64(2), actual.GetReadCounterValue().GetRelationshipCount())
 }

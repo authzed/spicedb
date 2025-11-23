@@ -200,7 +200,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// check that we can read a caveat whose revision has been garbage collectged
-	_, _, err = ds.SnapshotReader(head).ReadCaveatByName(ctx, testCaveat.Name)
+	_, _, err = ds.SnapshotReader(head).ReadCaveatByName(ctx, testCaveat.GetName())
 	require.NoError(err, "expected previously written caveat should exist at head")
 
 	// check that we can read the namespace which had its revision garbage collected

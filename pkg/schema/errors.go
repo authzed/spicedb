@@ -423,8 +423,8 @@ func NewTypeWithSourceError(wrapped error, withSource nspkg.WithSourcePosition, 
 		return asTypeError(spiceerrors.NewWithSourceError(
 			wrapped,
 			sourceCodeString,
-			sourcePosition.ZeroIndexedLineNumber+1, // +1 to make 1-indexed
-			sourcePosition.ZeroIndexedColumnPosition+1, // +1 to make 1-indexed
+			sourcePosition.GetZeroIndexedLineNumber()+1,     // +1 to make 1-indexed
+			sourcePosition.GetZeroIndexedColumnPosition()+1, // +1 to make 1-indexed
 		))
 	}
 

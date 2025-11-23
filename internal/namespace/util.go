@@ -25,8 +25,8 @@ func ReadNamespaceAndRelation(
 		return nil, nil, err
 	}
 
-	for _, rel := range config.Relation {
-		if rel.Name == relation {
+	for _, rel := range config.GetRelation() {
+		if rel.GetName() == relation {
 			return config, rel, nil
 		}
 	}
@@ -68,7 +68,7 @@ func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToC
 
 	mappedNamespaces := make(map[string]*core.NamespaceDefinition, len(namespaces))
 	for _, namespace := range namespaces {
-		mappedNamespaces[namespace.Definition.Name] = namespace.Definition
+		mappedNamespaces[namespace.Definition.GetName()] = namespace.Definition
 	}
 
 	for _, toCheck := range checks {
@@ -82,8 +82,8 @@ func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToC
 		}
 
 		foundRelation := false
-		for _, rel := range nsDef.Relation {
-			if rel.Name == toCheck.RelationName {
+		for _, rel := range nsDef.GetRelation() {
+			if rel.GetName() == toCheck.RelationName {
 				foundRelation = true
 				break
 			}
@@ -119,8 +119,8 @@ func CheckNamespaceAndRelation(
 		return nil
 	}
 
-	for _, rel := range config.Relation {
-		if rel.Name == relation {
+	for _, rel := range config.GetRelation() {
+		if rel.GetName() == relation {
 			return nil
 		}
 	}
@@ -134,11 +134,11 @@ func CheckNamespaceAndRelation(
 func ListReferencedNamespaces(nsdefs []*core.NamespaceDefinition) []string {
 	referencedNamespaceNamesSet := mapz.NewSet[string]()
 	for _, nsdef := range nsdefs {
-		referencedNamespaceNamesSet.Insert(nsdef.Name)
+		referencedNamespaceNamesSet.Insert(nsdef.GetName())
 
-		for _, relation := range nsdef.Relation {
+		for _, relation := range nsdef.GetRelation() {
 			if relation.GetTypeInformation() != nil {
-				for _, allowedRel := range relation.GetTypeInformation().AllowedDirectRelations {
+				for _, allowedRel := range relation.GetTypeInformation().GetAllowedDirectRelations() {
 					referencedNamespaceNamesSet.Insert(allowedRel.GetNamespace())
 				}
 			}

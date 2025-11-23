@@ -527,10 +527,10 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	rel := slice[0]
 
 	require.NotNil(rel.OptionalIntegrity)
-	require.Equal("key1", rel.OptionalIntegrity.KeyId)
-	require.Equal([]byte("hash1"), rel.OptionalIntegrity.Hash)
+	require.Equal("key1", rel.OptionalIntegrity.GetKeyId())
+	require.Equal([]byte("hash1"), rel.OptionalIntegrity.GetHash())
 
-	require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
+	require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.GetHashedAt().AsTime()).Milliseconds())), 1000.0)
 }
 
 type fakeSource struct {
@@ -590,10 +590,10 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 	rel := slice[0]
 
 	require.NotNil(rel.OptionalIntegrity)
-	require.Equal("key1", rel.OptionalIntegrity.KeyId)
-	require.Equal([]byte("hash1"), rel.OptionalIntegrity.Hash)
+	require.Equal("key1", rel.OptionalIntegrity.GetKeyId())
+	require.Equal([]byte("hash1"), rel.OptionalIntegrity.GetHash())
 
-	require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
+	require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.GetHashedAt().AsTime()).Milliseconds())), 1000.0)
 }
 
 func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
@@ -637,10 +637,10 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 
 		rel := change.RelationshipChanges[0].Relationship
 		require.NotNil(rel.OptionalIntegrity)
-		require.Equal("key1", rel.OptionalIntegrity.KeyId)
-		require.Equal([]byte("hash1"), rel.OptionalIntegrity.Hash)
+		require.Equal("key1", rel.OptionalIntegrity.GetKeyId())
+		require.Equal([]byte("hash1"), rel.OptionalIntegrity.GetHash())
 
-		require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
+		require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.GetHashedAt().AsTime()).Milliseconds())), 1000.0)
 	case err := <-errchan:
 		require.Failf("Failed waiting for changes with error", "error: %v", err)
 	case <-time.NewTimer(10 * time.Second).C:

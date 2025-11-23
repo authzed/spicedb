@@ -84,7 +84,7 @@ func (fds *fakeDispatchSvc) DispatchLookupSubjects(req *v1.DispatchLookupSubject
 		time.Sleep(fds.sleepTime)
 		if err := srv.Send(&v1.DispatchLookupSubjectsResponse{
 			FoundSubjectsByResourceId: map[string]*v1.FoundSubjects{
-				req.ResourceIds[0]: {
+				req.GetResourceIds()[0]: {
 					FoundSubjects: []*v1.FoundSubject{
 						{
 							SubjectId: fmt.Sprintf("%d", i),
@@ -218,7 +218,7 @@ func TestDispatchTimeout(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
-				require.GreaterOrEqual(t, resp.Metadata.DispatchCount, uint32(1))
+				require.GreaterOrEqual(t, resp.GetMetadata().GetDispatchCount(), uint32(1))
 			}
 
 			// Invoke a dispatched "LookupSubjects" and test as well.
@@ -348,7 +348,7 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 
 			resp, err := dispatcher.DispatchCheck(t.Context(), tc.request)
 			require.NoError(t, err)
-			require.Equal(t, tc.expectedResult, resp.Metadata.DispatchCount)
+			require.Equal(t, tc.expectedResult, resp.GetMetadata().GetDispatchCount())
 		})
 	}
 }
@@ -624,7 +624,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, stream.Results(), 2)
-				require.Equal(t, tc.expectedDispatchCount, stream.Results()[0].Metadata.DispatchCount)
+				require.Equal(t, tc.expectedDispatchCount, stream.Results()[0].GetMetadata().GetDispatchCount())
 			}
 		})
 	}
@@ -672,8 +672,8 @@ func TestLRDispatchFallbackToPrimary(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, stream.Results(), int(results))
-	require.Equal(t, uint32(1), stream.Results()[0].Metadata.DispatchCount)
-	require.Equal(t, "0", stream.Results()[0].Resource.ResourceId)
+	require.Equal(t, uint32(1), stream.Results()[0].GetMetadata().GetDispatchCount())
+	require.Equal(t, "0", stream.Results()[0].GetResource().GetResourceId())
 }
 
 func TestLSSecondaryDispatch(t *testing.T) {
@@ -752,7 +752,7 @@ func TestLSSecondaryDispatch(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, stream.Results(), 2)
-				require.Equal(t, tc.expectedDispatchCount, stream.Results()[0].Metadata.DispatchCount)
+				require.Equal(t, tc.expectedDispatchCount, stream.Results()[0].GetMetadata().GetDispatchCount())
 			}
 		})
 	}
@@ -795,8 +795,8 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, stream.Results(), int(results))
-	require.Equal(t, uint32(1), stream.Results()[0].Metadata.DispatchCount)
-	require.Equal(t, "0", stream.Results()[0].FoundSubjectsByResourceId["foo"].FoundSubjects[0].SubjectId)
+	require.Equal(t, uint32(1), stream.Results()[0].GetMetadata().GetDispatchCount())
+	require.Equal(t, "0", stream.Results()[0].GetFoundSubjectsByResourceId()["foo"].GetFoundSubjects()[0].GetSubjectId())
 }
 
 func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
@@ -826,7 +826,7 @@ func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
 		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint32(2), resp.Metadata.DispatchCount)
+	require.Equal(t, uint32(2), resp.GetMetadata().GetDispatchCount())
 
 	// Ensure the digest for the check was updated.
 	cast := dispatcher.(*clusterDispatcher)
@@ -869,7 +869,7 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 	}, stream)
 	require.NoError(t, err)
 
-	require.Equal(t, uint32(2), stream.Results()[0].Metadata.DispatchCount)
+	require.Equal(t, uint32(2), stream.Results()[0].GetMetadata().GetDispatchCount())
 	require.Len(t, stream.Results(), 2)
 
 	// Ensure the digest for the lookupsubjects was updated.
@@ -949,7 +949,7 @@ func TestCheckUsesMaximumDelayByDefaultForPrimary(t *testing.T) {
 		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
+	require.Equal(t, uint32(1), resp.GetMetadata().GetDispatchCount())
 }
 
 func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.ClientConn {
@@ -1086,7 +1086,7 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
+	require.Equal(t, uint32(1), resp.GetMetadata().GetDispatchCount())
 
 	// Ensure the resource relation was marked as unsupported.
 	cast := dispatcher.(*clusterDispatcher)
@@ -1103,7 +1103,7 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 	})
 	endTime := time.Now()
 	require.NoError(t, err)
-	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
+	require.Equal(t, uint32(1), resp.GetMetadata().GetDispatchCount())
 	require.LessOrEqual(t, endTime.Sub(startTime), 25*time.Millisecond)
 }
 

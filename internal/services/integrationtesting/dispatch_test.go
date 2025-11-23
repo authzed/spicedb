@@ -64,7 +64,7 @@ func TestDispatchIntegration(t *testing.T) {
 				cresp, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: resp.WrittenAt,
+							AtLeastAsFresh: resp.GetWrittenAt(),
 						},
 					},
 					Resource: &v1.ObjectReference{
@@ -80,12 +80,12 @@ func TestDispatchIntegration(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, cresp.Permissionship)
+				require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, cresp.GetPermissionship())
 
 				cresp2, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: resp.WrittenAt,
+							AtLeastAsFresh: resp.GetWrittenAt(),
 						},
 					},
 					Resource: &v1.ObjectReference{
@@ -101,7 +101,7 @@ func TestDispatchIntegration(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, cresp2.Permissionship)
+				require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, cresp2.GetPermissionship())
 			},
 		},
 		{
@@ -129,7 +129,7 @@ func TestDispatchIntegration(t *testing.T) {
 				cresp, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: resp.WrittenAt,
+							AtLeastAsFresh: resp.GetWrittenAt(),
 						},
 					},
 					Resource: &v1.ObjectReference{
@@ -145,7 +145,7 @@ func TestDispatchIntegration(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, cresp.Permissionship)
+				require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, cresp.GetPermissionship())
 			},
 		},
 		{
@@ -170,7 +170,7 @@ func TestDispatchIntegration(t *testing.T) {
 				_, cerr := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: resp.WrittenAt,
+							AtLeastAsFresh: resp.GetWrittenAt(),
 						},
 					},
 					Resource: &v1.ObjectReference{
@@ -309,7 +309,7 @@ func TestDispatchIntegration(t *testing.T) {
 					},
 				})
 				require.NoError(t, derr)
-				require.NotNil(t, resp.DeletedAt)
+				require.NotNil(t, resp.GetDeletedAt())
 			},
 		},
 	}

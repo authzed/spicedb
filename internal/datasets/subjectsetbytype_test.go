@@ -25,10 +25,10 @@ func TestSubjectByTypeSet(t *testing.T) {
 			objectIds := make([]string, 0, len(subjects.AsSlice()))
 			for _, subject := range subjects.AsSlice() {
 				require.Empty(t, subject.GetExcludedSubjects())
-				objectIds = append(objectIds, subject.SubjectId)
+				objectIds = append(objectIds, subject.GetSubjectId())
 			}
 
-			if rr.Namespace == foundRR.Namespace && rr.Relation == foundRR.Relation {
+			if rr.GetNamespace() == foundRR.GetNamespace() && rr.GetRelation() == foundRR.GetRelation() {
 				sort.Strings(objectIds)
 				require.Equal(t, expected, objectIds)
 				wasFound = true
@@ -70,8 +70,8 @@ func TestSubjectByTypeSet(t *testing.T) {
 
 	// Map
 	mapped, err := set.Map(func(rr *core.RelationReference) (*core.RelationReference, error) {
-		if rr.Namespace == "document" {
-			return RR("doc", rr.Relation), nil
+		if rr.GetNamespace() == "document" {
+			return RR("doc", rr.GetRelation()), nil
 		}
 
 		return rr, nil
@@ -118,7 +118,7 @@ func TestSubjectSetMapOverSameSubjectDifferentRelation(t *testing.T) {
 
 	mapped, err := set.Map(func(rr *core.RelationReference) (*core.RelationReference, error) {
 		return &core.RelationReference{
-			Namespace: rr.Namespace,
+			Namespace: rr.GetNamespace(),
 			Relation:  "shared",
 		}, nil
 	})
@@ -126,7 +126,7 @@ func TestSubjectSetMapOverSameSubjectDifferentRelation(t *testing.T) {
 
 	foundSubjectIDs := mapz.NewSet[string]()
 	for _, sub := range mapped.byType["folder#shared"].AsSlice() {
-		foundSubjectIDs.Add(sub.SubjectId)
+		foundSubjectIDs.Add(sub.GetSubjectId())
 	}
 
 	require.ElementsMatch(t, []string{"folder1", "folder2"}, foundSubjectIDs.AsSlice())

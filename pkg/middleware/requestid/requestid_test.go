@@ -55,7 +55,7 @@ func (t *testServer) PingStream(server testpb.TestService_PingStreamServer) erro
 			return err
 		}
 
-		if err := server.Send(&testpb.PingStreamResponse{Value: req.Value}); err != nil {
+		if err := server.Send(&testpb.PingStreamResponse{Value: req.GetValue()}); err != nil {
 			return err
 		}
 	}
@@ -181,7 +181,7 @@ func (s *requestIDMiddlewareTestSuite) TestBidirectionalStreamingInterceptor_Ret
 	// Receive the echoed message
 	resp, err := stream.Recv()
 	require.NoError(s.T(), err)
-	require.Equal(s.T(), "test", resp.Value)
+	require.Equal(s.T(), "test", resp.GetValue())
 
 	// Close the stream
 	err = stream.CloseSend()

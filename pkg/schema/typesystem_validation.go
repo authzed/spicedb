@@ -57,13 +57,13 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 		// Validate the usersets.
 		usersetRewrite := relation.GetUsersetRewrite()
 		rerr, err := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) (any, error) {
-			switch child := childOneof.ChildType.(type) {
+			switch child := childOneof.GetChildType().(type) {
 			case *core.SetOperation_Child_ComputedUserset:
 				relationName := child.ComputedUserset.GetRelation()
 				_, ok := def.relationMap[relationName]
 				if !ok {
 					return NewTypeWithSourceError(
-						NewRelationNotFoundErr(def.nsDef.Name, relationName),
+						NewRelationNotFoundErr(def.nsDef.GetName(), relationName),
 						childOneof,
 						relationName,
 					), nil
@@ -84,7 +84,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 				found, ok := def.relationMap[relationName]
 				if !ok {
 					return NewTypeWithSourceError(
-						NewRelationNotFoundErr(def.nsDef.Name, relationName),
+						NewRelationNotFoundErr(def.nsDef.GetName(), relationName),
 						childOneof,
 						relationName,
 					), nil
@@ -92,7 +92,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 
 				if nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION {
 					return NewTypeWithSourceError(
-						NewPermissionUsedOnLeftOfArrowErr(def.nsDef.Name, relation.Name, relationName),
+						NewPermissionUsedOnLeftOfArrowErr(def.nsDef.GetName(), relation.GetName(), relationName),
 						childOneof, relationName), nil
 				}
 
@@ -105,8 +105,8 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 				if referencedWildcard != nil {
 					return NewTypeWithSourceError(
 						NewWildcardUsedInArrowErr(
-							def.nsDef.Name,
-							relation.Name,
+							def.nsDef.GetName(),
+							relation.GetName(),
 							relationName,
 							referencedWildcard.WildcardType.GetNamespace(),
 							tuple.StringCoreRR(referencedWildcard.ReferencingRelation),
@@ -130,7 +130,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 				found, ok := def.relationMap[relationName]
 				if !ok {
 					return NewTypeWithSourceError(
-						NewRelationNotFoundErr(def.nsDef.Name, relationName),
+						NewRelationNotFoundErr(def.nsDef.GetName(), relationName),
 						childOneof,
 						relationName,
 					), nil
@@ -138,7 +138,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 
 				if nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION {
 					return NewTypeWithSourceError(
-						NewPermissionUsedOnLeftOfArrowErr(def.nsDef.Name, relation.Name, relationName),
+						NewPermissionUsedOnLeftOfArrowErr(def.nsDef.GetName(), relation.GetName(), relationName),
 						childOneof, relationName), nil
 				}
 
@@ -151,8 +151,8 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 				if referencedWildcard != nil {
 					return NewTypeWithSourceError(
 						NewWildcardUsedInArrowErr(
-							def.nsDef.Name,
-							relation.Name,
+							def.nsDef.GetName(),
+							relation.GetName(),
 							relationName,
 							referencedWildcard.WildcardType.GetNamespace(),
 							tuple.StringCoreRR(referencedWildcard.ReferencingRelation),
@@ -171,7 +171,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 		}
 
 		// Validate type information.
-		typeInfo := relation.TypeInformation
+		typeInfo := relation.GetTypeInformation()
 		if typeInfo == nil {
 			continue
 		}
@@ -188,16 +188,16 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 		if usersetRewrite == nil || hasThis {
 			if len(allowedDirectRelations) == 0 {
 				return nil, NewTypeWithSourceError(
-					NewMissingAllowedRelationsErr(def.nsDef.Name, relation.Name),
-					relation, relation.Name,
+					NewMissingAllowedRelationsErr(def.nsDef.GetName(), relation.GetName()),
+					relation, relation.GetName(),
 				)
 			}
 		} else {
 			if len(allowedDirectRelations) != 0 {
 				// NOTE: This is a legacy error and should never really occur with schema.
 				return nil, NewTypeWithSourceError(
-					fmt.Errorf("direct relations are not allowed under relation `%s`", relation.Name),
-					relation, relation.Name)
+					fmt.Errorf("direct relations are not allowed under relation `%s`", relation.GetName()),
+					relation, relation.GetName())
 			}
 		}
 
@@ -212,14 +212,14 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 			source := SourceForAllowedRelation(allowedRelation)
 			if !encountered.Add(source) {
 				return nil, NewTypeWithSourceError(
-					NewDuplicateAllowedRelationErr(def.nsDef.Name, relation.Name, source),
+					NewDuplicateAllowedRelationErr(def.nsDef.GetName(), relation.GetName(), source),
 					allowedRelation,
 					source,
 				)
 			}
 
 			// Check the namespace.
-			if allowedRelation.GetNamespace() == def.nsDef.Name {
+			if allowedRelation.GetNamespace() == def.nsDef.GetName() {
 				if allowedRelation.GetPublicWildcard() == nil && allowedRelation.GetRelation() != tuple.Ellipsis {
 					_, ok := def.relationMap[allowedRelation.GetRelation()]
 					if !ok {
@@ -234,7 +234,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 				subjectTS, err := def.TypeSystem().GetDefinition(ctx, allowedRelation.GetNamespace())
 				if err != nil {
 					return nil, NewTypeWithSourceError(
-						fmt.Errorf("could not lookup definition `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err),
+						fmt.Errorf("could not lookup definition `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.GetName(), err),
 						allowedRelation,
 						allowedRelation.GetNamespace(),
 					)
@@ -261,9 +261,9 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 					if referencedWildcard != nil {
 						return nil, NewTypeWithSourceError(
 							NewTransitiveWildcardErr(
-								def.nsDef.Name,
+								def.nsDef.GetName(),
 								relation.GetName(),
-								allowedRelation.Namespace,
+								allowedRelation.GetNamespace(),
 								allowedRelation.GetRelation(),
 								referencedWildcard.WildcardType.GetNamespace(),
 								tuple.StringCoreRR(referencedWildcard.ReferencingRelation),
@@ -277,10 +277,10 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 
 			// Check the caveat, if any.
 			if allowedRelation.GetRequiredCaveat() != nil {
-				_, err := def.TypeSystem().resolver.LookupCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
+				_, err := def.TypeSystem().resolver.LookupCaveat(ctx, allowedRelation.GetRequiredCaveat().GetCaveatName())
 				if err != nil {
 					return nil, NewTypeWithSourceError(
-						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetRequiredCaveat().CaveatName, relation.Name, err),
+						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetRequiredCaveat().GetCaveatName(), relation.GetName(), err),
 						allowedRelation,
 						source,
 					)
@@ -318,7 +318,7 @@ func (ts *TypeSystem) referencesWildcardTypeWithEncountered(ctx context.Context,
 }
 
 func (ts *TypeSystem) computeReferencesWildcardType(ctx context.Context, def *Definition, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
-	relString := tuple.JoinRelRef(def.nsDef.Name, relationName)
+	relString := tuple.JoinRelRef(def.nsDef.GetName(), relationName)
 	if _, ok := encountered[relString]; ok {
 		return nil, nil
 	}
@@ -333,7 +333,7 @@ func (ts *TypeSystem) computeReferencesWildcardType(ctx context.Context, def *De
 		if allowedRelation.GetPublicWildcard() != nil {
 			return &WildcardTypeReference{
 				ReferencingRelation: &core.RelationReference{
-					Namespace: def.nsDef.Name,
+					Namespace: def.nsDef.GetName(),
 					Relation:  relationName,
 				},
 				WildcardType: allowedRelation,
@@ -341,7 +341,7 @@ func (ts *TypeSystem) computeReferencesWildcardType(ctx context.Context, def *De
 		}
 
 		if allowedRelation.GetRelation() != tuple.Ellipsis {
-			if allowedRelation.GetNamespace() == def.nsDef.Name {
+			if allowedRelation.GetNamespace() == def.nsDef.GetName() {
 				found, err := ts.referencesWildcardTypeWithEncountered(ctx, def, allowedRelation.GetRelation(), encountered)
 				if err != nil {
 					return nil, asTypeError(err)

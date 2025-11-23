@@ -42,7 +42,7 @@ func TestReadRelationships(t *testing.T) {
 	}{
 		{
 			"namespace only",
-			&v1.RelationshipFilter{ResourceType: tf.DocumentNS.Name},
+			&v1.RelationshipFilter{ResourceType: tf.DocumentNS.GetName()},
 			codes.OK,
 			map[string]struct{}{
 				"document:ownerplan#viewer@user:owner":                       {},
@@ -62,7 +62,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"namespace and object id",
 			&v1.RelationshipFilter{
-				ResourceType:       tf.DocumentNS.Name,
+				ResourceType:       tf.DocumentNS.GetName(),
 				OptionalResourceId: "healthplan",
 			},
 			codes.OK,
@@ -73,7 +73,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"namespace and relation",
 			&v1.RelationshipFilter{
-				ResourceType:     tf.DocumentNS.Name,
+				ResourceType:     tf.DocumentNS.GetName(),
 				OptionalRelation: "parent",
 			},
 			codes.OK,
@@ -149,7 +149,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"namespace and userset",
 			&v1.RelationshipFilter{
-				ResourceType: tf.DocumentNS.Name,
+				ResourceType: tf.DocumentNS.GetName(),
 				OptionalSubjectFilter: &v1.SubjectFilter{
 					SubjectType:       "folder",
 					OptionalSubjectId: "plans",
@@ -164,7 +164,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"multiple filters",
 			&v1.RelationshipFilter{
-				ResourceType:       tf.DocumentNS.Name,
+				ResourceType:       tf.DocumentNS.GetName(),
 				OptionalResourceId: "masterplan",
 				OptionalSubjectFilter: &v1.SubjectFilter{
 					SubjectType:       "folder",
@@ -179,7 +179,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"bad objectId",
 			&v1.RelationshipFilter{
-				ResourceType:       tf.DocumentNS.Name,
+				ResourceType:       tf.DocumentNS.GetName(),
 				OptionalResourceId: "🍣",
 				OptionalSubjectFilter: &v1.SubjectFilter{
 					SubjectType:       "folder",
@@ -192,7 +192,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"bad object relation",
 			&v1.RelationshipFilter{
-				ResourceType:     tf.DocumentNS.Name,
+				ResourceType:     tf.DocumentNS.GetName(),
 				OptionalRelation: "ad",
 			},
 			codes.InvalidArgument,
@@ -201,7 +201,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"bad subject filter",
 			&v1.RelationshipFilter{
-				ResourceType:       tf.DocumentNS.Name,
+				ResourceType:       tf.DocumentNS.GetName(),
 				OptionalResourceId: "ma",
 				OptionalSubjectFilter: &v1.SubjectFilter{
 					SubjectType: "doesnotexist",
@@ -213,7 +213,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"empty argument for required filter value",
 			&v1.RelationshipFilter{
-				ResourceType:          tf.DocumentNS.Name,
+				ResourceType:          tf.DocumentNS.GetName(),
 				OptionalSubjectFilter: &v1.SubjectFilter{},
 			},
 			codes.InvalidArgument,
@@ -222,7 +222,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"bad relation filter",
 			&v1.RelationshipFilter{
-				ResourceType: tf.DocumentNS.Name,
+				ResourceType: tf.DocumentNS.GetName(),
 				OptionalSubjectFilter: &v1.SubjectFilter{
 					SubjectType: "folder",
 					OptionalRelation: &v1.SubjectFilter_RelationFilter{
@@ -244,7 +244,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"missing relation",
 			&v1.RelationshipFilter{
-				ResourceType:     tf.DocumentNS.Name,
+				ResourceType:     tf.DocumentNS.GetName(),
 				OptionalRelation: "invalidrelation",
 			},
 			codes.FailedPrecondition,
@@ -253,7 +253,7 @@ func TestReadRelationships(t *testing.T) {
 		{
 			"missing subject relation",
 			&v1.RelationshipFilter{
-				ResourceType: tf.DocumentNS.Name,
+				ResourceType: tf.DocumentNS.GetName(),
 				OptionalSubjectFilter: &v1.SubjectFilter{
 					SubjectType: "folder",
 					OptionalRelation: &v1.SubjectFilter_RelationFilter{
@@ -330,9 +330,9 @@ func TestReadRelationships(t *testing.T) {
 									dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 									require.NoError(err)
 
-									require.True(dsFilter.Test(tuple.FromV1Relationship(rel.Relationship)), "relationship did not match filter: %v", rel.Relationship)
+									require.True(dsFilter.Test(tuple.FromV1Relationship(rel.GetRelationship())), "relationship did not match filter: %v", rel.GetRelationship())
 
-									relString := tuple.MustV1RelString(rel.Relationship)
+									relString := tuple.MustV1RelString(rel.GetRelationship())
 									_, found := tc.expected[relString]
 									require.True(found, "relationship was not expected: %s", relString)
 
@@ -340,7 +340,7 @@ func TestReadRelationships(t *testing.T) {
 									require.True(notFoundTwice, "relationship was received from service twice: %s", relString)
 
 									delete(testExpected, relString)
-									currentCursor = rel.AfterResultCursor
+									currentCursor = rel.GetAfterResultCursor()
 									foundCount++
 								}
 
@@ -418,8 +418,8 @@ func TestWriteRelationships(t *testing.T) {
 		}},
 	})
 	require.NoError(err)
-	require.NotNil(resp.WrittenAt)
-	require.NotEmpty(resp.WrittenAt.Token)
+	require.NotNil(resp.GetWrittenAt())
+	require.NotEmpty(resp.GetWrittenAt().GetToken())
 
 	// Ensure the written relationships exist
 	for _, tpl := range toWrite {
@@ -435,7 +435,7 @@ func TestWriteRelationships(t *testing.T) {
 		rel, err := stream.Recv()
 		require.NoError(err)
 
-		relStr, err := tuple.V1StringRelationship(rel.Relationship)
+		relStr, err := tuple.V1StringRelationship(rel.GetRelationship())
 		require.NoError(err)
 		require.Equal(tuple.MustString(tpl), relStr)
 
@@ -454,7 +454,7 @@ func TestWriteRelationships(t *testing.T) {
 		// Ensure the relationship was deleted
 		stream, err = client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 			Consistency: &v1.Consistency{
-				Requirement: &v1.Consistency_AtLeastAsFresh{AtLeastAsFresh: deleted.WrittenAt},
+				Requirement: &v1.Consistency_AtLeastAsFresh{AtLeastAsFresh: deleted.GetWrittenAt()},
 			},
 			RelationshipFilter: findWritten,
 		})
@@ -503,7 +503,7 @@ func TestWriteExpiringRelationships(t *testing.T) {
 	req.NoError(err)
 
 	// read relationship back
-	relRead := readFirst(req, client, resp.WrittenAt, relWritten)
+	relRead := readFirst(req, client, resp.GetWrittenAt(), relWritten)
 	req.True(proto.Equal(relWritten, relRead))
 }
 
@@ -547,7 +547,7 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 			req.NoError(err)
 
 			// read relationship back
-			relRead := readFirst(req, client, resp.WrittenAt, relWritten)
+			relRead := readFirst(req, client, resp.GetWrittenAt(), relWritten)
 			req.True(proto.Equal(relWritten, relRead))
 
 			// issue the deletion
@@ -570,7 +570,7 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 			stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_AtExactSnapshot{
-						AtExactSnapshot: resp.WrittenAt,
+						AtExactSnapshot: resp.GetWrittenAt(),
 					},
 				},
 				RelationshipFilter: tuple.RelToFilter(relWritten),
@@ -596,7 +596,7 @@ func readFirst(require *require.Assertions, client v1.PermissionsServiceClient, 
 
 	result, err := stream.Recv()
 	require.NoError(err)
-	return result.Relationship
+	return result.GetRelationship()
 }
 
 func precondFilter(resType, resID, relation, subType, subID string, subRel *string) *v1.RelationshipFilter {
@@ -710,7 +710,7 @@ func relationshipForBulkTesting(nsAndRel struct {
 			nsAndRel.namespace,
 			strconv.Itoa(i),
 			nsAndRel.relation,
-			tf.UserNS.Name,
+			tf.UserNS.GetName(),
 			strconv.Itoa(i),
 			"",
 			"test",
@@ -723,7 +723,7 @@ func relationshipForBulkTesting(nsAndRel struct {
 			nsAndRel.namespace,
 			strconv.Itoa(i),
 			nsAndRel.relation,
-			tf.UserNS.Name,
+			tf.UserNS.GetName(),
 			strconv.Itoa(i),
 			"",
 			time.Now().Add(time.Hour),
@@ -734,7 +734,7 @@ func relationshipForBulkTesting(nsAndRel struct {
 		nsAndRel.namespace,
 		strconv.Itoa(i),
 		nsAndRel.relation,
-		tf.UserNS.Name,
+		tf.UserNS.GetName(),
 		strconv.Itoa(i),
 		"",
 	)
@@ -1267,14 +1267,14 @@ func TestDeleteRelationships(t *testing.T) {
 					return
 				}
 				require.NoError(err)
-				require.NotNil(resp.DeletedAt)
+				require.NotNil(resp.GetDeletedAt())
 
-				rev, _, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+				rev, _, err := zedtoken.DecodeRevision(resp.GetDeletedAt(), ds)
 				require.NoError(err)
 				require.True(rev.GreaterThan(revision))
 
-				require.Equal(uint64(len(tc.deleted)), resp.RelationshipsDeletedCount)
-				require.Equal(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))
+				require.Equal(uint64(len(tc.deleted)), resp.GetRelationshipsDeletedCount())
+				require.Equal(standardTuplesWithout(tc.deleted), readAll(require, client, resp.GetDeletedAt()))
 			})
 		}
 	}
@@ -1386,20 +1386,20 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
 
 				bs := safecast.RequireConvert[uint64](t, batchSize)
-				require.LessOrEqual(resp.RelationshipsDeletedCount, bs)
+				require.LessOrEqual(resp.GetRelationshipsDeletedCount(), bs)
 
 				if i == 0 {
-					require.Equal(v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL, resp.DeletionProgress)
+					require.Equal(v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL, resp.GetDeletionProgress())
 				}
 
-				if resp.DeletionProgress == v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE {
+				if resp.GetDeletionProgress() == v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE {
 					require.NoError(err)
-					require.NotNil(resp.DeletedAt)
+					require.NotNil(resp.GetDeletedAt())
 
-					rev, _, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+					rev, _, err := zedtoken.DecodeRevision(resp.GetDeletedAt(), ds)
 					require.NoError(err)
 					require.True(rev.GreaterThan(revision))
-					require.Equal(standardTuplesWithout(expected), readAll(require, client, resp.DeletedAt))
+					require.Equal(standardTuplesWithout(expected), readAll(require, client, resp.GetDeletedAt()))
 					break
 				}
 			}
@@ -1512,7 +1512,7 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 
 	resp, err := stream.Recv()
 	require.NoError(err)
-	require.Equal(metadata, resp.OptionalTransactionMetadata)
+	require.Equal(metadata, resp.GetOptionalTransactionMetadata())
 }
 
 func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
@@ -1804,7 +1804,7 @@ func readOfType(require *require.Assertions, resourceType string, client v1.Perm
 		}
 		require.NoError(err)
 
-		got[tuple.MustV1RelString(rel.Relationship)] = struct{}{}
+		got[tuple.MustV1RelString(rel.GetRelationship())] = struct{}{}
 	}
 	return got
 }
@@ -2357,7 +2357,7 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 
 				require.NoError(err)
 
-				relString := tuple.MustV1RelString(rel.Relationship)
+				relString := tuple.MustV1RelString(rel.GetRelationship())
 				actualRelationships = append(actualRelationships, relString)
 			}
 

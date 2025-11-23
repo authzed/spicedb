@@ -40,7 +40,7 @@ type cursorInformation struct {
 // newCursorInformation constructs a new cursorInformation struct from the incoming cursor (which
 // may be nil)
 func newCursorInformation(incomingCursor *v1.Cursor, limits *limitTracker, dispatchCursorVersion uint32) (cursorInformation, error) {
-	if incomingCursor != nil && incomingCursor.DispatchVersion != dispatchCursorVersion {
+	if incomingCursor != nil && incomingCursor.GetDispatchVersion() != dispatchCursorVersion {
 		return cursorInformation{}, NewInvalidCursorErr(dispatchCursorVersion, incomingCursor)
 	}
 
@@ -77,11 +77,11 @@ func (ci cursorInformation) withClonedLimits() cursorInformation {
 // headSectionValue returns the string value found at the head of the incoming cursor.
 // If the incoming cursor is empty, returns empty.
 func (ci cursorInformation) headSectionValue() (string, bool) {
-	if ci.currentCursor == nil || len(ci.currentCursor.Sections) < 1 {
+	if ci.currentCursor == nil || len(ci.currentCursor.GetSections()) < 1 {
 		return "", false
 	}
 
-	return ci.currentCursor.Sections[0], true
+	return ci.currentCursor.GetSections()[0], true
 }
 
 // integerSectionValue returns the *integer* found  at the head of the incoming cursor.
@@ -108,12 +108,12 @@ func (ci cursorInformation) withOutgoingSection(value string) (cursorInformation
 	ocs = append(ocs, ci.outgoingCursorSections...)
 	ocs = append(ocs, value)
 
-	if ci.currentCursor != nil && len(ci.currentCursor.Sections) > 0 {
+	if ci.currentCursor != nil && len(ci.currentCursor.GetSections()) > 0 {
 		// If the cursor already has values, replace them with those specified.
 		return cursorInformation{
 			currentCursor: &v1.Cursor{
 				DispatchVersion: ci.dispatchCursorVersion,
-				Sections:        ci.currentCursor.Sections[1:],
+				Sections:        ci.currentCursor.GetSections()[1:],
 			},
 			outgoingCursorSections: ocs,
 			limits:                 ci.limits,
@@ -268,20 +268,20 @@ func withSubsetInCursor(
 
 // combineCursors combines the given cursors into one resulting cursor.
 func combineCursors(cursor *v1.Cursor, toAdd *v1.Cursor) (*v1.Cursor, error) {
-	if toAdd == nil || len(toAdd.Sections) == 0 {
+	if toAdd == nil || len(toAdd.GetSections()) == 0 {
 		return nil, spiceerrors.MustBugf("supplied toAdd cursor was nil or empty")
 	}
 
-	if cursor == nil || len(cursor.Sections) == 0 {
+	if cursor == nil || len(cursor.GetSections()) == 0 {
 		return toAdd, nil
 	}
 
-	sections := make([]string, 0, len(cursor.Sections)+len(toAdd.Sections))
-	sections = append(sections, cursor.Sections...)
-	sections = append(sections, toAdd.Sections...)
+	sections := make([]string, 0, len(cursor.GetSections())+len(toAdd.GetSections()))
+	sections = append(sections, cursor.GetSections()...)
+	sections = append(sections, toAdd.GetSections()...)
 
 	return &v1.Cursor{
-		DispatchVersion: toAdd.DispatchVersion,
+		DispatchVersion: toAdd.GetDispatchVersion(),
 		Sections:        sections,
 	}, nil
 }

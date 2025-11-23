@@ -277,7 +277,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		relCaveat := rels[0].Caveat
 		require.NotNil(relCaveat, "Result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(relCaveat.GetOperation().GetOp(), core.CaveatOperation_AND, "Caveat should be an AND")
 		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children")
 	})
 

@@ -259,12 +259,12 @@ func TestCheckPermissions(t *testing.T) {
 						tc := tc
 						t.Run(fmt.Sprintf(
 							"%s:%s#%s@%s:%s#%s",
-							tc.resource.ObjectType,
-							tc.resource.ObjectId,
+							tc.resource.GetObjectType(),
+							tc.resource.GetObjectId(),
 							tc.permission,
-							tc.subject.Object.ObjectType,
-							tc.subject.Object.ObjectId,
-							tc.subject.OptionalRelation,
+							tc.subject.GetObject().GetObjectType(),
+							tc.subject.GetObject().GetObjectId(),
+							tc.subject.GetOptionalRelation(),
 						), func(t *testing.T) {
 							require := require.New(t)
 							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -290,7 +290,7 @@ func TestCheckPermissions(t *testing.T) {
 
 							if tc.expectedStatus == codes.OK {
 								require.NoError(err)
-								require.Equal(tc.expected, checkResp.Permissionship)
+								require.Equal(tc.expected, checkResp.GetPermissionship())
 
 								dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
 								require.NoError(err)
@@ -302,13 +302,13 @@ func TestCheckPermissions(t *testing.T) {
 								if debug {
 									require.Nil(encodedDebugInfo)
 
-									debugInfo := checkResp.DebugTrace
-									require.NotNil(debugInfo.Check)
-									require.NotNil(debugInfo.Check.Duration)
-									require.Equal(tuple.V1StringObjectRef(tc.resource), tuple.V1StringObjectRef(debugInfo.Check.Resource))
-									require.Equal(tc.permission, debugInfo.Check.Permission)
-									require.Equal(tuple.V1StringSubjectRef(tc.subject), tuple.V1StringSubjectRef(debugInfo.Check.Subject))
-									require.NotEmpty(debugInfo.Check.Source, "source in debug trace is empty")
+									debugInfo := checkResp.GetDebugTrace()
+									require.NotNil(debugInfo.GetCheck())
+									require.NotNil(debugInfo.GetCheck().GetDuration())
+									require.Equal(tuple.V1StringObjectRef(tc.resource), tuple.V1StringObjectRef(debugInfo.GetCheck().GetResource()))
+									require.Equal(tc.permission, debugInfo.GetCheck().GetPermission())
+									require.Equal(tuple.V1StringSubjectRef(tc.subject), tuple.V1StringSubjectRef(debugInfo.GetCheck().GetSubject()))
+									require.NotEmpty(debugInfo.GetCheck().GetSource(), "source in debug trace is empty")
 								} else {
 									require.Nil(encodedDebugInfo)
 								}
@@ -370,7 +370,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	}, grpc.Trailer(&trailer))
 
 	require.NoError(err)
-	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, checkResp.Permissionship)
+	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, checkResp.GetPermissionship())
 
 	encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
 	require.NoError(err)
@@ -378,16 +378,16 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	// debug info is returned empty to make sure clients are not broken with backward incompatible payloads
 	require.Nil(encodedDebugInfo)
 
-	debugInfo := checkResp.DebugTrace
-	require.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), 1)
-	require.NotEmpty(debugInfo.SchemaUsed)
+	debugInfo := checkResp.GetDebugTrace()
+	require.GreaterOrEqual(len(debugInfo.GetCheck().GetSubProblems().GetTraces()), 1)
+	require.NotEmpty(debugInfo.GetSchemaUsed())
 
 	// Compile the schema into the namespace definitions.
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
-		SchemaString: debugInfo.SchemaUsed,
+		SchemaString: debugInfo.GetSchemaUsed(),
 	}, compiler.AllowUnprefixedObjectType())
-	require.NoError(err, "Invalid schema: %s", debugInfo.SchemaUsed)
+	require.NoError(err, "Invalid schema: %s", debugInfo.GetSchemaUsed())
 	require.Len(compiled.OrderedDefinitions, 4)
 }
 
@@ -440,16 +440,16 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 	foundDebugInfo := false
 	for _, d := range s.Details() {
 		if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
-			req.NotNil(errInfo.Metadata)
-			req.NotNil(errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)])
-			req.NotEmpty(errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)])
+			req.NotNil(errInfo.GetMetadata())
+			req.NotNil(errInfo.GetMetadata()[string(spiceerrors.DebugTraceErrorDetailsKey)])
+			req.NotEmpty(errInfo.GetMetadata()[string(spiceerrors.DebugTraceErrorDetailsKey)])
 
 			debugInfo := &v1.DebugInformation{}
-			err = prototext.Unmarshal([]byte(errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]), debugInfo)
+			err = prototext.Unmarshal([]byte(errInfo.GetMetadata()[string(spiceerrors.DebugTraceErrorDetailsKey)]), debugInfo)
 			req.NoError(err)
 
-			req.Len(debugInfo.Check.GetSubProblems().Traces, 1)
-			req.Len(debugInfo.Check.GetSubProblems().Traces[0].GetSubProblems().Traces, 1)
+			req.Len(debugInfo.GetCheck().GetSubProblems().GetTraces(), 1)
+			req.Len(debugInfo.GetCheck().GetSubProblems().GetTraces()[0].GetSubProblems().GetTraces(), 1)
 
 			foundDebugInfo = true
 		}
@@ -627,7 +627,7 @@ func TestLookupResources(t *testing.T) {
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
 				tc := tc
-				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
+				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.GetObject().GetObjectType(), tc.subject.GetObject().GetObjectId(), tc.subject.GetOptionalRelation()), func(t *testing.T) {
 					for _, useV2 := range []bool{false, true} {
 						useV2 := useV2
 						t.Run(fmt.Sprintf("v2:%v", useV2), func(t *testing.T) {
@@ -672,7 +672,7 @@ func TestLookupResources(t *testing.T) {
 
 									require.NoError(err)
 
-									resolvedObjectIds = append(resolvedObjectIds, resp.ResourceObjectId)
+									resolvedObjectIds = append(resolvedObjectIds, resp.GetResourceObjectId())
 								}
 
 								slices.Sort(tc.expectedObjectIds)
@@ -739,7 +739,7 @@ func TestExpand(t *testing.T) {
 					}, grpc.Trailer(&trailer))
 					if tc.expectedErrorCode == codes.OK {
 						require.NoError(err)
-						require.Equal(tc.expandRelatedCount, countLeafs(expanded.TreeRoot))
+						require.Equal(tc.expandRelatedCount, countLeafs(expanded.GetTreeRoot()))
 
 						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
 						require.NoError(err)
@@ -754,13 +754,13 @@ func TestExpand(t *testing.T) {
 }
 
 func countLeafs(node *v1.PermissionRelationshipTree) int {
-	switch t := node.TreeType.(type) {
+	switch t := node.GetTreeType().(type) {
 	case *v1.PermissionRelationshipTree_Leaf:
-		return len(t.Leaf.Subjects)
+		return len(t.Leaf.GetSubjects())
 
 	case *v1.PermissionRelationshipTree_Intermediate:
 		count := 0
-		for _, child := range t.Intermediate.Children {
+		for _, child := range t.Intermediate.GetChildren() {
 			count += countLeafs(child)
 		}
 		return count
@@ -988,7 +988,7 @@ func TestLookupSubjects(t *testing.T) {
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
 				tc := tc
-				t.Run(fmt.Sprintf("%s:%s#%s for %s#%s", tc.resource.ObjectType, tc.resource.ObjectId, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+				t.Run(fmt.Sprintf("%s:%s#%s for %s#%s", tc.resource.GetObjectType(), tc.resource.GetObjectId(), tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
@@ -1019,7 +1019,7 @@ func TestLookupSubjects(t *testing.T) {
 
 							require.NoError(err)
 
-							resolvedObjectIds = append(resolvedObjectIds, resp.Subject.SubjectObjectId)
+							resolvedObjectIds = append(resolvedObjectIds, resp.GetSubject().GetSubjectObjectId())
 						}
 
 						slices.Sort(tc.expectedSubjectIds)
@@ -1066,7 +1066,7 @@ func TestCheckWithCaveats(t *testing.T) {
 
 	checkResp, err := client.CheckPermission(ctx, request)
 	req.NoError(err)
-	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, checkResp.Permissionship)
+	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, checkResp.GetPermissionship())
 
 	// caveat evaluated and returned true
 	request.Context, err = structpb.NewStruct(map[string]any{"secret": "1234"})
@@ -1074,14 +1074,14 @@ func TestCheckWithCaveats(t *testing.T) {
 
 	checkResp, err = client.CheckPermission(ctx, request)
 	req.NoError(err)
-	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, checkResp.Permissionship)
+	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, checkResp.GetPermissionship())
 
 	// caveat evaluated but context variable was missing
 	request.Context = nil
 	checkResp, err = client.CheckPermission(ctx, request)
 	req.NoError(err)
-	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION, checkResp.Permissionship)
-	req.Equal([]string{"secret"}, checkResp.PartialCaveatInfo.MissingRequiredContext)
+	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION, checkResp.GetPermissionship())
+	req.Equal([]string{"secret"}, checkResp.GetPartialCaveatInfo().GetMissingRequiredContext())
 
 	// context exceeds length limit
 	request.Context, err = structpb.NewStruct(generateMap(64))
@@ -1246,12 +1246,12 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	require.GreaterOrEqual(t, 3, len(responses))
 	require.LessOrEqual(t, 2, len(responses))
 
-	require.Equal(t, "first", responses[0].ResourceObjectId)
-	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].Permissionship)
+	require.Equal(t, "first", responses[0].GetResourceObjectId())
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].GetPermissionship())
 
-	require.Equal(t, "second", responses[1].ResourceObjectId)
-	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, responses[1].Permissionship)
-	require.Equal(t, []string{"somecondition"}, responses[1].PartialCaveatInfo.MissingRequiredContext)
+	require.Equal(t, "second", responses[1].GetResourceObjectId())
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, responses[1].GetPermissionship())
+	require.Equal(t, []string{"somecondition"}, responses[1].GetPartialCaveatInfo().GetMissingRequiredContext())
 
 	// Run with full context.
 	caveatContext, err = structpb.NewStruct(map[string]any{
@@ -1288,17 +1288,17 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	require.Len(t, responses, 2)
 	slices.SortFunc(responses, byIDAndPermission)
 
-	require.Equal(t, "first", responses[0].ResourceObjectId)                                                    // nolint: gosec
-	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].Permissionship) // nolint: gosec
+	require.Equal(t, "first", responses[0].GetResourceObjectId())                                                    // nolint: gosec
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].GetPermissionship()) // nolint: gosec
 
-	require.Equal(t, "second", responses[1].ResourceObjectId)                                                   // nolint: gosec
-	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[1].Permissionship) // nolint: gosec
+	require.Equal(t, "second", responses[1].GetResourceObjectId())                                                   // nolint: gosec
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[1].GetPermissionship()) // nolint: gosec
 }
 
 func byIDAndPermission(a, b *v1.LookupResourcesResponse) int {
 	return strings.Compare(
-		fmt.Sprintf("%s:%v", a.ResourceObjectId, a.Permissionship),
-		fmt.Sprintf("%s:%v", b.ResourceObjectId, b.Permissionship),
+		fmt.Sprintf("%s:%v", a.GetResourceObjectId(), a.GetPermissionship()),
+		fmt.Sprintf("%s:%v", b.GetResourceObjectId(), b.GetPermissionship()),
 	)
 }
 
@@ -1356,8 +1356,8 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 
 		require.NoError(t, err)
 		resolvedSubjects = append(resolvedSubjects, expectedSubject{
-			resp.Subject.SubjectObjectId,
-			resp.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+			resp.GetSubject().GetSubjectObjectId(),
+			resp.GetSubject().GetPermissionship() == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 		})
 	}
 
@@ -1401,8 +1401,8 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 
 		require.NoError(t, err)
 		resolvedSubjects = append(resolvedSubjects, expectedSubject{
-			resp.Subject.SubjectObjectId,
-			resp.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+			resp.GetSubject().GetSubjectObjectId(),
+			resp.GetSubject().GetPermissionship() == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 		})
 	}
 
@@ -1446,8 +1446,8 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 
 		require.NoError(t, err)
 		resolvedSubjects = append(resolvedSubjects, expectedSubject{
-			resp.Subject.SubjectObjectId,
-			resp.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+			resp.GetSubject().GetSubjectObjectId(),
+			resp.GetSubject().GetPermissionship() == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 		})
 	}
 
@@ -1520,12 +1520,12 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 
 		found = true
 		require.NoError(t, err)
-		require.Equal(t, "*", resp.Subject.SubjectObjectId)
-		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.Subject.Permissionship)
-		require.Len(t, resp.ExcludedSubjects, 1)
+		require.Equal(t, "*", resp.GetSubject().GetSubjectObjectId())
+		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.GetSubject().GetPermissionship())
+		require.Len(t, resp.GetExcludedSubjects(), 1)
 
-		require.Equal(t, "bannedguy", resp.ExcludedSubjects[0].SubjectObjectId)
-		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.ExcludedSubjects[0].Permissionship)
+		require.Equal(t, "bannedguy", resp.GetExcludedSubjects()[0].GetSubjectObjectId())
+		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.GetExcludedSubjects()[0].GetPermissionship())
 	}
 	require.True(t, found)
 
@@ -1559,9 +1559,9 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 
 		found = true
 		require.NoError(t, err)
-		require.Equal(t, "*", resp.Subject.SubjectObjectId)
-		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.Subject.Permissionship)
-		require.Empty(t, resp.ExcludedSubjects)
+		require.Equal(t, "*", resp.GetSubject().GetSubjectObjectId())
+		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.GetSubject().GetPermissionship())
+		require.Empty(t, resp.GetExcludedSubjects())
 	}
 	require.True(t, found)
 }
@@ -1662,7 +1662,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 				t.Run(fmt.Sprintf("limit%d", limit), func(t *testing.T) {
 					for _, tc := range testCases {
 						tc := tc
-						t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
+						t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.GetObject().GetObjectType(), tc.subject.GetObject().GetObjectId(), tc.subject.GetOptionalRelation()), func(t *testing.T) {
 							require := require.New(t)
 							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 							client := v1.NewPermissionsServiceClient(conn)
@@ -1700,9 +1700,9 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 
 									require.NoError(err)
 
-									locallyResolvedObjectIds = append(locallyResolvedObjectIds, resp.ResourceObjectId)
-									foundObjectIds.Add(resp.ResourceObjectId)
-									currentCursor = resp.AfterResultCursor
+									locallyResolvedObjectIds = append(locallyResolvedObjectIds, resp.GetResourceObjectId())
+									foundObjectIds.Add(resp.GetResourceObjectId())
+									currentCursor = resp.GetAfterResultCursor()
 								}
 
 								require.LessOrEqual(len(locallyResolvedObjectIds), limit)
@@ -1766,7 +1766,7 @@ func TestLookupResourcesDeduplication(t *testing.T) {
 		}
 
 		require.NoError(t, err)
-		require.True(t, foundObjectIds.Add(resp.ResourceObjectId))
+		require.True(t, foundObjectIds.Add(resp.GetResourceObjectId()))
 	}
 
 	require.Equal(t, []string{"first"}, foundObjectIds.AsSlice())
@@ -2008,14 +2008,14 @@ func TestCheckBulkPermissions(t *testing.T) {
 						}
 						pair := &v1.CheckBulkPermissionsPair{
 							Request: &v1.CheckBulkPermissionsRequestItem{
-								Resource:   reqRel.Resource,
-								Permission: reqRel.Relation,
-								Subject:    reqRel.Subject,
+								Resource:   reqRel.GetResource(),
+								Permission: reqRel.GetRelation(),
+								Subject:    reqRel.GetSubject(),
 							},
 							Response: resp,
 						}
-						if reqRel.OptionalCaveat != nil {
-							pair.Request.Context = reqRel.OptionalCaveat.Context
+						if reqRel.GetOptionalCaveat() != nil {
+							pair.Request.Context = reqRel.GetOptionalCaveat().GetContext()
 						}
 						if len(r.partial) > 0 {
 							resp.Item.PartialCaveatInfo = &v1.PartialCaveatInfo{
@@ -2039,18 +2039,18 @@ func TestCheckBulkPermissions(t *testing.T) {
 					require.NoError(t, err)
 
 					if withTracing {
-						for index, pair := range actual.Pairs {
+						for index, pair := range actual.GetPairs() {
 							if pair.GetItem() != nil {
 								parsed := tuple.MustParse(tt.requests[index])
-								require.NotNil(t, pair.GetItem().DebugTrace, "missing debug trace in response for item %v", pair.GetItem())
-								require.NotNil(t, pair.GetItem().DebugTrace.Check, "missing check trace in response for item %v", pair.GetItem())
-								require.Equal(t, parsed.Resource.ObjectID, pair.GetItem().DebugTrace.Check.Resource.ObjectId, "resource in debug trace does not match")
-								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.TraceOperationId, "trace operation ID in debug trace is empty")
-								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.Source, "source in debug trace is empty")
+								require.NotNil(t, pair.GetItem().GetDebugTrace(), "missing debug trace in response for item %v", pair.GetItem())
+								require.NotNil(t, pair.GetItem().GetDebugTrace().GetCheck(), "missing check trace in response for item %v", pair.GetItem())
+								require.Equal(t, parsed.Resource.ObjectID, pair.GetItem().GetDebugTrace().GetCheck().GetResource().GetObjectId(), "resource in debug trace does not match")
+								require.NotEmpty(t, pair.GetItem().GetDebugTrace().GetCheck().GetTraceOperationId(), "trace operation ID in debug trace is empty")
+								require.NotEmpty(t, pair.GetItem().GetDebugTrace().GetCheck().GetSource(), "source in debug trace is empty")
 							}
 						}
 					} else {
-						testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, nil, "response bulk check pairs did not match")
+						testutil.RequireProtoSlicesEqual(t, expected, actual.GetPairs(), nil, "response bulk check pairs did not match")
 					}
 				})
 			}
@@ -2065,12 +2065,12 @@ func mustRelToCheckBulkRequestItem(rel string) *v1.CheckBulkPermissionsRequestIt
 	}
 
 	item := &v1.CheckBulkPermissionsRequestItem{
-		Resource:   r.Resource,
-		Permission: r.Relation,
-		Subject:    r.Subject,
+		Resource:   r.GetResource(),
+		Permission: r.GetRelation(),
+		Subject:    r.GetSubject(),
 	}
-	if r.OptionalCaveat != nil {
-		item.Context = r.OptionalCaveat.Context
+	if r.GetOptionalCaveat() != nil {
+		item.Context = r.GetOptionalCaveat().GetContext()
 	}
 	return item
 }
@@ -2114,10 +2114,10 @@ func TestImportBulkRelationships(t *testing.T) {
 							switch withTrait {
 							case "caveated_viewer":
 								batch = append(batch, mustRelWithCaveatAndContext(
-									tf.DocumentNS.Name,
+									tf.DocumentNS.GetName(),
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
 									"caveated_viewer",
-									tf.UserNS.Name,
+									tf.UserNS.GetName(),
 									strconv.FormatUint(i, 10),
 									"",
 									"test",
@@ -2125,20 +2125,20 @@ func TestImportBulkRelationships(t *testing.T) {
 								))
 							case "expiring_viewer":
 								batch = append(batch, relWithExpiration(
-									tf.DocumentNS.Name,
+									tf.DocumentNS.GetName(),
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
 									"expiring_viewer",
-									tf.UserNS.Name,
+									tf.UserNS.GetName(),
 									strconv.FormatUint(i, 10),
 									"",
 									time.Date(2300, 1, 1, 0, 0, 0, 0, time.UTC),
 								))
 							default:
 								batch = append(batch, rel(
-									tf.DocumentNS.Name,
+									tf.DocumentNS.GetName(),
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
 									"viewer",
-									tf.UserNS.Name,
+									tf.UserNS.GetName(),
 									strconv.FormatUint(i, 10),
 									"",
 								))
@@ -2155,12 +2155,12 @@ func TestImportBulkRelationships(t *testing.T) {
 
 					resp, err := writer.CloseAndRecv()
 					require.NoError(err)
-					require.Equal(expectedTotal, resp.NumLoaded)
+					require.Equal(expectedTotal, resp.GetNumLoaded())
 
 					readerClient := v1.NewPermissionsServiceClient(conn)
 					stream, err := readerClient.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
 						RelationshipFilter: &v1.RelationshipFilter{
-							ResourceType: tf.DocumentNS.Name,
+							ResourceType: tf.DocumentNS.GetName(),
 						},
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
@@ -2178,12 +2178,12 @@ func TestImportBulkRelationships(t *testing.T) {
 
 						switch withTrait {
 						case "caveated_viewer":
-							require.NotNil(res.Relationship.OptionalCaveat)
-							require.Equal("test", res.Relationship.OptionalCaveat.CaveatName)
+							require.NotNil(res.GetRelationship().GetOptionalCaveat())
+							require.Equal("test", res.GetRelationship().GetOptionalCaveat().GetCaveatName())
 						case "expiring_viewer":
-							require.NotNil(res.Relationship.OptionalExpiresAt)
+							require.NotNil(res.GetRelationship().GetOptionalExpiresAt())
 						default:
-							require.Nil(res.Relationship.OptionalCaveat)
+							require.Nil(res.GetRelationship().GetOptionalCaveat())
 						}
 					}
 					require.ErrorIs(err, io.EOF)
@@ -2219,14 +2219,14 @@ func TestExportBulkRelationships(t *testing.T) {
 		namespace string
 		relation  string
 	}{
-		{tf.DocumentNS.Name, "viewer"},
-		{tf.FolderNS.Name, "viewer"},
-		{tf.DocumentNS.Name, "owner"},
-		{tf.FolderNS.Name, "owner"},
-		{tf.DocumentNS.Name, "editor"},
-		{tf.FolderNS.Name, "editor"},
-		{tf.DocumentNS.Name, "caveated_viewer"},
-		{tf.DocumentNS.Name, "expiring_viewer"},
+		{tf.DocumentNS.GetName(), "viewer"},
+		{tf.FolderNS.GetName(), "viewer"},
+		{tf.DocumentNS.GetName(), "owner"},
+		{tf.FolderNS.GetName(), "owner"},
+		{tf.DocumentNS.GetName(), "editor"},
+		{tf.FolderNS.GetName(), "editor"},
+		{tf.DocumentNS.GetName(), "caveated_viewer"},
+		{tf.DocumentNS.GetName(), "expiring_viewer"},
 	}
 
 	totalToWrite := 1_000
@@ -2249,7 +2249,7 @@ func TestExportBulkRelationships(t *testing.T) {
 
 	resp, err := writer.CloseAndRecv()
 	require.NoError(t, err)
-	numLoaded, err := safecast.Convert[int](resp.NumLoaded)
+	numLoaded, err := safecast.Convert[int](resp.GetNumLoaded())
 	require.NoError(t, err)
 	require.Equal(t, totalToWrite, numLoaded)
 
@@ -2291,14 +2291,14 @@ func TestExportBulkRelationships(t *testing.T) {
 					}
 
 					require.NoError(err)
-					require.LessOrEqual(uint64(len(batch.Relationships)), uint64(tc.batchSize))
-					require.NotNil(batch.AfterResultCursor)
-					require.NotEmpty(batch.AfterResultCursor.Token)
+					require.LessOrEqual(uint64(len(batch.GetRelationships())), uint64(tc.batchSize))
+					require.NotNil(batch.GetAfterResultCursor())
+					require.NotEmpty(batch.GetAfterResultCursor().GetToken())
 
-					cursor = batch.AfterResultCursor
-					totalRead += len(batch.Relationships)
+					cursor = batch.GetAfterResultCursor()
+					totalRead += len(batch.GetRelationships())
 
-					for _, rel := range batch.Relationships {
+					for _, rel := range batch.GetRelationships() {
 						remainingRels.Delete(tuple.MustV1RelString(rel))
 					}
 				}
@@ -2321,7 +2321,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 		{
 			"basic filter",
 			&v1.RelationshipFilter{
-				ResourceType: tf.DocumentNS.Name,
+				ResourceType: tf.DocumentNS.GetName(),
 			},
 			625,
 		},
@@ -2342,7 +2342,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 		{
 			"filter by resource ID prefix and resource type",
 			&v1.RelationshipFilter{
-				ResourceType:             tf.DocumentNS.Name,
+				ResourceType:             tf.DocumentNS.GetName(),
 				OptionalResourceIdPrefix: "1",
 			},
 			69,
@@ -2371,14 +2371,14 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 				namespace string
 				relation  string
 			}{
-				{tf.DocumentNS.Name, "viewer"},
-				{tf.FolderNS.Name, "viewer"},
-				{tf.DocumentNS.Name, "owner"},
-				{tf.FolderNS.Name, "owner"},
-				{tf.DocumentNS.Name, "editor"},
-				{tf.FolderNS.Name, "editor"},
-				{tf.DocumentNS.Name, "caveated_viewer"},
-				{tf.DocumentNS.Name, "expiring_viewer"},
+				{tf.DocumentNS.GetName(), "viewer"},
+				{tf.FolderNS.GetName(), "viewer"},
+				{tf.DocumentNS.GetName(), "owner"},
+				{tf.FolderNS.GetName(), "owner"},
+				{tf.DocumentNS.GetName(), "editor"},
+				{tf.FolderNS.GetName(), "editor"},
+				{tf.DocumentNS.GetName(), "caveated_viewer"},
+				{tf.DocumentNS.GetName(), "expiring_viewer"},
 			}
 
 			expectedRels := mapz.NewSet[string]()
@@ -2434,16 +2434,16 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 				}
 
 				require.NoError(err)
-				relLength, err := safecast.Convert[uint32](len(batch.Relationships))
+				relLength, err := safecast.Convert[uint32](len(batch.GetRelationships()))
 				require.NoError(err)
 				require.LessOrEqual(relLength, batchSize)
-				require.NotNil(batch.AfterResultCursor)
-				require.NotEmpty(batch.AfterResultCursor.Token)
+				require.NotNil(batch.GetAfterResultCursor())
+				require.NotEmpty(batch.GetAfterResultCursor().GetToken())
 
-				cursor = batch.AfterResultCursor
-				totalRead += uint64(len(batch.Relationships))
+				cursor = batch.GetAfterResultCursor()
+				totalRead += uint64(len(batch.GetRelationships()))
 
-				for _, rel := range batch.Relationships {
+				for _, rel := range batch.GetRelationships() {
 					if tc.filter != nil {
 						filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 						require.NoError(err)

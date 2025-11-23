@@ -19,8 +19,8 @@ func TestResourcesSubjectsMap2Basic(t *testing.T) {
 		Relation:  "view",
 	})
 
-	require.Equal(t, "document", rsm.resourceType.Namespace)
-	require.Equal(t, "view", rsm.resourceType.Relation)
+	require.Equal(t, "document", rsm.resourceType.GetNamespace())
+	require.Equal(t, "view", rsm.resourceType.GetRelation())
 	require.Equal(t, 0, rsm.len())
 
 	rsm.addSubjectIDAsFoundResourceID("first")
@@ -157,7 +157,7 @@ func TestResourcesSubjectsMap2MapFoundResources(t *testing.T) {
 			expected := make([]*v1.PossibleResource, 0, len(tc.expected))
 			for _, expectedResource := range tc.expected {
 				cloned := expectedResource.CloneVT()
-				sort.Strings(cloned.ForSubjectIds)
+				sort.Strings(cloned.GetForSubjectIds())
 				expected = append(expected, cloned)
 			}
 
@@ -171,8 +171,8 @@ func TestResourcesSubjectsMap2MapFoundResources(t *testing.T) {
 			}
 
 			for _, r := range resources {
-				sort.Strings(r.ForSubjectIds)
-				sort.Strings(r.MissingContextParams)
+				sort.Strings(r.GetForSubjectIds())
+				sort.Strings(r.GetMissingContextParams())
 			}
 
 			testutil.RequireProtoSlicesEqual(t, expected, resources, sortPossibleByResource, "different resources")
@@ -221,5 +221,5 @@ func TestFilterSubjectIDsToDispatch(t *testing.T) {
 }
 
 func sortPossibleByResource(first *v1.PossibleResource, second *v1.PossibleResource) int {
-	return strings.Compare(first.ResourceId, second.ResourceId)
+	return strings.Compare(first.GetResourceId(), second.GetResourceId())
 }

@@ -132,17 +132,17 @@ func TestLookupTuplesetArrows(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, resource := range schema.ObjectDefinitions {
-				for _, relation := range resource.Relation {
-					arrows := arrowSet.LookupTuplesetArrows(resource.Name, relation.Name)
+				for _, relation := range resource.GetRelation() {
+					arrows := arrowSet.LookupTuplesetArrows(resource.GetName(), relation.GetName())
 					require.NotNil(t, arrows)
 
-					rel := resource.Name + "#" + relation.Name
+					rel := resource.GetName() + "#" + relation.GetName()
 					expected, ok := tc.expected[rel]
 					require.True(t, ok, "expected %v to be in %v", rel, tc.expected)
 					require.Len(t, arrows, len(expected), rel)
 
 					for _, arrow := range arrows {
-						key := arrow.Arrow.Tupleset.Relation + "->" + arrow.Arrow.ComputedUserset.Relation
+						key := arrow.Arrow.GetTupleset().GetRelation() + "->" + arrow.Arrow.GetComputedUserset().GetRelation()
 						require.Contains(t, expected, key, "expected %v to be in %v", key, expected)
 					}
 				}

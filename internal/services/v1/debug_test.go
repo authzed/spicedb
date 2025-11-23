@@ -46,9 +46,9 @@ type debugCheckInfo struct {
 func expectDebugFrames(permissionNames ...string) rda {
 	return func(req *require.Assertions, debugInfo *v1.DebugInformation) {
 		found := mapz.NewSet[string]()
-		for _, sp := range debugInfo.Check.GetSubProblems().Traces {
+		for _, sp := range debugInfo.GetCheck().GetSubProblems().GetTraces() {
 			for _, permissionName := range permissionNames {
-				if sp.Permission == permissionName {
+				if sp.GetPermission() == permissionName {
 					found.Insert(permissionName)
 				}
 			}
@@ -64,27 +64,27 @@ func expectDebugFrames(permissionNames ...string) rda {
 
 func expectCaveat(caveatExpression string) rda {
 	return func(req *require.Assertions, debugInfo *v1.DebugInformation) {
-		req.Equal(caveatExpression, debugInfo.Check.CaveatEvaluationInfo.Expression)
+		req.Equal(caveatExpression, debugInfo.GetCheck().GetCaveatEvaluationInfo().GetExpression())
 	}
 }
 
 func expectMissingContext(context ...string) rda {
 	sort.Strings(context)
 	return func(req *require.Assertions, debugInfo *v1.DebugInformation) {
-		missing := debugInfo.Check.CaveatEvaluationInfo.PartialCaveatInfo.MissingRequiredContext
+		missing := debugInfo.GetCheck().GetCaveatEvaluationInfo().GetPartialCaveatInfo().GetMissingRequiredContext()
 		sort.Strings(missing)
 		req.Equal(context, missing)
 	}
 }
 
 func findFrame(checkTrace *v1.CheckDebugTrace, resourceType string, permissionName string) *v1.CheckDebugTrace {
-	if checkTrace.Resource.ObjectType == resourceType && checkTrace.Permission == permissionName {
+	if checkTrace.GetResource().GetObjectType() == resourceType && checkTrace.GetPermission() == permissionName {
 		return checkTrace
 	}
 
 	subProblems := checkTrace.GetSubProblems()
 	if subProblems != nil {
-		for _, sp := range subProblems.Traces {
+		for _, sp := range subProblems.GetTraces() {
 			found := findFrame(sp, resourceType, permissionName)
 			if found != nil {
 				return found
@@ -291,13 +291,13 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 						expectDebugFrames("viewer"),
 						func(req *require.Assertions, debugInfo *v1.DebugInformation) {
 							// Ensure that all the resource IDs are batched into a single frame.
-							found := findFrame(debugInfo.Check, "folder", "fview")
+							found := findFrame(debugInfo.GetCheck(), "folder", "fview")
 							req.NotNil(found)
-							req.Len(strings.Split(found.Resource.ObjectId, ","), 6)
+							req.Len(strings.Split(found.GetResource().GetObjectId(), ","), 6)
 
 							// Ensure there are no more than 2 subframes, to verify we haven't
 							// accidentally fanned out.
-							req.LessOrEqual(2, len(found.GetSubProblems().Traces))
+							req.LessOrEqual(2, len(found.GetSubProblems().GetTraces()))
 						},
 					},
 				},
@@ -518,7 +518,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					}, grpc.Trailer(&trailer))
 
 					req.NoError(err)
-					req.Equal(stc.expectedPermission, checkResp.Permissionship)
+					req.Equal(stc.expectedPermission, checkResp.GetPermissionship())
 
 					encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
 					req.NoError(err)
@@ -526,15 +526,15 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					// DebugInfo No longer comes as part of the trailer
 					req.Nil(encodedDebugInfo)
 
-					debugInfo := checkResp.DebugTrace
-					req.NotEmpty(debugInfo.SchemaUsed)
+					debugInfo := checkResp.GetDebugTrace()
+					req.NotEmpty(debugInfo.GetSchemaUsed())
 
-					req.Equal(stc.checkRequest.resource.ObjectType, debugInfo.Check.Resource.ObjectType)
-					req.Equal(stc.checkRequest.resource.ObjectId, debugInfo.Check.Resource.ObjectId)
-					req.Equal(stc.checkRequest.permission, debugInfo.Check.Permission)
+					req.Equal(stc.checkRequest.resource.GetObjectType(), debugInfo.GetCheck().GetResource().GetObjectType())
+					req.Equal(stc.checkRequest.resource.GetObjectId(), debugInfo.GetCheck().GetResource().GetObjectId())
+					req.Equal(stc.checkRequest.permission, debugInfo.GetCheck().GetPermission())
 
-					if debugInfo.Check.GetSubProblems() != nil {
-						req.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), stc.expectedMinimumSubProblemCount, "found traces: %s", prototext.Format(debugInfo.Check))
+					if debugInfo.GetCheck().GetSubProblems() != nil {
+						req.GreaterOrEqual(len(debugInfo.GetCheck().GetSubProblems().GetTraces()), stc.expectedMinimumSubProblemCount, "found traces: %s", prototext.Format(debugInfo.GetCheck()))
 					} else {
 						req.Equal(0, stc.expectedMinimumSubProblemCount)
 					}
@@ -562,7 +562,7 @@ type frameInfo struct {
 
 func expectOrderedFrames(frames ...frameInfo) rda {
 	return func(req *require.Assertions, debugInfo *v1.DebugInformation) {
-		expectFrames(req, frames, debugInfo.Check)
+		expectFrames(req, frames, debugInfo.GetCheck())
 	}
 }
 
@@ -572,15 +572,15 @@ func expectFrames(req *require.Assertions, frames []frameInfo, check *v1.CheckDe
 	}
 
 	frame := frames[0]
-	req.Equal(frame.resourceType, check.Resource.ObjectType)
-	req.Equal(frame.resourceIDs, strings.Split(check.Resource.ObjectId, ","))
-	req.Equal(frame.permission, check.Permission)
-	req.Equal(frame.permissionship, check.Result, "frame: %s", prototext.Format(check))
+	req.Equal(frame.resourceType, check.GetResource().GetObjectType())
+	req.Equal(frame.resourceIDs, strings.Split(check.GetResource().GetObjectId(), ","))
+	req.Equal(frame.permission, check.GetPermission())
+	req.Equal(frame.permissionship, check.GetResult(), "frame: %s", prototext.Format(check))
 
 	remainingFrames := frames[1:]
 	if len(remainingFrames) > 0 {
 		req.NotNil(check.GetSubProblems(), "expected subproblems")
-		expectFrames(req, remainingFrames, check.GetSubProblems().Traces[0])
+		expectFrames(req, remainingFrames, check.GetSubProblems().GetTraces()[0])
 	}
 }
 
@@ -897,9 +897,9 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 			for _, bci := range tc.toTest {
 				parsed := tuple.MustParseV1Rel(bci.toCheck)
 				items = append(items, &v1.CheckBulkPermissionsRequestItem{
-					Resource:   parsed.Resource,
-					Permission: parsed.Relation,
-					Subject:    parsed.Subject,
+					Resource:   parsed.GetResource(),
+					Permission: parsed.GetRelation(),
+					Subject:    parsed.GetSubject(),
 				})
 			}
 
@@ -916,7 +916,7 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 
 			for idx, bci := range tc.toTest {
 				pair := checkResp.GetPairs()[idx]
-				debugInfo := pair.GetItem().DebugTrace
+				debugInfo := pair.GetItem().GetDebugTrace()
 
 				for _, rda := range bci.rda {
 					rda(req, debugInfo)

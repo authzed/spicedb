@@ -187,11 +187,11 @@ type permissionServer struct {
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
 	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
-		return labelsForFilter(req.RelationshipFilter)
+		return labelsForFilter(req.GetRelationshipFilter())
 	})
 
-	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxReadRelationshipsLimit {
-		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxReadRelationshipsLimit)))
+	if req.GetOptionalLimit() > 0 && req.GetOptionalLimit() > ps.config.MaxReadRelationshipsLimit {
+		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.GetOptionalLimit()), uint64(ps.config.MaxReadRelationshipsLimit)))
 	}
 
 	ctx := resp.Context()
@@ -201,12 +201,12 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, ds); err != nil {
+	if err := validateRelationshipsFilter(ctx, req.GetRelationshipFilter(), ds); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
 	// Build the internal filter from the API provided filter.
-	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(req.GetRelationshipFilter())
 	if err != nil {
 		return ps.rewriteError(ctx, fmt.Errorf("error filtering: %w", err))
 	}
@@ -231,17 +231,17 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		return ps.rewriteError(ctx, err)
 	}
 
-	if req.OptionalCursor != nil {
-		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, rrRequestHash)
+	if req.GetOptionalCursor() != nil {
+		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.GetOptionalCursor(), rrRequestHash)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
 
-		if len(decodedCursor.Sections) != 1 {
+		if len(decodedCursor.GetSections()) != 1 {
 			return ps.rewriteError(ctx, NewInvalidCursorErr("did not find expected resume relationship"))
 		}
 
-		parsed, err := tuple.Parse(decodedCursor.Sections[0])
+		parsed, err := tuple.Parse(decodedCursor.GetSections()[0])
 		if err != nil {
 			return ps.rewriteError(ctx, NewInvalidCursorErr("could not parse resume relationship"))
 		}
@@ -250,8 +250,8 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	pageSize := ps.config.MaxDatastoreReadPageSize
-	if req.OptionalLimit > 0 {
-		limit = uint64(req.OptionalLimit)
+	if req.GetOptionalLimit() > 0 {
+		limit = uint64(req.GetOptionalLimit())
 		if limit < pageSize {
 			pageSize = limit
 		}
@@ -303,7 +303,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 			return ps.rewriteError(ctx, err)
 		}
 
-		tuple.CopyToV1Relationship(rel, response.Relationship)
+		tuple.CopyToV1Relationship(rel, response.GetRelationship())
 		response.AfterResultCursor = encodedCursor
 
 		err = resp.Send(response)
@@ -318,7 +318,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	if err := ps.validateTransactionMetadata(req.OptionalTransactionMetadata); err != nil {
+	if err := ps.validateTransactionMetadata(req.GetOptionalTransactionMetadata()); err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
@@ -326,17 +326,17 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	span := trace.SpanFromContext(ctx)
 	// Ensure that the updates and preconditions are not over the configured limits.
-	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
+	if len(req.GetUpdates()) > int(ps.config.MaxUpdatesPerWrite) {
 		return nil, ps.rewriteError(
 			ctx,
-			NewExceedsMaximumUpdatesErr(uint64(len(req.Updates)), uint64(ps.config.MaxUpdatesPerWrite)),
+			NewExceedsMaximumUpdatesErr(uint64(len(req.GetUpdates())), uint64(ps.config.MaxUpdatesPerWrite)),
 		)
 	}
 
-	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
+	if len(req.GetOptionalPreconditions()) > int(ps.config.MaxPreconditionsCount) {
 		return nil, ps.rewriteError(
 			ctx,
-			NewExceedsMaximumPreconditionsErr(uint64(len(req.OptionalPreconditions)), uint64(ps.config.MaxPreconditionsCount)),
+			NewExceedsMaximumPreconditionsErr(uint64(len(req.GetOptionalPreconditions())), uint64(ps.config.MaxPreconditionsCount)),
 		)
 	}
 
@@ -344,44 +344,44 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Check for duplicate updates and create the set of caveat names to load.
 	updateRelationshipSet := mapz.NewSet[string]()
-	for _, update := range req.Updates {
+	for _, update := range req.GetUpdates() {
 		// TODO(jschorr): Change to struct-based keys.
-		tupleStr := tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship)
+		tupleStr := tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.GetRelationship())
 		if !updateRelationshipSet.Add(tupleStr) {
 			return nil, ps.rewriteError(
 				ctx,
 				NewDuplicateRelationshipErr(update),
 			)
 		}
-		if proto.Size(update.Relationship.OptionalCaveat) > ps.config.MaxRelationshipContextSize {
+		if proto.Size(update.GetRelationship().GetOptionalCaveat()) > ps.config.MaxRelationshipContextSize {
 			return nil, ps.rewriteError(
 				ctx,
 				NewMaxRelationshipContextError(update, ps.config.MaxRelationshipContextSize),
 			)
 		}
 
-		if !ps.config.ExpiringRelationshipsEnabled && update.Relationship.OptionalExpiresAt != nil {
+		if !ps.config.ExpiringRelationshipsEnabled && update.GetRelationship().GetOptionalExpiresAt() != nil {
 			return nil, ps.rewriteError(
 				ctx,
 				errors.New("support for expiring relationships is not enabled"),
 			)
 		}
 
-		if update.Relationship.OptionalExpiresAt != nil {
+		if update.GetRelationship().GetOptionalExpiresAt() != nil {
 			includesExpiresAt = true
 		}
 	}
 	span.AddEvent(otelconv.EventRelationshipsMutationsValidated)
 
 	// Execute the write operation(s).
-	relUpdates, err := tuple.UpdatesFromV1RelationshipUpdates(req.Updates)
+	relUpdates, err := tuple.UpdatesFromV1RelationshipUpdates(req.GetUpdates())
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Validate the preconditions.
-		for _, precond := range req.OptionalPreconditions {
+		for _, precond := range req.GetOptionalPreconditions() {
 			if err := validatePrecondition(ctx, precond, rwt); err != nil {
 				return err
 			}
@@ -395,7 +395,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		}
 		span.AddEvent(otelconv.EventRelationshipsUpdatesValidated)
 
-		dispatchCount, err := genutil.EnsureUInt32(len(req.OptionalPreconditions) + 1)
+		dispatchCount, err := genutil.EnsureUInt32(len(req.GetOptionalPreconditions()) + 1)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -406,14 +406,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		})
 
 		span.AddEvent(otelconv.EventRelationshipsPreconditionsValidated)
-		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
+		if err := checkPreconditions(ctx, rwt, req.GetOptionalPreconditions()); err != nil {
 			return err
 		}
 
 		errWrite := rwt.WriteRelationships(ctx, relUpdates)
 		span.AddEvent(otelconv.EventRelationshipsWritten)
 		return errWrite
-	}, options.WithMetadata(req.OptionalTransactionMetadata), options.WithIncludesExpiredAt(includesExpiresAt))
+	}, options.WithMetadata(req.GetOptionalTransactionMetadata()), options.WithIncludesExpiredAt(includesExpiresAt))
 	span.AddEvent(otelconv.EventRelationshipsReadWriteExecuted)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -421,8 +421,8 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Log a metric of the counts of the different kinds of update operations.
 	updateCountByOperation := make(map[v1.RelationshipUpdate_Operation]int, 0)
-	for _, update := range req.Updates {
-		updateCountByOperation[update.Operation]++
+	for _, update := range req.GetUpdates() {
+		updateCountByOperation[update.GetOperation()]++
 	}
 
 	for kind, count := range updateCountByOperation {
@@ -458,22 +458,22 @@ func (ps *permissionServer) validateTransactionMetadata(metadata *structpb.Struc
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
-		return labelsForFilter(req.RelationshipFilter)
+		return labelsForFilter(req.GetRelationshipFilter())
 	})
 
-	if err := ps.validateTransactionMetadata(req.OptionalTransactionMetadata); err != nil {
+	if err := ps.validateTransactionMetadata(req.GetOptionalTransactionMetadata()); err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
+	if len(req.GetOptionalPreconditions()) > int(ps.config.MaxPreconditionsCount) {
 		return nil, ps.rewriteError(
 			ctx,
-			NewExceedsMaximumPreconditionsErr(uint64(len(req.OptionalPreconditions)), uint64(ps.config.MaxPreconditionsCount)),
+			NewExceedsMaximumPreconditionsErr(uint64(len(req.GetOptionalPreconditions())), uint64(ps.config.MaxPreconditionsCount)),
 		)
 	}
 
-	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxDeleteRelationshipsLimit {
-		return nil, ps.rewriteError(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxDeleteRelationshipsLimit)))
+	if req.GetOptionalLimit() > 0 && req.GetOptionalLimit() > ps.config.MaxDeleteRelationshipsLimit {
+		return nil, ps.rewriteError(ctx, NewExceedsMaximumLimitErr(uint64(req.GetOptionalLimit()), uint64(ps.config.MaxDeleteRelationshipsLimit)))
 	}
 
 	ds := datastoremw.MustFromContext(ctx)
@@ -481,11 +481,11 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 
 	var deletedRelationshipCount uint64
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, rwt); err != nil {
+		if err := validateRelationshipsFilter(ctx, req.GetRelationshipFilter(), rwt); err != nil {
 			return err
 		}
 
-		dispatchCount, err := genutil.EnsureUInt32(len(req.OptionalPreconditions) + 1)
+		dispatchCount, err := genutil.EnsureUInt32(len(req.GetOptionalPreconditions()) + 1)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -495,22 +495,22 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			DispatchCount: dispatchCount,
 		})
 
-		for _, precond := range req.OptionalPreconditions {
+		for _, precond := range req.GetOptionalPreconditions() {
 			if err := validatePrecondition(ctx, precond, rwt); err != nil {
 				return err
 			}
 		}
 
-		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
+		if err := checkPreconditions(ctx, rwt, req.GetOptionalPreconditions()); err != nil {
 			return err
 		}
 
 		// If a limit was specified but partial deletion is not allowed, we need to check if the
 		// number of relationships to be deleted exceeds the limit.
-		if req.OptionalLimit > 0 && !req.OptionalAllowPartialDeletions {
-			limit := uint64(req.OptionalLimit)
+		if req.GetOptionalLimit() > 0 && !req.GetOptionalAllowPartialDeletions() {
+			limit := uint64(req.GetOptionalLimit())
 			limitPlusOne := limit + 1
-			filter, err := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+			filter, err := datastore.RelationshipsFilterFromPublicFilter(req.GetRelationshipFilter())
 			if err != nil {
 				return ps.rewriteError(ctx, err)
 			}
@@ -527,7 +527,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 				}
 
 				if counter == limit {
-					return ps.rewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.RelationshipFilter, req.OptionalLimit))
+					return ps.rewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.GetRelationshipFilter(), req.GetOptionalLimit()))
 				}
 
 				counter++
@@ -535,9 +535,9 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		}
 
 		// Delete with the specified limit.
-		if req.OptionalLimit > 0 {
-			deleteLimit := uint64(req.OptionalLimit)
-			drc, reachedLimit, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
+		if req.GetOptionalLimit() > 0 {
+			deleteLimit := uint64(req.GetOptionalLimit())
+			drc, reachedLimit, err := rwt.DeleteRelationships(ctx, req.GetRelationshipFilter(), options.WithDeleteLimit(&deleteLimit))
 			if err != nil {
 				return err
 			}
@@ -551,9 +551,9 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		}
 
 		// Otherwise, kick off an unlimited deletion.
-		deletedRelationshipCount, _, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		deletedRelationshipCount, _, err = rwt.DeleteRelationships(ctx, req.GetRelationshipFilter())
 		return err
-	}, options.WithMetadata(req.OptionalTransactionMetadata))
+	}, options.WithMetadata(req.GetOptionalTransactionMetadata()))
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -573,11 +573,11 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 var emptyPrecondition = &v1.Precondition{}
 
 func validatePrecondition(ctx context.Context, precond *v1.Precondition, reader datastore.Reader) error {
-	if precond.EqualVT(emptyPrecondition) || precond.Filter == nil {
+	if precond.EqualVT(emptyPrecondition) || precond.GetFilter() == nil {
 		return NewEmptyPreconditionErr()
 	}
 
-	return validateRelationshipsFilter(ctx, precond.Filter, reader)
+	return validateRelationshipsFilter(ctx, precond.GetFilter(), reader)
 }
 
 func checkFilterComponent(ctx context.Context, objectType, optionalRelation string, ds datastore.Reader) error {
@@ -592,25 +592,25 @@ func checkFilterComponent(ctx context.Context, objectType, optionalRelation stri
 
 func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFilter, ds datastore.Reader) error {
 	// ResourceType is optional, so only check the relation if it is specified.
-	if filter.ResourceType != "" {
-		if err := checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, ds); err != nil {
+	if filter.GetResourceType() != "" {
+		if err := checkFilterComponent(ctx, filter.GetResourceType(), filter.GetOptionalRelation(), ds); err != nil {
 			return err
 		}
 	}
 
 	// SubjectFilter is optional, so only check if it is specified.
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+	if subjectFilter := filter.GetOptionalSubjectFilter(); subjectFilter != nil {
 		subjectRelation := ""
-		if subjectFilter.OptionalRelation != nil {
-			subjectRelation = subjectFilter.OptionalRelation.Relation
+		if subjectFilter.GetOptionalRelation() != nil {
+			subjectRelation = subjectFilter.GetOptionalRelation().GetRelation()
 		}
-		if err := checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, ds); err != nil {
+		if err := checkFilterComponent(ctx, subjectFilter.GetSubjectType(), subjectRelation, ds); err != nil {
 			return err
 		}
 	}
 
 	// Ensure the resource ID and the resource ID prefix are not set at the same time.
-	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
+	if filter.GetOptionalResourceId() != "" && filter.GetOptionalResourceIdPrefix() != "" {
 		return NewInvalidFilterErr("resource_id and resource_id_prefix cannot be set at the same time", filter.String())
 	}
 
@@ -619,11 +619,11 @@ func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFil
 }
 
 func checkIfFilterIsEmpty(filter *v1.RelationshipFilter) error {
-	if filter.ResourceType == "" &&
-		filter.OptionalResourceId == "" &&
-		filter.OptionalResourceIdPrefix == "" &&
-		filter.OptionalRelation == "" &&
-		filter.OptionalSubjectFilter == nil {
+	if filter.GetResourceType() == "" &&
+		filter.GetOptionalResourceId() == "" &&
+		filter.GetOptionalResourceIdPrefix() == "" &&
+		filter.GetOptionalRelation() == "" &&
+		filter.GetOptionalSubjectFilter() == nil {
 		return NewInvalidFilterErr("at least one field must be set", filter.String())
 	}
 
@@ -635,25 +635,25 @@ func labelsForFilter(filter *v1.RelationshipFilter) perfinsights.APIShapeLabels 
 		return perfinsights.NoLabels()
 	}
 
-	if filter.OptionalSubjectFilter == nil {
+	if filter.GetOptionalSubjectFilter() == nil {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     filter.ResourceType,
-			perfinsights.ResourceRelationLabel: filter.OptionalRelation,
+			perfinsights.ResourceTypeLabel:     filter.GetResourceType(),
+			perfinsights.ResourceRelationLabel: filter.GetOptionalRelation(),
 		}
 	}
 
-	if filter.OptionalSubjectFilter.OptionalRelation == nil {
+	if filter.GetOptionalSubjectFilter().GetOptionalRelation() == nil {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     filter.ResourceType,
-			perfinsights.ResourceRelationLabel: filter.OptionalRelation,
-			perfinsights.SubjectTypeLabel:      filter.OptionalSubjectFilter.SubjectType,
+			perfinsights.ResourceTypeLabel:     filter.GetResourceType(),
+			perfinsights.ResourceRelationLabel: filter.GetOptionalRelation(),
+			perfinsights.SubjectTypeLabel:      filter.GetOptionalSubjectFilter().GetSubjectType(),
 		}
 	}
 
 	return perfinsights.APIShapeLabels{
-		perfinsights.ResourceTypeLabel:     filter.ResourceType,
-		perfinsights.ResourceRelationLabel: filter.OptionalRelation,
-		perfinsights.SubjectTypeLabel:      filter.OptionalSubjectFilter.SubjectType,
-		perfinsights.SubjectRelationLabel:  filter.OptionalSubjectFilter.OptionalRelation.Relation,
+		perfinsights.ResourceTypeLabel:     filter.GetResourceType(),
+		perfinsights.ResourceRelationLabel: filter.GetOptionalRelation(),
+		perfinsights.SubjectTypeLabel:      filter.GetOptionalSubjectFilter().GetSubjectType(),
+		perfinsights.SubjectRelationLabel:  filter.GetOptionalSubjectFilter().GetOptionalRelation().GetRelation(),
 	}
 }
