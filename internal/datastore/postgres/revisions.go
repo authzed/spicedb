@@ -296,7 +296,7 @@ func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
 
 var emptyMetadata = map[string]any{}
 
-func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]any) (newXID xid8, newSnapshot pgSnapshot, err error) {
+func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]any) (newXID xid8, newSnapshot pgSnapshot, timestamp time.Time, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
@@ -304,16 +304,16 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]an
 		metadata = emptyMetadata
 	}
 
-	sql, args, err := createTxn.Values(metadata).Suffix("RETURNING " + schema.ColXID + ", " + schema.ColSnapshot).ToSql()
+	sql, args, err := createTxn.Values(metadata).Suffix("RETURNING " + schema.ColXID + ", " + schema.ColSnapshot + ", " + schema.ColTimestamp).ToSql()
 	if err != nil {
-		return newXID, newSnapshot, err
+		return newXID, newSnapshot, timestamp, err
 	}
 
-	cterr := tx.QueryRow(ctx, sql, args...).Scan(&newXID, &newSnapshot)
+	cterr := tx.QueryRow(ctx, sql, args...).Scan(&newXID, &newSnapshot, &timestamp)
 	if cterr != nil {
 		err = fmt.Errorf("error when trying to create a new transaction: %w", cterr)
 	}
-	return newXID, newSnapshot, err
+	return newXID, newSnapshot, timestamp, err
 }
 
 type postgresRevision struct {

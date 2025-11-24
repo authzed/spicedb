@@ -13,6 +13,7 @@ import (
 
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -452,6 +453,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
 		var newXID xid8
 		var newSnapshot pgSnapshot
+		var timestamp time.Time
 		err = wrapError(pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgd.isolationLevel}, func(tx pgx.Tx) error {
 			var err error
 			var metadata map[string]any
@@ -459,7 +461,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				metadata = config.Metadata.AsMap()
 			}
 
-			newXID, newSnapshot, err = createNewTransaction(ctx, tx, metadata)
+			newXID, newSnapshot, timestamp, err = createNewTransaction(ctx, tx, metadata)
 			if err != nil {
 				return err
 			}
@@ -496,7 +498,12 @@ func (pgd *pgDatastore) ReadWriteTx(
 			log.Debug().Uint8("retries", i).Msg("transaction succeeded after retry")
 		}
 
-		return postgresRevision{snapshot: newSnapshot.markComplete(newXID.Uint64), optionalTxID: newXID}, nil
+		nanosTimestamp, err := safecast.Convert[uint64](timestamp.UnixNano())
+		if err != nil {
+			return nil, spiceerrors.MustBugf("could not cast timestamp to uint64")
+		}
+
+		return postgresRevision{snapshot: newSnapshot.markComplete(newXID.Uint64), optionalTxID: newXID, optionalNanosTimestamp: nanosTimestamp}, nil
 	}
 
 	if !config.DisableRetries {

@@ -254,6 +254,16 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				MigrationPhase(config.migrationPhase),
 			))
 
+			t.Run("ReadWriteTxReturnsOptionalRevisionFields", createDatastoreTest(
+				b,
+				ReadWriteTxReturnsOptionalRevisionFields,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				GCInterval(veryLargeGCInterval),
+				WatchBufferLength(50),
+				MigrationPhase(config.migrationPhase),
+			))
+
 			t.Run("TestStrictReadMode", createReplicaDatastoreTest(
 				b,
 				StrictReadModeTest,
@@ -425,6 +435,28 @@ func SerializationErrorTest(t *testing.T, ds datastore.Datastore) {
 	}, options.WithDisableRetries(true) /* ensures the error is returned immediately */)
 
 	require.Contains(err.Error(), "unable to write relationships due to a serialization error")
+}
+
+func ReadWriteTxReturnsOptionalRevisionFields(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx := context.Background()
+	r, err := ds.ReadyState(ctx)
+	require.NoError(err)
+	require.True(r.IsReady)
+
+	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		updates := []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("resource:resource#reader@user:user#...")),
+		}
+		return rwt.WriteRelationships(ctx, updates)
+	}, options.WithDisableRetries(true) /* ensures the error is returned immediately */)
+
+	require.NoError(err)
+	pgRev, ok := rev.(postgresRevision)
+	require.True(ok)
+	require.True(pgRev.optionalNanosTimestamp > 0, "revision timestamp should be set")
+	require.True(pgRev.optionalTxID.Valid, "revision txid be set")
 }
 
 type txWithSerializationError struct {
@@ -616,21 +648,22 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	tx, err := pgd.writePool.Begin(ctx)
 	require.NoError(err)
 
-	txXID, _, err := createNewTransaction(ctx, tx, nil)
+	txXID, _, newTS, err := createNewTransaction(ctx, tx, nil)
 	require.NoError(err)
 
 	err = tx.Commit(ctx)
 	require.NoError(err)
 
-	var ts time.Time
+	var readTS time.Time
 	sql, args, err := psql.Select("timestamp").From(schema.TableTransaction).Where(sq.Eq{"xid": txXID}).ToSql()
 	require.NoError(err)
-	err = pgd.readPool.QueryRow(ctx, sql, args...).Scan(&ts)
+	err = pgd.readPool.QueryRow(ctx, sql, args...).Scan(&readTS)
 	require.NoError(err)
 
 	// Transaction timestamp will be before the reference time if it was stored
 	// in the default time zone and reinterpreted
-	require.True(startTimeUTC.Before(ts))
+	require.True(startTimeUTC.Before(readTS))
+	require.Equal(readTS, newTS)
 }
 
 func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
