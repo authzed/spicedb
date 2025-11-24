@@ -758,6 +758,37 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 				require.Equal(t, 4, items[0].Item) // len("good")
 			})
 
+			// NOTE: this test exists because we saw a periodic flake with this test
+			// where the errors would come out before the items due to a race between
+			// goroutines in the internals. This runs the logic several times, which
+			// should help prevent a similar regression.
+			t.Run("multiple producer error handling", func(t *testing.T) {
+				producerError := fmt.Errorf("producer failed")
+				errorProducer := func(ctx context.Context, startIndex int, remainingCursor Cursor) iter.Seq2[ChunkOrHold[[]string, int], error] {
+					return func(yield func(ChunkOrHold[[]string, int], error) bool) {
+						chunk := Chunk[[]string, int]{CurrentChunk: []string{"good"}, CurrentChunkCursor: 1}
+						if !yield(chunk, nil) {
+							return
+						}
+						if !yield(Chunk[[]string, int]{}, producerError) {
+							return
+						}
+					}
+				}
+
+				mapper := simpleMapper("mapped")
+
+				for range 20 {
+					result := CursoredProducerMapperIterator(ctx, Cursor{}, concurrency, intFromString, intToString, errorProducer, mapper)
+					items, err := collectUntilError(result)
+
+					require.Error(t, err)
+					require.Contains(t, err.Error(), "producer failed")
+					require.Len(t, items, 1)
+					require.Equal(t, 4, items[0].Item) // len("good")
+				}
+			})
+
 			t.Run("mapper function error handling", func(t *testing.T) {
 				chunks := []Chunk[[]string, int]{
 					{CurrentChunk: []string{"item1", "item2"}, CurrentChunkCursor: 1},
