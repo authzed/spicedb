@@ -291,10 +291,6 @@ func CursoredParallelIterators[I any](
 			for {
 				select {
 				case <-ctx.Done():
-					// Wait for taskrunner tasks to complete, so that
-					// we tear down producers to the collector channels
-					// before we tear down the consumer
-					_ = tr.Wait()
 					_ = yield(ItemAndCursor[I]{}, ctx.Err())
 					return
 
@@ -587,9 +583,6 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 				select {
 				case <-ctx.Done():
-					// If we cancel, we wait for the taskrunner to complete
-					// so that there are no hanging goroutines.
-					_ = tr.Wait()
 					_ = yield(ItemAndCursor[I]{}, ctx.Err())
 					return
 
