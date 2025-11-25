@@ -32,7 +32,7 @@ func NewMaxDepthExceededError(req DispatchableRequest) error {
 func (err MaxDepthExceededError) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
-		codes.ResourceExhausted,
+		codes.FailedPrecondition,
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED,
 			map[string]string{},
