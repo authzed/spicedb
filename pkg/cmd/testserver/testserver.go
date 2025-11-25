@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
 	"github.com/authzed/spicedb/internal/middleware/readonly"
 	"github.com/authzed/spicedb/internal/services"
@@ -109,7 +110,9 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		// Turn off the default auth system.
 		return ctx, nil
 	})
-	opts := *server.NewMiddlewareOptionWithOptions(noAuth, server.WithLogger(log.Logger))
+	opts := *server.NewMiddlewareOptionWithOptions(noAuth,
+		server.WithLogger(log.Logger),
+		server.WithMemoryUsageProvider(&memoryprotection.HarcodedMemoryLimitProvider{AcceptAllRequests: true}))
 	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
 
 	unaryMiddleware, err := server.DefaultUnaryMiddleware(opts)
