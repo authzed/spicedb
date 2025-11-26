@@ -16,11 +16,11 @@ import (
 )
 
 const (
-	namespaceNameExpr = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]"
+	namespaceNameExpr = "([a-z_][a-z0-9_]{1,61}[a-z0-9]/)*[a-z_][a-z0-9_]{1,62}[a-z0-9]"
 	resourceIDExpr    = "([a-zA-Z0-9/_|\\-=+]{1,})"
 	subjectIDExpr     = "([a-zA-Z0-9/_|\\-=+]{1,})|\\*"
-	relationExpr      = "[a-z][a-z0-9_]{1,62}[a-z0-9]"
-	caveatNameExpr    = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]"
+	relationExpr      = "[a-z_][a-z0-9_]{1,62}[a-z0-9]"
+	caveatNameExpr    = "([a-z_][a-z0-9_]{1,61}[a-z0-9]/)*[a-z_][a-z0-9_]{1,62}[a-z0-9]"
 )
 
 var onrExpr = fmt.Sprintf(
