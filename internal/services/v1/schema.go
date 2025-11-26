@@ -210,7 +210,7 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	filters, err := newSchemaFilters(req.OptionalFilters)
+	filters, err := newSchemaFilters(req.GetOptionalFilters())
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -264,7 +264,7 @@ func (ss *schemaServer) DiffSchema(ctx context.Context, req *v1.DiffSchemaReques
 		return nil, err
 	}
 
-	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema, ss.caveatTypeSet)
+	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.GetComparisonSchema(), ss.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -280,9 +280,9 @@ func (ss *schemaServer) DiffSchema(ctx context.Context, req *v1.DiffSchemaReques
 func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.ComputablePermissionsRequest) (*v1.ComputablePermissionsResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     req.DefinitionName,
-			perfinsights.ResourceRelationLabel: req.RelationName,
-			perfinsights.FilterLabel:           req.OptionalDefinitionNameFilter,
+			perfinsights.ResourceTypeLabel:     req.GetDefinitionName(),
+			perfinsights.ResourceRelationLabel: req.GetRelationName(),
+			perfinsights.FilterLabel:           req.GetOptionalDefinitionNameFilter(),
 		}
 	})
 
@@ -293,17 +293,17 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
-	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
+	vdef, err := ts.GetValidatedDefinition(ctx, req.GetDefinitionName())
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	relationName := req.RelationName
+	relationName := req.GetRelationName()
 	if relationName == "" {
 		relationName = tuple.Ellipsis
 	} else {
 		if _, ok := vdef.GetRelation(relationName); !ok {
-			return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, relationName))
+			return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.GetDefinitionName(), relationName))
 		}
 	}
 
@@ -319,7 +319,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 
 	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
-		Namespace: req.DefinitionName,
+		Namespace: req.GetDefinitionName(),
 		Relation:  relationName,
 	})
 	if err != nil {
@@ -328,31 +328,31 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 
 	relations := make([]*v1.ReflectionRelationReference, 0, len(rr))
 	for _, r := range rr {
-		if r.Namespace == req.DefinitionName && r.Relation == req.RelationName {
+		if r.GetNamespace() == req.GetDefinitionName() && r.GetRelation() == req.GetRelationName() {
 			continue
 		}
 
-		if req.OptionalDefinitionNameFilter != "" && !strings.HasPrefix(r.Namespace, req.OptionalDefinitionNameFilter) {
+		if req.GetOptionalDefinitionNameFilter() != "" && !strings.HasPrefix(r.GetNamespace(), req.GetOptionalDefinitionNameFilter()) {
 			continue
 		}
 
-		ts, err := ts.GetDefinition(ctx, r.Namespace)
+		ts, err := ts.GetDefinition(ctx, r.GetNamespace())
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}
 
 		relations = append(relations, &v1.ReflectionRelationReference{
-			DefinitionName: r.Namespace,
-			RelationName:   r.Relation,
-			IsPermission:   ts.IsPermission(r.Relation),
+			DefinitionName: r.GetNamespace(),
+			RelationName:   r.GetRelation(),
+			IsPermission:   ts.IsPermission(r.GetRelation()),
 		})
 	}
 
 	sort.Slice(relations, func(i, j int) bool {
-		if relations[i].DefinitionName == relations[j].DefinitionName {
-			return relations[i].RelationName < relations[j].RelationName
+		if relations[i].GetDefinitionName() == relations[j].GetDefinitionName() {
+			return relations[i].GetRelationName() < relations[j].GetRelationName()
 		}
-		return relations[i].DefinitionName < relations[j].DefinitionName
+		return relations[i].GetDefinitionName() < relations[j].GetDefinitionName()
 	})
 
 	return &v1.ComputablePermissionsResponse{
@@ -364,8 +364,8 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.DependentRelationsRequest) (*v1.DependentRelationsResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     req.DefinitionName,
-			perfinsights.ResourceRelationLabel: req.PermissionName,
+			perfinsights.ResourceTypeLabel:     req.GetDefinitionName(),
+			perfinsights.ResourceRelationLabel: req.GetPermissionName(),
 		}
 	})
 
@@ -376,24 +376,24 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
-	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
+	vdef, err := ts.GetValidatedDefinition(ctx, req.GetDefinitionName())
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	_, ok := vdef.GetRelation(req.PermissionName)
+	_, ok := vdef.GetRelation(req.GetPermissionName())
 	if !ok {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
+		return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.GetDefinitionName(), req.GetPermissionName()))
 	}
 
-	if !vdef.IsPermission(req.PermissionName) {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
+	if !vdef.IsPermission(req.GetPermissionName()) {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.GetPermissionName()))
 	}
 
 	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
-		Namespace: req.DefinitionName,
-		Relation:  req.PermissionName,
+		Namespace: req.GetDefinitionName(),
+		Relation:  req.GetPermissionName(),
 	})
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -401,28 +401,28 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 
 	relations := make([]*v1.ReflectionRelationReference, 0, len(rr))
 	for _, r := range rr {
-		if r.Namespace == req.DefinitionName && r.Relation == req.PermissionName {
+		if r.GetNamespace() == req.GetDefinitionName() && r.GetRelation() == req.GetPermissionName() {
 			continue
 		}
 
-		ts, err := ts.GetDefinition(ctx, r.Namespace)
+		ts, err := ts.GetDefinition(ctx, r.GetNamespace())
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}
 
 		relations = append(relations, &v1.ReflectionRelationReference{
-			DefinitionName: r.Namespace,
-			RelationName:   r.Relation,
-			IsPermission:   ts.IsPermission(r.Relation),
+			DefinitionName: r.GetNamespace(),
+			RelationName:   r.GetRelation(),
+			IsPermission:   ts.IsPermission(r.GetRelation()),
 		})
 	}
 
 	sort.Slice(relations, func(i, j int) bool {
-		if relations[i].DefinitionName == relations[j].DefinitionName {
-			return relations[i].RelationName < relations[j].RelationName
+		if relations[i].GetDefinitionName() == relations[j].GetDefinitionName() {
+			return relations[i].GetRelationName() < relations[j].GetRelationName()
 		}
 
-		return relations[i].DefinitionName < relations[j].DefinitionName
+		return relations[i].GetDefinitionName() < relations[j].GetDefinitionName()
 	})
 
 	return &v1.DependentRelationsResponse{

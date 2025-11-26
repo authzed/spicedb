@@ -103,7 +103,7 @@ func (cc CompiledCaveat) ReferencedParameters(parameters []string) (*mapz.Set[st
 		return nil, err
 	}
 
-	referencedParameters(definedParameters, checked.Expr, referencedParams)
+	referencedParameters(definedParameters, checked.GetExpr(), referencedParams)
 	return referencedParams, nil
 }
 
@@ -224,5 +224,5 @@ func DeserializeCaveatWithEnviroment(env *Environment, serialized []byte) (*Comp
 	}
 
 	ast := cel.CheckedExprToAst(caveat.GetCel())
-	return &CompiledCaveat{celEnv, ast, caveat.Name}, nil
+	return &CompiledCaveat{celEnv, ast, caveat.GetName()}, nil
 }

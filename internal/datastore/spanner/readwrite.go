@@ -287,17 +287,17 @@ type builder[T any] interface {
 
 func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) (T, error) {
 	// Add clauses for the ResourceFilter
-	if filter.ResourceType != "" {
-		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	if filter.GetResourceType() != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.GetResourceType()})
 	}
-	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+	if filter.GetOptionalResourceId() != "" {
+		query = query.Where(sq.Eq{colObjectID: filter.GetOptionalResourceId()})
 	}
-	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	if filter.GetOptionalRelation() != "" {
+		query = query.Where(sq.Eq{colRelation: filter.GetOptionalRelation()})
 	}
-	if filter.OptionalResourceIdPrefix != "" {
-		likeClause, err := common.BuildLikePrefixClause(colObjectID, filter.OptionalResourceIdPrefix)
+	if filter.GetOptionalResourceIdPrefix() != "" {
+		likeClause, err := common.BuildLikePrefixClause(colObjectID, filter.GetOptionalResourceIdPrefix())
 		if err != nil {
 			return query, fmt.Errorf(errUnableToDeleteRelationships, err)
 		}
@@ -305,13 +305,13 @@ func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) (T
 	}
 
 	// Add clauses for the SubjectFilter
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
-		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+	if subjectFilter := filter.GetOptionalSubjectFilter(); subjectFilter != nil {
+		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.GetSubjectType()})
+		if subjectFilter.GetOptionalSubjectId() != "" {
+			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.GetOptionalSubjectId()})
 		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
+		if relationFilter := subjectFilter.GetOptionalRelation(); relationFilter != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: cmp.Or(relationFilter.GetRelation(), datastore.Ellipsis)})
 		}
 	}
 
@@ -346,9 +346,9 @@ func caveatVals(r tuple.Relationship) []any {
 	if r.OptionalCaveat == nil {
 		return []any{"", nil}
 	}
-	vals := []any{r.OptionalCaveat.CaveatName}
-	if r.OptionalCaveat.Context != nil {
-		vals = append(vals, spanner.NullJSON{Value: r.OptionalCaveat.Context, Valid: true})
+	vals := []any{r.OptionalCaveat.GetCaveatName()}
+	if r.OptionalCaveat.GetContext() != nil {
+		vals = append(vals, spanner.NullJSON{Value: r.OptionalCaveat.GetContext(), Valid: true})
 	} else {
 		vals = append(vals, nil)
 	}
@@ -366,7 +366,7 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 		mutations = append(mutations, spanner.InsertOrUpdate(
 			tableNamespace,
 			[]string{colNamespaceName, colNamespaceConfig, colTimestamp},
-			[]any{newConfig.Name, serialized, spanner.CommitTimestamp},
+			[]any{newConfig.GetName(), serialized, spanner.CommitTimestamp},
 		))
 	}
 
@@ -386,7 +386,7 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []s
 	if len(namespaces) != len(nsNames) {
 		expectedNamespaceNames := mapz.NewSet[string](nsNames...)
 		for _, ns := range namespaces {
-			expectedNamespaceNames.Delete(ns.Definition.Name)
+			expectedNamespaceNames.Delete(ns.Definition.GetName())
 		}
 
 		return fmt.Errorf(errUnableToDeleteConfig, fmt.Errorf("namespaces not found: %v", expectedNamespaceNames.AsSlice()))

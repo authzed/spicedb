@@ -30,7 +30,7 @@ func TestStringObjectRef(t *testing.T) {
 	}
 	for _, tt := range table {
 		require.Equal(t, tt.expected, V1StringObjectRef(tt.ref))
-		require.Equal(t, tt.expected, V1StringSubjectRef(subRef(tt.ref.ObjectType, tt.ref.ObjectId, "")))
+		require.Equal(t, tt.expected, V1StringSubjectRef(subRef(tt.ref.GetObjectType(), tt.ref.GetObjectId(), "")))
 	}
 }
 

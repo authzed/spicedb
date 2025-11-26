@@ -31,6 +31,7 @@ linters:
     - "perfsprint"
     - "prealloc"
     - "predeclared"
+    - "protogetter"
     - "promlinter"
     - "revive"
     - "rowserrcheck"

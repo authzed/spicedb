@@ -509,7 +509,7 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 		relCaveat := rels[0].Caveat
 		require.NotNil(relCaveat, "Result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_OR, "Caveat should be an OR")
+		require.Equal(relCaveat.GetOperation().GetOp(), core.CaveatOperation_OR, "Caveat should be an OR")
 		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an OR of two children")
 	})
 
@@ -588,7 +588,7 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 			require.NotNil(path.Caveat, "Each path should keep its caveat")
 			// Extract caveat name - simplified check for test
 			if caveatExpr := path.Caveat.GetCaveat(); caveatExpr != nil {
-				caveatNames[i] = caveatExpr.CaveatName
+				caveatNames[i] = caveatExpr.GetCaveatName()
 			}
 		}
 		require.ElementsMatch([]string{"caveat1", "caveat2"}, caveatNames)

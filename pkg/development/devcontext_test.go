@@ -23,8 +23,8 @@ func TestNewDevContextWithInvalidSchema(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, devErrs)
-	require.Len(t, devErrs.InputErrors, 1)
-	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErrs.InputErrors[0].Kind)
+	require.Len(t, devErrs.GetInputErrors(), 1)
+	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErrs.GetInputErrors()[0].GetKind())
 }
 
 func TestNewDevContextWithInvalidRelationship(t *testing.T) {
@@ -51,8 +51,8 @@ definition document {
 
 	require.NoError(t, err)
 	require.NotNil(t, devErrs)
-	require.Len(t, devErrs.InputErrors, 1)
-	require.Equal(t, devinterface.DeveloperError_UNKNOWN_OBJECT_TYPE, devErrs.InputErrors[0].Kind)
+	require.Len(t, devErrs.GetInputErrors(), 1)
+	require.Equal(t, devinterface.DeveloperError_UNKNOWN_OBJECT_TYPE, devErrs.GetInputErrors()[0].GetKind())
 }
 
 func TestDevContextDispose(t *testing.T) {
@@ -90,30 +90,30 @@ func TestDistinguishGraphError(t *testing.T) {
 	devErr, wireErr := DistinguishGraphError(devCtx, nsErr, devinterface.DeveloperError_ASSERTION, 1, 2, "context")
 	require.NoError(t, wireErr)
 	require.NotNil(t, devErr)
-	require.Equal(t, devinterface.DeveloperError_UNKNOWN_OBJECT_TYPE, devErr.Kind)
-	require.Equal(t, uint32(1), devErr.Line)
-	require.Equal(t, uint32(2), devErr.Column)
-	require.Equal(t, "context", devErr.Context)
+	require.Equal(t, devinterface.DeveloperError_UNKNOWN_OBJECT_TYPE, devErr.GetKind())
+	require.Equal(t, uint32(1), devErr.GetLine())
+	require.Equal(t, uint32(2), devErr.GetColumn())
+	require.Equal(t, "context", devErr.GetContext())
 
 	// Test with relation not found error
 	relErr := namespace.NewRelationNotFoundErr("namespace", "unknown")
 	devErr, wireErr = DistinguishGraphError(devCtx, relErr, devinterface.DeveloperError_ASSERTION, 3, 4, "context2")
 	require.NoError(t, wireErr)
 	require.NotNil(t, devErr)
-	require.Equal(t, devinterface.DeveloperError_UNKNOWN_RELATION, devErr.Kind)
-	require.Equal(t, uint32(3), devErr.Line)
-	require.Equal(t, uint32(4), devErr.Column)
-	require.Equal(t, "context2", devErr.Context)
+	require.Equal(t, devinterface.DeveloperError_UNKNOWN_RELATION, devErr.GetKind())
+	require.Equal(t, uint32(3), devErr.GetLine())
+	require.Equal(t, uint32(4), devErr.GetColumn())
+	require.Equal(t, "context2", devErr.GetContext())
 
 	// Test with max depth exceeded error
 	maxDepthErr := dispatch.NewMaxDepthExceededError(nil)
 	devErr, wireErr = DistinguishGraphError(devCtx, maxDepthErr, devinterface.DeveloperError_ASSERTION, 5, 6, "context3")
 	require.NoError(t, wireErr)
 	require.NotNil(t, devErr)
-	require.Equal(t, devinterface.DeveloperError_MAXIMUM_RECURSION, devErr.Kind)
-	require.Equal(t, uint32(5), devErr.Line)
-	require.Equal(t, uint32(6), devErr.Column)
-	require.Equal(t, "context3", devErr.Context)
+	require.Equal(t, devinterface.DeveloperError_MAXIMUM_RECURSION, devErr.GetKind())
+	require.Equal(t, uint32(5), devErr.GetLine())
+	require.Equal(t, uint32(6), devErr.GetColumn())
+	require.Equal(t, "context3", devErr.GetContext())
 
 	// Test with generic error (should return wire error)
 	genericErr := errors.New("some generic error")
@@ -173,8 +173,8 @@ definition document {
 
 	require.NoError(t, err)
 	require.NotNil(t, devErrs)
-	require.Len(t, devErrs.InputErrors, 1)
-	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErrs.InputErrors[0].Kind)
+	require.Len(t, devErrs.GetInputErrors(), 1)
+	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErrs.GetInputErrors()[0].GetKind())
 }
 
 func TestNewDevContextWithRelationshipValidationError(t *testing.T) {
@@ -202,6 +202,6 @@ definition document {
 
 	require.NoError(t, err)
 	require.NotNil(t, devErrs)
-	require.Len(t, devErrs.InputErrors, 1)
-	require.Equal(t, devinterface.DeveloperError_UNKNOWN_OBJECT_TYPE, devErrs.InputErrors[0].Kind)
+	require.Len(t, devErrs.GetInputErrors(), 1)
+	require.Equal(t, devinterface.DeveloperError_UNKNOWN_OBJECT_TYPE, devErrs.GetInputErrors()[0].GetKind())
 }

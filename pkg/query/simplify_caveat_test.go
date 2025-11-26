@@ -178,7 +178,7 @@ func TestSimplifyAndOperation(t *testing.T) {
 
 		// Should only have caveat2 left
 		require.NotNil(simplified.GetCaveat())
-		require.Equal("caveat2", simplified.GetCaveat().CaveatName)
+		require.Equal("caveat2", simplified.GetCaveat().GetCaveatName())
 	})
 
 	t.Run("OneFalse_ReturnsFalse", func(t *testing.T) {
@@ -192,7 +192,7 @@ func TestSimplifyAndOperation(t *testing.T) {
 
 		// Should return the false caveat
 		require.NotNil(simplified.GetCaveat())
-		require.Equal("caveat1", simplified.GetCaveat().CaveatName)
+		require.Equal("caveat1", simplified.GetCaveat().GetCaveatName())
 	})
 }
 
@@ -282,7 +282,7 @@ func TestSimplifyOrOperation(t *testing.T) {
 
 		// Should only have caveat2 left
 		require.NotNil(simplified.GetCaveat())
-		require.Equal("caveat2", simplified.GetCaveat().CaveatName)
+		require.Equal("caveat2", simplified.GetCaveat().GetCaveatName())
 	})
 
 	t.Run("BothFalse_ReturnsExpression", func(t *testing.T) {
@@ -296,7 +296,7 @@ func TestSimplifyOrOperation(t *testing.T) {
 
 		// Should return original expression since all are false
 		require.NotNil(simplified.GetOperation())
-		require.Equal(core.CaveatOperation_OR, simplified.GetOperation().Op)
+		require.Equal(core.CaveatOperation_OR, simplified.GetOperation().GetOp())
 	})
 }
 
@@ -402,7 +402,7 @@ func TestSimplifyNestedOperations(t *testing.T) {
 
 		// Should simplify to just caveat3
 		require.NotNil(simplified.GetCaveat())
-		require.Equal("caveat3", simplified.GetCaveat().CaveatName)
+		require.Equal("caveat3", simplified.GetCaveat().GetCaveatName())
 	})
 }
 
@@ -568,8 +568,8 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 
 		// Should return the failed caveat (limit=2)
 		require.NotNil(simplified.GetCaveat())
-		require.Equal("write_limit", simplified.GetCaveat().CaveatName)
-		require.Equal(float64(2), simplified.GetCaveat().Context.AsMap()["limit"])
+		require.Equal("write_limit", simplified.GetCaveat().GetCaveatName())
+		require.Equal(float64(2), simplified.GetCaveat().GetContext().AsMap()["limit"])
 	})
 
 	t.Run("Count5_ShouldFailBothBranches", func(t *testing.T) {
@@ -583,8 +583,8 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 
 		// Should return the first failed caveat (limit=2)
 		require.NotNil(simplified.GetCaveat())
-		require.Equal("write_limit", simplified.GetCaveat().CaveatName)
-		require.Equal(float64(2), simplified.GetCaveat().Context.AsMap()["limit"])
+		require.Equal("write_limit", simplified.GetCaveat().GetCaveatName())
+		require.Equal(float64(2), simplified.GetCaveat().GetContext().AsMap()["limit"])
 	})
 }
 
@@ -1276,10 +1276,10 @@ func TestSimplifyNotConditional(t *testing.T) {
 
 	// Verify the structure: should still be a NOT operation with the child caveat
 	require.NotNil(simplified.GetOperation(), "Result should be an operation")
-	require.Equal(core.CaveatOperation_NOT, simplified.GetOperation().Op, "Should be a NOT operation")
-	require.Len(simplified.GetOperation().Children, 1, "NOT should have one child")
-	require.NotNil(simplified.GetOperation().Children[0].GetCaveat(), "Child should be the original caveat")
-	require.Equal("limit_check", simplified.GetOperation().Children[0].GetCaveat().CaveatName)
+	require.Equal(core.CaveatOperation_NOT, simplified.GetOperation().GetOp(), "Should be a NOT operation")
+	require.Len(simplified.GetOperation().GetChildren(), 1, "NOT should have one child")
+	require.NotNil(simplified.GetOperation().GetChildren()[0].GetCaveat(), "Child should be the original caveat")
+	require.Equal("limit_check", simplified.GetOperation().GetChildren()[0].GetCaveat().GetCaveatName())
 }
 
 func TestSimplifyDeeplyNestedCaveats(t *testing.T) {

@@ -44,10 +44,10 @@ func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject 
 	}
 
 	reader := devContext.Datastore.SnapshotReader(devContext.Revision)
-	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveattypes.Default.TypeSet, caveatContext, meta.DebugInfo, reader)
+	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveattypes.Default.TypeSet, caveatContext, meta.GetDebugInfo(), reader)
 	if err != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
 	}
 
-	return CheckResult{cr.Membership, cr.MissingExprFields, meta.DebugInfo, converted}, nil
+	return CheckResult{cr.GetMembership(), cr.GetMissingExprFields(), meta.GetDebugInfo(), converted}, nil
 }

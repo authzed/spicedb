@@ -55,7 +55,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	// this is in place so that upgrading to a SpiceDB version with traversal bloom does not cause dispatch failures
 	// if this is observed frequently it suggests a callsite is missing setting the bloom filter.
 	// Since there is no bloom filter, there is no guarantee recursion won't happen, so it's safer not to singleflight
-	if len(req.Metadata.TraversalBloom) == 0 {
+	if len(req.GetMetadata().GetTraversalBloom()) == 0 {
 		tb, err := v1.NewTraversalBloomFilter(50)
 		if err != nil {
 			return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
@@ -70,7 +70,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	// likely recursive call, so we dispatch it to the delegate to avoid the singleflight from blocking it.
 	// If the bloom filter presents a false positive, a dispatch will happen, which is a small inefficiency
 	// traded-off to prevent a recursive-call deadlock
-	possiblyLoop, err := req.Metadata.RecordTraversal(keyString)
+	possiblyLoop, err := req.GetMetadata().RecordTraversal(keyString)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
@@ -103,7 +103,7 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	// this is in place so that upgrading to a SpiceDB version with traversal bloom does not cause dispatch failures
 	// if this is observed frequently it suggests a callsite is missing setting the bloom filter
 	// Since there is no bloom filter, there is no guarantee recursion won't happen, so it's safer not to singleflight
-	if len(req.Metadata.TraversalBloom) == 0 {
+	if len(req.GetMetadata().GetTraversalBloom()) == 0 {
 		tb, err := v1.NewTraversalBloomFilter(50)
 		if err != nil {
 			return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
@@ -114,7 +114,7 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 		return d.delegate.DispatchExpand(ctx, req)
 	}
 
-	possiblyLoop, err := req.Metadata.RecordTraversal(keyString)
+	possiblyLoop, err := req.GetMetadata().RecordTraversal(keyString)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {

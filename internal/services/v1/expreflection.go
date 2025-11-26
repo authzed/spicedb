@@ -31,24 +31,24 @@ type expSchemaFilters struct {
 
 func newexpSchemaFilters(filters []*v1.ExpSchemaFilter) (*expSchemaFilters, error) {
 	for _, filter := range filters {
-		if filter.OptionalDefinitionNameFilter != "" {
-			if filter.OptionalCaveatNameFilter != "" {
+		if filter.GetOptionalDefinitionNameFilter() != "" {
+			if filter.GetOptionalCaveatNameFilter() != "" {
 				return nil, NewInvalidFilterErr("cannot filter by both definition and caveat name", filter.String())
 			}
 		}
 
-		if filter.OptionalRelationNameFilter != "" {
-			if filter.OptionalDefinitionNameFilter == "" {
+		if filter.GetOptionalRelationNameFilter() != "" {
+			if filter.GetOptionalDefinitionNameFilter() == "" {
 				return nil, NewInvalidFilterErr("relation name match requires definition name match", filter.String())
 			}
 
-			if filter.OptionalPermissionNameFilter != "" {
+			if filter.GetOptionalPermissionNameFilter() != "" {
 				return nil, NewInvalidFilterErr("cannot filter by both relation and permission name", filter.String())
 			}
 		}
 
-		if filter.OptionalPermissionNameFilter != "" {
-			if filter.OptionalDefinitionNameFilter == "" {
+		if filter.GetOptionalPermissionNameFilter() != "" {
+			if filter.GetOptionalDefinitionNameFilter() == "" {
 				return nil, NewInvalidFilterErr("permission name match requires definition name match", filter.String())
 			}
 		}
@@ -63,7 +63,7 @@ func (sf *expSchemaFilters) HasNamespaces() bool {
 	}
 
 	for _, filter := range sf.filters {
-		if filter.OptionalDefinitionNameFilter != "" {
+		if filter.GetOptionalDefinitionNameFilter() != "" {
 			return true
 		}
 	}
@@ -77,7 +77,7 @@ func (sf *expSchemaFilters) HasCaveats() bool {
 	}
 
 	for _, filter := range sf.filters {
-		if filter.OptionalCaveatNameFilter != "" {
+		if filter.GetOptionalCaveatNameFilter() != "" {
 			return true
 		}
 	}
@@ -92,12 +92,12 @@ func (sf *expSchemaFilters) HasNamespace(namespaceName string) bool {
 
 	hasDefinitionFilter := false
 	for _, filter := range sf.filters {
-		if filter.OptionalDefinitionNameFilter == "" {
+		if filter.GetOptionalDefinitionNameFilter() == "" {
 			continue
 		}
 
 		hasDefinitionFilter = true
-		isMatch := strings.HasPrefix(namespaceName, filter.OptionalDefinitionNameFilter)
+		isMatch := strings.HasPrefix(namespaceName, filter.GetOptionalDefinitionNameFilter())
 		if isMatch {
 			return true
 		}
@@ -113,12 +113,12 @@ func (sf *expSchemaFilters) HasCaveat(caveatName string) bool {
 
 	hasCaveatFilter := false
 	for _, filter := range sf.filters {
-		if filter.OptionalCaveatNameFilter == "" {
+		if filter.GetOptionalCaveatNameFilter() == "" {
 			continue
 		}
 
 		hasCaveatFilter = true
-		isMatch := strings.HasPrefix(caveatName, filter.OptionalCaveatNameFilter)
+		isMatch := strings.HasPrefix(caveatName, filter.GetOptionalCaveatNameFilter())
 		if isMatch {
 			return true
 		}
@@ -134,17 +134,17 @@ func (sf *expSchemaFilters) HasRelation(namespaceName, relationName string) bool
 
 	hasRelationFilter := false
 	for _, filter := range sf.filters {
-		if filter.OptionalRelationNameFilter == "" {
+		if filter.GetOptionalRelationNameFilter() == "" {
 			continue
 		}
 
 		hasRelationFilter = true
-		isMatch := strings.HasPrefix(relationName, filter.OptionalRelationNameFilter)
+		isMatch := strings.HasPrefix(relationName, filter.GetOptionalRelationNameFilter())
 		if !isMatch {
 			continue
 		}
 
-		isMatch = strings.HasPrefix(namespaceName, filter.OptionalDefinitionNameFilter)
+		isMatch = strings.HasPrefix(namespaceName, filter.GetOptionalDefinitionNameFilter())
 		if isMatch {
 			return true
 		}
@@ -160,17 +160,17 @@ func (sf *expSchemaFilters) HasPermission(namespaceName, permissionName string) 
 
 	hasPermissionFilter := false
 	for _, filter := range sf.filters {
-		if filter.OptionalPermissionNameFilter == "" {
+		if filter.GetOptionalPermissionNameFilter() == "" {
 			continue
 		}
 
 		hasPermissionFilter = true
-		isMatch := strings.HasPrefix(permissionName, filter.OptionalPermissionNameFilter)
+		isMatch := strings.HasPrefix(permissionName, filter.GetOptionalPermissionNameFilter())
 		if !isMatch {
 			continue
 		}
 
-		isMatch = strings.HasPrefix(namespaceName, filter.OptionalDefinitionNameFilter)
+		isMatch = strings.HasPrefix(namespaceName, filter.GetOptionalDefinitionNameFilter())
 		if isMatch {
 			return true
 		}
@@ -490,7 +490,7 @@ func expConvertDiff(
 					Diff: &v1.ExpSchemaDiff_CaveatParameterTypeChanged{
 						CaveatParameterTypeChanged: &v1.ExpCaveatParameterTypeChange{
 							Parameter:    paramDef,
-							PreviousType: previousParamDef.Type,
+							PreviousType: previousParamDef.GetType(),
 						},
 					},
 				})
@@ -542,16 +542,16 @@ func expNamespaceAPIReprForName(namespaceName string, schema *diff.DiffableSchem
 }
 
 func expNamespaceAPIRepr(nsDef *core.NamespaceDefinition, expSchemaFilters *expSchemaFilters) (*v1.ExpDefinition, error) {
-	if expSchemaFilters != nil && !expSchemaFilters.HasNamespace(nsDef.Name) {
+	if expSchemaFilters != nil && !expSchemaFilters.HasNamespace(nsDef.GetName()) {
 		return nil, nil
 	}
 
-	relations := make([]*v1.ExpRelation, 0, len(nsDef.Relation))
-	permissions := make([]*v1.ExpPermission, 0, len(nsDef.Relation))
+	relations := make([]*v1.ExpRelation, 0, len(nsDef.GetRelation()))
+	permissions := make([]*v1.ExpPermission, 0, len(nsDef.GetRelation()))
 
-	for _, rel := range nsDef.Relation {
+	for _, rel := range nsDef.GetRelation() {
 		if namespace.GetRelationKind(rel) == iv1.RelationMetadata_PERMISSION {
-			permission, err := expPermissionAPIRepr(rel, nsDef.Name, expSchemaFilters)
+			permission, err := expPermissionAPIRepr(rel, nsDef.GetName(), expSchemaFilters)
 			if err != nil {
 				return nil, err
 			}
@@ -562,7 +562,7 @@ func expNamespaceAPIRepr(nsDef *core.NamespaceDefinition, expSchemaFilters *expS
 			continue
 		}
 
-		relation, err := expRelationAPIRepr(rel, nsDef.Name, expSchemaFilters)
+		relation, err := expRelationAPIRepr(rel, nsDef.GetName(), expSchemaFilters)
 		if err != nil {
 			return nil, err
 		}
@@ -572,9 +572,9 @@ func expNamespaceAPIRepr(nsDef *core.NamespaceDefinition, expSchemaFilters *expS
 		}
 	}
 
-	comments := namespace.GetComments(nsDef.Metadata)
+	comments := namespace.GetComments(nsDef.GetMetadata())
 	return &v1.ExpDefinition{
-		Name:        nsDef.Name,
+		Name:        nsDef.GetName(),
 		Comment:     strings.Join(comments, "\n"),
 		Relations:   relations,
 		Permissions: permissions,
@@ -583,13 +583,13 @@ func expNamespaceAPIRepr(nsDef *core.NamespaceDefinition, expSchemaFilters *expS
 
 // expPermissionAPIRepr builds an API representation of a permission.
 func expPermissionAPIRepr(relation *core.Relation, parentDefName string, expSchemaFilters *expSchemaFilters) (*v1.ExpPermission, error) {
-	if expSchemaFilters != nil && !expSchemaFilters.HasPermission(parentDefName, relation.Name) {
+	if expSchemaFilters != nil && !expSchemaFilters.HasPermission(parentDefName, relation.GetName()) {
 		return nil, nil
 	}
 
-	comments := namespace.GetComments(relation.Metadata)
+	comments := namespace.GetComments(relation.GetMetadata())
 	return &v1.ExpPermission{
-		Name:                 relation.Name,
+		Name:                 relation.GetName(),
 		Comment:              strings.Join(comments, "\n"),
 		ParentDefinitionName: parentDefName,
 	}, nil
@@ -597,23 +597,23 @@ func expPermissionAPIRepr(relation *core.Relation, parentDefName string, expSche
 
 // expRelationAPIRepr builds an API representation of a relation.
 func expRelationAPIRepr(relation *core.Relation, parentDefName string, expSchemaFilters *expSchemaFilters) (*v1.ExpRelation, error) {
-	if expSchemaFilters != nil && !expSchemaFilters.HasRelation(parentDefName, relation.Name) {
+	if expSchemaFilters != nil && !expSchemaFilters.HasRelation(parentDefName, relation.GetName()) {
 		return nil, nil
 	}
 
-	comments := namespace.GetComments(relation.Metadata)
+	comments := namespace.GetComments(relation.GetMetadata())
 
 	var subjectTypes []*v1.ExpTypeReference
-	if relation.TypeInformation != nil {
-		subjectTypes = make([]*v1.ExpTypeReference, 0, len(relation.TypeInformation.AllowedDirectRelations))
-		for _, subjectType := range relation.TypeInformation.AllowedDirectRelations {
+	if relation.GetTypeInformation() != nil {
+		subjectTypes = make([]*v1.ExpTypeReference, 0, len(relation.GetTypeInformation().GetAllowedDirectRelations()))
+		for _, subjectType := range relation.GetTypeInformation().GetAllowedDirectRelations() {
 			typeref := expTypeAPIRepr(subjectType)
 			subjectTypes = append(subjectTypes, typeref)
 		}
 	}
 
 	return &v1.ExpRelation{
-		Name:                 relation.Name,
+		Name:                 relation.GetName(),
 		Comment:              strings.Join(comments, "\n"),
 		ParentDefinitionName: parentDefName,
 		SubjectTypes:         subjectTypes,
@@ -623,7 +623,7 @@ func expRelationAPIRepr(relation *core.Relation, parentDefName string, expSchema
 // expTypeAPIRepr builds an API representation of a type.
 func expTypeAPIRepr(subjectType *core.AllowedRelation) *v1.ExpTypeReference {
 	typeref := &v1.ExpTypeReference{
-		SubjectDefinitionName: subjectType.Namespace,
+		SubjectDefinitionName: subjectType.GetNamespace(),
 		Typeref:               &v1.ExpTypeReference_IsTerminalSubject{},
 	}
 
@@ -638,7 +638,7 @@ func expTypeAPIRepr(subjectType *core.AllowedRelation) *v1.ExpTypeReference {
 	}
 
 	if subjectType.GetRequiredCaveat() != nil {
-		typeref.OptionalCaveatName = subjectType.GetRequiredCaveat().CaveatName
+		typeref.OptionalCaveatName = subjectType.GetRequiredCaveat().GetCaveatName()
 	}
 
 	return typeref
@@ -656,18 +656,18 @@ func expCaveatAPIReprForName(caveatName string, schema *diff.DiffableSchema, cav
 
 // expCaveatAPIRepr builds an API representation of a caveat.
 func expCaveatAPIRepr(caveatDef *core.CaveatDefinition, expSchemaFilters *expSchemaFilters, caveatTypeSet *caveattypes.TypeSet) (*v1.ExpCaveat, error) {
-	if expSchemaFilters != nil && !expSchemaFilters.HasCaveat(caveatDef.Name) {
+	if expSchemaFilters != nil && !expSchemaFilters.HasCaveat(caveatDef.GetName()) {
 		return nil, nil
 	}
 
-	parameters := make([]*v1.ExpCaveatParameter, 0, len(caveatDef.ParameterTypes))
-	paramNames := slices.Collect(maps.Keys(caveatDef.ParameterTypes))
+	parameters := make([]*v1.ExpCaveatParameter, 0, len(caveatDef.GetParameterTypes()))
+	paramNames := slices.Collect(maps.Keys(caveatDef.GetParameterTypes()))
 	sort.Strings(paramNames)
 
 	for _, paramName := range paramNames {
-		paramType, ok := caveatDef.ParameterTypes[paramName]
+		paramType, ok := caveatDef.GetParameterTypes()[paramName]
 		if !ok {
-			return nil, spiceerrors.MustBugf("parameter %q not found in caveat %q", paramName, caveatDef.Name)
+			return nil, spiceerrors.MustBugf("parameter %q not found in caveat %q", paramName, caveatDef.GetName())
 		}
 
 		decoded, err := caveattypes.DecodeParameterType(caveatTypeSet, paramType)
@@ -678,16 +678,16 @@ func expCaveatAPIRepr(caveatDef *core.CaveatDefinition, expSchemaFilters *expSch
 		parameters = append(parameters, &v1.ExpCaveatParameter{
 			Name:             paramName,
 			Type:             decoded.String(),
-			ParentCaveatName: caveatDef.Name,
+			ParentCaveatName: caveatDef.GetName(),
 		})
 	}
 
-	parameterTypes, err := caveattypes.DecodeParameterTypes(caveatTypeSet, caveatDef.ParameterTypes)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(caveatTypeSet, caveatDef.GetParameterTypes())
 	if err != nil {
 		return nil, spiceerrors.MustBugf("invalid caveat parameters: %v", err)
 	}
 
-	deserializedExpression, err := caveats.DeserializeCaveatWithTypeSet(caveatTypeSet, caveatDef.SerializedExpression, parameterTypes)
+	deserializedExpression, err := caveats.DeserializeCaveatWithTypeSet(caveatTypeSet, caveatDef.GetSerializedExpression(), parameterTypes)
 	if err != nil {
 		return nil, spiceerrors.MustBugf("invalid caveat expression bytes: %v", err)
 	}
@@ -697,9 +697,9 @@ func expCaveatAPIRepr(caveatDef *core.CaveatDefinition, expSchemaFilters *expSch
 		return nil, spiceerrors.MustBugf("invalid caveat expression: %v", err)
 	}
 
-	comments := namespace.GetComments(caveatDef.Metadata)
+	comments := namespace.GetComments(caveatDef.GetMetadata())
 	return &v1.ExpCaveat{
-		Name:       caveatDef.Name,
+		Name:       caveatDef.GetName(),
 		Comment:    strings.Join(comments, "\n"),
 		Parameters: parameters,
 		Expression: exprString,
@@ -713,7 +713,7 @@ func expCaveatAPIParamRepr(paramName, parentCaveatName string, schema *diff.Diff
 		return nil, spiceerrors.MustBugf("caveat %q not found in schema", parentCaveatName)
 	}
 
-	paramType, ok := caveatDef.ParameterTypes[paramName]
+	paramType, ok := caveatDef.GetParameterTypes()[paramName]
 	if !ok {
 		return nil, spiceerrors.MustBugf("parameter %q not found in caveat %q", paramName, parentCaveatName)
 	}

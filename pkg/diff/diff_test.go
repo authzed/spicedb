@@ -202,17 +202,17 @@ func TestDiffableSchema(t *testing.T) {
 				func(t *testing.T, ds *DiffableSchema) {
 					ns, ok := ds.GetNamespace("user")
 					require.True(t, ok)
-					require.Equal(t, "user", ns.Name)
+					require.Equal(t, "user", ns.GetName())
 				},
 				func(t *testing.T, ds *DiffableSchema) {
 					ns, ok := ds.GetNamespace("resource")
 					require.True(t, ok)
-					require.Equal(t, "resource", ns.Name)
+					require.Equal(t, "resource", ns.GetName())
 				},
 				func(t *testing.T, ds *DiffableSchema) {
 					caveat, ok := ds.GetCaveat("someCaveat")
 					require.True(t, ok)
-					require.Equal(t, "someCaveat", caveat.Name)
+					require.Equal(t, "someCaveat", caveat.GetName())
 				},
 				func(t *testing.T, ds *DiffableSchema) {
 					_, ok := ds.GetRelation("user", "owner")

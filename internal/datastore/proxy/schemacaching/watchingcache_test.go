@@ -50,7 +50,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	// Ensure that reading at rev 2 returns found.
 	nsDef, _, err := wcache.SnapshotReader(rev("2")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
-	require.Equal(t, "somenamespace", nsDef.Name)
+	require.Equal(t, "somenamespace", nsDef.GetName())
 
 	// Disable reads.
 	fakeDS.disableReads()
@@ -67,7 +67,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	// require a datastore fallback read because the cache is not yet checkedpointed to that revision.
 	nsDef, _, err = wcache.SnapshotReader(rev("3")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
-	require.Equal(t, "somenamespace", nsDef.Name)
+	require.Equal(t, "somenamespace", nsDef.GetName())
 
 	// Checkpoint to rev 4.
 	fakeDS.sendCheckpoint(rev("4"))
@@ -79,12 +79,12 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	// Read again, which should now be via the cache.
 	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
-	require.Equal(t, "somenamespace", nsDef.Name)
+	require.Equal(t, "somenamespace", nsDef.GetName())
 
 	// Read via a lookup.
 	nsDefs, err := wcache.SnapshotReader(rev("3.0000000005")).LookupNamespacesWithNames(t.Context(), []string{"somenamespace"})
 	require.NoError(t, err)
-	require.Equal(t, "somenamespace", nsDefs[0].Definition.Name)
+	require.Equal(t, "somenamespace", nsDefs[0].Definition.GetName())
 
 	// Delete the namespace at revision 5.
 	fakeDS.updateNamespace("somenamespace", nil, rev("5"))
@@ -92,7 +92,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	// Re-read at an earlier revision.
 	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
-	require.Equal(t, "somenamespace", nsDef.Name)
+	require.Equal(t, "somenamespace", nsDef.GetName())
 
 	// Read at revision 5.
 	_, _, err = wcache.SnapshotReader(rev("5")).ReadNamespaceByName(t.Context(), "somenamespace")
@@ -110,7 +110,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	// Read at revision 6.
 	caveatDef, _, err := wcache.SnapshotReader(rev("6")).ReadCaveatByName(t.Context(), "somecaveat")
 	require.NoError(t, err)
-	require.Equal(t, "somecaveat", caveatDef.Name)
+	require.Equal(t, "somecaveat", caveatDef.GetName())
 
 	// Attempt to read at revision 1, which should require a read.
 	_, _, err = wcache.SnapshotReader(rev("1")).ReadCaveatByName(t.Context(), "somecaveat")
@@ -160,7 +160,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		// Read again (which should be found now)
 		nsDef, _, err := wcache.SnapshotReader(rev("2")).ReadNamespaceByName(t.Context(), "somenamespace")
 		firstErrs <- err
-		firstNsDefNames <- nsDef.Name
+		firstNsDefNames <- nsDef.GetName()
 	})()
 
 	go (func() {
@@ -256,7 +256,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 
 			nsDef, _, err := wcache.SnapshotReader(headRevision).ReadNamespaceByName(t.Context(), "somenamespace")
 			snapshotReaderErrors <- err
-			namespaceNames <- nsDef.Name
+			namespaceNames <- nsDef.GetName()
 		}
 
 		wg.Done()
@@ -363,7 +363,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 	// Ensure the namespace is found.
 	def, _, err := wcache.SnapshotReader(rev("4")).ReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
-	require.Equal(t, "somenamespace", def.Name)
+	require.Equal(t, "somenamespace", def.GetName())
 
 	// Close the proxy and ensure the background goroutines are terminated.
 	wcache.Close()

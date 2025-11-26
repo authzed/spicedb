@@ -160,7 +160,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 			return nil, a.err
 		}
 
-		a.currentBatch = batch.Relationships
+		a.currentBatch = batch.GetRelationships()
 		a.numSent = 0
 
 		a.awaitingNamespaces, a.awaitingCaveats = extractBatchNewReferencedNamespacesAndCaveats(
@@ -175,23 +175,23 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
-	a.current.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
-	a.current.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
-	a.current.Resource.Relation = a.currentBatch[a.numSent].Relation
-	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
-	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
-	a.current.Subject.Relation = cmp.Or(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
+	a.current.Resource.ObjectType = a.currentBatch[a.numSent].GetResource().GetObjectType()
+	a.current.Resource.ObjectID = a.currentBatch[a.numSent].GetResource().GetObjectId()
+	a.current.Resource.Relation = a.currentBatch[a.numSent].GetRelation()
+	a.current.Subject.ObjectType = a.currentBatch[a.numSent].GetSubject().GetObject().GetObjectType()
+	a.current.Subject.ObjectID = a.currentBatch[a.numSent].GetSubject().GetObject().GetObjectId()
+	a.current.Subject.Relation = cmp.Or(a.currentBatch[a.numSent].GetSubject().GetOptionalRelation(), tuple.Ellipsis)
 
-	if a.currentBatch[a.numSent].OptionalCaveat != nil {
-		a.caveat.CaveatName = a.currentBatch[a.numSent].OptionalCaveat.CaveatName
-		a.caveat.Context = a.currentBatch[a.numSent].OptionalCaveat.Context
+	if a.currentBatch[a.numSent].GetOptionalCaveat() != nil {
+		a.caveat.CaveatName = a.currentBatch[a.numSent].GetOptionalCaveat().GetCaveatName()
+		a.caveat.Context = a.currentBatch[a.numSent].GetOptionalCaveat().GetContext()
 		a.current.OptionalCaveat = &a.caveat
 	} else {
 		a.current.OptionalCaveat = nil
 	}
 
-	if a.currentBatch[a.numSent].OptionalExpiresAt != nil {
-		t := a.currentBatch[a.numSent].OptionalExpiresAt.AsTime()
+	if a.currentBatch[a.numSent].GetOptionalExpiresAt() != nil {
+		t := a.currentBatch[a.numSent].GetOptionalExpiresAt().AsTime()
 		a.current.OptionalExpiration = &t
 	} else {
 		a.current.OptionalExpiration = nil
@@ -221,15 +221,15 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 	newNamespaces := make(map[string]struct{}, 2)
 	newCaveats := make(map[string]struct{}, 0)
 	for _, rel := range batch {
-		if _, ok := existingNamespaces[rel.Resource.ObjectType]; !ok {
-			newNamespaces[rel.Resource.ObjectType] = struct{}{}
+		if _, ok := existingNamespaces[rel.GetResource().GetObjectType()]; !ok {
+			newNamespaces[rel.GetResource().GetObjectType()] = struct{}{}
 		}
-		if _, ok := existingNamespaces[rel.Subject.Object.ObjectType]; !ok {
-			newNamespaces[rel.Subject.Object.ObjectType] = struct{}{}
+		if _, ok := existingNamespaces[rel.GetSubject().GetObject().GetObjectType()]; !ok {
+			newNamespaces[rel.GetSubject().GetObject().GetObjectType()] = struct{}{}
 		}
-		if rel.OptionalCaveat != nil {
-			if _, ok := existingCaveats[rel.OptionalCaveat.CaveatName]; !ok {
-				newCaveats[rel.OptionalCaveat.CaveatName] = struct{}{}
+		if rel.GetOptionalCaveat() != nil {
+			if _, ok := existingCaveats[rel.GetOptionalCaveat().GetCaveatName()]; !ok {
+				newCaveats[rel.GetOptionalCaveat().GetCaveatName()] = struct{}{}
 			}
 		}
 	}
@@ -277,7 +277,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 						return err
 					}
 
-					loadedNamespaces[nsDef.Definition.Name] = newDef
+					loadedNamespaces[nsDef.Definition.GetName()] = newDef
 				}
 				adapter.awaitingNamespaces = nil
 			}
@@ -289,7 +289,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 				}
 
 				for _, caveat := range caveats {
-					loadedCaveats[caveat.Definition.Name] = caveat.Definition
+					loadedCaveats[caveat.Definition.GetName()] = caveat.Definition
 				}
 				adapter.awaitingCaveats = nil
 			}
@@ -331,16 +331,16 @@ func (es *experimentalServer) BulkExportRelationships(
 // export stream via the sender all relationships matched by the incoming request.
 // If no cursor is provided, it will fallback to the provided revision.
 func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
-	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
-		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
+	if req.GetOptionalLimit() > 0 && uint64(req.GetOptionalLimit()) > batchSize {
+		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.GetOptionalLimit()), batchSize))
 	}
 
 	atRevision := fallbackRevision
 	var curNamespace string
 	var cur dsoptions.Cursor
-	if req.OptionalCursor != nil {
+	if req.GetOptionalCursor() != nil {
 		var err error
-		atRevision, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
+		atRevision, curNamespace, cur, err = decodeCursor(ds, req.GetOptionalCursor())
 		if err != nil {
 			return shared.RewriteErrorWithoutConfig(ctx, err)
 		}
@@ -358,17 +358,17 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 		lhs datastore.RevisionedDefinition[*core.NamespaceDefinition],
 		rhs datastore.RevisionedDefinition[*core.NamespaceDefinition],
 	) int {
-		return strings.Compare(lhs.Definition.Name, rhs.Definition.Name)
+		return strings.Compare(lhs.Definition.GetName(), rhs.Definition.GetName())
 	})
 
 	// Skip the namespaces that are already fully returned
-	for cur != nil && len(namespaces) > 0 && namespaces[0].Definition.Name < curNamespace {
+	for cur != nil && len(namespaces) > 0 && namespaces[0].Definition.GetName() < curNamespace {
 		namespaces = namespaces[1:]
 	}
 
 	limit := batchSize
-	if req.OptionalLimit > 0 {
-		limit = uint64(req.OptionalLimit)
+	if req.GetOptionalLimit() > 0 {
+		limit = uint64(req.GetOptionalLimit())
 	}
 
 	// Pre-allocate all of the relationships that we might need in order to
@@ -389,27 +389,27 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 		rels := emptyRels
 
 		// Reset the cursor between namespaces.
-		if ns.Definition.Name != curNamespace {
+		if ns.Definition.GetName() != curNamespace {
 			cur = nil
 		}
 
 		// Skip this namespace if a resource type filter was specified.
-		if req.OptionalRelationshipFilter != nil && req.OptionalRelationshipFilter.ResourceType != "" {
-			if ns.Definition.Name != req.OptionalRelationshipFilter.ResourceType {
+		if req.GetOptionalRelationshipFilter() != nil && req.GetOptionalRelationshipFilter().GetResourceType() != "" {
+			if ns.Definition.GetName() != req.GetOptionalRelationshipFilter().GetResourceType() {
 				continue
 			}
 		}
 
 		// Setup the filter to use for the relationships.
-		relationshipFilter := datastore.RelationshipsFilter{OptionalResourceType: ns.Definition.Name}
-		if req.OptionalRelationshipFilter != nil {
-			rf, err := datastore.RelationshipsFilterFromPublicFilter(req.OptionalRelationshipFilter)
+		relationshipFilter := datastore.RelationshipsFilter{OptionalResourceType: ns.Definition.GetName()}
+		if req.GetOptionalRelationshipFilter() != nil {
+			rf, err := datastore.RelationshipsFilterFromPublicFilter(req.GetOptionalRelationshipFilter())
 			if err != nil {
 				return shared.RewriteErrorWithoutConfig(ctx, err)
 			}
 
 			// Overload the namespace name with the one from the request, because each iteration is for a different namespace.
-			rf.OptionalResourceType = ns.Definition.Name
+			rf.OptionalResourceType = ns.Definition.GetName()
 			relationshipFilter = rf
 		}
 
@@ -433,8 +433,8 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.Subject.Relation)
 
 				if rel.OptionalCaveat != nil {
-					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
-					caveatArray[offset].Context = rel.OptionalCaveat.Context
+					caveatArray[offset].CaveatName = rel.OptionalCaveat.GetCaveatName()
+					caveatArray[offset].Context = rel.OptionalCaveat.GetContext()
 					v1Rel.OptionalCaveat = &caveatArray[offset]
 				} else {
 					v1Rel.OptionalCaveat = nil
@@ -470,7 +470,7 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 					V1: &implv1.V1Cursor{
 						Revision: atRevision.String(),
 						Sections: []string{
-							ns.Definition.Name,
+							ns.Definition.GetName(),
 							tuple.MustString(*dsoptions.ToRelationship(cur)),
 						},
 					},
@@ -512,7 +512,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	filters, err := newexpSchemaFilters(req.OptionalFilters)
+	filters, err := newexpSchemaFilters(req.GetOptionalFilters())
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -566,7 +566,7 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 		return nil, err
 	}
 
-	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema, es.caveatTypeSet)
+	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.GetComparisonSchema(), es.caveatTypeSet)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -582,9 +582,9 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Context, req *v1.ExperimentalComputablePermissionsRequest) (*v1.ExperimentalComputablePermissionsResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     req.DefinitionName,
-			perfinsights.ResourceRelationLabel: req.RelationName,
-			perfinsights.FilterLabel:           req.OptionalDefinitionNameFilter,
+			perfinsights.ResourceTypeLabel:     req.GetDefinitionName(),
+			perfinsights.ResourceRelationLabel: req.GetRelationName(),
+			perfinsights.FilterLabel:           req.GetOptionalDefinitionNameFilter(),
 		}
 	})
 
@@ -595,17 +595,17 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
-	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
+	vdef, err := ts.GetValidatedDefinition(ctx, req.GetDefinitionName())
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	relationName := req.RelationName
+	relationName := req.GetRelationName()
 	if relationName == "" {
 		relationName = tuple.Ellipsis
 	} else {
 		if _, ok := vdef.GetRelation(relationName); !ok {
-			return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, relationName))
+			return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.GetDefinitionName(), relationName))
 		}
 	}
 
@@ -621,7 +621,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 
 	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
-		Namespace: req.DefinitionName,
+		Namespace: req.GetDefinitionName(),
 		Relation:  relationName,
 	})
 	if err != nil {
@@ -630,31 +630,31 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 
 	relations := make([]*v1.ExpRelationReference, 0, len(rr))
 	for _, r := range rr {
-		if r.Namespace == req.DefinitionName && r.Relation == req.RelationName {
+		if r.GetNamespace() == req.GetDefinitionName() && r.GetRelation() == req.GetRelationName() {
 			continue
 		}
 
-		if req.OptionalDefinitionNameFilter != "" && !strings.HasPrefix(r.Namespace, req.OptionalDefinitionNameFilter) {
+		if req.GetOptionalDefinitionNameFilter() != "" && !strings.HasPrefix(r.GetNamespace(), req.GetOptionalDefinitionNameFilter()) {
 			continue
 		}
 
-		def, err := ts.GetValidatedDefinition(ctx, r.Namespace)
+		def, err := ts.GetValidatedDefinition(ctx, r.GetNamespace())
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}
 
 		relations = append(relations, &v1.ExpRelationReference{
-			DefinitionName: r.Namespace,
-			RelationName:   r.Relation,
-			IsPermission:   def.IsPermission(r.Relation),
+			DefinitionName: r.GetNamespace(),
+			RelationName:   r.GetRelation(),
+			IsPermission:   def.IsPermission(r.GetRelation()),
 		})
 	}
 
 	sort.Slice(relations, func(i, j int) bool {
-		if relations[i].DefinitionName == relations[j].DefinitionName {
-			return relations[i].RelationName < relations[j].RelationName
+		if relations[i].GetDefinitionName() == relations[j].GetDefinitionName() {
+			return relations[i].GetRelationName() < relations[j].GetRelationName()
 		}
-		return relations[i].DefinitionName < relations[j].DefinitionName
+		return relations[i].GetDefinitionName() < relations[j].GetDefinitionName()
 	})
 
 	return &v1.ExperimentalComputablePermissionsResponse{
@@ -666,8 +666,8 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context, req *v1.ExperimentalDependentRelationsRequest) (*v1.ExperimentalDependentRelationsResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.ResourceTypeLabel:     req.DefinitionName,
-			perfinsights.ResourceRelationLabel: req.PermissionName,
+			perfinsights.ResourceTypeLabel:     req.GetDefinitionName(),
+			perfinsights.ResourceRelationLabel: req.GetPermissionName(),
 		}
 	})
 
@@ -678,24 +678,24 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
-	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
+	vdef, err := ts.GetValidatedDefinition(ctx, req.GetDefinitionName())
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	_, ok := vdef.GetRelation(req.PermissionName)
+	_, ok := vdef.GetRelation(req.GetPermissionName())
 	if !ok {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
+		return nil, shared.RewriteErrorWithoutConfig(ctx, schema.NewRelationNotFoundErr(req.GetDefinitionName(), req.GetPermissionName()))
 	}
 
-	if !vdef.IsPermission(req.PermissionName) {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
+	if !vdef.IsPermission(req.GetPermissionName()) {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.GetPermissionName()))
 	}
 
 	rg := vdef.Reachability()
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
-		Namespace: req.DefinitionName,
-		Relation:  req.PermissionName,
+		Namespace: req.GetDefinitionName(),
+		Relation:  req.GetPermissionName(),
 	})
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -703,28 +703,28 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 
 	relations := make([]*v1.ExpRelationReference, 0, len(rr))
 	for _, r := range rr {
-		if r.Namespace == req.DefinitionName && r.Relation == req.PermissionName {
+		if r.GetNamespace() == req.GetDefinitionName() && r.GetRelation() == req.GetPermissionName() {
 			continue
 		}
 
-		ts, err := ts.GetDefinition(ctx, r.Namespace)
+		ts, err := ts.GetDefinition(ctx, r.GetNamespace())
 		if err != nil {
 			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 		}
 
 		relations = append(relations, &v1.ExpRelationReference{
-			DefinitionName: r.Namespace,
-			RelationName:   r.Relation,
-			IsPermission:   ts.IsPermission(r.Relation),
+			DefinitionName: r.GetNamespace(),
+			RelationName:   r.GetRelation(),
+			IsPermission:   ts.IsPermission(r.GetRelation()),
 		})
 	}
 
 	sort.Slice(relations, func(i, j int) bool {
-		if relations[i].DefinitionName == relations[j].DefinitionName {
-			return relations[i].RelationName < relations[j].RelationName
+		if relations[i].GetDefinitionName() == relations[j].GetDefinitionName() {
+			return relations[i].GetRelationName() < relations[j].GetRelationName()
 		}
 
-		return relations[i].DefinitionName < relations[j].DefinitionName
+		return relations[i].GetDefinitionName() < relations[j].GetDefinitionName()
 	})
 
 	return &v1.ExperimentalDependentRelationsResponse{
@@ -736,23 +736,23 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalRegisterRelationshipCounterRequest) (*v1.ExperimentalRegisterRelationshipCounterResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.NameLabel: req.Name,
+			perfinsights.NameLabel: req.GetName(),
 		}
 	})
 
 	ds := datastoremw.MustFromContext(ctx)
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}
 
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, rwt); err != nil {
+		if err := validateRelationshipsFilter(ctx, req.GetRelationshipFilter(), rwt); err != nil {
 			return err
 		}
 
-		coreFilter := datastore.CoreFilterFromRelationshipFilter(req.RelationshipFilter)
-		return rwt.RegisterCounter(ctx, req.Name, coreFilter)
+		coreFilter := datastore.CoreFilterFromRelationshipFilter(req.GetRelationshipFilter())
+		return rwt.RegisterCounter(ctx, req.GetName(), coreFilter)
 	})
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -764,18 +764,18 @@ func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx contex
 func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalUnregisterRelationshipCounterRequest) (*v1.ExperimentalUnregisterRelationshipCounterResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.NameLabel: req.Name,
+			perfinsights.NameLabel: req.GetName(),
 		}
 	})
 
 	ds := datastoremw.MustFromContext(ctx)
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}
 
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.UnregisterCounter(ctx, req.Name)
+		return rwt.UnregisterCounter(ctx, req.GetName())
 	})
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -787,11 +787,11 @@ func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx cont
 func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context, req *v1.ExperimentalCountRelationshipsRequest) (*v1.ExperimentalCountRelationshipsResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
-			perfinsights.NameLabel: req.Name,
+			perfinsights.NameLabel: req.GetName(),
 		}
 	})
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}
 
@@ -802,7 +802,7 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 	}
 
 	snapshotReader := ds.SnapshotReader(headRev)
-	count, err := snapshotReader.CountRelationships(ctx, req.Name)
+	count, err := snapshotReader.CountRelationships(ctx, req.GetName())
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -861,11 +861,11 @@ func decodeCursor(ds datastore.ReadOnlyDatastore, encoded *v1.Cursor) (datastore
 		return datastore.NoRevision, "", nil, errors.New("malformed cursor: no V1 in OneOf")
 	}
 
-	if len(decoded.GetV1().Sections) != 2 {
+	if len(decoded.GetV1().GetSections()) != 2 {
 		return datastore.NoRevision, "", nil, errors.New("malformed cursor: wrong number of components")
 	}
 
-	atRevision, err := ds.RevisionFromString(decoded.GetV1().Revision)
+	atRevision, err := ds.RevisionFromString(decoded.GetV1().GetRevision())
 	if err != nil {
 		return datastore.NoRevision, "", nil, err
 	}

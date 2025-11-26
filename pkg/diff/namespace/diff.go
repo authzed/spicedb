@@ -121,8 +121,8 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 	deltas := []Delta{}
 
 	// Check the namespace's comments.
-	existingComments := nspkg.GetComments(existing.Metadata)
-	updatedComments := nspkg.GetComments(updated.Metadata)
+	existingComments := nspkg.GetComments(existing.GetMetadata())
+	updatedComments := nspkg.GetComments(updated.GetMetadata())
 	if !slices.Equal(existingComments, updatedComments) {
 		deltas = append(deltas, Delta{
 			Type: NamespaceCommentsChanged,
@@ -142,33 +142,33 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 	updatedPerms := map[string]*core.Relation{}
 	updatedPermNames := mapz.NewSet[string]()
 
-	for _, relation := range existing.Relation {
-		_, ok := existingRels[relation.Name]
+	for _, relation := range existing.GetRelation() {
+		_, ok := existingRels[relation.GetName()]
 		if ok {
-			return nil, nsinternal.NewDuplicateRelationError(existing.Name, relation.Name)
+			return nil, nsinternal.NewDuplicateRelationError(existing.GetName(), relation.GetName())
 		}
 
 		if isPermission(relation) {
-			existingPerms[relation.Name] = relation
-			existingPermNames.Add(relation.Name)
+			existingPerms[relation.GetName()] = relation
+			existingPermNames.Add(relation.GetName())
 		} else {
-			existingRels[relation.Name] = relation
-			existingRelNames.Add(relation.Name)
+			existingRels[relation.GetName()] = relation
+			existingRelNames.Add(relation.GetName())
 		}
 	}
 
-	for _, relation := range updated.Relation {
-		_, ok := updatedRels[relation.Name]
+	for _, relation := range updated.GetRelation() {
+		_, ok := updatedRels[relation.GetName()]
 		if ok {
-			return nil, nsinternal.NewDuplicateRelationError(updated.Name, relation.Name)
+			return nil, nsinternal.NewDuplicateRelationError(updated.GetName(), relation.GetName())
 		}
 
 		if isPermission(relation) {
-			updatedPerms[relation.Name] = relation
-			updatedPermNames.Add(relation.Name)
+			updatedPerms[relation.GetName()] = relation
+			updatedPermNames.Add(relation.GetName())
 		} else {
-			updatedRels[relation.Name] = relation
-			updatedRelNames.Add(relation.Name)
+			updatedRels[relation.GetName()] = relation
+			updatedRelNames.Add(relation.GetName())
 		}
 	}
 
@@ -209,7 +209,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		updatedPerm := updatedPerms[shared]
 
 		// Compare implementations.
-		if areDifferentExpressions(existingPerm.UsersetRewrite, updatedPerm.UsersetRewrite) {
+		if areDifferentExpressions(existingPerm.GetUsersetRewrite(), updatedPerm.GetUsersetRewrite()) {
 			deltas = append(deltas, Delta{
 				Type:         ChangedPermissionImpl,
 				RelationName: shared,
@@ -217,8 +217,8 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		}
 
 		// Compare comments.
-		existingComments := nspkg.GetComments(existingPerm.Metadata)
-		updatedComments := nspkg.GetComments(updatedPerm.Metadata)
+		existingComments := nspkg.GetComments(existingPerm.GetMetadata())
+		updatedComments := nspkg.GetComments(updatedPerm.GetMetadata())
 		if !slices.Equal(existingComments, updatedComments) {
 			deltas = append(deltas, Delta{
 				Type:         ChangedPermissionComment,
@@ -233,7 +233,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		updatedRel := updatedRels[shared]
 
 		// Compare implementations (legacy).
-		if areDifferentExpressions(existingRel.UsersetRewrite, updatedRel.UsersetRewrite) {
+		if areDifferentExpressions(existingRel.GetUsersetRewrite(), updatedRel.GetUsersetRewrite()) {
 			deltas = append(deltas, Delta{
 				Type:         LegacyChangedRelationImpl,
 				RelationName: shared,
@@ -241,8 +241,8 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		}
 
 		// Compare comments.
-		existingComments := nspkg.GetComments(existingRel.Metadata)
-		updatedComments := nspkg.GetComments(updatedRel.Metadata)
+		existingComments := nspkg.GetComments(existingRel.GetMetadata())
+		updatedComments := nspkg.GetComments(updatedRel.GetMetadata())
 		if !slices.Equal(existingComments, updatedComments) {
 			deltas = append(deltas, Delta{
 				Type:         ChangedRelationComment,
@@ -251,12 +251,12 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		}
 
 		// Compare type information.
-		existingTypeInfo := existingRel.TypeInformation
+		existingTypeInfo := existingRel.GetTypeInformation()
 		if existingTypeInfo == nil {
 			existingTypeInfo = &core.TypeInformation{}
 		}
 
-		updatedTypeInfo := updatedRel.TypeInformation
+		updatedTypeInfo := updatedRel.GetTypeInformation()
 		if updatedTypeInfo == nil {
 			updatedTypeInfo = &core.TypeInformation{}
 		}
@@ -265,13 +265,13 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		updatedAllowedRels := mapz.NewSet[string]()
 		allowedRelsBySource := map[string]*core.AllowedRelation{}
 
-		for _, existingAllowed := range existingTypeInfo.AllowedDirectRelations {
+		for _, existingAllowed := range existingTypeInfo.GetAllowedDirectRelations() {
 			source := schema.SourceForAllowedRelation(existingAllowed)
 			allowedRelsBySource[source] = existingAllowed
 			existingAllowedRels.Add(source)
 		}
 
-		for _, updatedAllowed := range updatedTypeInfo.AllowedDirectRelations {
+		for _, updatedAllowed := range updatedTypeInfo.GetAllowedDirectRelations() {
 			source := schema.SourceForAllowedRelation(updatedAllowed)
 			allowedRelsBySource[source] = updatedAllowed
 			updatedAllowedRels.Add(source)

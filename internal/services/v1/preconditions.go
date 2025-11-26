@@ -21,7 +21,7 @@ func checkPreconditions(
 	preconditions []*v1.Precondition,
 ) error {
 	for _, precond := range preconditions {
-		dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(precond.Filter)
+		dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(precond.GetFilter())
 		if err != nil {
 			return fmt.Errorf("error converting filter: %w", err)
 		}
@@ -36,7 +36,7 @@ func checkPreconditions(
 			return fmt.Errorf("error reading relationships from iterator: %w", err)
 		}
 
-		switch precond.Operation {
+		switch precond.GetOperation() {
 		case v1.Precondition_OPERATION_MUST_NOT_MATCH:
 			if ok {
 				return NewPreconditionFailedErr(precond)
@@ -46,7 +46,7 @@ func checkPreconditions(
 				return NewPreconditionFailedErr(precond)
 			}
 		default:
-			return fmt.Errorf("unspecified precondition operation: %s", precond.Operation)
+			return fmt.Errorf("unspecified precondition operation: %s", precond.GetOperation())
 		}
 	}
 

@@ -67,10 +67,10 @@ func ConvertContextToParameters(
 // ParameterTypeString returns the string form of the type reference.
 func ParameterTypeString(typeRef *core.CaveatTypeReference) string {
 	var sb strings.Builder
-	sb.WriteString(typeRef.TypeName)
-	if len(typeRef.ChildTypes) > 0 {
+	sb.WriteString(typeRef.GetTypeName())
+	if len(typeRef.GetChildTypes()) > 0 {
 		sb.WriteString("<")
-		for idx, childType := range typeRef.ChildTypes {
+		for idx, childType := range typeRef.GetChildTypes() {
 			if idx > 0 {
 				sb.WriteString(", ")
 			}

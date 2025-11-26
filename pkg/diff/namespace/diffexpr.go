@@ -115,7 +115,7 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 	var updatedType string
 	var updatedOperation *core.SetOperation
 
-	switch t := existing.RewriteOperation.(type) {
+	switch t := existing.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
 		existingType = "union"
 		existingOperation = t.Union
@@ -129,10 +129,10 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 		existingOperation = t.Exclusion
 
 	default:
-		return nil, spiceerrors.MustBugf("unknown operation type %T", existing.RewriteOperation)
+		return nil, spiceerrors.MustBugf("unknown operation type %T", existing.GetRewriteOperation())
 	}
 
-	switch t := updated.RewriteOperation.(type) {
+	switch t := updated.GetRewriteOperation().(type) {
 	case *core.UsersetRewrite_Union:
 		updatedType = "union"
 		updatedOperation = t.Union
@@ -146,7 +146,7 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 		updatedOperation = t.Exclusion
 
 	default:
-		return nil, spiceerrors.MustBugf("unknown operation type %T", updated.RewriteOperation)
+		return nil, spiceerrors.MustBugf("unknown operation type %T", updated.GetRewriteOperation())
 	}
 
 	childChangeKind := ExpressionChildrenChanged
@@ -154,7 +154,7 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 		// If the expression has changed from a union with a single child, then
 		// treat this as a special case, since there wasn't really an operation
 		// before.
-		if existingType != "union" || len(existingOperation.Child) != 1 {
+		if existingType != "union" || len(existingOperation.GetChild()) != 1 {
 			return &ExpressionDiff{
 				existing: existing,
 				updated:  updated,
@@ -165,9 +165,9 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 		childChangeKind = ExpressionOperationExpanded
 	}
 
-	childDiffs := make([]*OperationDiff, 0, abs(len(updatedOperation.Child)-len(existingOperation.Child)))
-	if len(existingOperation.Child) < len(updatedOperation.Child) {
-		for _, updatedChild := range updatedOperation.Child[len(existingOperation.Child):] {
+	childDiffs := make([]*OperationDiff, 0, abs(len(updatedOperation.GetChild())-len(existingOperation.GetChild())))
+	if len(existingOperation.GetChild()) < len(updatedOperation.GetChild()) {
+		for _, updatedChild := range updatedOperation.GetChild()[len(existingOperation.GetChild()):] {
 			childDiffs = append(childDiffs, &OperationDiff{
 				change:  OperationAdded,
 				updated: updatedChild,
@@ -175,8 +175,8 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 		}
 	}
 
-	if len(existingOperation.Child) > len(updatedOperation.Child) {
-		for _, existingChild := range existingOperation.Child[len(updatedOperation.Child):] {
+	if len(existingOperation.GetChild()) > len(updatedOperation.GetChild()) {
+		for _, existingChild := range existingOperation.GetChild()[len(updatedOperation.GetChild()):] {
 			childDiffs = append(childDiffs, &OperationDiff{
 				change:   OperationRemoved,
 				existing: existingChild,
@@ -184,8 +184,8 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 		}
 	}
 
-	for i := 0; i < len(existingOperation.Child) && i < len(updatedOperation.Child); i++ {
-		childDiff, err := compareChildren(existingOperation.Child[i], updatedOperation.Child[i])
+	for i := 0; i < len(existingOperation.GetChild()) && i < len(updatedOperation.GetChild()); i++ {
+		childDiff, err := compareChildren(existingOperation.GetChild()[i], updatedOperation.GetChild()[i])
 		if err != nil {
 			return nil, err
 		}
@@ -260,7 +260,7 @@ func compareChildren(existing *core.SetOperation_Child, updated *core.SetOperati
 		}, nil
 
 	case "computed":
-		if existing.GetComputedUserset().Relation != updated.GetComputedUserset().Relation {
+		if existing.GetComputedUserset().GetRelation() != updated.GetComputedUserset().GetRelation() {
 			return &OperationDiff{
 				existing: existing,
 				updated:  updated,
@@ -292,7 +292,7 @@ func compareChildren(existing *core.SetOperation_Child, updated *core.SetOperati
 		existingTTU := existing.GetTupleToUserset()
 		updatedTTU := updated.GetTupleToUserset()
 
-		if existingTTU.GetComputedUserset().Relation != updatedTTU.GetComputedUserset().Relation {
+		if existingTTU.GetComputedUserset().GetRelation() != updatedTTU.GetComputedUserset().GetRelation() {
 			return &OperationDiff{
 				existing: existing,
 				updated:  updated,
@@ -300,7 +300,7 @@ func compareChildren(existing *core.SetOperation_Child, updated *core.SetOperati
 			}, nil
 		}
 
-		if existingTTU.Tupleset.Relation != updatedTTU.Tupleset.Relation {
+		if existingTTU.GetTupleset().GetRelation() != updatedTTU.GetTupleset().GetRelation() {
 			return &OperationDiff{
 				existing: existing,
 				updated:  updated,
@@ -321,7 +321,7 @@ func compareChildren(existing *core.SetOperation_Child, updated *core.SetOperati
 		existingTTU := existing.GetFunctionedTupleToUserset()
 		updatedTTU := updated.GetFunctionedTupleToUserset()
 
-		if existingTTU.GetComputedUserset().Relation != updatedTTU.GetComputedUserset().Relation {
+		if existingTTU.GetComputedUserset().GetRelation() != updatedTTU.GetComputedUserset().GetRelation() {
 			return &OperationDiff{
 				existing: existing,
 				updated:  updated,
@@ -329,7 +329,7 @@ func compareChildren(existing *core.SetOperation_Child, updated *core.SetOperati
 			}, nil
 		}
 
-		if existingTTU.Tupleset.Relation != updatedTTU.Tupleset.Relation {
+		if existingTTU.GetTupleset().GetRelation() != updatedTTU.GetTupleset().GetRelation() {
 			return &OperationDiff{
 				existing: existing,
 				updated:  updated,
@@ -349,7 +349,7 @@ func compareChildren(existing *core.SetOperation_Child, updated *core.SetOperati
 }
 
 func typeOfSetOperationChild(child *core.SetOperation_Child) (string, error) {
-	switch t := child.ChildType.(type) {
+	switch t := child.GetChildType().(type) {
 	case *core.SetOperation_Child_XThis:
 		return "_this", nil
 
@@ -363,7 +363,7 @@ func typeOfSetOperationChild(child *core.SetOperation_Child) (string, error) {
 		return "ttu", nil
 
 	case *core.SetOperation_Child_FunctionedTupleToUserset:
-		switch t.FunctionedTupleToUserset.Function {
+		switch t.FunctionedTupleToUserset.GetFunction() {
 		case core.FunctionedTupleToUserset_FUNCTION_UNSPECIFIED:
 			return "", spiceerrors.MustBugf("function type unspecified")
 
@@ -374,7 +374,7 @@ func typeOfSetOperationChild(child *core.SetOperation_Child) (string, error) {
 			return "intersectionttu", nil
 
 		default:
-			return "", spiceerrors.MustBugf("unknown function type %v", t.FunctionedTupleToUserset.Function)
+			return "", spiceerrors.MustBugf("unknown function type %v", t.FunctionedTupleToUserset.GetFunction())
 		}
 
 	case *core.SetOperation_Child_XNil:

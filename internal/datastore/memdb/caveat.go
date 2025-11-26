@@ -101,7 +101,7 @@ func (r *memdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []
 
 	toReturn := make([]datastore.RevisionedCaveat, 0, len(caveatNames))
 	for _, caveat := range allCaveats {
-		if allowedCaveatNames.Has(caveat.Definition.Name) {
+		if allowedCaveatNames.Has(caveat.Definition.GetName()) {
 			toReturn = append(toReturn, caveat)
 		}
 	}
@@ -121,15 +121,15 @@ func (rwt *memdbReadWriteTx) WriteCaveats(_ context.Context, caveats []*core.Cav
 func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDefinition) error {
 	caveatNames := mapz.NewSet[string]()
 	for _, coreCaveat := range caveats {
-		if !caveatNames.Add(coreCaveat.Name) {
-			return fmt.Errorf("duplicate caveat %s", coreCaveat.Name)
+		if !caveatNames.Add(coreCaveat.GetName()) {
+			return fmt.Errorf("duplicate caveat %s", coreCaveat.GetName())
 		}
 		marshalled, err := coreCaveat.MarshalVT()
 		if err != nil {
 			return err
 		}
 		c := caveat{
-			name:       coreCaveat.Name,
+			name:       coreCaveat.GetName(),
 			definition: marshalled,
 			revision:   rwt.newRevision,
 		}

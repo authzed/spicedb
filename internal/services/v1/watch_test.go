@@ -423,9 +423,9 @@ definition document {
 				require.Len(received, len(tc.expectedWatchResponses))
 
 				for i, expectedWatchResponse := range tc.expectedWatchResponses {
-					require.Equal(sortUpdates(expectedWatchResponse.Updates), sortUpdates(received[i].GetUpdates()))
-					require.Equal(expectedWatchResponse.SchemaUpdated, received[i].GetSchemaUpdated())
-					require.Equal(expectedWatchResponse.IsCheckpoint, received[i].GetIsCheckpoint())
+					require.Equal(sortUpdates(expectedWatchResponse.GetUpdates()), sortUpdates(received[i].GetUpdates()))
+					require.Equal(expectedWatchResponse.GetSchemaUpdated(), received[i].GetSchemaUpdated())
+					require.Equal(expectedWatchResponse.GetIsCheckpoint(), received[i].GetIsCheckpoint())
 				}
 			} else {
 				_, err := stream.Recv()
@@ -440,7 +440,7 @@ func sortUpdates(in []*v1.RelationshipUpdate) []*v1.RelationshipUpdate {
 	out = append(out, in...)
 	sort.Slice(out, func(i, j int) bool {
 		left, right := out[i], out[j]
-		compareResult := strings.Compare(tuple.MustV1RelString(left.Relationship), tuple.MustV1RelString(right.Relationship))
+		compareResult := strings.Compare(tuple.MustV1RelString(left.GetRelationship()), tuple.MustV1RelString(right.GetRelationship()))
 		if compareResult < 0 {
 			return true
 		}
@@ -448,7 +448,7 @@ func sortUpdates(in []*v1.RelationshipUpdate) []*v1.RelationshipUpdate {
 			return false
 		}
 
-		return left.Operation < right.Operation
+		return left.GetOperation() < right.GetOperation()
 	})
 
 	return out

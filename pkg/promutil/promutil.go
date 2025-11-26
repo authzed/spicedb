@@ -24,5 +24,5 @@ func MustCounterValue(m prometheus.Metric) float64 {
 	if err := m.Write(&written); err != nil {
 		panic("failed to read Prometheus counter: " + err.Error())
 	}
-	return *written.Counter.Value
+	return written.GetCounter().GetValue()
 }

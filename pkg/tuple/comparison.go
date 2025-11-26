@@ -44,5 +44,5 @@ func caveatEqual(lhs, rhs *core.ContextualizedCaveat) bool {
 		return false
 	}
 
-	return lhs.CaveatName == rhs.CaveatName && proto.Equal(lhs.Context, rhs.Context)
+	return lhs.GetCaveatName() == rhs.GetCaveatName() && proto.Equal(lhs.GetContext(), rhs.GetContext())
 }

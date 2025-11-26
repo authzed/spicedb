@@ -15,40 +15,40 @@ func referencedParameters(definedParameters *mapz.Set[string], expr *exprpb.Expr
 		return
 	}
 
-	switch t := expr.ExprKind.(type) {
+	switch t := expr.GetExprKind().(type) {
 	case *exprpb.Expr_ConstExpr:
 		// nothing to do
 
 	case *exprpb.Expr_IdentExpr:
-		if definedParameters.Has(t.IdentExpr.Name) {
-			referencedParams.Add(t.IdentExpr.Name)
+		if definedParameters.Has(t.IdentExpr.GetName()) {
+			referencedParams.Add(t.IdentExpr.GetName())
 		}
 
 	case *exprpb.Expr_SelectExpr:
-		referencedParameters(definedParameters, t.SelectExpr.Operand, referencedParams)
+		referencedParameters(definedParameters, t.SelectExpr.GetOperand(), referencedParams)
 
 	case *exprpb.Expr_CallExpr:
-		referencedParameters(definedParameters, t.CallExpr.Target, referencedParams)
-		for _, arg := range t.CallExpr.Args {
+		referencedParameters(definedParameters, t.CallExpr.GetTarget(), referencedParams)
+		for _, arg := range t.CallExpr.GetArgs() {
 			referencedParameters(definedParameters, arg, referencedParams)
 		}
 
 	case *exprpb.Expr_ListExpr:
-		for _, elem := range t.ListExpr.Elements {
+		for _, elem := range t.ListExpr.GetElements() {
 			referencedParameters(definedParameters, elem, referencedParams)
 		}
 
 	case *exprpb.Expr_StructExpr:
-		for _, entry := range t.StructExpr.Entries {
-			referencedParameters(definedParameters, entry.Value, referencedParams)
+		for _, entry := range t.StructExpr.GetEntries() {
+			referencedParameters(definedParameters, entry.GetValue(), referencedParams)
 		}
 
 	case *exprpb.Expr_ComprehensionExpr:
-		referencedParameters(definedParameters, t.ComprehensionExpr.AccuInit, referencedParams)
-		referencedParameters(definedParameters, t.ComprehensionExpr.IterRange, referencedParams)
-		referencedParameters(definedParameters, t.ComprehensionExpr.LoopCondition, referencedParams)
-		referencedParameters(definedParameters, t.ComprehensionExpr.LoopStep, referencedParams)
-		referencedParameters(definedParameters, t.ComprehensionExpr.Result, referencedParams)
+		referencedParameters(definedParameters, t.ComprehensionExpr.GetAccuInit(), referencedParams)
+		referencedParameters(definedParameters, t.ComprehensionExpr.GetIterRange(), referencedParams)
+		referencedParameters(definedParameters, t.ComprehensionExpr.GetLoopCondition(), referencedParams)
+		referencedParameters(definedParameters, t.ComprehensionExpr.GetLoopStep(), referencedParams)
+		referencedParameters(definedParameters, t.ComprehensionExpr.GetResult(), referencedParams)
 
 	default:
 		panic(fmt.Sprintf("unknown CEL expression kind: %T", t))

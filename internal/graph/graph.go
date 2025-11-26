@@ -47,9 +47,9 @@ type ExpandReducer func(
 
 func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 	return &v1.ResolverMeta{
-		AtRevision:     md.AtRevision,
-		DepthRemaining: md.DepthRemaining - 1,
-		TraversalBloom: md.TraversalBloom,
+		AtRevision:     md.GetAtRevision(),
+		DepthRemaining: md.GetDepthRemaining() - 1,
+		TraversalBloom: md.GetTraversalBloom(),
 	}
 }
 
@@ -61,28 +61,28 @@ func ensureMetadata(subProblemMetadata *v1.ResponseMeta) *v1.ResponseMeta {
 	}
 
 	return &v1.ResponseMeta{
-		DispatchCount:       subProblemMetadata.DispatchCount,
-		DepthRequired:       subProblemMetadata.DepthRequired,
-		CachedDispatchCount: subProblemMetadata.CachedDispatchCount,
-		DebugInfo:           subProblemMetadata.DebugInfo,
+		DispatchCount:       subProblemMetadata.GetDispatchCount(),
+		DepthRequired:       subProblemMetadata.GetDepthRequired(),
+		CachedDispatchCount: subProblemMetadata.GetCachedDispatchCount(),
+		DebugInfo:           subProblemMetadata.GetDebugInfo(),
 	}
 }
 
 func addCallToResponseMetadata(metadata *v1.ResponseMeta) *v1.ResponseMeta {
 	// + 1 for the current call.
 	return &v1.ResponseMeta{
-		DispatchCount:       metadata.DispatchCount + 1,
-		DepthRequired:       metadata.DepthRequired + 1,
-		CachedDispatchCount: metadata.CachedDispatchCount,
-		DebugInfo:           metadata.DebugInfo,
+		DispatchCount:       metadata.GetDispatchCount() + 1,
+		DepthRequired:       metadata.GetDepthRequired() + 1,
+		CachedDispatchCount: metadata.GetCachedDispatchCount(),
+		DebugInfo:           metadata.GetDebugInfo(),
 	}
 }
 
 func addAdditionalDepthRequired(metadata *v1.ResponseMeta) *v1.ResponseMeta {
 	return &v1.ResponseMeta{
-		DispatchCount:       metadata.DispatchCount,
-		DepthRequired:       metadata.DepthRequired + 1,
-		CachedDispatchCount: metadata.CachedDispatchCount,
-		DebugInfo:           metadata.DebugInfo,
+		DispatchCount:       metadata.GetDispatchCount(),
+		DepthRequired:       metadata.GetDepthRequired() + 1,
+		CachedDispatchCount: metadata.GetCachedDispatchCount(),
+		DebugInfo:           metadata.GetDebugInfo(),
 	}
 }

@@ -127,14 +127,14 @@ func (b *spannerTest) NewDatabase(t testing.TB) string {
 
 	dbID := "fake-database-id"
 	op, err := adminClient.CreateDatabase(ctx, &adminpb.CreateDatabaseRequest{
-		Parent:          spannerInstance.Name,
+		Parent:          spannerInstance.GetName(),
 		CreateStatement: "CREATE DATABASE `" + dbID + "`",
 	})
 	require.NoError(t, err)
 
 	db, err := op.Wait(ctx)
 	require.NoError(t, err)
-	return db.Name
+	return db.GetName()
 }
 
 func (b *spannerTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {

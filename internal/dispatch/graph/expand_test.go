@@ -182,14 +182,14 @@ func TestExpand(t *testing.T) {
 			})
 
 			require.NoError(err)
-			require.NotNil(expandResult.TreeNode)
-			require.GreaterOrEqual(expandResult.Metadata.DepthRequired, uint32(1))
-			require.Equal(tc.expectedDispatchCount, int(expandResult.Metadata.DispatchCount), "mismatch in dispatch count")
-			require.Equal(tc.expectedDepthRequired, int(expandResult.Metadata.DepthRequired), "mismatch in depth required")
+			require.NotNil(expandResult.GetTreeNode())
+			require.GreaterOrEqual(expandResult.GetMetadata().GetDepthRequired(), uint32(1))
+			require.Equal(tc.expectedDispatchCount, int(expandResult.GetMetadata().GetDispatchCount()), "mismatch in dispatch count")
+			require.Equal(tc.expectedDepthRequired, int(expandResult.GetMetadata().GetDepthRequired()), "mismatch in depth required")
 
-			if diff := cmp.Diff(tc.expected, expandResult.TreeNode, protocmp.Transform()); diff != "" {
+			if diff := cmp.Diff(tc.expected, expandResult.GetTreeNode(), protocmp.Transform()); diff != "" {
 				fset := token.NewFileSet()
-				err := printer.Fprint(os.Stdout, fset, serializeToFile(expandResult.TreeNode))
+				err := printer.Fprint(os.Stdout, fset, serializeToFile(expandResult.GetTreeNode()))
 				require.NoError(err)
 				t.Errorf("unexpected difference:\n%v", diff)
 			}
@@ -225,16 +225,16 @@ func serializeToFile(node *core.RelationTupleTreeNode) *ast.File {
 
 func serialize(node *core.RelationTupleTreeNode) *ast.CallExpr {
 	var expanded ast.Expr = ast.NewIdent("_this")
-	if node.Expanded != nil {
-		expanded = onrExpr(node.Expanded)
+	if node.GetExpanded() != nil {
+		expanded = onrExpr(node.GetExpanded())
 	}
 
 	children := []ast.Expr{expanded}
 
 	var fName string
-	switch node.NodeType.(type) {
+	switch node.GetNodeType().(type) {
 	case *core.RelationTupleTreeNode_IntermediateNode:
-		switch node.GetIntermediateNode().Operation {
+		switch node.GetIntermediateNode().GetOperation() {
 		case core.SetOperationUserset_EXCLUSION:
 			fName = "graph.Exclusion"
 		case core.SetOperationUserset_INTERSECTION:
@@ -245,14 +245,14 @@ func serialize(node *core.RelationTupleTreeNode) *ast.CallExpr {
 			panic("Unknown set operation")
 		}
 
-		for _, child := range node.GetIntermediateNode().ChildNodes {
+		for _, child := range node.GetIntermediateNode().GetChildNodes() {
 			children = append(children, serialize(child))
 		}
 
 	case *core.RelationTupleTreeNode_LeafNode:
 		fName = "graph.Leaf"
-		for _, subject := range node.GetLeafNode().Subjects {
-			onrExpr := onrExpr(subject.Subject)
+		for _, subject := range node.GetLeafNode().GetSubjects() {
+			onrExpr := onrExpr(subject.GetSubject())
 			children = append(children, &ast.CallExpr{
 				Fun:  ast.NewIdent(""),
 				Args: []ast.Expr{onrExpr},
@@ -270,9 +270,9 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 	return &ast.CallExpr{
 		Fun: ast.NewIdent("ONR"),
 		Args: []ast.Expr{
-			ast.NewIdent("\"" + onr.Namespace + "\""),
-			ast.NewIdent("\"" + onr.ObjectId + "\""),
-			ast.NewIdent("\"" + onr.Relation + "\""),
+			ast.NewIdent("\"" + onr.GetNamespace() + "\""),
+			ast.NewIdent("\"" + onr.GetObjectId() + "\""),
+			ast.NewIdent("\"" + onr.GetRelation() + "\""),
 		},
 	}
 }
@@ -923,8 +923,8 @@ func TestExpandOverSchema(t *testing.T) {
 			require.NoError(err)
 
 			require.NoError(err)
-			require.NotNil(expandResult.TreeNode)
-			testutil.RequireProtoEqual(t, expectedTree, expandResult.TreeNode, "Got different expansion trees")
+			require.NotNil(expandResult.GetTreeNode())
+			testutil.RequireProtoEqual(t, expectedTree, expandResult.GetTreeNode(), "Got different expansion trees")
 		})
 	}
 }

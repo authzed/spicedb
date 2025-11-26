@@ -79,16 +79,16 @@ const (
 func NewDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition, error) {
 	relationMap := make(map[string]*core.Relation, len(nsDef.GetRelation()))
 	for _, relation := range nsDef.GetRelation() {
-		_, existing := relationMap[relation.Name]
+		_, existing := relationMap[relation.GetName()]
 		if existing {
 			return nil, NewTypeWithSourceError(
-				NewDuplicateRelationError(nsDef.Name, relation.Name),
+				NewDuplicateRelationError(nsDef.GetName(), relation.GetName()),
 				relation,
-				relation.Name,
+				relation.GetName(),
 			)
 		}
 
-		relationMap[relation.Name] = relation
+		relationMap[relation.GetName()] = relation
 	}
 
 	return &Definition{
@@ -151,7 +151,7 @@ func (def *Definition) IsPermission(relationName string) bool {
 func (def *Definition) GetAllowedDirectNamespaceSubjectRelations(sourceRelationName string, targetNamespaceName string) (*mapz.Set[string], error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {
-		return nil, asTypeError(NewRelationNotFoundErr(def.nsDef.Name, sourceRelationName))
+		return nil, asTypeError(NewRelationNotFoundErr(def.nsDef.GetName(), sourceRelationName))
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -175,7 +175,7 @@ func (def *Definition) GetAllowedDirectNamespaceSubjectRelations(sourceRelationN
 func (def *Definition) IsAllowedDirectNamespace(sourceRelationName string, targetNamespaceName string) (AllowedDefinitionOption, error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {
-		return UnknownIfAllowedDefinition, asTypeError(NewRelationNotFoundErr(def.nsDef.Name, sourceRelationName))
+		return UnknownIfAllowedDefinition, asTypeError(NewRelationNotFoundErr(def.nsDef.GetName(), sourceRelationName))
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -197,7 +197,7 @@ func (def *Definition) IsAllowedDirectNamespace(sourceRelationName string, targe
 func (def *Definition) IsAllowedPublicNamespace(sourceRelationName string, targetNamespaceName string) (AllowedPublicSubject, error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {
-		return UnknownIfPublicAllowed, asTypeError(NewRelationNotFoundErr(def.nsDef.Name, sourceRelationName))
+		return UnknownIfPublicAllowed, asTypeError(NewRelationNotFoundErr(def.nsDef.GetName(), sourceRelationName))
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -220,7 +220,7 @@ func (def *Definition) IsAllowedPublicNamespace(sourceRelationName string, targe
 func (def *Definition) IsAllowedDirectRelation(sourceRelationName string, targetNamespaceName string, targetRelationName string) (AllowedDirectRelation, error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {
-		return UnknownIfRelationAllowed, asTypeError(NewRelationNotFoundErr(def.nsDef.Name, sourceRelationName))
+		return UnknownIfRelationAllowed, asTypeError(NewRelationNotFoundErr(def.nsDef.GetName(), sourceRelationName))
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -242,7 +242,7 @@ func (def *Definition) IsAllowedDirectRelation(sourceRelationName string, target
 func (def *Definition) HasAllowedRelation(sourceRelationName string, toCheck *core.AllowedRelation) (AllowedRelationOption, error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {
-		return UnknownIfAllowed, asTypeError(NewRelationNotFoundErr(def.nsDef.Name, sourceRelationName))
+		return UnknownIfAllowed, asTypeError(NewRelationNotFoundErr(def.nsDef.GetName(), sourceRelationName))
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -265,7 +265,7 @@ func (def *Definition) HasAllowedRelation(sourceRelationName string, toCheck *co
 func (def *Definition) AllowedDirectRelationsAndWildcards(sourceRelationName string) ([]*core.AllowedRelation, error) {
 	found, ok := def.relationMap[sourceRelationName]
 	if !ok {
-		return []*core.AllowedRelation{}, asTypeError(NewRelationNotFoundErr(def.nsDef.Name, sourceRelationName))
+		return []*core.AllowedRelation{}, asTypeError(NewRelationNotFoundErr(def.nsDef.GetName(), sourceRelationName))
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -322,7 +322,7 @@ func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 	if hasTraits {
 		caveatAndTraitsStr = " with "
 		if hasCaveat {
-			caveatAndTraitsStr += allowedRelation.RequiredCaveat.CaveatName
+			caveatAndTraitsStr += allowedRelation.GetRequiredCaveat().GetCaveatName()
 		}
 
 		if hasCaveat && hasExpirationTrait {
@@ -335,14 +335,14 @@ func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 	}
 
 	if allowedRelation.GetPublicWildcard() != nil {
-		return tuple.JoinObjectRef(allowedRelation.Namespace, "*") + caveatAndTraitsStr
+		return tuple.JoinObjectRef(allowedRelation.GetNamespace(), "*") + caveatAndTraitsStr
 	}
 
 	if rel := allowedRelation.GetRelation(); rel != tuple.Ellipsis {
-		return tuple.JoinRelRef(allowedRelation.Namespace, rel) + caveatAndTraitsStr
+		return tuple.JoinRelRef(allowedRelation.GetNamespace(), rel) + caveatAndTraitsStr
 	}
 
-	return allowedRelation.Namespace + caveatAndTraitsStr
+	return allowedRelation.GetNamespace() + caveatAndTraitsStr
 }
 
 // RelationDoesNotAllowCaveatsOrTraitsForSubject returns true if and only if it can be conclusively determined that
@@ -377,7 +377,7 @@ func (t Traits) union(other Traits) Traits {
 func (def *Definition) PossibleTraitsForSubject(relationName string, subjectTypeName string) (Traits, error) {
 	relation, ok := def.relationMap[relationName]
 	if !ok {
-		return Traits{}, NewRelationNotFoundErr(def.nsDef.Name, relationName)
+		return Traits{}, NewRelationNotFoundErr(def.nsDef.GetName(), relationName)
 	}
 
 	typeInfo := relation.GetTypeInformation()
@@ -393,7 +393,7 @@ func (def *Definition) PossibleTraitsForSubject(relationName string, subjectType
 	for _, allowedRelation := range typeInfo.GetAllowedDirectRelations() {
 		if allowedRelation.GetNamespace() == subjectTypeName {
 			foundSubjectType = true
-			if allowedRelation.GetRequiredCaveat() != nil && allowedRelation.GetRequiredCaveat().CaveatName != "" {
+			if allowedRelation.GetRequiredCaveat() != nil && allowedRelation.GetRequiredCaveat().GetCaveatName() != "" {
 				foundTraits.AllowsCaveats = true
 			}
 			if allowedRelation.GetRequiredExpiration() != nil {
@@ -417,7 +417,7 @@ func (def *Definition) PossibleTraitsForSubject(relationName string, subjectType
 func (def *Definition) PossibleTraitsForAnySubject(relationName string) (Traits, error) {
 	relation, ok := def.relationMap[relationName]
 	if !ok {
-		return Traits{}, NewRelationNotFoundErr(def.nsDef.Name, relationName)
+		return Traits{}, NewRelationNotFoundErr(def.nsDef.GetName(), relationName)
 	}
 
 	typeInfo := relation.GetTypeInformation()
@@ -430,7 +430,7 @@ func (def *Definition) PossibleTraitsForAnySubject(relationName string) (Traits,
 
 	foundTraits := Traits{}
 	for _, allowedRelation := range typeInfo.GetAllowedDirectRelations() {
-		if allowedRelation.GetRequiredCaveat() != nil && allowedRelation.GetRequiredCaveat().CaveatName != "" {
+		if allowedRelation.GetRequiredCaveat() != nil && allowedRelation.GetRequiredCaveat().GetCaveatName() != "" {
 			foundTraits.AllowsCaveats = true
 		}
 		if allowedRelation.GetRequiredExpiration() != nil {

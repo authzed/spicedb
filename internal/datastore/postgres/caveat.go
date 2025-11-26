@@ -123,10 +123,10 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 		if err != nil {
 			return fmt.Errorf(errWriteCaveats, err)
 		}
-		valuesToWrite := []any{caveat.Name, definitionBytes}
+		valuesToWrite := []any{caveat.GetName(), definitionBytes}
 		write = write.Values(valuesToWrite...)
-		if !writtenCaveatNames.Add(caveat.Name) {
-			return fmt.Errorf("duplicate caveat name %q", caveat.Name)
+		if !writtenCaveatNames.Add(caveat.GetName()) {
+			return fmt.Errorf("duplicate caveat name %q", caveat.GetName())
 		}
 	}
 

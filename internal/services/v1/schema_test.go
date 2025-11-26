@@ -27,8 +27,8 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 		Schema: `definition user {}`,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, resp.WrittenAt)
-	require.NotEmpty(t, resp.WrittenAt.Token)
+	require.NotNil(t, resp.GetWrittenAt())
+	require.NotEmpty(t, resp.GetWrittenAt().GetToken())
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
@@ -75,14 +75,14 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 		Schema: userSchema,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, writeResp.WrittenAt)
-	require.NotEmpty(t, writeResp.WrittenAt.Token)
+	require.NotNil(t, writeResp.GetWrittenAt())
+	require.NotEmpty(t, writeResp.GetWrittenAt().GetToken())
 
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
-	require.Equal(t, userSchema, readback.SchemaText)
-	require.NotNil(t, readback.ReadAt)
-	require.NotEmpty(t, readback.ReadAt.Token)
+	require.Equal(t, userSchema, readback.GetSchemaText())
+	require.NotNil(t, readback.GetReadAt())
+	require.NotEmpty(t, readback.GetReadAt().GetToken())
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
@@ -101,8 +101,8 @@ func TestSchemaDeleteRelation(t *testing.T) {
 		}`,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, writeResp.WrittenAt)
-	require.NotEmpty(t, writeResp.WrittenAt.Token)
+	require.NotNil(t, writeResp.GetWrittenAt())
+	require.NotEmpty(t, writeResp.GetWrittenAt().GetToken())
 
 	// Write a relationship for one of the relations.
 	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
@@ -131,8 +131,8 @@ func TestSchemaDeleteRelation(t *testing.T) {
 		}`,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, updateResp.WrittenAt)
-	require.NotEmpty(t, updateResp.WrittenAt.Token)
+	require.NotNil(t, updateResp.GetWrittenAt())
+	require.NotEmpty(t, updateResp.GetWrittenAt().GetToken())
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
@@ -149,8 +149,8 @@ func TestSchemaDeleteRelation(t *testing.T) {
 			definition example/document {}`,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, deleteRelResp.WrittenAt)
-	require.NotEmpty(t, deleteRelResp.WrittenAt.Token)
+	require.NotNil(t, deleteRelResp.GetWrittenAt())
+	require.NotEmpty(t, deleteRelResp.GetWrittenAt().GetToken())
 }
 
 func TestSchemaDeletePermission(t *testing.T) {
@@ -298,7 +298,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
-	require.Equal(t, `definition example/user {}`, readback.SchemaText)
+	require.Equal(t, `definition example/user {}`, readback.GetSchemaText())
 }
 
 func TestSchemaRemoveWildcard(t *testing.T) {
@@ -359,7 +359,7 @@ definition example/user {}`
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
-	require.Equal(t, newSchema, readback.SchemaText)
+	require.Equal(t, newSchema, readback.GetSchemaText())
 }
 
 func TestSchemaEmpty(t *testing.T) {
@@ -406,8 +406,8 @@ func TestSchemaEmpty(t *testing.T) {
 		Schema: ``,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, emptyResp.WrittenAt)
-	require.NotEmpty(t, emptyResp.WrittenAt.Token)
+	require.NotNil(t, emptyResp.GetWrittenAt())
+	require.NotEmpty(t, emptyResp.GetWrittenAt().GetToken())
 
 	// Ensure it was deleted.
 	_, err = client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
@@ -519,7 +519,7 @@ definition user {}`
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
-	require.Equal(t, newSchema, readback.SchemaText)
+	require.Equal(t, newSchema, readback.GetSchemaText())
 }
 
 func TestSchemaUnchangedNamespaces(t *testing.T) {
@@ -641,7 +641,7 @@ func TestSchemaChangeExpiration(t *testing.T) {
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
-	require.Equal(t, newSchema, readback.SchemaText)
+	require.Equal(t, newSchema, readback.GetSchemaText())
 
 	// Add the relationship back without expiration.
 	toWriteWithoutExp := tuple.MustParse("document:somedoc#somerelation@user:tom")
@@ -700,7 +700,7 @@ func TestSchemaChangeExpirationAllowed(t *testing.T) {
 	// Ensure it was deleted.
 	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
-	require.Equal(t, newSchema, readback.SchemaText)
+	require.Equal(t, newSchema, readback.GetSchemaText())
 }
 
 func TestSchemaDiff(t *testing.T) {
@@ -787,7 +787,7 @@ func TestSchemaDiff(t *testing.T) {
 				grpcutil.RequireStatus(t, tt.expectedCode, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, actual.ReadAt)
+				require.NotNil(t, actual.GetReadAt())
 				actual.ReadAt = nil
 
 				testutil.RequireProtoEqual(t, tt.expectedResponse, actual, "mismatch in response")
@@ -1200,7 +1200,7 @@ definition user {}`,
 				grpcutil.RequireStatus(t, tt.expectedCode, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, actual.ReadAt)
+				require.NotNil(t, actual.GetReadAt())
 				actual.ReadAt = nil
 
 				testutil.RequireProtoEqual(t, tt.expectedResponse, actual, "mismatch in response")
@@ -1432,7 +1432,7 @@ func TestDependentRelations(t *testing.T) {
 				grpcutil.RequireStatus(t, tc.expectedCode, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, actual.ReadAt)
+				require.NotNil(t, actual.GetReadAt())
 				actual.ReadAt = nil
 
 				testutil.RequireProtoEqual(t, &v1.DependentRelationsResponse{
@@ -1632,7 +1632,7 @@ func TestComputablePermissions(t *testing.T) {
 				grpcutil.RequireStatus(t, tc.expectedCode, err)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, actual.ReadAt)
+				require.NotNil(t, actual.GetReadAt())
 				actual.ReadAt = nil
 
 				testutil.RequireProtoEqual(t, &v1.ComputablePermissionsResponse{

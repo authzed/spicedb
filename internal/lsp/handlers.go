@@ -70,10 +70,10 @@ func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([
 			diagnostics = append(diagnostics, lsp.Diagnostic{
 				Severity: lsp.Error,
 				Range: lsp.Range{
-					Start: lsp.Position{Line: int(devErr.Line) - 1, Character: int(devErr.Column) - 1},
-					End:   lsp.Position{Line: int(devErr.Line) - 1, Character: int(devErr.Column) - 1},
+					Start: lsp.Position{Line: int(devErr.GetLine()) - 1, Character: int(devErr.GetColumn()) - 1},
+					End:   lsp.Position{Line: int(devErr.GetLine()) - 1, Character: int(devErr.GetColumn()) - 1},
 				},
-				Message: devErr.Message,
+				Message: devErr.GetMessage(),
 			})
 		}
 
@@ -88,10 +88,10 @@ func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([
 				diagnostics = append(diagnostics, lsp.Diagnostic{
 					Severity: lsp.Warning,
 					Range: lsp.Range{
-						Start: lsp.Position{Line: int(devWarning.Line) - 1, Character: int(devWarning.Column) - 1},
-						End:   lsp.Position{Line: int(devWarning.Line) - 1, Character: int(devWarning.Column) - 1},
+						Start: lsp.Position{Line: int(devWarning.GetLine()) - 1, Character: int(devWarning.GetColumn()) - 1},
+						End:   lsp.Position{Line: int(devWarning.GetLine()) - 1, Character: int(devWarning.GetColumn()) - 1},
 					},
-					Message: devWarning.Message,
+					Message: devWarning.GetMessage(),
 				})
 			}
 		}

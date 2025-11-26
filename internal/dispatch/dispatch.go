@@ -94,7 +94,7 @@ func CheckDepth(ctx context.Context, req DispatchableRequest) error {
 		return errors.New("request missing metadata")
 	}
 
-	if metadata.DepthRemaining == 0 {
+	if metadata.GetDepthRemaining() == 0 {
 		return NewMaxDepthExceededError(req)
 	}
 
@@ -104,7 +104,7 @@ func CheckDepth(ctx context.Context, req DispatchableRequest) error {
 // AddResponseMetadata adds the metadata found in the incoming metadata to the existing
 // metadata, *modifying it in place*.
 func AddResponseMetadata(existing *v1.ResponseMeta, incoming *v1.ResponseMeta) {
-	existing.DispatchCount += incoming.DispatchCount
-	existing.CachedDispatchCount += incoming.CachedDispatchCount
-	existing.DepthRequired = max(existing.DepthRequired, incoming.DepthRequired)
+	existing.DispatchCount += incoming.GetDispatchCount()
+	existing.CachedDispatchCount += incoming.GetCachedDispatchCount()
+	existing.DepthRequired = max(existing.GetDepthRequired(), incoming.GetDepthRequired())
 }

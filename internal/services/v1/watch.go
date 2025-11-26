@@ -44,7 +44,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	if len(req.GetOptionalUpdateKinds()) == 0 ||
 		slices.Contains(req.GetOptionalUpdateKinds(), v1.WatchKind_WATCH_KIND_UNSPECIFIED) ||
 		slices.Contains(req.GetOptionalUpdateKinds(), v1.WatchKind_WATCH_KIND_INCLUDE_RELATIONSHIP_UPDATES) {
-		if len(req.GetOptionalObjectTypes()) > 0 && len(req.OptionalRelationshipFilters) > 0 {
+		if len(req.GetOptionalObjectTypes()) > 0 && len(req.GetOptionalRelationshipFilters()) > 0 {
 			return status.Errorf(codes.InvalidArgument, "cannot specify both object types and relationship filters")
 		}
 	}
@@ -55,8 +55,8 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	ds := datastoremw.MustFromContext(ctx)
 
 	var afterRevision datastore.Revision
-	if req.OptionalStartCursor != nil && req.OptionalStartCursor.Token != "" {
-		decodedRevision, tokenStatus, err := zedtoken.DecodeRevision(req.OptionalStartCursor, ds)
+	if req.GetOptionalStartCursor() != nil && req.GetOptionalStartCursor().GetToken() != "" {
+		decodedRevision, tokenStatus, err := zedtoken.DecodeRevision(req.GetOptionalStartCursor(), ds)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
@@ -91,7 +91,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	})
 
 	updates, errchan := ds.Watch(ctx, afterRevision, datastore.WatchOptions{
-		Content:            convertWatchKindToContent(req.OptionalUpdateKinds),
+		Content:            convertWatchKindToContent(req.GetOptionalUpdateKinds()),
 		CheckpointInterval: ws.heartbeatDuration,
 	})
 	for {
@@ -152,8 +152,8 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 }
 
 func buildRelationshipFilters(req *v1.WatchRequest, stream v1.WatchService_WatchServer, reader datastore.Reader, ws *watchServer, ctx context.Context) ([]datastore.RelationshipsFilter, error) {
-	filters := make([]datastore.RelationshipsFilter, 0, len(req.OptionalRelationshipFilters))
-	for _, filter := range req.OptionalRelationshipFilters {
+	filters := make([]datastore.RelationshipsFilter, 0, len(req.GetOptionalRelationshipFilters()))
+	for _, filter := range req.GetOptionalRelationshipFilters() {
 		if err := validateRelationshipsFilter(stream.Context(), filter, reader); err != nil {
 			return nil, ws.rewriteError(ctx, err)
 		}

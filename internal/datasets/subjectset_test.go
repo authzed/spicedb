@@ -1420,27 +1420,27 @@ func TestSubjectSetGet(t *testing.T) {
 
 	found, ok := ss.Get("first")
 	require.True(t, ok)
-	require.Equal(t, "first", found.SubjectId)
-	require.Nil(t, found.CaveatExpression)
+	require.Equal(t, "first", found.GetSubjectId())
+	require.Nil(t, found.GetCaveatExpression())
 
 	found, ok = ss.Get("second")
 	require.True(t, ok)
-	require.Equal(t, "second", found.SubjectId)
-	require.Nil(t, found.CaveatExpression)
+	require.Equal(t, "second", found.GetSubjectId())
+	require.Nil(t, found.GetCaveatExpression())
 
 	found, ok = ss.Get("third")
 	require.True(t, ok)
-	require.Equal(t, "third", found.SubjectId)
-	require.NotNil(t, found.CaveatExpression)
+	require.Equal(t, "third", found.GetSubjectId())
+	require.NotNil(t, found.GetCaveatExpression())
 
 	_, ok = ss.Get("fourth")
 	require.False(t, ok)
 
 	found, ok = ss.Get("*")
 	require.True(t, ok)
-	require.Equal(t, "*", found.SubjectId)
-	require.Nil(t, found.CaveatExpression)
-	require.Len(t, found.ExcludedSubjects, 2)
+	require.Equal(t, "*", found.GetSubjectId())
+	require.Nil(t, found.GetCaveatExpression())
+	require.Len(t, found.GetExcludedSubjects(), 2)
 }
 
 var testSets = [][]*v1.FoundSubject{
