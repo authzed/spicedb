@@ -21,9 +21,11 @@ func TestExampleRunWithSchemaForTesting(t *testing.T) {
 
 		definitions := make([]compiler.SchemaDefinition, 0, len(typeDefs)+len(caveatDefs))
 		for _, td := range typeDefs {
+			require.NoError(t, td.Validate())
 			definitions = append(definitions, td)
 		}
 		for _, cd := range caveatDefs {
+			require.NoError(t, cd.Validate())
 			definitions = append(definitions, cd)
 		}
 
