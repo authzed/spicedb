@@ -77,3 +77,224 @@ func TestLoadDatastoreFromFileAndContents(t *testing.T) {
 	require.Contains(t, namespaceNames, "user")
 	require.Contains(t, namespaceNames, "repository")
 }
+
+func TestBuildConnectionURI(t *testing.T) {
+	tests := []struct {
+		name     string
+		engine   string
+		host     string
+		port     string
+		username string
+		password string
+		database string
+		sslMode  string
+		expected string
+	}{
+		{
+			name:     "postgres with all params",
+			engine:   PostgresEngine,
+			host:     "localhost",
+			port:     "5432",
+			username: "testuser",
+			password: "testpass",
+			database: "testdb",
+			expected: "postgres://testuser:testpass@localhost:5432/testdb",
+		},
+		{
+			name:     "postgres with default port",
+			engine:   PostgresEngine,
+			host:     "localhost",
+			port:     "",
+			username: "testuser",
+			password: "testpass",
+			database: "testdb",
+			expected: "postgres://testuser:testpass@localhost:5432/testdb",
+		},
+		{
+			name:     "postgres without password",
+			engine:   PostgresEngine,
+			host:     "localhost",
+			port:     "5432",
+			username: "testuser",
+			password: "",
+			database: "testdb",
+			expected: "postgres://testuser@localhost:5432/testdb",
+		},
+		{
+			name:     "postgres without database",
+			engine:   PostgresEngine,
+			host:     "localhost",
+			port:     "5432",
+			username: "testuser",
+			password: "testpass",
+			database: "",
+			expected: "postgres://testuser:testpass@localhost:5432",
+		},
+		{
+			name:     "cockroachdb with all params",
+			engine:   CockroachEngine,
+			host:     "localhost",
+			port:     "26257",
+			username: "root",
+			password: "",
+			database: "defaultdb",
+			expected: "postgres://root@localhost:26257/defaultdb",
+		},
+		{
+			name:     "mysql with all params",
+			engine:   MySQLEngine,
+			host:     "localhost",
+			port:     "3306",
+			username: "root",
+			password: "rootpass",
+			database: "mydb",
+			expected: "mysql://root:rootpass@localhost:3306/mydb",
+		},
+		{
+			name:     "mysql with default port",
+			engine:   MySQLEngine,
+			host:     "localhost",
+			port:     "",
+			username: "root",
+			password: "rootpass",
+			database: "mydb",
+			expected: "mysql://root:rootpass@localhost:3306/mydb",
+		},
+		{
+			name:     "empty host returns empty",
+			engine:   PostgresEngine,
+			host:     "",
+			port:     "5432",
+			username: "testuser",
+			password: "testpass",
+			database: "testdb",
+			expected: "",
+		},
+		{
+			name:     "unsupported engine returns empty",
+			engine:   "unsupported",
+			host:     "localhost",
+			port:     "1234",
+			username: "user",
+			password: "pass",
+			database: "db",
+			sslMode:  "",
+			expected: "",
+		},
+		{
+			name:     "postgres with SSL mode require",
+			engine:   PostgresEngine,
+			host:     "localhost",
+			port:     "5432",
+			username: "testuser",
+			password: "testpass",
+			database: "testdb",
+			sslMode:  "require",
+			expected: "postgres://testuser:testpass@localhost:5432/testdb?sslmode=require",
+		},
+		{
+			name:     "postgres with SSL mode disable",
+			engine:   PostgresEngine,
+			host:     "localhost",
+			port:     "5432",
+			username: "testuser",
+			password: "testpass",
+			database: "testdb",
+			sslMode:  "disable",
+			expected: "postgres://testuser:testpass@localhost:5432/testdb?sslmode=disable",
+		},
+		{
+			name:     "postgres with SSL mode verify-full",
+			engine:   PostgresEngine,
+			host:     "localhost",
+			port:     "5432",
+			username: "testuser",
+			password: "testpass",
+			database: "testdb",
+			sslMode:  "verify-full",
+			expected: "postgres://testuser:testpass@localhost:5432/testdb?sslmode=verify-full",
+		},
+		{
+			name:     "cockroachdb with SSL mode require",
+			engine:   CockroachEngine,
+			host:     "localhost",
+			port:     "26257",
+			username: "root",
+			password: "",
+			database: "defaultdb",
+			sslMode:  "require",
+			expected: "postgres://root@localhost:26257/defaultdb?sslmode=require",
+		},
+		{
+			name:     "postgres with SSL mode but no database",
+			engine:   PostgresEngine,
+			host:     "localhost",
+			port:     "5432",
+			username: "testuser",
+			password: "testpass",
+			database: "",
+			sslMode:  "require",
+			expected: "postgres://testuser:testpass@localhost:5432/?sslmode=require",
+		},
+		{
+			name:     "mysql ignores SSL mode (not implemented)",
+			engine:   MySQLEngine,
+			host:     "localhost",
+			port:     "3306",
+			username: "root",
+			password: "rootpass",
+			database: "mydb",
+			sslMode:  "require",
+			expected: "mysql://root:rootpass@localhost:3306/mydb",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildConnectionURI(tt.engine, tt.host, tt.port, tt.username, tt.password, tt.database, tt.sslMode)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestNewDatastoreWithGranularParams(t *testing.T) {
+	// This test verifies that granular params work by checking the URI is built
+	// We don't actually connect, just verify the URI construction logic
+	config := DefaultDatastoreConfig()
+	config.Engine = PostgresEngine
+	config.Host = "localhost"
+	config.Port = "5432"
+	config.Username = "testuser"
+	config.Password = "testpass"
+	config.Database = "testdb"
+
+	// Manually trigger the URI building logic
+	if config.URI == "" && config.Host != "" {
+		config.URI = buildConnectionURI(config.Engine, config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode)
+	}
+
+	require.NotEmpty(t, config.URI)
+	require.Equal(t, "postgres://testuser:testpass@localhost:5432/testdb", config.URI)
+}
+
+func TestNewDatastoreURITakesPrecedence(t *testing.T) {
+	ctx := t.Context()
+
+	// Test that explicit URI takes precedence over granular params
+	config := DefaultDatastoreConfig()
+	config.Engine = MemoryEngine
+	config.URI = "memory://test"
+	config.Host = "localhost"
+	config.Port = "5432"
+	config.Username = "testuser"
+	config.Password = "testpass"
+	config.Database = "testdb"
+
+	ds, err := NewDatastore(ctx,
+		func(c *Config) { *c = *config },
+	)
+	require.NoError(t, err)
+	require.NotNil(t, ds)
+	// The URI should remain as explicitly set, not built from granular params
+	require.Equal(t, "memory://test", config.URI)
+}

@@ -257,6 +257,34 @@ var lexerTests = []lexerTest{
 		{TokenTypeRightParen, 0, ")", ""},
 		tEOF,
 	}},
+
+	// Underscore prefix tests for private identifiers (issue #2066)
+	{"underscore prefix identifier", "_private", []Lexeme{
+		{TokenTypeIdentifier, 0, "_private", ""},
+		tEOF,
+	}},
+	{"underscore prefix permission", "_synthetic_permission", []Lexeme{
+		{TokenTypeIdentifier, 0, "_synthetic_permission", ""},
+		tEOF,
+	}},
+	{"double underscore prefix", "__internal", []Lexeme{
+		{TokenTypeIdentifier, 0, "__internal", ""},
+		tEOF,
+	}},
+	{"underscore in arrow expression", "_parent->_viewer", []Lexeme{
+		{TokenTypeIdentifier, 0, "_parent", ""},
+		{TokenTypeRightArrow, 0, "->", ""},
+		{TokenTypeIdentifier, 0, "_viewer", ""},
+		tEOF,
+	}},
+	{"mixed underscore and regular", "viewer + _internal_viewer", []Lexeme{
+		{TokenTypeIdentifier, 0, "viewer", ""},
+		tWhitespace,
+		{TokenTypePlus, 0, "+", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "_internal_viewer", ""},
+		tEOF,
+	}},
 }
 
 func TestLexer(t *testing.T) {

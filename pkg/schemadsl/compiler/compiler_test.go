@@ -509,7 +509,7 @@ func TestCompile(t *testing.T) {
 			"invalid definition name",
 			nilPrefix,
 			`definition someTenant/fo {}`,
-			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z_][a-z0-9_]{1,62}[a-z0-9]/)*[a-z_][a-z0-9_]{1,62}[a-z0-9]$\"",
 			[]SchemaDefinition{},
 		},
 		{
@@ -518,7 +518,7 @@ func TestCompile(t *testing.T) {
 			`definition some_tenant/foos {
 				relation ab: some_tenant/foos
 			}`,
-			"parse error in `invalid relation name`, line 2, column 5: error in relation ab: invalid Relation.Name: value does not match regex pattern \"^[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			"parse error in `invalid relation name`, line 2, column 5: error in relation ab: invalid Relation.Name: value does not match regex pattern \"^[a-z_][a-z0-9_]{1,62}[a-z0-9]$\"",
 			[]SchemaDefinition{},
 		},
 		{
@@ -1053,6 +1053,86 @@ func TestCompile(t *testing.T) {
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveatAndExpiration("sometenant/user", "...", namespace.AllowedCaveat("sometenant/somecaveat")),
+					),
+				),
+			},
+		},
+		// Issue #2066: Underscore prefix for private identifiers
+		{
+			"underscore prefix relation",
+			AllowUnprefixedObjectType(),
+			`definition document {
+				relation _internal_viewer: user
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("document",
+					namespace.MustRelation("_internal_viewer", nil,
+						namespace.AllowedRelation("user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"underscore prefix permission",
+			AllowUnprefixedObjectType(),
+			`definition document {
+				relation owner: user
+				permission _synthetic = owner
+				permission view = _synthetic
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("document",
+					namespace.MustRelation("owner", nil,
+						namespace.AllowedRelation("user", "..."),
+					),
+					namespace.MustRelation("_synthetic",
+						namespace.Union(
+							namespace.ComputedUserset("owner"),
+						),
+					),
+					namespace.MustRelation("view",
+						namespace.Union(
+							namespace.ComputedUserset("_synthetic"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"underscore prefix with arrow",
+			AllowUnprefixedObjectType(),
+			`definition user {}
+			definition group {
+				relation _internal_member: user
+			}
+			definition document {
+				relation parent: group
+				permission _synthetic_view = parent->_internal_member
+				permission view = _synthetic_view
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("user"),
+				namespace.Namespace("group",
+					namespace.MustRelation("_internal_member", nil,
+						namespace.AllowedRelation("user", "..."),
+					),
+				),
+				namespace.Namespace("document",
+					namespace.MustRelation("parent", nil,
+						namespace.AllowedRelation("group", "..."),
+					),
+					namespace.MustRelation("_synthetic_view",
+						namespace.Union(
+							namespace.TupleToUserset("parent", "_internal_member"),
+						),
+					),
+					namespace.MustRelation("view",
+						namespace.Union(
+							namespace.ComputedUserset("_synthetic_view"),
+						),
 					),
 				),
 			},

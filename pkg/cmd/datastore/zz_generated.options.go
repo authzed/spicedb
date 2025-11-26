@@ -34,6 +34,12 @@ func (c *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.Engine = c.Engine
 		to.URI = c.URI
+		to.Host = c.Host
+		to.Port = c.Port
+		to.Username = c.Username
+		to.Password = c.Password
+		to.Database = c.Database
+		to.SSLMode = c.SSLMode
 		to.GCWindow = c.GCWindow
 		to.LegacyFuzzing = c.LegacyFuzzing
 		to.RevisionQuantization = c.RevisionQuantization
@@ -96,6 +102,12 @@ func (c Config) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	debugMap["Engine"] = helpers.DebugValue(c.Engine, false)
 	debugMap["URI"] = helpers.SensitiveDebugValue(c.URI)
+	debugMap["Host"] = helpers.DebugValue(c.Host, false)
+	debugMap["Port"] = helpers.DebugValue(c.Port, false)
+	debugMap["Username"] = helpers.DebugValue(c.Username, false)
+	debugMap["Password"] = helpers.SensitiveDebugValue(c.Password)
+	debugMap["Database"] = helpers.DebugValue(c.Database, false)
+	debugMap["SSLMode"] = helpers.DebugValue(c.SSLMode, false)
 	debugMap["GCWindow"] = helpers.DebugValue(c.GCWindow, false)
 	debugMap["LegacyFuzzing"] = helpers.DebugValue(c.LegacyFuzzing, false)
 	debugMap["RevisionQuantization"] = helpers.DebugValue(c.RevisionQuantization, false)
@@ -176,6 +188,48 @@ func WithEngine(engine string) ConfigOption {
 func WithURI(uRI string) ConfigOption {
 	return func(c *Config) {
 		c.URI = uRI
+	}
+}
+
+// WithHost returns an option that can set Host on a Config
+func WithHost(host string) ConfigOption {
+	return func(c *Config) {
+		c.Host = host
+	}
+}
+
+// WithPort returns an option that can set Port on a Config
+func WithPort(port string) ConfigOption {
+	return func(c *Config) {
+		c.Port = port
+	}
+}
+
+// WithUsername returns an option that can set Username on a Config
+func WithUsername(username string) ConfigOption {
+	return func(c *Config) {
+		c.Username = username
+	}
+}
+
+// WithPassword returns an option that can set Password on a Config
+func WithPassword(password string) ConfigOption {
+	return func(c *Config) {
+		c.Password = password
+	}
+}
+
+// WithDatabase returns an option that can set Database on a Config
+func WithDatabase(database string) ConfigOption {
+	return func(c *Config) {
+		c.Database = database
+	}
+}
+
+// WithSSLMode returns an option that can set SSLMode on a Config
+func WithSSLMode(sSLMode string) ConfigOption {
+	return func(c *Config) {
+		c.SSLMode = sSLMode
 	}
 }
 
