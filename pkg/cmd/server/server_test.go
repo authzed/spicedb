@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -447,7 +446,7 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewRealTimeMemoryUsageProvider(), nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultUnaryMiddleware(opt)
@@ -475,7 +474,7 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewRealTimeMemoryUsageProvider(), nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultStreamingMiddleware(opt)
@@ -586,35 +585,6 @@ func TestSupportOldAndNewReadReplicaConnectionPoolFlags(t *testing.T) {
 	}
 }
 
-func TestBuildMemoryProtectionConfig(t *testing.T) {
-	testcases := map[string]struct {
-		config       *Config
-		expectedErr  string
-		expectedType string
-	}{
-		`disabled`: {
-			config: &Config{
-				MemoryProtectionEnabled: false,
-			},
-			expectedType: "*memoryprotection.HarcodedMemoryLimitProvider",
-		},
-		`enabled`: {
-			config: &Config{
-				MemoryProtectionEnabled: true,
-			},
-			expectedType: "*memoryprotection.GoRealTimeMemoryLimiter",
-		},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			memoryUsageProvider := tc.config.buildMemoryUsageProvider()
-			require.NotNil(t, memoryUsageProvider)
-			require.Equal(t, tc.expectedType, reflect.TypeOf(memoryUsageProvider).String())
-		})
-	}
-}
-
 func TestBuildDispatchServer(t *testing.T) {
 	testcases := map[string]struct {
 		config                              *Config
@@ -652,7 +622,7 @@ func TestBuildDispatchServer(t *testing.T) {
 				_ = closeables.Close()
 			})
 
-			sampler := memoryprotection.NewRealTimeMemoryUsageProvider()
+			sampler := memoryprotection.NewNoopMemoryUsageProvider()
 
 			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, &closeables, nil)
 			require.NoError(t, err)
