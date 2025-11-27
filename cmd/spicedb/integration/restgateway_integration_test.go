@@ -1,6 +1,6 @@
 //go:build docker && image
 
-package main
+package integration_test
 
 import (
 	"fmt"

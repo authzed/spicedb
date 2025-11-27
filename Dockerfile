@@ -4,7 +4,7 @@ WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 COPY . .
 # https://github.com/odigos-io/go-rtml#about-ldflags-checklinkname0
-RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -tags memoryprotection -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
 
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
 FROM golang:1.25.4-alpine@sha256:d3f0cf7723f3429e3f9ed846243970b20a2de7bae6a5b66fc5914e228d831bbb AS health-probe-builder
