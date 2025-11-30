@@ -224,7 +224,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 
 				var trailer metadata.MD
 				_, err = client.WriteSchema(ctx, &v1.WriteSchemaRequest{
-					Schema: resp.SchemaText + "\ndefinition foo {}",
+					Schema: resp.GetSchemaText() + "\ndefinition foo {}",
 				}, grpc.Trailer(&trailer))
 				require.NoError(t, err)
 				return trailer

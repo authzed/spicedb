@@ -364,9 +364,9 @@ func TestRelationsReferencing(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, resource := range schema.ObjectDefinitions {
-				for _, relation := range resource.Relation {
-					references := graph.RelationsReferencing(resource.Name, relation.Name)
-					rel := resource.Name + "#" + relation.Name
+				for _, relation := range resource.GetRelation() {
+					references := graph.RelationsReferencing(resource.GetName(), relation.GetName())
+					rel := resource.GetName() + "#" + relation.GetName()
 					expectedRelations, ok := tc.expected[rel]
 					require.True(t, ok, "expected %v to be in %v", rel, tc.expected)
 					require.Len(t, references, len(expectedRelations), "found rel: %s => expected: %v | found %v", rel, expectedRelations, references)
@@ -381,8 +381,8 @@ func TestRelationsReferencing(t *testing.T) {
 
 func containsRelation(references []RelationReferenceInfo, relation expectedRelation) bool {
 	for _, reference := range references {
-		if reference.Relation.Namespace == relation.Namespace &&
-			reference.Relation.Relation == relation.Relation &&
+		if reference.Relation.GetNamespace() == relation.Namespace &&
+			reference.Relation.GetRelation() == relation.Relation &&
 			reference.Type == relation.Type {
 			return true
 		}

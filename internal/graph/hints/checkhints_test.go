@@ -144,12 +144,12 @@ func TestCheckHintForComputedUserset(t *testing.T) {
 
 	checkHint := CheckHintForComputedUserset(resourceType, resourceID, relation, subject, result)
 
-	require.Equal(t, resourceType, checkHint.Resource.Namespace)
-	require.Equal(t, resourceID, checkHint.Resource.ObjectId)
-	require.Equal(t, relation, checkHint.Resource.Relation)
-	require.Equal(t, subject.ToCoreONR(), checkHint.Subject)
-	require.Equal(t, result, checkHint.Result)
-	require.Empty(t, checkHint.TtuComputedUsersetRelation)
+	require.Equal(t, resourceType, checkHint.GetResource().GetNamespace())
+	require.Equal(t, resourceID, checkHint.GetResource().GetObjectId())
+	require.Equal(t, relation, checkHint.GetResource().GetRelation())
+	require.Equal(t, subject.ToCoreONR(), checkHint.GetSubject())
+	require.Equal(t, result, checkHint.GetResult())
+	require.Empty(t, checkHint.GetTtuComputedUsersetRelation())
 
 	resourceID, ok := AsCheckHintForComputedUserset(checkHint, resourceType, relation, subject)
 	require.True(t, ok)
@@ -168,12 +168,12 @@ func TestCheckHintForArrow(t *testing.T) {
 
 	checkHint := CheckHintForArrow(resourceType, resourceID, tuplesetRelation, computedUsersetRelation, subject, result)
 
-	require.Equal(t, resourceType, checkHint.Resource.Namespace)
-	require.Equal(t, resourceID, checkHint.Resource.ObjectId)
-	require.Equal(t, tuplesetRelation, checkHint.Resource.Relation)
-	require.Equal(t, subject.ToCoreONR(), checkHint.Subject)
-	require.Equal(t, result, checkHint.Result)
-	require.Equal(t, computedUsersetRelation, checkHint.TtuComputedUsersetRelation)
+	require.Equal(t, resourceType, checkHint.GetResource().GetNamespace())
+	require.Equal(t, resourceID, checkHint.GetResource().GetObjectId())
+	require.Equal(t, tuplesetRelation, checkHint.GetResource().GetRelation())
+	require.Equal(t, subject.ToCoreONR(), checkHint.GetSubject())
+	require.Equal(t, result, checkHint.GetResult())
+	require.Equal(t, computedUsersetRelation, checkHint.GetTtuComputedUsersetRelation())
 
 	resourceID, ok := AsCheckHintForArrow(checkHint, resourceType, tuplesetRelation, computedUsersetRelation, subject)
 	require.True(t, ok)

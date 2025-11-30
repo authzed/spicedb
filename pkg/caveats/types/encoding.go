@@ -31,22 +31,22 @@ func EncodeParameterType(varType VariableType) *core.CaveatTypeReference {
 
 // DecodeParameterType decodes the core caveat parameter type into an internal caveat type.
 func DecodeParameterType(ts *TypeSet, parameterType *core.CaveatTypeReference) (*VariableType, error) {
-	typeDef, ok := ts.definitions[parameterType.TypeName]
+	typeDef, ok := ts.definitions[parameterType.GetTypeName()]
 	if !ok {
-		return nil, fmt.Errorf("unknown caveat parameter type `%s`", parameterType.TypeName)
+		return nil, fmt.Errorf("unknown caveat parameter type `%s`", parameterType.GetTypeName())
 	}
 
-	if len(parameterType.ChildTypes) != int(typeDef.childTypeCount) {
+	if len(parameterType.GetChildTypes()) != int(typeDef.childTypeCount) {
 		return nil, fmt.Errorf(
 			"caveat parameter type `%s` requires %d child types; found %d",
-			parameterType.TypeName,
-			len(parameterType.ChildTypes),
+			parameterType.GetTypeName(),
+			len(parameterType.GetChildTypes()),
 			typeDef.childTypeCount,
 		)
 	}
 
 	childTypes := make([]VariableType, 0, typeDef.childTypeCount)
-	for _, encodedChildType := range parameterType.ChildTypes {
+	for _, encodedChildType := range parameterType.GetChildTypes() {
 		childType, err := DecodeParameterType(ts, encodedChildType)
 		if err != nil {
 			return nil, err

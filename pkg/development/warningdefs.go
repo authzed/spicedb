@@ -19,20 +19,20 @@ var lintRelationReferencesParentType = relationCheck{
 		def *schema.Definition,
 	) (*devinterface.DeveloperWarning, error) {
 		parentDef := def.Namespace()
-		if strings.HasSuffix(relation.Name, parentDef.Name) {
-			if def.IsPermission(relation.Name) {
+		if strings.HasSuffix(relation.GetName(), parentDef.GetName()) {
+			if def.IsPermission(relation.GetName()) {
 				return warningForMetadata(
 					"relation-name-references-parent",
-					fmt.Sprintf("Permission %q references parent type %q in its name; it is recommended to drop the suffix", relation.Name, parentDef.Name),
-					relation.Name,
+					fmt.Sprintf("Permission %q references parent type %q in its name; it is recommended to drop the suffix", relation.GetName(), parentDef.GetName()),
+					relation.GetName(),
 					relation,
 				), nil
 			}
 
 			return warningForMetadata(
 				"relation-name-references-parent",
-				fmt.Sprintf("Relation %q references parent type %q in its name; it is recommended to drop the suffix", relation.Name, parentDef.Name),
-				relation.Name,
+				fmt.Sprintf("Relation %q references parent type %q in its name; it is recommended to drop the suffix", relation.GetName(), parentDef.GetName()),
+				relation.GetName(),
 				relation,
 			), nil
 		}
@@ -50,7 +50,7 @@ var lintPermissionReferencingItself = computedUsersetCheck{
 		def *schema.Definition,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
-		permName := parentRelation.Name
+		permName := parentRelation.GetName()
 		if computedUserset.GetRelation() == permName {
 			return warningForPosition(
 				"permission-references-itself",
@@ -79,14 +79,14 @@ var lintArrowReferencingUnreachable = ttuCheck{
 			return nil, nil
 		}
 
-		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.Name)
+		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.GetName())
 		if err != nil {
 			return nil, err
 		}
 
 		wasFound := false
 		for _, subjectType := range allowedSubjectTypes {
-			nts, err := def.TypeSystem().GetDefinition(ctx, subjectType.Namespace)
+			nts, err := def.TypeSystem().GetDefinition(ctx, subjectType.GetNamespace())
 			if err != nil {
 				return nil, err
 			}
@@ -108,7 +108,7 @@ var lintArrowReferencingUnreachable = ttuCheck{
 				fmt.Sprintf(
 					"Arrow `%s` under permission %q references relation/permission %q that does not exist on any subject types of relation %q",
 					arrowString,
-					parentRelation.Name,
+					parentRelation.GetName(),
 					ttu.GetComputedUserset().GetRelation(),
 					ttu.GetTupleset().GetRelation(),
 				),
@@ -136,7 +136,7 @@ var lintArrowOverSubRelation = ttuCheck{
 			return nil, nil
 		}
 
-		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.Name)
+		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.GetName())
 		if err != nil {
 			return nil, err
 		}
@@ -153,10 +153,10 @@ var lintArrowOverSubRelation = ttuCheck{
 					fmt.Sprintf(
 						"Arrow `%s` under permission %q references relation %q that has relation %q on subject %q: *the subject relation will be ignored for the arrow*",
 						arrowString,
-						parentRelation.Name,
+						parentRelation.GetName(),
 						ttu.GetTupleset().GetRelation(),
 						subjectType.GetRelation(),
-						subjectType.Namespace,
+						subjectType.GetNamespace(),
 					),
 					arrowString,
 					sourcePosition,
@@ -185,7 +185,7 @@ var lintArrowReferencingRelation = ttuCheck{
 
 		// For each subject type of the referenced relation, check if the referenced permission
 		// is, in fact, a relation.
-		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.Name)
+		allowedSubjectTypes, err := def.AllowedSubjectRelations(referencedRelation.GetName())
 		if err != nil {
 			return nil, err
 		}
@@ -197,11 +197,11 @@ var lintArrowReferencingRelation = ttuCheck{
 
 		for _, subjectType := range allowedSubjectTypes {
 			// Skip for arrow referencing relations in the same namespace.
-			if subjectType.Namespace == def.Namespace().Name {
+			if subjectType.GetNamespace() == def.Namespace().GetName() {
 				continue
 			}
 
-			nts, err := def.TypeSystem().GetDefinition(ctx, subjectType.Namespace)
+			nts, err := def.TypeSystem().GetDefinition(ctx, subjectType.GetNamespace())
 			if err != nil {
 				return nil, err
 			}
@@ -211,15 +211,15 @@ var lintArrowReferencingRelation = ttuCheck{
 				continue
 			}
 
-			if !nts.IsPermission(targetRelation.Name) {
+			if !nts.IsPermission(targetRelation.GetName()) {
 				return warningForPosition(
 					"arrow-references-relation",
 					fmt.Sprintf(
 						"Arrow `%s` under permission %q references relation %q on definition %q; it is recommended to point to a permission",
 						arrowString,
-						parentRelation.Name,
-						targetRelation.Name,
-						subjectType.Namespace,
+						parentRelation.GetName(),
+						targetRelation.GetName(),
+						subjectType.GetNamespace(),
 					),
 					arrowString,
 					sourcePosition,

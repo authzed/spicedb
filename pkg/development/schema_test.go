@@ -32,10 +32,10 @@ func TestCompileSchemaInvalidSyntax(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, compiled)
 	require.NotNil(t, devErr)
-	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
-	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.Kind)
-	require.Positive(t, devErr.Line)
-	require.Positive(t, devErr.Column)
+	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.GetSource())
+	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.GetKind())
+	require.Positive(t, devErr.GetLine())
+	require.Positive(t, devErr.GetColumn())
 }
 
 func TestCompileSchemaUndefinedRelation(t *testing.T) {
@@ -107,7 +107,7 @@ definition document {
 	require.NoError(t, err)
 	require.Nil(t, compiled)
 	require.NotNil(t, devErr)
-	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
-	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.Kind)
-	require.Contains(t, devErr.Message, "unknown_type")
+	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.GetSource())
+	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.GetKind())
+	require.Contains(t, devErr.GetMessage(), "unknown_type")
 }

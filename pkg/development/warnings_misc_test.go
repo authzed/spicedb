@@ -13,10 +13,10 @@ import (
 func TestWarningForPositionNilSourcePosition(t *testing.T) {
 	warning := warningForPosition("test-warning", "test message", "source code", nil)
 	require.NotNil(t, warning)
-	require.Equal(t, "test message", warning.Message) // No warning name appended when nil source position
-	require.Equal(t, "source code", warning.SourceCode)
-	require.Equal(t, uint32(0), warning.Line)
-	require.Equal(t, uint32(0), warning.Column)
+	require.Equal(t, "test message", warning.GetMessage()) // No warning name appended when nil source position
+	require.Equal(t, "source code", warning.GetSourceCode())
+	require.Equal(t, uint32(0), warning.GetLine())
+	require.Equal(t, uint32(0), warning.GetColumn())
 }
 
 func TestWarningForPositionWithSourcePosition(t *testing.T) {
@@ -27,10 +27,10 @@ func TestWarningForPositionWithSourcePosition(t *testing.T) {
 
 	warning := warningForPosition("test-warning", "test message", "source code", sourcePos)
 	require.NotNil(t, warning)
-	require.Equal(t, "test message (test-warning)", warning.Message) // Warning name appended
-	require.Equal(t, "source code", warning.SourceCode)
-	require.Equal(t, uint32(5), warning.Line)    // 1-indexed
-	require.Equal(t, uint32(10), warning.Column) // 1-indexed
+	require.Equal(t, "test message (test-warning)", warning.GetMessage()) // Warning name appended
+	require.Equal(t, "source code", warning.GetSourceCode())
+	require.Equal(t, uint32(5), warning.GetLine())    // 1-indexed
+	require.Equal(t, uint32(10), warning.GetColumn()) // 1-indexed
 }
 
 func TestWarningForMetadata(t *testing.T) {
@@ -49,10 +49,10 @@ func TestWarningForMetadata(t *testing.T) {
 
 	warning := warningForMetadata("metadata-warning", "metadata message", "source", relation)
 	require.NotNil(t, warning)
-	require.Equal(t, "metadata message (metadata-warning)", warning.Message)
-	require.Equal(t, "source", warning.SourceCode)
-	require.Equal(t, uint32(3), warning.Line)   // 1-indexed
-	require.Equal(t, uint32(8), warning.Column) // 1-indexed
+	require.Equal(t, "metadata message (metadata-warning)", warning.GetMessage())
+	require.Equal(t, "source", warning.GetSourceCode())
+	require.Equal(t, uint32(3), warning.GetLine())   // 1-indexed
+	require.Equal(t, uint32(8), warning.GetColumn()) // 1-indexed
 }
 
 func TestShouldSkipCheckWithoutMetadata(t *testing.T) {
@@ -185,10 +185,10 @@ func TestWarningForPositionWithCastingErrors(t *testing.T) {
 
 	warning := warningForPosition("cast-error", "test message", "source code", sourcePos)
 	require.NotNil(t, warning)
-	require.Equal(t, "test message (cast-error)", warning.Message)
-	require.Equal(t, "source code", warning.SourceCode)
-	require.Equal(t, uint32(1), warning.Line)   // Should be 1 due to zero fallback + 1
-	require.Equal(t, uint32(1), warning.Column) // Should be 1 due to zero fallback + 1
+	require.Equal(t, "test message (cast-error)", warning.GetMessage())
+	require.Equal(t, "source code", warning.GetSourceCode())
+	require.Equal(t, uint32(1), warning.GetLine())   // Should be 1 due to zero fallback + 1
+	require.Equal(t, uint32(1), warning.GetColumn()) // Should be 1 due to zero fallback + 1
 }
 
 func TestWrappedFunctionedTTUUnknownFunction(t *testing.T) {

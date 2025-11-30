@@ -40,9 +40,9 @@ func (rwt *memdbReadWriteTx) toIntegrity(mutation tuple.RelationshipUpdate) *rel
 	var ri *relationshipIntegrity
 	if mutation.Relationship.OptionalIntegrity != nil {
 		ri = &relationshipIntegrity{
-			keyID:     mutation.Relationship.OptionalIntegrity.KeyId,
-			hash:      mutation.Relationship.OptionalIntegrity.Hash,
-			timestamp: mutation.Relationship.OptionalIntegrity.HashedAt.AsTime(),
+			keyID:     mutation.Relationship.OptionalIntegrity.GetKeyId(),
+			hash:      mutation.Relationship.OptionalIntegrity.GetHash(),
+			timestamp: mutation.Relationship.OptionalIntegrity.GetHashedAt().AsTime(),
 		}
 	}
 	return ri
@@ -129,8 +129,8 @@ func (rwt *memdbReadWriteTx) toCaveatReference(mutation tuple.RelationshipUpdate
 	var cr *contextualizedCaveat
 	if mutation.Relationship.OptionalCaveat != nil {
 		cr = &contextualizedCaveat{
-			caveatName: mutation.Relationship.OptionalCaveat.CaveatName,
-			context:    mutation.Relationship.OptionalCaveat.Context.AsMap(),
+			caveatName: mutation.Relationship.OptionalCaveat.GetCaveatName(),
+			context:    mutation.Relationship.OptionalCaveat.GetContext().AsMap(),
 		}
 	}
 	return cr
@@ -287,7 +287,7 @@ func (rwt *memdbReadWriteTx) WriteNamespaces(_ context.Context, newConfigs ...*c
 			return err
 		}
 
-		newConfigEntry := &namespace{newConfig.Name, serialized, rwt.newRevision}
+		newConfigEntry := &namespace{newConfig.GetName(), serialized, rwt.newRevision}
 
 		err = tx.Insert(tableNamespace, newConfigEntry)
 		if err != nil {
@@ -364,25 +364,25 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(any) bool 
 
 		// If it doesn't match one of the resource filters, filter it.
 		switch {
-		case filter.ResourceType != "" && filter.ResourceType != tuple.namespace:
+		case filter.GetResourceType() != "" && filter.GetResourceType() != tuple.namespace:
 			return true
-		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.resourceID:
+		case filter.GetOptionalResourceId() != "" && filter.GetOptionalResourceId() != tuple.resourceID:
 			return true
-		case filter.OptionalResourceIdPrefix != "" && !strings.HasPrefix(tuple.resourceID, filter.OptionalResourceIdPrefix):
+		case filter.GetOptionalResourceIdPrefix() != "" && !strings.HasPrefix(tuple.resourceID, filter.GetOptionalResourceIdPrefix()):
 			return true
-		case filter.OptionalRelation != "" && filter.OptionalRelation != tuple.relation:
+		case filter.GetOptionalRelation() != "" && filter.GetOptionalRelation() != tuple.relation:
 			return true
 		}
 
 		// If it doesn't match one of the subject filters, filter it.
-		if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+		if subjectFilter := filter.GetOptionalSubjectFilter(); subjectFilter != nil {
 			switch {
-			case subjectFilter.SubjectType != tuple.subjectNamespace:
+			case subjectFilter.GetSubjectType() != tuple.subjectNamespace:
 				return true
-			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.subjectObjectID:
+			case subjectFilter.GetOptionalSubjectId() != "" && subjectFilter.GetOptionalSubjectId() != tuple.subjectObjectID:
 				return true
-			case subjectFilter.OptionalRelation != nil &&
-				cmp.Or(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
+			case subjectFilter.GetOptionalRelation() != nil &&
+				cmp.Or(subjectFilter.GetOptionalRelation().GetRelation(), datastore.Ellipsis) != tuple.subjectRelation:
 				return true
 			}
 		}

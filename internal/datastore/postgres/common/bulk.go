@@ -34,8 +34,8 @@ func (tg *tupleSourceAdapter) Values() ([]any, error) {
 	var caveatName string
 	var caveatContext map[string]any
 	if tg.current.OptionalCaveat != nil {
-		caveatName = tg.current.OptionalCaveat.CaveatName
-		caveatContext = tg.current.OptionalCaveat.Context.AsMap()
+		caveatName = tg.current.OptionalCaveat.GetCaveatName()
+		caveatContext = tg.current.OptionalCaveat.GetContext().AsMap()
 	}
 
 	tg.valuesBuffer[0] = tg.current.Resource.ObjectType
@@ -49,9 +49,9 @@ func (tg *tupleSourceAdapter) Values() ([]any, error) {
 	tg.valuesBuffer[8] = tg.current.OptionalExpiration
 
 	if len(tg.colNames) > 9 && tg.current.OptionalIntegrity != nil {
-		tg.valuesBuffer[9] = tg.current.OptionalIntegrity.KeyId
-		tg.valuesBuffer[10] = tg.current.OptionalIntegrity.Hash
-		tg.valuesBuffer[11] = tg.current.OptionalIntegrity.HashedAt.AsTime()
+		tg.valuesBuffer[9] = tg.current.OptionalIntegrity.GetKeyId()
+		tg.valuesBuffer[10] = tg.current.OptionalIntegrity.GetHash()
+		tg.valuesBuffer[11] = tg.current.OptionalIntegrity.GetHashedAt().AsTime()
 	}
 
 	return tg.valuesBuffer, nil

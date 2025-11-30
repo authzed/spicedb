@@ -49,7 +49,7 @@ func (ssr SubjectSetByResourceID) UnionWith(other map[string]*v1.FoundSubjects) 
 			return fmt.Errorf("received nil FoundSubjects in other map of SubjectSetByResourceID's UnionWith for key %s", resourceID)
 		}
 
-		for _, subject := range subjects.FoundSubjects {
+		for _, subject := range subjects.GetFoundSubjects() {
 			if err := ssr.add(resourceID, subject); err != nil {
 				return err
 			}

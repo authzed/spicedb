@@ -30,7 +30,7 @@ func TestLoadDatastoreFromFileContents(t *testing.T) {
 	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 1)
-	require.Equal(t, "user", namespaces[0].Definition.Name)
+	require.Equal(t, "user", namespaces[0].Definition.GetName())
 }
 
 func TestLoadDatastoreFromFile(t *testing.T) {
@@ -51,7 +51,7 @@ func TestLoadDatastoreFromFile(t *testing.T) {
 	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 1)
-	require.Equal(t, "user", namespaces[0].Definition.Name)
+	require.Equal(t, "user", namespaces[0].Definition.GetName())
 }
 
 func TestLoadDatastoreFromFileAndContents(t *testing.T) {
@@ -73,7 +73,7 @@ func TestLoadDatastoreFromFileAndContents(t *testing.T) {
 	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 2)
-	namespaceNames := []string{namespaces[0].Definition.Name, namespaces[1].Definition.Name}
+	namespaceNames := []string{namespaces[0].Definition.GetName(), namespaces[1].Definition.GetName()}
 	require.Contains(t, namespaceNames, "user")
 	require.Contains(t, namespaceNames, "repository")
 }

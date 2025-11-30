@@ -15,12 +15,12 @@ func AnnotateNamespace(def *schema.ValidatedDefinition) error {
 		return cerr
 	}
 
-	for _, rel := range def.Namespace().Relation {
-		if alias, ok := aliases[rel.Name]; ok {
+	for _, rel := range def.Namespace().GetRelation() {
+		if alias, ok := aliases[rel.GetName()]; ok {
 			rel.AliasingRelation = alias
 		}
 
-		if cacheKey, ok := cacheKeys[rel.Name]; ok {
+		if cacheKey, ok := cacheKeys[rel.GetName()]; ok {
 			rel.CanonicalCacheKey = cacheKey
 		}
 	}

@@ -70,6 +70,6 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 		conn.Close()
 
 		assert.NoError(t, err)
-		assert.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result.Permissionship, "Error on attempt #%d", i)
+		assert.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result.GetPermissionship(), "Error on attempt #%d", i)
 	}
 }

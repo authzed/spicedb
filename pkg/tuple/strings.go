@@ -44,7 +44,7 @@ func StringCoreRR(rr *core.RelationReference) string {
 		return ""
 	}
 
-	return JoinRelRef(rr.Namespace, rr.Relation)
+	return JoinRelRef(rr.GetNamespace(), rr.GetRelation())
 }
 
 // StringCoreONR converts a core ONR object to a string.
@@ -53,7 +53,7 @@ func StringCoreONR(onr *core.ObjectAndRelation) string {
 		return ""
 	}
 
-	return StringONRStrings(onr.Namespace, onr.ObjectId, onr.Relation)
+	return StringONRStrings(onr.GetNamespace(), onr.GetObjectId(), onr.GetRelation())
 }
 
 // StringONRStrings converts ONR strings to a string.
@@ -126,11 +126,11 @@ func MustStringCaveat(caveat *core.ContextualizedCaveat) string {
 
 // StringCaveat converts a contextualized caveat to a string. If the caveat is nil or empty, returns empty string.
 func StringCaveat(caveat *core.ContextualizedCaveat) (string, error) {
-	if caveat == nil || caveat.CaveatName == "" {
+	if caveat == nil || caveat.GetCaveatName() == "" {
 		return "", nil
 	}
 
-	contextString, err := StringCaveatContext(caveat.Context)
+	contextString, err := StringCaveatContext(caveat.GetContext())
 	if err != nil {
 		return "", err
 	}
@@ -139,12 +139,12 @@ func StringCaveat(caveat *core.ContextualizedCaveat) (string, error) {
 		contextString = ":" + contextString
 	}
 
-	return "[" + caveat.CaveatName + contextString + "]", nil
+	return "[" + caveat.GetCaveatName() + contextString + "]", nil
 }
 
 // StringCaveatContext converts the context of a caveat to a string. If the context is nil or empty, returns an empty string.
 func StringCaveatContext(context *structpb.Struct) (string, error) {
-	if context == nil || len(context.Fields) == 0 {
+	if context == nil || len(context.GetFields()) == 0 {
 		return "", nil
 	}
 

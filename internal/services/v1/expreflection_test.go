@@ -568,9 +568,9 @@ func TestExpConvertDiff(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			testutil.RequireProtoEqual(t, tc.expectedResponse, &v1.ExperimentalDiffSchemaResponse{Diffs: resp.Diffs}, "got mismatch")
+			testutil.RequireProtoEqual(t, tc.expectedResponse, &v1.ExperimentalDiffSchemaResponse{Diffs: resp.GetDiffs()}, "got mismatch")
 
-			for _, diff := range resp.Diffs {
+			for _, diff := range resp.GetDiffs() {
 				name := reflect.TypeOf(diff.GetDiff()).String()
 				encounteredDiffTypes.Add(strings.ToLower(strings.Split(name, "_")[1]))
 			}

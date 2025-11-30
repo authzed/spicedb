@@ -547,7 +547,7 @@ func TestCombineExclusionCaveats(t *testing.T) {
 		resultCaveat := result.Caveat
 		require.NotNil(resultCaveat, "Result should have a combined caveat")
 		require.NotNil(resultCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(resultCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(resultCaveat.GetOperation().GetOp(), core.CaveatOperation_AND, "Caveat should be an AND")
 		require.Len(resultCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children (main_caveat AND NOT excluded_caveat)")
 
 		// Verify the result has the same endpoints as main
@@ -632,7 +632,7 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 		doc1Caveat := doc1Result.Caveat
 		require.NotNil(doc1Caveat, "doc1 result should have combined caveat")
 		require.NotNil(doc1Caveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(doc1Caveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(doc1Caveat.GetOperation().GetOp(), core.CaveatOperation_AND, "Caveat should be an AND")
 		require.Len(doc1Caveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children (caveat1 AND NOT caveat2)")
 
 		// doc2 should have no caveat (original state preserved)

@@ -203,7 +203,7 @@ func TestGCFailureBackoff(t *testing.T) {
 			mf = metric
 		}
 	}
-	require.Greater(t, *(mf.GetMetric()[0].Counter.Value), 100.0, "MaxElapsedTime=1ns did not cause backoff to get ignored")
+	require.Greater(t, mf.GetMetric()[0].GetCounter().GetValue(), 100.0, "MaxElapsedTime=1ns did not cause backoff to get ignored")
 
 	localCounter = prometheus.NewCounter(gcFailureCounterConfig)
 	reg = prometheus.NewRegistry()
@@ -224,7 +224,7 @@ func TestGCFailureBackoff(t *testing.T) {
 			mf = metric
 		}
 	}
-	require.Less(t, *(mf.GetMetric()[0].Counter.Value), 3.0, "MaxElapsedTime=0 should have not caused backoff to get ignored")
+	require.Less(t, mf.GetMetric()[0].GetCounter().GetValue(), 3.0, "MaxElapsedTime=0 should have not caused backoff to get ignored")
 }
 
 // Ensure the garbage collector interval is reset after recovering from an

@@ -433,14 +433,14 @@ var generatorFuncs = map[string]generatorFunc{
 		return checkRequestToKey(&v1.DispatchCheckRequest{
 				ResourceRelation: resourceRelation,
 				ResourceIds:      resourceIds,
-				Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+				Subject:          ONR(subjectRelation.GetNamespace(), subjectIds[0], subjectRelation.GetRelation()),
 				Metadata:         metadata,
 			}, computeBothHashes), []string{
-				resourceRelation.Namespace,
-				resourceRelation.Relation,
-				subjectRelation.Namespace,
+				resourceRelation.GetNamespace(),
+				resourceRelation.GetRelation(),
+				subjectRelation.GetNamespace(),
 				subjectIds[0],
-				subjectRelation.Relation,
+				subjectRelation.GetRelation(),
 			}
 	},
 
@@ -455,15 +455,15 @@ var generatorFuncs = map[string]generatorFunc{
 		key, _ := checkRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
 			ResourceRelation: resourceRelation,
 			ResourceIds:      resourceIds,
-			Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+			Subject:          ONR(subjectRelation.GetNamespace(), subjectIds[0], subjectRelation.GetRelation()),
 			Metadata:         metadata,
-		}, resourceRelation.Relation)
+		}, resourceRelation.GetRelation())
 		return key, append([]string{
-			resourceRelation.Namespace,
-			resourceRelation.Relation,
-			subjectRelation.Namespace,
+			resourceRelation.GetNamespace(),
+			resourceRelation.GetRelation(),
+			subjectRelation.GetNamespace(),
 			subjectIds[0],
-			subjectRelation.Relation,
+			subjectRelation.GetRelation(),
 		}, resourceIds...)
 	},
 
@@ -479,14 +479,14 @@ var generatorFuncs = map[string]generatorFunc{
 				ResourceRelation: resourceRelation,
 				SubjectRelation:  subjectRelation,
 				SubjectIds:       subjectIds,
-				TerminalSubject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+				TerminalSubject:  ONR(subjectRelation.GetNamespace(), subjectIds[0], subjectRelation.GetRelation()),
 				Metadata:         metadata,
 			}, computeBothHashes), []string{
-				resourceRelation.Namespace,
-				resourceRelation.Relation,
-				subjectRelation.Namespace,
+				resourceRelation.GetNamespace(),
+				resourceRelation.GetRelation(),
+				subjectRelation.GetNamespace(),
 				subjectIds[0],
-				subjectRelation.Relation,
+				subjectRelation.GetRelation(),
 			}
 	},
 
@@ -499,12 +499,12 @@ var generatorFuncs = map[string]generatorFunc{
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
 		return expandRequestToKey(&v1.DispatchExpandRequest{
-				ResourceAndRelation: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
+				ResourceAndRelation: ONR(resourceRelation.GetNamespace(), resourceIds[0], resourceRelation.GetRelation()),
 				Metadata:            metadata,
 			}, computeBothHashes), []string{
-				resourceRelation.Namespace,
+				resourceRelation.GetNamespace(),
 				resourceIds[0],
-				resourceRelation.Relation,
+				resourceRelation.GetRelation(),
 			}
 	},
 
@@ -522,10 +522,10 @@ var generatorFuncs = map[string]generatorFunc{
 				ResourceIds:      resourceIds,
 				Metadata:         metadata,
 			}, computeBothHashes), append([]string{
-				resourceRelation.Namespace,
-				resourceRelation.Relation,
-				subjectRelation.Namespace,
-				subjectRelation.Relation,
+				resourceRelation.GetNamespace(),
+				resourceRelation.GetRelation(),
+				subjectRelation.GetNamespace(),
+				subjectRelation.GetRelation(),
 			}, resourceIds...)
 	},
 }

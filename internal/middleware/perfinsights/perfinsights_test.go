@@ -95,11 +95,11 @@ func TestObserveShapeLatency(t *testing.T) {
 
 		require.Equal(t, io_prometheus_client.MetricType_HISTOGRAM, metric.GetType())
 
-		require.Equal(t, uint64(1), metric.GetMetric()[0].Histogram.GetSampleCount())
-		require.Equal(t, float64(0.1), metric.GetMetric()[0].Histogram.GetSampleSum()) //nolint:testifylint this value is set directly by test code
-		require.Equal(t, "testMethod", metric.GetMetric()[0].Label[0].GetValue())
+		require.Equal(t, uint64(1), metric.GetMetric()[0].GetHistogram().GetSampleCount())
+		require.Equal(t, float64(0.1), metric.GetMetric()[0].GetHistogram().GetSampleSum()) //nolint:testifylint this value is set directly by test code
+		require.Equal(t, "testMethod", metric.GetMetric()[0].GetLabel()[0].GetValue())
 
-		for _, label := range metric.GetMetric()[0].Label {
+		for _, label := range metric.GetMetric()[0].GetLabel() {
 			if label.GetName() == "api_kind" {
 				require.Equal(t, "testMethod", label.GetValue())
 				continue

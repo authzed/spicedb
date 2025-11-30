@@ -340,7 +340,7 @@ func (r *memdbReader) LookupNamespacesWithNames(_ context.Context, nsNames []str
 			return nil, err
 		}
 
-		if _, ok := nsNameMap[loaded.Name]; ok {
+		if _, ok := nsNameMap[loaded.GetName()]; ok {
 			nsDefs = append(nsDefs, datastore.RevisionedNamespace{
 				Definition:          loaded,
 				LastWrittenRevision: found.updated,

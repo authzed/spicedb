@@ -33,7 +33,7 @@ func Decode(encoded *v1.Cursor) (*impl.DecodedCursor, error) {
 		return nil, NewInvalidCursorErr(errors.New("cursor pointer was nil"))
 	}
 
-	decodedBytes, err := base64.StdEncoding.DecodeString(encoded.Token)
+	decodedBytes, err := base64.StdEncoding.DecodeString(encoded.GetToken())
 	if err != nil {
 		return nil, NewInvalidCursorErr(fmt.Errorf(errDecodeError, err))
 	}
@@ -59,8 +59,8 @@ func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterH
 		VersionOneof: &impl.DecodedCursor_V1{
 			V1: &impl.V1Cursor{
 				Revision:              revision.String(),
-				DispatchVersion:       dispatchCursor.DispatchVersion,
-				Sections:              dispatchCursor.Sections,
+				DispatchVersion:       dispatchCursor.GetDispatchVersion(),
+				Sections:              dispatchCursor.GetSections(),
 				CallAndParametersHash: callAndParameterHash,
 				Flags:                 flags,
 			},
@@ -94,7 +94,7 @@ func GetCursorFlag(encoded *v1.Cursor, flagName string) (string, bool, error) {
 		return "", false, NewInvalidCursorErr(ErrNilCursor)
 	}
 
-	value, ok := v1decoded.Flags[flagName]
+	value, ok := v1decoded.GetFlags()[flagName]
 	return value, ok, nil
 }
 
@@ -113,14 +113,14 @@ func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*d
 		return nil, nil, NewInvalidCursorErr(ErrNilCursor)
 	}
 
-	if v1decoded.CallAndParametersHash != callAndParameterHash {
+	if v1decoded.GetCallAndParametersHash() != callAndParameterHash {
 		return nil, nil, NewInvalidCursorErr(ErrHashMismatch)
 	}
 
 	return &dispatch.Cursor{
-		DispatchVersion: v1decoded.DispatchVersion,
-		Sections:        v1decoded.Sections,
-	}, v1decoded.Flags, nil
+		DispatchVersion: v1decoded.GetDispatchVersion(),
+		Sections:        v1decoded.GetSections(),
+	}, v1decoded.GetFlags(), nil
 }
 
 // DecodeToDispatchRevision decodes an encoded API cursor into an internal dispatch revision.
@@ -141,16 +141,16 @@ func DecodeToDispatchRevision(ctx context.Context, encoded *v1.Cursor, ds revisi
 		return nil, zedtoken.StatusUnknown, fmt.Errorf(errEncodeError, err)
 	}
 
-	parsed, err := ds.RevisionFromString(v1decoded.Revision)
+	parsed, err := ds.RevisionFromString(v1decoded.GetRevision())
 	if err != nil {
 		return datastore.NoRevision, zedtoken.StatusUnknown, fmt.Errorf(errDecodeError, err)
 	}
 
-	if v1decoded.DatastoreUniqueId == "" {
+	if v1decoded.GetDatastoreUniqueId() == "" {
 		return parsed, zedtoken.StatusLegacyEmptyDatastoreID, nil
 	}
 
-	if v1decoded.DatastoreUniqueId != datastoreUniqueID {
+	if v1decoded.GetDatastoreUniqueId() != datastoreUniqueID {
 		return parsed, zedtoken.StatusMismatchedDatastoreID, nil
 	}
 

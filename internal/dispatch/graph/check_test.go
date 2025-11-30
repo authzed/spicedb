@@ -141,12 +141,12 @@ func TestSimpleCheck(t *testing.T) {
 					require.NoError(err)
 
 					isMember := false
-					if found, ok := checkResult.ResultsByResourceId[tc.objectID]; ok {
-						isMember = found.Membership == v1.ResourceCheckResult_MEMBER
+					if found, ok := checkResult.GetResultsByResourceId()[tc.objectID]; ok {
+						isMember = found.GetMembership() == v1.ResourceCheckResult_MEMBER
 					}
 
-					require.Equal(expected.isMember, isMember, "For object %s in %v: ", tc.objectID, checkResult.ResultsByResourceId)
-					require.GreaterOrEqual(checkResult.Metadata.DepthRequired, uint32(1))
+					require.Equal(expected.isMember, isMember, "For object %s in %v: ", tc.objectID, checkResult.GetResultsByResourceId())
+					require.GreaterOrEqual(checkResult.GetMetadata().GetDepthRequired(), uint32(1))
 				})
 			}
 		}
@@ -282,13 +282,13 @@ func TestCheckMetadata(t *testing.T) {
 					require.NoError(err)
 
 					isMember := false
-					if found, ok := checkResult.ResultsByResourceId[tc.objectID]; ok {
-						isMember = found.Membership == v1.ResourceCheckResult_MEMBER
+					if found, ok := checkResult.GetResultsByResourceId()[tc.objectID]; ok {
+						isMember = found.GetMembership() == v1.ResourceCheckResult_MEMBER
 					}
 
 					require.Equal(expected.isMember, isMember)
-					require.GreaterOrEqual(expected.expectedDispatchCount, int(checkResult.Metadata.DispatchCount), "dispatch count mismatch")
-					require.GreaterOrEqual(expected.expectedDepthRequired, int(checkResult.Metadata.DepthRequired), "depth required mismatch")
+					require.GreaterOrEqual(expected.expectedDispatchCount, int(checkResult.GetMetadata().GetDispatchCount()), "dispatch count mismatch")
+					require.GreaterOrEqual(expected.expectedDepthRequired, int(checkResult.GetMetadata().GetDepthRequired()), "depth required mismatch")
 				})
 			}
 		}
@@ -1443,22 +1443,22 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			require.NoError(err)
 
 			membership := v1.ResourceCheckResult_NOT_MEMBER
-			if r, ok := resp.ResultsByResourceId[tc.resource.ObjectID]; ok {
-				membership = r.Membership
+			if r, ok := resp.GetResultsByResourceId()[tc.resource.ObjectID]; ok {
+				membership = r.GetMembership()
 			}
 
 			require.Equal(tc.expectedPermissionship, membership, "expected permissionship %s, got %s", tc.expectedPermissionship, membership)
 
 			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat == nil {
-				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectID].Expression)
-				testutil.RequireProtoEqual(t, tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectID].Expression, "mismatch in caveat")
+				require.NotEmpty(resp.GetResultsByResourceId()[tc.resource.ObjectID].GetExpression())
+				testutil.RequireProtoEqual(t, tc.expectedCaveat, resp.GetResultsByResourceId()[tc.resource.ObjectID].GetExpression(), "mismatch in caveat")
 			}
 
 			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat != nil {
-				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectID].Expression)
+				require.NotEmpty(resp.GetResultsByResourceId()[tc.resource.ObjectID].GetExpression())
 
-				if testutil.AreProtoEqual(tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectID].Expression, "mismatch in caveat") != nil {
-					testutil.RequireProtoEqual(t, tc.alternativeExpectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectID].Expression, "mismatch in caveat")
+				if testutil.AreProtoEqual(tc.expectedCaveat, resp.GetResultsByResourceId()[tc.resource.ObjectID].GetExpression(), "mismatch in caveat") != nil {
+					testutil.RequireProtoEqual(t, tc.alternativeExpectedCaveat, resp.GetResultsByResourceId()[tc.resource.ObjectID].GetExpression(), "mismatch in caveat")
 				}
 			}
 		})
@@ -1466,8 +1466,8 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 }
 
 func addFrame(trace *v1.CheckDebugTrace, foundFrames *mapz.Set[string]) {
-	foundFrames.Insert(fmt.Sprintf("%s:%s#%s", trace.Request.ResourceRelation.Namespace, strings.Join(trace.Request.ResourceIds, ","), trace.Request.ResourceRelation.Relation))
-	for _, subTrace := range trace.SubProblems {
+	foundFrames.Insert(fmt.Sprintf("%s:%s#%s", trace.GetRequest().GetResourceRelation().GetNamespace(), strings.Join(trace.GetRequest().GetResourceIds(), ","), trace.GetRequest().GetResourceRelation().GetRelation()))
+	for _, subTrace := range trace.GetSubProblems() {
 		addFrame(subTrace, foundFrames)
 	}
 }
@@ -1570,9 +1570,9 @@ func TestCheckDebugging(t *testing.T) {
 			})
 
 			require.NoError(err)
-			require.NotNil(checkResult.Metadata.DebugInfo)
-			require.NotNil(checkResult.Metadata.DebugInfo.Check)
-			require.NotNil(checkResult.Metadata.DebugInfo.Check.Duration)
+			require.NotNil(checkResult.GetMetadata().GetDebugInfo())
+			require.NotNil(checkResult.GetMetadata().GetDebugInfo().GetCheck())
+			require.NotNil(checkResult.GetMetadata().GetDebugInfo().GetCheck().GetDuration())
 
 			expectedFrames := mapz.NewSet[string]()
 			for _, expectedFrame := range tc.expectedFrames {
@@ -1580,7 +1580,7 @@ func TestCheckDebugging(t *testing.T) {
 			}
 
 			foundFrames := mapz.NewSet[string]()
-			addFrame(checkResult.Metadata.DebugInfo.Check, foundFrames)
+			addFrame(checkResult.GetMetadata().GetDebugInfo().GetCheck(), foundFrames)
 
 			require.Empty(expectedFrames.Subtract(foundFrames).AsSlice(), "missing expected frames: %v", expectedFrames.Subtract(foundFrames).AsSlice())
 		})
@@ -1949,12 +1949,12 @@ func TestCheckWithHints(t *testing.T) {
 			})
 			require.NoError(err)
 
-			_, ok := resp.ResultsByResourceId[tc.resource.ObjectID]
+			_, ok := resp.GetResultsByResourceId()[tc.resource.ObjectID]
 			if tc.expectedPermissionship {
 				require.True(ok)
-				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[tc.resource.ObjectID].Membership)
+				require.Equal(v1.ResourceCheckResult_MEMBER, resp.GetResultsByResourceId()[tc.resource.ObjectID].GetMembership())
 			} else if ok {
-				require.Equal(v1.ResourceCheckResult_NOT_MEMBER, resp.ResultsByResourceId[tc.resource.ObjectID].Membership)
+				require.Equal(v1.ResourceCheckResult_NOT_MEMBER, resp.GetResultsByResourceId()[tc.resource.ObjectID].GetMembership())
 			}
 		})
 	}
@@ -2002,9 +2002,9 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 	})
 	require.NoError(err)
 
-	require.Len(resp.ResultsByResourceId, 2)
-	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["somedoc"].Membership)
-	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["anotherdoc"].Membership)
+	require.Len(resp.GetResultsByResourceId(), 2)
+	require.Equal(v1.ResourceCheckResult_MEMBER, resp.GetResultsByResourceId()["somedoc"].GetMembership())
+	require.Equal(v1.ResourceCheckResult_MEMBER, resp.GetResultsByResourceId()["anotherdoc"].GetMembership())
 }
 
 func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
@@ -2054,9 +2054,9 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	})
 	require.NoError(err)
 
-	require.Len(resp.ResultsByResourceId, 2)
-	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["somedoc"].Membership)
-	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["anotherdoc"].Membership)
+	require.Len(resp.GetResultsByResourceId(), 2)
+	require.Equal(v1.ResourceCheckResult_MEMBER, resp.GetResultsByResourceId()["somedoc"].GetMembership())
+	require.Equal(v1.ResourceCheckResult_MEMBER, resp.GetResultsByResourceId()["anotherdoc"].GetMembership())
 }
 
 func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint16) (context.Context, dispatch.Dispatcher, datastore.Revision) {

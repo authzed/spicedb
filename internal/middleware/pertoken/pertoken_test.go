@@ -42,7 +42,7 @@ func (t testServer) Ping(ctx context.Context, req *testpb.PingRequest) (*testpb.
 		return nil, errors.New("no datastore in context")
 	}
 
-	if req.Value == "createrel" {
+	if req.GetValue() == "createrel" {
 		// Create a new relationship in the datastore
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 			return tx.WriteRelationships(ctx, []tuple.RelationshipUpdate{
@@ -163,28 +163,28 @@ validation: null
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithMissingToken() {
 	resp, err := s.Client.Ping(s.SimpleCtx(), &testpb.PingRequest{Value: "test"})
 	s.Require().NoError(err)
-	s.Require().Equal("3", resp.Value)
+	s.Require().Equal("3", resp.GetValue())
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithEmptyToken() {
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "")
 	resp, err := s.Client.Ping(ctx, &testpb.PingRequest{Value: "test"})
 	s.Require().NoError(err)
-	s.Require().Equal("3", resp.Value)
+	s.Require().Equal("3", resp.GetValue())
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithIncorrectToken() {
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "missingbearer")
 	resp, err := s.Client.Ping(ctx, &testpb.PingRequest{Value: "test"})
 	s.Require().NoError(err)
-	s.Require().Equal("3", resp.Value)
+	s.Require().Equal("3", resp.GetValue())
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithDefinedToken() {
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "bearer sometoken")
 	resp, err := s.Client.Ping(ctx, &testpb.PingRequest{Value: "test"})
 	s.Require().NoError(err)
-	s.Require().Equal("3", resp.Value)
+	s.Require().Equal("3", resp.GetValue())
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithDifferentToken() {
@@ -192,11 +192,11 @@ func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithDifferentToken() 
 	ctx := metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "bearer sometoken")
 	resp, err := s.Client.Ping(ctx, &testpb.PingRequest{Value: "createrel"})
 	s.Require().NoError(err)
-	s.Require().Equal("4", resp.Value)
+	s.Require().Equal("4", resp.GetValue())
 
 	// Connect with a different token, which should not see the new relationship.
 	ctx = metadata.AppendToOutgoingContext(s.SimpleCtx(), "authorization", "bearer differenttoken")
 	resp, err = s.Client.Ping(ctx, &testpb.PingRequest{Value: "test"})
 	s.Require().NoError(err)
-	s.Require().Equal("3", resp.Value)
+	s.Require().Equal("3", resp.GetValue())
 }

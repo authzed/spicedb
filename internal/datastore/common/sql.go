@@ -641,16 +641,16 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 // FilterToSubjectFilter returns a new SchemaQueryFilterer that is limited to resources with
 // subjects that match the specified filter.
 func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) SchemaQueryFilterer {
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetNamespace: filter.SubjectType})
-	sqf.recordColumnValue(sqf.schema.ColUsersetNamespace, filter.SubjectType)
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetNamespace: filter.GetSubjectType()})
+	sqf.recordColumnValue(sqf.schema.ColUsersetNamespace, filter.GetSubjectType())
 
-	if filter.OptionalSubjectId != "" {
-		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetObjectID: filter.OptionalSubjectId})
-		sqf.recordColumnValue(sqf.schema.ColUsersetObjectID, filter.OptionalSubjectId)
+	if filter.GetOptionalSubjectId() != "" {
+		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetObjectID: filter.GetOptionalSubjectId()})
+		sqf.recordColumnValue(sqf.schema.ColUsersetObjectID, filter.GetOptionalSubjectId())
 	}
 
-	if filter.OptionalRelation != nil {
-		dsRelationName := cmp.Or(filter.OptionalRelation.Relation, datastore.Ellipsis)
+	if filter.GetOptionalRelation() != nil {
+		dsRelationName := cmp.Or(filter.GetOptionalRelation().GetRelation(), datastore.Ellipsis)
 
 		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetRelation: dsRelationName})
 		sqf.recordColumnValue(sqf.schema.ColUsersetRelation, datastore.Ellipsis)

@@ -23,6 +23,6 @@ func RequireReason(t testing.TB, reason v1.ErrorReason, err error, expectedMetad
 	require.Equal(t, v1.ErrorReason_name[int32(reason)], info.GetReason())
 
 	for _, expectedKey := range expectedMetadataKeys {
-		require.Contains(t, info.Metadata, expectedKey)
+		require.Contains(t, info.GetMetadata(), expectedKey)
 	}
 }

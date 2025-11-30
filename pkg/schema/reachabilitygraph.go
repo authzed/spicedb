@@ -59,7 +59,7 @@ func (rg *DefinitionReachability) RelationsEncounteredForSubject(
 	allDefinitions []*core.NamespaceDefinition,
 	startingSubjectType *core.RelationReference,
 ) ([]*core.RelationReference, error) {
-	if startingSubjectType.Namespace != rg.def.nsDef.Name {
+	if startingSubjectType.GetNamespace() != rg.def.nsDef.GetName() {
 		return nil, spiceerrors.MustBugf("gave mismatching namespace name for subject type to reachability graph")
 	}
 
@@ -72,24 +72,24 @@ func (rg *DefinitionReachability) RelationsEncounteredForSubject(
 	for len(subjectTypesToCheck) != 0 {
 		collected := &[]ReachabilityEntrypoint{}
 		for _, nsDef := range allDefinitions {
-			nts, err := rg.def.ts.GetDefinition(ctx, nsDef.Name)
+			nts, err := rg.def.ts.GetDefinition(ctx, nsDef.GetName())
 			if err != nil {
 				return nil, err
 			}
 
 			nrg := nts.Reachability()
 
-			for _, relation := range nsDef.Relation {
+			for _, relation := range nsDef.GetRelation() {
 				for _, subjectType := range subjectTypesToCheck {
-					if subjectType.Namespace == nsDef.Name && subjectType.Relation == relation.Name {
+					if subjectType.GetNamespace() == nsDef.GetName() && subjectType.GetRelation() == relation.GetName() {
 						continue
 					}
 
 					allEncounteredRelations := mapz.NewSet[string]()
 					encounteredRelationsForComputation := mapz.NewSet[string]()
 					err := nrg.collectEntrypoints(ctx, &core.RelationReference{
-						Namespace: nsDef.Name,
-						Relation:  relation.Name,
+						Namespace: nsDef.GetName(),
+						Relation:  relation.GetName(),
 					}, subjectType, collected, allEncounteredRelations, encounteredRelationsForComputation, reachabilityFull, entrypointLookupFindAll)
 					if err != nil {
 						return nil, err
@@ -101,13 +101,13 @@ func (rg *DefinitionReachability) RelationsEncounteredForSubject(
 		subjectTypesToCheck = make([]*core.RelationReference, 0, len(*collected))
 
 		for _, entrypoint := range *collected {
-			st := tuple.JoinRelRef(entrypoint.re.TargetRelation.Namespace, entrypoint.re.TargetRelation.Relation)
+			st := tuple.JoinRelRef(entrypoint.re.GetTargetRelation().GetNamespace(), entrypoint.re.GetTargetRelation().GetRelation())
 			if !added.Add(st) {
 				continue
 			}
 
 			allRelationNames.Add(st)
-			subjectTypesToCheck = append(subjectTypesToCheck, entrypoint.re.TargetRelation)
+			subjectTypesToCheck = append(subjectTypesToCheck, entrypoint.re.GetTargetRelation())
 		}
 	}
 
@@ -189,7 +189,7 @@ func (rg *DefinitionReachability) computeEntrypoints(
 	reachabilityOption reachabilityOption,
 	entrypointLookupOption entrypointLookupOption,
 ) ([]ReachabilityEntrypoint, []string, error) {
-	if resourceType.Namespace != rg.def.nsDef.Name {
+	if resourceType.GetNamespace() != rg.def.nsDef.GetName() {
 		return nil, nil, errors.New("gave mismatching namespace name for resource type to reachability graph")
 	}
 
@@ -238,12 +238,12 @@ func (rg *DefinitionReachability) getOrBuildGraph(ctx context.Context, resourceT
 	}
 
 	// Load the type system for the target resource relation.
-	tdef, err := rg.def.ts.GetDefinition(ctx, resourceType.Namespace)
+	tdef, err := rg.def.ts.GetDefinition(ctx, resourceType.GetNamespace())
 	if err != nil {
 		return nil, err
 	}
 
-	rrg, err := computeReachability(ctx, tdef, resourceType.Relation, reachabilityOption)
+	rrg, err := computeReachability(ctx, tdef, resourceType.GetRelation(), reachabilityOption)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 	entrypointLookupOption entrypointLookupOption,
 ) error {
 	// Ensure that we only process each relation once.
-	key := tuple.JoinRelRef(resourceType.Namespace, resourceType.Relation)
+	key := tuple.JoinRelRef(resourceType.GetNamespace(), resourceType.GetRelation())
 	if !encounteredRelationsForComputation.Add(key) {
 		return nil
 	}
@@ -276,7 +276,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 
 	if optionalSubjectType != nil {
 		// Add subject type entrypoints.
-		subjectTypeEntrypoints, ok := rrg.EntrypointsBySubjectType[optionalSubjectType.Namespace]
+		subjectTypeEntrypoints, ok := rrg.GetEntrypointsBySubjectType()[optionalSubjectType.GetNamespace()]
 		if ok {
 			addEntrypoints(subjectTypeEntrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
 		}
@@ -286,7 +286,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 		}
 
 		// Add subject relation entrypoints.
-		subjectRelationEntrypoints, ok := rrg.EntrypointsBySubjectRelation[tuple.JoinRelRef(optionalSubjectType.Namespace, optionalSubjectType.Relation)]
+		subjectRelationEntrypoints, ok := rrg.GetEntrypointsBySubjectRelation()[tuple.JoinRelRef(optionalSubjectType.GetNamespace(), optionalSubjectType.GetRelation())]
 		if ok {
 			addEntrypoints(subjectRelationEntrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
 		}
@@ -296,24 +296,24 @@ func (rg *DefinitionReachability) collectEntrypoints(
 		}
 	} else {
 		// Add all entrypoints.
-		for _, entrypoints := range rrg.EntrypointsBySubjectType {
+		for _, entrypoints := range rrg.GetEntrypointsBySubjectType() {
 			addEntrypoints(entrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
 		}
 
-		for _, entrypoints := range rrg.EntrypointsBySubjectRelation {
+		for _, entrypoints := range rrg.GetEntrypointsBySubjectRelation() {
 			addEntrypoints(entrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
 		}
 	}
 
 	// Sort the keys to ensure a stable graph is produced.
-	keys := slices.Collect(maps.Keys(rrg.EntrypointsBySubjectRelation))
+	keys := slices.Collect(maps.Keys(rrg.GetEntrypointsBySubjectRelation()))
 	sort.Strings(keys)
 
 	// Recursively collect over any reachability graphs for subjects with non-ellipsis relations.
 	for _, entrypointSetKey := range keys {
-		entrypointSet := rrg.EntrypointsBySubjectRelation[entrypointSetKey]
-		if entrypointSet.SubjectRelation != nil && entrypointSet.SubjectRelation.Relation != tuple.Ellipsis {
-			err := rg.collectEntrypoints(ctx, entrypointSet.SubjectRelation, optionalSubjectType, collected, allEncounteredRelations, encounteredRelationsForComputation, reachabilityOption, entrypointLookupOption)
+		entrypointSet := rrg.GetEntrypointsBySubjectRelation()[entrypointSetKey]
+		if entrypointSet.GetSubjectRelation() != nil && entrypointSet.GetSubjectRelation().GetRelation() != tuple.Ellipsis {
+			err := rg.collectEntrypoints(ctx, entrypointSet.GetSubjectRelation(), optionalSubjectType, collected, allEncounteredRelations, encounteredRelationsForComputation, reachabilityOption, entrypointLookupOption)
 			if err != nil {
 				return err
 			}
@@ -328,9 +328,9 @@ func (rg *DefinitionReachability) collectEntrypoints(
 }
 
 func addEntrypoints(entrypoints *core.ReachabilityEntrypoints, parentRelation *core.RelationReference, collected *[]ReachabilityEntrypoint, allEncounteredRelations *mapz.Set[string], encounteredRelationsForComputation *mapz.Set[string]) {
-	for _, entrypoint := range entrypoints.Entrypoints {
-		if entrypoint.TuplesetRelation != "" {
-			key := tuple.JoinRelRef(entrypoint.TargetRelation.Namespace, entrypoint.TuplesetRelation)
+	for _, entrypoint := range entrypoints.GetEntrypoints() {
+		if entrypoint.GetTuplesetRelation() != "" {
+			key := tuple.JoinRelRef(entrypoint.GetTargetRelation().GetNamespace(), entrypoint.GetTuplesetRelation())
 			allEncounteredRelations.Add(key)
 		}
 		*collected = append(*collected, ReachabilityEntrypoint{entrypoint, parentRelation})
@@ -386,7 +386,7 @@ func (re ReachabilityEntrypoint) Hash() (uint64, error) {
 
 // EntrypointKind is the kind of the entrypoint.
 func (re ReachabilityEntrypoint) EntrypointKind() core.ReachabilityEntrypoint_ReachabilityEntrypointKind {
-	return re.re.Kind
+	return re.re.GetKind()
 }
 
 // ComputedUsersetRelation returns the tupleset relation of the computed userset, if any.
@@ -394,7 +394,7 @@ func (re ReachabilityEntrypoint) ComputedUsersetRelation() (string, error) {
 	if re.EntrypointKind() == core.ReachabilityEntrypoint_RELATION_ENTRYPOINT {
 		return "", fmt.Errorf("cannot call ComputedUsersetRelation for kind %v", re.EntrypointKind())
 	}
-	return re.re.ComputedUsersetRelation, nil
+	return re.re.GetComputedUsersetRelation(), nil
 }
 
 // TuplesetRelation returns the tupleset relation of the TTU, if a TUPLESET_TO_USERSET_ENTRYPOINT.
@@ -403,7 +403,7 @@ func (re ReachabilityEntrypoint) TuplesetRelation() (string, error) {
 		return "", fmt.Errorf("cannot call TupleToUserset for kind %v", re.EntrypointKind())
 	}
 
-	return re.re.TuplesetRelation, nil
+	return re.re.GetTuplesetRelation(), nil
 }
 
 // DirectRelation is the relation that this entrypoint represents, if a RELATION_ENTRYPOINT.
@@ -412,12 +412,12 @@ func (re ReachabilityEntrypoint) DirectRelation() (*core.RelationReference, erro
 		return nil, fmt.Errorf("cannot call DirectRelation for kind %v", re.EntrypointKind())
 	}
 
-	return re.re.TargetRelation, nil
+	return re.re.GetTargetRelation(), nil
 }
 
 // TargetNamespace returns the namespace for the entrypoint's target relation.
 func (re ReachabilityEntrypoint) TargetNamespace() string {
-	return re.re.TargetRelation.Namespace
+	return re.re.GetTargetRelation().GetNamespace()
 }
 
 // ContainingRelationOrPermission is the relation or permission containing this entrypoint.
@@ -430,7 +430,7 @@ func (re ReachabilityEntrypoint) ContainingRelationOrPermission() *core.Relation
 // under an intersection or exclusion, which makes the entrypoint's object merely conditionally
 // reachable.
 func (re ReachabilityEntrypoint) IsDirectResult() bool {
-	return re.re.ResultStatus == core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT
+	return re.re.GetResultStatus() == core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT
 }
 
 func (re ReachabilityEntrypoint) String() string {
@@ -457,13 +457,13 @@ func (re ReachabilityEntrypoint) DebugStringOrEmpty() string {
 func (re ReachabilityEntrypoint) DebugString() (string, error) {
 	switch re.EntrypointKind() {
 	case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-		return "relation-entrypoint: " + re.re.TargetRelation.Namespace + "#" + re.re.TargetRelation.Relation, nil
+		return "relation-entrypoint: " + re.re.GetTargetRelation().GetNamespace() + "#" + re.re.GetTargetRelation().GetRelation(), nil
 
 	case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-		return "ttu-entrypoint: " + re.re.TuplesetRelation + " -> " + re.re.TargetRelation.Namespace + "#" + re.re.TargetRelation.Relation, nil
+		return "ttu-entrypoint: " + re.re.GetTuplesetRelation() + " -> " + re.re.GetTargetRelation().GetNamespace() + "#" + re.re.GetTargetRelation().GetRelation(), nil
 
 	case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
-		return "computed-userset-entrypoint: " + re.re.TargetRelation.Namespace + "#" + re.re.TargetRelation.Relation, nil
+		return "computed-userset-entrypoint: " + re.re.GetTargetRelation().GetNamespace() + "#" + re.re.GetTargetRelation().GetRelation(), nil
 
 	default:
 		return "", fmt.Errorf("unknown entrypoint kind %v", re.EntrypointKind())

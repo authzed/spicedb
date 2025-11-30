@@ -16,12 +16,12 @@ func (x *ResolverMeta) RecordTraversal(key string) (possiblyLoop bool, err error
 		return false, spiceerrors.MustBugf("missing key to be recorded in traversal")
 	}
 
-	if x == nil || len(x.TraversalBloom) == 0 {
+	if x == nil || len(x.GetTraversalBloom()) == 0 {
 		return false, status.Error(codes.Internal, errors.New("required traversal bloom filter is missing").Error())
 	}
 
 	bf := &bloom.BloomFilter{}
-	if err := bf.UnmarshalBinary(x.TraversalBloom); err != nil {
+	if err := bf.UnmarshalBinary(x.GetTraversalBloom()); err != nil {
 		return false, status.Error(codes.Internal, fmt.Errorf("unable to unmarshall traversal bloom filter: %w", err).Error())
 	}
 

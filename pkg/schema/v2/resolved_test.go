@@ -683,7 +683,7 @@ definition user {}`
 	// Find the document definition
 	var docDef *core.NamespaceDefinition
 	for _, def := range defs {
-		if def.Name == "document" {
+		if def.GetName() == "document" {
 			docDef = def
 			break
 		}
@@ -692,8 +692,8 @@ definition user {}`
 
 	// Verify the permission exists
 	var viewPerm *core.Relation
-	for _, rel := range docDef.Relation {
-		if rel.Name == "view" {
+	for _, rel := range docDef.GetRelation() {
+		if rel.GetName() == "view" {
 			viewPerm = rel
 			break
 		}
@@ -701,6 +701,6 @@ definition user {}`
 	require.NotNil(t, viewPerm)
 
 	// The UsersetRewrite should contain a FunctionedTupleToUserset
-	require.NotNil(t, viewPerm.UsersetRewrite)
-	require.NotNil(t, viewPerm.UsersetRewrite.RewriteOperation)
+	require.NotNil(t, viewPerm.GetUsersetRewrite())
+	require.NotNil(t, viewPerm.GetUsersetRewrite().GetRewriteOperation())
 }

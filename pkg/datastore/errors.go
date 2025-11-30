@@ -242,21 +242,21 @@ func (err CounterAlreadyRegisteredError) DetailsMetadata() map[string]string {
 	subjectType := ""
 	subjectID := ""
 	subjectRelation := ""
-	if err.filter.OptionalSubjectFilter != nil {
-		subjectType = err.filter.OptionalSubjectFilter.SubjectType
-		subjectID = err.filter.OptionalSubjectFilter.OptionalSubjectId
+	if err.filter.GetOptionalSubjectFilter() != nil {
+		subjectType = err.filter.GetOptionalSubjectFilter().GetSubjectType()
+		subjectID = err.filter.GetOptionalSubjectFilter().GetOptionalSubjectId()
 
-		if err.filter.OptionalSubjectFilter.GetOptionalRelation() != nil {
-			subjectRelation = err.filter.OptionalSubjectFilter.GetOptionalRelation().Relation
+		if err.filter.GetOptionalSubjectFilter().GetOptionalRelation() != nil {
+			subjectRelation = err.filter.GetOptionalSubjectFilter().GetOptionalRelation().GetRelation()
 		}
 	}
 
 	return map[string]string{
 		"counter_name":                  err.counterName,
-		"new_filter_resource_type":      err.filter.ResourceType,
-		"new_filter_resource_id":        err.filter.OptionalResourceId,
-		"new_filter_resource_id_prefix": err.filter.OptionalResourceIdPrefix,
-		"new_filter_relation":           err.filter.OptionalRelation,
+		"new_filter_resource_type":      err.filter.GetResourceType(),
+		"new_filter_resource_id":        err.filter.GetOptionalResourceId(),
+		"new_filter_resource_id_prefix": err.filter.GetOptionalResourceIdPrefix(),
+		"new_filter_relation":           err.filter.GetOptionalRelation(),
 		"new_filter_subject_type":       subjectType,
 		"new_filter_subject_id":         subjectID,
 		"new_filter_subject_relation":   subjectRelation,

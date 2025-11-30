@@ -42,21 +42,21 @@ var (
 )
 
 func filterToAttributes(filter *v1.RelationshipFilter) []attribute.KeyValue {
-	attrs := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
-	if filter.OptionalResourceId != "" {
-		attrs = append(attrs, common.ObjIDKey.String(filter.OptionalResourceId))
+	attrs := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.GetResourceType())}
+	if filter.GetOptionalResourceId() != "" {
+		attrs = append(attrs, common.ObjIDKey.String(filter.GetOptionalResourceId()))
 	}
-	if filter.OptionalRelation != "" {
-		attrs = append(attrs, common.ObjRelationNameKey.String(filter.OptionalRelation))
+	if filter.GetOptionalRelation() != "" {
+		attrs = append(attrs, common.ObjRelationNameKey.String(filter.GetOptionalRelation()))
 	}
 
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		attrs = append(attrs, common.SubNamespaceNameKey.String(subjectFilter.SubjectType))
-		if subjectFilter.OptionalSubjectId != "" {
-			attrs = append(attrs, common.SubObjectIDKey.String(subjectFilter.OptionalSubjectId))
+	if subjectFilter := filter.GetOptionalSubjectFilter(); subjectFilter != nil {
+		attrs = append(attrs, common.SubNamespaceNameKey.String(subjectFilter.GetSubjectType()))
+		if subjectFilter.GetOptionalSubjectId() != "" {
+			attrs = append(attrs, common.SubObjectIDKey.String(subjectFilter.GetOptionalSubjectId()))
 		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			attrs = append(attrs, common.SubRelationNameKey.String(relationFilter.Relation))
+		if relationFilter := subjectFilter.GetOptionalRelation(); relationFilter != nil {
+			attrs = append(attrs, common.SubRelationNameKey.String(relationFilter.GetRelation()))
 		}
 	}
 	return attrs
@@ -314,7 +314,7 @@ func (rwt *observableRWT) StoreCounterValue(ctx context.Context, name string, va
 func (rwt *observableRWT) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	caveatNames := make([]string, 0, len(caveats))
 	for _, caveat := range caveats {
-		caveatNames = append(caveatNames, caveat.Name)
+		caveatNames = append(caveatNames, caveat.GetName())
 	}
 
 	ctx, closer := observe(ctx, "WriteCaveats", "", trace.WithAttributes(
@@ -346,7 +346,7 @@ func (rwt *observableRWT) WriteRelationships(ctx context.Context, mutations []tu
 func (rwt *observableRWT) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	nsNames := make([]string, 0, len(newConfigs))
 	for _, ns := range newConfigs {
-		nsNames = append(nsNames, ns.Name)
+		nsNames = append(nsNames, ns.GetName())
 	}
 
 	ctx, closer := observe(ctx, "WriteNamespaces", "", trace.WithAttributes(

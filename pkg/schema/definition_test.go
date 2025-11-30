@@ -1530,13 +1530,13 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 				require.Equal(vts.Namespace(), nsDef)
 
-				tester, ok := tc.namespaces[nsDef.Name]
+				tester, ok := tc.namespaces[nsDef.GetName()]
 				if ok {
 					tester := tester
 					vts := vts
-					t.Run(nsDef.Name, func(t *testing.T) {
-						for _, relation := range nsDef.Relation {
-							require.True(vts.IsPermission(relation.Name) || vts.HasTypeInformation(relation.Name))
+					t.Run(nsDef.GetName(), func(t *testing.T) {
+						for _, relation := range nsDef.GetRelation() {
+							require.True(vts.IsPermission(relation.GetName()) || vts.HasTypeInformation(relation.GetName()))
 						}
 
 						tester(t, vts)

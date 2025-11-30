@@ -52,10 +52,10 @@ func (ts *TypeSystem) getTypesForRelationInternal(ctx context.Context, defName s
 		// Supress the error that it couldn't find the relation, as if a relation is missing in a definition, it's already a noop in dispatch.
 		return nil, nil
 	}
-	if rel.TypeInformation != nil {
-		return ts.getTypesForInfo(ctx, rel.TypeInformation, seen, nonTerminals)
-	} else if rel.UsersetRewrite != nil {
-		return ts.getTypesForRewrite(ctx, defName, rel.UsersetRewrite, seen, nonTerminals)
+	if rel.GetTypeInformation() != nil {
+		return ts.getTypesForInfo(ctx, rel.GetTypeInformation(), seen, nonTerminals)
+	} else if rel.GetUsersetRewrite() != nil {
+		return ts.getTypesForRewrite(ctx, defName, rel.GetUsersetRewrite(), seen, nonTerminals)
 	}
 	return nil, asTypeError(NewMissingAllowedRelationsErr(defName, relationName))
 }
@@ -96,7 +96,7 @@ func (ts *TypeSystem) getIntermediateRelationTypes(ctx context.Context, defName 
 		return nil, asTypeError(NewRelationNotFoundErr(defName, relName))
 	}
 	out := mapz.NewSet[string]()
-	for _, dr := range rel.TypeInformation.GetAllowedDirectRelations() {
+	for _, dr := range rel.GetTypeInformation().GetAllowedDirectRelations() {
 		out.Add(dr.GetNamespace())
 	}
 	return out, nil

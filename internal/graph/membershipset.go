@@ -121,8 +121,8 @@ func (ms *MembershipSet) addMember(resourceID string, caveatExpr *core.CaveatExp
 // The changes are made in-place.
 func (ms *MembershipSet) UnionWith(resultsMap CheckResultsMap) {
 	for resourceID, details := range resultsMap {
-		if details.Membership != v1.ResourceCheckResult_NOT_MEMBER {
-			ms.addMember(resourceID, details.Expression)
+		if details.GetMembership() != v1.ResourceCheckResult_NOT_MEMBER {
+			ms.addMember(resourceID, details.GetExpression())
 		}
 	}
 }
@@ -131,7 +131,7 @@ func (ms *MembershipSet) UnionWith(resultsMap CheckResultsMap) {
 // The changes are made in-place.
 func (ms *MembershipSet) IntersectWith(resultsMap CheckResultsMap) {
 	for resourceID := range ms.membersByID {
-		if details, ok := resultsMap[resourceID]; !ok || details.Membership == v1.ResourceCheckResult_NOT_MEMBER {
+		if details, ok := resultsMap[resourceID]; !ok || details.GetMembership() == v1.ResourceCheckResult_NOT_MEMBER {
 			delete(ms.membersByID, resourceID)
 		}
 	}
@@ -139,15 +139,15 @@ func (ms *MembershipSet) IntersectWith(resultsMap CheckResultsMap) {
 	ms.hasDeterminedMember = false
 	for resourceID, details := range resultsMap {
 		existing, ok := ms.membersByID[resourceID]
-		if !ok || details.Membership == v1.ResourceCheckResult_NOT_MEMBER {
+		if !ok || details.GetMembership() == v1.ResourceCheckResult_NOT_MEMBER {
 			continue
 		}
-		if existing == nil && details.Expression == nil {
+		if existing == nil && details.GetExpression() == nil {
 			ms.hasDeterminedMember = true
 			continue
 		}
 
-		ms.membersByID[resourceID] = caveatAnd(existing, details.Expression)
+		ms.membersByID[resourceID] = caveatAnd(existing, details.GetExpression())
 	}
 }
 
@@ -156,16 +156,16 @@ func (ms *MembershipSet) IntersectWith(resultsMap CheckResultsMap) {
 func (ms *MembershipSet) Subtract(resultsMap CheckResultsMap) {
 	ms.hasDeterminedMember = false
 	for resourceID, expression := range ms.membersByID {
-		if details, ok := resultsMap[resourceID]; ok && details.Membership != v1.ResourceCheckResult_NOT_MEMBER {
+		if details, ok := resultsMap[resourceID]; ok && details.GetMembership() != v1.ResourceCheckResult_NOT_MEMBER {
 			// If the incoming member has no caveat, then this removal is absolute.
-			if details.Expression == nil {
+			if details.GetExpression() == nil {
 				delete(ms.membersByID, resourceID)
 				continue
 			}
 
 			// Otherwise, the caveat expression gets combined with an intersection of the inversion
 			// of the expression.
-			ms.membersByID[resourceID] = caveatSub(expression, details.Expression)
+			ms.membersByID[resourceID] = caveatSub(expression, details.GetExpression())
 		} else if expression == nil {
 			ms.hasDeterminedMember = true
 		}

@@ -37,12 +37,12 @@ func CheckHintForArrow(resourceType string, resourceID string, tuplesetRelation 
 
 // AsCheckHintForComputedUserset returns the resourceID if the checkHint is for the given relation and subject.
 func AsCheckHintForComputedUserset(checkHint *v1.CheckHint, resourceType string, relationName string, subject tuple.ObjectAndRelation) (string, bool) {
-	if checkHint.TtuComputedUsersetRelation != "" {
+	if checkHint.GetTtuComputedUsersetRelation() != "" {
 		return "", false
 	}
 
-	if checkHint.Resource.Namespace == resourceType && checkHint.Resource.Relation == relationName && checkHint.Subject.EqualVT(subject.ToCoreONR()) {
-		return checkHint.Resource.ObjectId, true
+	if checkHint.GetResource().GetNamespace() == resourceType && checkHint.GetResource().GetRelation() == relationName && checkHint.GetSubject().EqualVT(subject.ToCoreONR()) {
+		return checkHint.GetResource().GetObjectId(), true
 	}
 
 	return "", false
@@ -50,12 +50,12 @@ func AsCheckHintForComputedUserset(checkHint *v1.CheckHint, resourceType string,
 
 // AsCheckHintForArrow returns the resourceID if the checkHint is for the given arrow and subject.
 func AsCheckHintForArrow(checkHint *v1.CheckHint, resourceType string, tuplesetRelation string, computedUsersetRelation string, subject tuple.ObjectAndRelation) (string, bool) {
-	if checkHint.TtuComputedUsersetRelation != computedUsersetRelation {
+	if checkHint.GetTtuComputedUsersetRelation() != computedUsersetRelation {
 		return "", false
 	}
 
-	if checkHint.Resource.Namespace == resourceType && checkHint.Resource.Relation == tuplesetRelation && checkHint.Subject.EqualVT(subject.ToCoreONR()) {
-		return checkHint.Resource.ObjectId, true
+	if checkHint.GetResource().GetNamespace() == resourceType && checkHint.GetResource().GetRelation() == tuplesetRelation && checkHint.GetSubject().EqualVT(subject.ToCoreONR()) {
+		return checkHint.GetResource().GetObjectId(), true
 	}
 
 	return "", false

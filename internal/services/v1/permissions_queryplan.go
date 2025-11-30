@@ -47,13 +47,13 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 
 	// Build iterator tree from schema
 	// TODO: Better iterator caching
-	it, err := query.BuildIteratorFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
+	it, err := query.BuildIteratorFromSchema(fullSchema, req.GetResource().GetObjectType(), req.GetPermission())
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
 	// Parse caveat context if provided
-	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	caveatContext, err := GetCaveatContext(ctx, req.GetContext(), ps.config.MaxCaveatContextSize)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -69,14 +69,14 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 
 	// Execute the check
 	resource := query.Object{
-		ObjectType: req.Resource.ObjectType,
-		ObjectID:   req.Resource.ObjectId,
+		ObjectType: req.GetResource().GetObjectType(),
+		ObjectID:   req.GetResource().GetObjectId(),
 	}
 
 	subject := query.ObjectAndRelation{
-		ObjectType: req.Subject.Object.ObjectType,
-		ObjectID:   req.Subject.Object.ObjectId,
-		Relation:   normalizeSubjectRelation(req.Subject),
+		ObjectType: req.GetSubject().GetObject().GetObjectType(),
+		ObjectID:   req.GetSubject().GetObject().GetObjectId(),
+		Relation:   normalizeSubjectRelation(req.GetSubject()),
 	}
 
 	pathSeq, err := qctx.Check(it, []query.Object{resource}, subject)

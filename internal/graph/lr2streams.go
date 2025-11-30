@@ -137,7 +137,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 		Subject:       tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 		CaveatContext: rdc.parentRequest.Context.AsMap(),
 		AtRevision:    rdc.parentRequest.Revision,
-		MaximumDepth:  rdc.parentRequest.Metadata.DepthRemaining - 1,
+		MaximumDepth:  rdc.parentRequest.Metadata.GetDepthRemaining() - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
 	}, resourceIDsToCheck, rdc.dispatchChunkSize)
@@ -155,13 +155,13 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 			continue
 		}
 
-		switch result.Membership {
+		switch result.GetMembership() {
 		case v1.ResourceCheckResult_MEMBER:
 			fallthrough
 
 		case v1.ResourceCheckResult_CAVEATED_MEMBER:
 			// Record any additional caveats missing from the check.
-			adjustedResources.withAdditionalMissingContextForDispatchedResourceID(resourceID, result.MissingExprFields)
+			adjustedResources.withAdditionalMissingContextForDispatchedResourceID(resourceID, result.GetMissingExprFields())
 			resourceIDToDispatch = append(resourceIDToDispatch, resourceID)
 
 		case v1.ResourceCheckResult_NOT_MEMBER:
@@ -169,7 +169,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 			continue
 
 		default:
-			return spiceerrors.MustBugf("unexpected result from check: %v", result.Membership)
+			return spiceerrors.MustBugf("unexpected result from check: %v", result.GetMembership())
 		}
 	}
 
@@ -241,7 +241,7 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 		TerminalSubject:  rdc.parentRequest.TerminalSubject,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     rdc.parentRequest.Revision.String(),
-			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
+			DepthRemaining: rdc.parentRequest.Metadata.GetDepthRemaining() - 1,
 		},
 		OptionalCursor: updatedCi.currentCursor,
 		OptionalLimit:  rdc.ci.limits.currentLimit,
@@ -293,7 +293,7 @@ func publishResultToParentStream(
 ) error {
 	// Map the found resources via the subject+resources used for dispatching, to determine
 	// if any need to be made conditional due to caveats.
-	mappedResource, err := foundResources.mapPossibleResource(result.Resource)
+	mappedResource, err := foundResources.mapPossibleResource(result.GetResource())
 	if err != nil {
 		return err
 	}
@@ -305,13 +305,13 @@ func publishResultToParentStream(
 	// The cursor for the response is that of the parent response + the cursor from the result itself.
 	afterResponseCursor, err := combineCursors(
 		responseCursor,
-		result.AfterResponseCursor,
+		result.GetAfterResponseCursor(),
 	)
 	if err != nil {
 		return err
 	}
 
-	metadata := result.Metadata
+	metadata := result.GetMetadata()
 	if isFirstPublishCall {
 		metadata = addCallToResponseMetadata(metadata)
 		metadata = combineResponseMetadata(ctx, metadata, additionalMetadata)
@@ -319,8 +319,8 @@ func publishResultToParentStream(
 		metadata = addAdditionalDepthRequired(metadata)
 	}
 
-	missingContextParameters := mapz.NewSet(mappedResource.MissingContextParams...)
-	missingContextParameters.Extend(result.Resource.MissingContextParams)
+	missingContextParameters := mapz.NewSet(mappedResource.GetMissingContextParams()...)
+	missingContextParameters.Extend(result.GetResource().GetMissingContextParams())
 	missingContextParameters.Extend(additionalMissingContext)
 
 	mappedResource.MissingContextParams = missingContextParameters.AsSlice()

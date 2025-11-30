@@ -230,11 +230,11 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 		stream.Context(),
 		otelconv.EventDispatchLookupResources3,
 		trace.WithAttributes(
-			attribute.String(otelconv.AttrDispatchResourceType, req.ResourceRelation.Namespace),
-			attribute.String(otelconv.AttrDispatchResourceRelation, req.ResourceRelation.Relation),
-			attribute.String(otelconv.AttrDispatchSubjectType, req.SubjectRelation.Namespace),
+			attribute.String(otelconv.AttrDispatchResourceType, req.ResourceRelation.GetNamespace()),
+			attribute.String(otelconv.AttrDispatchResourceRelation, req.ResourceRelation.GetRelation()),
+			attribute.String(otelconv.AttrDispatchSubjectType, req.SubjectRelation.GetNamespace()),
 			attribute.StringSlice(otelconv.AttrDispatchSubjectIDs, req.SubjectIds),
-			attribute.String(otelconv.AttrDispatchSubjectRelation, req.SubjectRelation.Relation),
+			attribute.String(otelconv.AttrDispatchSubjectRelation, req.SubjectRelation.GetRelation()),
 			attribute.String(otelconv.AttrDispatchTerminalSubject, tuple.StringCoreONR(req.TerminalSubject)),
 			attribute.Int(otelconv.AttrDispatchCursorLimit, int(req.OptionalLimit)),
 		),
@@ -377,8 +377,8 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 		func(ctx context.Context, startIndex int) iter.Seq2[possibleResource, error] {
 			// If the subject relation does not match the resource relation, we cannot yield any results for this
 			// portion.
-			if refs.req.SubjectRelation.Namespace != refs.req.ResourceRelation.Namespace ||
-				refs.req.SubjectRelation.Relation != refs.req.ResourceRelation.Relation {
+			if refs.req.SubjectRelation.GetNamespace() != refs.req.ResourceRelation.GetNamespace() ||
+				refs.req.SubjectRelation.GetRelation() != refs.req.ResourceRelation.GetRelation() {
 				return cter.UncursoredEmpty[possibleResource]()
 			}
 
@@ -399,8 +399,8 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 				iter,
 				tracer,
 				otelconv.EventDispatchLR3UnlimitedResultsDirectSubjects,
-				attribute.String(otelconv.AttrDispatchSubjectType, refs.req.SubjectRelation.Namespace),
-				attribute.String(otelconv.AttrDispatchSubjectRelation, refs.req.SubjectRelation.Relation),
+				attribute.String(otelconv.AttrDispatchSubjectType, refs.req.SubjectRelation.GetNamespace()),
+				attribute.String(otelconv.AttrDispatchSubjectRelation, refs.req.SubjectRelation.GetRelation()),
 			)
 		},
 
@@ -464,15 +464,15 @@ func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[pos
 func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, refs lr3refs) ([]schema.ReachabilityEntrypoint, error) {
 	// The entrypoints for a particular subject relation to a resource relation are defined by the reachability
 	// graph, which is built from the type system definition.
-	vdef, err := refs.ts.GetValidatedDefinition(ctx, refs.req.ResourceRelation.Namespace)
+	vdef, err := refs.ts.GetValidatedDefinition(ctx, refs.req.ResourceRelation.GetNamespace())
 	if err != nil {
 		return nil, err
 	}
 
 	rg := vdef.Reachability()
 	return rg.FirstEntrypointsForSubjectToResource(ctx, &core.RelationReference{
-		Namespace: refs.req.SubjectRelation.Namespace,
-		Relation:  refs.req.SubjectRelation.Relation,
+		Namespace: refs.req.SubjectRelation.GetNamespace(),
+		Relation:  refs.req.SubjectRelation.GetRelation(),
 	}, refs.req.ResourceRelation)
 }
 
@@ -503,8 +503,8 @@ func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint sch
 		case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
 			containingRelation := entrypoint.ContainingRelationOrPermission()
 			rewrittenSubjectRelation := &core.RelationReference{
-				Namespace: containingRelation.Namespace,
-				Relation:  containingRelation.Relation,
+				Namespace: containingRelation.GetNamespace(),
+				Relation:  containingRelation.GetRelation(),
 			}
 
 			// Since this is a structural rewriting, the *entire set* of subject IDs is provided as the basis for
@@ -548,16 +548,16 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 		return cter.YieldsError[result](err)
 	}
 
-	relDefinition, err := refs.ts.GetValidatedDefinition(ctx, relationReference.Namespace)
+	relDefinition, err := refs.ts.GetValidatedDefinition(ctx, relationReference.GetNamespace())
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
 
 	// Build the list of subjects to lookup based on the type information available.
 	isDirectAllowed, err := relDefinition.IsAllowedDirectRelation(
-		relationReference.Relation,
-		refs.req.SubjectRelation.Namespace,
-		refs.req.SubjectRelation.Relation,
+		relationReference.GetRelation(),
+		refs.req.SubjectRelation.GetNamespace(),
+		refs.req.SubjectRelation.GetRelation(),
 	)
 	if err != nil {
 		return cter.YieldsError[result](err)
@@ -574,8 +574,8 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 	// If the subject relation is a terminal subject, check for a wildcard. For example,
 	// if the subject type is `user`, then `user:*` would also match any subjects of that
 	// type.
-	if refs.req.SubjectRelation.Relation == tuple.Ellipsis {
-		isWildcardAllowed, err := relDefinition.IsAllowedPublicNamespace(relationReference.Relation, refs.req.SubjectRelation.Namespace)
+	if refs.req.SubjectRelation.GetRelation() == tuple.Ellipsis {
+		isWildcardAllowed, err := relDefinition.IsAllowedPublicNamespace(relationReference.GetRelation(), refs.req.SubjectRelation.GetNamespace())
 		if err != nil {
 			return cter.YieldsError[result](err)
 		}
@@ -586,17 +586,17 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 	}
 
 	relationFilter := datastore.SubjectRelationFilter{
-		NonEllipsisRelation: refs.req.SubjectRelation.Relation,
+		NonEllipsisRelation: refs.req.SubjectRelation.GetRelation(),
 	}
 
-	if refs.req.SubjectRelation.Relation == tuple.Ellipsis {
+	if refs.req.SubjectRelation.GetRelation() == tuple.Ellipsis {
 		relationFilter = datastore.SubjectRelationFilter{
 			IncludeEllipsisRelation: true,
 		}
 	}
 
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType:        refs.req.SubjectRelation.Namespace,
+		SubjectType:        refs.req.SubjectRelation.GetNamespace(),
 		OptionalSubjectIds: subjectIds,
 		RelationFilter:     relationFilter,
 	}
@@ -620,7 +620,7 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 ) iter.Seq2[result, error] {
 	containingRelation := entrypoint.ContainingRelationOrPermission()
 
-	ttuDef, err := refs.ts.GetValidatedDefinition(ctx, containingRelation.Namespace)
+	ttuDef, err := refs.ts.GetValidatedDefinition(ctx, containingRelation.GetNamespace())
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
@@ -633,7 +633,7 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 	// Determine whether this TTU should be followed, which will be the case if the subject relation's namespace
 	// is allowed in any form on the relation; since arrows ignore the subject's relation (if any), we check
 	// for the subject namespace as a whole.
-	allowedRelations, err := ttuDef.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, refs.req.SubjectRelation.Namespace)
+	allowedRelations, err := ttuDef.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, refs.req.SubjectRelation.GetNamespace())
 	if err != nil {
 		return cter.YieldsError[result](err)
 	}
@@ -644,7 +644,7 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 
 	// Search for the resolved subjects in the tupleset of the TTU.
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType:        refs.req.SubjectRelation.Namespace,
+		SubjectType:        refs.req.SubjectRelation.GetNamespace(),
 		OptionalSubjectIds: refs.req.SubjectIds,
 	}
 
@@ -656,7 +656,7 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 	}
 
 	tuplesetRelationReference := &core.RelationReference{
-		Namespace: containingRelation.Namespace,
+		Namespace: containingRelation.GetNamespace(),
 		Relation:  tuplesetRelation,
 	}
 
@@ -755,13 +755,13 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					}
 
 					// Determine whether we need to fetch caveats and/or expiration.
-					vts, err := refs.ts.GetValidatedDefinition(ctx, config.sourceResourceType.Namespace)
+					vts, err := refs.ts.GetValidatedDefinition(ctx, config.sourceResourceType.GetNamespace())
 					if err != nil {
 						yieldError(err)
 						return
 					}
 
-					possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.Relation, config.subjectsFilter.SubjectType)
+					possibleTraits, err := vts.PossibleTraitsForSubject(config.sourceResourceType.GetRelation(), config.subjectsFilter.SubjectType)
 					if err != nil {
 						yieldError(err)
 						return
@@ -775,8 +775,8 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						ctx,
 						config.subjectsFilter,
 						options.WithResRelation(&options.ResourceRelation{
-							Namespace: config.sourceResourceType.Namespace,
-							Relation:  config.sourceResourceType.Relation,
+							Namespace: config.sourceResourceType.GetNamespace(),
+							Relation:  config.sourceResourceType.GetRelation(),
 						}),
 						options.WithSortForReverse(options.BySubject),
 						options.WithAfterForReverse(dbCursor),
@@ -800,7 +800,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 
 						// If a caveat exists on the relationship, run it and filter the results, marking those that have missing context.
 						var missingContextParameters []string
-						if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
+						if rel.OptionalCaveat != nil && rel.OptionalCaveat.GetCaveatName() != "" {
 							caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
 							runResult, err := refs.caveatRunner.RunCaveatExpression(ctx, caveatExpr, refs.req.Context.AsMap(), refs.reader, caveats.RunCaveatExpressionNoDebugging)
 							if err != nil {
@@ -935,7 +935,7 @@ func (crr *CursoredLookupResources3) dispatchIter(
 			TerminalSubject:  refs.req.TerminalSubject,
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     refs.req.Revision.String(),
-				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
+				DepthRemaining: refs.req.Metadata.GetDepthRemaining() - 1,
 			},
 			OptionalCursor: currentCursor,
 			OptionalLimit:  refs.req.OptionalLimit,
@@ -990,7 +990,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 		Subject:       tuple.FromCoreObjectAndRelation(refs.req.TerminalSubject),
 		CaveatContext: refs.req.Context.AsMap(),
 		AtRevision:    refs.req.Revision,
-		MaximumDepth:  refs.req.Metadata.DepthRemaining - 1,
+		MaximumDepth:  refs.req.Metadata.GetDepthRemaining() - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
 	}, resourceIDsToCheck, crr.dispatchChunkSize)
@@ -1006,7 +1006,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 			continue
 		}
 
-		switch result.Membership {
+		switch result.GetMembership() {
 		case v1.ResourceCheckResult_MEMBER:
 			// If the found resource is a member, we copy the relationships from the
 			// relationships chunk to the updated chunk, as this is a valid resource.
@@ -1015,7 +1015,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 		case v1.ResourceCheckResult_CAVEATED_MEMBER:
 			// If the found resource is a caveated member, we copy the relationships from the
 			// relationships chunk to the updated chunk, but also include the missing context parameters.
-			updatedChunk.copyRelationshipsFrom(rm, resourceID, result.MissingExprFields)
+			updatedChunk.copyRelationshipsFrom(rm, resourceID, result.GetMissingExprFields())
 
 		case v1.ResourceCheckResult_NOT_MEMBER:
 			// If the found resource is not a member, we do not include it in the updated chunk.
@@ -1023,7 +1023,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 			continue
 
 		default:
-			return nil, spiceerrors.MustBugf("unexpected result from check: %v", result.Membership)
+			return nil, spiceerrors.MustBugf("unexpected result from check: %v", result.GetMembership())
 		}
 	}
 
@@ -1078,11 +1078,11 @@ func (y *yieldingStream) Publish(resp *v1.DispatchLookupResources3Response) erro
 
 	// Map the possible resource from the response, which combines missing context parameters
 	// from the existing possible resource with that published.
-	for _, item := range resp.Items {
+	for _, item := range resp.GetItems() {
 		mappedPossibleResource, err := y.rm.mapPossibleResource(possibleResource{
-			resourceID:           item.ResourceId,
-			forSubjectIDs:        item.ForSubjectIds,
-			missingContextParams: item.MissingContextParams,
+			resourceID:           item.GetResourceId(),
+			forSubjectIDs:        item.GetForSubjectIds(),
+			missingContextParams: item.GetMissingContextParams(),
 		})
 		if err != nil {
 			return err
@@ -1090,7 +1090,7 @@ func (y *yieldingStream) Publish(resp *v1.DispatchLookupResources3Response) erro
 
 		if !y.yield(result{
 			Item:   mappedPossibleResource,
-			Cursor: item.AfterResponseCursorSections,
+			Cursor: item.GetAfterResponseCursorSections(),
 		}, nil) {
 			y.canceled = true
 			y.cancel()
@@ -1288,14 +1288,14 @@ func subjectIDsToRelationshipsChunk(
 		rel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: tuple.ObjectAndRelation{
-					ObjectType: rewrittenSubjectRelation.Namespace,
+					ObjectType: rewrittenSubjectRelation.GetNamespace(),
 					ObjectID:   subjectID,
-					Relation:   rewrittenSubjectRelation.Relation,
+					Relation:   rewrittenSubjectRelation.GetRelation(),
 				},
 				Subject: tuple.ObjectAndRelation{
-					ObjectType: subjectRelation.Namespace,
+					ObjectType: subjectRelation.GetNamespace(),
 					ObjectID:   subjectID,
-					Relation:   subjectRelation.Relation,
+					Relation:   subjectRelation.GetRelation(),
 				},
 			},
 		}

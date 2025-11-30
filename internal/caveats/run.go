@@ -133,12 +133,12 @@ func (cr *CaveatRunner) get(caveatDefName string) (*core.CaveatDefinition, *cave
 		return caveat, deserialized, nil
 	}
 
-	parameterTypes, err := caveattypes.DecodeParameterTypes(cr.caveatTypeSet, caveat.ParameterTypes)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(cr.caveatTypeSet, caveat.GetParameterTypes())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	justDeserialized, err := caveats.DeserializeCaveatWithTypeSet(cr.caveatTypeSet, caveat.SerializedExpression, parameterTypes)
+	justDeserialized, err := caveats.DeserializeCaveatWithTypeSet(cr.caveatTypeSet, caveat.GetSerializedExpression(), parameterTypes)
 	if err != nil {
 		return caveat, nil, err
 	}
@@ -149,12 +149,12 @@ func (cr *CaveatRunner) get(caveatDefName string) (*core.CaveatDefinition, *cave
 
 func collectCaveatNames(expr *core.CaveatExpression, caveatNames *mapz.Set[string]) {
 	if expr.GetCaveat() != nil {
-		caveatNames.Add(expr.GetCaveat().CaveatName)
+		caveatNames.Add(expr.GetCaveat().GetCaveatName())
 		return
 	}
 
 	cop := expr.GetOperation()
-	for _, child := range cop.Children {
+	for _, child := range cop.GetChildren() {
 		collectCaveatNames(child, caveatNames)
 	}
 }
@@ -170,9 +170,9 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 	defer span.End()
 
 	if expr.GetCaveat() != nil {
-		span.SetAttributes(attribute.StringSlice(otelconv.AttrCaveatsNames, []string{expr.GetCaveat().CaveatName}))
+		span.SetAttributes(attribute.StringSlice(otelconv.AttrCaveatsNames, []string{expr.GetCaveat().GetCaveatName()}))
 
-		caveat, compiled, err := cr.get(expr.GetCaveat().CaveatName)
+		caveat, compiled, err := cr.get(expr.GetCaveat().GetCaveatName())
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +190,7 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 		typedParameters, err := caveats.ConvertContextToParameters(
 			cr.caveatTypeSet,
 			untypedFullContext,
-			caveat.ParameterTypes,
+			caveat.GetParameterTypes(),
 			caveats.SkipUnknownParameters,
 		)
 		if err != nil {
@@ -211,16 +211,16 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 	}
 
 	cop := expr.GetOperation()
-	span.SetAttributes(attribute.StringSlice(otelconv.AttrCaveatsOperations, []string{cop.Op.String()}))
+	span.SetAttributes(attribute.StringSlice(otelconv.AttrCaveatsOperations, []string{cop.GetOp().String()}))
 
 	var currentResult ExpressionResult = syntheticResult{
-		value:           cop.Op == core.CaveatOperation_AND,
+		value:           cop.GetOp() == core.CaveatOperation_AND,
 		isPartialResult: false,
 	}
 
 	var exprResultsForDebug []ExpressionResult
 	if debugOption == RunCaveatExpressionWithDebugInformation {
-		exprResultsForDebug = make([]ExpressionResult, 0, len(cop.Children))
+		exprResultsForDebug = make([]ExpressionResult, 0, len(cop.GetChildren()))
 	}
 
 	var missingVarNames *mapz.Set[string]
@@ -313,7 +313,7 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 		}, nil
 	}
 
-	for _, child := range cop.Children {
+	for _, child := range cop.GetChildren() {
 		childResult, err := cr.runExpressionWithCaveats(ctx, env, child, context, debugOption)
 		if err != nil {
 			return nil, err
@@ -330,7 +330,7 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 			missingVarNames.Extend(missingVars)
 		}
 
-		switch cop.Op {
+		switch cop.GetOp() {
 		case core.CaveatOperation_AND:
 			cr, err := and(currentResult, childResult)
 			if err != nil {
@@ -357,7 +357,7 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 			return invert(childResult)
 
 		default:
-			return nil, spiceerrors.MustBugf("unknown caveat operation: %v", cop.Op)
+			return nil, spiceerrors.MustBugf("unknown caveat operation: %v", cop.GetOp())
 		}
 	}
 
