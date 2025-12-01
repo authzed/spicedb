@@ -1,6 +1,7 @@
 package query
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,11 +51,11 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		it := NewRelationIterator(baseRel)
 		est, err := stats.Cost(it)
 		require.NoError(t, err)
-		require.Equal(t, stats.DatastoreSize, est.Cardinality)
-		require.Equal(t, stats.DatastoreSize, est.CheckCost)
+		require.Equal(t, stats.NumberOfTuplesInRelation, est.Cardinality)
+		require.Equal(t, 1, est.CheckCost)
 		require.Equal(t, stats.CheckSelectivity, est.CheckSelectivity)
-		require.Equal(t, stats.DatastoreSize*stats.Fanout, est.IterResourcesCost)
-		require.Equal(t, stats.DatastoreSize*stats.Fanout, est.IterSubjectsCost)
+		require.Equal(t, stats.NumberOfTuplesInRelation*stats.Fanout, est.IterResourcesCost)
+		require.Equal(t, stats.NumberOfTuplesInRelation*stats.Fanout, est.IterSubjectsCost)
 	})
 
 	t.Run("Arrow", func(t *testing.T) {
@@ -118,9 +119,9 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		require.NoError(t, err)
 
 		// IntersectionArrow has reduced selectivity due to "all" semantics
-		// selectivity = left.CheckSelectivity * right.CheckSelectivity * IntersectionArrowReduction
-		// = 0.9 * 0.9 * 0.5 = 0.405
-		expectedSelectivity := 0.9 * 0.9 * 0.5
+		// selectivity = (left.CheckSelectivity ^ fanout) * right.CheckSelectivity
+		// = (0.9 ^ 5) * 0.9 = 0.5314
+		expectedSelectivity := math.Pow(0.9, 5.0) * 0.9
 		require.InDelta(t, expectedSelectivity, est.CheckSelectivity, 0.001)
 
 		// Cardinality: int(left.Cardinality * right.Cardinality * selectivity)
@@ -457,10 +458,9 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 	t.Run("custom datastore size", func(t *testing.T) {
 		t.Parallel()
 		stats := StaticStatistics{
-			DatastoreSize:              1000,
-			Fanout:                     10,
-			CheckSelectivity:           0.8,
-			IntersectionArrowReduction: 0.3,
+			NumberOfTuplesInRelation: 1000,
+			Fanout:                   10,
+			CheckSelectivity:         0.8,
 		}
 
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -474,10 +474,9 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 	t.Run("custom selectivity", func(t *testing.T) {
 		t.Parallel()
 		stats := StaticStatistics{
-			DatastoreSize:              10,
-			Fanout:                     5,
-			CheckSelectivity:           0.5,
-			IntersectionArrowReduction: 0.5,
+			NumberOfTuplesInRelation: 10,
+			Fanout:                   5,
+			CheckSelectivity:         0.5,
 		}
 
 		it := NewFixedIterator(
@@ -491,10 +490,9 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 	t.Run("custom intersection arrow reduction", func(t *testing.T) {
 		t.Parallel()
 		stats := StaticStatistics{
-			DatastoreSize:              10,
-			Fanout:                     5,
-			CheckSelectivity:           0.9,
-			IntersectionArrowReduction: 0.1, // Very selective
+			NumberOfTuplesInRelation: 10,
+			Fanout:                   5,
+			CheckSelectivity:         0.9,
 		}
 
 		left := NewFixedIterator(
@@ -507,7 +505,7 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 		est, err := stats.Cost(intersectionArrow)
 		require.NoError(t, err)
 
-		// selectivity = 0.9 * 0.9 * 0.1 = 0.081
-		require.InDelta(t, 0.081, est.CheckSelectivity, 0.001)
+		// selectivity = (0.9 ^ 5) * 0.9 = 0.531
+		require.InDelta(t, 0.531, est.CheckSelectivity, 0.001)
 	})
 }
