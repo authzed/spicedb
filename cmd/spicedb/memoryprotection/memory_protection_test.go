@@ -38,7 +38,7 @@ func TestBuildMemoryProtectionConfig(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			memoryUsageProvider := tc.config.MustBuildMemoryUsageProvider()
+			memoryUsageProvider := tc.config.BuildMemoryUsageProvider()
 			require.NotNil(t, memoryUsageProvider)
 			require.Equal(t, tc.expectedType, reflect.TypeOf(memoryUsageProvider).String())
 		})
