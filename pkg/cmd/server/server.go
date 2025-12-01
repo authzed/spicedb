@@ -56,6 +56,8 @@ import (
 // underlying hash for the ConsistentHashringBalancers it creates.
 var ConsistentHashringBuilder = consistent.NewBuilder(xxhash.Sum64)
 
+var DefaultMemoryUsageProvider memoryprotection.MemoryUsageProvider
+
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
 	// API config
@@ -409,7 +411,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
 	}
 
-	memoryUsageProvider := c.buildMemoryUsageProvider()
+	memoryUsageProvider := c.MustBuildMemoryUsageProvider()
 
 	opts := MiddlewareOption{
 		Logger:                    log.Logger,
@@ -576,9 +578,14 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}, nil
 }
 
-func (c *Config) buildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
+func (c *Config) MustBuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
 	if c.MemoryProtectionEnabled {
-		return memoryprotection.NewRealTimeMemoryUsageProvider()
+		if DefaultMemoryUsageProvider != nil {
+			return DefaultMemoryUsageProvider
+		}
+
+		log.Warn().Msg("memory protection is enabled, but no default is configured; falling back to using noop provider")
+		return memoryprotection.NewNoopMemoryUsageProvider()
 	}
 	return &memoryprotection.HarcodedMemoryLimitProvider{AcceptAllRequests: true}
 }

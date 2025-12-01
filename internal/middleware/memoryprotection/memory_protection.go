@@ -2,6 +2,7 @@ package memoryprotection
 
 import (
 	"context"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -34,6 +35,7 @@ func New(usageProvider MemoryUsageProvider, name string) *MemoryProtectionMiddle
 
 	log.Info().
 		Str("name", name).
+		Str("provider", reflect.TypeOf(usageProvider).String()).
 		Msg("memory protection middleware initialized")
 
 	return &am
