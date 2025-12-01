@@ -2,12 +2,18 @@ package query
 
 import (
 	"errors"
+	"math"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// Estimate represents the estimated cost and selectivity metrics for an iterator.
+// Estimate represents the estimated worst-case cost and selectivity metrics for an iterator.
 // These estimates are used by the query optimizer to make decisions about query plan structure.
+//
+// Costs are a completely made-up unit, relevant only to the source of the statistics. They are
+// not portable between different statistics sources, and are only comparable to each other.
+// However, something of zero-cost is rare (and often useless), so a good value for a cost is on the range
+// (1, MAXINT)
 type Estimate struct {
 	Cardinality int // Cardinality is the estimated number of results this iterator will produce.
 
@@ -40,9 +46,12 @@ type StatisticsSource interface {
 // StaticStatistics provides static cost estimates for iterators based on
 // configurable parameters. This is useful for basic query planning and
 // when dynamic statistics are not available.
+//
+// Costs are static for StaticStatistics -- we take the base cost of a check to be 1 tuple check.
+// For iterating subjects and resources, we take it to iterate all tuples for a given relation.
 type StaticStatistics struct {
-	// DatastoreSize is the assumed number of tuples in a relation.
-	DatastoreSize int
+	// NumberOfTuplesInRelation is the assumed number of tuples in any relation (a complete average).
+	NumberOfTuplesInRelation int
 
 	// Fanout is the assumed average number of subjects per resource or
 	// resources per subject.
@@ -51,19 +60,14 @@ type StaticStatistics struct {
 	// CheckSelectivity is the default probability (0.0-1.0) that a Check
 	// operation will return true.
 	CheckSelectivity float64
-
-	// IntersectionArrowReduction is an additional reduction factor for
-	// IntersectionArrow selectivity to account for "all subjects" semantics.
-	IntersectionArrowReduction float64
 }
 
 // DefaultStaticStatistics returns a StaticStatistics instance with default values
 func DefaultStaticStatistics() StaticStatistics {
 	return StaticStatistics{
-		DatastoreSize:              10,
-		Fanout:                     5,
-		CheckSelectivity:           0.9,
-		IntersectionArrowReduction: 0.5,
+		NumberOfTuplesInRelation: 10,
+		Fanout:                   5,
+		CheckSelectivity:         0.9,
 	}
 }
 
@@ -82,11 +86,11 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 		}, nil
 	case *RelationIterator:
 		return Estimate{
-			Cardinality:       s.DatastoreSize,
-			CheckCost:         s.DatastoreSize,
+			Cardinality:       s.NumberOfTuplesInRelation,
+			CheckCost:         1,
 			CheckSelectivity:  s.CheckSelectivity,
-			IterResourcesCost: s.DatastoreSize * s.Fanout,
-			IterSubjectsCost:  s.DatastoreSize * s.Fanout,
+			IterResourcesCost: s.NumberOfTuplesInRelation * s.Fanout,
+			IterSubjectsCost:  s.NumberOfTuplesInRelation * s.Fanout,
 		}, nil
 	case *Arrow:
 		ls, err := s.Cost(it.left)
@@ -97,9 +101,13 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 		if err != nil {
 			return Estimate{}, err
 		}
-		// Arrow does IterSubjects on left (ls.Cardinality iterations),
+		// Arrow currently does IterSubjects on left (ls.Cardinality iterations),
 		// then Check on right for each subject (rs.CheckCost per iteration)
+		// When we get to arrow inversion (ie, calculating which direction to iterate from)
+		// the optimizer pass will compare the costs here, set the flag on the iterator appropriately,
+		// which this function will read and return the improved cost.
 		return Estimate{
+			// Worst case, an arrow is the size of the cartesian product (full outer join) as we join the two subiterators.
 			Cardinality:       ls.Cardinality * rs.Cardinality,
 			CheckCost:         ls.IterSubjectsCost + (ls.Cardinality * rs.CheckCost),
 			CheckSelectivity:  ls.CheckSelectivity * rs.CheckSelectivity,
@@ -116,8 +124,8 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			return Estimate{}, err
 		}
 		// IntersectionArrow also does IterSubjects on left, then Check on right,
-		// but only yields results when ALL subjects satisfy (more selective)
-		selectivity := ls.CheckSelectivity * rs.CheckSelectivity * s.IntersectionArrowReduction // Additional reduction for "all" semantics
+		// but only yields results when ALL subjects satisfy (more selective), estimated based on the fanout from IterSubjects
+		selectivity := math.Pow(ls.CheckSelectivity, float64(s.Fanout)) * rs.CheckSelectivity
 		return Estimate{
 			Cardinality:       int(float64(ls.Cardinality*rs.Cardinality) * selectivity),
 			CheckCost:         ls.IterSubjectsCost + (ls.Cardinality * rs.CheckCost),
@@ -186,10 +194,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 
 		// Cardinality: main minus the excluded portion
 		// Approximate as: main.Cardinality * (1 - excluded.CheckSelectivity)
-		exclusionFactor := 1.0 - excludedEst.CheckSelectivity
-		if exclusionFactor < 0 {
-			exclusionFactor = 0
-		}
+		exclusionFactor := max(1.0-excludedEst.CheckSelectivity, 0)
 
 		return Estimate{
 			Cardinality:       int(float64(mainEst.Cardinality) * exclusionFactor),
