@@ -411,7 +411,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
 	}
 
-	memoryUsageProvider := c.MustBuildMemoryUsageProvider()
+	memoryUsageProvider := c.BuildMemoryUsageProvider()
 
 	opts := MiddlewareOption{
 		Logger:                    log.Logger,
@@ -578,7 +578,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}, nil
 }
 
-func (c *Config) MustBuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
+func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
 	if c.MemoryProtectionEnabled {
 		if DefaultMemoryUsageProvider != nil {
 			return DefaultMemoryUsageProvider
