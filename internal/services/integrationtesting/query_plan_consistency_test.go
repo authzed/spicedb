@@ -22,7 +22,7 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
-func TestQueryPlanConsistency(t *testing.T) {
+func TestQueryPlanConsistency(t *testing.T) { // nolint:tparallel
 	t.Parallel()
 	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
 	require.NoError(t, err)
@@ -30,7 +30,6 @@ func TestQueryPlanConsistency(t *testing.T) {
 		filePath := filePath
 
 		t.Run(filepath.Base(filePath), func(t *testing.T) {
-			t.Parallel()
 			runQueryPlanConsistencyForFile(t, filePath)
 		})
 	}
