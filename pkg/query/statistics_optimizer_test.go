@@ -33,7 +33,7 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 		require.Equal(t, union, result)
 	})
 
-	t.Run("reorder by selectivity", func(t *testing.T) {
+	t.Run("reorder by selectivity - no change when equal", func(t *testing.T) {
 		t.Parallel()
 		// Create a union with 3 items
 		// All FixedIterators have same selectivity (0.9)
@@ -49,11 +49,65 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 		)
 
 		union := NewUnion(sub1, sub2, sub3)
-		_, changed, err := optimizer.Optimize(union)
+		result, changed, err := optimizer.Optimize(union)
 		require.NoError(t, err)
 
 		// Since all have same selectivity, order shouldn't change
 		require.False(t, changed)
+		require.Equal(t, union, result)
+	})
+
+	t.Run("reorder by selectivity - reorders by different selectivities", func(t *testing.T) {
+		t.Parallel()
+		// Create a union where subiterators have different selectivities
+		// Unions prefer higher selectivity first (more likely to match)
+		// Intersections combine selectivity: product for intersection
+		// So create nested structures with different effective selectivities
+
+		// Create sub-queries with different selectivity through intersection
+		// Intersection multiplies selectivity, so more intersections = lower selectivity
+		base1 := NewFixedIterator(MustPathFromString("document:doc1#viewer@user:alice"))
+		base2 := NewFixedIterator(MustPathFromString("document:doc2#viewer@user:bob"))
+		base3 := NewFixedIterator(MustPathFromString("document:doc3#viewer@user:charlie"))
+
+		// Lower selectivity: intersection of 2 items (0.9 * 0.9 = 0.81)
+		lowSelect := NewIntersection(base1, base2)
+
+		// Higher selectivity: single item (0.9)
+		highSelect := base3
+
+		// Verify our selectivity assumptions
+		lowEst, err := stats.Cost(lowSelect)
+		require.NoError(t, err)
+		highEst, err := stats.Cost(highSelect)
+		require.NoError(t, err)
+		require.Less(t, lowEst.CheckSelectivity, highEst.CheckSelectivity,
+			"Low selectivity item should have lower selectivity than high selectivity item")
+
+		// Create union with low selectivity first (should be reordered)
+		union := NewUnion(lowSelect, highSelect)
+		result, changed, err := optimizer.Optimize(union)
+		require.NoError(t, err)
+
+		// Should have reordered to put higher selectivity first
+		require.True(t, changed, "Should reorder union to put higher selectivity first")
+
+		// Verify the order changed
+		resultUnion, ok := result.(*Union)
+		require.True(t, ok)
+		require.Equal(t, 2, len(resultUnion.subIts))
+
+		// First should be the higher selectivity item
+		require.Equal(t, highSelect, resultUnion.subIts[0])
+		require.Equal(t, lowSelect, resultUnion.subIts[1])
+
+		// Verify selectivity order in result
+		firstEst, err := stats.Cost(resultUnion.subIts[0])
+		require.NoError(t, err)
+		secondEst, err := stats.Cost(resultUnion.subIts[1])
+		require.NoError(t, err)
+		require.Greater(t, firstEst.CheckSelectivity, secondEst.CheckSelectivity,
+			"First item should have higher selectivity than second")
 	})
 
 	t.Run("single subiterator", func(t *testing.T) {
@@ -129,9 +183,10 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 		require.Equal(t, arrow, result)
 	})
 
-	t.Run("left nested arrow", func(t *testing.T) {
+	t.Run("left nested arrow - no rebalancing when costs equal", func(t *testing.T) {
 		t.Parallel()
-		// Create (A->B)->C
+		// Create (A->B)->C with equal cardinalities
+		// All single-path iterators result in equal costs for both arrangements
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
 		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
 		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
@@ -139,35 +194,45 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 		leftArrow := NewArrow(a, b)
 		originalArrow := NewArrow(leftArrow, c)
 
-		// Calculate costs
-		originalCost, err := stats.Cost(originalArrow)
+		result, changed, err := optimizer.Optimize(originalArrow)
 		require.NoError(t, err)
+		require.False(t, changed, "Should not rebalance when costs are equal")
+		require.Equal(t, originalArrow, result, "Result should be unchanged when no optimization occurs")
+	})
 
-		// Alternative: A->(B->C)
-		innerArrow := NewArrow(b, c)
-		alternative := NewArrow(a, innerArrow)
-		alternativeCost, err := stats.Cost(alternative)
+	t.Run("left nested arrow - rebalancing with deeper nesting", func(t *testing.T) {
+		t.Parallel()
+		// Create ((A->B)->C)->D
+		// This should rebalance to a cheaper structure
+		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
+		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
+		c := NewFixedIterator(MustPathFromString("folder:folder2#parent@folder:folder3"))
+		d := NewFixedIterator(MustPathFromString("folder:folder3#viewer@user:alice"))
+
+		ab := NewArrow(a, b)
+		abc := NewArrow(ab, c)
+		originalArrow := NewArrow(abc, d)
+
+		// Calculate original cost
+		originalCost, err := stats.Cost(originalArrow)
 		require.NoError(t, err)
 
 		result, changed, err := optimizer.Optimize(originalArrow)
 		require.NoError(t, err)
 
-		// Check if optimization occurred when expected
-		if alternativeCost.CheckCost < originalCost.CheckCost {
-			require.True(t, changed, "Should have rebalanced when alternative is cheaper")
-			// Verify structure
-			resultArrow, ok := result.(*Arrow)
-			require.True(t, ok)
-			_, isArrow := resultArrow.right.(*Arrow)
-			require.True(t, isArrow, "Right side should be an arrow after rebalancing")
-		} else {
-			require.False(t, changed, "Should not rebalance when original is cheaper or equal")
+		if changed {
+			// Verify the optimized result is actually cheaper
+			resultCost, err := stats.Cost(result)
+			require.NoError(t, err)
+			require.Less(t, resultCost.CheckCost, originalCost.CheckCost,
+				"Optimized structure should be cheaper than original")
 		}
 	})
 
-	t.Run("right nested arrow", func(t *testing.T) {
+	t.Run("right nested arrow - no rebalancing when costs equal", func(t *testing.T) {
 		t.Parallel()
-		// Create A->(B->C)
+		// Create A->(B->C) with equal cardinalities
+		// All single-path iterators result in equal costs for both arrangements
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
 		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
 		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
@@ -175,30 +240,10 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 		rightArrow := NewArrow(b, c)
 		originalArrow := NewArrow(a, rightArrow)
 
-		// Calculate costs
-		originalCost, err := stats.Cost(originalArrow)
-		require.NoError(t, err)
-
-		// Alternative: (A->B)->C
-		innerArrow := NewArrow(a, b)
-		alternative := NewArrow(innerArrow, c)
-		alternativeCost, err := stats.Cost(alternative)
-		require.NoError(t, err)
-
 		result, changed, err := optimizer.Optimize(originalArrow)
 		require.NoError(t, err)
-
-		// Check if optimization occurred when expected
-		if alternativeCost.CheckCost < originalCost.CheckCost {
-			require.True(t, changed, "Should have rebalanced when alternative is cheaper")
-			// Verify structure
-			resultArrow, ok := result.(*Arrow)
-			require.True(t, ok)
-			_, isArrow := resultArrow.left.(*Arrow)
-			require.True(t, isArrow, "Left side should be an arrow after rebalancing")
-		} else {
-			require.False(t, changed, "Should not rebalance when original is cheaper or equal")
-		}
+		require.False(t, changed, "Should not rebalance when costs are equal")
+		require.Equal(t, originalArrow, result, "Result should be unchanged when no optimization occurs")
 	})
 
 	t.Run("complex nested arrows", func(t *testing.T) {
@@ -239,9 +284,9 @@ func TestStatisticsOptimizer_RebalanceArrowThroughWrappers(t *testing.T) {
 	stats := DefaultStaticStatistics()
 	optimizer := StatisticsOptimizer{Source: stats}
 
-	t.Run("wrapped left arrow - alias", func(t *testing.T) {
+	t.Run("wrapped left arrow - alias - no rebalancing when costs equal", func(t *testing.T) {
 		t.Parallel()
-		// Create Alias(A->B)->C
+		// Create Alias(A->B)->C with equal cardinalities
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
 		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
 		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
@@ -252,60 +297,38 @@ func TestStatisticsOptimizer_RebalanceArrowThroughWrappers(t *testing.T) {
 
 		result, changed, err := optimizer.Optimize(outerArrow)
 		require.NoError(t, err)
-
-		// Verify result is valid
-		require.NotNil(t, result)
-
-		// If changed, verify structure is correct
-		if changed {
-			resultArrow, ok := result.(*Arrow)
-			require.True(t, ok, "Result should be an Arrow")
-
-			// The right side should be wrapped (possibly with alias)
-			require.NotNil(t, resultArrow.right)
-		}
+		require.False(t, changed, "Should not rebalance when costs are equal")
+		require.Equal(t, outerArrow, result, "Result should be unchanged when no optimization occurs")
 	})
 
-	t.Run("wrapped right arrow - caveat", func(t *testing.T) {
+	t.Run("wrapped right arrow - caveat - no rebalancing when costs equal", func(t *testing.T) {
 		t.Parallel()
-		// Create A->Caveat(B->C)
+		// Create A->Alias(B->C) with equal cardinalities
+		// Note: Using Alias as a proxy for caveat wrapper
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
 		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
 		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
 
 		innerArrow := NewArrow(b, c)
-		// Note: Creating a real CaveatIterator requires a caveat, so we'll use Alias as a proxy
 		wrappedArrow := NewAlias("caveated", innerArrow)
 		outerArrow := NewArrow(a, wrappedArrow)
 
 		result, changed, err := optimizer.Optimize(outerArrow)
 		require.NoError(t, err)
-
-		// Verify result is valid
-		require.NotNil(t, result)
-
-		// If changed, verify the structure
-		if changed {
-			resultArrow, ok := result.(*Arrow)
-			require.True(t, ok, "Result should be an Arrow")
-
-			// The left side should be wrapped (possibly with alias)
-			require.NotNil(t, resultArrow.left)
-		}
+		require.False(t, changed, "Should not rebalance when costs are equal")
+		require.Equal(t, outerArrow, result, "Result should be unchanged when no optimization occurs")
 	})
 
-	t.Run("caveat stays on correct branch", func(t *testing.T) {
+	t.Run("caveat stays on correct branch - no rebalancing when costs equal", func(t *testing.T) {
 		t.Parallel()
-		// Create a caveat that only applies to branch B
-		// Structure: Caveat(A->B)->C where caveat is on B
+		// Create Caveat(A->B)->C with equal cardinalities
 		baseRelB := schema.NewTestBaseRelationWithFeatures("folder", "viewer", "user", tuple.Ellipsis, "test_caveat", false)
 
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
-		b := NewRelationIterator(baseRelB) // This has the caveat
+		b := NewRelationIterator(baseRelB)
 		c := NewFixedIterator(MustPathFromString("user:alice#viewer@user:alice"))
 
 		innerArrow := NewArrow(a, b)
-		// Wrap with caveat (simulating the caveat being pushed down)
 		caveatIt := NewCaveatIterator(innerArrow, &core.ContextualizedCaveat{
 			CaveatName: "test_caveat",
 		})
@@ -313,30 +336,13 @@ func TestStatisticsOptimizer_RebalanceArrowThroughWrappers(t *testing.T) {
 
 		result, changed, err := optimizer.Optimize(outerArrow)
 		require.NoError(t, err)
-
-		// Verify result is valid
-		require.NotNil(t, result)
-
-		// If it rebalanced, the caveat should still be present somewhere
-		// The caveat should stay associated with branch B
-		if changed {
-			// Walk the result to ensure caveat is still present
-			foundCaveat := false
-			_, _ = Walk(result, func(node Iterator) (Iterator, error) {
-				if _, ok := node.(*CaveatIterator); ok {
-					foundCaveat = true
-				}
-				return node, nil
-			})
-			// If the structure changed, caveat should still be there
-			// (it might not be rebalanced if it's not cheaper, which is fine)
-			_ = foundCaveat
-		}
+		require.False(t, changed, "Should not rebalance when costs are equal")
+		require.Equal(t, outerArrow, result, "Result should be unchanged when no optimization occurs")
 	})
 
-	t.Run("double wrapped arrow", func(t *testing.T) {
+	t.Run("double wrapped arrow - no rebalancing when costs equal", func(t *testing.T) {
 		t.Parallel()
-		// Create Alias(Alias(A->B))->C
+		// Create Alias(Alias(A->B))->C with equal cardinalities
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
 		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
 		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
@@ -346,11 +352,10 @@ func TestStatisticsOptimizer_RebalanceArrowThroughWrappers(t *testing.T) {
 		alias2 := NewAlias("rel2", alias1)
 		outerArrow := NewArrow(alias2, c)
 
-		result, _, err := optimizer.Optimize(outerArrow)
+		result, changed, err := optimizer.Optimize(outerArrow)
 		require.NoError(t, err)
-
-		// Verify result is valid regardless of whether it changed
-		require.NotNil(t, result)
+		require.False(t, changed, "Should not rebalance when costs are equal")
+		require.Equal(t, outerArrow, result, "Result should be unchanged when no optimization occurs")
 	})
 }
 
