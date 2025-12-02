@@ -147,7 +147,7 @@ func TestBuildConnectionURI(t *testing.T) {
 			username: "root",
 			password: "rootpass",
 			database: "mydb",
-			expected: "mysql://root:rootpass@localhost:3306/mydb",
+			expected: "root:rootpass@tcp(localhost:3306)/mydb?parseTime=true",
 		},
 		{
 			name:     "mysql with default port",
@@ -157,7 +157,7 @@ func TestBuildConnectionURI(t *testing.T) {
 			username: "root",
 			password: "rootpass",
 			database: "mydb",
-			expected: "mysql://root:rootpass@localhost:3306/mydb",
+			expected: "root:rootpass@tcp(localhost:3306)/mydb?parseTime=true",
 		},
 		{
 			name:     "empty host returns empty",

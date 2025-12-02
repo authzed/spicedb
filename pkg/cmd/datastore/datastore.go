@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -394,19 +395,20 @@ func buildConnectionURI(engine, host, port, username, password, database string)
 	// Set default port based on engine if not provided
 	if port == "" {
 		switch engine {
-		case PostgresEngine, CockroachEngine:
+		case PostgresEngine:
 			port = "5432"
+		case CockroachEngine:
+			port = "26257"
 		case MySQLEngine:
 			port = "3306"
 		}
 	}
 
-	// URL encode credentials to handle special characters
-	encodedUsername := username
+	// URL encode credentials to handle special characters like @, :, /
+	encodedUsername := url.QueryEscape(username)
 	encodedPassword := ""
 	if password != "" {
-		// Note: we don't URL-encode here because the URL parsing libraries handle it
-		encodedPassword = ":" + password
+		encodedPassword = ":" + url.QueryEscape(password)
 	}
 
 	// Build URI based on engine type
@@ -415,16 +417,23 @@ func buildConnectionURI(engine, host, port, username, password, database string)
 		// Format: postgres://username:password@host:port/database
 		uri := fmt.Sprintf("postgres://%s%s@%s:%s", encodedUsername, encodedPassword, host, port)
 		if database != "" {
-			uri += "/" + database
+			uri += "/" + url.PathEscape(database)
 		}
 		return uri
 	case MySQLEngine:
-		// Format: mysql://username:password@host:port/database
-		uri := fmt.Sprintf("mysql://%s%s@%s:%s", encodedUsername, encodedPassword, host, port)
+		// MySQL uses DSN format: username:password@tcp(host:port)/database?parseTime=true
+		dsn := fmt.Sprintf("%s%s@tcp(%s:%s)", username, func() string {
+			if password != "" {
+				return ":" + password
+			}
+			return ""
+		}(), host, port)
 		if database != "" {
-			uri += "/" + database
+			dsn += "/" + database
 		}
-		return uri
+		// parseTime=true is required for MySQL to handle time.Time correctly
+		dsn += "?parseTime=true"
+		return dsn
 	default:
 		return ""
 	}
