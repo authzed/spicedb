@@ -79,7 +79,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 	case *FixedIterator:
 		return Estimate{
 			Cardinality:       len(it.paths),
-			CheckCost:         10,
+			CheckCost:         1,
 			CheckSelectivity:  s.CheckSelectivity,
 			IterResourcesCost: len(it.paths),
 			IterSubjectsCost:  len(it.paths),
@@ -149,9 +149,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			result.CheckCost += est.CheckCost
 			result.IterResourcesCost += est.IterResourcesCost
 			result.IterSubjectsCost += est.IterSubjectsCost
-			if est.CheckSelectivity > result.CheckSelectivity {
-				result.CheckSelectivity = est.CheckSelectivity
-			}
+			result.CheckSelectivity = max(est.CheckSelectivity, result.CheckSelectivity)
 		}
 		return result, nil
 	case *Intersection:
@@ -161,19 +159,13 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 
 		// Intersection: costs add up, but cardinality decreases with each iterator
 		result := Estimate{CheckSelectivity: 1}
-		for idx, subIt := range it.subIts {
+		for _, subIt := range it.subIts {
 			est, err := s.Cost(subIt)
 			if err != nil {
 				return Estimate{}, err
 			}
 
-			if idx == 0 {
-				result.Cardinality = est.Cardinality
-			} else {
-				// Each subsequent intersection filters down the results
-				result.Cardinality = int(float64(result.Cardinality) * est.CheckSelectivity)
-			}
-
+			result.Cardinality += est.Cardinality
 			result.CheckCost += est.CheckCost
 			result.IterResourcesCost += est.IterResourcesCost
 			result.IterSubjectsCost += est.IterSubjectsCost

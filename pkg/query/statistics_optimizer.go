@@ -209,8 +209,8 @@ func (s StatisticsOptimizer) tryRebalance(original *Arrow, nestedArrow *Arrow, w
 	return nil, false, nil
 }
 
-// subWithCost pairs an iterator with its selectivity for sorting.
-type subWithCost struct {
+// iteratorWithSelectivity pairs an iterator with its selectivity for sorting.
+type iteratorWithSelectivity struct {
 	iterator    Iterator
 	selectivity float64
 }
@@ -224,20 +224,20 @@ func (s StatisticsOptimizer) reorderBySelectivity(subs []Iterator, ascending boo
 	}
 
 	// Get cost estimates for each subiterator
-	subsWithCost := make([]subWithCost, len(subs))
+	subsWithCost := make([]iteratorWithSelectivity, len(subs))
 	for i, sub := range subs {
 		est, err := s.Source.Cost(sub)
 		if err != nil {
 			return nil, false, err
 		}
-		subsWithCost[i] = subWithCost{
+		subsWithCost[i] = iteratorWithSelectivity{
 			iterator:    sub,
 			selectivity: est.CheckSelectivity,
 		}
 	}
 
 	// Sort by selectivity
-	slices.SortFunc(subsWithCost, func(a, b subWithCost) int {
+	slices.SortFunc(subsWithCost, func(a, b iteratorWithSelectivity) int {
 		result := cmp.Compare(a.selectivity, b.selectivity)
 		if !ascending {
 			result = -result // Reverse for descending order
