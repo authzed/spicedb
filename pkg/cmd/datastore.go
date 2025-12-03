@@ -60,37 +60,41 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 		Long:    "Executes garbage collection against the datastore. Deletes stale relationships, expired relationships, and stale transactions.",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
-
-			// Disable background GC and hedging.
-			cfg.GCInterval = -1 * time.Hour
-			cfg.RequestHedgingEnabled = false
-
-			ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
-			if err != nil {
-				return fmt.Errorf("failed to create datastore: %w", err)
-			}
-			defer ds.Close()
-
-			gcds := dspkg.UnwrapAs[common.GarbageCollectableDatastore](ds)
-			if gcds == nil {
-				return fmt.Errorf("datastore of type %T does not support garbage collection", ds)
-			}
-
-			log.Ctx(ctx).Info().
-				Float64("gc_window_seconds", cfg.GCWindow.Seconds()).
-				Float64("gc_max_operation_time_seconds", cfg.GCMaxOperationTime.Seconds()).
-				Msg("Running garbage collection...")
-
-			err = common.RunGarbageCollection(gcds, cfg.GCWindow, cfg.GCMaxOperationTime)
-			if err != nil {
-				return err
-			}
-
-			log.Ctx(ctx).Info().Msg("Garbage collection completed")
-			return nil
+			return executeGC(cfg)
 		}),
 	}
+}
+
+func executeGC(cfg *datastore.Config) error {
+	ctx := context.Background()
+
+	// Disable background GC and hedging.
+	cfg.GCInterval = -1 * time.Hour
+	cfg.RequestHedgingEnabled = false
+
+	ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
+	if err != nil {
+		return fmt.Errorf("failed to create datastore: %w", err)
+	}
+	defer ds.Close()
+
+	gcds := dspkg.UnwrapAs[common.GarbageCollectableDatastore](ds)
+	if gcds == nil {
+		return fmt.Errorf("datastore of type '%s' does not support garbage collection", cfg.Engine)
+	}
+
+	log.Ctx(ctx).Info().
+		Float64("gc_window_seconds", cfg.GCWindow.Seconds()).
+		Float64("gc_max_operation_time_seconds", cfg.GCMaxOperationTime.Seconds()).
+		Msg("Running garbage collection...")
+
+	err = common.RunGarbageCollection(gcds, cfg.GCWindow, cfg.GCMaxOperationTime)
+	if err != nil {
+		return err
+	}
+
+	log.Ctx(ctx).Info().Msg("Garbage collection completed")
+	return nil
 }
 
 func NewRepairDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Command {
@@ -100,42 +104,46 @@ func NewRepairDatastoreCommand(programName string, cfg *datastore.Config) *cobra
 		Long:    "Executes a repair operation for the datastore",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
-
-			// Disable background GC and hedging.
-			cfg.GCInterval = -1 * time.Hour
-			cfg.RequestHedgingEnabled = false
-
-			ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
-			if err != nil {
-				return fmt.Errorf("failed to create datastore: %w", err)
-			}
-			defer ds.Close()
-
-			repairable := dspkg.UnwrapAs[dspkg.RepairableDatastore](ds)
-			if repairable == nil {
-				return fmt.Errorf("datastore of type %T does not support the repair operation", ds)
-			}
-
-			if len(args) == 0 {
-				fmt.Println()
-				fmt.Println("Available repair operations:")
-				for _, op := range repairable.RepairOperations() {
-					fmt.Printf("\t%s: %s\n", op.Name, op.Description)
-				}
-				return nil
-			}
-
-			operationName := args[0]
-
-			log.Ctx(ctx).Info().Msg("Running repair...")
-			err = repairable.Repair(ctx, operationName, true)
-			if err != nil {
-				return err
-			}
-
-			log.Ctx(ctx).Info().Msg("Datastore repair completed")
-			return nil
+			return executeRepair(cfg, args)
 		}),
 	}
+}
+
+func executeRepair(cfg *datastore.Config, args []string) error {
+	ctx := context.Background()
+
+	// Disable background GC and hedging.
+	cfg.GCInterval = -1 * time.Hour
+	cfg.RequestHedgingEnabled = false
+
+	ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
+	if err != nil {
+		return fmt.Errorf("failed to create datastore: %w", err)
+	}
+	defer ds.Close()
+
+	repairable := dspkg.UnwrapAs[dspkg.RepairableDatastore](ds)
+	if repairable == nil {
+		return fmt.Errorf("datastore of type '%s' does not support the repair operation", cfg.Engine)
+	}
+
+	if len(args) == 0 {
+		fmt.Println()
+		fmt.Println("Available repair operations:")
+		for _, op := range repairable.RepairOperations() {
+			fmt.Printf("\t%s: %s\n", op.Name, op.Description)
+		}
+		return nil
+	}
+
+	operationName := args[0]
+
+	log.Ctx(ctx).Info().Msg("Running repair...")
+	err = repairable.Repair(ctx, operationName, true)
+	if err != nil {
+		return err
+	}
+
+	log.Ctx(ctx).Info().Msg("Datastore repair completed")
+	return nil
 }
