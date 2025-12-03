@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb/e2e
 
-go 1.25.3
+go 1.25.5
 
 // See: https://github.com/envoyproxy/go-control-plane/issues/1074
 replace github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.13.2
@@ -59,7 +59,6 @@ require (
 	github.com/jzelinskie/stringz v0.0.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/odigos-io/go-rtml v0.0.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.23.4 // indirect
 	github.com/onsi/gomega v1.38.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240917153116-6f2963f01587 // indirect
