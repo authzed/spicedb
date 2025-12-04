@@ -356,7 +356,7 @@ func (mds *Datastore) ReadWriteTx(
 	for i := uint8(0); i <= mds.maxRetries; i++ {
 		var newTxnID uint64
 		if err = migrations.BeginTxFunc(ctx, mds.db, &sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sql.Tx) error {
-			var metadata map[string]any
+			var metadata common.TransactionMetadata
 			if config.Metadata != nil {
 				metadata = config.Metadata.AsMap()
 			}

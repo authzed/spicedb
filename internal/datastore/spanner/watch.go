@@ -174,7 +174,7 @@ func (sd *spannerDatastore) watch(
 	}
 	defer reader.Close()
 
-	metadataForTransactionTag := xsync.Map[string, TransactionMetadata]{}
+	metadataForTransactionTag := xsync.Map[string, common.TransactionMetadata]{}
 
 	addMetadataForTransactionTag := func(ctx context.Context, tracked *common.Changes[revisions.TimestampRevision, int64], revision revisions.TimestampRevision, transactionTag string) error {
 		if metadata, ok := metadataForTransactionTag.Load(transactionTag); ok {

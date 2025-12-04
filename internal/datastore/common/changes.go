@@ -3,14 +3,13 @@ package common
 import (
 	"context"
 	"maps"
-	"reflect"
 	"slices"
 	"sort"
+	"sync"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -24,8 +23,10 @@ const (
 
 // Changes represents a set of datastore mutations that are kept self-consistent
 // across one or more transaction revisions.
+// It is thread-safe.
 type Changes[R datastore.Revision, K comparable] struct {
-	records         map[K]changeRecord[R]
+	recordsMutex    sync.RWMutex
+	records         map[K]changeRecord[R] // GUARDED_BY(recordsMutex)
 	keyFunc         func(R) K
 	content         datastore.WatchContent
 	maxByteSize     uint64
@@ -39,12 +40,7 @@ type changeRecord[R datastore.Revision] struct {
 	definitionsChanged map[string]datastore.SchemaDefinition
 	namespacesDeleted  map[string]struct{}
 	caveatsDeleted     map[string]struct{}
-	metadatas          []map[string]any
-}
-
-// equalMetadata compares two metadata maps for deep equality
-func equalMetadata(a, b map[string]any) bool {
-	return reflect.DeepEqual(a, b)
+	metadatas          []TransactionMetadata
 }
 
 // NewChanges creates a new Changes object for change tracking and de-duplication.
@@ -60,6 +56,9 @@ func NewChanges[R datastore.Revision, K comparable](keyFunc func(R) K, content d
 
 // IsEmpty returns if the change set is empty.
 func (ch *Changes[R, K]) IsEmpty() bool {
+	ch.recordsMutex.RLock()
+	defer ch.recordsMutex.RUnlock()
+
 	return len(ch.records) == 0
 }
 
@@ -74,10 +73,10 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 		return nil
 	}
 
-	record, err := ch.recordForRevision(rev)
-	if err != nil {
-		return err
-	}
+	ch.recordsMutex.Lock()
+	defer ch.recordsMutex.Unlock()
+
+	record := ch.recordForRevision(rev)
 
 	key := tuple.StringWithoutCaveatOrExpiration(rel)
 
@@ -141,19 +140,19 @@ func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
 }
 
 // AddRevisionMetadata adds the metadata for the given revision.
-func (ch *Changes[R, K]) AddRevisionMetadata(ctx context.Context, rev R, metadata map[string]any) error {
-	if len(metadata) == 0 {
+func (ch *Changes[R, K]) AddRevisionMetadata(ctx context.Context, rev R, metadata TransactionMetadata) error {
+	if metadata.Len() == 0 {
 		return nil
 	}
 
-	record, err := ch.recordForRevision(rev)
-	if err != nil {
-		return err
-	}
+	ch.recordsMutex.Lock()
+	defer ch.recordsMutex.Unlock()
+
+	record := ch.recordForRevision(rev)
 
 	// Check if the metadata already exists on the record.
 	for _, existingMetadata := range record.metadatas {
-		if equalMetadata(existingMetadata, metadata) {
+		if existingMetadata.Equals(metadata) {
 			return nil
 		}
 	}
@@ -163,7 +162,8 @@ func (ch *Changes[R, K]) AddRevisionMetadata(ctx context.Context, rev R, metadat
 	return nil
 }
 
-func (ch *Changes[R, K]) recordForRevision(rev R) (changeRecord[R], error) {
+// NOTE assumes that the mutex has been acquired.
+func (ch *Changes[R, K]) recordForRevision(rev R) changeRecord[R] {
 	k := ch.keyFunc(rev)
 	revisionChanges, ok := ch.records[k]
 	if !ok {
@@ -174,12 +174,12 @@ func (ch *Changes[R, K]) recordForRevision(rev R) (changeRecord[R], error) {
 			make(map[string]datastore.SchemaDefinition),
 			make(map[string]struct{}),
 			make(map[string]struct{}),
-			make([]map[string]any, 0),
+			make([]TransactionMetadata, 0),
 		}
 		ch.records[k] = revisionChanges
 	}
 
-	return revisionChanges, nil
+	return revisionChanges
 }
 
 // AddDeletedNamespace adds a change indicating that the namespace with the name was deleted.
@@ -192,10 +192,10 @@ func (ch *Changes[R, K]) AddDeletedNamespace(
 		return nil
 	}
 
-	record, err := ch.recordForRevision(rev)
-	if err != nil {
-		return err
-	}
+	ch.recordsMutex.Lock()
+	defer ch.recordsMutex.Unlock()
+
+	record := ch.recordForRevision(rev)
 
 	// if a delete happens in the same transaction as a change, we assume it was a change in the first place
 	// because that's how namespace changes are implemented in the MVCC
@@ -218,10 +218,10 @@ func (ch *Changes[R, K]) AddDeletedCaveat(
 		return nil
 	}
 
-	record, err := ch.recordForRevision(rev)
-	if err != nil {
-		return err
-	}
+	ch.recordsMutex.Lock()
+	defer ch.recordsMutex.Unlock()
+
+	record := ch.recordForRevision(rev)
 
 	// if a delete happens in the same transaction as a change, we assume it was a change in the first place
 	// because that's how namespace changes are implemented in the MVCC
@@ -245,10 +245,10 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 		return nil
 	}
 
-	record, err := ch.recordForRevision(rev)
-	if err != nil {
-		return err
-	}
+	ch.recordsMutex.Lock()
+	defer ch.recordsMutex.Unlock()
+
+	record := ch.recordForRevision(rev)
 
 	switch t := def.(type) {
 	case *core.NamespaceDefinition:
@@ -282,7 +282,7 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 		}
 
 	default:
-		log.Ctx(ctx).Fatal().Msg("unknown schema definition kind")
+		return spiceerrors.MustBugf("unknown schema definition kind")
 	}
 
 	return nil
@@ -290,7 +290,7 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
-func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) ([]datastore.RevisionChanges, error) {
+func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs K, rhs K) bool) ([]datastore.RevisionChanges, error) {
 	return ch.revisionChanges(lessThanFunc, *new(R), false)
 }
 
@@ -306,17 +306,19 @@ func (ch *Changes[R, K]) FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, r
 	return changes, nil
 }
 
-func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R, withBound bool) ([]datastore.RevisionChanges, error) {
+func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs K, rhs K) bool, boundRev R, withBound bool) ([]datastore.RevisionChanges, error) {
 	if ch.IsEmpty() {
 		return nil, nil
 	}
 
+	ch.recordsMutex.RLock()
 	revisionsWithChanges := make([]K, 0, len(ch.records))
 	for rk, cr := range ch.records {
 		if !withBound || boundRev.GreaterThan(cr.rev) {
 			revisionsWithChanges = append(revisionsWithChanges, rk)
 		}
 	}
+	ch.recordsMutex.RUnlock()
 
 	if len(revisionsWithChanges) == 0 {
 		return nil, nil
@@ -327,6 +329,10 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 	})
 
 	changes := make([]datastore.RevisionChanges, len(revisionsWithChanges))
+
+	ch.recordsMutex.RLock()
+	defer ch.recordsMutex.RUnlock()
+
 	for i, k := range revisionsWithChanges {
 		revisionChangeRecord := ch.records[k]
 		changes[i].Revision = revisionChangeRecord.rev
@@ -343,11 +349,7 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 		if len(revisionChangeRecord.metadatas) > 0 {
 			metadatas := make([]*structpb.Struct, 0, len(revisionChangeRecord.metadatas))
 			for _, metadata := range revisionChangeRecord.metadatas {
-				structpbMetadata, err := structpb.NewStruct(metadata)
-				if err != nil {
-					return nil, spiceerrors.MustBugf("failed to convert metadata to structpb: %v", err)
-				}
-				metadatas = append(metadatas, structpbMetadata)
+				metadatas = append(metadatas, metadata.MustStruct())
 			}
 
 			changes[i].Metadatas = metadatas
@@ -358,6 +360,9 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 }
 
 func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) {
+	ch.recordsMutex.Lock()
+	defer ch.recordsMutex.Unlock()
+
 	for rk, cr := range ch.records {
 		if boundRev.GreaterThan(cr.rev) {
 			delete(ch.records, rk)
