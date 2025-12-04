@@ -305,17 +305,25 @@ func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transac
 	row, err := sd.client.Single().ReadRow(ctx, tableTransactionMetadata, spanner.Key{transactionTag}, []string{colMetadata})
 	if err != nil {
 		if spanner.ErrCode(err) == codes.NotFound {
+			log.Err(err).Str("key", transactionTag).Send()
 			return map[string]any{}, nil
 		}
 
 		return nil, err
 	}
 
-	var metadata map[string]any
-	if err := row.Columns(&metadata); err != nil {
-		return nil, err
+	var metadataJSON spanner.NullJSON
+	if err := row.Columns(&metadataJSON); err != nil {
+		log.Err(err).Str("key", transactionTag).Msg("error unmarshaling transaction metadata json")
+		return map[string]any{}, nil
 	}
 
+	if !metadataJSON.Valid || metadataJSON.Value == nil {
+		log.Err(err).Str("key", transactionTag).Msg("error validating transaction metadata json")
+		return map[string]any{}, nil
+	}
+
+	metadata := metadataJSON.Value.(map[string]any)
 	return metadata, nil
 }
 
@@ -326,6 +334,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 	defer span.End()
 
 	transactionTag := "sdb-rwt-" + uuid.NewString()
+	transactionTag = transactionTag[:36] // there is a column constraint on the length
 
 	ctx, cancel := context.WithCancel(ctx)
 	rs, err := sd.client.ReadWriteTransactionWithOptions(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
@@ -337,7 +346,10 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 			// Insert the metadata into the transaction metadata table.
 			mutation := spanner.Insert(tableTransactionMetadata,
 				[]string{colTransactionTag, colMetadata},
-				[]any{transactionTag, config.Metadata.AsMap()},
+				[]any{transactionTag, spanner.NullJSON{
+					Value: config.Metadata.AsMap(),
+					Valid: true,
+				}},
 			)
 
 			if err := spannerRWT.BufferWrite([]*spanner.Mutation{mutation}); err != nil {
