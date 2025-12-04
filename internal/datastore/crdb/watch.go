@@ -64,7 +64,7 @@ type changeDetails struct {
 		IntegrityHashAsHex *string `json:"integrity_hash"`
 		TimestampAsString  *string `json:"timestamp"`
 
-		Metadata map[string]any `json:"metadata"`
+		Metadata common.TransactionMetadata `json:"metadata"`
 	}
 }
 
@@ -232,7 +232,7 @@ type changeTracker[R datastore.Revision, K comparable] interface {
 	AddChangedDefinition(ctx context.Context, rev R, def datastore.SchemaDefinition) error
 	AddDeletedNamespace(ctx context.Context, rev R, namespaceName string) error
 	AddDeletedCaveat(ctx context.Context, rev R, caveatName string) error
-	AddRevisionMetadata(ctx context.Context, rev R, metadata map[string]any) error
+	AddRevisionMetadata(ctx context.Context, rev R, metadata common.TransactionMetadata) error
 }
 
 // streamingChangeProvider is a changeTracker that streams changes as they are processed. Instead of accumulating
@@ -312,7 +312,7 @@ func (s streamingChangeProvider) AddDeletedCaveat(_ context.Context, rev revisio
 	return s.sendChange(changes)
 }
 
-func (s streamingChangeProvider) AddRevisionMetadata(_ context.Context, rev revisions.HLCRevision, metadata map[string]any) error {
+func (s streamingChangeProvider) AddRevisionMetadata(_ context.Context, rev revisions.HLCRevision, metadata common.TransactionMetadata) error {
 	if len(metadata) > 0 {
 		parsedMetadata, err := structpb.NewStruct(metadata)
 		if err != nil {

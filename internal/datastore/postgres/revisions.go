@@ -12,6 +12,7 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 
+	dscommon "github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -320,7 +321,7 @@ type postgresRevision struct {
 	snapshot               pgSnapshot
 	optionalTxID           xid8
 	optionalNanosTimestamp uint64
-	optionalMetadata       map[string]any
+	optionalMetadata       dscommon.TransactionMetadata
 }
 
 func (pr postgresRevision) ByteSortable() bool {
