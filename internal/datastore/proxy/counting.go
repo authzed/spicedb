@@ -119,6 +119,30 @@ func NewCountingDatastoreProxy(d datastore.ReadOnlyDatastore) (datastore.ReadOnl
 	}, counts
 }
 
+// NewCountingDatastoreProxyForDatastore wraps a full Datastore with counting proxy.
+// Like NewCountingDatastoreProxy, but returns a full Datastore interface for use with middleware.
+// The ReadWriteTx method is passed through without counting (only Reader methods are counted).
+func NewCountingDatastoreProxyForDatastore(d datastore.Datastore) (datastore.Datastore, *DatastoreReaderMethodCounts) {
+	counts := &DatastoreReaderMethodCounts{}
+	return &countingDatastoreProxy{
+		countingProxy: countingProxy{
+			delegate: d,
+			counts:   counts,
+		},
+		fullDatastore: d,
+	}, counts
+}
+
+type countingDatastoreProxy struct {
+	countingProxy
+	fullDatastore datastore.Datastore
+}
+
+// ReadWriteTx delegates to the underlying full datastore
+func (p *countingDatastoreProxy) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
+	return p.fullDatastore.ReadWriteTx(ctx, fn, opts...)
+}
+
 type countingProxy struct {
 	delegate datastore.ReadOnlyDatastore
 	counts   *DatastoreReaderMethodCounts
@@ -241,5 +265,6 @@ func (r *countingReader) LookupCounters(ctx context.Context) ([]datastore.Relati
 // Type assertions
 var (
 	_ datastore.ReadOnlyDatastore = (*countingProxy)(nil)
+	_ datastore.Datastore         = (*countingDatastoreProxy)(nil)
 	_ datastore.Reader            = (*countingReader)(nil)
 )
