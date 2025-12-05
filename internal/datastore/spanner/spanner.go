@@ -7,7 +7,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -95,8 +94,7 @@ type spannerDatastore struct {
 	database string
 	schema   common.SchemaInformation
 
-	cachedEstimatedBytesPerRelationshipLock sync.RWMutex
-	cachedEstimatedBytesPerRelationship     uint64 // GUARDED_BY(cachedEstimatedBytesPerRelationshipLock)
+	cachedEstimatedBytesPerRelationship atomic.Uint64
 
 	tableSizesStatsTable string
 	filterMaximumIDCount uint16
@@ -234,18 +232,17 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.Timestamp,
 		},
-		MigrationValidator:                      common.NewMigrationValidator(headMigration, config.allowedMigrations),
-		client:                                  client,
-		config:                                  config,
-		database:                                database,
-		watchBufferWriteTimeout:                 config.watchBufferWriteTimeout,
-		watchBufferLength:                       config.watchBufferLength,
-		watchEnabled:                            !config.watchDisabled,
-		cachedEstimatedBytesPerRelationship:     0,
-		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
-		tableSizesStatsTable:                    tableSizesStatsTable,
-		filterMaximumIDCount:                    config.filterMaximumIDCount,
-		schema:                                  *schema,
+		MigrationValidator:                  common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		client:                              client,
+		config:                              config,
+		database:                            database,
+		watchBufferWriteTimeout:             config.watchBufferWriteTimeout,
+		watchBufferLength:                   config.watchBufferLength,
+		watchEnabled:                        !config.watchDisabled,
+		cachedEstimatedBytesPerRelationship: atomic.Uint64{},
+		tableSizesStatsTable:                tableSizesStatsTable,
+		filterMaximumIDCount:                config.filterMaximumIDCount,
+		schema:                              *schema,
 	}
 	// Optimized revision and revision checking use a stale read for the
 	// current timestamp.
