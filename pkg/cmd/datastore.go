@@ -77,7 +77,12 @@ func executeGC(ctx context.Context, cfg *datastore.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create datastore: %w", err)
 	}
-	defer ds.Close()
+	defer func() {
+		err = ds.Close()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to close datastore")
+		}
+	}()
 
 	gcds := dspkg.UnwrapAs[common.GarbageCollectableDatastore](ds)
 	if gcds == nil {
@@ -121,7 +126,12 @@ func executeRepair(cfg *datastore.Config, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create datastore: %w", err)
 	}
-	defer ds.Close()
+	defer func() {
+		err = ds.Close()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to close datastore")
+		}
+	}()
 
 	repairable := dspkg.UnwrapAs[dspkg.RepairableDatastore](ds)
 	if repairable == nil {

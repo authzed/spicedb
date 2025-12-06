@@ -465,7 +465,10 @@ func (cds *crdbDatastore) Close() error {
 	cds.readPool.Close()
 	cds.writePool.Close()
 	for _, collector := range cds.collectors {
-		_ = prometheus.Unregister(collector)
+		ok := prometheus.Unregister(collector)
+		if !ok {
+			return errors.New("could not unregister collector for CRDB datastore")
+		}
 	}
 	return nil
 }
@@ -644,7 +647,7 @@ func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats boo
 	})
 
 	if err := prometheus.Register(readCollector); err != nil {
-		return err
+		return fmt.Errorf("failed to register prometheus read collector: %w", err)
 	}
 	cds.collectors = append(cds.collectors, readCollector)
 
@@ -654,7 +657,7 @@ func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats boo
 	})
 
 	if err := prometheus.Register(writeCollector); err != nil {
-		return err
+		return fmt.Errorf("failed to register prometheus write collector: %w", err)
 	}
 	cds.collectors = append(cds.collectors, writeCollector)
 

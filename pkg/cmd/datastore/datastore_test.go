@@ -23,6 +23,9 @@ func TestLoadDatastoreFromFileContents(t *testing.T) {
 		SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition user{}")}),
 		WithEngine(MemoryEngine))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
@@ -44,6 +47,9 @@ func TestLoadDatastoreFromFile(t *testing.T) {
 		SetBootstrapFiles([]string{file.Name()}),
 		WithEngine(MemoryEngine))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
