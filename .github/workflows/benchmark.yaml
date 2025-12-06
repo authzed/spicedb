@@ -14,11 +14,11 @@ jobs:
     runs-on: "depot-ubuntu-24.04-4"
     timeout-minutes: 15
     steps:
-      - uses: "actions/checkout@v5.0.0"
+      - uses: "actions/checkout@v6"
         with:
           fetch-depth: 0
 
-      - uses: "actions/setup-go@v6.0.0"
+      - uses: "actions/setup-go@v6.1.0"
         with:
           go-version-file: "./go.mod"
           cache-dependency-path: "./go.sum"
