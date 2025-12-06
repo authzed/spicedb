@@ -131,13 +131,13 @@ func parsePercent(str string, freeMem uint64) (uint64, error) {
 
 // MustRegisterCacheFlags registers flags used to configure SpiceDB's various
 // caches.
-func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix string, config, defaults *CacheConfig) {
+func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription string, config, defaults *CacheConfig) {
 	config.Name = defaults.Name
 	flagPrefix = cmp.Or(flagPrefix, "cache")
-	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound cache size in bytes or percent of available memory")
-	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", defaults.NumCounters, "number of TinyLFU samples to track. A higher number means more accurate eviction decisions but more memory usage")
-	flags.BoolVar(&config.Metrics, flagPrefix+"-metrics", defaults.Metrics, "enable cache metrics")
-	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaults.Enabled, "enable caching")
+	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound (in bytes or as a percent of available memory) of the cache for "+flagDescription)
+	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", defaults.NumCounters, "number of counters for tracking access frequency in the cache for "+flagDescription+". A higher number means more accurate eviction decisions but more memory usage")
+	flags.BoolVar(&config.Metrics, flagPrefix+"-metrics", defaults.Metrics, "enable metrics for the cache for "+flagDescription)
+	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaults.Enabled, "enable caching of "+flagDescription)
 
 	// Hidden flags.
 	flags.StringVar(&config.CacheKindForTesting, flagPrefix+"-kind-for-testing", defaults.CacheKindForTesting, "choose a different kind of cache, for testing")
