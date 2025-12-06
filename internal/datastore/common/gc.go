@@ -71,7 +71,7 @@ func RegisterGCMetrics() ([]prometheus.Collector, error) {
 	}
 	for _, metric := range collectors {
 		if err := prometheus.Register(metric); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to register GC metric: %w", err)
 		}
 	}
 

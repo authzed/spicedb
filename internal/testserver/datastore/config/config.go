@@ -24,6 +24,9 @@ func DatastoreConfigInitFunc(t testing.TB, options ...dsconfig.ConfigOption) tes
 				dsconfig.WithURI(uri),
 			)...)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			ds.Close()
+		})
 		return ds
 	}
 }
