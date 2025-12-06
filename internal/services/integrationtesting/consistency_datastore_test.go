@@ -36,13 +36,12 @@ func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
 	}
 
 	for _, engineID := range datastore.Engines {
-		for _, filePath := range consistencyTestFiles {
-			t.Run(engineID+"/"+path.Base(filePath), func(t *testing.T) {
-				// FIXME errors arise if spanner is run in parallel
-				if engineID != "spanner" {
-					t.Parallel()
-				}
-
+		t.Run(engineID, func(t *testing.T) {
+			// FIXME errors arise if spanner is run in parallel
+			if engineID != "spanner" {
+				t.Parallel()
+			}
+			for _, filePath := range consistencyTestFiles {
 				rde := testdatastore.RunDatastoreEngine(t, engineID)
 				baseds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 					dsconfig.WithWatchBufferLength(0),
@@ -74,12 +73,11 @@ func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
 						dispatcher:       dispatcher,
 					}
 
-					t.Run(tester.Name(), func(t *testing.T) {
-						t.Parallel()
+					t.Run(path.Base(filePath)+"/"+tester.Name(), func(t *testing.T) {
 						runAssertions(t, vctx)
 					})
 				}
-			})
-		}
+			}
+		})
 	}
 }
