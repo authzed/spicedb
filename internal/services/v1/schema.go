@@ -43,6 +43,9 @@ type SchemaServerConfig struct {
 
 	// PerformanceInsightMetricsEnabled indicates whether performance insight metrics are enabled.
 	PerformanceInsightMetricsEnabled bool
+
+	// DeprecatedRelsEnabled indicates whether deprecated relations are enabled.
+	FeatureDeprecationEnabled bool
 }
 
 // NewSchemaServer creates a SchemaServiceServer instance.
@@ -61,9 +64,10 @@ func NewSchemaServer(config SchemaServerConfig) v1.SchemaServiceServer {
 				perfinsights.StreamServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),
 		},
-		additiveOnly:        config.AdditiveOnly,
-		expiringRelsEnabled: config.ExpiringRelsEnabled,
-		caveatTypeSet:       cts,
+		additiveOnly:              config.AdditiveOnly,
+		expiringRelsEnabled:       config.ExpiringRelsEnabled,
+		featureDeprecationEnabled: config.FeatureDeprecationEnabled,
+		caveatTypeSet:             cts,
 	}
 }
 
@@ -71,9 +75,10 @@ type schemaServer struct {
 	v1.UnimplementedSchemaServiceServer
 	shared.WithServiceSpecificInterceptors
 
-	caveatTypeSet       *caveattypes.TypeSet
-	additiveOnly        bool
-	expiringRelsEnabled bool
+	caveatTypeSet             *caveattypes.TypeSet
+	additiveOnly              bool
+	expiringRelsEnabled       bool
+	featureDeprecationEnabled bool
 }
 
 func (ss *schemaServer) rewriteError(ctx context.Context, err error) error {
@@ -151,6 +156,9 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	opts := make([]compiler.Option, 0, 3)
 	if !ss.expiringRelsEnabled {
 		opts = append(opts, compiler.DisallowExpirationFlag())
+	}
+	if !ss.featureDeprecationEnabled {
+		opts = append(opts, compiler.DisallowDeprecationFlag())
 	}
 
 	opts = append(opts, compiler.CaveatTypeSet(ss.caveatTypeSet))
