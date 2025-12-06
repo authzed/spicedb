@@ -174,10 +174,11 @@ const (
 	DefaultMiddlewareServerVersion    = "serverversion"
 	DefaultMiddlewareMemoryProtection = "memoryprotection"
 
-	DefaultInternalMiddlewareDispatch       = "dispatch"
-	DefaultInternalMiddlewareDatastore      = "datastore"
-	DefaultInternalMiddlewareConsistency    = "consistency"
-	DefaultInternalMiddlewareServerSpecific = "servicespecific"
+	DefaultInternalMiddlewareDispatch          = "dispatch"
+	DefaultInternalMiddlewareDatastore         = "datastore"
+	DefaultInternalMiddlewareDatastoreCounting = "datastore-counting"
+	DefaultInternalMiddlewareConsistency       = "consistency"
+	DefaultInternalMiddlewareServerSpecific    = "servicespecific"
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.middlewareoption.go . MiddlewareOption
@@ -334,6 +335,12 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		*opts.unaryDatastoreMiddleware,
 
 		NewUnaryMiddleware().
+			WithName(DefaultInternalMiddlewareDatastoreCounting).
+			WithInternal(true).
+			WithInterceptor(datastoremw.UnaryCountingInterceptor()).
+			Done(),
+
+		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInterceptor(consistencymw.UnaryServerInterceptor(opts.MiddlewareServiceLabel, opts.MismatchingZedTokenOption)).
 			Done(),
@@ -405,6 +412,12 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			Done(),
 
 		*opts.streamDatastoreMiddleware,
+
+		NewStreamMiddleware().
+			WithName(DefaultInternalMiddlewareDatastoreCounting).
+			WithInternal(true).
+			WithInterceptor(datastoremw.StreamCountingInterceptor()).
+			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
