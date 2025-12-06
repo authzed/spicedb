@@ -68,17 +68,20 @@ func instrumentConnector(c driver.Connector, replicaIndex string) (driver.Connec
 		}, []string{"success"})
 	)
 
+	var collectors []prometheus.Collector
+
 	err := prometheus.Register(connectHistogram)
 	if err != nil {
-		return nil, nil, err
+		return nil, collectors, err
 	}
 
+	collectors = append(collectors, connectHistogram)
 	err = prometheus.Register(connectCount)
 	if err != nil {
-		return nil, nil, err
+		return nil, collectors, err
 	}
 
-	collectors := []prometheus.Collector{connectCount, connectHistogram}
+	collectors = append(collectors, connectCount)
 
 	return &instrumentedConnector{
 		conn:             c,
