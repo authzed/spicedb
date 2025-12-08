@@ -54,7 +54,7 @@ func TestServerGracefulTermination(t *testing.T) {
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: true}),
 		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
 		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
-		WithMemoryProtectionEnabled(false),
+		WithEnableMemoryProtectionMiddleware(false),
 	)
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestOTelReporting(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithDatastore(ds),
-		WithMemoryProtectionEnabled(false),
+		WithEnableMemoryProtectionMiddleware(false),
 	}
 
 	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
@@ -299,7 +299,7 @@ func TestRetryPolicy(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithDatastore(ds),
-		WithMemoryProtectionEnabled(false),
+		WithEnableMemoryProtectionMiddleware(false),
 		SetUnaryMiddlewareModification([]MiddlewareModification[grpc.UnaryServerInterceptor]{
 			{
 				Operation:                OperationAppend,
@@ -386,7 +386,7 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 		GRPCServer: util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 		},
-	}, WithPresharedSecureKey("psk"), WithDatastore(ds), WithMemoryProtectionEnabled(false))
+	}, WithPresharedSecureKey("psk"), WithDatastore(ds), WithEnableMemoryProtectionMiddleware(false))
 	cancel()
 	_, err = c.Complete(ctx)
 	require.NoError(t, err)

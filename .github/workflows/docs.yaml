@@ -7,7 +7,7 @@ on: # yamllint disable-line rule:truthy
   workflow_dispatch:
 env:
   DOCS_REPO: "authzed/docs"
-  TARGET_DOCS_FILE: "pages/spicedb/concepts/commands.mdx"
+  TARGET_DOCS_FILE: "app/spicedb/concepts/commands/page.mdx"
 
 permissions:
   contents: "write"

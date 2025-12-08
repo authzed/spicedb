@@ -145,7 +145,7 @@ type Config struct {
 	StreamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor] `debugmap:"hidden"`
 
 	// Middleware for Memory Protection
-	MemoryProtectionEnabled bool `debugmap:"visible" default:"true"`
+	EnableMemoryProtectionMiddleware bool `debugmap:"visible" default:"true"`
 
 	// Middleware for internal dispatch API
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor  `debugmap:"hidden"`
@@ -579,7 +579,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 }
 
 func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
-	if c.MemoryProtectionEnabled {
+	if c.EnableMemoryProtectionMiddleware {
 		if DefaultMemoryUsageProvider != nil {
 			return DefaultMemoryUsageProvider
 		}
@@ -587,7 +587,7 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 		log.Warn().Msg("memory protection is enabled, but no default is configured; falling back to using noop provider")
 		return memoryprotection.NewNoopMemoryUsageProvider()
 	}
-	return &memoryprotection.HarcodedMemoryLimitProvider{AcceptAllRequests: true}
+	return &memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 }
 
 func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, closeables *closeableStack, otelOpts []otelgrpc.Option) (util.RunnableGRPCServer, error) {
