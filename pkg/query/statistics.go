@@ -89,8 +89,8 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			Cardinality:       s.NumberOfTuplesInRelation,
 			CheckCost:         1,
 			CheckSelectivity:  s.CheckSelectivity,
-			IterResourcesCost: s.NumberOfTuplesInRelation * s.Fanout,
-			IterSubjectsCost:  s.NumberOfTuplesInRelation * s.Fanout,
+			IterResourcesCost: s.Fanout,
+			IterSubjectsCost:  s.Fanout,
 		}, nil
 	case *Arrow:
 		ls, err := s.Cost(it.left)

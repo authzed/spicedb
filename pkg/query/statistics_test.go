@@ -54,8 +54,8 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		require.Equal(t, stats.NumberOfTuplesInRelation, est.Cardinality)
 		require.Equal(t, 1, est.CheckCost)
 		require.Equal(t, stats.CheckSelectivity, est.CheckSelectivity)
-		require.Equal(t, stats.NumberOfTuplesInRelation*stats.Fanout, est.IterResourcesCost)
-		require.Equal(t, stats.NumberOfTuplesInRelation*stats.Fanout, est.IterSubjectsCost)
+		require.Equal(t, stats.Fanout, est.IterResourcesCost)
+		require.Equal(t, stats.Fanout, est.IterSubjectsCost)
 	})
 
 	t.Run("Arrow", func(t *testing.T) {
@@ -98,8 +98,8 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			// Cardinality: 10 * 1 = 10
 			require.Equal(t, 10, est.Cardinality)
 
-			// CheckCost: 10*5 + (10 * 1) = 50 + 10 = 60
-			require.Equal(t, 60, est.CheckCost)
+			// CheckCost: 5 + (10 * 1) = 5 + 10 = 15
+			require.Equal(t, 15, est.CheckCost)
 		})
 	})
 
@@ -200,8 +200,8 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			// CheckCost: 1 + 1 = 2
 			require.Equal(t, 2, est.CheckCost)
 
-			// IterResourcesCost: (10*5) + 1 = 51
-			require.Equal(t, 51, est.IterResourcesCost)
+			// IterResourcesCost: 5 + 1 = 6
+			require.Equal(t, 6, est.IterResourcesCost)
 		})
 	})
 
@@ -468,7 +468,7 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 		est, err := stats.Cost(it)
 		require.NoError(t, err)
 		require.Equal(t, 1000, est.Cardinality)
-		require.Equal(t, 10000, est.IterResourcesCost) // 1000 * 10
+		require.Equal(t, 10, est.IterResourcesCost) // Fanout
 	})
 
 	t.Run("custom selectivity", func(t *testing.T) {
