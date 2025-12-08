@@ -724,7 +724,9 @@ type ReadOnlyDatastore interface {
 
 	// Watch notifies the caller about changes to the datastore, based on the specified options.
 	//
-	// All events following afterRevision will be sent to the caller.
+	// All events following afterRevision will be sent to the caller. Changes made *in* afterRevision will not be included.
+	//
+	// When the changes channel is closed, callers MUST discard any changes received (they will be the zero value).
 	//
 	// Errors returned will fall into a few classes:
 	// - WatchDisconnectedError - the watch has fallen too far behind and has been disconnected.

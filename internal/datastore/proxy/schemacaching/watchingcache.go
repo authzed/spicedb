@@ -263,7 +263,10 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 					log.Debug().Msg("schema watch closed")
 					return
 
-				case ss := <-ssc:
+				case ss, ok := <-ssc:
+					if !ok {
+						return
+					}
 					log.Trace().
 						Bool("is-checkpoint", ss.IsCheckpoint).
 						Int("changed-definition-count", len(ss.ChangedDefinitions)).
