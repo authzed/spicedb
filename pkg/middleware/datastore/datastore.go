@@ -3,6 +3,8 @@ package datastore
 import (
 	"context"
 
+	"google.golang.org/grpc"
+
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -22,4 +24,16 @@ func MustFromContext(ctx context.Context) datastore.Datastore {
 	}
 
 	return datastore
+}
+
+// UnaryCountingInterceptor wraps the datastore with a counting proxy for unary requests.
+// After each request completes, it exports the method call counts to Prometheus metrics.
+func UnaryCountingInterceptor() grpc.UnaryServerInterceptor {
+	return datastoremw.UnaryCountingInterceptor()
+}
+
+// StreamCountingInterceptor wraps the datastore with a counting proxy for stream requests.
+// After each stream completes, it exports the method call counts to Prometheus metrics.
+func StreamCountingInterceptor() grpc.StreamServerInterceptor {
+	return datastoremw.StreamCountingInterceptor()
 }
