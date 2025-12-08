@@ -24,13 +24,13 @@ func TestBuildMemoryProtectionConfig(t *testing.T) {
 	}{
 		`disabled`: {
 			config: &server.Config{
-				MemoryProtectionEnabled: false,
+				EnableMemoryProtectionMiddleware: false,
 			},
-			expectedType: "*memoryprotection.HarcodedMemoryLimitProvider",
+			expectedType: "*memoryprotection.HarcodedMemoryUsageProvider",
 		},
 		`enabled`: {
 			config: &server.Config{
-				MemoryProtectionEnabled: true,
+				EnableMemoryProtectionMiddleware: true,
 			},
 			expectedType: "*rtml.GoRealTimeMemoryLimiter",
 		},

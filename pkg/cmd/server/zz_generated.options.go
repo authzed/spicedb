@@ -100,7 +100,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
-		to.MemoryProtectionEnabled = c.MemoryProtectionEnabled
+		to.EnableMemoryProtectionMiddleware = c.EnableMemoryProtectionMiddleware
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
@@ -175,7 +175,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
 	debugMap["MismatchZedTokenBehavior"] = helpers.DebugValue(c.MismatchZedTokenBehavior, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
-	debugMap["MemoryProtectionEnabled"] = helpers.DebugValue(c.MemoryProtectionEnabled, false)
+	debugMap["EnableMemoryProtectionMiddleware"] = helpers.DebugValue(c.EnableMemoryProtectionMiddleware, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
 	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
@@ -685,10 +685,10 @@ func SetStreamingMiddlewareModification(streamingMiddlewareModification []Middle
 	}
 }
 
-// WithMemoryProtectionEnabled returns an option that can set MemoryProtectionEnabled on a Config
-func WithMemoryProtectionEnabled(memoryProtectionEnabled bool) ConfigOption {
+// WithEnableMemoryProtectionMiddleware returns an option that can set EnableMemoryProtectionMiddleware on a Config
+func WithEnableMemoryProtectionMiddleware(enableMemoryProtectionMiddleware bool) ConfigOption {
 	return func(c *Config) {
-		c.MemoryProtectionEnabled = memoryProtectionEnabled
+		c.EnableMemoryProtectionMiddleware = enableMemoryProtectionMiddleware
 	}
 }
 

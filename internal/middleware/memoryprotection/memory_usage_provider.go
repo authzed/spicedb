@@ -5,15 +5,15 @@ type MemoryUsageProvider interface {
 }
 
 var (
-	_ MemoryUsageProvider = (*HarcodedMemoryLimitProvider)(nil)
+	_ MemoryUsageProvider = (*HarcodedMemoryUsageProvider)(nil)
 	_ MemoryUsageProvider = (*NoopMemoryUsageProvider)(nil)
 )
 
-type HarcodedMemoryLimitProvider struct {
+type HarcodedMemoryUsageProvider struct {
 	AcceptAllRequests bool
 }
 
-func (n *HarcodedMemoryLimitProvider) IsMemLimitReached() bool {
+func (n *HarcodedMemoryUsageProvider) IsMemLimitReached() bool {
 	return !n.AcceptAllRequests
 }
 

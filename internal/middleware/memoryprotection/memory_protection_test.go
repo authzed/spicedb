@@ -29,14 +29,14 @@ func TestNew(t *testing.T) {
 	}{
 		{
 			name: "returns false",
-			inputProvider: &HarcodedMemoryLimitProvider{
+			inputProvider: &HarcodedMemoryUsageProvider{
 				AcceptAllRequests: true,
 			},
 			expectReqLetThrough: true,
 		},
 		{
 			name: "returns true",
-			inputProvider: &HarcodedMemoryLimitProvider{
+			inputProvider: &HarcodedMemoryUsageProvider{
 				AcceptAllRequests: false,
 			},
 			expectReqLetThrough: false,
@@ -82,7 +82,7 @@ func TestMemoryProtectionMiddleware_RecordRejection(t *testing.T) {
 		RequestsProcessed = originalCounter
 	}()
 
-	lp := &HarcodedMemoryLimitProvider{AcceptAllRequests: true}
+	lp := &HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 
 	am := New(lp, "test")
 
@@ -139,7 +139,7 @@ func TestMemoryProtectionMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			am := New(&HarcodedMemoryLimitProvider{AcceptAllRequests: !tt.blockAllRequests}, "name")
+			am := New(&HarcodedMemoryUsageProvider{AcceptAllRequests: !tt.blockAllRequests}, "name")
 
 			testSrv := &memoryProtectionTestServer{}
 			s := &memoryProtectionMiddlewareTestSuite{

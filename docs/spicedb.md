@@ -488,6 +488,7 @@ spicedb serve [flags]
       --dispatch-upstream-ca-path string                                                local path to the TLS CA used when connecting to the dispatch cluster
       --dispatch-upstream-timeout duration                                              maximum duration of a dispatch call an upstream cluster before it times out (default 1m0s)
       --enable-experimental-watchable-schema-cache                                      enables the experimental schema cache, which uses the Watch API to keep the schema up to date
+      --enable-memory-protection-middleware                                             enables middleware that does a best effort at preventing OOM (Out of Memory) if the server's memory usage is too high by returning ResourceExhausted on incoming requests (default true)
       --enable-performance-insight-metrics                                              enables performance insight metrics, which are used to track the latency of API calls by shape
       --enable-revision-heartbeat                                                       enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (Postgres driver only) (default true)
       --experimental-dispatch-secondary-maximum-primary-hedging-delays stringToString   maximum number of hedging delays to use for each request type to delay the primary request. default is 5ms (default [])
@@ -502,7 +503,7 @@ spicedb serve [flags]
       --grpc-max-workers uint32                                                         set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                                             network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --grpc-preshared-key strings                                                      (required) preshared key(s) that must be provided by clients to authenticate requests
-      --grpc-shutdown-grace-period duration                                             amount of time after receiving sigint to continue serving
+      --grpc-shutdown-grace-period duration                                             time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit
       --grpc-tls-cert-path string                                                       local path to the TLS certificate used to serve gRPC
       --grpc-tls-key-path string                                                        local path to the TLS key used to serve gRPC
       --http-addr string                                                                address to listen on to serve proxy (default ":8443")

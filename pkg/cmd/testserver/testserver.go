@@ -112,7 +112,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	})
 	opts := *server.NewMiddlewareOptionWithOptions(noAuth,
 		server.WithLogger(log.Logger),
-		server.WithMemoryUsageProvider(&memoryprotection.HarcodedMemoryLimitProvider{AcceptAllRequests: true}))
+		server.WithMemoryUsageProvider(&memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}))
 	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
 
 	unaryMiddleware, err := server.DefaultUnaryMiddleware(opts)
