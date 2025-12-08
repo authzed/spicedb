@@ -1,5 +1,5 @@
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
-FROM golang:1.25.5-alpine@sha256:3587db7cc96576822c606d119729370dbf581931c5f43ac6d3fa03ab4ed85a10 AS spicedb-builder
+FROM golang:1.25.5-alpine@sha256:26111811bc967321e7b6f852e914d14bede324cd1accb7f81811929a6a57fea9 AS spicedb-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 COPY . .
@@ -7,7 +7,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -tags memoryprotection -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
 
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
-FROM golang:1.25.5-alpine@sha256:3587db7cc96576822c606d119729370dbf581931c5f43ac6d3fa03ab4ed85a10 AS health-probe-builder
+FROM golang:1.25.5-alpine@sha256:26111811bc967321e7b6f852e914d14bede324cd1accb7f81811929a6a57fea9 AS health-probe-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 RUN git clone https://github.com/authzed/grpc-health-probe.git
