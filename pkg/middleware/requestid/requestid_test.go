@@ -98,7 +98,7 @@ func (s *requestIDMiddlewareTestSuite) TestUnaryInterceptor_GeneratesAndReturnsR
 	require.NoError(s.T(), err)
 
 	// Check that response metadata contains request ID
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs, "Request ID should be present in response trailers")
 	require.Len(s.T(), requestIDs, 1, "Should have exactly one request ID")
 	require.NotEmpty(s.T(), requestIDs[0], "Request ID should not be empty")
@@ -115,7 +115,7 @@ func (s *requestIDMiddlewareTestSuite) TestUnaryInterceptor_PreservesExistingReq
 	require.NoError(s.T(), err)
 
 	// Check that response metadata contains the same request ID
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs)
 	require.Equal(s.T(), existingRequestID, requestIDs[0], "Should preserve existing request ID")
 }
@@ -138,7 +138,7 @@ func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_ReturnsReq
 	trailer := stream.Trailer()
 
 	// Check that response metadata contains request ID
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs, "Request ID should be present in response trailers")
 	require.NotEmpty(s.T(), requestIDs[0], "Request ID should not be empty")
 }
@@ -164,7 +164,7 @@ func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_PreservesE
 	trailer := stream.Trailer()
 
 	// Check that response metadata contains the same request ID
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs)
 	require.Equal(s.T(), existingRequestID, requestIDs[0], "Should preserve existing request ID")
 }
@@ -195,7 +195,7 @@ func (s *requestIDMiddlewareTestSuite) TestBidirectionalStreamingInterceptor_Ret
 	trailer := stream.Trailer()
 
 	// Check that response metadata contains request ID
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs, "Request ID should be present in response trailers")
 	require.NotEmpty(s.T(), requestIDs[0], "Request ID should not be empty")
 }
@@ -227,7 +227,7 @@ func (s *requestIDMiddlewareTestSuite) TestBidirectionalStreamingInterceptor_Pre
 	trailer := stream.Trailer()
 
 	// Check that response metadata contains the same request ID
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs)
 	require.Equal(s.T(), existingRequestID, requestIDs[0], "Should preserve existing request ID")
 }
@@ -239,7 +239,7 @@ func (s *requestIDMiddlewareTestSuite) TestUnaryInterceptor_ReturnsRequestIDOnEr
 	require.Error(s.T(), err, "Should return error for Value='ERROR'")
 
 	// Check that response metadata contains request ID even when there's an error
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs, "Request ID should be present in response trailers even on error")
 	require.NotEmpty(s.T(), requestIDs[0], "Request ID should not be empty even on error")
 }
@@ -288,7 +288,7 @@ func (s *requestIDNoGenerateMiddlewareTestSuite) TestUnaryInterceptor_PreservesP
 	require.NoError(s.T(), err)
 
 	// Check that response metadata contains the provided request ID
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs)
 	require.Equal(s.T(), existingRequestID, requestIDs[0], "Should preserve provided request ID")
 }
@@ -332,7 +332,7 @@ func (s *requestIDCustomGeneratorTestSuite) TestCustomGenerator() {
 	_, err := s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
 	require.NoError(s.T(), err)
 
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(s.T(), requestIDs)
 	require.Contains(s.T(), requestIDs[0], s.customIDPrefix, "Custom generator should be used")
 }

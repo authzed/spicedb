@@ -35,11 +35,16 @@ import (
 )
 
 func TestServerGracefulTermination(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ds.Close()
+	})
 
 	c := ConfigWithOptions(
 		&Config{},
@@ -271,18 +276,17 @@ func (m *countingInterceptor) unaryIntercept(ctx context.Context, req any, _ *gr
 // FAILED_PRECONDITION error from the WriteRelationships call.
 // This test is in place to make sure we don't regress this again by messing with grpc in our middlewares.
 func TestRetryPolicy(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
-
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
 
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithRequestHedgingEnabled(false),
 	)
-	if err != nil {
-		t.Fatalf("unable to start memdb datastore: %s", err)
-	}
+	require.NoError(t, err, "unable to start memdb datastore")
 
 	var interceptor countingInterceptor
 	configOpts := []ConfigOption{
@@ -341,14 +345,14 @@ func TestRetryPolicy(t *testing.T) {
                   ]
                 }`))
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		_ = conn.Close()
-	}()
-
+	})
 	schemaSrv := v1.NewSchemaServiceClient(conn)
 
+	errChan := make(chan error, 1)
 	go func() {
-		require.NoError(t, srv.Run(ctx))
+		errChan <- srv.Run(ctx)
 	}()
 
 	_, err = schemaSrv.WriteSchema(ctx, &v1.WriteSchemaRequest{
@@ -370,9 +374,12 @@ func TestRetryPolicy(t *testing.T) {
 
 	// validate that requestID was used, as it used to break retry policies before
 	require.Equal(t, 5, interceptor.val)
-	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
+	requestIDs := trailer.Get("x-request-id")
 	require.NotEmpty(t, requestIDs)
 	require.Contains(t, requestIDs, "foobar")
+
+	cancel()
+	require.NoError(t, <-errChan)
 }
 
 func TestServerGracefulTerminationOnError(t *testing.T) {
