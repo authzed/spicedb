@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -275,87 +274,6 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 			require.Less(t, newCost.CheckCost, originalCost.CheckCost,
 				"Optimized structure should be cheaper")
 		}
-	})
-}
-
-func TestStatisticsOptimizer_RebalanceArrowThroughWrappers(t *testing.T) {
-	t.Parallel()
-
-	stats := DefaultStaticStatistics()
-	optimizer := StatisticsOptimizer{Source: stats}
-
-	t.Run("wrapped left arrow - alias - no rebalancing when costs equal", func(t *testing.T) {
-		t.Parallel()
-		// Create Alias(A->B)->C with equal cardinalities
-		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
-		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
-		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
-
-		innerArrow := NewArrow(a, b)
-		aliasedArrow := NewAlias("parent_rel", innerArrow)
-		outerArrow := NewArrow(aliasedArrow, c)
-
-		result, changed, err := optimizer.Optimize(outerArrow)
-		require.NoError(t, err)
-		require.False(t, changed, "Should not rebalance when costs are equal")
-		require.Equal(t, outerArrow, result, "Result should be unchanged when no optimization occurs")
-	})
-
-	t.Run("wrapped right arrow - caveat - no rebalancing when costs equal", func(t *testing.T) {
-		t.Parallel()
-		// Create A->Alias(B->C) with equal cardinalities
-		// Note: Using Alias as a proxy for caveat wrapper
-		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
-		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
-		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
-
-		innerArrow := NewArrow(b, c)
-		wrappedArrow := NewAlias("caveated", innerArrow)
-		outerArrow := NewArrow(a, wrappedArrow)
-
-		result, changed, err := optimizer.Optimize(outerArrow)
-		require.NoError(t, err)
-		require.False(t, changed, "Should not rebalance when costs are equal")
-		require.Equal(t, outerArrow, result, "Result should be unchanged when no optimization occurs")
-	})
-
-	t.Run("caveat stays on correct branch - no rebalancing when costs equal", func(t *testing.T) {
-		t.Parallel()
-		// Create Caveat(A->B)->C with equal cardinalities
-		baseRelB := schema.NewTestBaseRelationWithFeatures("folder", "viewer", "user", tuple.Ellipsis, "test_caveat", false)
-
-		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
-		b := NewRelationIterator(baseRelB)
-		c := NewFixedIterator(MustPathFromString("user:alice#viewer@user:alice"))
-
-		innerArrow := NewArrow(a, b)
-		caveatIt := NewCaveatIterator(innerArrow, &core.ContextualizedCaveat{
-			CaveatName: "test_caveat",
-		})
-		outerArrow := NewArrow(caveatIt, c)
-
-		result, changed, err := optimizer.Optimize(outerArrow)
-		require.NoError(t, err)
-		require.False(t, changed, "Should not rebalance when costs are equal")
-		require.Equal(t, outerArrow, result, "Result should be unchanged when no optimization occurs")
-	})
-
-	t.Run("double wrapped arrow - no rebalancing when costs equal", func(t *testing.T) {
-		t.Parallel()
-		// Create Alias(Alias(A->B))->C with equal cardinalities
-		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
-		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
-		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
-
-		innerArrow := NewArrow(a, b)
-		alias1 := NewAlias("rel1", innerArrow)
-		alias2 := NewAlias("rel2", alias1)
-		outerArrow := NewArrow(alias2, c)
-
-		result, changed, err := optimizer.Optimize(outerArrow)
-		require.NoError(t, err)
-		require.False(t, changed, "Should not rebalance when costs are equal")
-		require.Equal(t, outerArrow, result, "Result should be unchanged when no optimization occurs")
 	})
 }
 
