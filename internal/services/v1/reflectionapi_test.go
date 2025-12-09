@@ -550,7 +550,7 @@ func TestConvertDiff(t *testing.T) {
 			diff, err := diff.DiffSchemas(es, cs, caveattypes.Default.TypeSet)
 			require.NoError(t, err)
 
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(100, 1*time.Second, 100*time.Minute)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 100, 1*time.Second, 100*time.Minute)
 			require.NoError(t, err)
 
 			ctx := context.Background()

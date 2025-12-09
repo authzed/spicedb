@@ -196,51 +196,51 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		return nil, err
 	}
 
-	chunkSize := opts.dispatchChunkSize
-	if chunkSize == 0 {
-		chunkSize = 100
-		log.Warn().Msgf("CombinedDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
-	}
+	var redispatch dispatch.Dispatcher
 
-	cts := caveattypes.TypeSetOrDefault(opts.caveatTypeSet)
+	if opts.upstreamAddr == "" {
+		chunkSize := opts.dispatchChunkSize
+		if chunkSize == 0 {
+			chunkSize = 100
+			log.Warn().Msgf("CombinedDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
+		}
 
-	// Use provided cache or create one from config
-	var relationshipChunkCache cache.Cache[cache.StringKey, any]
-	if opts.relationshipChunkCache != nil {
-		relationshipChunkCache = opts.relationshipChunkCache
-	} else {
-		// Default RelationshipChunkCacheConfig if not provided
-		relationshipChunkCacheConfig := opts.relationshipChunkCacheConfig
-		if relationshipChunkCacheConfig == nil {
-			relationshipChunkCacheConfig = &cache.Config{
-				NumCounters: 1e4,     // 10k
-				MaxCost:     1 << 20, // 1MB
-				DefaultTTL:  30 * time.Second,
+		// Use provided cache or create one from config
+		var relationshipChunkCache cache.Cache[cache.StringKey, any]
+		if opts.relationshipChunkCache != nil {
+			relationshipChunkCache = opts.relationshipChunkCache
+		} else {
+			// Default RelationshipChunkCacheConfig if not provided
+			relationshipChunkCacheConfig := opts.relationshipChunkCacheConfig
+			if relationshipChunkCacheConfig == nil {
+				relationshipChunkCacheConfig = &cache.Config{
+					NumCounters: 1e4,     // 10k
+					MaxCost:     1 << 20, // 1MB
+					DefaultTTL:  30 * time.Second,
+				}
+			}
+
+			// Create cache from config
+			var err error
+			relationshipChunkCache, err = cache.NewStandardCache[cache.StringKey, any](relationshipChunkCacheConfig)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create relationship chunk cache: %w", err)
 			}
 		}
 
-		// Create cache from config
-		var err error
-		relationshipChunkCache, err = cache.NewStandardCache[cache.StringKey, any](relationshipChunkCacheConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create relationship chunk cache: %w", err)
+		params := graph.DispatcherParameters{
+			ConcurrencyLimits:      opts.concurrencyLimits,
+			TypeSet:                caveattypes.TypeSetOrDefault(opts.caveatTypeSet),
+			DispatchChunkSize:      chunkSize,
+			RelationshipChunkCache: relationshipChunkCache,
 		}
-	}
-
-	params := graph.DispatcherParameters{
-		ConcurrencyLimits:      opts.concurrencyLimits,
-		TypeSet:                cts,
-		DispatchChunkSize:      chunkSize,
-		RelationshipChunkCache: relationshipChunkCache,
-	}
-	redispatch, err := graph.NewDispatcher(cachingRedispatch, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
-	}
-	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
-
-	// If an upstream is specified, create a cluster dispatcher.
-	if opts.upstreamAddr != "" {
+		redispatch, err = graph.NewDispatcher(cachingRedispatch, params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+		}
+		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
+	} else {
+		// If an upstream is specified, create a cluster dispatcher.
 		if opts.upstreamCAPath != "" {
 			customCertOpt, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, opts.upstreamCAPath)
 			if err != nil {

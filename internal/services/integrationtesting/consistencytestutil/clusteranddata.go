@@ -37,7 +37,7 @@ type ConsistencyClusterAndData struct {
 func LoadDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, revisionDelta time.Duration, additionalServerOptions ...server.ConfigOption) ConsistencyClusterAndData {
 	require := require.New(t)
 
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, revisionDelta, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, revisionDelta, memdb.DisableGC)
 	require.NoError(err)
 
 	return BuildDataAndCreateClusterForTesting(t, consistencyTestFilePath, ds, additionalServerOptions...)

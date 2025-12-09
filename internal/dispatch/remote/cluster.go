@@ -836,6 +836,9 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 }
 
 func (cr *clusterDispatcher) Close() error {
+	if cr.conn != nil {
+		return cr.conn.Close()
+	}
 	return nil
 }
 

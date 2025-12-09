@@ -98,7 +98,7 @@ func TestHintForEntrypoint(t *testing.T) {
 func buildReachabilityGraph(t *testing.T, schemaStr string) *schema.DefinitionReachability {
 	require := require.New(t)
 
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ctx := datastoremw.ContextWithDatastore(t.Context(), ds)

@@ -190,6 +190,9 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 
 		dispatcher, err := combineddispatch.NewDispatcher(dispatcherOptions...)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			dispatcher.Close()
+		})
 
 		serverOptions := []server.ConfigOption{ //nolint: prealloc  // we're not worried about perf here
 			server.WithDatastore(ds),

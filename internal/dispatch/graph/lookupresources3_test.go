@@ -255,7 +255,7 @@ func TestMaxDepthLookup3(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -700,8 +700,11 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 
 					dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 					require.NoError(err)
+					t.Cleanup(func() {
+						dispatcher.Close()
+					})
 
-					ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+					ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 					require.NoError(err)
 
 					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
@@ -785,7 +788,7 @@ func TestLookupResources3WithError(t *testing.T) {
 
 	require := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -1262,7 +1265,7 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 
 			require := require.New(t)
 
-			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, tc.relationships, require)

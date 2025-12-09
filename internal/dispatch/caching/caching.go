@@ -408,6 +408,9 @@ func (cd *Dispatcher) Close() error {
 	if cache := cd.c; cache != nil {
 		cache.Close()
 	}
+	if cd.d != nil {
+		cd.d.Close()
+	}
 
 	return nil
 }

@@ -20,7 +20,9 @@ import (
 )
 
 func TestWatchingCacheBasicOperation(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -32,6 +34,9 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() {
+		wcache.Close()
+	})
 
 	// Ensure no namespaces are found.
 	_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
@@ -116,14 +121,12 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	// Attempt to read at revision 1, which should require a read.
 	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadCaveatByName(t.Context(), "somecaveat")
 	require.ErrorContains(t, err, "reads are disabled")
-
-	// Close the proxy and ensure the background goroutines are terminated.
-	wcache.Close()
-	time.Sleep(10 * time.Millisecond)
 }
 
 func TestWatchingCacheParallelOperations(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -135,6 +138,9 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() {
+		wcache.Close()
+	})
 
 	// Run some operations in parallel.
 	var wg sync.WaitGroup
@@ -208,14 +214,12 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 	require.ErrorAs(t, err, &nsNotFoundErr)
 	inFallbackMode = <-secondFallbackModes
 	require.False(t, inFallbackMode)
-
-	// Close the proxy and ensure the background goroutines are terminated.
-	wcache.Close()
-	time.Sleep(10 * time.Millisecond)
 }
 
 func TestWatchingCacheParallelReaderWriter(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -227,6 +231,9 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() {
+		wcache.Close()
+	})
 
 	// Write somenamespace.
 	fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("0"))
@@ -276,14 +283,12 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 			require.Equal(t, "somenamespace", namespaceName)
 		}
 	}
-
-	// Close the proxy and ensure the background goroutines are terminated.
-	wcache.Close()
-	time.Sleep(10 * time.Millisecond)
 }
 
 func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -302,6 +307,9 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() {
+		wcache.Close()
+	})
 
 	// Ensure the namespace is not found, but is cached in the fallback caching layer.
 	r := rev("1")
@@ -320,14 +328,12 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
-
-	// Close the proxy and ensure the background goroutines are terminated.
-	wcache.Close()
-	time.Sleep(10 * time.Millisecond)
 }
 
 func TestWatchingCachePrepopulated(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("4"),
@@ -360,15 +366,14 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() {
+		wcache.Close()
+	})
 
 	// Ensure the namespace is found.
 	def, _, err := wcache.SnapshotReader(rev("4")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", def.Name)
-
-	// Close the proxy and ensure the background goroutines are terminated.
-	wcache.Close()
-	time.Sleep(10 * time.Millisecond)
 }
 
 type fakeDatastore struct {

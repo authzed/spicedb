@@ -114,6 +114,7 @@ func BuildAccessibilitySet(t *testing.T, ctx context.Context, populated *validat
 	require.NoError(t, err)
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(t, err)
+	t.Cleanup(func() { dispatcher.Close() })
 	permissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	uncomputedPermissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	accessibilityByRelationship := map[string]Accessibility{}

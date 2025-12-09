@@ -89,12 +89,11 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 	}
 
 	dsn := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", builder.creds, port)
+	builder.db, err = sql.Open("mysql", dsn)
+	require.NoError(t, err)
+
 	require.NoError(t, pool.Retry(func() error {
 		var err error
-		builder.db, err = sql.Open("mysql", dsn)
-		if err != nil {
-			return err
-		}
 		ctx, cancelPing := context.WithTimeout(context.Background(), dockerBootTimeout)
 		defer cancelPing()
 		err = builder.db.PingContext(ctx)

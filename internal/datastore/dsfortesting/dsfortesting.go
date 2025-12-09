@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"testing"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -15,12 +16,14 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// NewMemDBDatastoreForTesting creates a new in-memory datastore for testing.
+// NewMemDBDatastoreForTesting creates a new in-memory datastore for testing
+// that is automatically closed when the test ends.
 // This is a convenience function that wraps the creation of a new MemDB datastore,
 // and injects additional proxies for validation at test time.
 // NOTE: These additional proxies are not performant for use in production (but then,
 // neither is memdb)
 func NewMemDBDatastoreForTesting(
+	t testing.TB,
 	watchBufferLength uint16,
 	revisionQuantization,
 	gcWindow time.Duration,
@@ -29,6 +32,9 @@ func NewMemDBDatastoreForTesting(
 	if err != nil {
 		return nil, err
 	}
+	t.Cleanup(func() {
+		_ = ds.Close()
+	})
 
 	return validatingDatastore{ds}, nil
 }

@@ -180,7 +180,7 @@ func TestPopulateFromFiles(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, 0)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, 0)
 			require.NoError(err)
 
 			parsed, _, err := PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, tt.filePaths)
@@ -223,7 +223,7 @@ func TestPopulateFromFiles(t *testing.T) {
 func TestPopulationChunking(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, 0)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, 0)
 	require.NoError(err)
 
 	cs := txCountingDatastore{delegate: ds}

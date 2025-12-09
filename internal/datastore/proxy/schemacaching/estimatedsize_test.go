@@ -47,7 +47,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 		filePath := filePath
 		t.Run(path.Base(filePath), func(t *testing.T) {
 			require := require.New(t)
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, memdb.DisableGC)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 1*time.Second, memdb.DisableGC)
 			require.NoError(err)
 
 			fullyResolved, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{filePath})

@@ -451,7 +451,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 
-			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			req.NoError(err)
 
 			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
@@ -510,7 +510,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 func TestRunCaveatWithMissingMap(t *testing.T) {
 	req := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
@@ -540,7 +540,7 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 func TestRunCaveatWithEmptyMap(t *testing.T) {
 	req := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
@@ -637,7 +637,7 @@ func (f noCaveatsReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.
 func TestRunCaveatWithMissingDefinition(t *testing.T) {
 	req := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
@@ -667,7 +667,7 @@ func TestRunCaveatWithMissingDefinition(t *testing.T) {
 func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 	req := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
@@ -712,7 +712,7 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 func TestCaveatRunnerEmptyExpression(t *testing.T) {
 	req := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
@@ -790,7 +790,7 @@ func TestSyntheticResultMissingVarNames(t *testing.T) {
 func TestUnknownCaveatOperation(t *testing.T) {
 	req := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `

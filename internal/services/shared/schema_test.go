@@ -592,7 +592,7 @@ definition resource {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			// Write the initial schema.
