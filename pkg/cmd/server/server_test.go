@@ -91,6 +91,9 @@ func TestOTelReporting(t *testing.T) {
 		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err, "unable to start memdb datastore")
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	configOpts := []ConfigOption{
 		WithGRPCServer(util.GRPCServerConfig{
@@ -162,6 +165,9 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err, "unable to start memdb datastore")
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	configOpts := []ConfigOption{
 		WithGRPCServer(util.GRPCServerConfig{
@@ -280,9 +286,10 @@ func TestRetryPolicy(t *testing.T) {
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithRequestHedgingEnabled(false),
 	)
-	if err != nil {
-		t.Fatalf("unable to start memdb datastore: %s", err)
-	}
+	require.NoError(t, err, "unable to start memdb datastore")
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	var interceptor countingInterceptor
 	configOpts := []ConfigOption{

@@ -362,6 +362,9 @@ func TestMiddlewareOrdering(t *testing.T) {
 		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	c := ConfigWithOptions(
 		&Config{},
@@ -429,6 +432,10 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		ds.Close()
+	})
+
 	noopUnary := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		return nil, nil
 	}

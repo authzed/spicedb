@@ -177,6 +177,9 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 
 	db, collectors, err := registerAndReturnPrometheusCollectors(replicaIndex, isPrimary, connector, config.enablePrometheusStats)
 	if err != nil {
+		for _, collector := range collectors {
+			_ = prometheus.Unregister(collector)
+		}
 		return nil, err
 	}
 
@@ -690,7 +693,7 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, con
 
 	connector, collectors, err := instrumentConnector(connector, strconv.Itoa(replicaIndex))
 	if err != nil {
-		return nil, nil, err
+		return nil, collectors, err
 	}
 
 	dbName := "spicedb"
@@ -701,14 +704,14 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, con
 	db := sql.OpenDB(connector)
 	collector := sqlstats.NewStatsCollector(dbName, db)
 	if err := prometheus.Register(collector); err != nil {
-		return nil, nil, err
+		return nil, collectors, err
 	}
 	collectors = append(collectors, collector)
 
 	if isPrimary {
 		gcMetrics, err := common.RegisterGCMetrics()
 		if err != nil {
-			return nil, nil, err
+			return nil, collectors, err
 		}
 		collectors = append(collectors, gcMetrics...)
 	}
