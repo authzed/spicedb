@@ -6,6 +6,7 @@ import (
 
 func GoLeakIgnores() []goleak.Option {
 	return []goleak.Option{
+		goleak.IgnoreAnyFunction("go.opencensus.io/stats/view.(*worker).start"),
 		goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"),
 		goleak.IgnoreAnyFunction("github.com/Yiling-J/theine-go/internal.(*Store[...]).maintance"),
 		goleak.IgnoreAnyFunction("github.com/Yiling-J/theine-go/internal.(*Store[...]).maintance.func1"),

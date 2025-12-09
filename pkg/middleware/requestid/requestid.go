@@ -66,7 +66,7 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 		}
 
 		err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-			responsemeta.ResponseMetadataTrailerKey(responsemeta.RequestID): requestID,
+			responsemeta.RequestID: requestID,
 		})
 		if err != nil {
 			// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite (which is private)
