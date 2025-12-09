@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -20,11 +21,16 @@ import (
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 func TestBurst(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
 	blacklist := []string{
 		spanner.Engine, // spanner emulator doesn't support parallel transactions
 	}

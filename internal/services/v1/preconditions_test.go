@@ -34,7 +34,7 @@ var prefixNoMatch = &v1.RelationshipFilter{
 
 func TestPreconditions(t *testing.T) {
 	require := require.New(t)
-	uninitialized, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	uninitialized, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(uninitialized, require)

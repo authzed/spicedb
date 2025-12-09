@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -18,12 +19,15 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
-func TestQueryPlanConsistency(t *testing.T) { // nolint:tparallel
-	t.Parallel()
+func TestQueryPlanConsistency(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
 	require.NoError(t, err)
 	for _, filePath := range consistencyTestFiles {
@@ -55,7 +59,7 @@ func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 	require := require.New(t)
 
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, testTimedelta, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
 	require.NoError(err)
 	populated, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{filePath})
 	require.NoError(err)

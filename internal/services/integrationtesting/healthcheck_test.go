@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
@@ -20,9 +21,13 @@ import (
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 func TestHealthCheck(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	for _, engine := range datastore.Engines {
 		b := testdatastore.RunDatastoreEngine(t, engine)
 		t.Run(engine, func(t *testing.T) {
