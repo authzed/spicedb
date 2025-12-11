@@ -36,7 +36,7 @@ func TestExecuteGC(t *testing.T) {
 			t.Parallel()
 
 			cfg := tt.cfgBuilder(t)
-			err := executeGC(cfg)
+			err := executeGC(t.Context(), cfg)
 			require.ErrorContains(t, err, tt.expectedError)
 		})
 	}

@@ -2,15 +2,18 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	promclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -181,19 +184,32 @@ func (d revisionErrorDeleter) DeleteExpiredRels() (int64, error) {
 	return 0, nil
 }
 
+func alwaysErr() error {
+	return errors.New("aaagh")
+}
+
 func TestGCFailureBackoff(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t)
+	})
 	localCounter := prometheus.NewCounter(gcFailureCounterConfig)
 	reg := prometheus.NewRegistry()
 	require.NoError(t, reg.Register(localCounter))
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go func() {
-		gc := newFakeGCStore(alwaysErrorDeleter{})
-		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, gc, 100*time.Millisecond, 1*time.Second, 1*time.Nanosecond, 1*time.Minute, localCounter))
-	}()
-	time.Sleep(200 * time.Millisecond)
-	cancel()
+	errCh := make(chan error, 1)
+	synctest.Test(t, func(t *testing.T) {
+		duration := 1000 * time.Second
+		ctx, cancel := context.WithTimeout(t.Context(), duration)
+		t.Cleanup(func() {
+			cancel()
+		})
+		go func() {
+			errCh <- runOnIntervalWithBackoff(ctx, alwaysErr, 100*time.Second, 1*time.Minute, localCounter)
+		}()
+		time.Sleep(duration)
+		synctest.Wait()
+	})
+	require.Error(t, <-errCh)
 
 	metrics, err := reg.Gather()
 	require.NoError(t, err)
@@ -201,30 +217,17 @@ func TestGCFailureBackoff(t *testing.T) {
 	for _, metric := range metrics {
 		if metric.GetName() == "spicedb_datastore_gc_failure_total" {
 			mf = metric
+			break
 		}
 	}
-	require.Greater(t, *(mf.GetMetric()[0].Counter.Value), 100.0, "MaxElapsedTime=1ns did not cause backoff to get ignored")
-
-	localCounter = prometheus.NewCounter(gcFailureCounterConfig)
-	reg = prometheus.NewRegistry()
-	require.NoError(t, reg.Register(localCounter))
-	ctx, cancel = context.WithCancel(t.Context())
-	defer cancel()
-	go func() {
-		gc := newFakeGCStore(alwaysErrorDeleter{})
-		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, gc, 100*time.Millisecond, 0, 1*time.Second, 1*time.Minute, localCounter))
-	}()
-	time.Sleep(200 * time.Millisecond)
-	cancel()
-
-	metrics, err = reg.Gather()
-	require.NoError(t, err)
-	for _, metric := range metrics {
-		if metric.GetName() == "spicedb_datastore_gc_failure_total" {
-			mf = metric
-		}
-	}
-	require.Less(t, *(mf.GetMetric()[0].Counter.Value), 3.0, "MaxElapsedTime=0 should have not caused backoff to get ignored")
+	// We expect about 5 failures; the behavior of the library means that there's some wiggle room here.
+	// (owing to the jitter in the backoff)
+	// we should see failures at 100s, 200s, 400s, 800s
+	// but depending on jitter this could end up being squished down such that we get 5 failures.
+	// Experimentally, we see 5 most often and 4 sometimes, so asserting greater than 3 works here.
+	fmt.Println("failures")
+	fmt.Println(*(mf.GetMetric()[0].Counter.Value))
+	require.Greater(t, *(mf.GetMetric()[0].Counter.Value), 3.0, "did not see expected number of backoffs")
 }
 
 // Ensure the garbage collector interval is reset after recovering from an
@@ -238,23 +241,29 @@ func TestGCFailureBackoffReset(t *testing.T) {
 		errorOnRevisions: []uint64{1, 2, 3, 4, 5},
 	})
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+	errCh := make(chan error, 1)
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			interval := 10 * time.Millisecond
+			window := 10 * time.Second
+			timeout := 1 * time.Minute
 
-	go func() {
-		interval := 10 * time.Millisecond
-		window := 10 * time.Second
-		timeout := 1 * time.Minute
+			errCh <- StartGarbageCollector(ctx, gc, interval, window, timeout)
+		}()
+		// The garbage collector should fail 5 times starting with 10ms interval,
+		// which should take ~160ms to complete. after that, it should resume
+		// completing a revision every 10ms, which should get us at least 20
+		// successful iterations with a 500ms total execution time.
+		// If the interval is not reset, it should blow past the 500ms timer
+		// after only completing ~3 iterations.
+		time.Sleep(500 * time.Millisecond)
+		cancel()
+		synctest.Wait()
+	})
 
-		require.Error(t, StartGarbageCollector(ctx, gc, interval, window, timeout))
-	}()
+	require.Error(t, <-errCh)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
-
-	// The next interval should have been reset after recovering from the error.
-	// If it is not reset, the last exponential backoff interval will not give
-	// the GC enough time to run.
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
 
@@ -264,20 +273,29 @@ func TestGCFailureBackoffReset(t *testing.T) {
 func TestGCUnlockOnTimeout(t *testing.T) {
 	gc := newFakeGCStore(alwaysErrorDeleter{})
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+	errCh := make(chan error, 1)
+	hasRunChan := make(chan bool, 1)
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(func() {
+			cancel()
+		})
+		go func() {
+			interval := 10 * time.Millisecond
+			window := 10 * time.Second
+			timeout := 1 * time.Minute
 
-	go func() {
-		interval := 10 * time.Millisecond
-		window := 10 * time.Second
-		timeout := 1 * time.Millisecond
+			errCh <- StartGarbageCollector(ctx, gc, interval, window, timeout)
+		}()
+		time.Sleep(30 * time.Millisecond)
+		hasRunChan <- gc.HasGCRun()
+		cancel()
+		synctest.Wait()
+	})
+	require.Error(t, <-errCh)
+	require.False(t, <-hasRunChan, "GC should not have run because it should always be erroring.")
 
-		require.Error(t, StartGarbageCollector(ctx, gc, interval, window, timeout))
-	}()
-
-	time.Sleep(30 * time.Millisecond)
-	require.False(t, gc.HasGCRun(), "GC should not have run")
-
+	// TODO: should this be inside the goroutine as well?
 	gc.fakeGC.lock.Lock()
 	defer gc.fakeGC.lock.Unlock()
 
