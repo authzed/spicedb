@@ -1106,3 +1106,356 @@ func TestNilReferenceVisitor_ErrorHandling(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errTestError, err)
 }
+
+// orderTrackingVisitor tracks the order of visited nodes by their names
+type orderTrackingVisitor struct {
+	visitOrder []string
+}
+
+func (otv *orderTrackingVisitor) VisitSchema(s *Schema, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "schema")
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitDefinition(d *Definition, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "def:"+d.name)
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitRelation(r *Relation, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "rel:"+r.name)
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitBaseRelation(br *BaseRelation, value struct{}) (struct{}, error) {
+	otv.visitOrder = append(otv.visitOrder, "baserel:"+br.subjectType)
+	return value, nil
+}
+
+func (otv *orderTrackingVisitor) VisitPermission(p *Permission, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "perm:"+p.name)
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitRelationReference(rr *RelationReference, value struct{}) (struct{}, error) {
+	otv.visitOrder = append(otv.visitOrder, "relref:"+rr.relationName)
+	return value, nil
+}
+
+func (otv *orderTrackingVisitor) VisitUnionOperation(uo *UnionOperation, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "union")
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitIntersectionOperation(io *IntersectionOperation, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "intersection")
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitExclusionOperation(eo *ExclusionOperation, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "exclusion")
+	return value, true, nil
+}
+
+// TestWalkSchema_PreOrderVsPostOrder verifies that PreOrder and PostOrder produce different traversal orders
+func TestWalkSchema_PreOrderVsPostOrder(t *testing.T) {
+	// Build a simple schema with nested structure
+	schema := buildTestSchema(t)
+
+	// Test PreOrder traversal (default)
+	preOrderVisitor := &orderTrackingVisitor{}
+	_, err := WalkSchema(schema, preOrderVisitor, struct{}{})
+	require.NoError(t, err)
+
+	// Test PostOrder traversal
+	postOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkSchemaWithOptions(schema, postOrderVisitor, struct{}{}, WalkOptions{Strategy: WalkPostOrder})
+	require.NoError(t, err)
+
+	// Verify orders are different
+	require.NotEqual(t, preOrderVisitor.visitOrder, postOrderVisitor.visitOrder)
+
+	// Verify PreOrder visits parent before children
+	// Schema should be first in PreOrder
+	require.Equal(t, "schema", preOrderVisitor.visitOrder[0])
+
+	// Verify PostOrder visits children before parent
+	// Schema should be last in PostOrder
+	require.Equal(t, "schema", postOrderVisitor.visitOrder[len(postOrderVisitor.visitOrder)-1])
+}
+
+// TestWalkDefinition_PreOrderVsPostOrder tests order difference at definition level
+func TestWalkDefinition_PreOrderVsPostOrder(t *testing.T) {
+	schema := buildTestSchema(t)
+	def := schema.definitions["document"]
+	require.NotNil(t, def)
+
+	// PreOrder
+	preOrderVisitor := &orderTrackingVisitor{}
+	_, err := WalkDefinition(def, preOrderVisitor, struct{}{})
+	require.NoError(t, err)
+
+	// PostOrder
+	postOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkDefinitionWithOptions(def, postOrderVisitor, struct{}{}, WalkOptions{Strategy: WalkPostOrder})
+	require.NoError(t, err)
+
+	// In PreOrder, definition should be first
+	require.Equal(t, "def:document", preOrderVisitor.visitOrder[0])
+
+	// In PostOrder, definition should be last
+	require.Equal(t, "def:document", postOrderVisitor.visitOrder[len(postOrderVisitor.visitOrder)-1])
+}
+
+// TestWalkOperation_PreOrderVsPostOrder tests operation tree traversal order
+func TestWalkOperation_PreOrderVsPostOrder(t *testing.T) {
+	// Build operation tree: (a | b) & c
+	op := &IntersectionOperation{
+		children: []Operation{
+			&UnionOperation{
+				children: []Operation{
+					&RelationReference{relationName: "a"},
+					&RelationReference{relationName: "b"},
+				},
+			},
+			&RelationReference{relationName: "c"},
+		},
+	}
+
+	// PreOrder: should visit intersection, then union, then leaves
+	preOrderVisitor := &orderTrackingVisitor{}
+	_, err := WalkOperation(op, preOrderVisitor, struct{}{})
+	require.NoError(t, err)
+
+	// Expected PreOrder: intersection, union, a, b, c
+	expectedPreOrder := []string{"intersection", "union", "relref:a", "relref:b", "relref:c"}
+	require.Equal(t, expectedPreOrder, preOrderVisitor.visitOrder)
+
+	// PostOrder: should visit leaves first, then union, then intersection
+	postOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkOperationWithOptions(op, postOrderVisitor, struct{}{}, WalkOptions{Strategy: WalkPostOrder})
+	require.NoError(t, err)
+
+	// Expected PostOrder: a, b, union, c, intersection (like postfix notation)
+	expectedPostOrder := []string{"relref:a", "relref:b", "union", "relref:c", "intersection"}
+	require.Equal(t, expectedPostOrder, postOrderVisitor.visitOrder)
+}
+
+// valueThreadingVisitor tracks value threading by accumulating counts
+type valueThreadingVisitor struct {
+	schemaCount     int
+	definitionCount int
+	relationCount   int
+	permissionCount int
+}
+
+func (vtv *valueThreadingVisitor) VisitSchema(s *Schema, value int) (int, bool, error) {
+	vtv.schemaCount++
+	return value + 1, true, nil
+}
+
+func (vtv *valueThreadingVisitor) VisitDefinition(d *Definition, value int) (int, bool, error) {
+	vtv.definitionCount++
+	return value + 10, true, nil
+}
+
+func (vtv *valueThreadingVisitor) VisitRelation(r *Relation, value int) (int, bool, error) {
+	vtv.relationCount++
+	return value + 100, true, nil
+}
+
+func (vtv *valueThreadingVisitor) VisitPermission(p *Permission, value int) (int, bool, error) {
+	vtv.permissionCount++
+	return value + 1000, true, nil
+}
+
+// TestWalkSchema_PostOrderValueThreading verifies value threading works correctly in PostOrder
+func TestWalkSchema_PostOrderValueThreading(t *testing.T) {
+	schema := buildTestSchema(t)
+
+	// Test with PreOrder (baseline)
+	preOrderVisitor := &valueThreadingVisitor{}
+	preOrderResult, err := WalkSchema(schema, preOrderVisitor, 0)
+	require.NoError(t, err)
+
+	// Test with PostOrder
+	postOrderVisitor := &valueThreadingVisitor{}
+	postOrderResult, err := WalkSchemaWithOptions(schema, postOrderVisitor, 0, WalkOptions{Strategy: WalkPostOrder})
+	require.NoError(t, err)
+
+	// Both should have visited the same nodes
+	require.Equal(t, preOrderVisitor.schemaCount, postOrderVisitor.schemaCount)
+	require.Equal(t, preOrderVisitor.definitionCount, postOrderVisitor.definitionCount)
+	require.Equal(t, preOrderVisitor.relationCount, postOrderVisitor.relationCount)
+	require.Equal(t, preOrderVisitor.permissionCount, postOrderVisitor.permissionCount)
+
+	// Both should have the same final accumulated value
+	require.Equal(t, preOrderResult, postOrderResult)
+}
+
+// continueTestVisitor stops at definitions to test continue flag behavior
+type continueTestVisitor struct {
+	definitionsSeen int
+	relationsSeen   int
+	stopAtFirstDef  bool
+}
+
+func (ctv *continueTestVisitor) VisitDefinition(d *Definition, value struct{}) (struct{}, bool, error) {
+	ctv.definitionsSeen++
+	if ctv.stopAtFirstDef && ctv.definitionsSeen == 1 {
+		return value, false, nil // Stop - don't visit children
+	}
+	return value, true, nil
+}
+
+func (ctv *continueTestVisitor) VisitRelation(r *Relation, value struct{}) (struct{}, bool, error) {
+	ctv.relationsSeen++
+	return value, true, nil
+}
+
+// TestWalkDefinition_ContinueFlagInPreOrder verifies continue=false skips children in PreOrder
+func TestWalkDefinition_ContinueFlagInPreOrder(t *testing.T) {
+	schema := buildTestSchema(t)
+	def := schema.definitions["document"]
+
+	visitor := &continueTestVisitor{stopAtFirstDef: true}
+	_, err := WalkDefinition(def, visitor, struct{}{})
+	require.NoError(t, err)
+
+	// In PreOrder, continue=false should skip children
+	require.Equal(t, 1, visitor.definitionsSeen)
+	require.Equal(t, 0, visitor.relationsSeen) // Children not visited
+}
+
+// TestWalkDefinition_ContinueFlagInPostOrder verifies children are visited regardless in PostOrder
+func TestWalkDefinition_ContinueFlagInPostOrder(t *testing.T) {
+	schema := buildTestSchema(t)
+	def := schema.definitions["document"]
+
+	visitor := &continueTestVisitor{stopAtFirstDef: true}
+	_, err := WalkDefinitionWithOptions(def, visitor, struct{}{}, WalkOptions{Strategy: WalkPostOrder})
+	require.NoError(t, err)
+
+	// In PostOrder, children are visited before parent, so continue flag doesn't affect them
+	require.Equal(t, 1, visitor.definitionsSeen)
+	require.Greater(t, visitor.relationsSeen, 0) // Children were visited
+}
+
+// errorInChildVisitor returns error from a relation to test error propagation
+type errorInChildVisitor struct{}
+
+func (ev *errorInChildVisitor) VisitRelation(r *Relation, value struct{}) (struct{}, bool, error) {
+	if r.name == "viewer" {
+		return value, false, errTestError
+	}
+	return value, true, nil
+}
+
+func (ev *errorInChildVisitor) VisitDefinition(d *Definition, value struct{}) (struct{}, bool, error) {
+	return value, true, nil
+}
+
+// TestWalkDefinition_ErrorPropagationInPostOrder verifies errors propagate correctly in PostOrder
+func TestWalkDefinition_ErrorPropagationInPostOrder(t *testing.T) {
+	schema := buildTestSchema(t)
+	def := schema.definitions["document"]
+
+	visitor := &errorInChildVisitor{}
+	_, err := WalkDefinitionWithOptions(def, visitor, struct{}{}, WalkOptions{Strategy: WalkPostOrder})
+	require.Error(t, err)
+	require.Equal(t, errTestError, err)
+}
+
+// TestWalkSchema_BackwardCompatibility verifies default behavior is PreOrder
+func TestWalkSchema_BackwardCompatibility(t *testing.T) {
+	schema := buildTestSchema(t)
+
+	// Default Walk (no options) should behave like PreOrder
+	defaultVisitor := &orderTrackingVisitor{}
+	_, err := WalkSchema(schema, defaultVisitor, struct{}{})
+	require.NoError(t, err)
+
+	// Explicit PreOrder
+	preOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkSchemaWithOptions(schema, preOrderVisitor, struct{}{}, WalkOptions{Strategy: WalkPreOrder})
+	require.NoError(t, err)
+
+	// Both should visit the same number of nodes
+	require.Equal(t, len(preOrderVisitor.visitOrder), len(defaultVisitor.visitOrder))
+
+	// Both should have schema as the first node (PreOrder characteristic)
+	require.Equal(t, "schema", defaultVisitor.visitOrder[0])
+	require.Equal(t, "schema", preOrderVisitor.visitOrder[0])
+
+	// PostOrder should be different - schema should be last
+	postOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkSchemaWithOptions(schema, postOrderVisitor, struct{}{}, WalkOptions{Strategy: WalkPostOrder})
+	require.NoError(t, err)
+
+	require.Equal(t, "schema", postOrderVisitor.visitOrder[len(postOrderVisitor.visitOrder)-1])
+	require.NotEqual(t, defaultVisitor.visitOrder[0], postOrderVisitor.visitOrder[0])
+}
+
+// buildTestSchema creates a test schema with nested structure for testing
+func buildTestSchema(t *testing.T) *Schema {
+	// Create base relations
+	viewerBR := &BaseRelation{subjectType: "user"}
+	editorBR := &BaseRelation{subjectType: "user"}
+
+	// Create relations
+	viewerRel := &Relation{
+		name:          "viewer",
+		baseRelations: []*BaseRelation{viewerBR},
+	}
+	editorRel := &Relation{
+		name:          "editor",
+		baseRelations: []*BaseRelation{editorBR},
+	}
+
+	// Create permissions with union operation
+	viewPerm := &Permission{
+		name: "view",
+		operation: &UnionOperation{
+			children: []Operation{
+				&RelationReference{relationName: "viewer"},
+				&RelationReference{relationName: "editor"},
+			},
+		},
+	}
+	editPerm := &Permission{
+		name:      "edit",
+		operation: &RelationReference{relationName: "editor"},
+	}
+
+	// Create definition
+	docDef := &Definition{
+		name: "document",
+		relations: map[string]*Relation{
+			"viewer": viewerRel,
+			"editor": editorRel,
+		},
+		permissions: map[string]*Permission{
+			"view": viewPerm,
+			"edit": editPerm,
+		},
+	}
+
+	// Set parent references
+	viewerBR.parent = viewerRel
+	editorBR.parent = editorRel
+	viewerRel.parent = docDef
+	editorRel.parent = docDef
+	viewPerm.parent = docDef
+	editPerm.parent = docDef
+
+	// Create schema
+	schema := &Schema{
+		definitions: map[string]*Definition{
+			"document": docDef,
+		},
+		caveats: make(map[string]*Caveat),
+	}
+	docDef.parent = schema
+
+	return schema
+}
