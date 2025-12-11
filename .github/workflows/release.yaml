@@ -14,7 +14,7 @@ jobs:
       contents: "write"
       packages: "write" # publish to GHCR
     steps:
-      - uses: "actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493" # v4.2.2
+      - uses: "actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8" # v4.2.2
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@6cde6aeb82fab36d8383c2f55bed8128955af34d" # main
@@ -36,7 +36,7 @@ jobs:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
-      - uses: "docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392" # v3.6.0
+      - uses: "docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130" # v3.7.0
       - uses: "docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435" # v3.11.1
       - uses: "goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a" # v6.4.0
         with:
