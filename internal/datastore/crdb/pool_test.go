@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
@@ -98,8 +99,7 @@ func TestTxReset(t *testing.T) {
 	for _, tt := range cases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			require := require.New(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newCRDBDatastore(
@@ -111,14 +111,16 @@ func TestTxReset(t *testing.T) {
 					MaxRetries(tt.maxRetries),
 					WithAcquireTimeout(5*time.Second),
 				)
-				require.NoError(err)
+				require.NoError(t, err)
 				return ds
 			})
 			defer ds.Close()
 
-			r, err := ds.ReadyState(ctx)
-			require.NoError(err)
-			require.True(r.IsReady, "datastore not ready: %s", r.Message)
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				r, err := ds.ReadyState(ctx)
+				require.NoError(c, err)
+				require.True(c, r.IsReady, "datastore not ready: %s", r.Message)
+			}, 3*time.Second, 50*time.Millisecond)
 
 			// WriteNamespace utilizes execute so we'll use it
 			i := 0
@@ -130,11 +132,11 @@ func TestTxReset(t *testing.T) {
 				return rwt.WriteNamespaces(ctx, testUserNS)
 			})
 			if tt.expectError {
-				require.Error(err)
-				require.Equal(datastore.NoRevision, rev)
+				require.Error(t, err)
+				require.Equal(t, datastore.NoRevision, rev)
 			} else {
-				require.NoError(err)
-				require.NotEqual(datastore.NoRevision, rev)
+				require.NoError(t, err)
+				require.NotEqual(t, datastore.NoRevision, rev)
 			}
 		})
 	}
