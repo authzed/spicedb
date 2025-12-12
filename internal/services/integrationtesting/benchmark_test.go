@@ -54,7 +54,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "tom",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.GreaterOrEqual(b, len(results), 0)
+				require.NotEmpty(b, results)
 				return err
 			},
 		},
@@ -70,7 +70,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "someguy",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.GreaterOrEqual(b, len(results), 0)
+				require.NotEmpty(b, results)
 				return err
 			},
 		},
@@ -86,7 +86,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "tom",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.GreaterOrEqual(b, len(results), 0)
+				require.NotEmpty(b, results)
 				return err
 			},
 		},
@@ -102,7 +102,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "tom",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.Equal(b, len(results), 499)
+				require.Len(b, results, 499)
 				return err
 			},
 		},

@@ -199,7 +199,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 
 			require.NoError(err)
 
-			require.Equal(1, len(stream.Results()))
+			require.Len(stream.Results(), 1)
 
 			found.Insert(stream.Results()[0].Items[0].ResourceId)
 			require.Equal(tc.expectedFirst, found.AsSlice())

@@ -50,9 +50,9 @@ func TestNew(t *testing.T) {
 
 			err := am.checkAdmission("some_method")
 			if tt.expectReqLetThrough {
-				require.Nil(t, err) // if the middleware is off, every request is let through
+				require.NoError(t, err) // if the middleware is off, every request is let through
 			} else {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			}
 		})
 	}
@@ -95,10 +95,10 @@ func TestMemoryProtectionMiddleware_RecordRejection(t *testing.T) {
 	require.Equal(t, "dispatch", endpointType)
 
 	gaugeValue := testutil.ToFloat64(testRequestsProcessed.WithLabelValues("api", "true"))
-	require.Equal(t, float64(1), gaugeValue)
+	require.Equal(t, float64(1), gaugeValue) //nolint:testifylint // these values aren't being operated on
 
 	gaugeValue = testutil.ToFloat64(testRequestsProcessed.WithLabelValues("dispatch", "false"))
-	require.Equal(t, float64(1), gaugeValue)
+	require.Equal(t, float64(1), gaugeValue) //nolint:testifylint // these values aren't being operated on
 }
 
 type memoryProtectionTestServer struct {
@@ -180,7 +180,7 @@ func (s *memoryProtectionMiddlewareTestSuite) TestUnaryInterceptor_EnforcesMemor
 
 func (s *memoryProtectionMiddlewareTestSuite) TestStreamingInterceptor_EnforcesMemoryProtection() {
 	resp, err := s.Client.PingStream(context.Background())
-	require.NoError(s.T(), err, "Request should be allowed")
+	s.Require().NoError(err, "Request should be allowed")
 
 	res, err := resp.Recv()
 	if errors.Is(err, io.EOF) {

@@ -38,7 +38,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, 3, est.Cardinality)
 			require.Equal(t, 1, est.CheckCost)
-			require.Equal(t, stats.CheckSelectivity, est.CheckSelectivity)
+			require.Equal(t, stats.CheckSelectivity, est.CheckSelectivity) // nolint:testifylint // these values aren't being operated on
 			require.Equal(t, 3, est.IterResourcesCost)
 			require.Equal(t, 3, est.IterSubjectsCost)
 		})
@@ -53,7 +53,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, stats.NumberOfTuplesInRelation, est.Cardinality)
 		require.Equal(t, 1, est.CheckCost)
-		require.Equal(t, stats.CheckSelectivity, est.CheckSelectivity)
+		require.Equal(t, stats.CheckSelectivity, est.CheckSelectivity) // nolint:testifylint // these values aren't being operated on
 		require.Equal(t, stats.Fanout, est.IterResourcesCost)
 		require.Equal(t, stats.Fanout, est.IterSubjectsCost)
 	})
@@ -176,7 +176,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			require.Equal(t, 3, est.CheckCost)
 
 			// CheckSelectivity: max of all branches (all are 0.9)
-			require.Equal(t, 0.9, est.CheckSelectivity)
+			require.Equal(t, 0.9, est.CheckSelectivity) // nolint:testifylint // these values aren't being operated on
 
 			// IterResourcesCost and IterSubjectsCost: sum of all
 			require.Equal(t, 4, est.IterResourcesCost)
@@ -227,7 +227,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			// With single iterator, cardinality is just that iterator's cardinality
 			require.Equal(t, 2, est.Cardinality)
 			require.Equal(t, 1, est.CheckCost)
-			require.Equal(t, 0.9, est.CheckSelectivity)
+			require.Equal(t, 0.9, est.CheckSelectivity) // nolint:testifylint // these values aren't being operated on
 		})
 
 		t.Run("two subiterators", func(t *testing.T) {
@@ -357,7 +357,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			require.Equal(t, 3, est.Cardinality)
 
 			// Each arrow has CheckCost, they sum
-			require.Greater(t, est.CheckCost, 0)
+			require.Positive(t, est.CheckCost)
 		})
 
 		t.Run("arrow of unions", func(t *testing.T) {
@@ -484,7 +484,7 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 		)
 		est, err := stats.Cost(it)
 		require.NoError(t, err)
-		require.Equal(t, 0.5, est.CheckSelectivity)
+		require.Equal(t, 0.5, est.CheckSelectivity) // nolint:testifylint // these values aren't being operated on
 	})
 
 	t.Run("custom intersection arrow reduction", func(t *testing.T) {

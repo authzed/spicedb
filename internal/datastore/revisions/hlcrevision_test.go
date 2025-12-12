@@ -108,7 +108,7 @@ func TestInexactFloat64(t *testing.T) {
 			rev, err := HLCRevisionFromString(tc)
 			require.NoError(t, err)
 
-			require.Equal(t, floatValue, rev.InexactFloat64()) //nolint:testifyrequire this is based on a parsed value, so we expect it to be exactly equal.
+			require.Equal(t, floatValue, rev.InexactFloat64()) //nolint:testifylint // this is based on a parsed value, so we expect it to be exactly equal.
 		})
 	}
 }

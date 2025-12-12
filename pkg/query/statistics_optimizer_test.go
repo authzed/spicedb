@@ -94,7 +94,7 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 		// Verify the order changed
 		resultUnion, ok := result.(*Union)
 		require.True(t, ok)
-		require.Equal(t, 2, len(resultUnion.subIts))
+		require.Len(t, resultUnion.subIts, 2)
 
 		// First should be the higher selectivity item
 		require.Equal(t, highSelect, resultUnion.subIts[0])

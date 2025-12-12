@@ -228,7 +228,7 @@ func TestCursoredWithIntegerHeader(t *testing.T) {
 		result := CursoredWithIntegerHeader(ctx, Cursor{}, header, nextFunc)
 		items := collectNoError(t, result)
 
-		require.Len(t, items, 0)
+		require.Empty(t, items)
 	})
 
 	t.Run("cursor index increments correctly", func(t *testing.T) {
@@ -730,7 +730,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 				result := CursoredProducerMapperIterator(ctx, Cursor{}, concurrency, intFromString, intToString, emptyProducer, mapper)
 				items := collectNoError(t, result)
 
-				require.Len(t, items, 0)
+				require.Empty(t, items)
 			})
 
 			t.Run("producer error handling", func(t *testing.T) {
@@ -835,7 +835,7 @@ func TestCursoredProducerMapperIterator(t *testing.T) {
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "conversion failed")
-				require.Len(t, items, 0)
+				require.Empty(t, items)
 			})
 
 			t.Run("context cancellation during producer execution", func(t *testing.T) {

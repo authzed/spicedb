@@ -230,7 +230,7 @@ func TestPath_mergeFrom(t *testing.T) {
 
 			merged, err := path1.MergeOr(path2)
 			require.NoError(err)
-			require.Equal("", merged.Relation)
+			require.Empty(merged.Relation)
 		})
 	})
 

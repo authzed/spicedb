@@ -43,7 +43,7 @@ func TestDigestMap_CDF(t *testing.T) {
 	// Test CDF at various points
 	cdf0, ok := dm.CDF("test-key", 0)
 	require.True(t, ok)
-	require.Equal(t, float64(0), cdf0)
+	require.Equal(t, float64(0), cdf0) // nolint:testifylint // these values aren't being operated on
 
 	cdf5, ok := dm.CDF("test-key", 5)
 	require.True(t, ok)
@@ -51,7 +51,7 @@ func TestDigestMap_CDF(t *testing.T) {
 
 	cdf100, ok := dm.CDF("test-key", 100)
 	require.True(t, ok)
-	require.Equal(t, float64(1), cdf100)
+	require.Equal(t, float64(1), cdf100) //nolint:testifylint // this value isn't being operated on
 }
 
 func TestDigestMap_MultipleKeys(t *testing.T) {
@@ -131,7 +131,7 @@ func TestDigestMap_EmptyKey(t *testing.T) {
 	// Should now work
 	cdf, ok := dm.CDF("", 42.0)
 	require.True(t, ok)
-	require.Equal(t, float64(1), cdf)
+	require.Equal(t, float64(1), cdf) //nolint:testifylint // this value isn't being operated on
 }
 
 func TestDigestMap_SingleValue(t *testing.T) {
@@ -141,15 +141,15 @@ func TestDigestMap_SingleValue(t *testing.T) {
 
 	cdf41, ok := dm.CDF("single", 41)
 	require.True(t, ok)
-	require.Equal(t, float64(0), cdf41)
+	require.Equal(t, float64(0), cdf41) //nolint:testifylint // this value isn't being operated on
 
 	cdf42, ok := dm.CDF("single", 42)
 	require.True(t, ok)
-	require.Equal(t, float64(1), cdf42)
+	require.Equal(t, float64(1), cdf42) //nolint:testifylint // this value isn't being operated on
 
 	cdf43, ok := dm.CDF("single", 43)
 	require.True(t, ok)
-	require.Equal(t, float64(1), cdf43)
+	require.Equal(t, float64(1), cdf43) //nolint:testifylint // this value isn't being operated on
 }
 
 func TestDigestMap_LargeDataset(t *testing.T) {

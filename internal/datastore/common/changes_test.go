@@ -407,7 +407,7 @@ func TestAddMetadata(t *testing.T) {
 	require.Len(t, results, 1)
 	require.True(t, ch.IsEmpty())
 
-	require.Equal(t, 1, len(results[0].Metadatas))
+	require.Len(t, results[0].Metadatas, 1)
 	require.Equal(t, map[string]any{"foo": "bar"}, results[0].Metadatas[0].AsMap())
 }
 
@@ -444,8 +444,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 1, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 1)
 		require.Equal(t, metadata, results[0].Metadatas[0].AsMap())
 	})
 
@@ -467,8 +467,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 3, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 3)
 
 		resultMaps := make([]map[string]any, 3)
 		for i, meta := range results[0].Metadatas {
@@ -507,8 +507,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 1, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 1)
 	})
 
 	t.Run("metadata across different revisions", func(t *testing.T) {
@@ -528,12 +528,12 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
 		require.NoError(t, err)
-		require.Equal(t, 2, len(results))
+		require.Len(t, results, 2)
 
-		require.Equal(t, 1, len(results[0].Metadatas))
+		require.Len(t, results[0].Metadatas, 1)
 		require.Equal(t, metadata1, results[0].Metadatas[0].AsMap())
 
-		require.Equal(t, 1, len(results[1].Metadatas))
+		require.Len(t, results[1].Metadatas, 1)
 		require.Equal(t, metadata2, results[1].Metadatas[0].AsMap())
 	})
 
@@ -551,8 +551,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 2, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 2)
 	})
 
 	t.Run("deduplication edge cases", func(t *testing.T) {
@@ -580,8 +580,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 4, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 4)
 	})
 
 	t.Run("metadata ordering preservation", func(t *testing.T) {
@@ -605,8 +605,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 3, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 3)
 
 		require.Equal(t, metadata1, results[0].Metadatas[0].AsMap())
 		require.Equal(t, metadata2, results[0].Metadatas[1].AsMap())

@@ -160,7 +160,7 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 										if len(rels) != 0 && qctx.TraceLogger != nil {
 											t.Logf("Expected 0 relations but got %d. Trace:\n%s", len(rels), qctx.TraceLogger.DumpTrace())
 										}
-										require.Len(rels, 0)
+										require.Empty(rels)
 									}
 								})
 							}

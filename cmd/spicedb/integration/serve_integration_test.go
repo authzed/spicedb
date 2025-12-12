@@ -156,7 +156,7 @@ func TestGracefulShutdown(t *testing.T) {
 		"cockroachdb": false,
 		"spanner":     false,
 	}
-	require.Equal(t, len(engines), len(datastore.Engines))
+	require.Len(t, datastore.Engines, len(engines))
 
 	for driverName, awaitGC := range engines {
 		t.Run(driverName, func(t *testing.T) {

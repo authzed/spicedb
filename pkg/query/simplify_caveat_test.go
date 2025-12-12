@@ -569,7 +569,7 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 		// Should return the failed caveat (limit=2)
 		require.NotNil(simplified.GetCaveat())
 		require.Equal("write_limit", simplified.GetCaveat().CaveatName)
-		require.Equal(float64(2), simplified.GetCaveat().Context.AsMap()["limit"])
+		require.Equal(float64(2), simplified.GetCaveat().Context.AsMap()["limit"]) //nolint:testifylint // this value isn't being operated on
 	})
 
 	t.Run("Count5_ShouldFailBothBranches", func(t *testing.T) {
@@ -584,7 +584,7 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 		// Should return the first failed caveat (limit=2)
 		require.NotNil(simplified.GetCaveat())
 		require.Equal("write_limit", simplified.GetCaveat().CaveatName)
-		require.Equal(float64(2), simplified.GetCaveat().Context.AsMap()["limit"])
+		require.Equal(float64(2), simplified.GetCaveat().Context.AsMap()["limit"]) //nolint:testifylint // this value isn't being operated on
 	})
 }
 
@@ -901,7 +901,8 @@ func TestMergeContextsForExpression(t *testing.T) {
 
 		// Should have relationship context from the caveat
 		require.Equal("doc1", result["resource_id"])
-		require.Equal(float64(5), result["limit"]) // structpb converts ints to float64
+		// structpb converts ints to float64
+		require.Equal(float64(5), result["limit"]) //nolint:testifylint // this value isn't being operated on
 	})
 
 	t.Run("Complex AND expression", func(t *testing.T) {
@@ -960,7 +961,8 @@ func TestMergeContextsForExpression(t *testing.T) {
 		// Query context should override relationship context
 		require.Equal("alice", result["user_id"]) // From query, not "bob" from relationship
 		require.Equal(123, result["query_data"])
-		require.Equal(float64(10), result["limit"]) // From relationship context
+		// From relationship context
+		require.Equal(float64(10), result["limit"]) //nolint:testifylint // this value isn't being operated on
 	})
 
 	t.Run("Empty expression", func(t *testing.T) {
@@ -1000,7 +1002,7 @@ func TestCollectRelationshipContexts(t *testing.T) {
 		collectRelationshipContexts(caveatExpr, contextMap)
 
 		require.Equal("doc1", contextMap["resource_id"])
-		require.Equal(float64(5), contextMap["limit"])
+		require.Equal(float64(5), contextMap["limit"]) // nolint:testifylint // these values aren't being operated on
 		require.Len(contextMap, 2)
 	})
 

@@ -782,7 +782,7 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 			require.Equal(t, "member", funcOp.Right())
 			require.Equal(t, FunctionTypeAll, funcOp.Function())
 		} else {
-			require.Fail(t, "Expected FunctionedArrowReference, got %T", viewPerm.Operation())
+			require.Fail(t, "Expected FunctionedArrowReference, got:", viewPerm.Operation())
 		}
 	})
 }

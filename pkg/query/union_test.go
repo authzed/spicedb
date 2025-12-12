@@ -189,7 +189,7 @@ func TestUnionIteratorClone(t *testing.T) {
 	originalExplain := original.Explain()
 	clonedExplain := cloned.Explain()
 	require.Equal(originalExplain.Info, clonedExplain.Info)
-	require.Equal(len(originalExplain.SubExplain), len(clonedExplain.SubExplain))
+	require.Len(clonedExplain.SubExplain, len(originalExplain.SubExplain))
 
 	// Test that both iterators have the same explain behavior (cloning works)
 	// Note: Due to union's stateful resource elimination optimization,
@@ -509,7 +509,7 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 		relCaveat := rels[0].Caveat
 		require.NotNil(relCaveat, "Result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_OR, "Caveat should be an OR")
+		require.Equal(core.CaveatOperation_OR, relCaveat.GetOperation().Op, "Caveat should be an OR")
 		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an OR of two children")
 	})
 

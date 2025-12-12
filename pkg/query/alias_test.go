@@ -242,7 +242,7 @@ func TestAliasIteratorClone(t *testing.T) {
 	originalExplain := original.Explain()
 	clonedExplain := cloned.Explain()
 	require.Equal(originalExplain.Info, clonedExplain.Info)
-	require.Equal(len(originalExplain.SubExplain), len(clonedExplain.SubExplain))
+	require.Len(clonedExplain.SubExplain, len(originalExplain.SubExplain))
 
 	// The underlying relation should be the same
 	require.Equal("Alias(original_relation)", originalExplain.Info)

@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -230,7 +229,7 @@ func requireSpanExists(t *testing.T, spanrecorder *tracetest.SpanRecorder, spanN
 			}
 		}
 		return false
-	}, 2*time.Second, 10*time.Millisecond, fmt.Sprintf("missing span with name %q", spanName))
+	}, 2*time.Second, 10*time.Millisecond, "missing span with name %q", spanName)
 }
 
 func requireSpanDoesNotExist(t *testing.T, spanrecorder *tracetest.SpanRecorder, spanName string) {

@@ -336,7 +336,8 @@ func TestUnmarshalParamsErrors(t *testing.T) {
 	r := &jsonrpc2.Request{Method: "test", Params: nil}
 	_, err := unmarshalParams[struct{}](r)
 	require.Error(t, err)
-	require.IsType(t, &jsonrpc2.Error{}, err)
+	var jError *jsonrpc2.Error
+	require.ErrorAs(t, err, &jError)
 	require.Equal(t, int64(jsonrpc2.CodeInvalidParams), func() *jsonrpc2.Error {
 		target := &jsonrpc2.Error{}
 		_ = errors.As(err, &target)
@@ -348,7 +349,7 @@ func TestUnmarshalParamsErrors(t *testing.T) {
 	r = &jsonrpc2.Request{Method: "test", Params: &invalidJSON}
 	_, err = unmarshalParams[struct{ Valid bool }](r)
 	require.Error(t, err)
-	require.IsType(t, &jsonrpc2.Error{}, err)
+	require.ErrorAs(t, err, &jError)
 	require.Equal(t, int64(jsonrpc2.CodeInvalidParams), func() *jsonrpc2.Error {
 		target := &jsonrpc2.Error{}
 		_ = errors.As(err, &target)
