@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
@@ -17,9 +15,11 @@ import (
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/stretchr/testify/require"
 )
 
-func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
+func TestConsistencyPerDatastore(t *testing.T) {
+	//nolint:tparallel
 	// TODO(jschorr): Re-enable for *all* files once we make this faster.
 	_, filename, _, _ := runtime.Caller(0)
 	consistencyTestFiles := []string{
@@ -55,6 +55,7 @@ func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
 				cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
 				dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
 				require.NoError(t, err)
+				t.Cleanup(func() { dispatcher.Close() })
 				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
 
 				headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)

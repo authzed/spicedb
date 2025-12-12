@@ -11,7 +11,7 @@ import (
 )
 
 func TestCollect(t *testing.T) {
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(100, 10*time.Hour, 10*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 100, 10*time.Hour, 10*time.Hour)
 	require.NoError(t, err)
 
 	_, c, err := registerTelemetryCollector("memdb", ds)
@@ -38,7 +38,7 @@ outer:
 }
 
 func TestSpiceDBClusterInfoCollector(t *testing.T) {
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(100, 10*time.Hour, 10*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 100, 10*time.Hour, 10*time.Hour)
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -65,7 +65,7 @@ outer:
 }
 
 func TestRegisterTelemetryCollector(t *testing.T) {
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(100, 10*time.Hour, 10*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 100, 10*time.Hour, 10*time.Hour)
 	require.NoError(t, err)
 
 	registry, err := RegisterTelemetryCollector("memdb", ds)
@@ -79,7 +79,7 @@ func TestRegisterTelemetryCollector(t *testing.T) {
 }
 
 func TestCollectorDescribe(t *testing.T) {
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(100, 10*time.Hour, 10*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 100, 10*time.Hour, 10*time.Hour)
 	require.NoError(t, err)
 
 	_, collector, err := registerTelemetryCollector("memdb", ds)

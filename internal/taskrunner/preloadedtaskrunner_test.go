@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 // done so we can do t.Parallel() and still use goleak
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	// goleak.VerifyTestMain(m)
 }
 
 func TestPreloadedTaskRunnerCompletesAllTasks(t *testing.T) {

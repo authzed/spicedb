@@ -154,6 +154,9 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 			require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
 			return initFunc("postgres", connectStr)
 		}
+		defer func() {
+			migrationDriver.Close(context.Background())
+		}()
 
 		if i == retryCount {
 			require.NoError(t, err, "got error when trying to create migration driver")

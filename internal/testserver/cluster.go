@@ -190,6 +190,9 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 
 		dispatcher, err := combineddispatch.NewDispatcher(dispatcherOptions...)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			dispatcher.Close()
+		})
 
 		serverOptions := []server.ConfigOption{
 			server.WithDatastore(ds),
