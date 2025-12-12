@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -38,6 +40,7 @@ func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) Pa
 //
 // The RelationIterator, being the leaf, generates this set by calling the datastore.
 type RelationIterator struct {
+	id   string
 	base *schema.BaseRelation
 }
 
@@ -45,6 +48,7 @@ var _ Iterator = &RelationIterator{}
 
 func NewRelationIterator(base *schema.BaseRelation) *RelationIterator {
 	return &RelationIterator{
+		id:   uuid.NewString(),
 		base: base,
 	}
 }
@@ -228,6 +232,7 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 
 func (r *RelationIterator) Clone() Iterator {
 	return &RelationIterator{
+		id:   uuid.NewString(),
 		base: r.base,
 	}
 }
@@ -250,4 +255,8 @@ func (r *RelationIterator) Subiterators() []Iterator {
 
 func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf RelationIterator's subiterators")
+}
+
+func (r *RelationIterator) ID() string {
+	return r.id
 }

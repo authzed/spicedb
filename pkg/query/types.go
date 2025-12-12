@@ -51,6 +51,10 @@ type Iterator interface {
 	// For composite iterators, the length of newSubs should match the length of Subiterators().
 	// Returns an error if the replacement fails or if the length of newSubs doesn't match expectations.
 	ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
+
+	// ID returns a unique UUID for this instance of an iterator.
+	// Each call to Clone() generates a new UUID for the cloned iterator.
+	ID() string
 }
 
 // Explain describes the state of an iterator tree, in a human-readable fashion, with an Info line at

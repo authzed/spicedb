@@ -1,12 +1,15 @@
 package query
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Intersection the set of paths that are in all of underlying subiterators.
 // This is equivalent to `permission foo = bar & baz`
 type Intersection struct {
+	id     string
 	subIts []Iterator
 }
 
@@ -14,9 +17,12 @@ var _ Iterator = &Intersection{}
 
 func NewIntersection(subiterators ...Iterator) *Intersection {
 	if len(subiterators) == 0 {
-		return &Intersection{}
+		return &Intersection{
+			id: uuid.NewString(),
+		}
 	}
 	return &Intersection{
+		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
 }
@@ -135,6 +141,7 @@ func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation
 
 func (i *Intersection) Clone() Iterator {
 	cloned := &Intersection{
+		id:     uuid.NewString(),
 		subIts: make([]Iterator, len(i.subIts)),
 	}
 	for idx, subIt := range i.subIts {
@@ -160,5 +167,9 @@ func (i *Intersection) Subiterators() []Iterator {
 }
 
 func (i *Intersection) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Intersection{subIts: newSubs}, nil
+	return &Intersection{id: uuid.NewString(), subIts: newSubs}, nil
+}
+
+func (i *Intersection) ID() string {
+	return i.id
 }

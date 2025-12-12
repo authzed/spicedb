@@ -117,6 +117,16 @@ func (t *TraceLogger) DumpTrace() string {
 	return strings.Join(t.traces, "\n")
 }
 
+// AnalyzeStats collects the number of operations performed for each iterator as a query takes place.
+type AnalyzeStats struct {
+	CheckCalls           int
+	IterSubjectsCalls    int
+	IterResourcesCalls   int
+	CheckResults         int
+	IterSubjectsResults  int
+	IterResourcesResults int
+}
+
 // Context represents a single execution of a query.
 // It is both a standard context.Context and all the query-time specific handles needed to evaluate a query, such as which datastore it is running against.
 //
@@ -128,7 +138,8 @@ type Context struct {
 	CaveatContext     map[string]any
 	CaveatRunner      *caveats.CaveatRunner
 	TraceLogger       *TraceLogger // For debugging iterator execution
-	MaxRecursionDepth int          // Maximum depth for recursive iterators (0 = use default of 10)
+	Analyze           map[string]AnalyzeStats
+	MaxRecursionDepth int // Maximum depth for recursive iterators (0 = use default of 10)
 }
 
 func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
@@ -197,6 +208,69 @@ func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq 
 	}
 }
 
+// wrapPathSeqForAnalysis wraps a PathSeq to count results if analysis is enabled
+func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType string) PathSeq {
+	if ctx.Analyze == nil || it == nil {
+		return pathSeq
+	}
+
+	iterID := it.ID()
+
+	// Initialize stats for this iterator if not present
+	if _, exists := ctx.Analyze[iterID]; !exists {
+		ctx.Analyze[iterID] = AnalyzeStats{}
+	}
+
+	// Increment call counter based on operation type
+	stats := ctx.Analyze[iterID]
+	switch opType {
+	case "Check":
+		stats.CheckCalls++
+	case "IterSubjects":
+		stats.IterSubjectsCalls++
+	case "IterResources":
+		stats.IterResourcesCalls++
+	}
+	ctx.Analyze[iterID] = stats
+
+	// Wrap the PathSeq to count results
+	return func(yield func(Path, error) bool) {
+		resultCount := 0
+
+		for path, err := range pathSeq {
+			if err == nil {
+				resultCount++
+			}
+			if !yield(path, err) {
+				// Record partial results before early exit
+				ctx.recordAnalysisResults(iterID, opType, resultCount)
+				return
+			}
+		}
+
+		// Record final result count
+		ctx.recordAnalysisResults(iterID, opType, resultCount)
+	}
+}
+
+// recordAnalysisResults updates the result count for an iterator
+func (ctx *Context) recordAnalysisResults(iterID, opType string, count int) {
+	if ctx.Analyze == nil {
+		return
+	}
+
+	stats := ctx.Analyze[iterID]
+	switch opType {
+	case "Check":
+		stats.CheckResults += count
+	case "IterSubjects":
+		stats.IterSubjectsResults += count
+	case "IterResources":
+		stats.IterResourcesResults += count
+	}
+	ctx.Analyze[iterID] = stats
+}
+
 // Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
 // any of the `resources` are connected to `subject`.
 // Returns the sequence of matching paths, if they exist, at most `len(resources)`.
@@ -212,7 +286,9 @@ func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRela
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "Check")
+	return pathSeq, nil
 }
 
 // IterSubjects returns a sequence of all the paths in this set that match the given resource.
@@ -228,7 +304,9 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object) (PathSeq, error) 
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "IterSubjects")
+	return pathSeq, nil
 }
 
 // IterResources returns a sequence of all the relations in this set that match the given subject.
@@ -244,7 +322,9 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation) (PathS
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "IterResources")
+	return pathSeq, nil
 }
 
 // Executor as chooses how to proceed given an iterator -- perhaps in parallel, perhaps by RPC, etc -- and chooses how to process iteration from the subtree.
