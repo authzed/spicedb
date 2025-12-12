@@ -25,6 +25,7 @@ func (s *Schema) ToDefinitions() ([]*core.NamespaceDefinition, []*core.CaveatDef
 		definitions = append(definitions, &core.NamespaceDefinition{
 			Name:     defName,
 			Relation: relations,
+			Metadata: def.metadata,
 		})
 	}
 
@@ -35,6 +36,7 @@ func (s *Schema) ToDefinitions() ([]*core.NamespaceDefinition, []*core.CaveatDef
 			Name:                 caveatName,
 			SerializedExpression: []byte(caveat.expression),
 			ParameterTypes:       make(map[string]*core.CaveatTypeReference), // TODO: populate if needed
+			Metadata:             caveat.metadata,
 		})
 	}
 
@@ -50,6 +52,7 @@ func defToRelations(def *Definition) ([]*core.Relation, error) {
 		relations = append(relations, &core.Relation{
 			Name:            rel.name,
 			TypeInformation: baseRelationsToTypeInfo(rel.baseRelations),
+			Metadata:        rel.metadata,
 		})
 	}
 

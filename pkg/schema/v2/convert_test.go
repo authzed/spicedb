@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -830,4 +831,131 @@ func TestConvertFunctionType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMetadataPreservation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("namespace definition metadata is preserved", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a namespace definition with metadata
+		originalMetadata := &corev1.Metadata{
+			MetadataMessage: []*anypb.Any{
+				// Using a simple string representation for test purposes
+				// In real usage, this would be proper protobuf Any messages
+			},
+		}
+
+		originalDef := &corev1.NamespaceDefinition{
+			Name: "test_resource",
+			Relation: []*corev1.Relation{
+				{
+					Name: "viewer",
+					TypeInformation: &corev1.TypeInformation{
+						AllowedDirectRelations: []*corev1.AllowedRelation{
+							{
+								Namespace: "user",
+								RelationOrWildcard: &corev1.AllowedRelation_Relation{
+									Relation: "",
+								},
+							},
+						},
+					},
+				},
+			},
+			Metadata: originalMetadata,
+		}
+
+		// Convert to v2 schema
+		schema, err := BuildSchemaFromDefinitions([]*corev1.NamespaceDefinition{originalDef}, nil)
+		require.NoError(t, err)
+
+		// Convert back to corev1
+		defs, caveats, err := schema.ToDefinitions()
+		require.NoError(t, err)
+		require.Len(t, defs, 1)
+		require.Len(t, caveats, 0)
+
+		// Verify metadata is preserved
+		require.NotNil(t, defs[0].Metadata, "Metadata should be preserved during round-trip conversion")
+		require.Equal(t, originalMetadata, defs[0].Metadata, "Metadata should match original")
+	})
+
+	t.Run("caveat definition metadata is preserved", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a caveat definition with metadata
+		originalMetadata := &corev1.Metadata{
+			MetadataMessage: []*anypb.Any{},
+		}
+
+		originalCaveat := &corev1.CaveatDefinition{
+			Name:                 "test_caveat",
+			SerializedExpression: []byte("x == 1"),
+			ParameterTypes: map[string]*corev1.CaveatTypeReference{
+				"x": {
+					TypeName: "int",
+				},
+			},
+			Metadata: originalMetadata,
+		}
+
+		// Convert to v2 schema
+		schema, err := BuildSchemaFromDefinitions(nil, []*corev1.CaveatDefinition{originalCaveat})
+		require.NoError(t, err)
+
+		// Convert back to corev1
+		defs, caveats, err := schema.ToDefinitions()
+		require.NoError(t, err)
+		require.Len(t, defs, 0)
+		require.Len(t, caveats, 1)
+
+		// Verify metadata is preserved
+		require.NotNil(t, caveats[0].Metadata, "Caveat metadata should be preserved during round-trip conversion")
+		require.Equal(t, originalMetadata, caveats[0].Metadata, "Caveat metadata should match original")
+	})
+
+	t.Run("relation metadata is preserved", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a relation with metadata
+		relationMetadata := &corev1.Metadata{
+			MetadataMessage: []*anypb.Any{},
+		}
+
+		originalDef := &corev1.NamespaceDefinition{
+			Name: "test_resource",
+			Relation: []*corev1.Relation{
+				{
+					Name: "viewer",
+					TypeInformation: &corev1.TypeInformation{
+						AllowedDirectRelations: []*corev1.AllowedRelation{
+							{
+								Namespace: "user",
+								RelationOrWildcard: &corev1.AllowedRelation_Relation{
+									Relation: "",
+								},
+							},
+						},
+					},
+					Metadata: relationMetadata,
+				},
+			},
+		}
+
+		// Convert to v2 schema
+		schema, err := BuildSchemaFromDefinitions([]*corev1.NamespaceDefinition{originalDef}, nil)
+		require.NoError(t, err)
+
+		// Convert back to corev1
+		defs, _, err := schema.ToDefinitions()
+		require.NoError(t, err)
+		require.Len(t, defs, 1)
+		require.Len(t, defs[0].Relation, 1)
+
+		// Verify relation metadata is preserved
+		require.NotNil(t, defs[0].Relation[0].Metadata, "Relation metadata should be preserved during round-trip conversion")
+		require.Equal(t, relationMetadata, defs[0].Relation[0].Metadata, "Relation metadata should match original")
+	})
 }

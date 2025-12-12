@@ -13,6 +13,7 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 		name:        def.GetName(),
 		relations:   make(map[string]*Relation),
 		permissions: make(map[string]*Permission),
+		metadata:    def.GetMetadata(),
 	}
 	for _, r := range def.GetRelation() {
 		if userset := r.GetUsersetRewrite(); userset != nil {
@@ -30,6 +31,7 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 			}
 			rel.parent = out
 			rel.name = r.GetName()
+			rel.metadata = r.GetMetadata()
 			out.relations[r.GetName()] = rel
 		}
 	}
@@ -41,6 +43,7 @@ func convertCaveat(def *corev1.CaveatDefinition) (*Caveat, error) {
 		name:       def.GetName(),
 		expression: string(def.GetSerializedExpression()),
 		parameters: make([]CaveatParameter, 0, len(def.GetParameterTypes())),
+		metadata:   def.GetMetadata(),
 	}
 
 	for paramName, paramType := range def.GetParameterTypes() {
