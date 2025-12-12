@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 func TestConvertDefinitionEdgeCases(t *testing.T) {
@@ -836,15 +837,18 @@ func TestConvertFunctionType(t *testing.T) {
 func TestMetadataPreservation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("namespace definition metadata is preserved", func(t *testing.T) {
+	t.Run("namespace definition metadata with doc comments is preserved", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a namespace definition with metadata
+		// Create doc comment metadata
+		docComment := &implv1.DocComment{
+			Comment: "This is a test resource",
+		}
+		docCommentAny, err := anypb.New(docComment)
+		require.NoError(t, err)
+
 		originalMetadata := &corev1.Metadata{
-			MetadataMessage: []*anypb.Any{
-				// Using a simple string representation for test purposes
-				// In real usage, this would be proper protobuf Any messages
-			},
+			MetadataMessage: []*anypb.Any{docCommentAny},
 		}
 
 		originalDef := &corev1.NamespaceDefinition{
@@ -871,6 +875,12 @@ func TestMetadataPreservation(t *testing.T) {
 		schema, err := BuildSchemaFromDefinitions([]*corev1.NamespaceDefinition{originalDef}, nil)
 		require.NoError(t, err)
 
+		// Verify internal representation
+		def, ok := schema.Definitions()["test_resource"]
+		require.True(t, ok)
+		require.NotNil(t, def.metadata)
+		require.Equal(t, []string{"This is a test resource"}, def.metadata.Comments())
+
 		// Convert back to corev1
 		defs, caveats, err := schema.ToDefinitions()
 		require.NoError(t, err)
@@ -879,15 +889,27 @@ func TestMetadataPreservation(t *testing.T) {
 
 		// Verify metadata is preserved
 		require.NotNil(t, defs[0].Metadata, "Metadata should be preserved during round-trip conversion")
-		require.Equal(t, originalMetadata, defs[0].Metadata, "Metadata should match original")
+		require.Len(t, defs[0].Metadata.MetadataMessage, 1)
+
+		// Verify doc comment
+		var roundTrippedComment implv1.DocComment
+		err = defs[0].Metadata.MetadataMessage[0].UnmarshalTo(&roundTrippedComment)
+		require.NoError(t, err)
+		require.Equal(t, "This is a test resource", roundTrippedComment.Comment)
 	})
 
-	t.Run("caveat definition metadata is preserved", func(t *testing.T) {
+	t.Run("caveat definition metadata with doc comments is preserved", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a caveat definition with metadata
+		// Create doc comment metadata
+		docComment := &implv1.DocComment{
+			Comment: "This is a test caveat",
+		}
+		docCommentAny, err := anypb.New(docComment)
+		require.NoError(t, err)
+
 		originalMetadata := &corev1.Metadata{
-			MetadataMessage: []*anypb.Any{},
+			MetadataMessage: []*anypb.Any{docCommentAny},
 		}
 
 		originalCaveat := &corev1.CaveatDefinition{
@@ -905,6 +927,12 @@ func TestMetadataPreservation(t *testing.T) {
 		schema, err := BuildSchemaFromDefinitions(nil, []*corev1.CaveatDefinition{originalCaveat})
 		require.NoError(t, err)
 
+		// Verify internal representation
+		caveat, ok := schema.Caveats()["test_caveat"]
+		require.True(t, ok)
+		require.NotNil(t, caveat.metadata)
+		require.Equal(t, []string{"This is a test caveat"}, caveat.metadata.Comments())
+
 		// Convert back to corev1
 		defs, caveats, err := schema.ToDefinitions()
 		require.NoError(t, err)
@@ -913,15 +941,33 @@ func TestMetadataPreservation(t *testing.T) {
 
 		// Verify metadata is preserved
 		require.NotNil(t, caveats[0].Metadata, "Caveat metadata should be preserved during round-trip conversion")
-		require.Equal(t, originalMetadata, caveats[0].Metadata, "Caveat metadata should match original")
+
+		// Verify doc comment
+		var roundTrippedComment implv1.DocComment
+		err = caveats[0].Metadata.MetadataMessage[0].UnmarshalTo(&roundTrippedComment)
+		require.NoError(t, err)
+		require.Equal(t, "This is a test caveat", roundTrippedComment.Comment)
 	})
 
-	t.Run("relation metadata is preserved", func(t *testing.T) {
+	t.Run("relation metadata with doc comments and relation kind is preserved", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a relation with metadata
-		relationMetadata := &corev1.Metadata{
-			MetadataMessage: []*anypb.Any{},
+		// Create doc comment metadata
+		docComment := &implv1.DocComment{
+			Comment: "This is a viewer relation",
+		}
+		docCommentAny, err := anypb.New(docComment)
+		require.NoError(t, err)
+
+		// Create relation metadata
+		relationMetadata := &implv1.RelationMetadata{
+			Kind: implv1.RelationMetadata_RELATION,
+		}
+		relationMetadataAny, err := anypb.New(relationMetadata)
+		require.NoError(t, err)
+
+		combinedMetadata := &corev1.Metadata{
+			MetadataMessage: []*anypb.Any{docCommentAny, relationMetadataAny},
 		}
 
 		originalDef := &corev1.NamespaceDefinition{
@@ -939,7 +985,7 @@ func TestMetadataPreservation(t *testing.T) {
 							},
 						},
 					},
-					Metadata: relationMetadata,
+					Metadata: combinedMetadata,
 				},
 			},
 		}
@@ -947,6 +993,15 @@ func TestMetadataPreservation(t *testing.T) {
 		// Convert to v2 schema
 		schema, err := BuildSchemaFromDefinitions([]*corev1.NamespaceDefinition{originalDef}, nil)
 		require.NoError(t, err)
+
+		// Verify internal representation
+		def, ok := schema.Definitions()["test_resource"]
+		require.True(t, ok)
+		rel, ok := def.Relations()["viewer"]
+		require.True(t, ok)
+		require.NotNil(t, rel.metadata)
+		require.Equal(t, []string{"This is a viewer relation"}, rel.metadata.Comments())
+		require.Equal(t, RelationKindRelation, rel.metadata.RelationKind())
 
 		// Convert back to corev1
 		defs, _, err := schema.ToDefinitions()
@@ -956,6 +1011,93 @@ func TestMetadataPreservation(t *testing.T) {
 
 		// Verify relation metadata is preserved
 		require.NotNil(t, defs[0].Relation[0].Metadata, "Relation metadata should be preserved during round-trip conversion")
-		require.Equal(t, relationMetadata, defs[0].Relation[0].Metadata, "Relation metadata should match original")
+		require.Len(t, defs[0].Relation[0].Metadata.MetadataMessage, 2)
+
+		// Verify both doc comment and relation metadata are preserved
+		var foundDocComment, foundRelationMetadata bool
+		for _, msg := range defs[0].Relation[0].Metadata.MetadataMessage {
+			var dc implv1.DocComment
+			if err := msg.UnmarshalTo(&dc); err == nil {
+				require.Equal(t, "This is a viewer relation", dc.Comment)
+				foundDocComment = true
+				continue
+			}
+
+			var rm implv1.RelationMetadata
+			if err := msg.UnmarshalTo(&rm); err == nil {
+				require.Equal(t, implv1.RelationMetadata_RELATION, rm.Kind)
+				foundRelationMetadata = true
+			}
+		}
+
+		require.True(t, foundDocComment, "Doc comment should be preserved")
+		require.True(t, foundRelationMetadata, "Relation metadata should be preserved")
+	})
+
+	t.Run("permission metadata with type annotations is preserved", func(t *testing.T) {
+		t.Parallel()
+
+		// Create permission metadata with type annotations
+		permissionMetadata := &implv1.RelationMetadata{
+			Kind: implv1.RelationMetadata_PERMISSION,
+			TypeAnnotations: &implv1.TypeAnnotations{
+				Types: []string{"user", "group"},
+			},
+		}
+		permissionMetadataAny, err := anypb.New(permissionMetadata)
+		require.NoError(t, err)
+
+		metadata := &corev1.Metadata{
+			MetadataMessage: []*anypb.Any{permissionMetadataAny},
+		}
+
+		originalDef := &corev1.NamespaceDefinition{
+			Name: "test_resource",
+			Relation: []*corev1.Relation{
+				{
+					Name: "viewer",
+					TypeInformation: &corev1.TypeInformation{
+						AllowedDirectRelations: []*corev1.AllowedRelation{
+							{
+								Namespace: "user",
+								RelationOrWildcard: &corev1.AllowedRelation_Relation{
+									Relation: "",
+								},
+							},
+						},
+					},
+					Metadata: metadata,
+				},
+			},
+		}
+
+		// Convert to v2 schema
+		schema, err := BuildSchemaFromDefinitions([]*corev1.NamespaceDefinition{originalDef}, nil)
+		require.NoError(t, err)
+
+		// Verify internal representation
+		def, ok := schema.Definitions()["test_resource"]
+		require.True(t, ok)
+		rel, ok := def.Relations()["viewer"]
+		require.True(t, ok)
+		require.NotNil(t, rel.metadata)
+		require.Equal(t, RelationKindPermission, rel.metadata.RelationKind())
+		require.Equal(t, []string{"user", "group"}, rel.metadata.TypeAnnotations())
+
+		// Convert back to corev1
+		defs, _, err := schema.ToDefinitions()
+		require.NoError(t, err)
+		require.Len(t, defs, 1)
+		require.Len(t, defs[0].Relation, 1)
+
+		// Verify permission metadata with type annotations is preserved
+		require.NotNil(t, defs[0].Relation[0].Metadata)
+
+		var rm implv1.RelationMetadata
+		err = defs[0].Relation[0].Metadata.MetadataMessage[0].UnmarshalTo(&rm)
+		require.NoError(t, err)
+		require.Equal(t, implv1.RelationMetadata_PERMISSION, rm.Kind)
+		require.NotNil(t, rm.TypeAnnotations)
+		require.Equal(t, []string{"user", "group"}, rm.TypeAnnotations.Types)
 	})
 }

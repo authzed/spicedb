@@ -70,7 +70,7 @@ type Definition struct {
 	name        string
 	relations   map[string]*Relation
 	permissions map[string]*Permission
-	metadata    *corev1.Metadata
+	metadata    *Metadata
 }
 
 // Parent returns the parent schema.
@@ -158,7 +158,7 @@ type Caveat struct {
 	name       string
 	expression string
 	parameters []CaveatParameter
-	metadata   *corev1.Metadata
+	metadata   *Metadata
 }
 
 // Parent returns the parent schema.
@@ -275,7 +275,7 @@ type Relation struct {
 	name             string
 	baseRelations    []*BaseRelation
 	aliasingRelation string
-	metadata         *corev1.Metadata
+	metadata         *Metadata
 }
 
 // Parent returns the parent definition.
