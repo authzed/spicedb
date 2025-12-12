@@ -413,6 +413,12 @@ func wrapError(err error) error {
 	return err
 }
 
+// ReadyState provides an indication of whether the datastore is ready to receive traffic.
+// It ensures that migrations have been run and that revisions look correct, and then checks
+// the number of available idle connections in the connection pool.
+// We use idle connections instead of total connections because we want all connetions
+// to be ready to receive traffic, and total connections counts connections in the constructing
+// state, which cannot receive traffic.
 func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	currentRevision, err := migrations.NewCRDBDriver(cds.dburl)
 	if err != nil {
@@ -429,6 +435,12 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		return state, nil
 	}
 
+	// Wait only until the minimum number of connections is available before
+	// reporting the datastore as ready.
+	// NOTE: we do this manually here because new connections to CockroachDB are
+	// added relatively slowly, and pgxpool doesn't seem to contain logic that
+	// waits for a pool to be filled before the pool is treated as available/
+	// ready.
 	readMin := cds.readPool.MinConns()
 	if readMin > 0 {
 		readMin--
@@ -437,21 +449,21 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 	if writeMin > 0 {
 		writeMin--
 	}
-	writeTotal, err := safecast.Convert[uint32](cds.writePool.Stat().TotalConns())
+	writeIdle, err := safecast.Convert[uint32](cds.writePool.Stat().IdleConns())
 	if err != nil {
 		return datastore.ReadyState{}, spiceerrors.MustBugf("could not cast writeTotal to uint32: %v", err)
 	}
-	readTotal, err := safecast.Convert[uint32](cds.readPool.Stat().TotalConns())
+	readIdle, err := safecast.Convert[uint32](cds.readPool.Stat().IdleConns())
 	if err != nil {
 		return datastore.ReadyState{}, spiceerrors.MustBugf("could not cast readTotal to uint32: %v", err)
 	}
-	if writeTotal < writeMin || readTotal < readMin {
+	if writeIdle < writeMin || readIdle < readMin {
 		return datastore.ReadyState{
 			Message: fmt.Sprintf(
 				"spicedb does not have the required minimum connection count to the datastore. Read: %d/%d, Write: %d/%d",
-				readTotal,
+				readIdle,
 				readMin,
-				writeTotal,
+				writeIdle,
 				writeMin,
 			),
 			IsReady: false,

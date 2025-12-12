@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/dockertest/v3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -138,7 +139,6 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	for _, quantization := range quantizationDurations {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
 			t.Parallel()
-			require := require.New(t)
 			ctx := context.Background()
 
 			ds := engine.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -151,27 +151,29 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 					DebugAnalyzeBeforeStatistics(),
 					WithAcquireTimeout(5*time.Second),
 				)
-				require.NoError(err)
+				require.NoError(t, err)
 				return ds
 			})
 			t.Cleanup(func() {
-				require.NoError(ds.Close())
+				_ = ds.Close()
 			})
 
-			r, err := ds.ReadyState(ctx)
-			require.NoError(err)
-			require.True(r.IsReady)
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				r, err := ds.ReadyState(ctx)
+				require.NoError(c, err)
+				require.True(c, r.IsReady, "datastore not ready: %s", r.Message)
+			}, 3*time.Second, 50*time.Millisecond)
 
 			// Revisions should be at least the follower read delay amount in the past
 			for start := time.Now(); time.Since(start) < 50*time.Millisecond; {
 				testRevision, err := ds.OptimizedRevision(ctx)
-				require.NoError(err)
+				require.NoError(t, err)
 
 				nowRevision, err := ds.HeadRevision(ctx)
-				require.NoError(err)
+				require.NoError(t, err)
 
 				diff := nowRevision.(revisions.HLCRevision).TimestampNanoSec() - testRevision.(revisions.HLCRevision).TimestampNanoSec()
-				require.Greater(diff, followerReadDelay.Nanoseconds())
+				require.Greater(t, diff, followerReadDelay.Nanoseconds())
 			}
 		})
 	}
