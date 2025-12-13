@@ -22,19 +22,33 @@ func (s *Schema) ToDefinitions() ([]*core.NamespaceDefinition, []*core.CaveatDef
 			return nil, nil, fmt.Errorf("failed to convert definition %s: %w", defName, err)
 		}
 
+		// Encode metadata
+		metadata, err := encodeMetadata(def.metadata)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to encode definition metadata for %s: %w", defName, err)
+		}
+
 		definitions = append(definitions, &core.NamespaceDefinition{
 			Name:     defName,
 			Relation: relations,
+			Metadata: metadata,
 		})
 	}
 
 	// Convert caveats
 	caveats := make([]*core.CaveatDefinition, 0, len(s.caveats))
 	for caveatName, caveat := range s.caveats {
+		// Encode metadata
+		metadata, err := encodeMetadata(caveat.metadata)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to encode caveat metadata for %s: %w", caveatName, err)
+		}
+
 		caveats = append(caveats, &core.CaveatDefinition{
 			Name:                 caveatName,
 			SerializedExpression: []byte(caveat.expression),
 			ParameterTypes:       make(map[string]*core.CaveatTypeReference), // TODO: populate if needed
+			Metadata:             metadata,
 		})
 	}
 
@@ -47,9 +61,16 @@ func defToRelations(def *Definition) ([]*core.Relation, error) {
 
 	// Convert relations
 	for _, rel := range def.relations {
+		// Encode metadata
+		metadata, err := encodeMetadata(rel.metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode relation metadata for %s: %w", rel.name, err)
+		}
+
 		relations = append(relations, &core.Relation{
 			Name:            rel.name,
 			TypeInformation: baseRelationsToTypeInfo(rel.baseRelations),
+			Metadata:        metadata,
 		})
 	}
 

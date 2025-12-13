@@ -9,10 +9,17 @@ import (
 )
 
 func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
+	// Parse metadata
+	metadata, err := parseMetadata(def.GetMetadata())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse definition metadata: %w", err)
+	}
+
 	out := &Definition{
 		name:        def.GetName(),
 		relations:   make(map[string]*Relation),
 		permissions: make(map[string]*Permission),
+		metadata:    metadata,
 	}
 	for _, r := range def.GetRelation() {
 		if userset := r.GetUsersetRewrite(); userset != nil {
@@ -30,6 +37,14 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 			}
 			rel.parent = out
 			rel.name = r.GetName()
+
+			// Parse relation metadata
+			relMetadata, err := parseMetadata(r.GetMetadata())
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse relation metadata: %w", err)
+			}
+			rel.metadata = relMetadata
+
 			out.relations[r.GetName()] = rel
 		}
 	}
@@ -37,10 +52,17 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 }
 
 func convertCaveat(def *corev1.CaveatDefinition) (*Caveat, error) {
+	// Parse metadata
+	metadata, err := parseMetadata(def.GetMetadata())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse caveat metadata: %w", err)
+	}
+
 	out := &Caveat{
 		name:       def.GetName(),
 		expression: string(def.GetSerializedExpression()),
 		parameters: make([]CaveatParameter, 0, len(def.GetParameterTypes())),
+		metadata:   metadata,
 	}
 
 	for paramName, paramType := range def.GetParameterTypes() {

@@ -70,6 +70,7 @@ type Definition struct {
 	name        string
 	relations   map[string]*Relation
 	permissions map[string]*Permission
+	metadata    *Metadata
 }
 
 // Parent returns the parent schema.
@@ -117,6 +118,7 @@ func (d *Definition) cloneWithParent(parentSchema *Schema) *Definition {
 		name:        d.name,
 		relations:   make(map[string]*Relation, len(d.relations)),
 		permissions: make(map[string]*Permission, len(d.permissions)),
+		metadata:    d.metadata,
 	}
 
 	for name, rel := range d.relations {
@@ -156,6 +158,7 @@ type Caveat struct {
 	name       string
 	expression string
 	parameters []CaveatParameter
+	metadata   *Metadata
 }
 
 // Parent returns the parent schema.
@@ -192,6 +195,7 @@ func (c *Caveat) cloneWithParent(parentSchema *Schema) *Caveat {
 		name:       c.name,
 		expression: c.expression,
 		parameters: parameters,
+		metadata:   c.metadata,
 	}
 }
 
@@ -271,6 +275,7 @@ type Relation struct {
 	name             string
 	baseRelations    []*BaseRelation
 	aliasingRelation string
+	metadata         *Metadata
 }
 
 // Parent returns the parent definition.
@@ -306,6 +311,7 @@ func (r *Relation) cloneWithParent(parentDefinition *Definition) *Relation {
 		name:             r.name,
 		baseRelations:    make([]*BaseRelation, len(r.baseRelations)),
 		aliasingRelation: r.aliasingRelation,
+		metadata:         r.metadata,
 	}
 
 	for i, br := range r.baseRelations {
