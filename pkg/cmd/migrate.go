@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -42,7 +43,6 @@ func NewMigrateCommand(programName string) *cobra.Command {
 		Long:    fmt.Sprintf("Executes datastore schema migrations for the datastore.\nThe special value \"%s\" can be used to migrate to the latest revision.", color.YellowString(migrate.Head)),
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE:    termination.PublishError(migrateRun),
-		Args:    cobra.ExactArgs(1),
 	}
 }
 
@@ -51,6 +51,10 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
 	timeout := cobrautil.MustGetDuration(cmd, "migration-timeout")
 	migrationBatachSize := cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size")
+
+	if len(args) != 1 {
+		return errors.New("missing required argument: 'revision'")
+	}
 
 	switch datastoreEngine {
 	case "cockroachdb":
