@@ -61,7 +61,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		// Verify the result path properties
 		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
 		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
 		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
 		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 	})
@@ -156,7 +156,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		// Verify the result path properties
 		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
 		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
 		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
 		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 	})
@@ -249,7 +249,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		// Verify the result path properties
 		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
 		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
 		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
 		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 	})
@@ -350,7 +350,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		// Verify the result path properties
 		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
 		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
 		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
 		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 
@@ -358,7 +358,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		pathCaveat := paths[0].Caveat
 		require.NotNil(pathCaveat, "Result should have combined caveat")
 		require.NotNil(pathCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(pathCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(core.CaveatOperation_AND, pathCaveat.GetOperation().Op, "Caveat should be an AND")
 		require.Len(pathCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children")
 	})
 
@@ -398,7 +398,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		// Verify the result path properties
 		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
 		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
 		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
 		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 
@@ -485,7 +485,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		// Verify the result path properties
 		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
 		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Equal("", paths[0].Relation, "Relation should be empty after traversal")
+		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
 		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
 		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
 
@@ -521,7 +521,7 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	originalExplain := original.Explain()
 	clonedExplain := cloned.Explain()
 	require.Equal(originalExplain.Info, clonedExplain.Info)
-	require.Equal(len(originalExplain.SubExplain), len(clonedExplain.SubExplain))
+	require.Len(clonedExplain.SubExplain, len(originalExplain.SubExplain))
 
 	// Create test context
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)

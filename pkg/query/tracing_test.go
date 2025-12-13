@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,10 +49,10 @@ func TestIteratorTracing(t *testing.T) {
 
 	// Verify tracing output
 	trace := traceLogger.DumpTrace()
-	require.True(t, strings.Contains(trace, "-> Fixed: check(document:doc1, user:alice)"))
-	require.True(t, strings.Contains(trace, "<- Fixed: returned 1 paths"))
-	require.True(t, strings.Contains(trace, "Fixed: checking 2 paths against 1 resources"))
-	require.True(t, strings.Contains(trace, "Fixed: found 1 matching paths"))
+	require.Contains(t, trace, "-> Fixed: check(document:doc1, user:alice)")
+	require.Contains(t, trace, "<- Fixed: returned 1 paths")
+	require.Contains(t, trace, "Fixed: checking 2 paths against 1 resources")
+	require.Contains(t, trace, "Fixed: found 1 matching paths")
 
 	t.Run("IterSubjects tracing", func(t *testing.T) {
 		// Reset trace logger
@@ -70,10 +69,10 @@ func TestIteratorTracing(t *testing.T) {
 
 		// Verify tracing output
 		trace := traceLogger.DumpTrace()
-		require.True(t, strings.Contains(trace, "-> Fixed: check(document:doc1, :)"))
-		require.True(t, strings.Contains(trace, "<- Fixed: returned 1 paths"))
-		require.True(t, strings.Contains(trace, "Fixed: iterating subjects for resource document:doc1 from 2 paths"))
-		require.True(t, strings.Contains(trace, "Fixed: found 1 matching subjects"))
+		require.Contains(t, trace, "-> Fixed: check(document:doc1, :)")
+		require.Contains(t, trace, "<- Fixed: returned 1 paths")
+		require.Contains(t, trace, "Fixed: iterating subjects for resource document:doc1 from 2 paths")
+		require.Contains(t, trace, "Fixed: found 1 matching subjects")
 	})
 
 	t.Run("Union tracing", func(t *testing.T) {
@@ -95,8 +94,8 @@ func TestIteratorTracing(t *testing.T) {
 
 		// Verify tracing output
 		trace := traceLogger.DumpTrace()
-		require.True(t, strings.Contains(trace, "-> Union: check(document:doc1, user:alice)"))
-		require.True(t, strings.Contains(trace, "<- Union: returned 1 paths"))
-		require.True(t, strings.Contains(trace, "Union: processing 2 sub-iterators"))
+		require.Contains(t, trace, "-> Union: check(document:doc1, user:alice)")
+		require.Contains(t, trace, "<- Union: returned 1 paths")
+		require.Contains(t, trace, "Union: processing 2 sub-iterators")
 	})
 }

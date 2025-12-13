@@ -15,7 +15,7 @@ func TestRecursiveSentinel(t *testing.T) {
 
 	require.Equal(t, "folder", sentinel.DefinitionName())
 	require.Equal(t, "view", sentinel.RelationName())
-	require.Equal(t, false, sentinel.WithSubRelations())
+	require.False(t, sentinel.WithSubRelations())
 	require.Equal(t, "folder#view:false", sentinel.ID())
 
 	// Test that sentinel returns empty sequences

@@ -4,7 +4,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -455,7 +454,7 @@ func ReadWriteTxReturnsOptionalRevisionFields(t *testing.T, ds datastore.Datasto
 	require.NoError(err)
 	pgRev, ok := rev.(postgresRevision)
 	require.True(ok)
-	require.True(pgRev.optionalNanosTimestamp > 0, "revision timestamp should be set")
+	require.Positive(pgRev.optionalNanosTimestamp, "revision timestamp should be set")
 	require.True(pgRev.optionalTxID.Valid, "revision txid be set")
 }
 
@@ -706,7 +705,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	removed, err := pgg.DeleteBeforeTx(ctx, afterWriteTx)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
-	require.True(removed.Transactions > 0)
+	require.Positive(removed.Transactions)
 	require.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
@@ -794,7 +793,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	removed, err := pgg.DeleteBeforeTx(ctx, afterWriteTx)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
-	require.True(removed.Transactions > 0)
+	require.Positive(removed.Transactions)
 	require.Zero(removed.Namespaces)
 
 	// Sleep to ensure the relationships will GC.
@@ -1134,7 +1133,7 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 
 	found, err := datastore.IteratorToSlice(it)
 	require.NoError(err)
-	require.Equal(2, len(found), "missing relationships in %v", found)
+	require.Len(found, 2, "missing relationships in %v", found)
 }
 
 // ConcurrentRevisionWatchTest uses goroutines and channels to intentionally set up a pair of
@@ -1464,7 +1463,7 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 		datastore.WatchJustRelationships(),
 	)
 	err := <-errChan
-	require.NotNil(err)
+	require.Error(err)
 	require.Contains(err.Error(), "track_commit_timestamp=on")
 }
 
@@ -1839,7 +1838,7 @@ func StrictReadModeFallbackTest(t *testing.T, primaryDS datastore.Datastore, unw
 
 	found2, err := datastore.IteratorToSlice(it)
 	require.NoError(err)
-	require.Equal(len(found), len(found2))
+	require.Len(found2, len(found))
 }
 
 func StrictReadModeTest(t *testing.T, primaryDS datastore.Datastore, replicaDS datastore.Datastore) {
@@ -1904,7 +1903,7 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
-	require.Zero(len(errchan))
+	require.Empty(errchan)
 
 	// Manually insert a relationship with a NULL caveat. This is allowed, but can only happen due to
 	// bulk import (normal write rels will make it empty instead)
@@ -1977,7 +1976,7 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content: datastore.WatchRelationships | datastore.WatchSchema | datastore.WatchCheckpoints,
 	})
-	require.Zero(len(errchan))
+	require.Empty(errchan)
 
 	pds := ds.(*pgDatastore)
 	_, err = pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -1997,7 +1996,7 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 				errWait := time.NewTimer(waitForChangesTimeout)
 				select {
 				case err := <-errchan:
-					require.True(errors.As(err, &datastore.WatchDisconnectedError{}))
+					require.ErrorAs(err, &datastore.WatchDisconnectedError{})
 					return
 				case <-errWait.C:
 					require.Fail("Timed out waiting for WatchDisconnectedError")
@@ -2042,7 +2041,7 @@ func ContinuousCheckpointTest(t *testing.T, ds datastore.Datastore) {
 		Content:            datastore.WatchCheckpoints,
 		CheckpointInterval: 100 * time.Millisecond,
 	})
-	require.Zero(len(errchan))
+	require.Empty(errchan)
 
 	var checkpointCount int
 	for {

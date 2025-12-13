@@ -177,14 +177,14 @@ func TestCloneSchema_WithRelations(t *testing.T) {
 
 	// Check values
 	require.Equal(t, "user", clonedRel.baseRelations[0].subjectType)
-	require.Equal(t, "", clonedRel.baseRelations[0].subrelation)
+	require.Empty(t, clonedRel.baseRelations[0].subrelation)
 	require.Equal(t, "is_member", clonedRel.baseRelations[0].caveat)
 	require.True(t, clonedRel.baseRelations[0].expiration)
 	require.False(t, clonedRel.baseRelations[0].wildcard)
 
 	require.Equal(t, "user", clonedRel.baseRelations[1].subjectType)
 	require.Equal(t, "member", clonedRel.baseRelations[1].subrelation)
-	require.Equal(t, "", clonedRel.baseRelations[1].caveat)
+	require.Empty(t, clonedRel.baseRelations[1].caveat)
 	require.False(t, clonedRel.baseRelations[1].expiration)
 	require.False(t, clonedRel.baseRelations[1].wildcard)
 

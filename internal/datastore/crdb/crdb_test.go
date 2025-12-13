@@ -171,7 +171,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 				require.NoError(err)
 
 				diff := nowRevision.(revisions.HLCRevision).TimestampNanoSec() - testRevision.(revisions.HLCRevision).TimestampNanoSec()
-				require.True(diff > followerReadDelay.Nanoseconds())
+				require.Greater(diff, followerReadDelay.Nanoseconds())
 			}
 		})
 	}
@@ -315,7 +315,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 
 				_, errChan := ds.Watch(ctx, headRevision, datastore.WatchJustRelationships())
 				err = <-errChan
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Contains(t, err.Error(), "watch is currently disabled")
 			}
 		})

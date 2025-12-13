@@ -179,7 +179,7 @@ func TestRemoveNullIterators(t *testing.T) {
 		// Should return an empty fixed iterator
 		resultFixed, ok := result.(*FixedIterator)
 		require.True(t, ok)
-		require.Len(t, resultFixed.paths, 0)
+		require.Empty(t, resultFixed.paths)
 	})
 
 	t.Run("does not change union without empty iterators", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestRemoveNullIterators(t *testing.T) {
 		// Should return an empty fixed iterator
 		resultFixed, ok := result.(*FixedIterator)
 		require.True(t, ok)
-		require.Len(t, resultFixed.paths, 0)
+		require.Empty(t, resultFixed.paths)
 	})
 }
 

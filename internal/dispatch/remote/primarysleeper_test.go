@@ -27,7 +27,7 @@ func TestPrimarySleeper_SleepWithZeroWaitTime(t *testing.T) {
 		elapsed = time.Since(start)
 	})
 
-	require.Equal(t, elapsed, 0*time.Millisecond)
+	require.Equal(t, 0*time.Millisecond, elapsed)
 }
 
 func TestPrimarySleeper_SleepWithPositiveWaitTime(t *testing.T) {
@@ -303,5 +303,5 @@ func TestPrimarySleeper_EdgeCaseZeroDurationContext(t *testing.T) {
 		synctest.Wait()
 	})
 
-	require.Equal(t, elapsed, 0*time.Millisecond)
+	require.Equal(t, 0*time.Millisecond, elapsed)
 }

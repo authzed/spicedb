@@ -240,7 +240,7 @@ func TestRewriteError(t *testing.T) {
 			}
 
 			errorRewritten := RewriteError(ctx, tt.inputError, tt.config)
-			require.NotNil(t, errorRewritten)
+			require.Error(t, errorRewritten)
 			grpcutil.RequireStatus(t, tt.expectedCode, errorRewritten)
 			t.Log(errorRewritten.Error())
 			if tt.expectedContains != "" {

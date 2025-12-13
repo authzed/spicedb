@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -69,7 +68,7 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 		})
 		conn.Close()
 
-		assert.NoError(t, err)
-		assert.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result.Permissionship, "Error on attempt #%d", i)
+		require.NoError(t, err)
+		require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result.Permissionship, "Error on attempt #%d", i)
 	}
 }

@@ -216,13 +216,13 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 
 			// These tests expect caveat-related errors because no actual caveat definitions exist
 			if err != nil {
-				require.True(t, err.Error() != "", "Expected some caveat-related error")
+				require.NotEmpty(t, err.Error(), "Expected some caveat-related error")
 			} else {
 				actualPaths, err := CollectAll(seq)
 				if err != nil {
-					require.True(t, err.Error() != "", "Expected some caveat-related error")
+					require.NotEmpty(t, err.Error(), "Expected some caveat-related error")
 				} else {
-					require.Fail(t, "Expected caveat evaluation to fail, but got paths: %v", actualPaths)
+					require.Fail(t, "Expected caveat evaluation to fail, but got paths:", actualPaths)
 				}
 			}
 		})

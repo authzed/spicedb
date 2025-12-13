@@ -232,7 +232,7 @@ func TestWriteChunkedBytes_InsertWithTombstones(t *testing.T) {
 	// Should have 1 UPDATE (tombstone old) + 1 INSERT query
 	require.Len(t, txn.capturedSQL, 2)
 	require.Len(t, txn.updateQueries, 1)
-	require.Len(t, txn.deleteQueries, 0)
+	require.Empty(t, txn.deleteQueries)
 
 	// Check the UPDATE query (tombstone old chunks that are alive)
 	updateSQL := txn.capturedSQL[0]
@@ -284,7 +284,7 @@ func TestWriteChunkedBytes_DeleteAndInsert(t *testing.T) {
 	// Should have 1 DELETE + 1 INSERT query
 	require.Len(t, txn.capturedSQL, 2)
 	require.Len(t, txn.deleteQueries, 1)
-	require.Len(t, txn.updateQueries, 0)
+	require.Empty(t, txn.updateQueries)
 
 	// Check the DELETE query
 	deleteSQL := txn.capturedSQL[0]
@@ -383,7 +383,7 @@ func TestWriteAndReadZeroByteChunk(t *testing.T) {
 	data, err := chunker.ReadChunkedBytes(context.Background(), "test-key")
 	require.NoError(t, err)
 	require.NotNil(t, data)
-	require.Len(t, data, 0)
+	require.Empty(t, data)
 	require.Equal(t, []byte{}, data)
 }
 

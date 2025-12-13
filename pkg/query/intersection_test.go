@@ -193,7 +193,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	originalExplain := original.Explain()
 	clonedExplain := cloned.Explain()
 	require.Equal(originalExplain.Info, clonedExplain.Info)
-	require.Equal(len(originalExplain.SubExplain), len(clonedExplain.SubExplain))
+	require.Len(clonedExplain.SubExplain, len(originalExplain.SubExplain))
 
 	// Test that both iterators produce the same results
 	resourceIDs := []string{"doc1"}
@@ -351,7 +351,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		relCaveat := rels[0].Caveat
 		require.NotNil(relCaveat, "Result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(core.CaveatOperation_AND, relCaveat.GetOperation().Op, "Caveat should be an AND")
 		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children")
 	})
 
@@ -434,7 +434,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		require.Equal("user", path.Subject.ObjectType)
 		require.Equal("alice", path.Subject.ObjectID)
 		// The relation should be empty since different relations were merged (per Path.mergeFrom logic)
-		require.Equal("", path.Relation, "Different relations should result in empty relation")
+		require.Empty(path.Relation, "Different relations should result in empty relation")
 	})
 
 	t.Run("No_Common_Endpoints", func(t *testing.T) {
@@ -472,7 +472,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		rels, err := CollectAll(relSeq)
 		require.NoError(err)
 
-		require.Len(rels, 0, "Different endpoints should not intersect - should return empty")
+		require.Empty(rels, "Different endpoints should not intersect - should return empty")
 	})
 
 	t.Run("Three_Iterators_Mixed_Caveats", func(t *testing.T) {
@@ -518,7 +518,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		relCaveat := rels[0].Caveat
 		require.NotNil(relCaveat, "Final result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(relCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(core.CaveatOperation_AND, relCaveat.GetOperation().Op, "Caveat should be an AND")
 		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children (caveat1 and caveat2)")
 	})
 }

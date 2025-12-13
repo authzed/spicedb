@@ -93,7 +93,7 @@ func TestCursorCustomHeadValue(t *testing.T) {
 	t.Run("string converter with empty Cursor", func(t *testing.T) {
 		value, remaining, err := CursorCustomHeadValue(Cursor{}, stringConverter)
 		require.NoError(t, err)
-		require.Equal(t, "", value)
+		require.Empty(t, value)
 		require.Nil(t, remaining)
 	})
 
@@ -139,14 +139,14 @@ func TestCursorCustomHeadValue(t *testing.T) {
 		c := Cursor{"3.14", "2.71"}
 		value, remaining, err := CursorCustomHeadValue(c, floatConverter)
 		require.NoError(t, err)
-		require.Equal(t, 2.71, value)
+		require.Equal(t, 2.71, value) //nolint:testifylint // these values aren't being operated on
 		require.Equal(t, Cursor{"3.14"}, remaining)
 	})
 
 	t.Run("float converter with empty Cursor", func(t *testing.T) {
 		value, remaining, err := CursorCustomHeadValue(Cursor{}, floatConverter)
 		require.NoError(t, err)
-		require.Equal(t, 0.0, value)
+		require.Equal(t, 0.0, value) //nolint:testifylint // these values aren't being operated on
 		require.Nil(t, remaining)
 	})
 
@@ -157,7 +157,7 @@ func TestCursorCustomHeadValue(t *testing.T) {
 		c := Cursor{"true", "false"}
 		value, remaining, err := CursorCustomHeadValue(c, boolConverter)
 		require.NoError(t, err)
-		require.Equal(t, false, value)
+		require.False(t, value)
 		require.Equal(t, Cursor{"true"}, remaining)
 	})
 
@@ -165,7 +165,7 @@ func TestCursorCustomHeadValue(t *testing.T) {
 		c := Cursor{"false", "maybe"}
 		value, remaining, err := CursorCustomHeadValue(c, boolConverter)
 		require.Error(t, err)
-		require.Equal(t, false, value)
+		require.False(t, value)
 		require.Nil(t, remaining)
 	})
 }
@@ -186,12 +186,11 @@ func TestCursorType(t *testing.T) {
 
 		// Test empty Cursor
 		empty := Cursor{}
-		require.Len(t, empty, 0)
+		require.Empty(t, empty)
 
 		// Test nil Cursor
 		var nilCursor Cursor
-		require.Len(t, nilCursor, 0)
-		require.True(t, len(nilCursor) == 0)
+		require.Empty(t, nilCursor)
 	})
 }
 

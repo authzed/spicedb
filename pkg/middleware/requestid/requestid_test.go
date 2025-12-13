@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -95,13 +94,13 @@ func (s *requestIDMiddlewareTestSuite) TestUnaryInterceptor_GeneratesAndReturnsR
 	// Test unary RPC - should generate request ID and return it in response trailers
 	var trailer metadata.MD
 	_, err := s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Check that response metadata contains request ID
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs, "Request ID should be present in response trailers")
-	require.Len(s.T(), requestIDs, 1, "Should have exactly one request ID")
-	require.NotEmpty(s.T(), requestIDs[0], "Request ID should not be empty")
+	s.Require().NotEmpty(requestIDs, "Request ID should be present in response trailers")
+	s.Require().Len(requestIDs, 1, "Should have exactly one request ID")
+	s.Require().NotEmpty(requestIDs[0], "Request ID should not be empty")
 }
 
 func (s *requestIDMiddlewareTestSuite) TestUnaryInterceptor_PreservesExistingRequestID() {
@@ -112,18 +111,18 @@ func (s *requestIDMiddlewareTestSuite) TestUnaryInterceptor_PreservesExistingReq
 
 	var trailer metadata.MD
 	_, err := s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Check that response metadata contains the same request ID
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs)
-	require.Equal(s.T(), existingRequestID, requestIDs[0], "Should preserve existing request ID")
+	s.Require().NotEmpty(requestIDs)
+	s.Require().Equal(existingRequestID, requestIDs[0], "Should preserve existing request ID")
 }
 
 func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_ReturnsRequestID() {
 	// Test server streaming RPC - should return request ID in response trailers
 	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Receive all messages to complete the stream
 	for {
@@ -131,7 +130,7 @@ func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_ReturnsReq
 		if errors.Is(err, io.EOF) {
 			break
 		}
-		require.NoError(s.T(), err)
+		s.Require().NoError(err)
 	}
 
 	// Get trailers after stream completion
@@ -139,8 +138,8 @@ func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_ReturnsReq
 
 	// Check that response metadata contains request ID
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs, "Request ID should be present in response trailers")
-	require.NotEmpty(s.T(), requestIDs[0], "Request ID should not be empty")
+	s.Require().NotEmpty(requestIDs, "Request ID should be present in response trailers")
+	s.Require().NotEmpty(requestIDs[0], "Request ID should not be empty")
 }
 
 func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_PreservesExistingRequestID() {
@@ -149,7 +148,7 @@ func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_PreservesE
 	ctx := requestmeta.WithRequestID(s.SimpleCtx(), existingRequestID)
 
 	stream, err := s.Client.PingList(ctx, &testpb.PingListRequest{})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Complete the stream
 	for {
@@ -157,7 +156,7 @@ func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_PreservesE
 		if errors.Is(err, io.EOF) {
 			break
 		}
-		require.NoError(s.T(), err)
+		s.Require().NoError(err)
 	}
 
 	// Get trailers after stream completion
@@ -165,39 +164,39 @@ func (s *requestIDMiddlewareTestSuite) TestServerStreamingInterceptor_PreservesE
 
 	// Check that response metadata contains the same request ID
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs)
-	require.Equal(s.T(), existingRequestID, requestIDs[0], "Should preserve existing request ID")
+	s.Require().NotEmpty(requestIDs)
+	s.Require().Equal(existingRequestID, requestIDs[0], "Should preserve existing request ID")
 }
 
 func (s *requestIDMiddlewareTestSuite) TestBidirectionalStreamingInterceptor_ReturnsRequestID() {
 	// Test bidirectional streaming RPC - should return request ID in response trailers
 	stream, err := s.Client.PingStream(s.SimpleCtx())
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Send a message first
 	err = stream.Send(&testpb.PingStreamRequest{Value: "test"})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Receive the echoed message
 	resp, err := stream.Recv()
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "test", resp.Value)
+	s.Require().NoError(err)
+	s.Require().Equal("test", resp.Value)
 
 	// Close the stream
 	err = stream.CloseSend()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// need to call receive on bidirectional after close, otherwise you get no trailer frame
 	_, err = stream.Recv()
-	require.ErrorIs(s.T(), err, io.EOF)
+	s.Require().ErrorIs(err, io.EOF)
 
 	// Get trailers after stream completion
 	trailer := stream.Trailer()
 
 	// Check that response metadata contains request ID
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs, "Request ID should be present in response trailers")
-	require.NotEmpty(s.T(), requestIDs[0], "Request ID should not be empty")
+	s.Require().NotEmpty(requestIDs, "Request ID should be present in response trailers")
+	s.Require().NotEmpty(requestIDs[0], "Request ID should not be empty")
 }
 
 func (s *requestIDMiddlewareTestSuite) TestBidirectionalStreamingInterceptor_PreservesExistingRequestID() {
@@ -206,42 +205,42 @@ func (s *requestIDMiddlewareTestSuite) TestBidirectionalStreamingInterceptor_Pre
 	ctx := requestmeta.WithRequestID(s.SimpleCtx(), existingRequestID)
 
 	stream, err := s.Client.PingStream(ctx)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Send a message first
 	err = stream.Send(&testpb.PingStreamRequest{Value: "test"})
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Complete the stream
 	_, err = stream.Recv()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	err = stream.CloseSend()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// need to call receive on bidirectional after close, otherwise you get no trailer frame
 	_, err = stream.Recv()
-	require.ErrorIs(s.T(), err, io.EOF)
+	s.Require().ErrorIs(err, io.EOF)
 
 	// Get trailers after stream completion
 	trailer := stream.Trailer()
 
 	// Check that response metadata contains the same request ID
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs)
-	require.Equal(s.T(), existingRequestID, requestIDs[0], "Should preserve existing request ID")
+	s.Require().NotEmpty(requestIDs)
+	s.Require().Equal(existingRequestID, requestIDs[0], "Should preserve existing request ID")
 }
 
 func (s *requestIDMiddlewareTestSuite) TestUnaryInterceptor_ReturnsRequestIDOnError() {
 	// Test unary RPC that returns an error - should still return request ID in response trailers
 	var trailer metadata.MD
 	_, err := s.Client.Ping(s.SimpleCtx(), &testpb.PingRequest{Value: "ERROR"}, grpc.Trailer(&trailer))
-	require.Error(s.T(), err, "Should return error for Value='ERROR'")
+	s.Require().Error(err, "Should return error for Value='ERROR'")
 
 	// Check that response metadata contains request ID even when there's an error
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs, "Request ID should be present in response trailers even on error")
-	require.NotEmpty(s.T(), requestIDs[0], "Request ID should not be empty even on error")
+	s.Require().NotEmpty(requestIDs, "Request ID should be present in response trailers even on error")
+	s.Require().NotEmpty(requestIDs[0], "Request ID should not be empty even on error")
 }
 
 // Test suite for middleware without generation enabled
@@ -271,11 +270,11 @@ func (s *requestIDNoGenerateMiddlewareTestSuite) TestUnaryInterceptor_NoRequestI
 	// Test unary RPC without generation - should not add request ID if none provided
 	var trailer metadata.MD
 	_, err := s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Check that response metadata does not contain request ID
 	requestIDs := trailer.Get("io.spicedb.respmeta.requestid")
-	require.Empty(s.T(), requestIDs, "Request ID should not be present when generation is disabled")
+	s.Require().Empty(requestIDs, "Request ID should not be present when generation is disabled")
 }
 
 func (s *requestIDNoGenerateMiddlewareTestSuite) TestUnaryInterceptor_PreservesProvidedRequestID() {
@@ -285,12 +284,12 @@ func (s *requestIDNoGenerateMiddlewareTestSuite) TestUnaryInterceptor_PreservesP
 
 	var trailer metadata.MD
 	_, err := s.Client.PingEmpty(ctx, &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Check that response metadata contains the provided request ID
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs)
-	require.Equal(s.T(), existingRequestID, requestIDs[0], "Should preserve provided request ID")
+	s.Require().NotEmpty(requestIDs)
+	s.Require().Equal(existingRequestID, requestIDs[0], "Should preserve provided request ID")
 }
 
 // Test suite for custom ID generator
@@ -330,9 +329,9 @@ func TestRequestIDMiddlewareCustomGenerator(t *testing.T) {
 func (s *requestIDCustomGeneratorTestSuite) TestCustomGenerator() {
 	var trailer metadata.MD
 	_, err := s.Client.PingEmpty(s.SimpleCtx(), &testpb.PingEmptyRequest{}, grpc.Trailer(&trailer))
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	requestIDs := trailer.Get("x-request-id")
-	require.NotEmpty(s.T(), requestIDs)
-	require.Contains(s.T(), requestIDs[0], s.customIDPrefix, "Custom generator should be used")
+	s.Require().NotEmpty(requestIDs)
+	s.Require().Contains(requestIDs[0], s.customIDPrefix, "Custom generator should be used")
 }

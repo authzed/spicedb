@@ -24,7 +24,7 @@ func TestSchemaWatch(t *testing.T) {
 		"cockroachdb": true,
 		"spanner":     false,
 	}
-	require.Equal(t, len(engines), len(datastore.Engines))
+	require.Len(t, datastore.Engines, len(engines))
 
 	for driverName, shouldRun := range engines {
 		if !shouldRun {
