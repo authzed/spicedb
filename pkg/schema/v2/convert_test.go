@@ -885,7 +885,7 @@ func TestMetadataPreservation(t *testing.T) {
 		defs, caveats, err := schema.ToDefinitions()
 		require.NoError(t, err)
 		require.Len(t, defs, 1)
-		require.Len(t, caveats, 0)
+		require.Empty(t, caveats)
 
 		// Verify metadata is preserved
 		require.NotNil(t, defs[0].Metadata, "Metadata should be preserved during round-trip conversion")
@@ -936,7 +936,7 @@ func TestMetadataPreservation(t *testing.T) {
 		// Convert back to corev1
 		defs, caveats, err := schema.ToDefinitions()
 		require.NoError(t, err)
-		require.Len(t, defs, 0)
+		require.Empty(t, defs)
 		require.Len(t, caveats, 1)
 
 		// Verify metadata is preserved

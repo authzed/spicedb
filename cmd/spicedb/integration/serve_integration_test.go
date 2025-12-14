@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -238,7 +239,7 @@ func TestGracefulShutdown(t *testing.T) {
 
 				go (func() {
 					err = pool.Client.Logs(opts)
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				})()
 
 				select {

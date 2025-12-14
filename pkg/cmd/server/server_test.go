@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -191,7 +192,7 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 	defer conn.Close()
 
 	go func() {
-		require.NoError(t, srv.Run(ctx))
+		assert.NoError(t, srv.Run(ctx))
 	}()
 
 	// Poll for gRPC server readiness instead of sleeping
