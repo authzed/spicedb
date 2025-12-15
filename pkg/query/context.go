@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -158,6 +159,9 @@ type AnalyzeStats struct {
 	CheckResults         int
 	IterSubjectsResults  int
 	IterResourcesResults int
+	CheckTime            time.Duration
+	IterSubjectsTime     time.Duration
+	IterResourcesTime    time.Duration
 }
 
 // Context represents a single execution of a query.
@@ -241,7 +245,7 @@ func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq 
 	}
 }
 
-// wrapPathSeqForAnalysis wraps a PathSeq to count results if analysis is enabled
+// wrapPathSeqForAnalysis wraps a PathSeq to count results and track timing if analysis is enabled
 func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType string) PathSeq {
 	if ctx.Analyze == nil || it == nil {
 		return pathSeq
@@ -266,8 +270,9 @@ func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType 
 	}
 	ctx.Analyze[iterID] = stats
 
-	// Wrap the PathSeq to count results
+	// Wrap the PathSeq to count results and track timing
 	return func(yield func(Path, error) bool) {
+		startTime := time.Now()
 		resultCount := 0
 
 		for path, err := range pathSeq {
@@ -275,19 +280,21 @@ func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType 
 				resultCount++
 			}
 			if !yield(path, err) {
-				// Record partial results before early exit
-				ctx.recordAnalysisResults(iterID, opType, resultCount)
+				// Record partial results and timing before early exit
+				elapsed := time.Since(startTime)
+				ctx.recordAnalysisResults(iterID, opType, resultCount, elapsed)
 				return
 			}
 		}
 
-		// Record final result count
-		ctx.recordAnalysisResults(iterID, opType, resultCount)
+		// Record final result count and timing
+		elapsed := time.Since(startTime)
+		ctx.recordAnalysisResults(iterID, opType, resultCount, elapsed)
 	}
 }
 
-// recordAnalysisResults updates the result count for an iterator
-func (ctx *Context) recordAnalysisResults(iterID, opType string, count int) {
+// recordAnalysisResults updates the result count and timing for an iterator
+func (ctx *Context) recordAnalysisResults(iterID, opType string, count int, elapsed time.Duration) {
 	if ctx.Analyze == nil {
 		return
 	}
@@ -296,10 +303,13 @@ func (ctx *Context) recordAnalysisResults(iterID, opType string, count int) {
 	switch opType {
 	case "Check":
 		stats.CheckResults += count
+		stats.CheckTime += elapsed
 	case "IterSubjects":
 		stats.IterSubjectsResults += count
+		stats.IterSubjectsTime += elapsed
 	case "IterResources":
 		stats.IterResourcesResults += count
+		stats.IterResourcesTime += elapsed
 	}
 	ctx.Analyze[iterID] = stats
 }

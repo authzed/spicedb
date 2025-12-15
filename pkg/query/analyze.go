@@ -20,6 +20,25 @@ func FormatAnalysis(tree Iterator, analyze map[string]AnalyzeStats) string {
 	return sb.String()
 }
 
+// AggregateAnalyzeStats combines all the analyze stats from a map into a single
+// aggregated AnalyzeStats. This is useful for getting total counts across all
+// iterators in a query execution.
+func AggregateAnalyzeStats(analyze map[string]AnalyzeStats) AnalyzeStats {
+	var total AnalyzeStats
+	for _, stats := range analyze {
+		total.CheckCalls += stats.CheckCalls
+		total.IterSubjectsCalls += stats.IterSubjectsCalls
+		total.IterResourcesCalls += stats.IterResourcesCalls
+		total.CheckResults += stats.CheckResults
+		total.IterSubjectsResults += stats.IterSubjectsResults
+		total.IterResourcesResults += stats.IterResourcesResults
+		total.CheckTime += stats.CheckTime
+		total.IterSubjectsTime += stats.IterSubjectsTime
+		total.IterResourcesTime += stats.IterResourcesTime
+	}
+	return total
+}
+
 // formatNode recursively formats a single iterator node and its children
 // depth parameter tracks how deep we are in the tree (0 = root)
 func formatNode(it Iterator, analyze map[string]AnalyzeStats, sb *strings.Builder, indent string, isLast bool) {
@@ -65,6 +84,10 @@ func formatNode(it Iterator, analyze map[string]AnalyzeStats, sb *strings.Builde
 	// Format result counts
 	sb.WriteString(statsIndent + fmt.Sprintf("   Results: Check=%d, IterSubjects=%d, IterResources=%d\n",
 		stats.CheckResults, stats.IterSubjectsResults, stats.IterResourcesResults))
+
+	// Format timing
+	sb.WriteString(statsIndent + fmt.Sprintf("   Time: Check=%v, IterSubjects=%v, IterResources=%v\n",
+		stats.CheckTime, stats.IterSubjectsTime, stats.IterResourcesTime))
 
 	// Recursively format children
 	subIts := it.Subiterators()
