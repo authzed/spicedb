@@ -14,6 +14,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -1230,9 +1231,9 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(g.Wait())
 
 	// Ensure the revisions do not compare.
-	require.False(commitFirstRev.GreaterThan(commitLastRev), "found %v and %v", commitFirstRev, commitLastRev)
-	require.False(commitLastRev.GreaterThan(commitFirstRev), "found %v and %v", commitLastRev, commitFirstRev)
-	require.False(commitFirstRev.Equal(commitLastRev), "found %v and %v", commitFirstRev, commitLastRev)
+	assert.False(t, commitFirstRev.GreaterThan(commitLastRev), "revisions should not be comparable, but first rev %v compared as greater than last rev %v", commitFirstRev, commitLastRev)
+	assert.False(t, commitLastRev.GreaterThan(commitFirstRev), "revisions should not be comparable, but last rev %v compared as greater than first rev %v", commitLastRev, commitFirstRev)
+	assert.False(t, commitFirstRev.Equal(commitLastRev), "revisions should not be comparable, but first rev %v compared as equal to last rev %v", commitFirstRev, commitLastRev)
 
 	// Write another revision.
 	afterRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
