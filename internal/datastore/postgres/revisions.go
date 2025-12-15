@@ -312,6 +312,9 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]an
 
 	cterr := tx.QueryRow(ctx, sql, args...).Scan(&newXID, &newSnapshot, &timestamp)
 	if cterr != nil {
+		if wrappedErr := common.WrapMissingTableError(cterr); wrappedErr != nil {
+			return newXID, newSnapshot, timestamp, wrappedErr
+		}
 		err = fmt.Errorf("error when trying to create a new transaction: %w", cterr)
 	}
 	return newXID, newSnapshot, timestamp, err

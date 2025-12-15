@@ -33,6 +33,9 @@ func (cds *crdbDatastore) UniqueID(ctx context.Context) (string, error) {
 		if err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
 			return row.Scan(&uniqueID)
 		}, sql, args...); err != nil {
+			if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
+				return "", wrappedErr
+			}
 			return "", fmt.Errorf("unable to query unique ID: %w", err)
 		}
 
@@ -59,6 +62,9 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 			return sb.From(tableName)
 		})
 		if err != nil {
+			if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
+				return wrappedErr
+			}
 			return fmt.Errorf("unable to read namespaces: %w", err)
 		}
 		return nil
@@ -69,6 +75,9 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 	if cds.analyzeBeforeStatistics {
 		if err := cds.readPool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(ctx, "ANALYZE "+cds.schema.RelationshipTableName); err != nil {
+				if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
+					return wrappedErr
+				}
 				return fmt.Errorf("unable to analyze tuple table: %w", err)
 			}
 
@@ -143,6 +152,9 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 		log.Warn().Bool("has-rows", hasRows).Msg("unable to find row count in statistics query result")
 		return nil
 	}, "SHOW STATISTICS FOR TABLE "+cds.schema.RelationshipTableName); err != nil {
+		if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
+			return datastore.Stats{}, wrappedErr
+		}
 		return datastore.Stats{}, fmt.Errorf("unable to query unique estimated row count: %w", err)
 	}
 

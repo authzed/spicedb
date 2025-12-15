@@ -8,6 +8,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -48,6 +49,9 @@ func (r *pgReader) LegacyReadCaveatByName(ctx context.Context, name string) (*co
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
+		}
+		if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
+			return nil, datastore.NoRevision, wrappedErr
 		}
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
@@ -106,6 +110,9 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 		return rows.Err()
 	}, sql, args...)
 	if err != nil {
+		if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
+			return nil, wrappedErr
+		}
 		return nil, fmt.Errorf(errListCaveats, err)
 	}
 

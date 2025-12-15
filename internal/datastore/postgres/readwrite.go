@@ -419,6 +419,10 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 }
 
 func handleWriteError(err error) error {
+	if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
+		return wrappedErr
+	}
+
 	if pgxcommon.IsSerializationError(err) {
 		return common.NewSerializationError(fmt.Errorf("unable to write relationships due to a serialization error: [%w]; this typically indicates that a number of write transactions are contending over the same relationships; either reduce the contention or scale this Postgres instance", err))
 	}
