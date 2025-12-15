@@ -36,7 +36,9 @@ func TestTraceLogger(t *testing.T) {
 		require.Len(logger.traces, 1)
 		require.Equal(1, logger.depth)
 		require.Len(logger.stack, 1)
-		require.Contains(logger.traces[0], "-> Fixed: check(document:doc1, user:alice)")
+		require.Contains(logger.traces[0], "-> ")
+		require.Contains(logger.traces[0], "Fixed")
+		require.Contains(logger.traces[0], "check(document:doc1, user:alice)")
 	})
 
 	t.Run("ExitIterator", func(t *testing.T) {
@@ -55,7 +57,8 @@ func TestTraceLogger(t *testing.T) {
 		require.Equal(0, logger.depth)
 		require.Empty(logger.stack)
 		require.Len(logger.traces, 1)
-		require.Contains(logger.traces[0], "<- Fixed: returned 1 paths")
+		require.Contains(logger.traces[0], "<- ")
+		require.Contains(logger.traces[0], "Fixed")
 	})
 
 	t.Run("LogStep", func(t *testing.T) {

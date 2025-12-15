@@ -36,12 +36,23 @@ func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject Obj
 	}
 
 	indent := strings.Repeat("  ", t.depth)
+	var idPrefix string
+	if id := it.ID(); id != "" {
+		if len(id) >= 6 {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id[:6])
+		} else {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id)
+		}
+	} else {
+		idPrefix = " " + iteratorType
+	}
+
 	resourceStrs := make([]string, len(resources))
 	for i, r := range resources {
 		resourceStrs[i] = fmt.Sprintf("%s:%s", r.ObjectType, r.ObjectID)
 	}
 	t.traces = append(t.traces, fmt.Sprintf("%s-> %s: check(%s, %s:%s)",
-		indent, iteratorType, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
+		indent, idPrefix, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
 	t.depth++
 	t.stack = append(t.stack, it) // Push iterator pointer onto stack
 }
@@ -61,6 +72,17 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 		iteratorType = explain.Info
 	}
 
+	var idPrefix string
+	if id := it.ID(); id != "" {
+		if len(id) >= 6 {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id[:6])
+		} else {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id)
+		}
+	} else {
+		idPrefix = " " + iteratorType
+	}
+
 	indent := strings.Repeat("  ", t.depth)
 	pathStrs := make([]string, len(paths))
 	for i, p := range paths {
@@ -78,7 +100,7 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 			p.Subject.ObjectType, p.Subject.ObjectID, caveatInfo)
 	}
 	t.traces = append(t.traces, fmt.Sprintf("%s<- %s: returned %d paths: [%s]",
-		indent, iteratorType, len(paths), strings.Join(pathStrs, ", ")))
+		indent, idPrefix, len(paths), strings.Join(pathStrs, ", ")))
 }
 
 // LogStep logs an intermediate step within an iterator, using the iterator pointer to find the correct indentation level
@@ -107,9 +129,20 @@ func (t *TraceLogger) LogStep(it Iterator, step string, data ...any) {
 		iteratorName = explain.Info
 	}
 
+	var idPrefix string
+	if id := it.ID(); id != "" {
+		if len(id) >= 6 {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorName, id[:6])
+		} else {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorName, id)
+		}
+	} else {
+		idPrefix = " " + iteratorName
+	}
+
 	indent := strings.Repeat("  ", indentLevel)
 	message := fmt.Sprintf(step, data...)
-	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, iteratorName, message))
+	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, idPrefix, message))
 }
 
 // DumpTrace returns all traces as a string
