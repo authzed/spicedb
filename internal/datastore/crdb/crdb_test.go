@@ -88,6 +88,9 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 			return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 		})
 
@@ -119,9 +122,11 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(ctx, uri, options...)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 			return ds
 		})
-		defer ds.Close()
 
 		tf(t, ds)
 	}
@@ -212,6 +217,9 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 
 			wrapped, err := proxy.NewRelationshipIntegrityProxy(ds, defaultKeyForTesting, nil)
 			require.NoError(t, err)
@@ -236,6 +244,9 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 			return ds
 		})
 
@@ -307,6 +318,9 @@ func TestWatchFeatureDetection(t *testing.T) {
 
 			ds, err := NewCRDBDatastore(ctx, connStrings[unprivileged], WithAcquireTimeout(5*time.Second))
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 
 			features, err := ds.Features(ctx)
 			require.NoError(t, err)
