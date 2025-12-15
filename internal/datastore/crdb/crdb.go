@@ -650,7 +650,7 @@ func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats boo
 		return nil
 	}
 
-	readCollector := pgxpoolprometheus.NewCollector(cds.writePool, map[string]string{
+	readCollector := pgxpoolprometheus.NewCollector(cds.readPool, map[string]string{
 		"db_name":    "spicedb",
 		"pool_usage": "read",
 	})
@@ -660,7 +660,7 @@ func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats boo
 	}
 	cds.collectors = append(cds.collectors, readCollector)
 
-	writeCollector := pgxpoolprometheus.NewCollector(cds.readPool, map[string]string{
+	writeCollector := pgxpoolprometheus.NewCollector(cds.writePool, map[string]string{
 		"db_name":    "spicedb",
 		"pool_usage": "write",
 	})
