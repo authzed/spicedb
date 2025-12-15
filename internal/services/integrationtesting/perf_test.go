@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -66,7 +67,7 @@ func TestBurst(t *testing.T) {
 						Permission: "viewer",
 						Subject:    rel.Subject,
 					})
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}()
 				run <- struct{}{}
 			}

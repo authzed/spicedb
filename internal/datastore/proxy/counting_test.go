@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -175,7 +176,7 @@ func TestCountingProxyThreadSafety(t *testing.T) {
 			r := ds.SnapshotReader(datastore.NoRevision)
 			for range callsPerGoroutine {
 				_, err := r.QueryRelationships(ctx, datastore.RelationshipsFilter{})
-				require.NoError(err)
+				assert.NoError(t, err)
 			}
 		}()
 	}

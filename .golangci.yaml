@@ -38,7 +38,7 @@ linters:
     - "spancheck"
     - "staticcheck"
     - "tagalign"
-    # - "testifylint" TODO: fix issues
+    - "testifylint"
     - "tparallel"
     - "unconvert"
     - "usetesting"

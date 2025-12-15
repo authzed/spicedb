@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -206,7 +207,7 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 				return
 			}
 
-			require.NotNil(resp.GetMetadata().GetDebugInfo().GetCheck().GetRequest())
+			assert.NotNil(t, resp.GetMetadata().GetDebugInfo().GetCheck().GetRequest())
 
 			// we mutate the response to prove that it's not shared across goroutines
 			resp.GetMetadata().GetDebugInfo().GetCheck().GetRequest().Subject.Relation = "modified"
