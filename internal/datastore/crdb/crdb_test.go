@@ -24,6 +24,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/dockertest/v3"
+	"github.com/prometheus/client_golang/prometheus"
+	promclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -873,4 +875,74 @@ func TestWrapErr(t *testing.T) {
 	// unmodified so that higher layers can interpret them - in this case
 	// so we can return ResourceExhausted if we see this error.
 	require.Equal(t, wrapError(pool.ErrAcquire), pool.ErrAcquire)
+}
+
+func TestRegisterPrometheusCollectors(t *testing.T) {
+	const (
+		readMaxConns  = 10
+		writeMaxConns = 20
+	)
+	// Create read & write pools
+	readPoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", readMaxConns))
+	require.NoError(t, err)
+	readPool, err := pool.NewRetryPool(t.Context(), "read", readPoolConfig, nil, 18, 20)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		readPool.Close()
+	})
+
+	writePoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", writeMaxConns))
+	require.NoError(t, err)
+	writePool, err := pool.NewRetryPool(t.Context(), "read", writePoolConfig, nil, 18, 20)
+	require.NoError(t, err)
+
+	// Create datastore with those pools
+	cds := &crdbDatastore{readPool: readPool, writePool: writePool, cancel: func() {}}
+	t.Cleanup(func() {
+		_ = cds.Close()
+	})
+
+	err = cds.registerPrometheusCollectors(false)
+	require.NoError(t, err)
+	require.Empty(t, cds.collectors)
+
+	// Register collectors and verify the values of the metrics
+	err = cds.registerPrometheusCollectors(true)
+	require.NoError(t, err)
+	require.Len(t, cds.collectors, 2)
+
+	metricFamily, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	var maxConnsMetricFamily *promclient.MetricFamily
+	for _, metric := range metricFamily {
+		if metric.GetName() == "pgxpool_max_conns" {
+			maxConnsMetricFamily = metric
+			break
+		}
+	}
+	require.NotNil(t, maxConnsMetricFamily)
+	require.Len(t, maxConnsMetricFamily.GetMetric(), 2)
+	metrics := []*promclient.Metric{maxConnsMetricFamily.GetMetric()[0], maxConnsMetricFamily.GetMetric()[1]}
+
+	var poolReadMetric, poolWriteMetric *promclient.Metric
+
+	for _, metric := range metrics {
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == "pool_usage" {
+				switch label.GetValue() {
+				case "read":
+					poolReadMetric = metric
+				case "write":
+					poolWriteMetric = metric
+				default:
+					t.Errorf("unknown label value for pool_usage")
+				}
+			}
+		}
+	}
+
+	require.NotNil(t, poolWriteMetric)
+	require.Equal(t, float64(writeMaxConns), poolWriteMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
+	require.NotNil(t, poolReadMetric)
+	require.Equal(t, float64(readMaxConns), poolReadMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
 }
