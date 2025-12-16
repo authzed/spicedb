@@ -62,8 +62,17 @@ func defToRelations(def *Definition) ([]*core.Relation, error) {
 
 	// Convert relations
 	for _, rel := range def.relations {
+		// Ensure metadata has RelationKind set to RELATION
+		relMetadata := rel.metadata
+		if relMetadata == nil {
+			relMetadata = NewMetadata()
+		}
+		if relMetadata.RelationKind() == RelationKindUnknown {
+			relMetadata = relMetadata.WithRelationKind(RelationKindRelation)
+		}
+
 		// Encode metadata
-		metadata, err := encodeMetadata(rel.metadata)
+		metadata, err := encodeMetadata(relMetadata)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode relation metadata for %s: %w", rel.name, err)
 		}
@@ -82,9 +91,17 @@ func defToRelations(def *Definition) ([]*core.Relation, error) {
 			return nil, fmt.Errorf("failed to convert permission %s: %w", perm.name, err)
 		}
 
+		// Create metadata marking this as a permission
+		permMetadata := NewMetadata().WithRelationKind(RelationKindPermission)
+		encodedMetadata, err := encodeMetadata(permMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode permission metadata for %s: %w", perm.name, err)
+		}
+
 		relations = append(relations, &core.Relation{
 			Name:           perm.name,
 			UsersetRewrite: rewrite,
+			Metadata:       encodedMetadata,
 		})
 	}
 

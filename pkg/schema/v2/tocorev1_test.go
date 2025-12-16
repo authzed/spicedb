@@ -279,9 +279,9 @@ func TestAsCompiledSchemaEmptySchema(t *testing.T) {
 	require.NotNil(t, reconverted)
 
 	// Verify empty schema
-	require.Len(t, reconverted.ObjectDefinitions, 0)
-	require.Len(t, reconverted.CaveatDefinitions, 0)
-	require.Len(t, reconverted.OrderedDefinitions, 0)
+	require.Empty(t, reconverted.ObjectDefinitions)
+	require.Empty(t, reconverted.CaveatDefinitions)
+	require.Empty(t, reconverted.OrderedDefinitions)
 }
 
 func TestAsCompiledSchemaOrderedDefinitions(t *testing.T) {
