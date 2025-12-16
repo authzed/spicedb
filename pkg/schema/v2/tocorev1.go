@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
 // ToDefinitions converts a Schema to the full set of namespace and caveat definitions.
@@ -459,4 +460,28 @@ func functionTypeToCore(ft FunctionType) core.FunctionedTupleToUserset_Function 
 	default:
 		return core.FunctionedTupleToUserset_FUNCTION_ANY
 	}
+}
+
+// AsCompiledSchema converts a Schema to a CompiledSchema by calling ToDefinitions
+// and creating a compiled schema structure.
+func (s *Schema) AsCompiledSchema() (*compiler.CompiledSchema, error) {
+	namespaces, caveats, err := s.ToDefinitions()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build ordered definitions by combining namespaces and caveats
+	orderedDefinitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		orderedDefinitions = append(orderedDefinitions, ns)
+	}
+	for _, caveat := range caveats {
+		orderedDefinitions = append(orderedDefinitions, caveat)
+	}
+
+	return &compiler.CompiledSchema{
+		ObjectDefinitions:  namespaces,
+		CaveatDefinitions:  caveats,
+		OrderedDefinitions: orderedDefinitions,
+	}, nil
 }
