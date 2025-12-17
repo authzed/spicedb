@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -27,8 +26,8 @@ type translationContext struct {
 	mapper           input.PositionMapper
 	schemaString     string
 	skipValidate     bool
-	allowedFlags     []string
-	enabledFlags     []string
+	allowedFlags     *mapz.Set[string]
+	enabledFlags     *mapz.Set[string]
 	existingNames    *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
 
@@ -668,29 +667,6 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 		return nil, typeRefNode.Errorf("%w", err)
 	}
 
-	if typeRefNode.Has(dslshape.NodeSpecificReferencePredicateWildcard) {
-		ref := &core.AllowedRelation{
-			Namespace: nspath,
-			RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
-				PublicWildcard: &core.AllowedRelation_PublicWildcard{},
-			},
-		}
-
-		err = addWithCaveats(tctx, typeRefNode, ref)
-		if err != nil {
-			return nil, typeRefNode.Errorf("invalid caveat: %w", err)
-		}
-
-		if !tctx.skipValidate {
-			if err := ref.Validate(); err != nil {
-				return nil, typeRefNode.Errorf("invalid type relation: %w", err)
-			}
-		}
-
-		ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
-		return ref, nil
-	}
-
 	relationName := Ellipsis
 	if typeRefNode.Has(dslshape.NodeSpecificReferencePredicateRelation) {
 		relationName, err = typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateRelation)
@@ -706,6 +682,12 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 		},
 	}
 
+	if typeRefNode.Has(dslshape.NodeSpecificReferencePredicateWildcard) {
+		ref.RelationOrWildcard = &core.AllowedRelation_PublicWildcard_{
+			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
+		}
+	}
+
 	// Add the caveat(s), if any.
 	err = addWithCaveats(tctx, typeRefNode, ref)
 	if err != nil {
@@ -713,25 +695,9 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 	}
 
 	// Add the expiration trait, if any.
-	if traitNode, err := typeRefNode.Lookup(dslshape.NodeSpecificReferencePredicateTrait); err == nil {
-		traitName, err := traitNode.GetString(dslshape.NodeTraitPredicateTrait)
-		if err != nil {
-			return nil, typeRefNode.Errorf("invalid trait: %w", err)
-		}
-
-		if traitName != "expiration" {
-			return nil, typeRefNode.Errorf("invalid trait: %s", traitName)
-		}
-
-		if !slices.Contains(tctx.allowedFlags, "expiration") {
-			return nil, typeRefNode.Errorf("expiration trait is not allowed")
-		}
-
-		if !slices.Contains(tctx.enabledFlags, "expiration") {
-			return nil, typeRefNode.Errorf("expiration flag is not enabled; add `use expiration` to top of file")
-		}
-
-		ref.RequiredExpiration = &core.ExpirationTrait{}
+	err = addWithExpiration(tctx, typeRefNode, ref)
+	if err != nil {
+		return nil, typeRefNode.Errorf("invalid expiration: %w", err)
 	}
 
 	if !tctx.skipValidate {
@@ -742,6 +708,31 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 
 	ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
 	return ref, nil
+}
+
+func addWithExpiration(tctx *translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
+	if traitNode, err := typeRefNode.Lookup(dslshape.NodeSpecificReferencePredicateTrait); err == nil {
+		traitName, err := traitNode.GetString(dslshape.NodeTraitPredicateTrait)
+		if err != nil {
+			return err
+		}
+
+		if traitName != "expiration" {
+			return fmt.Errorf("invalid trait: %s", traitName)
+		}
+
+		if !tctx.allowedFlags.Has("expiration") {
+			return errors.New("expiration trait is not allowed")
+		}
+
+		if !tctx.enabledFlags.Has("expiration") {
+			return errors.New("expiration flag is not enabled; add `use expiration` to top of file")
+		}
+
+		ref.RequiredExpiration = &core.ExpirationTrait{}
+	}
+
+	return nil
 }
 
 func addWithCaveats(tctx *translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
@@ -946,9 +937,9 @@ func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
 	if err != nil {
 		return err
 	}
-	if slices.Contains(tctx.enabledFlags, flagName) {
-		return useFlagNode.Errorf("found duplicate use flag: %s", flagName)
-	}
-	tctx.enabledFlags = append(tctx.enabledFlags, flagName)
+	// NOTE: we're okay with multiple instances of a given `use` directive in
+	// composable schemas, because each file may declare it separately
+	// and that should be valid.
+	tctx.enabledFlags.Add(flagName)
 	return nil
 }

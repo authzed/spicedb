@@ -1254,17 +1254,23 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
-			"duplicate use pragmas",
+			"wildcard relation with expiration trait",
 			withTenantPrefix,
-			`
-			use expiration
-			use expiration
-
+			`use expiration
+			
 			definition simple {
-				relation viewer: user with expiration
+				relation viewer: user:* with expiration
 			}`,
-			`found duplicate use flag`,
-			[]SchemaDefinition{},
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.WithExpiration(
+							namespace.AllowedPublicNamespace("sometenant/user"),
+						),
+					),
+				),
+			},
 		},
 		{
 			"expiration use without use expiration",

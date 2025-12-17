@@ -1,0 +1,9 @@
+use expiration
+
+definition test/user {}
+
+definition test/document {
+	relation viewer: test/user with expiration | test/user
+	relation public_reader: test/user:* with expiration | test/user:*
+	permission can_view = viewer + public_reader
+}

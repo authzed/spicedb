@@ -1,0 +1,7 @@
+use expiration
+
+import "./user.zed"
+
+definition resource {
+  relation tempuser: user with expiration
+}

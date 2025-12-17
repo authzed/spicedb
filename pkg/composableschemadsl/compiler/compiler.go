@@ -11,7 +11,6 @@ import (
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/parser"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -55,7 +54,7 @@ func (cs CompiledSchema) SourcePositionToRunePosition(source input.Source, posit
 type config struct {
 	skipValidation   bool
 	objectTypePrefix *string
-	allowedFlags     []string
+	allowedFlags     *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
 
 	// In an import context, this is the folder containing
@@ -90,9 +89,7 @@ const expirationFlag = "expiration"
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
-		cfg.allowedFlags = slicez.Filter(cfg.allowedFlags, func(s string) bool {
-			return s != expirationFlag
-		})
+		cfg.allowedFlags.Delete(expirationFlag)
 	}
 }
 
@@ -109,11 +106,11 @@ type ObjectPrefixOption func(*config)
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
 	cfg := &config{
-		allowedFlags: make([]string, 0, 1),
+		allowedFlags: mapz.NewSet[string](),
 	}
 
 	// Enable `expiration` flag by default.
-	cfg.allowedFlags = append(cfg.allowedFlags, expirationFlag)
+	cfg.allowedFlags.Add(expirationFlag)
 
 	prefix(cfg) // required option
 
@@ -146,6 +143,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		schemaString:       schema.SchemaString,
 		skipValidate:       cfg.skipValidation,
 		allowedFlags:       cfg.allowedFlags,
+		enabledFlags:       mapz.NewSet[string](),
 		existingNames:      mapz.NewSet[string](),
 		compiledPartials:   initialCompiledPartials,
 		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
