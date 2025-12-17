@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -27,8 +26,8 @@ type translationContext struct {
 	mapper           input.PositionMapper
 	schemaString     string
 	skipValidate     bool
-	allowedFlags     []string
-	enabledFlags     []string
+	allowedFlags     *mapz.Set[string]
+	enabledFlags     *mapz.Set[string]
 	existingNames    *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
 
@@ -723,11 +722,11 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 			return nil, typeRefNode.Errorf("invalid trait: %s", traitName)
 		}
 
-		if !slices.Contains(tctx.allowedFlags, "expiration") {
+		if !tctx.allowedFlags.Has("expiration") {
 			return nil, typeRefNode.Errorf("expiration trait is not allowed")
 		}
 
-		if !slices.Contains(tctx.enabledFlags, "expiration") {
+		if !tctx.enabledFlags.Has("expiration") {
 			return nil, typeRefNode.Errorf("expiration flag is not enabled; add `use expiration` to top of file")
 		}
 
@@ -946,9 +945,9 @@ func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
 	if err != nil {
 		return err
 	}
-	if slices.Contains(tctx.enabledFlags, flagName) {
-		return useFlagNode.Errorf("found duplicate use flag: %s", flagName)
-	}
-	tctx.enabledFlags = append(tctx.enabledFlags, flagName)
+	// NOTE: we're okay with multiple instances of a given `use` directive in
+	// composable schemas, because each file may declare it separately
+	// and that should be valid.
+	tctx.enabledFlags.Add(flagName)
 	return nil
 }

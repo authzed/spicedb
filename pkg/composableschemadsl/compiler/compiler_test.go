@@ -1254,19 +1254,6 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
-			"duplicate use pragmas",
-			withTenantPrefix,
-			`
-			use expiration
-			use expiration
-
-			definition simple {
-				relation viewer: user with expiration
-			}`,
-			`found duplicate use flag`,
-			[]SchemaDefinition{},
-		},
-		{
 			"expiration use without use expiration",
 			withTenantPrefix,
 			`
