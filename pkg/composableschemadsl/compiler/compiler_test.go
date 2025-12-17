@@ -1254,6 +1254,25 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
+			"wildcard relation with expiration trait",
+			withTenantPrefix,
+			`use expiration
+			
+			definition simple {
+				relation viewer: user:* with expiration
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.WithExpiration(
+							namespace.AllowedPublicNamespace("sometenant/user"),
+						),
+					),
+				),
+			},
+		},
+		{
 			"expiration use without use expiration",
 			withTenantPrefix,
 			`

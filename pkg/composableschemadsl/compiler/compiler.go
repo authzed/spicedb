@@ -143,7 +143,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		schemaString:       schema.SchemaString,
 		skipValidate:       cfg.skipValidation,
 		allowedFlags:       cfg.allowedFlags,
-		enabledFlags: mapz.NewSet[string](),
+		enabledFlags:       mapz.NewSet[string](),
 		existingNames:      mapz.NewSet[string](),
 		compiledPartials:   initialCompiledPartials,
 		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
