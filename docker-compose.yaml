@@ -33,15 +33,15 @@ services:
     command: "datastore migrate head"
     networks:
       - "default"
-  spicedb-1:
-    container_name: "spicedb-1"
+  spicedb:
     build: "."
     command: "serve"
     restart: "no"
+    scale: 5
     ports:
-      - "9090:9090" # prometheus metrics
-      - "50051:50051" # grpc endpoint
-      - "8443:8443" # http endpoint
+      - "9090" # prometheus metrics
+      - "50051" # grpc endpoint
+      - "8443" # http endpoint
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"
@@ -51,7 +51,7 @@ services:
       - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
       - "SPICEDB_DATASTORE_CONN_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
-      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-2:50053"
+      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb:50053"
       - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
       - "SPICEDB_OTEL_SAMPLE_RATIO=1"
       - "SPICEDB_TELEMETRY_ENDPOINT="
@@ -59,6 +59,11 @@ services:
       - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
       - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
       - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+      - "SPICEDB_DATASTORE_CONN_POOL_READ_MAX_OPEN=5"
+      - "SPICEDB_DATASTORE_CONN_POOL_READ_MIN_OPEN=5"
+      - "SPICEDB_DATASTORE_CONN_POOL_WRITE_MAX_OPEN=5"
+      - "SPICEDB_DATASTORE_CONN_POOL_WRITE_MIN_OPEN=5"
+      - "SPICEDB_EXPERIMENTAL_LOOKUP_RESOURCES_VERSION=lr3"
     depends_on:
       migrate:
         condition: "service_completed_successfully"
@@ -69,36 +74,6 @@ services:
       interval: "5s"
       timeout: "30s"
       retries: 3
-  spicedb-2:
-    container_name: "spicedb-2"
-    build: "."
-    command: "serve"
-    restart: "no"
-    ports:
-      - "9090" # prometheus metrics
-      - "50051" # grpc endpoint
-      - "50053" # dispatch endpoint
-    environment:
-      - "SPICEDB_LOG_FORMAT=json"
-      - "SPICEDB_LOG_LEVEL=info"
-      - "SPICEDB_HTTP_ENABLED=false"
-      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
-      - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
-      - "SPICEDB_DATASTORE_CONN_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable"
-      - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
-      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-1:50053"
-      - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
-      - "SPICEDB_OTEL_SAMPLE_RATIO=1"
-      - "SPICEDB_TELEMETRY_ENDPOINT="
-      - "SPICEDB_GRPC_LOG_REQUESTS_ENABLED=true"
-      - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
-      - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
-      - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
-    depends_on:
-      migrate:
-        condition: "service_completed_successfully"
-      otel-collector:
-        condition: "service_started"
   prometheus:
     image: "prom/prometheus:v2.47.0"
     command:
