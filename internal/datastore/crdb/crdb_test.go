@@ -25,11 +25,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/ory/dockertest/v3"
+	dockercontainer "github.com/moby/moby/api/types/container"
 	"github.com/prometheus/client_golang/prometheus"
 	promclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -69,7 +71,8 @@ func crdbTestVersion() string {
 }
 
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
-	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	t.Parallel()
+	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -132,7 +135,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
-	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	engine := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 
 	quantizationDurations := []time.Duration{
 		0 * time.Second,
@@ -193,7 +196,8 @@ var defaultKeyForTesting = proxy.KeyConfig{
 }
 
 func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
-	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	t.Parallel()
+	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 
 	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
@@ -252,8 +256,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 }
 
 func TestWatchFeatureDetection(t *testing.T) {
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
+	t.Parallel()
 	cases := []struct {
 		name          string
 		postInit      func(ctx context.Context, adminConn *pgx.Conn)
@@ -294,12 +297,10 @@ func TestWatchFeatureDetection(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
-			adminConn, connStrings := newCRDBWithUser(t, pool)
-			require.NoError(t, err)
+			adminConn, connStrings := newCRDBWithUser(t)
 
 			migrationDriver, err := crdbmigrations.NewCRDBDriver(connStrings[testuser])
 			require.NoError(t, err)
@@ -342,7 +343,7 @@ const (
 	unprivileged provisionedUser = "unprivileged"
 )
 
-func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, connStrings map[provisionedUser]string) {
+func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisionedUser]string) {
 	// in order to create users, cockroach must be running with
 	// real certs, and the root user must be authenticated with
 	// client certs.
@@ -450,39 +451,39 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 	}))
 	require.NoError(t, rootCertFile.Close())
 
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "cockroachdb/cockroach",
-		Tag:        "v" + crdbTestVersion(),
-		Cmd:        []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
-		Mounts:     []string{certDir + ":/certs"},
-	})
+	// Run cockroach in secure mode using the certs generated above. The
+	// cockroachdb testcontainers module can't be used here because it forces
+	// --insecure, which conflicts with --certs-dir.
+	container, err := testcontainers.Run(t.Context(),
+		"mirror.gcr.io/cockroachdb/cockroach:v"+crdbTestVersion(),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Cmd:          []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
+				ExposedPorts: []string{"26257/tcp"},
+				HostConfigModifier: func(hc *dockercontainer.HostConfig) {
+					hc.Binds = append(hc.Binds, certDir+":/certs")
+				},
+				WaitingFor: wait.ForListeningPort("26257/tcp").WithStartupTimeout(time.Minute),
+			},
+		}),
+	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(resource))
-	})
+	testcontainers.CleanupContainer(t, container)
 
-	port := resource.GetPort(fmt.Sprintf("%d/tcp", 26257))
-	require.NoError(t, pool.Retry(func() error {
-		var err error
-		_, err = pgxpool.New(t.Context(), fmt.Sprintf("postgres://root@localhost:%[1]s/defaultdb?sslmode=verify-full&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir))
-		if err != nil {
-			t.Log(err)
-			return err
-		}
-		return nil
-	}))
+	// TODO: see testcontainers/testcontainers-go@main/modules/cockroachdb/cockroachdb.go#L194-L208
+	mappedPort, err := container.MappedPort(t.Context(), "26257/tcp")
+	require.NoError(t, err)
+	port := mappedPort.Port()
 
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
 	adminConnString := fmt.Sprintf("postgresql://root:unused@localhost:%[1]s?sslmode=require&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir)
 
 	require.Eventually(t, func() bool {
-		adminConn, err = pgx.Connect(ctx, adminConnString)
+		adminConn, err = pgx.Connect(t.Context(), adminConnString)
 		return err == nil
 	}, 30*time.Second, 1*time.Second)
 
 	// create a non-admin user
-	_, err = adminConn.Exec(ctx, `
+	_, err = adminConn.Exec(t.Context(), `
 		CREATE DATABASE testspicedb;
 		CREATE USER testuser WITH PASSWORD 'testpass';
 		CREATE USER unprivileged WITH PASSWORD 'testpass2';
@@ -971,7 +972,7 @@ func TestVersionReading(t *testing.T) {
 
 	var version crdbVersion
 
-	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 	uri := b.NewDatabase(t)
 
 	// Set up a raw connection to the DB

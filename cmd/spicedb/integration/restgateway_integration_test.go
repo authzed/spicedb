@@ -8,17 +8,16 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 )
 
 func TestRESTGateway(t *testing.T) {
 	require := require.New(t)
 
 	tester, err := newTester(t,
-		&dockertest.RunOptions{
-			Repository:   "authzed/spicedb",
-			Tag:          "ci",
+		testcontainers.ContainerRequest{
+			Image:        "authzed/spicedb:ci",
 			Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", "somerandomkeyhere", "--http-enabled"},
 			ExposedPorts: []string{"50051/tcp", "8443/tcp"},
 		},

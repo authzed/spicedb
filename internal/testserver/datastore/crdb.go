@@ -1,16 +1,14 @@
 package datastore
 
 import (
-	"context"
 	"fmt"
-	"sync"
+	"net"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/cockroachdb"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -18,102 +16,64 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-const (
-	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
-)
-
 // crdbTester is safe for concurrent use by tests.
 type crdbTester struct {
-	conn      *pgx.Conn // GUARDED_BY(connMutex)
-	connMutex sync.Mutex
-	hostname  string
-	creds     string
-	port      string
+	// endpoint is the host:port of the cockroach container.
+	endpoint string
 }
 
 var _ RunningEngineForTest = (*crdbTester)(nil)
 
 // RunCRDBForTesting returns a RunningEngineForTest for CRDB
-func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion string) *crdbTester {
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
+func RunCRDBForTesting(t testing.TB, crdbVersion string) *crdbTester {
+	ctx := t.Context()
 
-	name := "crds-" + uuid.New().String()
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Name:       name,
-		Repository: "cockroachdb/cockroach",
-		Tag:        "v" + crdbVersion,
-		Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
-		NetworkID:  bridgeNetworkName,
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+	container, err := cockroachdb.Run(ctx, "mirror.gcr.io/cockroachdb/cockroach:v"+crdbVersion,
+		cockroachdb.WithInsecure(),
+	)
+	require.NoError(t, err)
+	testcontainers.CleanupContainer(t, container)
+
+	code, _, err := container.Exec(ctx, []string{
+		"cockroach", "sql",
+		"--insecure",
+		"-e", "SET CLUSTER SETTING kv.rangefeed.enabled = true;",
 	})
 	require.NoError(t, err)
+	require.Equal(t, 0, code)
 
-	builder := &crdbTester{
-		hostname: "localhost",
-		creds:    "root:fake",
+	host, err := container.Host(ctx)
+	require.NoError(t, err)
+	mappedPort, err := container.MappedPort(ctx, "26257/tcp")
+	require.NoError(t, err)
+
+	return &crdbTester{
+		endpoint: net.JoinHostPort(host, mappedPort.Port()),
 	}
-	t.Cleanup(func() {
-		builder.connMutex.Lock()
-		defer builder.connMutex.Unlock()
-		if builder.conn != nil {
-			require.NoError(t, builder.conn.Close(t.Context()))
-		}
-		require.NoError(t, pool.Purge(resource))
-	})
-
-	port := resource.GetPort(fmt.Sprintf("%d/tcp", 26257))
-	if bridgeNetworkName != "" {
-		builder.hostname = name
-		builder.port = "26257"
-	} else {
-		builder.port = port
-	}
-
-	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, port)
-	require.NoError(t, pool.Retry(func() error {
-		var err error
-		ctx, cancelConnect := context.WithTimeout(t.Context(), dockerBootTimeout)
-		defer cancelConnect()
-		conn, err := pgx.Connect(ctx, uri)
-		if err != nil {
-			return err
-		}
-		builder.connMutex.Lock()
-		builder.conn = conn
-		ctx, cancelRangeFeeds := context.WithTimeout(t.Context(), dockerBootTimeout)
-		defer cancelRangeFeeds()
-		_, err = builder.conn.Exec(ctx, enableRangefeeds)
-		builder.connMutex.Unlock()
-		return err
-	}))
-
-	return builder
 }
 
-// NewDatabase creates a database.
+// dsn returns an (insecure) connection string for the given database. The
+// module's ConnectionString returns a pgx-registered config name rather than a
+// URL, so the DSN is built directly for the datastore.
+func (r *crdbTester) dsn(dbName string) string {
+	return fmt.Sprintf("postgres://root@%s/%s?sslmode=disable", r.endpoint, dbName)
+}
+
+// NewDatabase creates a new, empty logical database and returns its connection string.
 func (r *crdbTester) NewDatabase(t testing.TB) string {
 	uniquePortion, err := secrets.TokenHex(4)
 	require.NoError(t, err)
-
 	newDBName := "db" + uniquePortion
 
-	r.connMutex.Lock()
-	defer r.connMutex.Unlock()
-	_, err = r.conn.Exec(t.Context(), "CREATE DATABASE "+newDBName)
+	ctx := t.Context()
+	conn, err := pgx.Connect(ctx, r.dsn("defaultdb"))
+	require.NoError(t, err)
+	defer conn.Close(ctx)
+
+	_, err = conn.Exec(ctx, "CREATE DATABASE "+newDBName)
 	require.NoError(t, err)
 
-	connectStr := fmt.Sprintf(
-		"postgres://%s@%s:%s/%s?sslmode=disable",
-		r.creds,
-		r.hostname,
-		r.port,
-		newDBName,
-	)
-	return connectStr
+	return r.dsn(newDBName)
 }
 
 // NewDatastore creates a database and runs migrations on it.
