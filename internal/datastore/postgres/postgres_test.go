@@ -43,7 +43,9 @@ func TestPostgresDatastoreGC(t *testing.T) {
 		pgbouncerStr = "pgbouncer-"
 	}
 	t.Run(fmt.Sprintf("%spostgres-gc-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
-		b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration, config.pgVersion, config.pgbouncer)
+		t.Parallel()
+
+		b := testdatastore.RunPostgresForTesting(t, config.targetMigration, config.pgVersion, config.pgbouncer)
 
 		t.Run("GarbageCollection", createDatastoreTest(
 			b,
