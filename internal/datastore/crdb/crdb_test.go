@@ -23,11 +23,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/ory/dockertest/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	promclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/cockroachdb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -260,8 +261,6 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 
 func TestWatchFeatureDetection(t *testing.T) {
 	t.Parallel()
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
 	cases := []struct {
 		name          string
 		postInit      func(ctx context.Context, adminConn *pgx.Conn)
@@ -307,8 +306,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			adminConn, connStrings := newCRDBWithUser(t, pool)
-			require.NoError(t, err)
+			adminConn, connStrings := newCRDBWithUser(t)
 
 			migrationDriver, err := crdbmigrations.NewCRDBDriver(connStrings[testuser])
 			require.NoError(t, err)
@@ -347,7 +345,7 @@ const (
 	unprivileged provisionedUser = "unprivileged"
 )
 
-func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, connStrings map[provisionedUser]string) {
+func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisionedUser]string) {
 	// in order to create users, cockroach must be running with
 	// real certs, and the root user must be authenticated with
 	// client certs.
@@ -455,39 +453,53 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 	}))
 	require.NoError(t, rootCertFile.Close())
 
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "mirror.gcr.io/cockroachdb/cockroach",
-		Tag:        "v" + crdbTestVersion(),
-		Cmd:        []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
-		Mounts:     []string{certDir + ":/certs"},
-	})
+	container, err := cockroachdb.Run(t.Context(),
+		"cockroachdb/cockroach:v"+crdbTestVersion(),
+		cockroachdb.WithInsecure(),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Cmd: []string{"--certs-dir", "/certs", "--accept-sql-without-tls"},
+				Mounts: testcontainers.ContainerMounts{{
+					Source: testcontainers.GenericBindMountSource{HostPath: certDir},
+					Target: "/certs",
+				}},
+			},
+		}),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(resource))
+		require.NoError(t, container.Terminate(context.Background()))
 	})
 
-	port := resource.GetPort(fmt.Sprintf("%d/tcp", 26257))
-	require.NoError(t, pool.Retry(func() error {
-		var err error
-		_, err = pgxpool.New(context.Background(), fmt.Sprintf("postgres://root@localhost:%[1]s/defaultdb?sslmode=verify-full&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir))
-		if err != nil {
-			t.Log(err)
-			return err
-		}
-		return nil
-	}))
+	mappedPort, err := container.MappedPort(t.Context(), "26257")
+	require.NoError(t, err)
+	port := mappedPort.Port()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Retry connection
+	maxRetries := 10
+	for i := 0; i < maxRetries; i++ {
+		_, err = pgxpool.New(context.Background(), fmt.Sprintf("postgres://root@localhost:%[1]s/defaultdb?sslmode=verify-full&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir))
+		if err == nil {
+			break
+		}
+		if i == maxRetries-1 {
+			require.NoError(t, err)
+		}
+		t.Log(err)
+		time.Sleep(1 * time.Second)
+	}
+
+	cancel := func() {}
 	t.Cleanup(cancel)
 	adminConnString := fmt.Sprintf("postgresql://root:unused@localhost:%[1]s?sslmode=require&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir)
 
 	require.Eventually(t, func() bool {
-		adminConn, err = pgx.Connect(ctx, adminConnString)
+		adminConn, err = pgx.Connect(t.Context(), adminConnString)
 		return err == nil
 	}, 30*time.Second, 1*time.Second)
 
 	// create a non-admin user
-	_, err = adminConn.Exec(ctx, `
+	_, err = adminConn.Exec(t.Context(), `
 		CREATE DATABASE testspicedb;
 		CREATE USER testuser WITH PASSWORD 'testpass';
 		CREATE USER unprivileged WITH PASSWORD 'testpass2';

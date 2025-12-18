@@ -5,15 +5,16 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/network"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -31,9 +32,8 @@ func TestServe(t *testing.T) {
 	requireParent := require.New(t)
 
 	tester, err := newTester(t,
-		&dockertest.RunOptions{
-			Repository:   "authzed/spicedb",
-			Tag:          "ci",
+		testcontainers.ContainerRequest{
+			Image:        "authzed/spicedb:ci",
 			Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", "firstkey", "--grpc-preshared-key", "secondkey"},
 			ExposedPorts: []string{"50051/tcp"},
 		},
@@ -93,15 +93,11 @@ func TestServe(t *testing.T) {
 	}
 }
 
-func gracefulShutdown(pool *dockertest.Pool, serveResource *dockertest.Resource) bool {
+func gracefulShutdown(ctx context.Context, container testcontainers.Container) bool {
 	closed := make(chan bool, 1)
 	go func() {
 		// Send SIGSTOP to have the container gracefully shutdown.
-		_ = pool.Client.KillContainer(docker.KillContainerOptions{
-			ID:      serveResource.Container.ID,
-			Signal:  docker.SIGSTOP,
-			Context: context.Background(),
-		})
+		_ = container.Stop(ctx, nil)
 		closed <- true
 	}()
 
@@ -110,31 +106,28 @@ func gracefulShutdown(pool *dockertest.Pool, serveResource *dockertest.Resource)
 		return true
 
 	case <-time.After(10 * time.Second):
-		_ = pool.Purge(serveResource)
+		_ = container.Terminate(ctx)
 		return false
 	}
 }
 
 func TestGracefulShutdownInMemory(t *testing.T) {
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
+	ctx := context.Background()
 
 	// Run a serve and immediately close, ensuring it shuts down gracefully.
-	serveResource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "authzed/spicedb",
-		Tag:        "ci",
-		Cmd:        []string{"serve", "--grpc-preshared-key", "firstkey"},
-	}, func(config *docker.HostConfig) {
-		config.RestartPolicy = docker.RestartPolicy{
-			Name: "no",
-		}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image: "authzed/spicedb:ci",
+			Cmd:   []string{"serve", "--grpc-preshared-key", "firstkey"},
+		},
+		Started: true,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = pool.Purge(serveResource)
+		_ = container.Terminate(ctx)
 	})
 
-	require.True(t, gracefulShutdown(pool, serveResource))
+	require.True(t, gracefulShutdown(ctx, container))
 }
 
 type watchingWriter struct {
@@ -161,84 +154,76 @@ func TestGracefulShutdown(t *testing.T) {
 
 	for driverName, awaitGC := range engines {
 		t.Run(driverName, func(t *testing.T) {
+			ctx := context.Background()
 			bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
 
-			pool, err := dockertest.NewPool("")
-			require.NoError(t, err)
-
 			// Create a bridge network for testing.
-			network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{
-				Name: bridgeNetworkName,
-			})
+			net, err := network.New(ctx, network.WithDriver("bridge"), network.WithLabels(map[string]string{"name": bridgeNetworkName}))
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_ = pool.Client.RemoveNetwork(network.ID)
+				_ = net.Remove(ctx)
 			})
 
 			engine := testdatastore.RunDatastoreEngineWithBridge(t, driverName, bridgeNetworkName)
 
-			envVars := []string{}
+			envVars := map[string]string{}
 			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
-				envVars = wev.ExternalEnvVars()
+				for _, env := range wev.ExternalEnvVars() {
+					parts := strings.SplitN(env, "=", 2)
+					if len(parts) == 2 {
+						envVars[parts[0]] = parts[1]
+					}
+				}
 			}
 
 			// Run the migrate command and wait for it to complete.
 			db := engine.NewDatabase(t)
-			migrateResource, err := pool.RunWithOptions(&dockertest.RunOptions{
-				Repository: "authzed/spicedb",
-				Tag:        "ci",
-				Cmd:        []string{"migrate", "head", "--datastore-engine", driverName, "--datastore-conn-uri", db},
-				NetworkID:  bridgeNetworkName,
-				Env:        envVars,
-			}, func(config *docker.HostConfig) {
-				config.RestartPolicy = docker.RestartPolicy{
-					Name: "no",
-				}
+			migrateContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+				ContainerRequest: testcontainers.ContainerRequest{
+					Image:    "authzed/spicedb:ci",
+					Cmd:      []string{"migrate", "head", "--datastore-engine", driverName, "--datastore-conn-uri", db},
+					Networks: []string{bridgeNetworkName},
+					Env:      envVars,
+				},
+				Started: true,
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_ = pool.Purge(migrateResource)
+				_ = migrateContainer.Terminate(ctx)
 			})
 
 			// Ensure the command completed successfully.
-			status, err := pool.Client.WaitContainerWithContext(migrateResource.Container.ID, t.Context())
+			exitCode, err := migrateContainer.State(ctx)
 			require.NoError(t, err)
-			require.Equal(t, 0, status)
+			require.Equal(t, 0, exitCode.ExitCode)
 
 			// Run a serve and immediately close, ensuring it shuts down gracefully.
-			serveResource, err := pool.RunWithOptions(&dockertest.RunOptions{
-				Repository: "authzed/spicedb",
-				Tag:        "ci",
-				Cmd:        []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", ""},
-				NetworkID:  bridgeNetworkName,
-				Env:        envVars,
-			}, func(config *docker.HostConfig) {
-				config.RestartPolicy = docker.RestartPolicy{
-					Name: "no",
-				}
+			serveContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+				ContainerRequest: testcontainers.ContainerRequest{
+					Image:    "authzed/spicedb:ci",
+					Cmd:      []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", ""},
+					Networks: []string{bridgeNetworkName},
+					Env:      envVars,
+				},
+				Started: true,
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_ = pool.Purge(serveResource)
+				_ = serveContainer.Terminate(ctx)
 			})
 
 			if awaitGC {
 				ww := &watchingWriter{make(chan bool, 1), "running garbage collection worker"}
 
 				// Grab logs and ensure GC has run before starting a graceful shutdown.
-				opts := docker.LogsOptions{
-					Context:      context.Background(),
-					Stderr:       true,
-					Stdout:       true,
-					Follow:       true,
-					Timestamps:   true,
-					RawTerminal:  true,
-					Container:    serveResource.Container.ID,
-					OutputStream: ww,
-				}
-
 				go (func() {
-					err = pool.Client.Logs(opts)
+					logReader, err := serveContainer.Logs(ctx)
+					if err != nil {
+						assert.NoError(t, err)
+						return
+					}
+					defer logReader.Close()
+					_, err = io.Copy(ww, logReader)
 					assert.NoError(t, err)
 				})()
 
@@ -251,7 +236,7 @@ func TestGracefulShutdown(t *testing.T) {
 				}
 			}
 
-			require.True(t, gracefulShutdown(pool, serveResource))
+			require.True(t, gracefulShutdown(ctx, serveContainer))
 		})
 	}
 }
