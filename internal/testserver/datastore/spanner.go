@@ -12,9 +12,9 @@ import (
 	instances "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -29,54 +29,66 @@ type spannerTest struct {
 
 // RunSpannerForTesting returns a RunningEngineForTest for spanner
 func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigration string) RunningEngineForTest {
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
-
+	ctx := context.Background()
 	name := "spanner-" + uuid.New().String()
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+
+	req := testcontainers.ContainerRequest{
 		Name:         name,
-		Repository:   "gcr.io/cloud-spanner-emulator/emulator",
-		Tag:          "1.5.41",
+		Image:        "gcr.io/cloud-spanner-emulator/emulator:1.5.41",
 		ExposedPorts: []string{"9010/tcp"},
-		NetworkID:    bridgeNetworkName,
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+		WaitingFor:   wait.ForListeningPort("9010/tcp").WithStartupTimeout(dockerBootTimeout),
+	}
+
+	if bridgeNetworkName != "" {
+		req.Networks = []string{bridgeNetworkName}
+	}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(resource))
+		require.NoError(t, container.Terminate(ctx))
 	})
 
-	port := resource.GetPort("9010/tcp")
-	spannerEmulatorAddr := "localhost:" + port
+	mappedPort, err := container.MappedPort(ctx, "9010")
+	require.NoError(t, err)
+
+	spannerEmulatorAddr := "localhost:" + mappedPort.Port()
 	t.Setenv("SPANNER_EMULATOR_HOST", spannerEmulatorAddr)
 
-	require.NoError(t, pool.Retry(func() error {
+	// Retry initialization
+	maxRetries := 10
+	for i := 0; i < maxRetries; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), dockerBootTimeout)
-		defer cancel()
-
 		instancesClient, err := instances.NewInstanceAdminClient(ctx)
-		if err != nil {
-			return err
+		if err == nil {
+			ctx, cancel = context.WithTimeout(context.Background(), dockerBootTimeout)
+			_, err = instancesClient.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
+				Parent:     "projects/fake-project-id",
+				InstanceId: "init",
+				Instance: &instancepb.Instance{
+					Config:      "emulator-config",
+					DisplayName: "Test Instance",
+					NodeCount:   1,
+				},
+			})
+			instancesClient.Close()
+			cancel()
+			if err == nil {
+				break
+			}
+		} else {
+			cancel()
 		}
-		defer func() { require.NoError(t, instancesClient.Close()) }()
 
-		ctx, cancel = context.WithTimeout(context.Background(), dockerBootTimeout)
-		defer cancel()
-		_, err = instancesClient.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
-			Parent:     "projects/fake-project-id",
-			InstanceId: "init",
-			Instance: &instancepb.Instance{
-				Config:      "emulator-config",
-				DisplayName: "Test Instance",
-				NodeCount:   1,
-			},
-		})
-		return err
-	}))
+		if i == maxRetries-1 {
+			require.NoError(t, err)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	builder := &spannerTest{
 		targetMigration: targetMigration,

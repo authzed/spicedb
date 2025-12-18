@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -26,11 +26,16 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 	_, b, _, _ := runtime.Caller(0)
 	basepath := filepath.Dir(b)
 	tester, err := newTester(t,
-		&dockertest.RunOptions{
-			Repository:   "authzed/spicedb",
-			Tag:          "ci",
-			Cmd:          []string{"serve-testing", "--load-configs", "/mnt/spicedb_bootstrap.yaml"},
-			Mounts:       []string{path.Join(basepath, "testdata/bootstrap.yaml") + ":/mnt/spicedb_bootstrap.yaml"},
+		testcontainers.ContainerRequest{
+			Image: "authzed/spicedb:ci",
+			Cmd:   []string{"serve-testing", "--load-configs", "/mnt/spicedb_bootstrap.yaml"},
+			Files: []testcontainers.ContainerFile{
+				{
+					HostFilePath:      path.Join(basepath, "testdata/bootstrap.yaml"),
+					ContainerFilePath: "/mnt/spicedb_bootstrap.yaml",
+					FileMode:          0644,
+				},
+			},
 			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
 		},
 		uuid.NewString(),

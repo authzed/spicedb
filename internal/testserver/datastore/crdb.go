@@ -3,14 +3,12 @@ package datastore
 import (
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/cockroachdb"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -18,107 +16,94 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-const (
-	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
-)
-
 // crdbTester is safe for concurrent use by tests.
 type crdbTester struct {
-	conn      *pgx.Conn // GUARDED_BY(connMutex)
-	connMutex sync.Mutex
-	hostname  string
-	creds     string
-	port      string
+	databaseConnectStr string
 }
 
 var _ RunningEngineForTest = (*crdbTester)(nil)
 
 // RunCRDBForTesting returns a RunningEngineForTest for CRDB
 func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion string) *crdbTester {
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
-
+	ctx := context.Background()
 	name := "crds-" + uuid.New().String()
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Name:       name,
-		Repository: "mirror.gcr.io/cockroachdb/cockroach",
-		Tag:        "v" + crdbVersion,
-		Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
-		NetworkID:  bridgeNetworkName,
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
+
+	containerReq := testcontainers.ContainerRequest{
+		Name: name,
+		Cmd:  []string{"--insecure", "--max-offset=50ms"},
+	}
+
+	if bridgeNetworkName != "" {
+		containerReq.Networks = []string{bridgeNetworkName}
+	}
+
+	opts := []testcontainers.ContainerCustomizer{
+		cockroachdb.WithInsecure(),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: containerReq,
+		}),
+	}
+
+	container, err := cockroachdb.Run(ctx, "mirror.gcr.io/cockroachdb/cockroach:v"+crdbVersion, opts...)
 	require.NoError(t, err)
 
-	builder := &crdbTester{
-		hostname: "localhost",
-		creds:    "root:fake",
-	}
 	t.Cleanup(func() {
-		builder.connMutex.Lock()
-		defer builder.connMutex.Unlock()
-		if builder.conn != nil {
-			require.NoError(t, builder.conn.Close(context.Background()))
-		}
-		require.NoError(t, pool.Purge(resource))
+		require.NoError(t, container.Terminate(ctx))
 	})
 
-	port := resource.GetPort(fmt.Sprintf("%d/tcp", 26257))
+	// enable changefeeds
+	code, _, _ := container.Exec(ctx, []string{
+		"cockroach", "sql",
+		"--insecure",
+		"-e", "SET CLUSTER SETTING kv.rangefeed.enabled = true;",
+	})
+	require.Equal(t, 0, code)
+
+	// create DB
+	dbNameUniquePortion, err := secrets.TokenHex(4)
+	require.NoError(t, err)
+
+	newDBName := "db" + dbNameUniquePortion
+	code, _, _ = container.Exec(ctx, []string{
+		"cockroach", "sql",
+		"--insecure",
+		"-e", "CREATE DATABASE " + newDBName + ";",
+	})
+	require.Equal(t, 0, code)
+
+	hostname := "localhost"
+	creds := "root:fake"
+	port := "26257"
+
 	if bridgeNetworkName != "" {
-		builder.hostname = name
-		builder.port = "26257"
+		hostname = name
 	} else {
-		builder.port = port
+		mappedPort, err := container.MappedPort(ctx, "26257")
+		require.NoError(t, err)
+		port = mappedPort.Port()
 	}
 
-	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, port)
-	require.NoError(t, pool.Retry(func() error {
-		var err error
-		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
-		defer cancelConnect()
-		conn, err := pgx.Connect(ctx, uri)
-		if err != nil {
-			return err
-		}
-		builder.connMutex.Lock()
-		builder.conn = conn
-		ctx, cancelRangeFeeds := context.WithTimeout(context.Background(), dockerBootTimeout)
-		defer cancelRangeFeeds()
-		_, err = builder.conn.Exec(ctx, enableRangefeeds)
-		builder.connMutex.Unlock()
-		return err
-	}))
-
-	return builder
+	return &crdbTester{
+		databaseConnectStr: fmt.Sprintf(
+			"postgres://%s@%s:%s/%s?sslmode=disable",
+			creds,
+			hostname,
+			port,
+			newDBName,
+		),
+	}
 }
 
-// NewDatabase creates a database.
 func (r *crdbTester) NewDatabase(t testing.TB) string {
-	uniquePortion, err := secrets.TokenHex(4)
-	require.NoError(t, err)
-
-	newDBName := "db" + uniquePortion
-
-	r.connMutex.Lock()
-	defer r.connMutex.Unlock()
-	_, err = r.conn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
-	require.NoError(t, err)
-
-	connectStr := fmt.Sprintf(
-		"postgres://%s@%s:%s/%s?sslmode=disable",
-		r.creds,
-		r.hostname,
-		r.port,
-		newDBName,
-	)
-	return connectStr
+	// nothing to do; database was already created
+	return r.databaseConnectStr
 }
 
 // NewDatastore creates a database and runs migrations on it.
 func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	connectStr := r.NewDatabase(t)
+	t.Log("MAINE")
+	t.Log(r.databaseConnectStr)
+	connectStr := r.databaseConnectStr
 
 	migrationDriver, err := crdbmigrations.NewCRDBDriver(connectStr)
 	require.NoError(t, err)
