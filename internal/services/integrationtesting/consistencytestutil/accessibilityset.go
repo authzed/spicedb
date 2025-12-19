@@ -327,6 +327,18 @@ func (as *AccessibilitySet) AllSubjectsNoWildcards() []tuple.ObjectAndRelation {
 	return subjects
 }
 
+// AllResourcesNoWildcards returns all defined resources without wildcards.
+func (as *AccessibilitySet) AllResourcesNoWildcards() []tuple.ObjectAndRelation {
+	resources := make([]tuple.ObjectAndRelation, 0)
+	seenResources := mapz.NewSet[string]()
+	for _, resource := range as.ResourcesByNamespace.Values() {
+		if seenResources.Add(tuple.StringONR(resource)) {
+			resources = append(resources, resource)
+		}
+	}
+	return resources
+}
+
 // LookupAccessibleResources returns all resources of the given type that are accessible to the
 // given subject.
 func (as *AccessibilitySet) LookupAccessibleResources(resourceType tuple.RelationReference, subject tuple.ObjectAndRelation) map[string]ObjectAndPermission {
@@ -355,6 +367,35 @@ func (as *AccessibilitySet) LookupAccessibleResources(resourceType tuple.Relatio
 	}
 
 	return foundResources
+}
+
+// LookupAccessibleSubjects returns all subjects that have access to the given resource.
+func (as *AccessibilitySet) LookupAccessibleSubjects(resource tuple.ObjectAndRelation) map[string]ObjectAndPermission {
+	foundSubjects := map[string]ObjectAndPermission{}
+	for permString, permissionship := range as.PermissionshipByRelationship {
+		if permissionship == dispatchv1.ResourceCheckResult_NOT_MEMBER {
+			continue
+		}
+
+		parsed := tuple.MustParse(permString)
+		if parsed.Resource.ObjectType != resource.ObjectType ||
+			parsed.Resource.ObjectID != resource.ObjectID ||
+			parsed.Resource.Relation != resource.Relation {
+			continue
+		}
+
+		if parsed.Subject.ObjectID == tuple.PublicWildcard {
+			continue
+		}
+
+		subjectKey := tuple.StringONR(parsed.Subject)
+		foundSubjects[subjectKey] = ObjectAndPermission{
+			ObjectID:   subjectKey,
+			IsCaveated: permissionship == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER,
+		}
+	}
+
+	return foundSubjects
 }
 
 func isAccessibleViaWildcardOnly(
