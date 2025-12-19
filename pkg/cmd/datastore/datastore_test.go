@@ -60,6 +60,48 @@ func TestLoadDatastoreFromFile(t *testing.T) {
 	require.Equal(t, "user", namespaces[0].Definition.Name)
 }
 
+// NOTE: this test captured a segfault in https://github.com/authzed/spicedb/issues/2783
+func TestLoadDatastoreFromFileWithCaveats(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "")
+	require.NoError(t, err)
+	_, err = file.Write([]byte(`
+schema: |-
+  
+  definition user {}
+  
+  caveat mfa_match_multi(acceptable_amr list<string>, provided_amr list<string>) {
+     size(acceptable_amr) == 0 || (size(provided_amr) > 0 && acceptable_amr.exists(x, x in provided_amr))
+  }
+
+  definition organization {
+    relation mfa_guard: organization with mfa_match_multi
+    relation check: user:*
+      
+    permission secured_access = mfa_guard->check
+  }
+  
+relationships: |-
+  organization:orga#mfa_guard@organization:orga[mfa_match_multi:{"acceptable_amr": ["mfa"]}]`))
+	require.NoError(t, err)
+
+	ctx := t.Context()
+	ds, err := NewDatastore(ctx,
+		SetBootstrapFiles([]string{file.Name()}),
+		WithEngine(MemoryEngine))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ds.Close()
+	})
+
+	revision, err := ds.HeadRevision(ctx)
+	require.NoError(t, err)
+
+	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
+	require.NoError(t, err)
+	require.Len(t, namespaces, 2)
+	require.Equal(t, "organization", namespaces[0].Definition.Name)
+}
+
 func TestLoadDatastoreFromFileAndContents(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)

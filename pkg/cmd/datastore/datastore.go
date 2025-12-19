@@ -206,6 +206,10 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	}
 	defaults := DefaultDatastoreConfig()
 
+	// NOTE: we set this manually here because this is a value that was never intended to be
+	// controlled by an external flag, but we still want the default value to be propagated through.
+	opts.CaveatTypeSet = defaults.CaveatTypeSet
+
 	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
@@ -364,6 +368,7 @@ func DefaultDatastoreConfig() *Config {
 		ExperimentalColumnOptimization:   true,
 		IncludeQueryParametersInTraces:   false,
 		WriteAcquisitionTimeout:          30 * time.Millisecond,
+		CaveatTypeSet:                    caveattypes.Default.TypeSet,
 	}
 }
 
