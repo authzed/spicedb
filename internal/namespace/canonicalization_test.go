@@ -39,6 +39,9 @@ func TestCanonicalization(t *testing.T) {
 				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
+				ns.MustRelation("edit2", ns.Union(
+					ns.ComputedUserset("owner"),
+				)),
 				ns.MustRelation("view", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("edit"),
@@ -49,7 +52,8 @@ func TestCanonicalization(t *testing.T) {
 				"owner":  "owner",
 				"viewer": "viewer",
 				"edit":   computedKeyPrefix + "596a8660f9a0c085",
-				"view":   computedKeyPrefix + "0cb51da20fc9f20f",
+				"edit2":  computedKeyPrefix + "596a8660f9a0c085",
+				"view":   computedKeyPrefix + "62152badef526205",
 			},
 		},
 		{
@@ -113,8 +117,8 @@ func TestCanonicalization(t *testing.T) {
 			map[string]string{
 				"owner":  "owner",
 				"viewer": "viewer",
-				"first":  computedKeyPrefix + "62152badef526205",
-				"second": computedKeyPrefix + "62152badef526205",
+				"first":  computedKeyPrefix + "591f62ba533d9c33",
+				"second": computedKeyPrefix + "591f62ba533d9c33",
 			},
 		},
 		{
@@ -140,8 +144,32 @@ func TestCanonicalization(t *testing.T) {
 				"owner":  "owner",
 				"viewer": "viewer",
 				"edit":   computedKeyPrefix + "596a8660f9a0c085",
-				"first":  computedKeyPrefix + "62152badef526205",
-				"second": computedKeyPrefix + "62152badef526205",
+				"first":  computedKeyPrefix + "591f62ba533d9c33",
+				"second": computedKeyPrefix + "591f62ba533d9c33",
+			},
+		},
+		{
+			"canonicalization with repeated relations",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
+					ns.ComputedUserset("owner"),
+					ns.ComputedUserset("viewer"),
+				)),
+				ns.MustRelation("second", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.ComputedUserset("owner"),
+					ns.ComputedUserset("viewer"),
+				)),
+			),
+			"",
+			map[string]string{
+				"owner":  "owner",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "591f62ba533d9c33",
+				"second": computedKeyPrefix + "591f62ba533d9c33",
 			},
 		},
 		{
@@ -163,8 +191,8 @@ func TestCanonicalization(t *testing.T) {
 			map[string]string{
 				"owner":  "owner",
 				"viewer": "viewer",
-				"first":  computedKeyPrefix + "18cf8af8ff02bad0",
-				"second": computedKeyPrefix + "18cf8af8ff02bad0",
+				"first":  computedKeyPrefix + "cb6d0639b2405e56",
+				"second": computedKeyPrefix + "cb6d0639b2405e56",
 			},
 		},
 		{
@@ -186,8 +214,8 @@ func TestCanonicalization(t *testing.T) {
 			map[string]string{
 				"owner":  "owner",
 				"viewer": "viewer",
-				"first":  computedKeyPrefix + "2cd554a00f7f2d94",
-				"second": computedKeyPrefix + "69d4722141f74043",
+				"first":  computedKeyPrefix + "75093669c3281326",
+				"second": computedKeyPrefix + "48f53d0dfbb85f59",
 			},
 		},
 		{
@@ -250,8 +278,8 @@ func TestCanonicalization(t *testing.T) {
 				"owner":  "owner",
 				"editor": "editor",
 				"viewer": "viewer",
-				"first":  computedKeyPrefix + "4c49627fbdbaf248",
-				"second": computedKeyPrefix + "4c49627fbdbaf248",
+				"first":  computedKeyPrefix + "d421a51d48db3872",
+				"second": computedKeyPrefix + "d421a51d48db3872",
 			},
 		},
 		{
@@ -285,8 +313,8 @@ func TestCanonicalization(t *testing.T) {
 				"owner":  "owner",
 				"editor": "editor",
 				"viewer": "viewer",
-				"first":  computedKeyPrefix + "7c52666bb7593f0a",
-				"second": computedKeyPrefix + "7c52666bb7593f0a",
+				"first":  computedKeyPrefix + "b5aff5c18919bef0",
+				"second": computedKeyPrefix + "b5aff5c18919bef0",
 			},
 		},
 		{
@@ -320,18 +348,22 @@ func TestCanonicalization(t *testing.T) {
 				"owner":  "owner",
 				"editor": "editor",
 				"viewer": "viewer",
-				"first":  computedKeyPrefix + "bb955307170373ae",
-				"second": computedKeyPrefix + "6ccf7bece2e540a1",
+				"first":  computedKeyPrefix + "5355617f5b8ea218",
+				"second": computedKeyPrefix + "ed41136b7aeb2264",
 			},
 		},
 		{
-			"canonicalization with nil expressions",
+			"canonicalization with aliased nil expressions",
 			ns.Namespace(
 				"document",
 				ns.MustRelation("owner", nil),
 				ns.MustRelation("editor", nil),
 				ns.MustRelation("viewer", nil),
 				ns.MustRelation("first", ns.Union(
+					ns.ComputedUserset("owner"),
+					ns.Nil(),
+				)),
+				ns.MustRelation("aliased", ns.Union(
 					ns.ComputedUserset("owner"),
 					ns.Nil(),
 				)),
@@ -342,11 +374,77 @@ func TestCanonicalization(t *testing.T) {
 			),
 			"",
 			map[string]string{
+				"owner":   "owner",
+				"editor":  "editor",
+				"viewer":  "viewer",
+				"first":   computedKeyPrefix + "a8662dfb4e430c9a",
+				"aliased": computedKeyPrefix + "a8662dfb4e430c9a",
+				"second":  computedKeyPrefix + "6e53cbcc9c210391",
+			},
+		},
+		{
+			"canonicalization with self expressions",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("editor", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
+					ns.ComputedUserset("owner"),
+					ns.Self(),
+				)),
+				ns.MustRelation("second", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.Self(),
+				)),
+				ns.MustRelation("third", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.Nil(),
+				)),
+			),
+			"",
+			map[string]string{
 				"owner":  "owner",
 				"editor": "editor",
 				"viewer": "viewer",
-				"first":  computedKeyPrefix + "95f5633117d42867",
-				"second": computedKeyPrefix + "f786018d066f37b4",
+				"first":  computedKeyPrefix + "cce7dece39bc4375",
+				"second": computedKeyPrefix + "6b726ef17aeeba0e",
+				"third":  computedKeyPrefix + "3e8d296baf7849e5",
+			},
+		},
+		{
+			"canonicalization with aliased self expressions",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("editor", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
+					ns.ComputedUserset("owner"),
+					ns.Self(),
+				)),
+				ns.MustRelation("alias", ns.Union(
+					ns.Self(),
+					ns.ComputedUserset("owner"),
+				)),
+				ns.MustRelation("second", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.Self(),
+				)),
+				ns.MustRelation("third", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.Nil(),
+				)),
+			),
+			"",
+			map[string]string{
+				"owner":  "owner",
+				"editor": "editor",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "eb99b65deae87e79",
+				"alias":  computedKeyPrefix + "eb99b65deae87e79",
+				"second": computedKeyPrefix + "48af971c7276d4d2",
+				"third":  computedKeyPrefix + "1c828e67f6ce7848",
 			},
 		},
 		{
@@ -370,8 +468,8 @@ func TestCanonicalization(t *testing.T) {
 				"owner":  "owner",
 				"editor": "editor",
 				"viewer": "viewer",
-				"first":  computedKeyPrefix + "bfc8d945d7030961",
-				"second": computedKeyPrefix + "bfc8d945d7030961",
+				"first":  computedKeyPrefix + "3692f3e8ea8d4a4b",
+				"second": computedKeyPrefix + "3692f3e8ea8d4a4b",
 			},
 		},
 		{
