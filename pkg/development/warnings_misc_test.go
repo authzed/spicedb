@@ -1,6 +1,7 @@
 package development
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -208,4 +209,252 @@ func TestWrappedFunctionedTTUUnknownFunction(t *testing.T) {
 	require.Panics(t, func() {
 		_, _ = wrapped.GetArrowString()
 	})
+}
+
+func TestCheckExpressionForMixedOperators(t *testing.T) {
+	testCases := []struct {
+		name          string
+		expression    string
+		expectWarning bool
+		expectedInMsg string
+	}{
+		{
+			name:          "single union operator",
+			expression:    "foo + bar",
+			expectWarning: false,
+		},
+		{
+			name:          "single intersection operator",
+			expression:    "foo & bar",
+			expectWarning: false,
+		},
+		{
+			name:          "single exclusion operator",
+			expression:    "foo - bar",
+			expectWarning: false,
+		},
+		{
+			name:          "multiple same operators - union",
+			expression:    "foo + bar + baz",
+			expectWarning: false,
+		},
+		{
+			name:          "multiple same operators - intersection",
+			expression:    "foo & bar & baz",
+			expectWarning: false,
+		},
+		{
+			name:          "multiple same operators - exclusion",
+			expression:    "foo - bar - baz",
+			expectWarning: false,
+		},
+		{
+			name:          "mixed union and exclusion at same depth",
+			expression:    "foo + bar - baz",
+			expectWarning: true,
+			expectedInMsg: "union (+) and exclusion (-)",
+		},
+		{
+			name:          "mixed exclusion and intersection at same depth",
+			expression:    "foo - bar & baz",
+			expectWarning: true,
+			expectedInMsg: "exclusion (-) and intersection (&)",
+		},
+		{
+			name:          "mixed union and intersection at same depth",
+			expression:    "foo + bar & baz",
+			expectWarning: true,
+			expectedInMsg: "union (+) and intersection (&)",
+		},
+		{
+			name:          "all three operators at same depth",
+			expression:    "foo + bar - baz & qux",
+			expectWarning: true,
+			expectedInMsg: "union (+)",
+		},
+		{
+			name:          "mixed operators with parentheses - different depths",
+			expression:    "(foo + bar) - baz",
+			expectWarning: false,
+		},
+		{
+			name:          "mixed operators with parentheses - right side",
+			expression:    "foo - (bar & baz)",
+			expectWarning: false,
+		},
+		{
+			name:          "complex parenthesized expression - no warning",
+			expression:    "(foo + bar) - (baz & qux)",
+			expectWarning: false,
+		},
+		{
+			name:          "arrow expression should not trigger warning",
+			expression:    "parent->view + editor",
+			expectWarning: false,
+		},
+		{
+			name:          "arrow expression with mixed operators should trigger",
+			expression:    "parent->view + editor - blocked",
+			expectWarning: true,
+			expectedInMsg: "union (+) and exclusion (-)",
+		},
+		{
+			name:          "function call expression",
+			expression:    "parent.all(view) + editor",
+			expectWarning: false,
+		},
+		{
+			name:          "empty expression",
+			expression:    "",
+			expectWarning: false,
+		},
+		{
+			name:          "only identifier",
+			expression:    "viewer",
+			expectWarning: false,
+		},
+		{
+			name:          "nested parentheses all same operator",
+			expression:    "(foo + bar) + (baz + qux)",
+			expectWarning: false,
+		},
+		{
+			name:          "deeply nested mixed operators at different depths",
+			expression:    "((foo + bar) - baz) & qux",
+			expectWarning: false,
+		},
+		{
+			name:          "mixed operators inside parentheses should warn",
+			expression:    "(foo + bar - baz)",
+			expectWarning: true,
+			expectedInMsg: "union (+) and exclusion (-)",
+		},
+		{
+			name:          "mixed operators in nested parens should warn",
+			expression:    "qux & (foo + bar - baz)",
+			expectWarning: true,
+			expectedInMsg: "union (+) and exclusion (-)",
+		},
+	}
+
+	sourcePos := &core.SourcePosition{
+		ZeroIndexedLineNumber:     0,
+		ZeroIndexedColumnPosition: 0,
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			warning := CheckExpressionForMixedOperators("test_perm", tc.expression, sourcePos)
+			if tc.expectWarning {
+				require.NotNil(t, warning, "expected warning but got nil")
+				require.Contains(t, warning.Message, tc.expectedInMsg, "warning message should contain expected text")
+				require.Contains(t, warning.Message, "mixed-operators-without-parentheses")
+			} else {
+				require.Nil(t, warning, "expected no warning but got: %v", warning)
+			}
+		})
+	}
+}
+
+func TestCheckExpressionForMixedOperatorsNilSourcePosition(t *testing.T) {
+	warning := CheckExpressionForMixedOperators("test_perm", "foo + bar - baz", nil)
+	require.NotNil(t, warning, "should still produce warning with nil source position")
+	require.Equal(t, uint32(0), warning.Line)
+	require.Equal(t, uint32(0), warning.Column)
+}
+
+func TestExtractPermissionExpression(t *testing.T) {
+	testCases := []struct {
+		name               string
+		schema             string
+		permissionName     string
+		lineNumber         uint64
+		expectedExpression string
+	}{
+		{
+			name: "simple permission",
+			schema: `definition test {
+				permission view = foo + bar
+			}`,
+			permissionName:     "view",
+			lineNumber:         1,
+			expectedExpression: "foo + bar",
+		},
+		{
+			name: "permission with comment after",
+			schema: `definition test {
+				permission view = foo + bar // some comment
+			}`,
+			permissionName:     "view",
+			lineNumber:         1,
+			expectedExpression: "foo + bar",
+		},
+		{
+			name:               "empty schema",
+			schema:             "",
+			permissionName:     "view",
+			lineNumber:         0,
+			expectedExpression: "",
+		},
+		{
+			name:               "multi-line expression with operator at end of line",
+			schema:             "definition test {\n\tpermission view = foo +\n\t\tbar - baz\n}",
+			permissionName:     "view",
+			lineNumber:         1,
+			expectedExpression: "foo + \t\tbar - baz",
+		},
+		{
+			name:               "multi-line expression with parentheses",
+			schema:             "definition test {\n\tpermission view = (foo +\n\t\tbar) - baz\n}",
+			permissionName:     "view",
+			lineNumber:         1,
+			expectedExpression: "(foo + \t\tbar) - baz",
+		},
+		{
+			name: "expression with block comment",
+			schema: `definition test {
+				permission view = foo /* this is a comment */ + bar
+			}`,
+			permissionName:     "view",
+			lineNumber:         1,
+			expectedExpression: "foo  + bar",
+		},
+		{
+			name: "expression with block comment spanning content",
+			schema: `definition test {
+				permission view = foo + /* comment */ bar - baz
+			}`,
+			permissionName:     "view",
+			lineNumber:         1,
+			expectedExpression: "foo +  bar - baz",
+		},
+		{
+			name: "multi-line expression without operator at end - single line",
+			schema: `definition test {
+				permission view = foo + bar
+				permission edit = baz
+			}`,
+			permissionName:     "view",
+			lineNumber:         1,
+			expectedExpression: "foo + bar",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sourcePos := &core.SourcePosition{
+				ZeroIndexedLineNumber:     tc.lineNumber,
+				ZeroIndexedColumnPosition: 0,
+			}
+			schemaLines := strings.Split(tc.schema, "\n")
+			result := extractPermissionExpression(schemaLines, tc.permissionName, sourcePos)
+			require.Equal(t, tc.expectedExpression, result)
+		})
+	}
+}
+
+func TestExtractPermissionExpressionNilSourcePosition(t *testing.T) {
+	schemaLines := strings.Split("definition test { permission view = foo }", "\n")
+	result := extractPermissionExpression(schemaLines, "view", nil)
+	require.Empty(t, result)
 }
