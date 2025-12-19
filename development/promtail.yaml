@@ -1,0 +1,100 @@
+---
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: envoy
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*envoy.*)'
+        target_label: 'container'
+        action: keep
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            method: method
+            path: path
+            protocol: protocol
+            response_code: response_code
+            response_flags: response_flags
+            bytes_received: bytes_received
+            bytes_sent: bytes_sent
+            duration_ms: duration_ms
+            upstream_service_time: upstream_service_time
+            x_forwarded_for: x_forwarded_for
+            user_agent: user_agent
+            request_id: request_id
+            authority: authority
+            upstream_host: upstream_host
+            upstream_cluster: upstream_cluster
+            upstream_local_address: upstream_local_address
+            downstream_local_address: downstream_local_address
+            downstream_remote_address: downstream_remote_address
+            upstream_transport_failure_reason: upstream_transport_failure_reason
+            route_name: route_name
+      - labels:
+          method:
+          path:
+          response_code:
+          upstream_cluster:
+          route_name:
+      - timestamp:
+          source: timestamp
+          format: "2006-01-02T15:04:05.000Z"
+
+  - job_name: spicedb
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.+-spicedb-\d+)'
+        target_label: 'container'
+        action: keep
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            message: msg
+            timestamp: time
+      - labels:
+          level:
+      - timestamp:
+          source: timestamp
+          format: "2006-01-02T15:04:05Z07:00"
+
+  - job_name: crdb
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.+-crdb-\d+)'
+        target_label: 'container'
+        action: keep
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'

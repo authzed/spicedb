@@ -88,7 +88,7 @@ services:
         condition: "service_healthy"
     restart: "unless-stopped"
   prometheus:
-    image: "prom/prometheus:v2.47.0"
+    image: "prom/prometheus:latest"
     command:
       - "--config.file=/etc/prometheus/prometheus.yaml"
       - "--storage.tsdb.path=/prometheus"
@@ -98,7 +98,7 @@ services:
       - "9091:9090" # Prometheus UI
     restart: "unless-stopped"
   otel-collector:
-    image: "otel/opentelemetry-collector:0.60.0"
+    image: "otel/opentelemetry-collector:latest"
     command: "--config /etc/otel-config.yaml"
     volumes:
       - "./development/otel-config.yaml:/etc/otel-config.yaml"
@@ -108,16 +108,28 @@ services:
     depends_on:
       - "tempo"
   loki:
-    image: "grafana/loki:2.9.0"
+    image: "grafana/loki:latest"
     command: "-config.file=/etc/loki/loki.yaml"
     volumes:
       - "./development/loki.yaml:/etc/loki/loki.yaml"
     ports:
       - "3100" # Loki API
     restart: "unless-stopped"
+  promtail:
+    image: "grafana/promtail:latest"
+    command: "-config.file=/etc/promtail/promtail.yaml"
+    user: root
+    volumes:
+      - "./development/promtail.yaml:/etc/promtail/promtail.yaml"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    depends_on:
+      - "loki"
+      - "envoy"
+    restart: "unless-stopped"
   tempo:
-    image: "grafana/tempo:1.5.0"
-    command: "-search.enabled=true -config.file=/etc/tempo.yaml"
+    image: "grafana/tempo:latest"
+    command: "-config.file=/etc/tempo.yaml"
     volumes:
       - "./development/tempo.yaml:/etc/tempo.yaml"
     restart: "unless-stopped"
@@ -125,7 +137,7 @@ services:
       - "4317" # OTLP gRPC
       - "3100" # tempo
   grafana:
-    image: "grafana/grafana:9.1.5-ubuntu"
+    image: "grafana/grafana:latest"
     volumes:
       - "./development/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources"
       - "./development/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards"
