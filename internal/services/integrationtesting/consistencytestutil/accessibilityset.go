@@ -1,6 +1,7 @@
 package consistencytestutil
 
 import (
+	"context"
 	"maps"
 	"slices"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
 // ObjectAndPermission contains an object ID and whether it is a caveated result.
@@ -79,14 +81,14 @@ type AccessibilitySet struct {
 // BuildAccessibilitySet builds and returns an accessibility set for the given consistency
 // cluster and data. Note that this function does *a lot* of checks, and should not be used
 // outside of testing.
-func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *AccessibilitySet {
+func BuildAccessibilitySet(t *testing.T, ctx context.Context, populated *validationfile.PopulatedValidationFile, ds datastore.Datastore) *AccessibilitySet {
 	// Compute all relationships and objects by namespace.
 	relsByResourceNamespace := mapz.NewMultiMap[string, tuple.Relationship]()
 	resourcesByNamespace := mapz.NewMultiMap[string, tuple.ObjectAndRelation]()
 	subjectsByNamespace := mapz.NewMultiMap[string, tuple.ObjectAndRelation]()
 	allObjectIds := mapz.NewSet[string]()
 
-	for _, tpl := range ccd.Populated.Relationships {
+	for _, tpl := range populated.Relationships {
 		relsByResourceNamespace.Add(tpl.Resource.ObjectType, tpl)
 		resourcesByNamespace.Add(tpl.Resource.ObjectType, tpl.Resource)
 		subjectsByNamespace.Add(tpl.Subject.ObjectType, tpl.Subject)
@@ -105,7 +107,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 	// NOTE: We only conduct checks here for the *defined* subjects from the relationships,
 	// rather than every possible subject, as the latter would make the consistency test suite
 	// VERY slow, due to the combinatorial size of all possible subjects.
-	headRevision, err := ccd.DataStore.HeadRevision(ccd.Ctx)
+	headRevision, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
 	params, err := graph.NewDefaultDispatcherParametersForTesting()
@@ -116,7 +118,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 	uncomputedPermissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	accessibilityByRelationship := map[string]Accessibility{}
 
-	for _, resourceType := range ccd.Populated.NamespaceDefinitions {
+	for _, resourceType := range populated.NamespaceDefinitions {
 		for _, possibleResourceID := range allObjectIds.AsSlice() {
 			for _, relationOrPermission := range resourceType.Relation {
 				for _, subject := range subjectsByNamespace.Values() {
@@ -129,7 +131,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						Relation:   relationOrPermission.Name,
 					}
 
-					results, err := dispatcher.DispatchCheck(ccd.Ctx, &dispatchv1.DispatchCheckRequest{
+					results, err := dispatcher.DispatchCheck(ctx, &dispatchv1.DispatchCheckRequest{
 						ResourceRelation: resourceRelation.ToCoreRR(),
 						ResourceIds:      []string{possibleResourceID},
 						Subject:          subject.ToCoreONR(),
@@ -162,7 +164,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						// statically has permission (or not). This can happen if the caveat context
 						// is fully specified on the relationship.
 						if membership == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER {
-							cr, _, err := computed.ComputeCheck(ccd.Ctx, dispatcher,
+							cr, _, err := computed.ComputeCheck(ctx, dispatcher,
 								caveattypes.Default.TypeSet,
 								computed.CheckParameters{
 									ResourceType:  resourceRelation,
@@ -191,7 +193,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 							if tuple.ONREqual(resourceAndRelation, subject) {
 								accessibilityByRelationship[permString] = AccessibleBecauseTheSame
 							} else {
-								if isAccessibleViaWildcardOnly(t, ccd, dispatcher, headRevision, resourceAndRelation, subject) {
+								if isAccessibleViaWildcardOnly(t, ctx, dispatcher, headRevision, resourceAndRelation, subject) {
 									accessibilityByRelationship[permString] = AccessibleViaWildcardOnly
 								} else {
 									accessibilityByRelationship[permString] = AccessibleDirectly
@@ -357,13 +359,13 @@ func (as *AccessibilitySet) LookupAccessibleResources(resourceType tuple.Relatio
 
 func isAccessibleViaWildcardOnly(
 	t *testing.T,
-	ccd ConsistencyClusterAndData,
+	ctx context.Context,
 	dispatcher dispatch.Dispatcher,
 	revision datastore.Revision,
 	resourceAndPermission tuple.ObjectAndRelation,
 	subject tuple.ObjectAndRelation,
 ) bool {
-	resp, err := dispatcher.DispatchExpand(ccd.Ctx, &dispatchv1.DispatchExpandRequest{
+	resp, err := dispatcher.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
 		ResourceAndRelation: resourceAndPermission.ToCoreONR(),
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
