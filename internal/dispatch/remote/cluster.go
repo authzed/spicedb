@@ -279,7 +279,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	subjectTypeAndRelation tuple.RelationReference,
 	handler func(context.Context, ClusterClient) (S, error),
 ) (S, error) {
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+	withTimeout, cancelFn := context.WithTimeoutCause(ctx, cr.dispatchOverallTimeout, fmt.Errorf("dispatch request timed out"))
 	defer cancelFn()
 
 	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
@@ -484,7 +484,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	stream dispatch.Stream[R],
 	handler func(context.Context, ClusterClient) (receiver[R], error),
 ) error {
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+	withTimeout, cancelFn := context.WithTimeoutCause(ctx, cr.dispatchOverallTimeout, fmt.Errorf("dispatch request timed out"))
 	defer cancelFn()
 
 	// If no secondary dispatches are defined, just invoke directly.

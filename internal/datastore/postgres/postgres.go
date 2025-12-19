@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -606,6 +607,7 @@ func (pgd *pgDatastore) RepairOperations() []datastore.RepairOperation {
 }
 
 func wrapError(err error) error {
+	log.Error().Msgf("DEBUG wrapError called from: %s", debug.Stack())
 	// If a unique constraint violation is returned, then its likely that the cause
 	// was an existing relationship given as a CREATE.
 	if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraints, err); cerr != nil {

@@ -84,13 +84,13 @@ scrape_configs:
           source: timestamp
           format: "2006-01-02T15:04:05Z07:00"
 
-  - job_name: crdb
+  - job_name: postgres
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
     relabel_configs:
       - source_labels: ['__meta_docker_container_name']
-        regex: '/(.+-crdb-\d+)'
+        regex: '/(.+-postgres-\d+)'
         target_label: 'container'
         action: keep
       - source_labels: ['__meta_docker_container_name']

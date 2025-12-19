@@ -9,7 +9,9 @@ distributor:
     otlp:
       protocols:
         http:
+          endpoint: "0.0.0.0:4318"
         grpc:
+          endpoint: "0.0.0.0:4317"
 
 ingester:
   trace_idle_period: "10s"
@@ -22,6 +24,19 @@ compactor:
     max_block_bytes: 100_000_000
     block_retention: "1h"
     compacted_block_retention: "10m"
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+  storage:
+    path: "/tmp/tempo/generator/wal"
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  processor:
+    span_metrics:
+      enable_target_info: true
 
 storage:
   trace:
