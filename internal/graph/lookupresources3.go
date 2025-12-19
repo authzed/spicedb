@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"slices"
 	"sort"
@@ -273,8 +274,8 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 		concurrencyLimit: crr.concurrencyLimit,
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(errors.New("maria 1"))
 
 	// If no limit is set, disable cursors for the entire operation, as they won't be returned.
 	if req.OptionalLimit == 0 {
@@ -1034,7 +1035,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 // published to the stream and yields them to the provided yield function. The stream will cancel
 // itself if the yield function returns false, indicating that the stream is no longer interested in results.
 func newYieldingStream(ctx context.Context, yield func(result, error) bool, rm *relationshipsChunk) *yieldingStream {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 	return &yieldingStream{
 		ctx:      ctx,
 		cancel:   cancel,
@@ -1051,7 +1052,7 @@ type yieldingStream struct {
 	ctx context.Context
 
 	// cancel is the cancel function for the stream context, which will be called when the stream is no longer interested in results.
-	cancel context.CancelFunc
+	cancel context.CancelCauseFunc
 
 	// yield is the function that will be called to yield results to the stream.
 	yield func(result, error) bool
@@ -1093,7 +1094,7 @@ func (y *yieldingStream) Publish(resp *v1.DispatchLookupResources3Response) erro
 			Cursor: item.AfterResponseCursorSections,
 		}, nil) {
 			y.canceled = true
-			y.cancel()
+			y.cancel(errors.New("maria 6"))
 			return context.Canceled
 		}
 	}

@@ -431,8 +431,8 @@ const (
 func publishClient[R any](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
 	isFirstResult := true
 	for {
-		if ctx.Err() != nil {
-			return ctx.Err()
+		if context.Cause(ctx) != nil {
+			return context.Cause(ctx)
 		}
 
 		result, err := client.Recv()

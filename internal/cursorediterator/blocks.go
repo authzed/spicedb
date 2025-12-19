@@ -2,6 +2,7 @@ package cursorediterator
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"strconv"
 
@@ -50,8 +51,8 @@ func CursoredWithIntegerHeader[I any](
 	next Next[I],
 ) iter.Seq2[ItemAndCursor[I], error] {
 	// Check for context cancellation before any processing
-	if ctx.Err() != nil {
-		return YieldsError[ItemAndCursor[I]](ctx.Err())
+	if context.Cause(ctx) != nil {
+		return YieldsError[ItemAndCursor[I]](context.Cause(ctx))
 	}
 
 	// Check if cursors are disabled
@@ -67,8 +68,8 @@ func CursoredWithIntegerHeader[I any](
 	// by adding the Cursor with "-1" to indicate that the header iterator has completed.
 	nextWithAdjustedCursor := func(yield func(ItemAndCursor[I], error) bool) {
 		// Check for context cancellation before executing next
-		if ctx.Err() != nil {
-			_ = yield(ItemAndCursor[I]{}, ctx.Err())
+		if context.Cause(ctx) != nil {
+			_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 			return
 		}
 
@@ -79,8 +80,8 @@ func CursoredWithIntegerHeader[I any](
 			}
 
 			// Check for context cancellation during next execution
-			if ctx.Err() != nil {
-				_ = yield(ItemAndCursor[I]{}, ctx.Err())
+			if context.Cause(ctx) != nil {
+				_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 				return
 			}
 
@@ -105,8 +106,8 @@ func CursoredWithIntegerHeader[I any](
 	// prefixed with the next item's index.
 	cursorAddingHeader := func(yield func(ItemAndCursor[I], error) bool) {
 		// Check for context cancellation before executing header
-		if ctx.Err() != nil {
-			_ = yield(ItemAndCursor[I]{}, ctx.Err())
+		if context.Cause(ctx) != nil {
+			_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 			return
 		}
 
@@ -118,8 +119,8 @@ func CursoredWithIntegerHeader[I any](
 			}
 
 			// Check for context cancellation during header execution
-			if ctx.Err() != nil {
-				_ = yield(ItemAndCursor[I]{}, ctx.Err())
+			if context.Cause(ctx) != nil {
+				_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 				return
 			}
 
@@ -189,15 +190,15 @@ func CursoredParallelIterators[I any](
 	if concurrency == 1 {
 		return func(yield func(ItemAndCursor[I], error) bool) {
 			// Check for context cancellation before starting execution
-			if ctx.Err() != nil {
-				_ = yield(ItemAndCursor[I]{}, ctx.Err())
+			if context.Cause(ctx) != nil {
+				_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 				return
 			}
 
 			for collectorOffsetIndex, iter := range itersToRun {
 				// Check for context cancellation before each iterator
-				if ctx.Err() != nil {
-					_ = yield(ItemAndCursor[I]{}, ctx.Err())
+				if context.Cause(ctx) != nil {
+					_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 					return
 				}
 
@@ -214,8 +215,8 @@ func CursoredParallelIterators[I any](
 						return
 					}
 
-					if ctx.Err() != nil {
-						_ = yield(ItemAndCursor[I]{}, ctx.Err())
+					if context.Cause(ctx) != nil {
+						_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 						return
 					}
 
@@ -236,7 +237,7 @@ func CursoredParallelIterators[I any](
 
 	// Build a task runner that will execute the iterators in parallel, collecting their results
 	// into channels.
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrency, len(itersToRun))
 	collectors := make([]chan item[I], len(itersToRun))
@@ -259,7 +260,7 @@ func CursoredParallelIterators[I any](
 			for r, err := range iter(ctx, iteratorRemainingCursor) {
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					return context.Cause(ctx)
 
 				// Propagate the result and the error up to the collector
 				case collector <- item[I]{r, err, false}:
@@ -279,7 +280,7 @@ func CursoredParallelIterators[I any](
 
 	return func(yield func(ItemAndCursor[I], error) bool) {
 		// Cancel all work once the iterator completes.
-		defer cancel()
+		defer cancel(errors.New("maria 2"))
 
 		// Start the task runner.
 		tr.Start()
@@ -291,7 +292,7 @@ func CursoredParallelIterators[I any](
 			for {
 				select {
 				case <-ctx.Done():
-					_ = yield(ItemAndCursor[I]{}, ctx.Err())
+					_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 					return
 
 				case r := <-collector:
@@ -377,25 +378,25 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 	mapper func(ctx context.Context, remainingCursor Cursor, chunk P) iter.Seq2[ItemAndCursor[I], error],
 ) iter.Seq2[ItemAndCursor[I], error] {
 	// Check for context cancellation before any processing
-	if ctx.Err() != nil {
-		return YieldsError[ItemAndCursor[I]](ctx.Err())
+	if context.Cause(ctx) != nil {
+		return YieldsError[ItemAndCursor[I]](context.Cause(ctx))
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	// Check if cursors are disabled
 	cursorsDisabled := cursorsDisabledKey.Value(ctx)
 
 	headValue, remainingCursor, err := CursorCustomHeadValue(currentCursor, cursorFromStringConverter)
 	if err != nil {
-		cancel()
+		cancel(errors.New("maria 3"))
 		return YieldsError[ItemAndCursor[I]](err)
 	}
 
 	// Special case for concurrency=1: execute sequentially without goroutines
 	if concurrency == 1 {
 		return func(yield func(ItemAndCursor[I], error) bool) {
-			defer cancel()
+			defer cancel(errors.New("maria 4"))
 
 			for p, err := range producer(ctx, headValue, remainingCursor) {
 				if err != nil {
@@ -403,8 +404,8 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 					return
 				}
 
-				if ctx.Err() != nil {
-					_ = yield(ItemAndCursor[I]{}, ctx.Err())
+				if context.Cause(ctx) != nil {
+					_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 					return
 				}
 
@@ -427,8 +428,8 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 							return
 						}
 
-						if ctx.Err() != nil {
-							_ = yield(ItemAndCursor[I]{}, ctx.Err())
+						if context.Cause(ctx) != nil {
+							_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 							return
 						}
 
@@ -504,7 +505,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					return context.Cause(ctx)
 
 				case <-precedingConcreteChunk.wereMappingsYieldedChan:
 					precedingConcreteChunk = nil
@@ -522,7 +523,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return context.Cause(ctx)
 
 			case orderedProducerChunks <- chunk:
 				// Continue processing chunks.
@@ -544,7 +545,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return context.Cause(ctx)
 
 		case orderedProducerChunks <- chunk:
 			// Send the completion signal.
@@ -553,7 +554,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 	}
 
 	return func(yield func(ItemAndCursor[I], error) bool) {
-		defer cancel()
+		defer cancel(errors.New("maria 5"))
 
 		// Start the producer.
 		tr.Schedule(func(ctx context.Context) error {
@@ -563,7 +564,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 		for {
 			select {
 			case <-ctx.Done():
-				_ = yield(ItemAndCursor[I]{}, ctx.Err())
+				_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 				return
 
 			case chunk := <-orderedProducerChunks:
@@ -583,7 +584,7 @@ func CursoredProducerMapperIterator[C any, P any, I any](
 
 				select {
 				case <-ctx.Done():
-					_ = yield(ItemAndCursor[I]{}, ctx.Err())
+					_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 					return
 
 				case mappedResult := <-chunk.mappedResultChan:

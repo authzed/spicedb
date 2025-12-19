@@ -39,7 +39,7 @@ services:
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"
-      - "SPICEDB_LOG_LEVEL=info"
+      - "SPICEDB_LOG_LEVEL=trace"
       - "SPICEDB_HTTP_ENABLED=true"
       - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
       - "SPICEDB_DATASTORE_ENGINE=postgres"
@@ -58,6 +58,7 @@ services:
       - "SPICEDB_DATASTORE_CONN_POOL_WRITE_MIN_OPEN=5"
       - "SPICEDB_EXPERIMENTAL_LOOKUP_RESOURCES_VERSION=lr3"
       - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=5m"
+      - "SPICEDB_DISPATCH_UPSTREAM_TIMEOUT=5m"
     depends_on:
       migrate:
         condition: "service_completed_successfully"

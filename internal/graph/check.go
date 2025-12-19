@@ -1038,7 +1038,7 @@ func run[T any, R withError](
 
 		case <-ctx.Done():
 			log.Ctx(ctx).Trace().Msg("anyCanceled")
-			return nil, ctx.Err()
+			return nil, context.Cause(ctx)
 		}
 	}
 

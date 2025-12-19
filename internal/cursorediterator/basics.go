@@ -24,8 +24,8 @@ type Next[I any] func(ctx context.Context, cursor Cursor) iter.Seq2[ItemAndCurso
 func Empty[I any](ctx context.Context, cursor Cursor) iter.Seq2[ItemAndCursor[I], error] {
 	return func(yield func(ItemAndCursor[I], error) bool) {
 		// Check for context cancellation even in empty iterator
-		if ctx.Err() != nil {
-			_ = yield(ItemAndCursor[I]{}, ctx.Err())
+		if context.Cause(ctx) != nil {
+			_ = yield(ItemAndCursor[I]{}, context.Cause(ctx))
 			return
 		}
 	}
