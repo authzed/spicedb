@@ -6,9 +6,24 @@ global:
 scrape_configs:
   - job_name: "spicedb"
     static_configs:
-      - targets: ["spicedb-1:9090"]
+      - targets: ["spicedb-spicedb-1:9090"]
         labels:
           service: "spicedb-1"
-      - targets: ["spicedb-2:9090"]
+      - targets: ["spicedb-spicedb-2:9090"]
         labels:
           service: "spicedb-2"
+      - targets: ["spicedb-spicedb-3:9090"]
+        labels:
+          service: "spicedb-3"
+      - targets: ["spicedb-spicedb-4:9090"]
+        labels:
+          service: "spicedb-4"
+      - targets: ["spicedb-spicedb-5:9090"]
+        labels:
+          service: "spicedb-5"
+  - job_name: "envoy"
+    metrics_path: "/stats/prometheus"
+    static_configs:
+      - targets: ["envoy:9901"]
+        labels:
+          service: "envoy"

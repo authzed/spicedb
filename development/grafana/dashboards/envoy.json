@@ -1,0 +1,1654 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": {
+    "list": []
+  },
+  "description": "A dashboard that monitors Envoy with a focus on giving an generic overview. The dashboards were generated using [envoy-mixin](https://github.com/adinhodovic/envoy-mixin). Open issues and create feature requests in the repository.",
+  "editable": false,
+  "links": [
+    {
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [
+        "envoy",
+        "envoy-mixin",
+        "gateway"
+      ],
+      "targetBlank": true,
+      "title": "Envoy",
+      "type": "dashboards"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "Summary",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The total number of Envoy pods being monitored.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "graphMode": "area",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(\n  count (\n    envoy_cluster_upstream_rq_total{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n\n    }\n  ) by (pod)\n)\n"
+        }
+      ],
+      "title": "Envoy Pods",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The total number of upstreams being monitored.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "graphMode": "area",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(\n  count(\n    envoy_cluster_upstream_rq_total{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n\n    }\n  ) by (envoy_cluster_name)\n)\n"
+        }
+      ],
+      "title": "Upstreams",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The total number of downstreams being monitored.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "graphMode": "area",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(\n  count(\n    envoy_http_downstream_rq_total{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n\n    }\n  ) by (envoy_http_conn_manager_prefix)\n)\n"
+        }
+      ],
+      "title": "Downstreams",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The total number of active upstream connections across all Envoy clusters being monitored.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "graphMode": "area",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(\n  envoy_cluster_upstream_cx_active{\n    cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n\n  }\n)\n"
+        }
+      ],
+      "title": "Upstream Active Connections",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The total number of active downstream connections across all Envoy clusters being monitored.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 6,
+      "options": {
+        "graphMode": "area",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(\n  envoy_http_downstream_cx_active{\n    cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n\n  }\n)\n"
+        }
+      ],
+      "title": "Downstream Active Connections",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The percentage of healthy members in the Envoy clusters being monitored.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 7,
+      "options": {
+        "graphMode": "area",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(\n  envoy_cluster_membership_healthy{\n    cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n\n  }\n)\n/\nsum(\n  envoy_cluster_membership_total{\n    cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n\n  }\n)\n* 100\n"
+        }
+      ],
+      "title": "Membership Healthy Percent",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The distribution of upstream request rates by Envoy cluster name.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 5
+      },
+      "id": 8,
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "topk(20,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n",
+          "instant": true,
+          "legendFormat": "{{ envoy_cluster_name }}"
+        }
+      ],
+      "title": "Upstream Rate by Envoy Cluster Name [1h]",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The distribution of upstream request rates by response code class.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 5
+      },
+      "id": 9,
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[1h]\n  )\n) by (envoy_response_code_class)\n",
+          "instant": true,
+          "legendFormat": "{{ envoy_response_code_class }}xx"
+        }
+      ],
+      "title": "Upstream Rate by Code Class [1h]",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The distribution of downstream request rates by Envoy HTTP connection manager prefix.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 5
+      },
+      "id": 10,
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "topk(20,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n",
+          "instant": true,
+          "legendFormat": "{{ envoy_http_conn_manager_prefix }}"
+        }
+      ],
+      "title": "Downstream Rate by Envoy HTTP Conn Manager Prefix [1h]",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The distribution of upstream request rates by pod.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      },
+      "id": 11,
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  rate(\n    envoy_cluster_upstream_rq_total{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[1h]\n  )\n) by (pod)\n",
+          "instant": true,
+          "legendFormat": "{{ pod }}"
+        }
+      ],
+      "title": "Upstream Rate by Pod [1h]",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 12,
+      "title": "Upstream",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The upstream request rate over time.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisSoftMin": 0,
+            "fillOpacity": 100,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "sum(\n  rate(\n    envoy_cluster_upstream_rq_total{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[$__rate_interval]\n  )\n)\n",
+          "legendFormat": "Upstream"
+        }
+      ],
+      "title": "Upstream Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The upstream latency percentiles over time.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "histogram_quantile(\n  0.5,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[$__rate_interval]\n    )\n  ) by (le)\n)\n",
+          "legendFormat": "P50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "histogram_quantile(\n  0.95,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[$__rate_interval]\n    )\n  ) by (le)\n)\n",
+          "legendFormat": "P95"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": true,
+          "expr": "histogram_quantile(\n  0.99,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[$__rate_interval]\n    )\n  ) by (le)\n)\n",
+          "legendFormat": "P99"
+        }
+      ],
+      "title": "Upstream Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The upstream success rate over time, counting 5xx response codes as errors.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisSoftMax": 100,
+            "axisSoftMin": 0,
+            "fillOpacity": 100,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "sum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n,\n      envoy_response_code_class!=\"5\"\n    }[$__rate_interval]\n  )\n)\n/\nsum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[$__rate_interval]\n  )\n)\n* 100\n",
+          "legendFormat": "Success Rate"
+        }
+      ],
+      "title": "Upstream Success Rate (Excluding 4xx errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The upstream success rate over time, counting 4xx and 5xx response codes as errors.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisSoftMax": 100,
+            "axisSoftMin": 0,
+            "fillOpacity": 100,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "sum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n,\n      envoy_response_code_class!~\"4|5\"\n    }[$__rate_interval]\n  )\n)\n/\nsum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[$__rate_interval]\n  )\n)\n* 100\n",
+          "legendFormat": "Success Rate"
+        }
+      ],
+      "title": "Upstream Success Rate (Including 4xx errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "An overview table showing various upstream metrics by Envoy cluster name [1h].",
+      "fieldConfig": {
+        "defaults": {
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "Go To Upstream",
+              "type": "dashboard",
+              "url": "/d/envoy-upstream-skj2/envoy-upstream?&var-envoy_cluster_name=${__data.fields.Envoy Cluster Name}"
+            }
+          ],
+          "thresholds": {
+            "steps": []
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SSL Expirations"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P50 Latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P95 Latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Request Rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success Rate (5xx)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success Rate (4xx & 5xx)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Healthy Cluster Percent"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 17,
+      "options": {
+        "footer": {
+          "enablePagination": true
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Request Rate"
+          }
+        ]
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "topk(40,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n,\n      envoy_response_code_class!=\"5\"\n    }[1h]\n  )\n) by (job, envoy_cluster_name)\n/\nsum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[1h]\n  )\n) by (job, envoy_cluster_name)\n* 100\nand on (envoy_cluster_name) (\n  topk(40,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n,\n      envoy_response_code_class!~\"4|5\"\n    }[1h]\n  )\n) by (job, envoy_cluster_name)\n/\nsum(\n  rate(\n    envoy_cluster_upstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[1h]\n  )\n) by (job, envoy_cluster_name)\n* 100\nand on (envoy_cluster_name) (\n  topk(40,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "histogram_quantile(\n  0.5,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (le, job, envoy_cluster_name)\n)\nand on (envoy_cluster_name) (\n  topk(40,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "histogram_quantile(\n  0.95,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (le, job, envoy_cluster_name)\n)\nand on (envoy_cluster_name) (\n  topk(40,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  avg_over_time(\n    envoy_cluster_upstream_cx_active{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[1h]\n  )\n) by (job, envoy_cluster_name)\nand on (envoy_cluster_name) (\n  topk(40,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  increase(\n    envoy_cluster_upstream_cx_destroy{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n    }[1h]\n  )\n) by (job, envoy_cluster_name)\nand on (envoy_cluster_name) (\n  topk(40,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  envoy_cluster_membership_healthy{\n    cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n  }\n) by (job, envoy_cluster_name)\n/\nsum(\n  envoy_cluster_membership_total{\n    cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n  }\n) by (job, envoy_cluster_name)\n* 100\nand on (envoy_cluster_name) (\n  topk(40,\n  sum(\n    rate(\n      envoy_cluster_upstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_cluster_name=~\"$envoy_cluster_name\"\n\n      }[1h]\n    )\n  ) by (envoy_cluster_name)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "title": "Upstream Overview [1h]",
+      "transformations": [
+        {
+          "id": "merge"
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true
+            },
+            "indexByName": {
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6,
+              "Value #G": 7,
+              "Value #H": 8,
+              "Value #I": 9,
+              "envoy_cluster_name": 0
+            },
+            "renameByName": {
+              "Value #A": "Request Rate",
+              "Value #B": "Success Rate (5xx)",
+              "Value #C": "Success Rate (4xx & 5xx)",
+              "Value #D": "P50 Latency",
+              "Value #E": "P95 Latency",
+              "Value #F": "Active Connections",
+              "Value #G": "Destroyed Connections",
+              "Value #H": "Healthy Cluster Percent",
+              "envoy_cluster_name": "Envoy Cluster Name",
+              "job": "Job"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 18,
+      "title": "Downstream",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The downstream request rate by Envoy HTTP connection manager prefix over time.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisSoftMin": 0,
+            "fillOpacity": 100,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "topk(20,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[$__rate_interval]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n",
+          "legendFormat": "{{ envoy_http_conn_manager_prefix }}"
+        }
+      ],
+      "title": "Downstream Rate by Envoy HTTP Conn Manager Prefix",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The downstream latency percentiles over time.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "histogram_quantile(\n  0.5,\n  sum(\n    rate(\n      envoy_http_downstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[$__rate_interval]\n    )\n  ) by (le)\n)\n",
+          "legendFormat": "P50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "histogram_quantile(\n  0.95,\n  sum(\n    rate(\n      envoy_http_downstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[$__rate_interval]\n    )\n  ) by (le)\n)\n",
+          "legendFormat": "P95"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": true,
+          "expr": "histogram_quantile(\n  0.99,\n  sum(\n    rate(\n      envoy_http_downstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[$__rate_interval]\n    )\n  ) by (le)\n)\n",
+          "legendFormat": "P99"
+        }
+      ],
+      "title": "Downstream Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The downstream success rate over time, counting 5xx response codes as errors.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisSoftMax": 100,
+            "axisSoftMin": 0,
+            "fillOpacity": 100,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "sum(\n  rate(\n    envoy_http_downstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n,\n      envoy_response_code_class!=\"5\"\n    }[$__rate_interval]\n  )\n)\n/\nsum(\n  rate(\n    envoy_http_downstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n    }[$__rate_interval]\n  )\n)\n* 100\n",
+          "legendFormat": "Success Rate"
+        }
+      ],
+      "title": "Downstream Success Rate (Excluding 4xx errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The downstream success rate over time, counting 4xx and 5xx response codes as errors.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisSoftMax": 100,
+            "axisSoftMin": 0,
+            "fillOpacity": 100,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "sum(\n  rate(\n    envoy_http_downstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n,\n      envoy_response_code_class!~\"4|5\"\n    }[$__rate_interval]\n  )\n)\n/\nsum(\n  rate(\n    envoy_http_downstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n    }[$__rate_interval]\n  )\n)\n* 100\n",
+          "legendFormat": "Success Rate"
+        }
+      ],
+      "title": "Downstream Success Rate (Including 4xx errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "An overview table showing various downstream metrics by Envoy HTTP connection manager prefix [1h].",
+      "fieldConfig": {
+        "defaults": {
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "Go To Downstream",
+              "type": "dashboard",
+              "url": "/d/envoy-downstream-skj2/envoy-downstream?var-envoy_http_conn_manager_prefix=${__data.fields.Envoy HTTP Conn Manager Prefix}"
+            }
+          ],
+          "thresholds": {
+            "steps": []
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P50 Latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P95 Latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Request Rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success Rate (5xx)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success Rate (4xx & 5xx)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
+      "id": 23,
+      "options": {
+        "footer": {
+          "enablePagination": true
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Request Rate"
+          }
+        ]
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "topk(40,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  rate(\n    envoy_http_downstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n,\n      envoy_response_code_class!=\"5\"\n    }[1h]\n  )\n) by (job, envoy_http_conn_manager_prefix)\n/\nsum(\n  rate(\n    envoy_http_downstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n    }[1h]\n  )\n) by (job, envoy_http_conn_manager_prefix)\n* 100\nand on (envoy_http_conn_manager_prefix) (\n  topk(40,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  rate(\n    envoy_http_downstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n,\n      envoy_response_code_class!~\"4|5\"\n    }[1h]\n  )\n) by (job, envoy_http_conn_manager_prefix)\n/\nsum(\n  rate(\n    envoy_http_downstream_rq_xx{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n    }[1h]\n  )\n) by (job, envoy_http_conn_manager_prefix)\n* 100\nand on (envoy_http_conn_manager_prefix) (\n  topk(40,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "histogram_quantile(\n  0.5,\n  sum(\n    rate(\n      envoy_http_downstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (le, job, envoy_http_conn_manager_prefix)\n)\nand on (envoy_http_conn_manager_prefix) (\n  topk(40,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "histogram_quantile(\n  0.95,\n  sum(\n    rate(\n      envoy_http_downstream_rq_time_bucket{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (le, job, envoy_http_conn_manager_prefix)\n)\nand on (envoy_http_conn_manager_prefix) (\n  topk(40,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  avg_over_time(\n    envoy_http_downstream_cx_active{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n    }[1h]\n  )\n) by (job, envoy_http_conn_manager_prefix)\nand on (envoy_http_conn_manager_prefix) (\n  topk(40,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(\n  increase(\n    envoy_http_downstream_cx_destroy{\n      cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n    }[1h]\n  )\n) by (job, envoy_http_conn_manager_prefix)\nand on (envoy_http_conn_manager_prefix) (\n  topk(40,\n  sum(\n    rate(\n      envoy_http_downstream_rq_total{\n        cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n,\nenvoy_http_conn_manager_prefix=~\"$envoy_http_conn_manager_prefix\"\n\n      }[1h]\n    )\n  ) by (envoy_http_conn_manager_prefix)\n)\n\n)\n\n",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "title": "Downstream Overview [1h]",
+      "transformations": [
+        {
+          "id": "merge"
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true
+            },
+            "indexByName": {
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6,
+              "Value #G": 7,
+              "envoy_http_conn_manager_prefix": 0
+            },
+            "renameByName": {
+              "Value #A": "Request Rate",
+              "Value #B": "Success Rate (5xx)",
+              "Value #C": "Success Rate (4xx & 5xx)",
+              "Value #D": "P50 Latency",
+              "Value #E": "P95 Latency",
+              "Value #F": "Active Connections",
+              "Value #G": "Destroyed Connections",
+              "envoy_http_conn_manager_prefix": "Envoy HTTP Conn Manager Prefix",
+              "job": "Job"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 69
+      },
+      "id": 24,
+      "title": "SSL",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "The SSL certificate expiration times by Envoy TLS certificate over time.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10
+          },
+          "unit": "dateTimeAsIso"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 70
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [
+            "min"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "min",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "exemplar": false,
+          "expr": "min(\n  envoy_listener_ssl_certificate_expiration_unix_time_seconds{\n    cluster=\"$cluster\",\nnamespace=~\"$namespace\",\njob=~\"$job\",\npod=~\"$pod\"\n\n\n  }\n) by (job, envoy_tls_certificate)\n* 1000\n",
+          "legendFormat": "{{ envoy_tls_certificate }}"
+        }
+      ],
+      "title": "SSL Expirations by Envoy TLS Certificate",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "envoy",
+    "envoy-mixin",
+    "gateway"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "default",
+          "value": "default"
+        },
+        "label": "Data source",
+        "name": "datasource",
+        "query": "prometheus",
+        "type": "datasource"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "hide": 2,
+        "label": "Cluster",
+        "name": "cluster",
+        "query": "label_values(envoy_cluster_upstream_rq_xx{}, cluster)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "includeAll": false,
+        "label": "Namespace",
+        "multi": false,
+        "name": "namespace",
+        "query": "label_values(envoy_cluster_upstream_rq_xx{cluster=\"$cluster\"}, namespace)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "includeAll": true,
+        "label": "Job",
+        "multi": true,
+        "name": "job",
+        "query": "label_values(envoy_cluster_upstream_rq_xx{cluster=\"$cluster\", namespace=~\"$namespace\"}, job)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "includeAll": true,
+        "label": "Envoy Cluster Name",
+        "multi": true,
+        "name": "envoy_cluster_name",
+        "query": "label_values(envoy_cluster_upstream_rq_xx{cluster=\"$cluster\", namespace=~\"$namespace\", job=~\"$job\"}, envoy_cluster_name)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "includeAll": true,
+        "label": "Envoy HTTP Conn Manager Prefix",
+        "multi": true,
+        "name": "envoy_http_conn_manager_prefix",
+        "query": "label_values(envoy_http_downstream_rq_xx{cluster=\"$cluster\", namespace=~\"$namespace\", job=~\"$job\"}, envoy_http_conn_manager_prefix)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "includeAll": true,
+        "label": "Pod",
+        "multi": true,
+        "name": "pod",
+        "query": "label_values(envoy_listener_http_downstream_rq_xx{cluster=\"$cluster\", namespace=~\"$namespace\", job=~\"$job\"}, pod)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "utc",
+  "title": "Envoy / Overview",
+  "uid": "envoy-overview-skj2",
+  "gnetId": 24459
+}

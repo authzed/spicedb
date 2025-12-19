@@ -74,6 +74,19 @@ services:
       interval: "5s"
       timeout: "30s"
       retries: 3
+  envoy:
+    image: "envoyproxy/envoy:v1.33-latest"
+    command: "-c /etc/envoy/envoy.yaml"
+    volumes:
+      - "./development/envoy.yaml:/etc/envoy/envoy.yaml"
+    ports:
+      - "50051:50051" # gRPC
+      - "8443:8443" # HTTP
+      - "9901:9901" # Envoy admin
+    depends_on:
+      spicedb:
+        condition: "service_healthy"
+    restart: "unless-stopped"
   prometheus:
     image: "prom/prometheus:v2.47.0"
     command:
