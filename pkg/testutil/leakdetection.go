@@ -15,5 +15,7 @@ func GoLeakIgnores() []goleak.Option {
 		goleak.IgnoreAnyFunction("github.com/maypok86/otter/internal/core.(*Cache[...]).cleanup"),
 		goleak.IgnoreAnyFunction("github.com/maypok86/otter/internal/core.(*Cache[...]).process"),
 		goleak.IgnoreAnyFunction("github.com/maypok86/otter/internal/unixtime.startTimer.func1"),
+		// Async logging diode writer has a polling goroutine that flushes buffered logs
+		goleak.IgnoreAnyFunction("github.com/rs/zerolog/diode.Writer.poll"),
 	}
 }
