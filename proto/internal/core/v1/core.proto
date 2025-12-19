@@ -326,6 +326,11 @@ message ReachabilityEntrypoint {
      * walked via a `tupleset_to_userset` in the target permission's operation node.
      */
     TUPLESET_TO_USERSET_ENTRYPOINT = 2;
+
+    /**
+     * SELF_ENTRYPOINT indicates an entrypoint where the resource is, itself, found.
+     */
+    SELF_ENTRYPOINT = 3;
   }
 
   enum EntrypointResultStatus {
@@ -451,8 +456,13 @@ message UsersetRewrite {
 
 message SetOperation {
   message Child {
+    // NOTE: `this`` is fully deprecated and referred to the *relation* to allow
+    // for mixing of data and computation.
     message This {}
     message Nil {}
+
+    // `self` refers to the resource-as-a-subject in a permission computation.
+    message Self {}
 
     oneof child_type {
       option (validate.required) = true;
@@ -463,6 +473,7 @@ message SetOperation {
       UsersetRewrite userset_rewrite = 4 [(validate.rules).message.required = true];
       FunctionedTupleToUserset functioned_tuple_to_userset = 8 [(validate.rules).message.required = true];
       Nil _nil = 6;
+      Self _self = 9;
     }
 
     SourcePosition source_position = 5;
