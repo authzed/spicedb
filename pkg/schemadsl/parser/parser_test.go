@@ -110,6 +110,7 @@ func TestParser(t *testing.T) {
 		{"wildcard test", "wildcard"},
 		{"broken wildcard test", "brokenwildcard"},
 		{"nil test", "nil"},
+		{"self test", "self"},
 		{"caveats type test", "caveatstype"},
 		{"basic caveat test", "basiccaveat"},
 		{"complex caveat test", "complexcaveat"},

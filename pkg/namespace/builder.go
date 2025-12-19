@@ -250,6 +250,13 @@ func Nil() *core.SetOperation_Child {
 	}
 }
 
+// Self creates a child for a set operation that references the resource itself as a subject.
+func Self() *core.SetOperation_Child {
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_XSelf{},
+	}
+}
+
 // ComputesUserset creates a child for a set operation that follows a relation on the given starting object.
 func ComputedUserset(relation string) *core.SetOperation_Child {
 	return &core.SetOperation_Child{

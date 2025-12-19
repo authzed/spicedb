@@ -376,5 +376,6 @@ func isAccessibleViaWildcardOnly(
 
 	subjectsFound, err := developmentmembership.AccessibleExpansionSubjects(resp.TreeNode)
 	require.NoError(t, err)
+
 	return !subjectsFound.Contains(subject)
 }

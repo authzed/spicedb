@@ -1,0 +1,106 @@
+NodeTypeFile
+  end-rune = 145
+  input-source = self test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 145
+      input-source = self test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 52
+          input-source = self test
+          relation-name = empty
+          start-rune = 30
+          compute-expression =>
+            NodeTypeSelfExpression
+              end-rune = 52
+              input-source = self test
+              start-rune = 49
+        NodeTypePermission
+          end-rune = 94
+          input-source = self test
+          relation-name = another
+          start-rune = 58
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 94
+              input-source = self test
+              start-rune = 83
+              left-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 88
+                  input-source = self test
+                  start-rune = 79
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 81
+                      identifier-value = foo
+                      input-source = self test
+                      start-rune = 79
+                  right-expr =>
+                    NodeTypeSelfExpression
+                      end-rune = 88
+                      input-source = self test
+                      start-rune = 85
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 94
+                  identifier-value = bar
+                  input-source = self test
+                  start-rune = 92
+        NodeTypePermission
+          end-rune = 143
+          input-source = self test
+          relation-name = third
+          start-rune = 100
+          compute-expression =>
+            NodeTypeExclusionExpression
+              end-rune = 143
+              input-source = self test
+              start-rune = 134
+              left-expr =>
+                NodeTypeExclusionExpression
+                  end-rune = 136
+                  input-source = self test
+                  start-rune = 119
+                  left-expr =>
+                    NodeTypeUnionExpression
+                      end-rune = 131
+                      input-source = self test
+                      start-rune = 122
+                      left-expr =>
+                        NodeTypeUnionExpression
+                          end-rune = 124
+                          input-source = self test
+                          start-rune = 120
+                          left-expr =>
+                            NodeTypeIdentifier
+                              end-rune = 120
+                              identifier-value = a
+                              input-source = self test
+                              start-rune = 120
+                          right-expr =>
+                            NodeTypeIdentifier
+                              end-rune = 124
+                              identifier-value = b
+                              input-source = self test
+                              start-rune = 124
+                      right-expr =>
+                        NodeTypeSelfExpression
+                          end-rune = 131
+                          input-source = self test
+                          start-rune = 128
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 136
+                      identifier-value = c
+                      input-source = self test
+                      start-rune = 136
+              right-expr =>
+                NodeTypeSelfExpression
+                  end-rune = 143
+                  input-source = self test
+                  start-rune = 140

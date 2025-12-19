@@ -555,6 +555,28 @@ func (cl *ConcurrentLookupSubjects) lookupSetOperation(
 			// Purposely do nothing.
 			continue
 
+		case *core.SetOperation_Child_XSelf:
+			// Return the current resource(s) as the found subject(s).
+			foundResources := map[string]*v1.FoundSubjects{}
+			for _, resourceID := range req.ResourceIds {
+				foundResources[resourceID] = &v1.FoundSubjects{
+					FoundSubjects: []*v1.FoundSubject{
+						{
+							SubjectId: resourceID,
+						},
+					},
+				}
+			}
+
+			err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
+				FoundSubjectsByResourceId: foundResources,
+				Metadata:                  emptyMetadata,
+			})
+			if err != nil {
+				return err
+			}
+			continue
+
 		default:
 			return spiceerrors.MustBugf("unknown set operation child `%T` in lookup subjects", child)
 		}

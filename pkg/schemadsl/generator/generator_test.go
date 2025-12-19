@@ -134,6 +134,26 @@ func TestGenerateNamespace(t *testing.T) {
 			true,
 		},
 		{
+			"complex permission with self",
+			namespace.Namespace("foos/test",
+				namespace.MustRelation("someperm", namespace.Union(
+					namespace.Rewrite(
+						namespace.Exclusion(
+							namespace.ComputedUserset("rela"),
+							namespace.ComputedUserset("relb"),
+							namespace.TupleToUserset("rely", "relz"),
+							namespace.Self(),
+						),
+					),
+					namespace.ComputedUserset("relc"),
+				)),
+			),
+			`definition foos/test {
+	permission someperm = (rela - relb - rely->relz - self) + relc
+}`,
+			true,
+		},
+		{
 			"complex permission with nil",
 			namespace.Namespace("foos/test",
 				namespace.MustRelation("someperm", namespace.Union(

@@ -345,6 +345,9 @@ func (sg *sourceGenerator) mustEmitSetOpChild(setOpChild *core.SetOperation_Chil
 	case *core.SetOperation_Child_XNil:
 		sg.append("nil")
 
+	case *core.SetOperation_Child_XSelf:
+		sg.append("self")
+
 	case *core.SetOperation_Child_ComputedUserset:
 		sg.append(child.ComputedUserset.Relation)
 
