@@ -1653,7 +1653,7 @@ func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 	})
 
 	require.Error(err)
-	require.Contains(err.Error(), "update count of 2 is greater than maximum allowed of 1")
+	require.Contains(err.Error(), "too many updates (2) for WriteRelationships call (maximum: 1); consider using ImportBulkRelationships API instead")
 }
 
 func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
