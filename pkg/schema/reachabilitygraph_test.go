@@ -663,6 +663,19 @@ func TestReachabilityGraph(t *testing.T) {
 			[]rrtStruct{rrt("document", "viewer", true)},
 		},
 		{
+			"simple permission inverted",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				permission view = nil + viewer
+			}`,
+			rr("document", "view"),
+			rr("user", "..."),
+			[]rrtStruct{rrt("document", "viewer", true)},
+			[]rrtStruct{rrt("document", "viewer", true)},
+		},
+		{
 			"permission with multiple relations",
 			`definition user {}
 
@@ -1235,6 +1248,22 @@ func TestReachabilityGraph(t *testing.T) {
 				rrt("system", "view", true),
 				rrt("group", "membership", true),
 			},
+		},
+		{
+			"permission with self",
+			`definition user {
+				relation other: user
+				permission self_or_other = self + other
+  			 }
+
+			definition document {
+				relation viewer: user#self_or_other
+				permission view = viewer
+			}`,
+			rr("document", "view"),
+			rr("user", "..."),
+			[]rrtStruct{rrt("user", "self_or_other", true), rrt("user", "other", true)},
+			[]rrtStruct{rrt("user", "self_or_other", true), rrt("user", "other", true)},
 		},
 	}
 
