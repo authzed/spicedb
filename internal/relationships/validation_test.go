@@ -215,6 +215,23 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			"subjects of type `user` are not allowed on relation `resource#viewer` without one of the following caveats: somecaveat",
 		},
 		{
+			"write of a relationship without expiration when expiration is required",
+			`
+			use expiration
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+			definition user {}
+
+			definition group {
+				relation member: user with somecaveat | user:* with expiration
+			}`,
+			"group:foo#member@user:*",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `user:*` are not allowed on relation `group#member`; did you mean `user:* with expiration`?",
+		},
+		{
 			"did you mean test",
 			`
 			definition user {}
