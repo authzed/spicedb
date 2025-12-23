@@ -507,7 +507,22 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 		}
 
 	case *ResolvedRelationReference:
-		// Terminal node - visit immediately
+		// walk resolved relation first
+		switch resolved := o.Resolved().(type) {
+		case *Relation:
+			newValue, err := walkRelationWithOptions(resolved, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		case *Permission:
+			newValue, err := walkPermissionWithOptions(resolved, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
 		if rrrv, ok := v.(ResolvedRelationReferenceVisitor[T]); ok {
 			newValue, err := rrrv.VisitResolvedRelationReference(o, currentValue)
 			if err != nil {
