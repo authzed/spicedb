@@ -112,10 +112,18 @@ func flattenDefinition(def *Definition, options FlattenOptions) error {
 
 		// Update the permission's operation to the flattened version
 		perm.operation = flattened
+		// Set the flattened operation's parent to the permission
+		if flattened != nil {
+			setParent(flattened, perm)
+		}
 
 		// Add any new synthetic permissions to the definition
 		for _, newPerm := range newPerms {
 			def.permissions[newPerm.name] = newPerm
+			// Set the synthetic permission's operation parent
+			if newPerm.operation != nil {
+				setParent(newPerm.operation, newPerm)
+			}
 		}
 	}
 
@@ -140,6 +148,7 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 			// Find the corresponding relation in the cloned definition
 			if clonedRel, exists := def.relations[rel.name]; exists {
 				return &ResolvedRelationReference{
+					parent:       o.parent,
 					relationName: o.relationName,
 					resolved:     clonedRel,
 				}, nil, nil
@@ -148,6 +157,7 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 			// Find the corresponding permission in the cloned definition
 			if clonedPerm, exists := def.permissions[perm.name]; exists {
 				return &ResolvedRelationReference{
+					parent:       o.parent,
 					relationName: o.relationName,
 					resolved:     clonedPerm,
 				}, nil, nil
@@ -214,7 +224,13 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 				allNewPerms = append(allNewPerms, newPerms...)
 			}
 		}
-		return &UnionOperation{children: flattenedChildren}, allNewPerms, nil
+		newUnion := &UnionOperation{
+			parent:   o.parent,
+			children: flattenedChildren,
+		}
+		// Set each child's parent to the new union
+		setChildrenParent(flattenedChildren, newUnion)
+		return newUnion, allNewPerms, nil
 
 	case *IntersectionOperation:
 		// Flatten children first
@@ -241,7 +257,13 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 				allNewPerms = append(allNewPerms, newPerms...)
 			}
 		}
-		return &IntersectionOperation{children: flattenedChildren}, allNewPerms, nil
+		newIntersection := &IntersectionOperation{
+			parent:   o.parent,
+			children: flattenedChildren,
+		}
+		// Set each child's parent to the new intersection
+		setChildrenParent(flattenedChildren, newIntersection)
+		return newIntersection, allNewPerms, nil
 
 	case *ExclusionOperation:
 		// Flatten left side
@@ -288,10 +310,15 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 			allNewPerms = append(allNewPerms, newPerms...)
 		}
 
-		return &ExclusionOperation{
-			left:  flattenedLeft,
-			right: flattenedRight,
-		}, allNewPerms, nil
+		newExclusion := &ExclusionOperation{
+			parent: o.parent,
+			left:   flattenedLeft,
+			right:  flattenedRight,
+		}
+		// Set children's parent to the new exclusion
+		setParent(flattenedLeft, newExclusion)
+		setParent(flattenedRight, newExclusion)
+		return newExclusion, allNewPerms, nil
 
 	default:
 		return nil, nil, fmt.Errorf("unknown operation type: %T", op)

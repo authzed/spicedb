@@ -383,9 +383,11 @@ func (pb *PermissionBuilder) IntersectionArrow(relation string, computedRelation
 
 // Union creates a union (OR) operation from multiple operations.
 func (pb *PermissionBuilder) Union(operations ...Operation) *PermissionBuilder {
-	pb.permission.operation = &UnionOperation{
+	union := &UnionOperation{
 		children: operations,
 	}
+	pb.permission.operation = union
+	setChildrenParent(operations, union)
 	return pb
 }
 
@@ -399,9 +401,11 @@ func (pb *PermissionBuilder) UnionExpr() *UnionExprBuilder {
 
 // Intersection creates an intersection (AND) operation from multiple operations.
 func (pb *PermissionBuilder) Intersection(operations ...Operation) *PermissionBuilder {
-	pb.permission.operation = &IntersectionOperation{
+	intersection := &IntersectionOperation{
 		children: operations,
 	}
+	pb.permission.operation = intersection
+	setChildrenParent(operations, intersection)
 	return pb
 }
 
@@ -415,10 +419,13 @@ func (pb *PermissionBuilder) IntersectionExpr() *IntersectionExprBuilder {
 
 // Exclusion creates an exclusion (subtraction) operation.
 func (pb *PermissionBuilder) Exclusion(base, excluded Operation) *PermissionBuilder {
-	pb.permission.operation = &ExclusionOperation{
+	exclusion := &ExclusionOperation{
 		left:  base,
 		right: excluded,
 	}
+	pb.permission.operation = exclusion
+	setParent(base, exclusion)
+	setParent(excluded, exclusion)
 	return pb
 }
 
@@ -431,6 +438,10 @@ func (pb *PermissionBuilder) ExclusionExpr() *ExclusionExprBuilder {
 
 // Done completes the permission and returns to the definition builder.
 func (pb *PermissionBuilder) Done() *DefinitionBuilder {
+	// Set the root operation's parent to the permission
+	if pb.permission.operation != nil {
+		setParent(pb.permission.operation, pb.permission)
+	}
 	return pb.definitionBuilder
 }
 
@@ -465,18 +476,22 @@ func (ub *UnionExprBuilder) AddArrow(relationName, permissionName string) *Union
 
 // Done completes the union expression and returns to the permission builder.
 func (ub *UnionExprBuilder) Done() *PermissionBuilder {
-	ub.permissionBuilder.permission.operation = &UnionOperation{
+	union := &UnionOperation{
 		children: ub.children,
 	}
+	ub.permissionBuilder.permission.operation = union
+	setChildrenParent(ub.children, union)
 	return ub.permissionBuilder
 }
 
 // Build completes the union expression and returns it as an Operation.
 // This is used when building operations outside of a permission builder context.
 func (ub *UnionExprBuilder) Build() Operation {
-	return &UnionOperation{
+	union := &UnionOperation{
 		children: ub.children,
 	}
+	setChildrenParent(ub.children, union)
+	return union
 }
 
 // IntersectionExprBuilder allows building intersection operations incrementally.
@@ -510,18 +525,22 @@ func (ib *IntersectionExprBuilder) AddArrow(relationName, permissionName string)
 
 // Done completes the intersection expression and returns to the permission builder.
 func (ib *IntersectionExprBuilder) Done() *PermissionBuilder {
-	ib.permissionBuilder.permission.operation = &IntersectionOperation{
+	intersection := &IntersectionOperation{
 		children: ib.children,
 	}
+	ib.permissionBuilder.permission.operation = intersection
+	setChildrenParent(ib.children, intersection)
 	return ib.permissionBuilder
 }
 
 // Build completes the intersection expression and returns it as an Operation.
 // This is used when building operations outside of a permission builder context.
 func (ib *IntersectionExprBuilder) Build() Operation {
-	return &IntersectionOperation{
+	intersection := &IntersectionOperation{
 		children: ib.children,
 	}
+	setChildrenParent(ib.children, intersection)
+	return intersection
 }
 
 // ExclusionExprBuilder allows building exclusion operations incrementally.
@@ -579,20 +598,26 @@ func (eb *ExclusionExprBuilder) ExcludeArrow(relationName, permissionName string
 
 // Done completes the exclusion expression and returns to the permission builder.
 func (eb *ExclusionExprBuilder) Done() *PermissionBuilder {
-	eb.permissionBuilder.permission.operation = &ExclusionOperation{
+	exclusion := &ExclusionOperation{
 		left:  eb.base,
 		right: eb.excluded,
 	}
+	eb.permissionBuilder.permission.operation = exclusion
+	setParent(eb.base, exclusion)
+	setParent(eb.excluded, exclusion)
 	return eb.permissionBuilder
 }
 
 // Build completes the exclusion expression and returns it as an Operation.
 // This is used when building operations outside of a permission builder context.
 func (eb *ExclusionExprBuilder) Build() Operation {
-	return &ExclusionOperation{
+	exclusion := &ExclusionOperation{
 		left:  eb.base,
 		right: eb.excluded,
 	}
+	setParent(eb.base, exclusion)
+	setParent(eb.excluded, exclusion)
+	return exclusion
 }
 
 // CaveatBuilder provides a fluent API for constructing caveats.
@@ -661,24 +686,31 @@ func IntersectionArrowRef(relation string, computedRelationName string) Operatio
 
 // Union creates a UnionOperation for use in permission builders.
 func Union(operations ...Operation) Operation {
-	return &UnionOperation{
+	union := &UnionOperation{
 		children: operations,
 	}
+	setChildrenParent(operations, union)
+	return union
 }
 
 // Intersection creates an IntersectionOperation for use in permission builders.
 func Intersection(operations ...Operation) Operation {
-	return &IntersectionOperation{
+	intersection := &IntersectionOperation{
 		children: operations,
 	}
+	setChildrenParent(operations, intersection)
+	return intersection
 }
 
 // Exclusion creates an ExclusionOperation for use in permission builders.
 func Exclusion(base, excluded Operation) Operation {
-	return &ExclusionOperation{
+	exclusion := &ExclusionOperation{
 		left:  base,
 		right: excluded,
 	}
+	setParent(base, exclusion)
+	setParent(excluded, exclusion)
+	return exclusion
 }
 
 // Standalone constructor functions for building schema elements
@@ -716,6 +748,7 @@ func NewPermission(name string, operation Operation) *PermissionBuilder {
 		operation: operation,
 		synthetic: false,
 	}
+	setParent(operation, perm)
 	return &PermissionBuilder{
 		permission: perm,
 	}

@@ -30,6 +30,10 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 			perm.parent = out
 			perm.name = r.GetName()
 			out.permissions[r.GetName()] = &perm
+			// Set the root operation's parent to the permission
+			if perm.operation != nil {
+				setParent(perm.operation, &perm)
+			}
 		} else if typeinfo := r.GetTypeInformation(); typeinfo != nil {
 			rel, err := convertTypeInformation(typeinfo)
 			if err != nil {
@@ -176,9 +180,11 @@ func convertSetOperation(setOp *corev1.SetOperation) (Operation, error) {
 		return children[0], nil
 	}
 
-	return &UnionOperation{
+	union := &UnionOperation{
 		children: children,
-	}, nil
+	}
+	setChildrenParent(children, union)
+	return union, nil
 }
 
 func convertSetOperationAsIntersection(setOp *corev1.SetOperation) (Operation, error) {
@@ -200,9 +206,11 @@ func convertSetOperationAsIntersection(setOp *corev1.SetOperation) (Operation, e
 		return children[0], nil
 	}
 
-	return &IntersectionOperation{
+	intersection := &IntersectionOperation{
 		children: children,
-	}, nil
+	}
+	setChildrenParent(children, intersection)
+	return intersection, nil
 }
 
 func convertSetOperationAsExclusion(setOp *corev1.SetOperation) (Operation, error) {
@@ -223,10 +231,13 @@ func convertSetOperationAsExclusion(setOp *corev1.SetOperation) (Operation, erro
 		return nil, fmt.Errorf("exclusion operation requires exactly 2 children, got %d", len(children))
 	}
 
-	return &ExclusionOperation{
+	exclusion := &ExclusionOperation{
 		left:  children[0],
 		right: children[1],
-	}, nil
+	}
+	setParent(children[0], exclusion)
+	setParent(children[1], exclusion)
+	return exclusion, nil
 }
 
 func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
