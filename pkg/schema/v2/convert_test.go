@@ -1101,3 +1101,97 @@ func TestMetadataPreservation(t *testing.T) {
 		require.Equal(t, []string{"user", "group"}, rm.TypeAnnotations.Types)
 	})
 }
+
+// TestConvertOperationParentPointers verifies that parent pointers are correctly set
+// when operations are converted from proto definitions.
+func TestConvertOperationParentPointers(t *testing.T) {
+	t.Parallel()
+
+	// Create a proto definition with nested operations: (a | b) & c
+	def := &corev1.NamespaceDefinition{
+		Name: "document",
+		Relation: []*corev1.Relation{
+			{
+				Name: "view",
+				UsersetRewrite: &corev1.UsersetRewrite{
+					RewriteOperation: &corev1.UsersetRewrite_Intersection{
+						Intersection: &corev1.SetOperation{
+							Child: []*corev1.SetOperation_Child{
+								{
+									ChildType: &corev1.SetOperation_Child_UsersetRewrite{
+										UsersetRewrite: &corev1.UsersetRewrite{
+											RewriteOperation: &corev1.UsersetRewrite_Union{
+												Union: &corev1.SetOperation{
+													Child: []*corev1.SetOperation_Child{
+														{
+															ChildType: &corev1.SetOperation_Child_ComputedUserset{
+																ComputedUserset: &corev1.ComputedUserset{
+																	Relation: "a",
+																},
+															},
+														},
+														{
+															ChildType: &corev1.SetOperation_Child_ComputedUserset{
+																ComputedUserset: &corev1.ComputedUserset{
+																	Relation: "b",
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									ChildType: &corev1.SetOperation_Child_ComputedUserset{
+										ComputedUserset: &corev1.ComputedUserset{
+											Relation: "c",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Convert the definition
+	result, err := convertDefinition(def)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Get the permission
+	perm, ok := result.GetPermission("view")
+	require.True(t, ok)
+	op := perm.Operation()
+
+	// Root operation (intersection) should have the permission as parent
+	require.Equal(t, perm, op.Parent(), "Root operation's parent should be the permission")
+
+	// Verify it's an intersection
+	intersection, ok := op.(*IntersectionOperation)
+	require.True(t, ok, "Expected IntersectionOperation")
+
+	children := intersection.Children()
+	require.Len(t, children, 2)
+
+	// First child is a union
+	union, ok := children[0].(*UnionOperation)
+	require.True(t, ok, "Expected first child to be UnionOperation")
+
+	// Union's parent should be the intersection
+	require.Equal(t, intersection, union.Parent(), "Union's parent should be intersection")
+
+	// Union's children should have union as parent
+	unionChildren := union.Children()
+	require.Len(t, unionChildren, 2)
+	for i, child := range unionChildren {
+		require.Equal(t, union, child.Parent(), "Union child %d should have union as parent", i)
+	}
+
+	// Second child of intersection should have intersection as parent
+	require.Equal(t, intersection, children[1].Parent(), "Second intersection child should have intersection as parent")
+}

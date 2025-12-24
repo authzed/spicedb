@@ -45,6 +45,10 @@ func ResolveSchema(s *Schema) (*ResolvedSchema, error) {
 				return nil, fmt.Errorf("failed to resolve permission %s in definition %s: %w", perm.name, def.name, err)
 			}
 			perm.operation = resolvedOp
+			// Set the resolved operation's parent to the permission
+			if resolvedOp != nil {
+				setParent(resolvedOp, perm)
+			}
 		}
 	}
 
@@ -66,6 +70,7 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 			return nil, fmt.Errorf("relation or permission '%s' not found in definition '%s'", o.relationName, def.name)
 		}
 		return &ResolvedRelationReference{
+			parent:       o.parent,
 			relationName: o.relationName,
 			resolved:     resolved,
 		}, nil
@@ -77,6 +82,7 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 			return nil, fmt.Errorf("relation '%s' not found in definition '%s' (left side of arrow)", o.left, def.name)
 		}
 		return &ResolvedArrowReference{
+			parent:       o.parent,
 			left:         o.left,
 			resolvedLeft: relation,
 			right:        o.right,
@@ -89,6 +95,7 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 			return nil, fmt.Errorf("relation '%s' not found in definition '%s' (left side of functioned arrow)", o.left, def.name)
 		}
 		return &ResolvedFunctionedArrowReference{
+			parent:       o.parent,
 			left:         o.left,
 			resolvedLeft: relation,
 			right:        o.right,
@@ -104,9 +111,13 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 			}
 			children[i] = resolved
 		}
-		return &UnionOperation{
+		newUnion := &UnionOperation{
+			parent:   o.parent,
 			children: children,
-		}, nil
+		}
+		// Set each child's parent to the new union
+		setChildrenParent(children, newUnion)
+		return newUnion, nil
 
 	case *IntersectionOperation:
 		children := make([]Operation, len(o.children))
@@ -117,9 +128,13 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 			}
 			children[i] = resolved
 		}
-		return &IntersectionOperation{
+		newIntersection := &IntersectionOperation{
+			parent:   o.parent,
 			children: children,
-		}, nil
+		}
+		// Set each child's parent to the new intersection
+		setChildrenParent(children, newIntersection)
+		return newIntersection, nil
 
 	case *ExclusionOperation:
 		leftResolved, err := resolveOperation(o.left, def)
@@ -130,10 +145,15 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &ExclusionOperation{
-			left:  leftResolved,
-			right: rightResolved,
-		}, nil
+		newExclusion := &ExclusionOperation{
+			parent: o.parent,
+			left:   leftResolved,
+			right:  rightResolved,
+		}
+		// Set children's parent to the new exclusion
+		setParent(leftResolved, newExclusion)
+		setParent(rightResolved, newExclusion)
+		return newExclusion, nil
 
 	case *ResolvedRelationReference:
 		// Already resolved, just return it
