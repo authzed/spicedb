@@ -212,3 +212,152 @@ func TestGetPermission(t *testing.T) {
 		require.Nil(t, perm)
 	})
 }
+
+func TestFindParent(t *testing.T) {
+	// Build a schema with nested structure
+	s := NewSchemaBuilder().
+		AddDefinition("document").
+		AddRelation("owner").
+		AllowedDirectRelation("user").
+		Done().
+		AddPermission("view").
+		Union(
+			RelRef("owner"),
+			ArrowRef("parent", "view"),
+		).
+		Done().
+		Done().
+		Build()
+
+	def, _ := s.GetTypeDefinition("document")
+	viewPerm, _ := def.GetPermission("view")
+	unionOp := viewPerm.Operation()
+	firstChild := unionOp.(*UnionOperation).Children()[0]
+
+	// Test finding Permission parent
+	perm := FindParent[*Permission](firstChild)
+	require.NotNil(t, perm, "should find permission parent")
+	require.Equal(t, "view", perm.Name(), "should find the correct permission")
+
+	// Test finding Definition parent
+	definition := FindParent[*Definition](firstChild)
+	require.NotNil(t, definition, "should find definition parent")
+	require.Equal(t, "document", definition.Name(), "should find the correct definition")
+
+	// Test finding Schema parent
+	schema := FindParent[*Schema](firstChild)
+	require.NotNil(t, schema, "should find schema parent")
+	require.Equal(t, s, schema, "should find the same schema instance")
+}
+
+func TestFindParent_NotFound(t *testing.T) {
+	s := NewSchemaBuilder().
+		AddDefinition("document").
+		AddRelation("owner").
+		AllowedDirectRelation("user").
+		Done().
+		Done().
+		Build()
+
+	def, _ := s.GetTypeDefinition("document")
+	rel, _ := def.GetRelation("owner")
+
+	// Try to find a Permission parent from a Relation (should not exist)
+	perm := FindParent[*Permission](rel)
+	require.Nil(t, perm, "should not find permission parent for a relation")
+}
+
+func TestFindParent_NilInput(t *testing.T) {
+	// Test with nil input
+	perm := FindParent[*Permission](nil)
+	require.Nil(t, perm, "should return nil for nil input")
+}
+
+func TestFindParent_ImmediateParent(t *testing.T) {
+	s := NewSchemaBuilder().
+		AddDefinition("document").
+		AddPermission("view").
+		RelationRef("owner").
+		Done().
+		Done().
+		Build()
+
+	def, _ := s.GetTypeDefinition("document")
+	viewPerm, _ := def.GetPermission("view")
+	op := viewPerm.Operation()
+
+	// The immediate parent of the operation should be the permission
+	perm := FindParent[*Permission](op)
+	require.NotNil(t, perm, "should find permission parent")
+	require.Equal(t, viewPerm, perm, "should find the immediate parent permission")
+}
+
+func TestFindParent_SkipIntermediateTypes(t *testing.T) {
+	// Build a deeply nested operation tree
+	s := NewSchemaBuilder().
+		AddDefinition("document").
+		AddPermission("complex").
+		Intersection(
+			Union(
+				RelRef("a"),
+				RelRef("b"),
+			),
+			RelRef("c"),
+		).
+		Done().
+		Done().
+		Build()
+
+	def, _ := s.GetTypeDefinition("document")
+	complexPerm, _ := def.GetPermission("complex")
+	intersectionOp := complexPerm.Operation().(*IntersectionOperation)
+	unionOp := intersectionOp.Children()[0].(*UnionOperation)
+	leafOp := unionOp.Children()[0] // This is a RelationReference
+
+	// From the leaf operation, find the permission (skipping union and intersection)
+	perm := FindParent[*Permission](leafOp)
+	require.NotNil(t, perm, "should find permission parent")
+	require.Equal(t, "complex", perm.Name(), "should find the correct permission")
+
+	// Can also find intermediate operation types
+	union := FindParent[*UnionOperation](leafOp)
+	require.NotNil(t, union, "should find union parent")
+	require.Equal(t, unionOp, union, "should find the correct union operation")
+
+	intersection := FindParent[*IntersectionOperation](leafOp)
+	require.NotNil(t, intersection, "should find intersection parent")
+	require.Equal(t, intersectionOp, intersection, "should find the correct intersection operation")
+}
+
+func TestFindParent_FromDifferentElements(t *testing.T) {
+	s := NewSchemaBuilder().
+		AddDefinition("document").
+		AddRelation("owner").
+		AllowedDirectRelation("user").
+		Done().
+		AddPermission("view").
+		RelationRef("owner").
+		Done().
+		Done().
+		Build()
+
+	def, _ := s.GetTypeDefinition("document")
+
+	// Test from Relation
+	rel, _ := def.GetRelation("owner")
+	defFromRel := FindParent[*Definition](rel)
+	require.NotNil(t, defFromRel)
+	require.Equal(t, "document", defFromRel.Name())
+
+	// Test from Permission
+	perm, _ := def.GetPermission("view")
+	defFromPerm := FindParent[*Definition](perm)
+	require.NotNil(t, defFromPerm)
+	require.Equal(t, "document", defFromPerm.Name())
+
+	// Test from BaseRelation
+	baseRel := rel.BaseRelations()[0]
+	relFromBase := FindParent[*Relation](baseRel)
+	require.NotNil(t, relFromBase)
+	require.Equal(t, "owner", relFromBase.Name())
+}

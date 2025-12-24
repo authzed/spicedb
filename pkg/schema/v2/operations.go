@@ -3,6 +3,7 @@ package schema
 // Operation is a closed enum of things that can exist on the right-hand-side of a permission.
 // It forms a tree of unions, intersections and exclusions, until the leaves are things like references to other permissions or relations, or are arrows.
 type Operation interface {
+	Parented
 	isOperation()
 	clone() Operation
 }
@@ -26,6 +27,9 @@ type ArrowOperation interface {
 
 // RelationReference is an Operation that is a simple relation, such as `permission foo = bar`.
 type RelationReference struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	// relationName is the name of the relation or permission being referenced.
 	relationName string
 }
@@ -33,6 +37,15 @@ type RelationReference struct {
 // RelationName returns the name of the relation or permission being referenced.
 func (r *RelationReference) RelationName() string {
 	return r.relationName
+}
+
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (r *RelationReference) Parent() Parented {
+	return r.parent
+}
+
+func (r *RelationReference) setParent(p Parented) {
+	r.parent = p
 }
 
 // clone creates a deep copy of the RelationReference.
@@ -45,11 +58,34 @@ func (r *RelationReference) clone() Operation {
 	}
 }
 
+// cloneWithParent creates a deep copy of the RelationReference with the specified parent.
+func (r *RelationReference) cloneWithParent(parent Operation) Operation {
+	if r == nil {
+		return nil
+	}
+	return &RelationReference{
+		parent:       parent,
+		relationName: r.relationName,
+	}
+}
+
 var _ schemaUnit[Operation] = &RelationReference{}
 
 // NilReference is a specialized Operation that represents a nil/empty operation.
 // Unlike RelationReference, it is not replaced during resolution.
-type NilReference struct{}
+type NilReference struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+}
+
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (n *NilReference) Parent() Parented {
+	return n.parent
+}
+
+func (n *NilReference) setParent(p Parented) {
+	n.parent = p
+}
 
 // clone creates a copy of the NilReference.
 func (n *NilReference) clone() Operation {
@@ -59,10 +95,23 @@ func (n *NilReference) clone() Operation {
 	return &NilReference{}
 }
 
+// cloneWithParent creates a copy of the NilReference with the specified parent.
+func (n *NilReference) cloneWithParent(parent Operation) Operation {
+	if n == nil {
+		return nil
+	}
+	return &NilReference{
+		parent: parent,
+	}
+}
+
 var _ schemaUnit[Operation] = &NilReference{}
 
 // ArrowReference is an Operation that represents `permission foo = Left->Right`.
 type ArrowReference struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	// left is the relation on the resource.
 	left string
 
@@ -85,6 +134,15 @@ func (a *ArrowReference) Function() FunctionType {
 	return FunctionTypeAny
 }
 
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (a *ArrowReference) Parent() Parented {
+	return a.parent
+}
+
+func (a *ArrowReference) setParent(p Parented) {
+	a.parent = p
+}
+
 // clone creates a deep copy of the ArrowReference.
 func (a *ArrowReference) clone() Operation {
 	if a == nil {
@@ -96,10 +154,25 @@ func (a *ArrowReference) clone() Operation {
 	}
 }
 
+// cloneWithParent creates a deep copy of the ArrowReference with the specified parent.
+func (a *ArrowReference) cloneWithParent(parent Operation) Operation {
+	if a == nil {
+		return nil
+	}
+	return &ArrowReference{
+		parent: parent,
+		left:   a.left,
+		right:  a.right,
+	}
+}
+
 var _ schemaUnit[Operation] = &ArrowReference{}
 
 // UnionOperation is an Operation that represents `permission foo = a | b | c`.
 type UnionOperation struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	// children are the sub-operations that are unioned together.
 	children []Operation
 }
@@ -107,6 +180,15 @@ type UnionOperation struct {
 // Children returns the sub-operations that are unioned together.
 func (u *UnionOperation) Children() []Operation {
 	return u.children
+}
+
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (u *UnionOperation) Parent() Parented {
+	return u.parent
+}
+
+func (u *UnionOperation) setParent(p Parented) {
+	u.parent = p
 }
 
 // clone creates a deep copy of the UnionOperation.
@@ -123,16 +205,47 @@ func (u *UnionOperation) clone() Operation {
 	}
 }
 
+// cloneWithParent creates a deep copy of the UnionOperation with the specified parent.
+func (u *UnionOperation) cloneWithParent(parent Operation) Operation {
+	if u == nil {
+		return nil
+	}
+	cloned := &UnionOperation{
+		parent:   parent,
+		children: make([]Operation, len(u.children)),
+	}
+	for i, child := range u.children {
+		if childCloner, ok := child.(interface{ cloneWithParent(Operation) Operation }); ok {
+			cloned.children[i] = childCloner.cloneWithParent(cloned)
+		} else {
+			cloned.children[i] = child.clone()
+		}
+	}
+	return cloned
+}
+
 var _ schemaUnit[Operation] = &UnionOperation{}
 
 // IntersectionOperation is an Operation that represents `permission foo = a & b & c`.
 type IntersectionOperation struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	children []Operation
 }
 
 // Children returns the sub-operations that are intersected together.
 func (i *IntersectionOperation) Children() []Operation {
 	return i.children
+}
+
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (i *IntersectionOperation) Parent() Parented {
+	return i.parent
+}
+
+func (i *IntersectionOperation) setParent(p Parented) {
+	i.parent = p
 }
 
 // clone creates a deep copy of the IntersectionOperation.
@@ -149,10 +262,32 @@ func (i *IntersectionOperation) clone() Operation {
 	}
 }
 
+// cloneWithParent creates a deep copy of the IntersectionOperation with the specified parent.
+func (i *IntersectionOperation) cloneWithParent(parent Operation) Operation {
+	if i == nil {
+		return nil
+	}
+	cloned := &IntersectionOperation{
+		parent:   parent,
+		children: make([]Operation, len(i.children)),
+	}
+	for idx, child := range i.children {
+		if childCloner, ok := child.(interface{ cloneWithParent(Operation) Operation }); ok {
+			cloned.children[idx] = childCloner.cloneWithParent(cloned)
+		} else {
+			cloned.children[idx] = child.clone()
+		}
+	}
+	return cloned
+}
+
 var _ schemaUnit[Operation] = &IntersectionOperation{}
 
 // ExclusionOperation is an Operation that represents `permission foo = a - b`.
 type ExclusionOperation struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	// left is the operation from which we are excluding.
 	left Operation
 
@@ -163,6 +298,9 @@ type ExclusionOperation struct {
 // ResolvedRelationReference is an Operation that is a resolved relation reference.
 // It contains both the name and the actual RelationOrPermission being referenced.
 type ResolvedRelationReference struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	// relationName is the name of the relation or permission being referenced.
 	relationName string
 
@@ -173,6 +311,9 @@ type ResolvedRelationReference struct {
 // ResolvedArrowReference is an Operation that represents a resolved arrow reference.
 // It contains the resolved left side relation and the name of the right side.
 type ResolvedArrowReference struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	// left is the name of the relation on the resource.
 	left string
 
@@ -193,6 +334,15 @@ func (e *ExclusionOperation) Right() Operation {
 	return e.right
 }
 
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (e *ExclusionOperation) Parent() Parented {
+	return e.parent
+}
+
+func (e *ExclusionOperation) setParent(p Parented) {
+	e.parent = p
+}
+
 // clone creates a deep copy of the ExclusionOperation.
 func (e *ExclusionOperation) clone() Operation {
 	if e == nil {
@@ -202,6 +352,27 @@ func (e *ExclusionOperation) clone() Operation {
 		left:  e.left.clone(),
 		right: e.right.clone(),
 	}
+}
+
+// cloneWithParent creates a deep copy of the ExclusionOperation with the specified parent.
+func (e *ExclusionOperation) cloneWithParent(parent Operation) Operation {
+	if e == nil {
+		return nil
+	}
+	cloned := &ExclusionOperation{
+		parent: parent,
+	}
+	if leftCloner, ok := e.left.(interface{ cloneWithParent(Operation) Operation }); ok {
+		cloned.left = leftCloner.cloneWithParent(cloned)
+	} else {
+		cloned.left = e.left.clone()
+	}
+	if rightCloner, ok := e.right.(interface{ cloneWithParent(Operation) Operation }); ok {
+		cloned.right = rightCloner.cloneWithParent(cloned)
+	} else {
+		cloned.right = e.right.clone()
+	}
+	return cloned
 }
 
 // RelationName returns the name of the relation or permission being referenced.
@@ -214,12 +385,33 @@ func (r *ResolvedRelationReference) Resolved() RelationOrPermission {
 	return r.resolved
 }
 
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (r *ResolvedRelationReference) Parent() Parented {
+	return r.parent
+}
+
+func (r *ResolvedRelationReference) setParent(p Parented) {
+	r.parent = p
+}
+
 // clone creates a deep copy of the ResolvedRelationReference.
 func (r *ResolvedRelationReference) clone() Operation {
 	if r == nil {
 		return nil
 	}
 	return &ResolvedRelationReference{
+		relationName: r.relationName,
+		resolved:     r.resolved,
+	}
+}
+
+// cloneWithParent creates a deep copy of the ResolvedRelationReference with the specified parent.
+func (r *ResolvedRelationReference) cloneWithParent(parent Operation) Operation {
+	if r == nil {
+		return nil
+	}
+	return &ResolvedRelationReference{
+		parent:       parent,
 		relationName: r.relationName,
 		resolved:     r.resolved,
 	}
@@ -245,6 +437,15 @@ func (a *ResolvedArrowReference) Function() FunctionType {
 	return FunctionTypeAny
 }
 
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (a *ResolvedArrowReference) Parent() Parented {
+	return a.parent
+}
+
+func (a *ResolvedArrowReference) setParent(p Parented) {
+	a.parent = p
+}
+
 // clone creates a deep copy of the ResolvedArrowReference.
 func (a *ResolvedArrowReference) clone() Operation {
 	if a == nil {
@@ -257,9 +458,25 @@ func (a *ResolvedArrowReference) clone() Operation {
 	}
 }
 
+// cloneWithParent creates a deep copy of the ResolvedArrowReference with the specified parent.
+func (a *ResolvedArrowReference) cloneWithParent(parent Operation) Operation {
+	if a == nil {
+		return nil
+	}
+	return &ResolvedArrowReference{
+		parent:       parent,
+		left:         a.left,
+		resolvedLeft: a.resolvedLeft,
+		right:        a.right,
+	}
+}
+
 // ResolvedFunctionedArrowReference is an Operation that represents a resolved functioned arrow reference.
 // It contains the resolved left side relation, the name of the right side, and the function type.
 type ResolvedFunctionedArrowReference struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	// left is the name of the relation on the resource.
 	left string
 
@@ -293,12 +510,35 @@ func (a *ResolvedFunctionedArrowReference) Function() FunctionType {
 	return a.function
 }
 
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (a *ResolvedFunctionedArrowReference) Parent() Parented {
+	return a.parent
+}
+
+func (a *ResolvedFunctionedArrowReference) setParent(p Parented) {
+	a.parent = p
+}
+
 // clone creates a deep copy of the ResolvedFunctionedArrowReference.
 func (a *ResolvedFunctionedArrowReference) clone() Operation {
 	if a == nil {
 		return nil
 	}
 	return &ResolvedFunctionedArrowReference{
+		left:         a.left,
+		resolvedLeft: a.resolvedLeft,
+		right:        a.right,
+		function:     a.function,
+	}
+}
+
+// cloneWithParent creates a deep copy of the ResolvedFunctionedArrowReference with the specified parent.
+func (a *ResolvedFunctionedArrowReference) cloneWithParent(parent Operation) Operation {
+	if a == nil {
+		return nil
+	}
+	return &ResolvedFunctionedArrowReference{
+		parent:       parent,
 		left:         a.left,
 		resolvedLeft: a.resolvedLeft,
 		right:        a.right,
@@ -315,6 +555,9 @@ var (
 
 // FunctionedArrowReference is an Operation that represents functioned arrows like `permission foo = relation.any(other)` or `permission foo = relation.all(other)`.
 type FunctionedArrowReference struct {
+	// parent is the parent operation in the operation tree, or the Permission for root operations.
+	parent Parented
+
 	left     string
 	right    string
 	function FunctionType
@@ -340,6 +583,15 @@ func (f *FunctionedArrowReference) Function() FunctionType {
 	return f.function
 }
 
+// Parent returns the parent operation in the operation tree, or the Permission for the root operation.
+func (f *FunctionedArrowReference) Parent() Parented {
+	return f.parent
+}
+
+func (f *FunctionedArrowReference) setParent(p Parented) {
+	f.parent = p
+}
+
 // clone creates a deep copy of the FunctionedArrowReference.
 func (f *FunctionedArrowReference) clone() Operation {
 	if f == nil {
@@ -349,6 +601,38 @@ func (f *FunctionedArrowReference) clone() Operation {
 		left:     f.left,
 		right:    f.right,
 		function: f.function,
+	}
+}
+
+// cloneWithParent creates a deep copy of the FunctionedArrowReference with the specified parent.
+func (f *FunctionedArrowReference) cloneWithParent(parent Operation) Operation {
+	if f == nil {
+		return nil
+	}
+	return &FunctionedArrowReference{
+		parent:   parent,
+		left:     f.left,
+		right:    f.right,
+		function: f.function,
+	}
+}
+
+// setParent sets the parent pointer for a Parented element.
+// The parent parameter can be either an Operation (for child nodes) or a *Permission (for the root node).
+// This is a simple setter that delegates to the element's setParent method.
+func setParent(elem Parented, parent Parented) {
+	if elem == nil {
+		return
+	}
+	elem.setParent(parent)
+}
+
+// setChildrenParent sets the parent for all children of a composite operation.
+func setChildrenParent(children []Operation, parent Operation) {
+	for _, child := range children {
+		if child != nil {
+			child.setParent(parent)
+		}
 	}
 }
 

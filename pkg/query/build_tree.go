@@ -162,11 +162,13 @@ func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Ite
 }
 
 func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
+	parentDef := p.Parent().(*schema.Definition)
+
 	switch perm := op.(type) {
 	case *schema.ArrowReference:
-		rel, ok := p.Parent().GetRelation(perm.Left())
+		rel, ok := parentDef.GetRelation(perm.Left())
 		if !ok {
-			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), p.Parent().Name())
+			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), parentDef.Name())
 		}
 		return b.buildArrowIterators(rel, perm.Right())
 
@@ -174,7 +176,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return NewEmptyFixedIterator(), nil
 
 	case *schema.RelationReference:
-		return b.buildIteratorFromSchemaInternal(p.Parent().Name(), perm.RelationName(), true)
+		return b.buildIteratorFromSchemaInternal(parentDef.Name(), perm.RelationName(), true)
 
 	case *schema.UnionOperation:
 		union := NewUnion()
@@ -212,9 +214,9 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return NewExclusion(mainIt, excludedIt), nil
 
 	case *schema.FunctionedArrowReference:
-		rel, ok := p.Parent().GetRelation(perm.Left())
+		rel, ok := parentDef.GetRelation(perm.Left())
 		if !ok {
-			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), p.Parent().Name())
+			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), parentDef.Name())
 		}
 
 		switch perm.Function() {
