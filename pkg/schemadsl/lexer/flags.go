@@ -33,7 +33,7 @@ var Flags = map[string]transformer{
 			return lexeme, true
 		}
 
-		// `and` becomes a keyword.
+		// `and` becomes a keyword (for "caveat and expiration")
 		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "and" {
 			lexeme.Kind = TokenTypeKeyword
 			return lexeme, true

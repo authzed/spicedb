@@ -154,6 +154,22 @@ func (crr *CursoredLookupResources2) afterSameType(
 			defer span.End()
 
 			switch entrypoint.EntrypointKind() {
+			case core.ReachabilityEntrypoint_SELF_ENTRYPOINT:
+				containingRelation := entrypoint.ContainingRelationOrPermission()
+				rsm := subjectIDsToResourcesMap2(containingRelation, req.SubjectIds)
+				drsm := rsm.asReadOnly()
+
+				return crr.redispatchOrReport(
+					ctx,
+					ci,
+					containingRelation,
+					drsm,
+					rg,
+					entrypoint,
+					stream,
+					req,
+					dispatched,
+				)
 			case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
 				return crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, ts, reader, req, stream, dispatched)
 
