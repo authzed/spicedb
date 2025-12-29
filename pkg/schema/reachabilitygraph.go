@@ -475,7 +475,7 @@ func (re ReachabilityEntrypoint) DebugString() (string, error) {
 		return "computed-userset-entrypoint: " + re.re.TargetRelation.Namespace + "#" + re.re.TargetRelation.Relation, nil
 
 	case core.ReachabilityEntrypoint_SELF_ENTRYPOINT:
-		return fmt.Sprintf("self: %s#...", re.re.TargetRelation.Namespace), nil
+		return fmt.Sprintf("self-entrypoint: %s#...", re.re.TargetRelation.Relation), nil
 
 	default:
 		return "", fmt.Errorf("unknown entrypoint kind %v", re.EntrypointKind())

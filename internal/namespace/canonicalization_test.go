@@ -511,8 +511,8 @@ func TestCanonicalization(t *testing.T) {
 				"third":          computedKeyPrefix + "9fd2b03cabeb2e42",
 				"thirdwithall":   computedKeyPrefix + "eafa2f3f2d970680",
 				"difftuple":      computedKeyPrefix + "dddc650e89a7bf1a",
-				"allplusanother": computedKeyPrefix + "8b68ba1711b32ca4",
-				"anotherplusall": computedKeyPrefix + "8b68ba1711b32ca4",
+				"allplusanother": computedKeyPrefix + "1588e0e67f417c5f",
+				"anotherplusall": computedKeyPrefix + "1588e0e67f417c5f",
 			},
 		},
 	}

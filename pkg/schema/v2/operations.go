@@ -47,6 +47,17 @@ func (r *RelationReference) clone() Operation {
 
 var _ schemaUnit[Operation] = &RelationReference{}
 
+type SelfReference struct{}
+
+func (s *SelfReference) clone() Operation {
+	if s == nil {
+		return nil
+	}
+	return &SelfReference{}
+}
+
+var _ schemaUnit[Operation] = &SelfReference{}
+
 // NilReference is a specialized Operation that represents a nil/empty operation.
 // Unlike RelationReference, it is not replaced during resolution.
 type NilReference struct{}
@@ -355,6 +366,7 @@ func (f *FunctionedArrowReference) clone() Operation {
 // We close the enum by implementing the private method.
 func (r *RelationReference) isOperation()                {}
 func (n *NilReference) isOperation()                     {}
+func (s *SelfReference) isOperation()                    {}
 func (a *ArrowReference) isOperation()                   {}
 func (u *UnionOperation) isOperation()                   {}
 func (i *IntersectionOperation) isOperation()            {}

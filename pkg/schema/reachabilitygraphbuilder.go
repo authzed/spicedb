@@ -128,7 +128,6 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 			// nil has no entrypoints.
 			continue
 
-			
 		case *core.SetOperation_Child_XSelf:
 			// Self refers to the parent resource as the subject with relation `...`
 			err := addSubjectEntrypoint(graph, def.nsDef.Name, ellipsesRelation, &core.ReachabilityEntrypoint{
