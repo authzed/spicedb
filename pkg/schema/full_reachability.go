@@ -17,15 +17,15 @@ type Graph struct {
 	referenceInfoMap map[nsAndRel][]RelationReferenceInfo
 }
 
-// BuildGraph builds the graph of all reachable information in the schema.
-func BuildGraph(ctx context.Context, r *CompiledSchemaResolver) (*Graph, error) {
-	arrowSet, err := buildArrowSet(ctx, r)
+// NewGraph builds the graph of all reachable information in the schema.
+func NewGraph(ctx context.Context, compiledSchemaResolver *CompiledSchemaResolver) (*Graph, error) {
+	arrowSet, err := buildArrowSet(ctx, compiledSchemaResolver)
 	if err != nil {
 		return nil, err
 	}
 
-	ts := NewTypeSystem(r)
-	referenceInfoMap, err := preComputeRelationReferenceInfo(ctx, arrowSet, r, ts)
+	ts := NewTypeSystem(compiledSchemaResolver)
+	referenceInfoMap, err := preComputeRelationReferenceInfo(ctx, arrowSet, compiledSchemaResolver, ts)
 	if err != nil {
 		return nil, err
 	}

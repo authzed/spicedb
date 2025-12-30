@@ -10,18 +10,18 @@ import (
 // FullSchemaResolver is a superset of a resolver that knows how to retrieve all definitions
 // from its source by name (by having a complete list of names).
 type FullSchemaResolver interface {
-	Resolver
+	TypeSystemResolver
 	AllDefinitionNames() []string
 }
 
 // CompiledSchemaResolver is a resolver for a fully compiled schema. It implements FullSchemaResolver,
 // as it has the full context of the schema.
 type CompiledSchemaResolver struct {
-	schema compiler.CompiledSchema
+	schema *compiler.CompiledSchema
 }
 
 // ResolverForCompiledSchema builds a resolver from a compiled schema.
-func ResolverForCompiledSchema(schema compiler.CompiledSchema) *CompiledSchemaResolver {
+func ResolverForCompiledSchema(schema *compiler.CompiledSchema) *CompiledSchemaResolver {
 	return &CompiledSchemaResolver{
 		schema: schema,
 	}
