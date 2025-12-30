@@ -20,10 +20,18 @@ func ReadNamespaceAndRelation(
 	relation string,
 	ds datastore.Reader,
 ) (*core.NamespaceDefinition, *core.Relation, error) {
-	config, _, err := ds.LegacyReadNamespaceByName(ctx, namespace)
+	schemaReader, err := ds.SchemaReader()
 	if err != nil {
 		return nil, nil, err
 	}
+	revDef, found, err := schemaReader.LookupTypeDefByName(ctx, namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !found {
+		return nil, nil, datastore.NewNamespaceNotFoundErr(namespace)
+	}
+	config := revDef.Definition
 
 	for _, rel := range config.Relation {
 		if rel.Name == relation {
@@ -61,14 +69,20 @@ func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToC
 		return nil
 	}
 
-	namespaces, err := ds.LegacyLookupNamespacesWithNames(ctx, nsNames.AsSlice())
+	schemaReader, err := ds.SchemaReader()
+	if err != nil {
+		return err
+	}
+	foundDefs, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, nsNames.AsSlice())
 	if err != nil {
 		return err
 	}
 
-	mappedNamespaces := make(map[string]*core.NamespaceDefinition, len(namespaces))
-	for _, namespace := range namespaces {
-		mappedNamespaces[namespace.Definition.Name] = namespace.Definition
+	mappedNamespaces := make(map[string]*core.NamespaceDefinition, len(foundDefs))
+	for _, def := range foundDefs {
+		if nsDef, ok := def.(*core.NamespaceDefinition); ok {
+			mappedNamespaces[nsDef.Name] = nsDef
+		}
 	}
 
 	for _, toCheck := range checks {
@@ -110,10 +124,18 @@ func CheckNamespaceAndRelation(
 	allowEllipsis bool,
 	ds datastore.Reader,
 ) error {
-	config, _, err := ds.LegacyReadNamespaceByName(ctx, namespace)
+	schemaReader, err := ds.SchemaReader()
 	if err != nil {
 		return err
 	}
+	revDef, found, err := schemaReader.LookupTypeDefByName(ctx, namespace)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return datastore.NewNamespaceNotFoundErr(namespace)
+	}
+	config := revDef.Definition
 
 	if allowEllipsis && relation == datastore.Ellipsis {
 		return nil

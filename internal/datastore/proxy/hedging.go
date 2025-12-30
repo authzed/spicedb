@@ -287,3 +287,7 @@ func (hp hedgingReader) executeQuery(
 
 	return delegateIterator, err
 }
+
+func (hp hedgingReader) SchemaReader() (datastore.SchemaReader, error) {
+	return hp.Reader.SchemaReader()
+}

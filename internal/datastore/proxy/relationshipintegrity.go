@@ -385,6 +385,10 @@ func (r relationshipIntegrityReader) LegacyReadNamespaceByName(ctx context.Conte
 	return r.wrapped.LegacyReadNamespaceByName(ctx, nsName)
 }
 
+func (r relationshipIntegrityReader) SchemaReader() (datastore.SchemaReader, error) {
+	return r.wrapped.SchemaReader()
+}
+
 type relationshipIntegrityTx struct {
 	datastore.ReadWriteTransaction
 

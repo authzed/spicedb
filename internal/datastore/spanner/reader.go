@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -400,4 +401,9 @@ var queryTuplesForDelete = sql.Select(
 	colUsersetRelation,
 ).From(tableRelationship)
 
-var _ datastore.Reader = spannerReader{}
+// SchemaReader returns a SchemaReader for reading schema information.
+func (r *spannerReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(r), nil
+}
+
+var _ datastore.Reader = (*spannerReader)(nil)

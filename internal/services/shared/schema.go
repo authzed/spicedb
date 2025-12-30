@@ -92,17 +92,30 @@ type AppliedSchemaChanges struct {
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
-	existingCaveats, err := rwt.LegacyListAllCaveats(ctx)
+	schemaReader, err := rwt.SchemaReader()
 	if err != nil {
 		return nil, err
 	}
 
-	existingObjectDefs, err := rwt.LegacyListAllNamespaces(ctx)
+	existingCaveatDefs, err := schemaReader.ListAllCaveatDefinitions(ctx)
 	if err != nil {
 		return nil, err
 	}
+	existingCaveats := make([]*core.CaveatDefinition, 0, len(existingCaveatDefs))
+	for _, caveatDef := range existingCaveatDefs {
+		existingCaveats = append(existingCaveats, caveatDef.Definition)
+	}
 
-	return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
+	existingTypeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	existingObjectDefs := make([]*core.NamespaceDefinition, 0, len(existingTypeDefs))
+	for _, typeDef := range existingTypeDefs {
+		existingObjectDefs = append(existingObjectDefs, typeDef.Definition)
+	}
+
+	return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, existingCaveats, existingObjectDefs)
 }
 
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against

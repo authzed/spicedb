@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -426,6 +427,11 @@ func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuil
 
 func (cr *crdbReader) addOverlapKey(namespace string) {
 	cr.keyer.addKey(cr.overlapKeySet, namespace)
+}
+
+// SchemaReader returns a SchemaReader for reading schema information.
+func (r *crdbReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 var _ datastore.Reader = &crdbReader{}

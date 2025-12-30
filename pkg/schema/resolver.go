@@ -2,7 +2,6 @@ package schema
 
 import (
 	"context"
-	"errors"
 	"slices"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -77,8 +76,19 @@ func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (
 		return nil, false, asTypeError(NewDefinitionNotFoundErr(name))
 	}
 
-	ns, _, err := r.ds.LegacyReadNamespaceByName(ctx, name)
-	return ns, true, err
+	schemaReader, err := r.ds.SchemaReader()
+	if err != nil {
+		return nil, false, err
+	}
+	revDef, found, err := schemaReader.LookupTypeDefByName(ctx, name)
+	if err != nil {
+		return nil, false, err
+	}
+	if !found {
+		return nil, false, asTypeError(NewDefinitionNotFoundErr(name))
+	}
+	ns := revDef.Definition
+	return ns, true, nil
 }
 
 // WithPredefinedElements adds elements (definitions and caveats) that will be used as a local overlay
@@ -104,11 +114,18 @@ func (r *DatastoreResolver) LookupCaveat(ctx context.Context, name string) (*Cav
 		return nil, asTypeError(NewCaveatNotFoundErr(name))
 	}
 
-	cr, ok := r.ds.(datastore.LegacySchemaReader)
-	if !ok {
-		return nil, errors.New("caveats are not supported on this datastore type")
+	schemaReader, err := r.ds.SchemaReader()
+	if err != nil {
+		return nil, err
 	}
 
-	caveatDef, _, err := cr.LegacyReadCaveatByName(ctx, name)
-	return caveatDef, err
+	revDef, found, err := schemaReader.LookupCaveatDefByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, asTypeError(NewCaveatNotFoundErr(name))
+	}
+	caveatDef := revDef.Definition
+	return caveatDef, nil
 }

@@ -181,6 +181,10 @@ func (r *indexcheckingReader) ReverseQueryRelationships(ctx context.Context, sub
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
+func (r *indexcheckingReader) SchemaReader() (datastore.SchemaReader, error) {
+	return r.delegate.SchemaReader()
+}
+
 type indexcheckingRWT struct {
 	*indexcheckingReader
 	delegate datastore.ReadWriteTransaction

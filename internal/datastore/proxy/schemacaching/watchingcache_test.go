@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -656,4 +657,8 @@ func (*fakeSnapshotReader) QueryRelationships(context.Context, datastore.Relatio
 
 func (*fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.SubjectsFilter, ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (fsr *fakeSnapshotReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schema.NewLegacySchemaReaderAdapter(fsr), nil
 }

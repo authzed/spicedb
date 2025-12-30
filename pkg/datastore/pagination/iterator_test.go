@@ -166,3 +166,7 @@ func (m *mockedReader) LegacyListAllNamespaces(_ context.Context) ([]datastore.R
 func (m *mockedReader) LegacyLookupNamespacesWithNames(_ context.Context, _ []string) ([]datastore.RevisionedNamespace, error) {
 	panic("not implemented")
 }
+
+func (m *mockedReader) SchemaReader() (datastore.SchemaReader, error) {
+	panic("not implemented")
+}

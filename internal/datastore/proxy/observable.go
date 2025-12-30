@@ -277,6 +277,10 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 	}, nil
 }
 
+func (r *observableReader) SchemaReader() (datastore.SchemaReader, error) {
+	return r.delegate.SchemaReader()
+}
+
 type observableRWT struct {
 	*observableReader
 	delegate datastore.ReadWriteTransaction

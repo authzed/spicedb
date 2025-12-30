@@ -185,6 +185,10 @@ func (vsr validatingSnapshotReader) LegacyListAllCaveats(ctx context.Context) ([
 	return read, err
 }
 
+func (vsr validatingSnapshotReader) SchemaReader() (datastore.SchemaReader, error) {
+	return vsr.delegate.SchemaReader()
+}
+
 type validatingReadWriteTransaction struct {
 	validatingSnapshotReader
 	delegate datastore.ReadWriteTransaction
