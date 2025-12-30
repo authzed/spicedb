@@ -4,8 +4,8 @@ package lexer
 type FlaggableLexer struct {
 	lex                *Lexer                 // a reference to the lexer used for tokenization
 	enabledFlags       map[string]transformer // flags that are enabled
-	seenDefinition     bool
-	afterUseIdentifier bool
+	seenDefinition     bool                   // enforces that use flags must appear before any definitions or caveats.
+	afterUseIdentifier bool                   // detects the two-token pattern use <flagname>
 }
 
 // NewFlaggableLexer returns a new FlaggableLexer for the given lexer.
@@ -26,7 +26,7 @@ func (l *FlaggableLexer) NextToken() Lexeme {
 	nextToken := l.lex.nextToken()
 
 	// Look for `use somefeature`
-	if nextToken.Kind == TokenTypeIdentifier {
+	if nextToken.Kind == TokenTypeIdentifier || nextToken.Kind == TokenTypeKeyword {
 		// Only allowed until we've seen a definition of some kind.
 		if !l.seenDefinition {
 			if l.afterUseIdentifier {

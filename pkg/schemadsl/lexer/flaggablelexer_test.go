@@ -48,6 +48,18 @@ var flaggableLexerTests = []lexerTest{
 		{TokenTypeIdentifier, 0, "expiration", ""},
 		tEOF,
 	}},
+	{"use self", "use self", []Lexeme{
+		{TokenTypeIdentifier, 0, "use", ""},
+		{TokenTypeWhitespace, 0, " ", ""},
+		{TokenTypeKeyword, 0, "self", ""},
+		tEOF,
+	}},
+	{"self as non-keyword", "+ self", []Lexeme{
+		{TokenTypePlus, 0, "+", ""},
+		{TokenTypeWhitespace, 0, " ", ""},
+		{TokenTypeIdentifier, 0, "self", ""},
+		tEOF,
+	}},
 }
 
 func TestFlaggableLexer(t *testing.T) {

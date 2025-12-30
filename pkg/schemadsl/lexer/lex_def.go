@@ -78,7 +78,7 @@ var keywords = map[string]struct{}{
 	"permission": {},
 	"nil":        {},
 	"with":       {},
-	"self":       {},
+	// NOTE: "self" and "expiration" start as an identifier
 }
 
 // IsKeyword returns whether the specified input string is a reserved keyword.

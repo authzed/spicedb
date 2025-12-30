@@ -1251,10 +1251,11 @@ func TestReachabilityGraph(t *testing.T) {
 		},
 		{
 			"permission with self",
-			`definition user {
+			`use self
+			definition user {
 				relation other: user
-				permission self_or_other = self + other
-  			 }
+				permission self_or_other = self + other 
+			}
 
 			definition document {
 				relation viewer: user#self_or_other
