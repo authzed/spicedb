@@ -276,7 +276,7 @@ To get an understanding of integrating an application with SpiceDB, you can foll
 
 ### Deploying to Production
 
-The core SpiceDB service has been utilized in production by Authzed since 2021 so you can be confident that it is battle-tested. Moreover, it supports various datastores, including Google Cloud Spanner, CockroachDB, MySQL, and PostgreSQL. Read [this](https://authzed.com/docs/spicedb/concepts/operator) to learn the best practices for each.
+The core SpiceDB service has been utilized in production by Authzed since 2021 so you can be confident that it is battle-tested. Moreover, it supports various datastores, including Google Cloud Spanner, CockroachDB, MySQL, and PostgreSQL. Read [this](https://authzed.com/docs/spicedb/concepts/datastores) to learn the best practices for each.
 
 You can choose to self-host SpiceDB, or use [AuthZed Cloud], a fully managed service. See a [comparison of the various options](https://authzed.com/docs/authzed/guides/picking-a-product).
 
