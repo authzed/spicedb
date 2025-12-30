@@ -359,8 +359,8 @@ func TestRelationsReferencing(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
-			graph, err := BuildGraph(t.Context(), res)
+			res := ResolverForCompiledSchema(schema)
+			graph, err := NewGraph(t.Context(), res)
 			require.NoError(t, err)
 
 			for _, resource := range schema.ObjectDefinitions {
@@ -414,8 +414,8 @@ func BenchmarkRelationsReferencing(b *testing.B) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(b, err)
 
-	res := ResolverForCompiledSchema(*schema)
-	graph, err := BuildGraph(b.Context(), res)
+	res := ResolverForCompiledSchema(schema)
+	graph, err := NewGraph(b.Context(), res)
 	require.NoError(b, err)
 
 	b.ResetTimer()

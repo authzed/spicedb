@@ -277,7 +277,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 
 			// Check the caveat, if any.
 			if allowedRelation.GetRequiredCaveat() != nil {
-				_, err := def.TypeSystem().resolver.LookupCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
+				_, err := def.TypeSystem().GetCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
 				if err != nil {
 					return nil, NewTypeWithSourceError(
 						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetRequiredCaveat().CaveatName, relation.Name, err),

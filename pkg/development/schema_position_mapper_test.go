@@ -9,7 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
-func TestResolver(t *testing.T) {
+func TestSchemaPositionMapper(t *testing.T) {
 	testSource := input.Source("test")
 
 	tcs := []struct {
@@ -410,10 +410,10 @@ definition document {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			resolver, err := NewResolver(compiled)
+			schemaPositionMapper, err := NewSchemaPositionMapper(compiled)
 			require.NoError(t, err)
 
-			ref, err := resolver.ReferenceAtPosition(input.Source("test"), input.Position{
+			ref, err := schemaPositionMapper.ReferenceAtPosition(input.Source("test"), input.Position{
 				LineNumber:     tc.line,
 				ColumnPosition: tc.column,
 			})

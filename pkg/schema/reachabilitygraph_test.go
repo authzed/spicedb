@@ -1,16 +1,11 @@
 package schema
 
 import (
-	"context"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -207,10 +202,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
-			require.NoError(err)
-
-			ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
+			ctx := t.Context()
 
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -218,22 +210,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			// Write the schema.
-			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-				for _, nsDef := range compiled.ObjectDefinitions {
-					if err := tx.LegacyWriteNamespaces(ctx, nsDef); err != nil {
-						return err
-					}
-				}
-
-				return nil
-			})
-			require.NoError(err)
-
-			lastRevision, err := ds.HeadRevision(t.Context())
-			require.NoError(err)
-
-			resolver := ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
+			resolver := ResolverForCompiledSchema(compiled)
 
 			vts, err := NewTypeSystem(resolver).GetDefinition(ctx, tc.subjectType)
 			require.NoError(err)
@@ -576,10 +553,7 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
-			require.NoError(err)
-
-			ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
+			ctx := t.Context()
 
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -587,22 +561,7 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			// Write the schema.
-			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-				for _, nsDef := range compiled.ObjectDefinitions {
-					if err := tx.LegacyWriteNamespaces(ctx, nsDef); err != nil {
-						return err
-					}
-				}
-
-				return nil
-			})
-			require.NoError(err)
-
-			lastRevision, err := ds.HeadRevision(t.Context())
-			require.NoError(err)
-
-			resolver := ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
+			resolver := ResolverForCompiledSchema(compiled)
 
 			vts, err := NewTypeSystem(resolver).GetDefinition(ctx, tc.resourceType)
 			require.NoError(err)
@@ -1273,10 +1232,7 @@ func TestReachabilityGraph(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
-			require.NoError(err)
-
-			ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
+			ctx := t.Context()
 
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -1284,17 +1240,9 @@ func TestReachabilityGraph(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(t.Context())
-			require.NoError(err)
-
-			reader := ds.SnapshotReader(lastRevision)
-
 			var rdef *ValidatedDefinition
 			for _, nsDef := range compiled.ObjectDefinitions {
-				resolver := ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
-					Definitions: compiled.ObjectDefinitions,
-					Caveats:     compiled.CaveatDefinitions,
-				})
+				resolver := ResolverForSchema(compiled)
 				ts := NewTypeSystem(resolver)
 
 				vdef, terr := ts.GetValidatedDefinition(ctx, nsDef.Name)

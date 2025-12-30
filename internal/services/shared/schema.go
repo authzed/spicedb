@@ -23,7 +23,7 @@ import (
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
 type ValidatedSchemaChanges struct {
 	compiled             *compiler.CompiledSchema
-	validatedTypeSystems map[string]*schema.ValidatedDefinition
+	validatedDefinitions map[string]*schema.ValidatedDefinition
 	newCaveatDefNames    *mapz.Set[string]
 	newObjectDefNames    *mapz.Set[string]
 	additiveOnly         bool
@@ -43,13 +43,10 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 		newCaveatDefNames.Insert(caveatDef.Name)
 	}
 
-	// 2) Validate the namespaces defined.
+	// 2) Validate the type definitions.
 	newObjectDefNames := mapz.NewSet[string]()
-	validatedTypeSystems := make(map[string]*schema.ValidatedDefinition, len(compiled.ObjectDefinitions))
-	res := schema.ResolverForPredefinedDefinitions(schema.PredefinedElements{
-		Definitions: compiled.ObjectDefinitions,
-		Caveats:     compiled.CaveatDefinitions,
-	})
+	validatedDefinitions := make(map[string]*schema.ValidatedDefinition, len(compiled.ObjectDefinitions))
+	res := schema.ResolverForSchema(compiled)
 	ts := schema.NewTypeSystem(res)
 
 	for _, nsdef := range compiled.ObjectDefinitions {
@@ -58,13 +55,13 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 			return nil, err
 		}
 
-		validatedTypeSystems[nsdef.Name] = vts
+		validatedDefinitions[nsdef.Name] = vts
 		newObjectDefNames.Insert(nsdef.Name)
 	}
 
 	return &ValidatedSchemaChanges{
 		compiled:             compiled,
-		validatedTypeSystems: validatedTypeSystems,
+		validatedDefinitions: validatedDefinitions,
 		newCaveatDefNames:    newCaveatDefNames,
 		newObjectDefNames:    newObjectDefNames,
 		additiveOnly:         additiveOnly,
@@ -174,7 +171,7 @@ func ApplySchemaChangesOverExisting(
 		if len(diff.Deltas()) > 0 {
 			objectDefsWithChanges = append(objectDefsWithChanges, nsdef)
 
-			vts, ok := validated.validatedTypeSystems[nsdef.Name]
+			vts, ok := validated.validatedDefinitions[nsdef.Name]
 			if !ok {
 				return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.Name)
 			}

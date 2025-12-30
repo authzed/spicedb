@@ -1,15 +1,10 @@
 package hints
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schema"
@@ -98,36 +93,15 @@ func TestHintForEntrypoint(t *testing.T) {
 func buildReachabilityGraph(t *testing.T, schemaStr string) *schema.DefinitionReachability {
 	require := require.New(t)
 
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
-	require.NoError(err)
-
-	ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
-
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schemaStr,
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
-	// Write the schema.
-	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		for _, nsDef := range compiled.ObjectDefinitions {
-			if err := tx.LegacyWriteNamespaces(ctx, nsDef); err != nil {
-				return err
-			}
-		}
+	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(compiled))
 
-		return nil
-	})
-	require.NoError(err)
-
-	lastRevision, err := ds.HeadRevision(t.Context())
-	require.NoError(err)
-
-	reader := ds.SnapshotReader(lastRevision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
-
-	vdef, err := ts.GetValidatedDefinition(ctx, "resource")
+	vdef, err := ts.GetValidatedDefinition(t.Context(), "resource")
 	require.NoError(err)
 
 	return vdef.Reachability()

@@ -299,7 +299,7 @@ func NewRelationNotFoundErr(nsName string, relationName string) error {
 // NewCaveatNotFoundErr constructs a new caveat not found error.
 func NewCaveatNotFoundErr(caveatName string) error {
 	return CaveatNotFoundError{
-		error:      fmt.Errorf("caveat `%s` not found", caveatName),
+		error:      fmt.Errorf("caveat with name `%s` not found", caveatName),
 		caveatName: caveatName,
 	}
 }

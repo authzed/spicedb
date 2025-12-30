@@ -9,9 +9,8 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
-// Resolver is an interface defined for resolving referenced namespaces and caveats when constructing
-// and validating a type system.
-type Resolver interface {
+// TypeSystemResolver provides an abstraction for fetching definitions and caveats from different sources (datastore, compiled schema, predefined elements).
+type TypeSystemResolver interface {
 	// LookupDefinition lookups up a namespace definition, also returning whether it was pre-validated.
 	LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error)
 
@@ -19,7 +18,7 @@ type Resolver interface {
 	LookupCaveat(ctx context.Context, name string) (*Caveat, error)
 }
 
-// ResolverForDatastoreReader returns a Resolver for a datastore reader.
+// ResolverForDatastoreReader returns a TypeSystemResolver for a datastore reader.
 func ResolverForDatastoreReader(ds datastore.Reader) *DatastoreResolver {
 	return &DatastoreResolver{
 		ds: ds,
@@ -40,14 +39,14 @@ func (pe PredefinedElements) combineWith(other PredefinedElements) PredefinedEle
 }
 
 // ResolverForPredefinedDefinitions returns a resolver for predefined namespaces and caveats.
-func ResolverForPredefinedDefinitions(predefined PredefinedElements) Resolver {
+func ResolverForPredefinedDefinitions(predefined PredefinedElements) TypeSystemResolver {
 	return &DatastoreResolver{
 		predefined: predefined,
 	}
 }
 
 // ResolverForSchema returns a resolver for a schema.
-func ResolverForSchema(schema compiler.CompiledSchema) Resolver {
+func ResolverForSchema(schema *compiler.CompiledSchema) TypeSystemResolver {
 	return ResolverForPredefinedDefinitions(
 		PredefinedElements{
 			Definitions: schema.ObjectDefinitions,
@@ -93,7 +92,7 @@ func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (
 
 // WithPredefinedElements adds elements (definitions and caveats) that will be used as a local overlay
 // for the datastore, often for validation.
-func (r *DatastoreResolver) WithPredefinedElements(predefined PredefinedElements) Resolver {
+func (r *DatastoreResolver) WithPredefinedElements(predefined PredefinedElements) TypeSystemResolver {
 	return &DatastoreResolver{
 		ds:         r.ds,
 		predefined: predefined.combineWith(r.predefined),
