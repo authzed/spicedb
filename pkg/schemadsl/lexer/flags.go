@@ -13,6 +13,10 @@ const (
 	// FlagTypeChecking indicates that `typechecking` is supported as a first-class
 	// feature in the schema.
 	FlagTypeChecking = "typechecking"
+
+	// FlagSelf indicates that `self` is supported as a first-class
+	// feature in the schema.
+	FlagSelf = "self"
 )
 
 var AllUseFlags []string
@@ -44,6 +48,15 @@ var Flags = map[string]transformer{
 	FlagTypeChecking: func(lexeme Lexeme) (Lexeme, bool) {
 		// `typechecking` becomes a keyword.
 		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "typechecking" {
+			lexeme.Kind = TokenTypeKeyword
+			return lexeme, true
+		}
+
+		return lexeme, false
+	},
+	FlagSelf: func(lexeme Lexeme) (Lexeme, bool) {
+		// `self` becomes a keyword.
+		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "self" {
 			lexeme.Kind = TokenTypeKeyword
 			return lexeme, true
 		}

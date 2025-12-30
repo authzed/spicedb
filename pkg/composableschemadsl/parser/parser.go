@@ -665,6 +665,10 @@ func (p *sourceParser) tryConsumeBaseExpression() (AstNode, bool) {
 
 		return exprNode, true
 
+	// Self expression.
+	case p.isKeyword("self"):
+		return p.tryConsumeSelfExpression()
+
 	// Nil expression.
 	case p.isKeyword("nil"):
 		return p.tryConsumeNilExpression()
@@ -701,6 +705,17 @@ func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
 
 	node := p.startNode(dslshape.NodeTypeNilExpression)
 	p.consumeKeyword("nil")
+	defer p.mustFinishNode()
+	return node, true
+}
+
+func (p *sourceParser) tryConsumeSelfExpression() (AstNode, bool) {
+	if !p.isKeyword("self") {
+		return nil, false
+	}
+
+	node := p.startNode(dslshape.NodeTypeSelfExpression)
+	p.consumeKeyword("self")
 	defer p.mustFinishNode()
 	return node, true
 }
