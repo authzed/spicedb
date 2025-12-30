@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -11,6 +13,7 @@ import (
 // It checks caveat conditions on relationships during iteration and only yields
 // relationships that satisfy the caveat constraints.
 type CaveatIterator struct {
+	id          string
 	subiterator Iterator
 	caveat      *core.ContextualizedCaveat
 }
@@ -21,6 +24,7 @@ var _ Iterator = &CaveatIterator{}
 // and applies the specified caveat conditions.
 func NewCaveatIterator(subiterator Iterator, caveat *core.ContextualizedCaveat) *CaveatIterator {
 	return &CaveatIterator{
+		id:          uuid.NewString(),
 		subiterator: subiterator,
 		caveat:      caveat.CloneVT(),
 	}
@@ -176,6 +180,7 @@ func (c *CaveatIterator) containsCaveatName(expr *core.CaveatExpression, expecte
 
 func (c *CaveatIterator) Clone() Iterator {
 	return &CaveatIterator{
+		id:          uuid.NewString(),
 		subiterator: c.subiterator.Clone(),
 		caveat:      c.caveat.CloneVT(),
 	}
@@ -196,7 +201,11 @@ func (c *CaveatIterator) Subiterators() []Iterator {
 }
 
 func (c *CaveatIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &CaveatIterator{subiterator: newSubs[0], caveat: c.caveat}, nil
+	return &CaveatIterator{id: uuid.NewString(), subiterator: newSubs[0], caveat: c.caveat}, nil
+}
+
+func (c *CaveatIterator) ID() string {
+	return c.id
 }
 
 // buildExplainInfo creates detailed explanation information for the caveat iterator

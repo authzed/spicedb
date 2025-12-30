@@ -3,6 +3,8 @@ package query
 import (
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -13,6 +15,7 @@ import (
 // For example: document->folder->ownerGroup->user -- and we'd like to
 // find all documents (IterResources) that traverse a known folder->ownerGroup relationship
 type FixedIterator struct {
+	id    string
 	paths []Path
 }
 
@@ -20,6 +23,7 @@ var _ Iterator = &FixedIterator{}
 
 func NewFixedIterator(paths ...Path) *FixedIterator {
 	return &FixedIterator{
+		id:    uuid.NewString(),
 		paths: paths,
 	}
 }
@@ -99,6 +103,7 @@ func (f *FixedIterator) Clone() Iterator {
 	copy(clonedPaths, f.paths)
 
 	return &FixedIterator{
+		id:    uuid.NewString(),
 		paths: clonedPaths,
 	}
 }
@@ -109,4 +114,8 @@ func (f *FixedIterator) Subiterators() []Iterator {
 
 func (f *FixedIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf FixedIterator's subiterators")
+}
+
+func (f *FixedIterator) ID() string {
+	return f.id
 }

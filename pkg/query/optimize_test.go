@@ -412,8 +412,12 @@ func TestApplyOptimizations(t *testing.T) {
 		// Both should result in an empty fixed iterator
 		// After removing all empties, we get Union[], which then gets optimized
 		// to an empty fixed iterator by CollapseSingletonUnionAndIntersection
-		require.Equal(t, result1, result2)
-		_, ok := result1.(*FixedIterator)
-		require.True(t, ok, "result1 should be a FixedIterator (empty), got %T", result1)
+		fixed1, ok1 := result1.(*FixedIterator)
+		require.True(t, ok1, "result1 should be a FixedIterator (empty), got %T", result1)
+		fixed2, ok2 := result2.(*FixedIterator)
+		require.True(t, ok2, "result2 should be a FixedIterator (empty), got %T", result2)
+		// Check that both are empty
+		require.Empty(t, fixed1.paths)
+		require.Empty(t, fixed2.paths)
 	})
 }

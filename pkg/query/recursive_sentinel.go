@@ -3,6 +3,8 @@ package query
 import (
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -11,25 +13,20 @@ var _ Iterator = &RecursiveSentinel{}
 // RecursiveSentinel is a sentinel iterator that marks recursion points during iterator tree construction.
 // It acts as a placeholder that will be replaced during execution by RecursiveIterator.
 type RecursiveSentinel struct {
+	id               string
 	definitionName   string
 	relationName     string
 	withSubRelations bool
-	id               string // Cached identifier: "def#rel:bool"
 }
 
 // NewRecursiveSentinel creates a new sentinel marking a recursion point
 func NewRecursiveSentinel(definitionName, relationName string, withSubRelations bool) *RecursiveSentinel {
 	return &RecursiveSentinel{
+		id:               uuid.NewString(),
 		definitionName:   definitionName,
 		relationName:     relationName,
 		withSubRelations: withSubRelations,
-		id:               fmt.Sprintf("%s#%s:%v", definitionName, relationName, withSubRelations),
 	}
-}
-
-// ID returns the unique identifier for this sentinel
-func (r *RecursiveSentinel) ID() string {
-	return r.id
 }
 
 // DefinitionName returns the definition name this sentinel represents
@@ -65,10 +62,10 @@ func (r *RecursiveSentinel) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 // Clone returns a shallow copy of the sentinel
 func (r *RecursiveSentinel) Clone() Iterator {
 	return &RecursiveSentinel{
+		id:               uuid.NewString(),
 		definitionName:   r.definitionName,
 		relationName:     r.relationName,
 		withSubRelations: r.withSubRelations,
-		id:               r.id,
 	}
 }
 
@@ -86,4 +83,8 @@ func (r *RecursiveSentinel) Subiterators() []Iterator {
 
 func (r *RecursiveSentinel) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf RecursiveSentinel's subiterators")
+}
+
+func (r *RecursiveSentinel) ID() string {
+	return r.id
 }

@@ -1,8 +1,13 @@
 package query
 
+import (
+	"github.com/google/uuid"
+)
+
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type Alias struct {
+	id       string
 	relation string
 	subIt    Iterator
 }
@@ -13,6 +18,7 @@ var _ Iterator = &Alias{}
 // to use the specified relation name.
 func NewAlias(relation string, subIt Iterator) *Alias {
 	return &Alias{
+		id:       uuid.NewString(),
 		relation: relation,
 		subIt:    subIt,
 	}
@@ -133,6 +139,7 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 
 func (a *Alias) Clone() Iterator {
 	return &Alias{
+		id:       uuid.NewString(),
 		relation: a.relation,
 		subIt:    a.subIt.Clone(),
 	}
@@ -151,5 +158,9 @@ func (a *Alias) Subiterators() []Iterator {
 }
 
 func (a *Alias) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Alias{relation: a.relation, subIt: newSubs[0]}, nil
+	return &Alias{id: uuid.NewString(), relation: a.relation, subIt: newSubs[0]}, nil
+}
+
+func (a *Alias) ID() string {
+	return a.id
 }

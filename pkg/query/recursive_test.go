@@ -16,7 +16,7 @@ func TestRecursiveSentinel(t *testing.T) {
 	require.Equal(t, "folder", sentinel.DefinitionName())
 	require.Equal(t, "view", sentinel.RelationName())
 	require.False(t, sentinel.WithSubRelations())
-	require.Equal(t, "folder#view:false", sentinel.ID())
+	require.NotEmpty(t, sentinel.ID(), "ID should be a non-empty UUID")
 
 	// Test that sentinel returns empty sequences
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -44,9 +44,10 @@ func TestRecursiveSentinel(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, paths)
 
-	// Test Clone
+	// Test Clone - should generate a new UUID
 	cloned := sentinel.Clone()
-	require.Equal(t, sentinel.ID(), cloned.(*RecursiveSentinel).ID())
+	require.NotEqual(t, sentinel.ID(), cloned.(*RecursiveSentinel).ID())
+	require.NotEmpty(t, cloned.(*RecursiveSentinel).ID())
 }
 
 func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {

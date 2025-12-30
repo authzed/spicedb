@@ -1,6 +1,8 @@
 package query
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -12,6 +14,7 @@ import (
 //
 // Ex: `group.all(member)` - user must be member of ALL groups
 type IntersectionArrow struct {
+	id    string
 	left  Iterator
 	right Iterator
 }
@@ -20,6 +23,7 @@ var _ Iterator = &IntersectionArrow{}
 
 func NewIntersectionArrow(left, right Iterator) *IntersectionArrow {
 	return &IntersectionArrow{
+		id:    uuid.NewString(),
 		left:  left,
 		right: right,
 	}
@@ -146,6 +150,7 @@ func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRe
 
 func (ia *IntersectionArrow) Clone() Iterator {
 	return &IntersectionArrow{
+		id:    uuid.NewString(),
 		left:  ia.left.Clone(),
 		right: ia.right.Clone(),
 	}
@@ -164,5 +169,9 @@ func (ia *IntersectionArrow) Subiterators() []Iterator {
 }
 
 func (ia *IntersectionArrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &IntersectionArrow{left: newSubs[0], right: newSubs[1]}, nil
+	return &IntersectionArrow{id: uuid.NewString(), left: newSubs[0], right: newSubs[1]}, nil
+}
+
+func (ia *IntersectionArrow) ID() string {
+	return ia.id
 }

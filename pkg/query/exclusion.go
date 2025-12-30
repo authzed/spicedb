@@ -1,6 +1,8 @@
 package query
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -8,6 +10,7 @@ import (
 // Exclusion represents the set of relations that are in the mainSet but not in the excluded set.
 // This is equivalent to `permission foo = bar - baz`
 type Exclusion struct {
+	id       string
 	mainSet  Iterator
 	excluded Iterator
 }
@@ -16,6 +19,7 @@ var _ Iterator = &Exclusion{}
 
 func NewExclusion(mainSet, excluded Iterator) *Exclusion {
 	return &Exclusion{
+		id:       uuid.NewString(),
 		mainSet:  mainSet,
 		excluded: excluded,
 	}
@@ -143,6 +147,7 @@ func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (
 
 func (e *Exclusion) Clone() Iterator {
 	return &Exclusion{
+		id:       uuid.NewString(),
 		mainSet:  e.mainSet.Clone(),
 		excluded: e.excluded.Clone(),
 	}
@@ -164,5 +169,9 @@ func (e *Exclusion) Subiterators() []Iterator {
 }
 
 func (e *Exclusion) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Exclusion{mainSet: newSubs[0], excluded: newSubs[1]}, nil
+	return &Exclusion{id: uuid.NewString(), mainSet: newSubs[0], excluded: newSubs[1]}, nil
+}
+
+func (e *Exclusion) ID() string {
+	return e.id
 }

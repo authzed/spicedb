@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -36,12 +37,23 @@ func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject Obj
 	}
 
 	indent := strings.Repeat("  ", t.depth)
+	var idPrefix string
+	if id := it.ID(); id != "" {
+		if len(id) >= 6 {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id[:6])
+		} else {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id)
+		}
+	} else {
+		idPrefix = " " + iteratorType
+	}
+
 	resourceStrs := make([]string, len(resources))
 	for i, r := range resources {
 		resourceStrs[i] = fmt.Sprintf("%s:%s", r.ObjectType, r.ObjectID)
 	}
 	t.traces = append(t.traces, fmt.Sprintf("%s-> %s: check(%s, %s:%s)",
-		indent, iteratorType, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
+		indent, idPrefix, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
 	t.depth++
 	t.stack = append(t.stack, it) // Push iterator pointer onto stack
 }
@@ -61,6 +73,17 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 		iteratorType = explain.Info
 	}
 
+	var idPrefix string
+	if id := it.ID(); id != "" {
+		if len(id) >= 6 {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id[:6])
+		} else {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id)
+		}
+	} else {
+		idPrefix = " " + iteratorType
+	}
+
 	indent := strings.Repeat("  ", t.depth)
 	pathStrs := make([]string, len(paths))
 	for i, p := range paths {
@@ -78,7 +101,7 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 			p.Subject.ObjectType, p.Subject.ObjectID, caveatInfo)
 	}
 	t.traces = append(t.traces, fmt.Sprintf("%s<- %s: returned %d paths: [%s]",
-		indent, iteratorType, len(paths), strings.Join(pathStrs, ", ")))
+		indent, idPrefix, len(paths), strings.Join(pathStrs, ", ")))
 }
 
 // LogStep logs an intermediate step within an iterator, using the iterator pointer to find the correct indentation level
@@ -107,14 +130,38 @@ func (t *TraceLogger) LogStep(it Iterator, step string, data ...any) {
 		iteratorName = explain.Info
 	}
 
+	var idPrefix string
+	if id := it.ID(); id != "" {
+		if len(id) >= 6 {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorName, id[:6])
+		} else {
+			idPrefix = fmt.Sprintf(" %s[%s]", iteratorName, id)
+		}
+	} else {
+		idPrefix = " " + iteratorName
+	}
+
 	indent := strings.Repeat("  ", indentLevel)
 	message := fmt.Sprintf(step, data...)
-	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, iteratorName, message))
+	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, idPrefix, message))
 }
 
 // DumpTrace returns all traces as a string
 func (t *TraceLogger) DumpTrace() string {
 	return strings.Join(t.traces, "\n")
+}
+
+// AnalyzeStats collects the number of operations performed for each iterator as a query takes place.
+type AnalyzeStats struct {
+	CheckCalls           int
+	IterSubjectsCalls    int
+	IterResourcesCalls   int
+	CheckResults         int
+	IterSubjectsResults  int
+	IterResourcesResults int
+	CheckTime            time.Duration
+	IterSubjectsTime     time.Duration
+	IterResourcesTime    time.Duration
 }
 
 // Context represents a single execution of a query.
@@ -128,7 +175,8 @@ type Context struct {
 	CaveatContext     map[string]any
 	CaveatRunner      *caveats.CaveatRunner
 	TraceLogger       *TraceLogger // For debugging iterator execution
-	MaxRecursionDepth int          // Maximum depth for recursive iterators (0 = use default of 10)
+	Analyze           map[string]AnalyzeStats
+	MaxRecursionDepth int // Maximum depth for recursive iterators (0 = use default of 10)
 }
 
 func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
@@ -197,6 +245,75 @@ func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq 
 	}
 }
 
+// wrapPathSeqForAnalysis wraps a PathSeq to count results and track timing if analysis is enabled
+func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType string) PathSeq {
+	if ctx.Analyze == nil || it == nil {
+		return pathSeq
+	}
+
+	iterID := it.ID()
+
+	// Initialize stats for this iterator if not present
+	if _, exists := ctx.Analyze[iterID]; !exists {
+		ctx.Analyze[iterID] = AnalyzeStats{}
+	}
+
+	// Increment call counter based on operation type
+	stats := ctx.Analyze[iterID]
+	switch opType {
+	case "Check":
+		stats.CheckCalls++
+	case "IterSubjects":
+		stats.IterSubjectsCalls++
+	case "IterResources":
+		stats.IterResourcesCalls++
+	}
+	ctx.Analyze[iterID] = stats
+
+	// Wrap the PathSeq to count results and track timing
+	return func(yield func(Path, error) bool) {
+		startTime := time.Now()
+		resultCount := 0
+
+		for path, err := range pathSeq {
+			if err == nil {
+				resultCount++
+			}
+			if !yield(path, err) {
+				// Record partial results and timing before early exit
+				elapsed := time.Since(startTime)
+				ctx.recordAnalysisResults(iterID, opType, resultCount, elapsed)
+				return
+			}
+		}
+
+		// Record final result count and timing
+		elapsed := time.Since(startTime)
+		ctx.recordAnalysisResults(iterID, opType, resultCount, elapsed)
+	}
+}
+
+// recordAnalysisResults updates the result count and timing for an iterator
+func (ctx *Context) recordAnalysisResults(iterID, opType string, count int, elapsed time.Duration) {
+	if ctx.Analyze == nil {
+		return
+	}
+
+	stats := ctx.Analyze[iterID]
+	switch opType {
+	case "Check":
+		stats.CheckResults += count
+		stats.CheckTime += elapsed
+	case "IterSubjects":
+		stats.IterSubjectsResults += count
+		stats.IterSubjectsTime += elapsed
+	case "IterResources":
+		stats.IterResourcesResults += count
+		stats.IterResourcesTime += elapsed
+	}
+	ctx.Analyze[iterID] = stats
+}
+
 // Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
 // any of the `resources` are connected to `subject`.
 // Returns the sequence of matching paths, if they exist, at most `len(resources)`.
@@ -212,7 +329,9 @@ func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRela
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "Check")
+	return pathSeq, nil
 }
 
 // IterSubjects returns a sequence of all the paths in this set that match the given resource.
@@ -228,7 +347,9 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object) (PathSeq, error) 
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "IterSubjects")
+	return pathSeq, nil
 }
 
 // IterResources returns a sequence of all the relations in this set that match the given subject.
@@ -244,7 +365,9 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation) (PathS
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "IterResources")
+	return pathSeq, nil
 }
 
 // Executor as chooses how to proceed given an iterator -- perhaps in parallel, perhaps by RPC, etc -- and chooses how to process iteration from the subtree.
