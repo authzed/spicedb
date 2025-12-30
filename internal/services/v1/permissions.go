@@ -900,7 +900,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	return nil
 }
 
-func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.CaveatReader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
+func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.LegacySchemaReader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 	if foundSubject.GetCaveatExpression() != nil {

@@ -431,7 +431,7 @@ func TestDefinition(t *testing.T) {
 						return err
 					}
 				}
-				cw := rwt.(datastore.CaveatStorer)
+				cw := rwt.(datastore.LegacySchemaWriter)
 				return cw.WriteCaveats(ctx, tc.caveats)
 			})
 			require.NoError(err)

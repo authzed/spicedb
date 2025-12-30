@@ -38,7 +38,7 @@ func RunSingleCaveatExpression(
 	ts *caveattypes.TypeSet,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.CaveatReader,
+	reader datastore.LegacySchemaReader,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
 	runner := NewCaveatRunner(ts)
@@ -66,7 +66,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 	ctx context.Context,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.CaveatReader,
+	reader datastore.LegacySchemaReader,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
 	ctx, span := tracer.Start(ctx, "RunCaveatExpression")
@@ -82,7 +82,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 
 // PopulateCaveatDefinitionsForExpr populates the CaveatRunner's cache with the definitions
 // referenced in the given caveat expression.
-func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader datastore.CaveatReader) error {
+func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader datastore.LegacySchemaReader) error {
 	ctx, span := tracer.Start(ctx, "PopulateCaveatDefinitions")
 	defer span.End()
 
