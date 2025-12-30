@@ -260,3 +260,7 @@ func (rr *strictReadReplicatedReader) LookupCounters(ctx context.Context) ([]dat
 	}
 	return counters, err
 }
+
+func (rr *strictReadReplicatedReader) SchemaReader() (datastore.SchemaReader, error) {
+	return rr.replica.SnapshotReader(rr.rev).SchemaReader()
+}

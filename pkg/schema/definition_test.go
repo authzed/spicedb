@@ -269,7 +269,7 @@ func TestDefinition(t *testing.T) {
 				ns.Namespace("user"),
 			},
 			nil,
-			"could not lookup caveat `unknown` for relation `viewer`: caveat with name `unknown` not found",
+			"could not lookup caveat `unknown` for relation `viewer`: caveat `unknown` not found",
 		},
 		{
 			"valid caveat",

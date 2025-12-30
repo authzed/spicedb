@@ -212,6 +212,14 @@ func (rr *checkingStableReader) LookupCounters(ctx context.Context) ([]datastore
 	return rr.chosenReader.LookupCounters(ctx)
 }
 
+func (rr *checkingStableReader) SchemaReader() (datastore.SchemaReader, error) {
+	if err := rr.determineSource(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return rr.chosenReader.SchemaReader()
+}
+
 // determineSource will choose the replica or primary to read from based on the revision, by checking
 // if the replica contains the revision. If the replica does not contain the revision, the primary
 // will be used instead.

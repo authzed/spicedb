@@ -291,7 +291,7 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(r.Time()))}
 	}
 	executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
-	return spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
+	return &spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
 }
 
 func (sd *spannerDatastore) MetricsID() (string, error) {
@@ -355,7 +355,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 		}
 
 		executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
-		rwt := spannerReadWriteTXN{
+		rwt := &spannerReadWriteTXN{
 			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
 			spannerRWT,
 		}

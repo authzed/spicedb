@@ -207,12 +207,20 @@ func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, rev
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
 
 	// Load namespace and relation from the datastore
-	ns, _, err := ds.LegacyReadNamespaceByName(ctx, nsName)
+	schemaReader, err := ds.SchemaReader()
 	if err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
+	revDef, found, err := schemaReader.LookupTypeDefByName(ctx, nsName)
+	if err != nil {
+		return nil, rewriteNamespaceError(err)
+	}
+	if !found {
+		return nil, rewriteNamespaceError(datastore.NewNamespaceNotFoundErr(nsName))
+	}
+	ns := revDef.Definition
 
-	return ns, err
+	return ns, nil
 }
 
 func (ld *localDispatcher) parseRevision(ctx context.Context, s string) (datastore.Revision, error) {

@@ -99,6 +99,10 @@ func (r *definitionCachingReader) LegacyLookupCaveatsWithNames(
 		estimatedCaveatDefinitionSize)
 }
 
+func (r *definitionCachingReader) SchemaReader() (datastore.SchemaReader, error) {
+	return r.Reader.SchemaReader()
+}
+
 func listAndCache[T schemaDefinition](
 	ctx context.Context,
 	r *definitionCachingReader,

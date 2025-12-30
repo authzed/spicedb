@@ -518,6 +518,7 @@ type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 // Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	LegacySchemaReader
+	SchemaReadable
 	CounterReader
 
 	// QueryRelationships reads relationships, starting from the resource side.

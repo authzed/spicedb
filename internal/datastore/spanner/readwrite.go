@@ -434,4 +434,4 @@ func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.Bulk
 	return numLoaded, nil
 }
 
-var _ datastore.ReadWriteTransaction = spannerReadWriteTXN{}
+var _ datastore.ReadWriteTransaction = (*spannerReadWriteTXN)(nil)

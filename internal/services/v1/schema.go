@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -25,7 +23,6 @@ import (
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -92,41 +89,18 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	reader := ds.SnapshotReader(headRevision)
 
-	nsDefs, err := reader.LegacyListAllNamespaces(ctx)
+	schemaReader, err := reader.SchemaReader()
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	caveatDefs, err := reader.LegacyListAllCaveats(ctx)
-	if err != nil {
-		return nil, ss.rewriteError(ctx, err)
-	}
-
-	if len(nsDefs) == 0 {
-		return nil, status.Errorf(codes.NotFound, "No schema has been defined; please call WriteSchema to start")
-	}
-
-	schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(nsDefs)+len(caveatDefs))
-	for _, caveatDef := range caveatDefs {
-		schemaDefinitions = append(schemaDefinitions, caveatDef.Definition)
-	}
-
-	for _, nsDef := range nsDefs {
-		schemaDefinitions = append(schemaDefinitions, nsDef.Definition)
-	}
-
-	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)
-	if err != nil {
-		return nil, ss.rewriteError(ctx, err)
-	}
-
-	dispatchCount, err := genutil.EnsureUInt32(len(nsDefs) + len(caveatDefs))
+	schemaText, err := schemaReader.SchemaText()
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: dispatchCount,
+		DispatchCount: 1,
 	})
 
 	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, ds)
@@ -307,14 +281,18 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		}
 	}
 
-	allNamespaces, err := ds.LegacyListAllNamespaces(ctx)
+	schemaReader, err := ds.SchemaReader()
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+	typeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	allDefinitions := make([]*core.NamespaceDefinition, 0, len(allNamespaces))
-	for _, ns := range allNamespaces {
-		allDefinitions = append(allDefinitions, ns.Definition)
+	allDefinitions := make([]*core.NamespaceDefinition, 0, len(typeDefs))
+	for _, typeDef := range typeDefs {
+		allDefinitions = append(allDefinitions, typeDef.Definition)
 	}
 
 	rg := vdef.Reachability()

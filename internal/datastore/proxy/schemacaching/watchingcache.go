@@ -627,3 +627,7 @@ func (r *watchingCachingReader) LegacyLookupCaveatsWithNames(
 ) ([]datastore.RevisionedCaveat, error) {
 	return r.p.caveatCache.readDefinitionsWithNames(ctx, caveatNames, r.rev)
 }
+
+func (r *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
+	return r.Reader.SchemaReader()
+}
