@@ -104,7 +104,7 @@ func (r *DatastoreResolver) LookupCaveat(ctx context.Context, name string) (*Cav
 		return nil, asTypeError(NewCaveatNotFoundErr(name))
 	}
 
-	cr, ok := r.ds.(datastore.CaveatReader)
+	cr, ok := r.ds.(datastore.LegacySchemaReader)
 	if !ok {
 		return nil, errors.New("caveats are not supported on this datastore type")
 	}
