@@ -479,7 +479,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.True(r.IsReady)
 	firstWrite, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write basic namespaces.
-		return rwt.WriteNamespaces(ctx, namespace.Namespace(
+		return rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
 		), namespace.Namespace("user"))
@@ -501,7 +501,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Replace the namespace with a new one.
 	updateTwoNamespaces, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -675,7 +675,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.True(r.IsReady)
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, namespace.Namespace(
+		return rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
 		), namespace.Namespace("user"))
@@ -754,7 +754,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.True(r.IsReady)
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, namespace.Namespace(
+		return rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
 		), namespace.Namespace("user"))
@@ -1078,7 +1078,7 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	require.True(r.IsReady)
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, namespace.Namespace(
+		return rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
 		), namespace.Namespace("user"))
@@ -1153,7 +1153,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write basic namespaces.
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, namespace.Namespace(
+		return rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
 		), namespace.Namespace("user"))
@@ -1367,7 +1367,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	require.True(r.IsReady)
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, namespace.Namespace(
+		return rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
 		), namespace.Namespace("user"))
@@ -1426,7 +1426,7 @@ func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
 
 	// Perform basic operation
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, namespace.Namespace("resource"))
+		return rwt.LegacyWriteNamespaces(ctx, namespace.Namespace("resource"))
 	})
 	require.NoError(err)
 
@@ -1533,7 +1533,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 	ctx := context.Background()
 	for i := 0; i < 1000; i++ {
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			err := rwt.WriteNamespaces(ctx, namespace.Namespace(
+			err := rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
 				fmt.Sprintf("resource%d", i),
 				namespace.MustRelation("reader", nil)))
 			if err != nil {

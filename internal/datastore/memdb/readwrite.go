@@ -272,7 +272,7 @@ func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, name string,
 	return tx.Insert(tableCounters, counter)
 }
 
-func (rwt *memdbReadWriteTx) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
@@ -298,7 +298,7 @@ func (rwt *memdbReadWriteTx) WriteNamespaces(_ context.Context, newConfigs ...*c
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}

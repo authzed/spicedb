@@ -1074,7 +1074,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 
 			// The stream has terminated because we're awaiting namespace and/or caveat information
 			if len(adapter.awaitingNamespaces) > 0 {
-				nsDefs, err := rwt.LookupNamespacesWithNames(stream.Context(), adapter.awaitingNamespaces)
+				nsDefs, err := rwt.LegacyLookupNamespacesWithNames(stream.Context(), adapter.awaitingNamespaces)
 				if err != nil {
 					return err
 				}
@@ -1091,7 +1091,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			}
 
 			if len(adapter.awaitingCaveats) > 0 {
-				caveats, err := rwt.LookupCaveatsWithNames(stream.Context(), adapter.awaitingCaveats)
+				caveats, err := rwt.LegacyLookupCaveatsWithNames(stream.Context(), adapter.awaitingCaveats)
 				if err != nil {
 					return err
 				}
@@ -1157,7 +1157,7 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 
 	reader := ds.SnapshotReader(atRevision)
 
-	namespaces, err := reader.ListAllNamespaces(ctx)
+	namespaces, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}

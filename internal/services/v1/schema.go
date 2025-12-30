@@ -92,12 +92,12 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	reader := ds.SnapshotReader(headRevision)
 
-	nsDefs, err := reader.ListAllNamespaces(ctx)
+	nsDefs, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	caveatDefs, err := reader.ListAllCaveats(ctx)
+	caveatDefs, err := reader.LegacyListAllCaveats(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -307,7 +307,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		}
 	}
 
-	allNamespaces, err := ds.ListAllNamespaces(ctx)
+	allNamespaces, err := ds.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

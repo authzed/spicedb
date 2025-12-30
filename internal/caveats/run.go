@@ -107,7 +107,8 @@ func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, ex
 	}
 
 	// Bulk lookup all of the referenced caveat definitions.
-	caveatDefs, err := reader.LookupCaveatsWithNames(ctx, caveatNames.AsSlice())
+	// TODO(jschorr): Remove the local population here once the general schema cache is in place.
+	caveatDefs, err := reader.LegacyLookupCaveatsWithNames(ctx, caveatNames.AsSlice())
 	if err != nil {
 		return err
 	}

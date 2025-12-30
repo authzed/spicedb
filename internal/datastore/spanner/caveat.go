@@ -14,7 +14,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (sr spannerReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	caveatKey := spanner.Key{name}
 	row, err := sr.txSource().ReadRow(ctx, tableCaveat, caveatKey, []string{colCaveatDefinition, colCaveatTS})
 	if err != nil {
@@ -36,11 +36,11 @@ func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*cor
 	return loaded, revisions.NewForTime(updated), nil
 }
 
-func (sr spannerReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (sr spannerReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return sr.listCaveats(ctx, nil)
 }
 
-func (sr spannerReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (sr spannerReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	if len(caveatNames) == 0 {
 		return nil, nil
 	}
@@ -89,7 +89,7 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 	return caveats, nil
 }
 
-func (rwt spannerReadWriteTXN) WriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt spannerReadWriteTXN) LegacyWriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
 	names := map[string]struct{}{}
 	mutations := make([]*spanner.Mutation, 0, len(caveats))
 	for _, caveat := range caveats {
@@ -112,7 +112,7 @@ func (rwt spannerReadWriteTXN) WriteCaveats(_ context.Context, caveats []*core.C
 	return rwt.spannerRWT.BufferWrite(mutations)
 }
 
-func (rwt spannerReadWriteTXN) DeleteCaveats(_ context.Context, names []string) error {
+func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(_ context.Context, names []string) error {
 	keys := make([]spanner.Key, 0, len(names))
 	for _, n := range names {
 		keys = append(keys, spanner.Key{n})

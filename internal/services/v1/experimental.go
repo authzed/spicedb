@@ -266,7 +266,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 
 			// The stream has terminated because we're awaiting namespace and/or caveat information
 			if len(adapter.awaitingNamespaces) > 0 {
-				nsDefs, err := rwt.LookupNamespacesWithNames(stream.Context(), adapter.awaitingNamespaces)
+				nsDefs, err := rwt.LegacyLookupNamespacesWithNames(stream.Context(), adapter.awaitingNamespaces)
 				if err != nil {
 					return err
 				}
@@ -283,7 +283,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			}
 
 			if len(adapter.awaitingCaveats) > 0 {
-				caveats, err := rwt.LookupCaveatsWithNames(stream.Context(), adapter.awaitingCaveats)
+				caveats, err := rwt.LegacyLookupCaveatsWithNames(stream.Context(), adapter.awaitingCaveats)
 				if err != nil {
 					return err
 				}
@@ -348,7 +348,7 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 
 	reader := ds.SnapshotReader(atRevision)
 
-	namespaces, err := reader.ListAllNamespaces(ctx)
+	namespaces, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -609,7 +609,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		}
 	}
 
-	allNamespaces, err := ds.ListAllNamespaces(ctx)
+	allNamespaces, err := ds.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

@@ -111,28 +111,28 @@ func (r *indexcheckingReader) LookupCounters(ctx context.Context) ([]datastore.R
 	return r.delegate.LookupCounters(ctx)
 }
 
-func (r *indexcheckingReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	return r.delegate.ReadCaveatByName(ctx, name)
+func (r *indexcheckingReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return r.delegate.LegacyReadCaveatByName(ctx, name)
 }
 
-func (r *indexcheckingReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	return r.delegate.LookupCaveatsWithNames(ctx, caveatNames)
+func (r *indexcheckingReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	return r.delegate.LegacyLookupCaveatsWithNames(ctx, caveatNames)
 }
 
-func (r *indexcheckingReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	return r.delegate.ListAllCaveats(ctx)
+func (r *indexcheckingReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return r.delegate.LegacyListAllCaveats(ctx)
 }
 
-func (r *indexcheckingReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	return r.delegate.ListAllNamespaces(ctx)
+func (r *indexcheckingReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return r.delegate.LegacyListAllNamespaces(ctx)
 }
 
-func (r *indexcheckingReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	return r.delegate.LookupNamespacesWithNames(ctx, nsNames)
+func (r *indexcheckingReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+	return r.delegate.LegacyLookupNamespacesWithNames(ctx, nsNames)
 }
 
-func (r *indexcheckingReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	return r.delegate.ReadNamespaceByName(ctx, nsName)
+func (r *indexcheckingReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return r.delegate.LegacyReadNamespaceByName(ctx, nsName)
 }
 
 func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) error {
@@ -198,24 +198,24 @@ func (rwt *indexcheckingRWT) StoreCounterValue(ctx context.Context, name string,
 	return rwt.delegate.StoreCounterValue(ctx, name, value, computedAtRevision)
 }
 
-func (rwt *indexcheckingRWT) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	return rwt.delegate.WriteCaveats(ctx, caveats)
+func (rwt *indexcheckingRWT) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	return rwt.delegate.LegacyWriteCaveats(ctx, caveats)
 }
 
-func (rwt *indexcheckingRWT) DeleteCaveats(ctx context.Context, names []string) error {
-	return rwt.delegate.DeleteCaveats(ctx, names)
+func (rwt *indexcheckingRWT) LegacyDeleteCaveats(ctx context.Context, names []string) error {
+	return rwt.delegate.LegacyDeleteCaveats(ctx, names)
 }
 
 func (rwt *indexcheckingRWT) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
 	return rwt.delegate.WriteRelationships(ctx, mutations)
 }
 
-func (rwt *indexcheckingRWT) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
-	return rwt.delegate.WriteNamespaces(ctx, newConfigs...)
+func (rwt *indexcheckingRWT) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	return rwt.delegate.LegacyWriteNamespaces(ctx, newConfigs...)
 }
 
-func (rwt *indexcheckingRWT) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
-	return rwt.delegate.DeleteNamespaces(ctx, nsNames, delOption)
+func (rwt *indexcheckingRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
 }
 
 func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {

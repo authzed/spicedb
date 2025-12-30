@@ -355,7 +355,7 @@ func caveatVals(r tuple.Relationship) []any {
 	return vals
 }
 
-func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt spannerReadWriteTXN) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	mutations := make([]*spanner.Mutation, 0, len(newConfigs))
 	for _, newConfig := range newConfigs {
 		serialized, err := newConfig.MarshalVT()
@@ -373,12 +373,12 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 	return rwt.spannerRWT.BufferWrite(mutations)
 }
 
-func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
 
-	namespaces, err := rwt.LookupNamespacesWithNames(ctx, nsNames)
+	namespaces, err := rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}

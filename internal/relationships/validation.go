@@ -102,7 +102,7 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 	var referencedCaveatMap map[string]*core.CaveatDefinition
 
 	if !referencedNamespaceNames.IsEmpty() {
-		foundNamespaces, err := reader.LookupNamespacesWithNames(ctx, referencedNamespaceNames.AsSlice())
+		foundNamespaces, err := reader.LegacyLookupNamespacesWithNames(ctx, referencedNamespaceNames.AsSlice())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -120,7 +120,7 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 	}
 
 	if !referencedCaveatNamesWithContext.IsEmpty() {
-		foundCaveats, err := reader.LookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
+		foundCaveats, err := reader.LegacyLookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
 		if err != nil {
 			return nil, nil, err
 		}

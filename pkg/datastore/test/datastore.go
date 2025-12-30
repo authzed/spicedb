@@ -269,7 +269,7 @@ func setupDatastore(ds datastore.Datastore, require *require.Assertions) datasto
 	ctx := context.Background()
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, testGroupNS, testResourceNS, testUserNS)
+		return rwt.LegacyWriteNamespaces(ctx, testGroupNS, testResourceNS, testUserNS)
 	})
 	require.NoError(err)
 

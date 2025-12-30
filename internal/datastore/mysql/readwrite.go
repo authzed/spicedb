@@ -417,7 +417,7 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 	return uintRowsAffected, false, nil
 }
 
-func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {
+func (rwt *mysqlReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {
 	deletedNamespaceClause := sq.Or{}
 	writeQuery := rwt.WriteNamespaceQuery
 
@@ -457,7 +457,7 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *mysqlReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}

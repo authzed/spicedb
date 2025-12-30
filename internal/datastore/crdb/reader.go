@@ -198,7 +198,7 @@ func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName str
 	return counters, nil
 }
 
-func (cr *crdbReader) ReadNamespaceByName(
+func (cr *crdbReader) LegacyReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
@@ -213,7 +213,7 @@ func (cr *crdbReader) ReadNamespaceByName(
 	return config, revisions.NewHLCForTime(timestamp), nil
 }
 
-func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (cr *crdbReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	addFromToQuery := func(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
 		return cr.addFromToQuery(query, tableName, noIndexHint)
 	}
@@ -226,7 +226,7 @@ func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revisi
 	return nsDefs, nil
 }
 
-func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (cr *crdbReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}

@@ -77,7 +77,7 @@ func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (
 		return nil, false, asTypeError(NewDefinitionNotFoundErr(name))
 	}
 
-	ns, _, err := r.ds.ReadNamespaceByName(ctx, name)
+	ns, _, err := r.ds.LegacyReadNamespaceByName(ctx, name)
 	return ns, true, err
 }
 
@@ -109,6 +109,6 @@ func (r *DatastoreResolver) LookupCaveat(ctx context.Context, name string) (*Cav
 		return nil, errors.New("caveats are not supported on this datastore type")
 	}
 
-	caveatDef, _, err := cr.ReadCaveatByName(ctx, name)
+	caveatDef, _, err := cr.LegacyReadCaveatByName(ctx, name)
 	return caveatDef, err
 }

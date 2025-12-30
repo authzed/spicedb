@@ -357,32 +357,32 @@ func (r relationshipIntegrityReader) CountRelationships(ctx context.Context, nam
 	return r.wrapped.CountRelationships(ctx, name)
 }
 
-func (r relationshipIntegrityReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
-	return r.wrapped.ListAllCaveats(ctx)
+func (r relationshipIntegrityReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+	return r.wrapped.LegacyListAllCaveats(ctx)
 }
 
-func (r relationshipIntegrityReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
-	return r.wrapped.ListAllNamespaces(ctx)
+func (r relationshipIntegrityReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+	return r.wrapped.LegacyListAllNamespaces(ctx)
 }
 
-func (r relationshipIntegrityReader) LookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
-	return r.wrapped.LookupCaveatsWithNames(ctx, names)
+func (r relationshipIntegrityReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+	return r.wrapped.LegacyLookupCaveatsWithNames(ctx, names)
 }
 
 func (r relationshipIntegrityReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
 	return r.wrapped.LookupCounters(ctx)
 }
 
-func (r relationshipIntegrityReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
-	return r.wrapped.LookupNamespacesWithNames(ctx, nsNames)
+func (r relationshipIntegrityReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+	return r.wrapped.LegacyLookupNamespacesWithNames(ctx, nsNames)
 }
 
-func (r relationshipIntegrityReader) ReadCaveatByName(ctx context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
-	return r.wrapped.ReadCaveatByName(ctx, name)
+func (r relationshipIntegrityReader) LegacyReadCaveatByName(ctx context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
+	return r.wrapped.LegacyReadCaveatByName(ctx, name)
 }
 
-func (r relationshipIntegrityReader) ReadNamespaceByName(ctx context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
-	return r.wrapped.ReadNamespaceByName(ctx, nsName)
+func (r relationshipIntegrityReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+	return r.wrapped.LegacyReadNamespaceByName(ctx, nsName)
 }
 
 type relationshipIntegrityTx struct {
