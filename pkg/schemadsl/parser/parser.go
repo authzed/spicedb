@@ -663,7 +663,7 @@ func (p *sourceParser) tryConsumeBaseExpression() (AstNode, bool) {
 
 		return exprNode, true
 
-		// Self expression.
+	// Self expression.
 	case p.isKeyword("self"):
 		return p.tryConsumeSelfExpression()
 

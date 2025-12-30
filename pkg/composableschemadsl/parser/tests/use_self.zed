@@ -1,4 +1,6 @@
-definition resource {    
+use self
+
+definition resource {
     permission empty = self
     permission another = foo + self + bar
     permission third = (a + b + self) - c - self

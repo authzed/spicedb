@@ -84,6 +84,7 @@ var keywords = map[string]struct{}{
 	"partial":    {},
 	"use":        {},
 	"expiration": {},
+	// NOTE: "self" starts as an identifier
 	// Parking lot for future keywords
 	"and":     {},
 	"or":      {},

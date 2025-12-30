@@ -1,5 +1,6 @@
 ---
 schema: >-
+  use self
   definition user {
     relation related: user
     permission me_or_related = related + self
