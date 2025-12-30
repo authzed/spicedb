@@ -34,13 +34,13 @@ func TestRWOperationErrors(t *testing.T) {
 	ctx := t.Context()
 
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, []string{"fake"}, datastore.DeleteNamespacesAndRelationships)
+		return rwt.LegacyDeleteNamespaces(ctx, []string{"fake"}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.ErrorAs(err, &datastore.ReadOnlyError{})
 	require.Equal(datastore.NoRevision, rev)
 
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{Name: "user"})
+		return rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{Name: "user"})
 	})
 	require.ErrorAs(err, &datastore.ReadOnlyError{})
 	require.Equal(datastore.NoRevision, rev)
@@ -132,9 +132,9 @@ func TestSnapshotReaderPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := t.Context()
 
-	reader.On("ReadNamespaceByName", "fake").Return(nil, expectedRevision, nil).Times(1)
+	reader.On("LegacyReadNamespaceByName", "fake").Return(nil, expectedRevision, nil).Times(1)
 
-	_, rev, err := ds.SnapshotReader(expectedRevision).ReadNamespaceByName(ctx, "fake")
+	_, rev, err := ds.SnapshotReader(expectedRevision).LegacyReadNamespaceByName(ctx, "fake")
 	require.NoError(err)
 	require.True(expectedRevision.Equal(rev))
 	delegate.AssertExpectations(t)

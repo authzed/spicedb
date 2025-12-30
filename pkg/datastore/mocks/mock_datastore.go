@@ -112,49 +112,96 @@ func (mr *MockReaderMockRecorder) CountRelationships(ctx, name any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountRelationships", reflect.TypeOf((*MockReader)(nil).CountRelationships), ctx, name)
 }
 
-// ListAllCaveats mocks base method.
-func (m *MockReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+// LegacyListAllCaveats mocks base method.
+func (m *MockReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllCaveats", ctx)
+	ret := m.ctrl.Call(m, "LegacyListAllCaveats", ctx)
 	ret0, _ := ret[0].([]datastore.RevisionedCaveat)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListAllCaveats indicates an expected call of ListAllCaveats.
-func (mr *MockReaderMockRecorder) ListAllCaveats(ctx any) *gomock.Call {
+// LegacyListAllCaveats indicates an expected call of LegacyListAllCaveats.
+func (mr *MockReaderMockRecorder) LegacyListAllCaveats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllCaveats", reflect.TypeOf((*MockReader)(nil).ListAllCaveats), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyListAllCaveats", reflect.TypeOf((*MockReader)(nil).LegacyListAllCaveats), ctx)
 }
 
-// ListAllNamespaces mocks base method.
-func (m *MockReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+// LegacyListAllNamespaces mocks base method.
+func (m *MockReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllNamespaces", ctx)
+	ret := m.ctrl.Call(m, "LegacyListAllNamespaces", ctx)
 	ret0, _ := ret[0].([]datastore.RevisionedNamespace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListAllNamespaces indicates an expected call of ListAllNamespaces.
-func (mr *MockReaderMockRecorder) ListAllNamespaces(ctx any) *gomock.Call {
+// LegacyListAllNamespaces indicates an expected call of LegacyListAllNamespaces.
+func (mr *MockReaderMockRecorder) LegacyListAllNamespaces(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllNamespaces", reflect.TypeOf((*MockReader)(nil).ListAllNamespaces), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyListAllNamespaces", reflect.TypeOf((*MockReader)(nil).LegacyListAllNamespaces), ctx)
 }
 
-// LookupCaveatsWithNames mocks base method.
-func (m *MockReader) LookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+// LegacyLookupCaveatsWithNames mocks base method.
+func (m *MockReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupCaveatsWithNames", ctx, names)
+	ret := m.ctrl.Call(m, "LegacyLookupCaveatsWithNames", ctx, names)
 	ret0, _ := ret[0].([]datastore.RevisionedCaveat)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// LookupCaveatsWithNames indicates an expected call of LookupCaveatsWithNames.
-func (mr *MockReaderMockRecorder) LookupCaveatsWithNames(ctx, names any) *gomock.Call {
+// LegacyLookupCaveatsWithNames indicates an expected call of LegacyLookupCaveatsWithNames.
+func (mr *MockReaderMockRecorder) LegacyLookupCaveatsWithNames(ctx, names any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupCaveatsWithNames", reflect.TypeOf((*MockReader)(nil).LookupCaveatsWithNames), ctx, names)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyLookupCaveatsWithNames", reflect.TypeOf((*MockReader)(nil).LegacyLookupCaveatsWithNames), ctx, names)
+}
+
+// LegacyLookupNamespacesWithNames mocks base method.
+func (m *MockReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyLookupNamespacesWithNames", ctx, nsNames)
+	ret0, _ := ret[0].([]datastore.RevisionedNamespace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LegacyLookupNamespacesWithNames indicates an expected call of LegacyLookupNamespacesWithNames.
+func (mr *MockReaderMockRecorder) LegacyLookupNamespacesWithNames(ctx, nsNames any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyLookupNamespacesWithNames", reflect.TypeOf((*MockReader)(nil).LegacyLookupNamespacesWithNames), ctx, nsNames)
+}
+
+// LegacyReadCaveatByName mocks base method.
+func (m *MockReader) LegacyReadCaveatByName(ctx context.Context, name string) (*corev1.CaveatDefinition, datastore.Revision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyReadCaveatByName", ctx, name)
+	ret0, _ := ret[0].(*corev1.CaveatDefinition)
+	ret1, _ := ret[1].(datastore.Revision)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// LegacyReadCaveatByName indicates an expected call of LegacyReadCaveatByName.
+func (mr *MockReaderMockRecorder) LegacyReadCaveatByName(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyReadCaveatByName", reflect.TypeOf((*MockReader)(nil).LegacyReadCaveatByName), ctx, name)
+}
+
+// LegacyReadNamespaceByName mocks base method.
+func (m *MockReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*corev1.NamespaceDefinition, datastore.Revision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyReadNamespaceByName", ctx, nsName)
+	ret0, _ := ret[0].(*corev1.NamespaceDefinition)
+	ret1, _ := ret[1].(datastore.Revision)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// LegacyReadNamespaceByName indicates an expected call of LegacyReadNamespaceByName.
+func (mr *MockReaderMockRecorder) LegacyReadNamespaceByName(ctx, nsName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyReadNamespaceByName", reflect.TypeOf((*MockReader)(nil).LegacyReadNamespaceByName), ctx, nsName)
 }
 
 // LookupCounters mocks base method.
@@ -170,21 +217,6 @@ func (m *MockReader) LookupCounters(ctx context.Context) ([]datastore.Relationsh
 func (mr *MockReaderMockRecorder) LookupCounters(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupCounters", reflect.TypeOf((*MockReader)(nil).LookupCounters), ctx)
-}
-
-// LookupNamespacesWithNames mocks base method.
-func (m *MockReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupNamespacesWithNames", ctx, nsNames)
-	ret0, _ := ret[0].([]datastore.RevisionedNamespace)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LookupNamespacesWithNames indicates an expected call of LookupNamespacesWithNames.
-func (mr *MockReaderMockRecorder) LookupNamespacesWithNames(ctx, nsNames any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupNamespacesWithNames", reflect.TypeOf((*MockReader)(nil).LookupNamespacesWithNames), ctx, nsNames)
 }
 
 // QueryRelationships mocks base method.
@@ -205,38 +237,6 @@ func (mr *MockReaderMockRecorder) QueryRelationships(ctx, filter any, arg2 ...an
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, filter}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRelationships", reflect.TypeOf((*MockReader)(nil).QueryRelationships), varargs...)
-}
-
-// ReadCaveatByName mocks base method.
-func (m *MockReader) ReadCaveatByName(ctx context.Context, name string) (*corev1.CaveatDefinition, datastore.Revision, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadCaveatByName", ctx, name)
-	ret0, _ := ret[0].(*corev1.CaveatDefinition)
-	ret1, _ := ret[1].(datastore.Revision)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// ReadCaveatByName indicates an expected call of ReadCaveatByName.
-func (mr *MockReaderMockRecorder) ReadCaveatByName(ctx, name any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadCaveatByName", reflect.TypeOf((*MockReader)(nil).ReadCaveatByName), ctx, name)
-}
-
-// ReadNamespaceByName mocks base method.
-func (m *MockReader) ReadNamespaceByName(ctx context.Context, nsName string) (*corev1.NamespaceDefinition, datastore.Revision, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadNamespaceByName", ctx, nsName)
-	ret0, _ := ret[0].(*corev1.NamespaceDefinition)
-	ret1, _ := ret[1].(datastore.Revision)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// ReadNamespaceByName indicates an expected call of ReadNamespaceByName.
-func (mr *MockReaderMockRecorder) ReadNamespaceByName(ctx, nsName any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadNamespaceByName", reflect.TypeOf((*MockReader)(nil).ReadNamespaceByName), ctx, nsName)
 }
 
 // ReverseQueryRelationships mocks base method.
@@ -313,34 +313,6 @@ func (mr *MockReadWriteTransactionMockRecorder) CountRelationships(ctx, name any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).CountRelationships), ctx, name)
 }
 
-// DeleteCaveats mocks base method.
-func (m *MockReadWriteTransaction) DeleteCaveats(ctx context.Context, names []string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteCaveats", ctx, names)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteCaveats indicates an expected call of DeleteCaveats.
-func (mr *MockReadWriteTransactionMockRecorder) DeleteCaveats(ctx, names any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCaveats", reflect.TypeOf((*MockReadWriteTransaction)(nil).DeleteCaveats), ctx, names)
-}
-
-// DeleteNamespaces mocks base method.
-func (m *MockReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteNamespaces", ctx, nsNames, delOption)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteNamespaces indicates an expected call of DeleteNamespaces.
-func (mr *MockReadWriteTransactionMockRecorder) DeleteNamespaces(ctx, nsNames, delOption any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNamespaces", reflect.TypeOf((*MockReadWriteTransaction)(nil).DeleteNamespaces), ctx, nsNames, delOption)
-}
-
 // DeleteRelationships mocks base method.
 func (m *MockReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, arg2 ...options.DeleteOptionsOption) (uint64, bool, error) {
 	m.ctrl.T.Helper()
@@ -362,49 +334,157 @@ func (mr *MockReadWriteTransactionMockRecorder) DeleteRelationships(ctx, filter 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).DeleteRelationships), varargs...)
 }
 
-// ListAllCaveats mocks base method.
-func (m *MockReadWriteTransaction) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+// LegacyDeleteCaveats mocks base method.
+func (m *MockReadWriteTransaction) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllCaveats", ctx)
+	ret := m.ctrl.Call(m, "LegacyDeleteCaveats", ctx, names)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LegacyDeleteCaveats indicates an expected call of LegacyDeleteCaveats.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyDeleteCaveats(ctx, names any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyDeleteCaveats", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyDeleteCaveats), ctx, names)
+}
+
+// LegacyDeleteNamespaces mocks base method.
+func (m *MockReadWriteTransaction) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyDeleteNamespaces", ctx, nsNames, delOption)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LegacyDeleteNamespaces indicates an expected call of LegacyDeleteNamespaces.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyDeleteNamespaces(ctx, nsNames, delOption any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyDeleteNamespaces", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyDeleteNamespaces), ctx, nsNames, delOption)
+}
+
+// LegacyListAllCaveats mocks base method.
+func (m *MockReadWriteTransaction) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyListAllCaveats", ctx)
 	ret0, _ := ret[0].([]datastore.RevisionedCaveat)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListAllCaveats indicates an expected call of ListAllCaveats.
-func (mr *MockReadWriteTransactionMockRecorder) ListAllCaveats(ctx any) *gomock.Call {
+// LegacyListAllCaveats indicates an expected call of LegacyListAllCaveats.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyListAllCaveats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllCaveats", reflect.TypeOf((*MockReadWriteTransaction)(nil).ListAllCaveats), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyListAllCaveats", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyListAllCaveats), ctx)
 }
 
-// ListAllNamespaces mocks base method.
-func (m *MockReadWriteTransaction) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+// LegacyListAllNamespaces mocks base method.
+func (m *MockReadWriteTransaction) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllNamespaces", ctx)
+	ret := m.ctrl.Call(m, "LegacyListAllNamespaces", ctx)
 	ret0, _ := ret[0].([]datastore.RevisionedNamespace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListAllNamespaces indicates an expected call of ListAllNamespaces.
-func (mr *MockReadWriteTransactionMockRecorder) ListAllNamespaces(ctx any) *gomock.Call {
+// LegacyListAllNamespaces indicates an expected call of LegacyListAllNamespaces.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyListAllNamespaces(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllNamespaces", reflect.TypeOf((*MockReadWriteTransaction)(nil).ListAllNamespaces), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyListAllNamespaces", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyListAllNamespaces), ctx)
 }
 
-// LookupCaveatsWithNames mocks base method.
-func (m *MockReadWriteTransaction) LookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+// LegacyLookupCaveatsWithNames mocks base method.
+func (m *MockReadWriteTransaction) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupCaveatsWithNames", ctx, names)
+	ret := m.ctrl.Call(m, "LegacyLookupCaveatsWithNames", ctx, names)
 	ret0, _ := ret[0].([]datastore.RevisionedCaveat)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// LookupCaveatsWithNames indicates an expected call of LookupCaveatsWithNames.
-func (mr *MockReadWriteTransactionMockRecorder) LookupCaveatsWithNames(ctx, names any) *gomock.Call {
+// LegacyLookupCaveatsWithNames indicates an expected call of LegacyLookupCaveatsWithNames.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyLookupCaveatsWithNames(ctx, names any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupCaveatsWithNames", reflect.TypeOf((*MockReadWriteTransaction)(nil).LookupCaveatsWithNames), ctx, names)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyLookupCaveatsWithNames", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyLookupCaveatsWithNames), ctx, names)
+}
+
+// LegacyLookupNamespacesWithNames mocks base method.
+func (m *MockReadWriteTransaction) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyLookupNamespacesWithNames", ctx, nsNames)
+	ret0, _ := ret[0].([]datastore.RevisionedNamespace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LegacyLookupNamespacesWithNames indicates an expected call of LegacyLookupNamespacesWithNames.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyLookupNamespacesWithNames(ctx, nsNames any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyLookupNamespacesWithNames", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyLookupNamespacesWithNames), ctx, nsNames)
+}
+
+// LegacyReadCaveatByName mocks base method.
+func (m *MockReadWriteTransaction) LegacyReadCaveatByName(ctx context.Context, name string) (*corev1.CaveatDefinition, datastore.Revision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyReadCaveatByName", ctx, name)
+	ret0, _ := ret[0].(*corev1.CaveatDefinition)
+	ret1, _ := ret[1].(datastore.Revision)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// LegacyReadCaveatByName indicates an expected call of LegacyReadCaveatByName.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyReadCaveatByName(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyReadCaveatByName", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyReadCaveatByName), ctx, name)
+}
+
+// LegacyReadNamespaceByName mocks base method.
+func (m *MockReadWriteTransaction) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*corev1.NamespaceDefinition, datastore.Revision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyReadNamespaceByName", ctx, nsName)
+	ret0, _ := ret[0].(*corev1.NamespaceDefinition)
+	ret1, _ := ret[1].(datastore.Revision)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// LegacyReadNamespaceByName indicates an expected call of LegacyReadNamespaceByName.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyReadNamespaceByName(ctx, nsName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyReadNamespaceByName", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyReadNamespaceByName), ctx, nsName)
+}
+
+// LegacyWriteCaveats mocks base method.
+func (m *MockReadWriteTransaction) LegacyWriteCaveats(arg0 context.Context, arg1 []*corev1.CaveatDefinition) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LegacyWriteCaveats", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LegacyWriteCaveats indicates an expected call of LegacyWriteCaveats.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyWriteCaveats(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyWriteCaveats", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyWriteCaveats), arg0, arg1)
+}
+
+// LegacyWriteNamespaces mocks base method.
+func (m *MockReadWriteTransaction) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*corev1.NamespaceDefinition) error {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx}
+	for _, a := range newConfigs {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "LegacyWriteNamespaces", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LegacyWriteNamespaces indicates an expected call of LegacyWriteNamespaces.
+func (mr *MockReadWriteTransactionMockRecorder) LegacyWriteNamespaces(ctx any, newConfigs ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx}, newConfigs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LegacyWriteNamespaces", reflect.TypeOf((*MockReadWriteTransaction)(nil).LegacyWriteNamespaces), varargs...)
 }
 
 // LookupCounters mocks base method.
@@ -420,21 +500,6 @@ func (m *MockReadWriteTransaction) LookupCounters(ctx context.Context) ([]datast
 func (mr *MockReadWriteTransactionMockRecorder) LookupCounters(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupCounters", reflect.TypeOf((*MockReadWriteTransaction)(nil).LookupCounters), ctx)
-}
-
-// LookupNamespacesWithNames mocks base method.
-func (m *MockReadWriteTransaction) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupNamespacesWithNames", ctx, nsNames)
-	ret0, _ := ret[0].([]datastore.RevisionedNamespace)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LookupNamespacesWithNames indicates an expected call of LookupNamespacesWithNames.
-func (mr *MockReadWriteTransactionMockRecorder) LookupNamespacesWithNames(ctx, nsNames any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupNamespacesWithNames", reflect.TypeOf((*MockReadWriteTransaction)(nil).LookupNamespacesWithNames), ctx, nsNames)
 }
 
 // QueryRelationships mocks base method.
@@ -455,38 +520,6 @@ func (mr *MockReadWriteTransactionMockRecorder) QueryRelationships(ctx, filter a
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, filter}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).QueryRelationships), varargs...)
-}
-
-// ReadCaveatByName mocks base method.
-func (m *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*corev1.CaveatDefinition, datastore.Revision, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadCaveatByName", ctx, name)
-	ret0, _ := ret[0].(*corev1.CaveatDefinition)
-	ret1, _ := ret[1].(datastore.Revision)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// ReadCaveatByName indicates an expected call of ReadCaveatByName.
-func (mr *MockReadWriteTransactionMockRecorder) ReadCaveatByName(ctx, name any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadCaveatByName", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReadCaveatByName), ctx, name)
-}
-
-// ReadNamespaceByName mocks base method.
-func (m *MockReadWriteTransaction) ReadNamespaceByName(ctx context.Context, nsName string) (*corev1.NamespaceDefinition, datastore.Revision, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadNamespaceByName", ctx, nsName)
-	ret0, _ := ret[0].(*corev1.NamespaceDefinition)
-	ret1, _ := ret[1].(datastore.Revision)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// ReadNamespaceByName indicates an expected call of ReadNamespaceByName.
-func (mr *MockReadWriteTransactionMockRecorder) ReadNamespaceByName(ctx, nsName any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadNamespaceByName", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReadNamespaceByName), ctx, nsName)
 }
 
 // RegisterCounter mocks base method.
@@ -549,39 +582,6 @@ func (m *MockReadWriteTransaction) UnregisterCounter(ctx context.Context, name s
 func (mr *MockReadWriteTransactionMockRecorder) UnregisterCounter(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterCounter", reflect.TypeOf((*MockReadWriteTransaction)(nil).UnregisterCounter), ctx, name)
-}
-
-// WriteCaveats mocks base method.
-func (m *MockReadWriteTransaction) WriteCaveats(arg0 context.Context, arg1 []*corev1.CaveatDefinition) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteCaveats", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteCaveats indicates an expected call of WriteCaveats.
-func (mr *MockReadWriteTransactionMockRecorder) WriteCaveats(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteCaveats", reflect.TypeOf((*MockReadWriteTransaction)(nil).WriteCaveats), arg0, arg1)
-}
-
-// WriteNamespaces mocks base method.
-func (m *MockReadWriteTransaction) WriteNamespaces(ctx context.Context, newConfigs ...*corev1.NamespaceDefinition) error {
-	m.ctrl.T.Helper()
-	varargs := []any{ctx}
-	for _, a := range newConfigs {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "WriteNamespaces", varargs...)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteNamespaces indicates an expected call of WriteNamespaces.
-func (mr *MockReadWriteTransactionMockRecorder) WriteNamespaces(ctx any, newConfigs ...any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{ctx}, newConfigs...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteNamespaces", reflect.TypeOf((*MockReadWriteTransaction)(nil).WriteNamespaces), varargs...)
 }
 
 // WriteRelationships mocks base method.

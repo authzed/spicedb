@@ -35,7 +35,7 @@ const (
 	errDeleteCaveats = "unable to delete caveats: %w"
 )
 
-func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (cr *crdbReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	query := cr.addFromToQuery(readCaveat.Where(sq.Eq{schema.ColCaveatName: name}), schema.TableCaveat, noIndexHint)
 	sql, args, err := query.ToSql()
 	if err != nil {
@@ -64,14 +64,14 @@ func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 	return loaded, revisions.NewHLCForTime(timestamp), nil
 }
 
-func (cr *crdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (cr *crdbReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	if len(caveatNames) == 0 {
 		return nil, nil
 	}
 	return cr.lookupCaveats(ctx, caveatNames)
 }
 
-func (cr *crdbReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (cr *crdbReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return cr.lookupCaveats(ctx, nil)
 }
 
@@ -127,7 +127,7 @@ func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) (
 	return caveats, nil
 }
 
-func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt *crdbReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	if len(caveats) == 0 {
 		return nil
 	}
@@ -158,7 +158,7 @@ func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.C
 	return nil
 }
 
-func (rwt *crdbReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
+func (rwt *crdbReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	deleteCaveatClause := deleteCaveat.Where(sq.Eq{schema.ColCaveatName: names})
 	sql, args, err := deleteCaveatClause.ToSql()
 	if err != nil {

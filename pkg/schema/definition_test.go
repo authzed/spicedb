@@ -422,17 +422,17 @@ func TestDefinition(t *testing.T) {
 			ctx := t.Context()
 
 			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteNamespaces(ctx, tc.toCheck)
+				err := rwt.LegacyWriteNamespaces(ctx, tc.toCheck)
 				if err != nil {
 					return err
 				}
 				for _, otherNS := range tc.otherNamespaces {
-					if err := rwt.WriteNamespaces(ctx, otherNS); err != nil {
+					if err := rwt.LegacyWriteNamespaces(ctx, otherNS); err != nil {
 						return err
 					}
 				}
 				cw := rwt.(datastore.LegacySchemaWriter)
-				return cw.WriteCaveats(ctx, tc.caveats)
+				return cw.LegacyWriteCaveats(ctx, tc.caveats)
 			})
 			require.NoError(err)
 			resolver := ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))

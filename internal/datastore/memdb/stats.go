@@ -18,7 +18,7 @@ func (mdb *memdbDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 		return datastore.Stats{}, fmt.Errorf("unable to count relationships: %w", err)
 	}
 
-	objTypes, err := mdb.SnapshotReader(head).ListAllNamespaces(ctx)
+	objTypes, err := mdb.SnapshotReader(head).LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to list object types: %w", err)
 	}

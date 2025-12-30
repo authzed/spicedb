@@ -112,28 +112,28 @@ func (r *ctxReader) LookupCounters(ctx context.Context) ([]datastore.Relationshi
 	return r.delegate.LookupCounters(context.WithoutCancel(ctx))
 }
 
-func (r *ctxReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	return r.delegate.ReadCaveatByName(context.WithoutCancel(ctx), name)
+func (r *ctxReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return r.delegate.LegacyReadCaveatByName(context.WithoutCancel(ctx), name)
 }
 
-func (r *ctxReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	return r.delegate.ListAllCaveats(context.WithoutCancel(ctx))
+func (r *ctxReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return r.delegate.LegacyListAllCaveats(context.WithoutCancel(ctx))
 }
 
-func (r *ctxReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	return r.delegate.LookupCaveatsWithNames(context.WithoutCancel(ctx), caveatNames)
+func (r *ctxReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	return r.delegate.LegacyLookupCaveatsWithNames(context.WithoutCancel(ctx), caveatNames)
 }
 
-func (r *ctxReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	return r.delegate.ListAllNamespaces(context.WithoutCancel(ctx))
+func (r *ctxReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return r.delegate.LegacyListAllNamespaces(context.WithoutCancel(ctx))
 }
 
-func (r *ctxReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	return r.delegate.LookupNamespacesWithNames(context.WithoutCancel(ctx), nsNames)
+func (r *ctxReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+	return r.delegate.LegacyLookupNamespacesWithNames(context.WithoutCancel(ctx), nsNames)
 }
 
-func (r *ctxReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	return r.delegate.ReadNamespaceByName(context.WithoutCancel(ctx), nsName)
+func (r *ctxReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return r.delegate.LegacyReadNamespaceByName(context.WithoutCancel(ctx), nsName)
 }
 
 func (r *ctxReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {

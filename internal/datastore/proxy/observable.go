@@ -173,54 +173,54 @@ func (r *observableReader) LookupCounters(ctx context.Context) ([]datastore.Rela
 	return r.delegate.LookupCounters(ctx)
 }
 
-func (r *observableReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (r *observableReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	ctx, closer := observe(ctx, "ReadCaveatByName", "", trace.WithAttributes(
 		attribute.StringSlice(otelconv.AttrDatastoreNames, []string{name}),
 	))
 	defer closer()
 
-	return r.delegate.ReadCaveatByName(ctx, name)
+	return r.delegate.LegacyReadCaveatByName(ctx, name)
 }
 
-func (r *observableReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (r *observableReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	ctx, closer := observe(ctx, "LookupCaveatsWithNames", "", trace.WithAttributes(
 		attribute.StringSlice(otelconv.AttrDatastoreNames, caveatNames),
 	))
 	defer closer()
 
-	return r.delegate.LookupCaveatsWithNames(ctx, caveatNames)
+	return r.delegate.LegacyLookupCaveatsWithNames(ctx, caveatNames)
 }
 
-func (r *observableReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (r *observableReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	ctx, closer := observe(ctx, "ListAllCaveats", "")
 	defer closer()
 
-	return r.delegate.ListAllCaveats(ctx)
+	return r.delegate.LegacyListAllCaveats(ctx)
 }
 
-func (r *observableReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (r *observableReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	ctx, closer := observe(ctx, "ListAllNamespaces", "")
 	defer closer()
 
-	return r.delegate.ListAllNamespaces(ctx)
+	return r.delegate.LegacyListAllNamespaces(ctx)
 }
 
-func (r *observableReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (r *observableReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	ctx, closer := observe(ctx, "LookupNamespacesWithNames", "", trace.WithAttributes(
 		attribute.StringSlice(otelconv.AttrDatastoreNames, nsNames),
 	))
 	defer closer()
 
-	return r.delegate.LookupNamespacesWithNames(ctx, nsNames)
+	return r.delegate.LegacyLookupNamespacesWithNames(ctx, nsNames)
 }
 
-func (r *observableReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (r *observableReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	ctx, closer := observe(ctx, "ReadNamespaceByName", "", trace.WithAttributes(
 		attribute.StringSlice(otelconv.AttrDatastoreNames, []string{nsName}),
 	))
 	defer closer()
 
-	return r.delegate.ReadNamespaceByName(ctx, nsName)
+	return r.delegate.LegacyReadNamespaceByName(ctx, nsName)
 }
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
@@ -311,7 +311,7 @@ func (rwt *observableRWT) StoreCounterValue(ctx context.Context, name string, va
 	return rwt.delegate.StoreCounterValue(ctx, name, value, computedAtRevision)
 }
 
-func (rwt *observableRWT) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt *observableRWT) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	caveatNames := make([]string, 0, len(caveats))
 	for _, caveat := range caveats {
 		caveatNames = append(caveatNames, caveat.Name)
@@ -322,16 +322,16 @@ func (rwt *observableRWT) WriteCaveats(ctx context.Context, caveats []*core.Cave
 	))
 	defer closer()
 
-	return rwt.delegate.WriteCaveats(ctx, caveats)
+	return rwt.delegate.LegacyWriteCaveats(ctx, caveats)
 }
 
-func (rwt *observableRWT) DeleteCaveats(ctx context.Context, names []string) error {
+func (rwt *observableRWT) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	ctx, closer := observe(ctx, "DeleteCaveats", "", trace.WithAttributes(
 		attribute.StringSlice(otelconv.AttrDatastoreNames, names),
 	))
 	defer closer()
 
-	return rwt.delegate.DeleteCaveats(ctx, names)
+	return rwt.delegate.LegacyDeleteCaveats(ctx, names)
 }
 
 func (rwt *observableRWT) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
@@ -343,7 +343,7 @@ func (rwt *observableRWT) WriteRelationships(ctx context.Context, mutations []tu
 	return rwt.delegate.WriteRelationships(ctx, mutations)
 }
 
-func (rwt *observableRWT) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *observableRWT) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	nsNames := make([]string, 0, len(newConfigs))
 	for _, ns := range newConfigs {
 		nsNames = append(nsNames, ns.Name)
@@ -354,16 +354,16 @@ func (rwt *observableRWT) WriteNamespaces(ctx context.Context, newConfigs ...*co
 	))
 	defer closer()
 
-	return rwt.delegate.WriteNamespaces(ctx, newConfigs...)
+	return rwt.delegate.LegacyWriteNamespaces(ctx, newConfigs...)
 }
 
-func (rwt *observableRWT) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *observableRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	ctx, closer := observe(ctx, "DeleteNamespaces", "", trace.WithAttributes(
 		attribute.StringSlice(otelconv.AttrDatastoreNames, nsNames),
 	))
 	defer closer()
 
-	return rwt.delegate.DeleteNamespaces(ctx, nsNames, delOption)
+	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
 }
 
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {

@@ -25,7 +25,7 @@ func (c *caveat) Unwrap() (*core.CaveatDefinition, error) {
 	return &definition, err
 }
 
-func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (r *memdbReader) LegacyReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	r.mustLock()
 	defer r.Unlock()
 
@@ -60,7 +60,7 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 	return unwrapped, rev, nil
 }
 
-func (r *memdbReader) ListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
+func (r *memdbReader) LegacyListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
 	r.mustLock()
 	defer r.Unlock()
 
@@ -90,8 +90,8 @@ func (r *memdbReader) ListAllCaveats(_ context.Context) ([]datastore.RevisionedC
 	return caveats, nil
 }
 
-func (r *memdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	allCaveats, err := r.ListAllCaveats(ctx)
+func (r *memdbReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	allCaveats, err := r.LegacyListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (r *memdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []
 	return toReturn, nil
 }
 
-func (rwt *memdbReadWriteTx) WriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt *memdbReadWriteTx) LegacyWriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
@@ -140,7 +140,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDe
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteCaveats(_ context.Context, names []string) error {
+func (rwt *memdbReadWriteTx) LegacyDeleteCaveats(_ context.Context, names []string) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()

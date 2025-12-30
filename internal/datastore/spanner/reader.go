@@ -288,7 +288,7 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 	}
 }
 
-func (sr spannerReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (sr spannerReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	nsKey := spanner.Key{nsName}
 	row, err := sr.txSource().ReadRow(
 		ctx,
@@ -317,7 +317,7 @@ func (sr spannerReader) ReadNamespaceByName(ctx context.Context, nsName string) 
 	return ns, revisions.NewForTime(updated), nil
 }
 
-func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (sr spannerReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	iter := sr.txSource().Read(
 		ctx,
 		tableNamespace,
@@ -334,7 +334,7 @@ func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revi
 	return allNamespaces, nil
 }
 
-func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (sr spannerReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}

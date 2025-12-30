@@ -25,7 +25,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 
 	// Try at revision 1, which should use the replica.
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
-	ns, err := reader.ListAllNamespaces(t.Context())
+	ns, err := reader.LegacyListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, ns)
 
@@ -33,7 +33,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 
 	// Try at revision 2, which should use the primary.
 	reader = replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("2"))
-	ns, err = reader.ListAllNamespaces(t.Context())
+	ns, err = reader.LegacyListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, ns)
 
@@ -48,7 +48,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t
 	require.NoError(t, err)
 
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
-	ns, err := reader.LookupNamespacesWithNames(t.Context(), []string{"ns1"})
+	ns, err := reader.LegacyLookupNamespacesWithNames(t.Context(), []string{"ns1"})
 	require.NoError(t, err)
 	require.Len(t, ns, 1)
 }
@@ -72,7 +72,7 @@ func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 
 			// Try at revision 1, which should use the replica.
 			reader := ds.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
-			_, _, err := reader.ReadNamespaceByName(t.Context(), "expecterror")
+			_, _, err := reader.LegacyReadNamespaceByName(t.Context(), "expecterror")
 			require.Error(t, err)
 			require.ErrorContains(t, err, "raising an expected error")
 		})
@@ -174,7 +174,7 @@ type fakeSnapshotReader struct {
 	indexesUsed []string
 }
 
-func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+func (fsr fakeSnapshotReader) LegacyLookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
 	if fsr.state == "primary" {
 		return []datastore.RevisionedDefinition[*corev1.NamespaceDefinition]{
 			{
@@ -193,7 +193,7 @@ func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNam
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) ReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (fakeSnapshotReader) LegacyReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	if nsName == "expecterror" {
 		return nil, nil, fmt.Errorf("raising an expected error")
 	}
@@ -201,19 +201,19 @@ func (fakeSnapshotReader) ReadNamespaceByName(_ context.Context, nsName string) 
 	return nil, nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) LookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+func (fakeSnapshotReader) LegacyLookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) ReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
+func (fakeSnapshotReader) LegacyReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) ListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+func (fakeSnapshotReader) LegacyListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+func (fakeSnapshotReader) LegacyListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
 	return nil, nil
 }
 

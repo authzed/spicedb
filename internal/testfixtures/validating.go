@@ -52,10 +52,10 @@ type validatingSnapshotReader struct {
 	delegate datastore.Reader
 }
 
-func (vsr validatingSnapshotReader) ListAllNamespaces(
+func (vsr validatingSnapshotReader) LegacyListAllNamespaces(
 	ctx context.Context,
 ) ([]datastore.RevisionedNamespace, error) {
-	read, err := vsr.delegate.ListAllNamespaces(ctx)
+	read, err := vsr.delegate.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +70,11 @@ func (vsr validatingSnapshotReader) ListAllNamespaces(
 	return read, err
 }
 
-func (vsr validatingSnapshotReader) LookupNamespacesWithNames(
+func (vsr validatingSnapshotReader) LegacyLookupNamespacesWithNames(
 	ctx context.Context,
 	nsNames []string,
 ) ([]datastore.RevisionedNamespace, error) {
-	read, err := vsr.delegate.LookupNamespacesWithNames(ctx, nsNames)
+	read, err := vsr.delegate.LegacyLookupNamespacesWithNames(ctx, nsNames)
 	if err != nil {
 		return read, err
 	}
@@ -109,11 +109,11 @@ func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
 	return vsr.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
-func (vsr validatingSnapshotReader) ReadNamespaceByName(
+func (vsr validatingSnapshotReader) LegacyReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	read, createdAt, err := vsr.delegate.ReadNamespaceByName(ctx, nsName)
+	read, createdAt, err := vsr.delegate.LegacyReadNamespaceByName(ctx, nsName)
 	if err != nil {
 		return read, createdAt, err
 	}
@@ -143,8 +143,8 @@ func (vsr validatingSnapshotReader) ReverseQueryRelationships(ctx context.Contex
 	return vsr.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
-func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	read, createdAt, err := vsr.delegate.ReadCaveatByName(ctx, name)
+func (vsr validatingSnapshotReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	read, createdAt, err := vsr.delegate.LegacyReadCaveatByName(ctx, name)
 	if err != nil {
 		return read, createdAt, err
 	}
@@ -153,8 +153,8 @@ func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name s
 	return read, createdAt, err
 }
 
-func (vsr validatingSnapshotReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	read, err := vsr.delegate.LookupCaveatsWithNames(ctx, caveatNames)
+func (vsr validatingSnapshotReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	read, err := vsr.delegate.LegacyLookupCaveatsWithNames(ctx, caveatNames)
 	if err != nil {
 		return nil, err
 	}
@@ -169,8 +169,8 @@ func (vsr validatingSnapshotReader) LookupCaveatsWithNames(ctx context.Context, 
 	return read, err
 }
 
-func (vsr validatingSnapshotReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	read, err := vsr.delegate.ListAllCaveats(ctx)
+func (vsr validatingSnapshotReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	read, err := vsr.delegate.LegacyListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -206,17 +206,17 @@ func (vrwt validatingReadWriteTransaction) StoreCounterValue(ctx context.Context
 	return vrwt.delegate.StoreCounterValue(ctx, name, value, computedAtRevision)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (vrwt validatingReadWriteTransaction) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	for _, newConfig := range newConfigs {
 		if err := newConfig.Validate(); err != nil {
 			return err
 		}
 	}
-	return vrwt.delegate.WriteNamespaces(ctx, newConfigs...)
+	return vrwt.delegate.LegacyWriteNamespaces(ctx, newConfigs...)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
-	return vrwt.delegate.DeleteNamespaces(ctx, nsNames, delOption)
+func (vrwt validatingReadWriteTransaction) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	return vrwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
 }
 
 func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
@@ -243,12 +243,12 @@ func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Conte
 	return vrwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	return vrwt.delegate.WriteCaveats(ctx, caveats)
+func (vrwt validatingReadWriteTransaction) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	return vrwt.delegate.LegacyWriteCaveats(ctx, caveats)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteCaveats(ctx context.Context, names []string) error {
-	return vrwt.delegate.DeleteCaveats(ctx, names)
+func (vrwt validatingReadWriteTransaction) LegacyDeleteCaveats(ctx context.Context, names []string) error {
+	return vrwt.delegate.LegacyDeleteCaveats(ctx, names)
 }
 
 func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source datastore.BulkWriteRelationshipSource) (uint64, error) {

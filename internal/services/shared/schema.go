@@ -92,12 +92,12 @@ type AppliedSchemaChanges struct {
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
-	existingCaveats, err := rwt.ListAllCaveats(ctx)
+	existingCaveats, err := rwt.LegacyListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	existingObjectDefs, err := rwt.ListAllNamespaces(ctx)
+	existingObjectDefs, err := rwt.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -192,14 +192,14 @@ func ApplySchemaChangesOverExisting(
 
 	// Write the new/changes caveats.
 	if len(caveatDefsWithChanges) > 0 {
-		if err := rwt.WriteCaveats(ctx, caveatDefsWithChanges); err != nil {
+		if err := rwt.LegacyWriteCaveats(ctx, caveatDefsWithChanges); err != nil {
 			return nil, err
 		}
 	}
 
 	// Write the new/changed namespaces.
 	if len(objectDefsWithChanges) > 0 {
-		if err := rwt.WriteNamespaces(ctx, objectDefsWithChanges...); err != nil {
+		if err := rwt.LegacyWriteNamespaces(ctx, objectDefsWithChanges...); err != nil {
 			return nil, err
 		}
 	}
@@ -208,14 +208,14 @@ func ApplySchemaChangesOverExisting(
 		// Delete the removed namespaces. Note that we don't need to delete relationships here,
 		// as that is handled by the ensureNoRelationshipsExistWithResourceType call above.
 		if removedObjectDefNames.Len() > 0 {
-			if err := rwt.DeleteNamespaces(ctx, removedObjectDefNames.AsSlice(), datastore.DeleteNamespacesOnly); err != nil {
+			if err := rwt.LegacyDeleteNamespaces(ctx, removedObjectDefNames.AsSlice(), datastore.DeleteNamespacesOnly); err != nil {
 				return nil, err
 			}
 		}
 
 		// Delete the removed caveats.
 		if !removedCaveatDefNames.IsEmpty() {
-			if err := rwt.DeleteCaveats(ctx, removedCaveatDefNames.AsSlice()); err != nil {
+			if err := rwt.LegacyDeleteCaveats(ctx, removedCaveatDefNames.AsSlice()); err != nil {
 				return nil, err
 			}
 		}

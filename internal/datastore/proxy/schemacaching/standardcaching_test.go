@@ -75,14 +75,14 @@ var testers = []testerDef{
 	{
 		"namespace",
 
-		"ReadNamespaceByName",
+		"LegacyReadNamespaceByName",
 		func(ctx context.Context, reader datastore.Reader, name string) (datastore.SchemaDefinition, datastore.Revision, error) {
-			return reader.ReadNamespaceByName(ctx, name)
+			return reader.LegacyReadNamespaceByName(ctx, name)
 		},
 
-		"LookupNamespacesWithNames",
+		"LegacyLookupNamespacesWithNames",
 		func(ctx context.Context, reader datastore.Reader, names []string) ([]datastore.SchemaDefinition, error) {
-			defs, err := reader.LookupNamespacesWithNames(ctx, names)
+			defs, err := reader.LegacyLookupNamespacesWithNames(ctx, names)
 			if err != nil {
 				return nil, err
 			}
@@ -95,9 +95,9 @@ var testers = []testerDef{
 
 		datastore.NamespaceNotFoundError{},
 
-		"WriteNamespaces",
+		"LegacyWriteNamespaces",
 		func(rwt datastore.ReadWriteTransaction, def datastore.SchemaDefinition) error {
-			return rwt.WriteNamespaces(context.Background(), def.(*core.NamespaceDefinition))
+			return rwt.LegacyWriteNamespaces(context.Background(), def.(*core.NamespaceDefinition))
 		},
 
 		func(name string) datastore.SchemaDefinition { return &core.NamespaceDefinition{Name: name} },
@@ -110,14 +110,14 @@ var testers = []testerDef{
 	},
 	{
 		"caveat",
-		"ReadCaveatByName",
+		"LegacyReadCaveatByName",
 		func(ctx context.Context, reader datastore.Reader, name string) (datastore.SchemaDefinition, datastore.Revision, error) {
-			return reader.ReadCaveatByName(ctx, name)
+			return reader.LegacyReadCaveatByName(ctx, name)
 		},
 
-		"LookupCaveatsWithNames",
+		"LegacyLookupCaveatsWithNames",
 		func(ctx context.Context, reader datastore.Reader, names []string) ([]datastore.SchemaDefinition, error) {
-			defs, err := reader.LookupCaveatsWithNames(ctx, names)
+			defs, err := reader.LegacyLookupCaveatsWithNames(ctx, names)
 			if err != nil {
 				return nil, err
 			}
@@ -130,9 +130,9 @@ var testers = []testerDef{
 
 		datastore.CaveatNameNotFoundError{},
 
-		"WriteCaveats",
+		"LegacyWriteCaveats",
 		func(rwt datastore.ReadWriteTransaction, def datastore.SchemaDefinition) error {
-			return rwt.WriteCaveats(context.Background(), []*core.CaveatDefinition{def.(*core.CaveatDefinition)})
+			return rwt.LegacyWriteCaveats(context.Background(), []*core.CaveatDefinition{def.(*core.CaveatDefinition)})
 		},
 
 		func(name string) datastore.SchemaDefinition { return &core.CaveatDefinition{Name: name} },
@@ -375,12 +375,12 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 
 			if tc.nsDef != nil {
 				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-					err := rwt.WriteNamespaces(ctx, tc.nsDef)
+					err := rwt.LegacyWriteNamespaces(ctx, tc.nsDef)
 					if err != nil {
 						return err
 					}
 
-					return rwt.WriteCaveats(ctx, []*core.CaveatDefinition{tc.caveatDef})
+					return rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{tc.caveatDef})
 				})
 				require.NoError(t, err)
 			}
@@ -389,16 +389,16 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 			require.NoError(t, err)
 
 			reader := ds.SnapshotReader(headRev)
-			ns, _, _ := reader.ReadNamespaceByName(ctx, tc.namespaceName)
+			ns, _, _ := reader.LegacyReadNamespaceByName(ctx, tc.namespaceName)
 			testutil.RequireProtoEqual(t, tc.nsDef, ns, "found different namespaces")
 
-			ns2, _, _ := reader.ReadNamespaceByName(ctx, tc.namespaceName)
+			ns2, _, _ := reader.LegacyReadNamespaceByName(ctx, tc.namespaceName)
 			testutil.RequireProtoEqual(t, tc.nsDef, ns2, "found different namespaces")
 
-			c1, _, _ := reader.ReadCaveatByName(ctx, tc.caveatName)
+			c1, _, _ := reader.LegacyReadCaveatByName(ctx, tc.caveatName)
 			testutil.RequireProtoEqual(t, tc.caveatDef, c1, "found different caveats")
 
-			c2, _, _ := reader.ReadCaveatByName(ctx, tc.caveatName)
+			c2, _, _ := reader.LegacyReadCaveatByName(ctx, tc.caveatName)
 			testutil.RequireProtoEqual(t, tc.caveatDef, c2, "found different caveats")
 		})
 	}
@@ -408,7 +408,7 @@ type reader struct {
 	proxy_test.MockReader
 }
 
-func (r *reader) ReadNamespaceByName(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (r *reader) LegacyReadNamespaceByName(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	time.Sleep(10 * time.Millisecond)
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil, old, fmt.Errorf("error")
@@ -416,7 +416,7 @@ func (r *reader) ReadNamespaceByName(ctx context.Context, namespace string) (ns 
 	return &core.NamespaceDefinition{Name: namespace}, old, nil
 }
 
-func (r *reader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (r *reader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	time.Sleep(10 * time.Millisecond)
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil, old, fmt.Errorf("error")
@@ -534,7 +534,7 @@ func TestInvalidNamespaceInCache(t *testing.T) {
 	require.NoError(err)
 	dsReader := ds.SnapshotReader(headRevision)
 
-	namespace, _, err := dsReader.ReadNamespaceByName(ctx, invalidNamespace)
+	namespace, _, err := dsReader.LegacyReadNamespaceByName(ctx, invalidNamespace)
 	require.Nil(namespace)
 	// NOTE: we're expecting this to error, because the namespace doesn't exist.
 	// However, the act of calling it sets the cache value to nil, which means that
@@ -544,7 +544,7 @@ func TestInvalidNamespaceInCache(t *testing.T) {
 
 	// Look it up again - in the bug that this captures,
 	// it was populated into the cache and came back out.
-	found, err := dsReader.LookupNamespacesWithNames(ctx, []string{invalidNamespace})
+	found, err := dsReader.LegacyLookupNamespacesWithNames(ctx, []string{invalidNamespace})
 	require.Empty(found)
 	require.NoError(err)
 }
@@ -565,7 +565,7 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 
 	// Write in the valid namespace
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		writeErr := rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{
+		writeErr := rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{
 			Name: validNamespace,
 		})
 		return writeErr
@@ -574,7 +574,7 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 
 	dsReader := ds.SnapshotReader(revision)
 
-	namespace, _, err := dsReader.ReadNamespaceByName(ctx, invalidNamespace)
+	namespace, _, err := dsReader.LegacyReadNamespaceByName(ctx, invalidNamespace)
 	require.Nil(namespace)
 	// NOTE: we're expecting this to error, because the namespace doesn't exist.
 	// However, the act of calling it sets the cache value to nil, which means that
@@ -583,7 +583,7 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 	require.Error(err)
 
 	// We're asserting that we find the thing we're looking for and don't receive a notfound value
-	found, err := dsReader.LookupNamespacesWithNames(ctx, []string{invalidNamespace, validNamespace})
+	found, err := dsReader.LegacyLookupNamespacesWithNames(ctx, []string{invalidNamespace, validNamespace})
 	require.Len(found, 1)
 	require.Equal(validNamespace, found[0].Definition.Name)
 	require.NoError(err)
