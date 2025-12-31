@@ -266,6 +266,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 						Relation:   subjectRelation,
 					},
 				},
+				OptionalExpiration: expiration,
 			}
 
 			// if the relationship to be deleted is for a TOUCH operation and the caveat

@@ -1917,6 +1917,15 @@ func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	ensureRelationships(ctx, require, ds, rel4)
 	ensureReverseRelationships(ctx, require, ds, rel4)
+
+	// Touch the relationship without an expiration to remove it.
+	rel5, err := tuple.Parse("document:foo#expiring_viewer@user:tom")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel5)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, rel5)
+	ensureReverseRelationships(ctx, require, ds, rel5)
 }
 
 // TypedTouchAlreadyExistingTest tests touching a relationship twice, when valid type information is provided.
