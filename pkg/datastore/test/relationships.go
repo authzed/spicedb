@@ -1862,6 +1862,16 @@ func RelationshipCaveatFilteringTest(t *testing.T, tester DatastoreTester) {
 		OptionalResourceRelation: "viewer",
 		OptionalCaveatNameFilter: datastore.WithCaveatName("anothercaveat"),
 	})
+
+	// Touch the relationship without a caveat to remove it.
+	rel2, err := tuple.Parse("document:foo#viewer@user:tom")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel2)
+	require.NoError(err)
+
+	ensureRelationships(ctx, require, ds, rel2)
+	ensureReverseRelationships(ctx, require, ds, rel2)
 }
 
 // RelationshipExpirationTest tests expiration on relationships.
@@ -1941,7 +1951,7 @@ func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	ensureRelationships(ctx, require, ds, tpl1)
 }
 
-// TypedTouchAlreadyExistingWithCaveatTest tests touching a relationship twice, when valid type information is provided.
+// TypedTouchAlreadyExistingWithCaveatTest tests touching the caveat context.
 func TypedTouchAlreadyExistingWithCaveatTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
@@ -2000,7 +2010,7 @@ func CreateTouchDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	ensureRelationships(ctx, require, ds, tpl1, tpl2)
 }
 
-// TouchAlreadyExistingCaveatedTest tests touching a relationship twice.
+// TouchAlreadyExistingCaveatedTest tests touching the caveat name.
 func TouchAlreadyExistingCaveatedTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
