@@ -26,6 +26,8 @@ const (
 	NodeTypeSpecificTypeReference // A reference to a specific type.
 	NodeTypeCaveatReference       // A caveat reference under a type.
 	NodeTypeTraitReference        // A trait reference under a typr.
+	NodeTypeDeprecation           // A deprecated relation.
+	NodeTypeDeprecationOptions    // Options for a deprecation.
 
 	NodeTypeUnionExpression
 	NodeTypeIntersectExpression
@@ -149,6 +151,12 @@ const (
 	NodeTypeReferencePredicateType = "type-ref-type"
 
 	//
+	// NodeTypeTypeReference
+	//
+	// The type reference for the deprecated type.
+	NodeTypeReferenceDeprecatedType = "reference-deprecated-type"
+
+	//
 	// NodeTypeSpecificTypeReference
 	//
 
@@ -217,4 +225,16 @@ const (
 	//
 	NodeExpressionPredicateLeftExpr  = "left-expr"
 	NodeExpressionPredicateRightExpr = "right-expr"
+
+	//
+	// NodeTypeDeprecatedOptions
+	//
+	// The type of deprecation
+	NodeDeprecatedType = "deprecation-type"
+
+	//
+	// NodeTypeDeprecatedOptions
+	//
+	// The value of optional comments for the deprecation.
+	NodeDeprecatedComments = "deprecation-comments"
 )

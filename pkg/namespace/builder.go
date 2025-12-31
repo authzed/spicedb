@@ -15,6 +15,12 @@ func Namespace(name string, relations ...*core.Relation) *core.NamespaceDefiniti
 	}
 }
 
+func WithDeprecation(name string, deprecation *core.Deprecation, relations ...*core.Relation) *core.NamespaceDefinition {
+	nd := Namespace(name, relations...)
+	nd.Deprecation = deprecation
+	return nd
+}
+
 // WithComment creates a namespace definition with one or more defined relations.
 func WithComment(name string, comment string, relations ...*core.Relation) *core.NamespaceDefinition {
 	nd := Namespace(name, relations...)
@@ -73,6 +79,13 @@ func MustRelationWithComment(name string, comment string, rewrite *core.UsersetR
 	return rel
 }
 
+// MustRelationWithDeprecation creates a relation definition with an optional rewrite definition.
+func MustRelationWithDeprecation(name string, deprecation *core.Deprecation, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
+	rel := MustRelation(name, rewrite, allowedDirectRelations...)
+	rel.Deprecation = deprecation
+	return rel
+}
+
 // AllowedRelation creates a relation reference to an allowed relation.
 func AllowedRelation(namespaceName string, relationName string) *core.AllowedRelation {
 	return &core.AllowedRelation{
@@ -112,6 +125,23 @@ func AllowedRelationWithExpiration(namespaceName string, relationName string) *c
 			Relation: relationName,
 		},
 		RequiredExpiration: &core.ExpirationTrait{},
+	}
+}
+
+// AllowedRelationWithDeprecation creates a relation reference to an allowed relation.
+func AllowedRelationWithDeprecation(allowedRel *core.AllowedRelation, deprecation *core.Deprecation) *core.AllowedRelation {
+	allowedRel.Deprecation = deprecation
+	return allowedRel
+}
+
+// AllowedPublicNamespaceWithDeprecation creates a relation reference to an allowed public namespace.
+func AllowedPublicNamespaceWithDeprecation(namespaceName string, deprecation *core.Deprecation) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
+			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
+		},
+		Deprecation: deprecation,
 	}
 }
 
@@ -205,6 +235,14 @@ func RelationReference(namespaceName string, relationName string) *core.Relation
 	return &core.RelationReference{
 		Namespace: namespaceName,
 		Relation:  relationName,
+	}
+}
+
+// Deprecation creates a deprecation definition.
+func Deprecation(deprecationType core.DeprecationType, message string) *core.Deprecation {
+	return &core.Deprecation{
+		DeprecationType: deprecationType,
+		Comments:        message,
 	}
 }
 
