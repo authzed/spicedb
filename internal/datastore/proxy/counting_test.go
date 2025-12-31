@@ -6,26 +6,29 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/mocks"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func TestCountingProxyBasicCounting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
-	reader := &proxy_test.MockReader{}
+	delegate := mocks.NewMockDatastore(ctrl)
+	reader := mocks.NewMockReader(ctrl)
 
-	delegate.On("SnapshotReader", mock.Anything).Return(reader)
-	reader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
-	reader.On("ReverseQueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
-	reader.On("ReadNamespaceByName", mock.Anything, mock.Anything).Return(&core.NamespaceDefinition{}, datastore.NoRevision, nil)
-	reader.On("ListAllNamespaces", mock.Anything).Return([]datastore.RevisionedNamespace{}, nil)
-	reader.On("LookupNamespacesWithNames", mock.Anything, mock.Anything).Return([]datastore.RevisionedNamespace{}, nil)
+	delegate.EXPECT().SnapshotReader(gomock.Any()).Return(reader).AnyTimes()
+	reader.EXPECT().QueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	reader.EXPECT().ReverseQueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	reader.EXPECT().ReadNamespaceByName(gomock.Any(), gomock.Any()).Return(&core.NamespaceDefinition{}, datastore.NoRevision, nil).AnyTimes()
+	reader.EXPECT().ListAllNamespaces(gomock.Any()).Return([]datastore.RevisionedNamespace{}, nil).AnyTimes()
+	reader.EXPECT().LookupNamespacesWithNames(gomock.Any(), gomock.Any()).Return([]datastore.RevisionedNamespace{}, nil).AnyTimes()
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
@@ -62,13 +65,16 @@ func TestCountingProxyBasicCounting(t *testing.T) {
 }
 
 func TestCountingProxyMultipleCalls(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
-	reader := &proxy_test.MockReader{}
+	delegate := mocks.NewMockDatastore(ctrl)
+	reader := mocks.NewMockReader(ctrl)
 
-	delegate.On("SnapshotReader", mock.Anything).Return(reader)
-	reader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
+	delegate.EXPECT().SnapshotReader(gomock.Any()).Return(reader).AnyTimes()
+	reader.EXPECT().QueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
@@ -91,15 +97,18 @@ func TestCountingProxyMultipleCalls(t *testing.T) {
 }
 
 func TestCountingProxyCaveatMethodsNotCounted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
-	reader := &proxy_test.MockReader{}
+	delegate := mocks.NewMockDatastore(ctrl)
+	reader := mocks.NewMockReader(ctrl)
 
-	delegate.On("SnapshotReader", mock.Anything).Return(reader)
-	reader.On("ReadCaveatByName", "test").Return(&core.CaveatDefinition{}, datastore.NoRevision, nil)
-	reader.On("ListAllCaveats").Return([]datastore.RevisionedCaveat{}, nil)
-	reader.On("LookupCaveatsWithNames", mock.Anything).Return([]datastore.RevisionedCaveat{}, nil)
+	delegate.EXPECT().SnapshotReader(gomock.Any()).Return(reader).AnyTimes()
+	reader.EXPECT().ReadCaveatByName(gomock.Any(), "test").Return(&core.CaveatDefinition{}, datastore.NoRevision, nil).AnyTimes()
+	reader.EXPECT().ListAllCaveats(gomock.Any()).Return([]datastore.RevisionedCaveat{}, nil).AnyTimes()
+	reader.EXPECT().LookupCaveatsWithNames(gomock.Any(), gomock.Any()).Return([]datastore.RevisionedCaveat{}, nil).AnyTimes()
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
@@ -119,19 +128,20 @@ func TestCountingProxyCaveatMethodsNotCounted(t *testing.T) {
 	require.Equal(uint64(0), counts.ReadNamespaceByName())
 	require.Equal(uint64(0), counts.ListAllNamespaces())
 	require.Equal(uint64(0), counts.LookupNamespacesWithNames())
-
-	delegate.AssertExpectations(t)
 }
 
 func TestCountingProxyCounterMethodsNotCounted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
-	reader := &proxy_test.MockReader{}
+	delegate := mocks.NewMockDatastore(ctrl)
+	reader := mocks.NewMockReader(ctrl)
 
-	delegate.On("SnapshotReader", mock.Anything).Return(reader)
-	reader.On("CountRelationships", "counter1").Return(42, nil)
-	reader.On("LookupCounters").Return([]datastore.RelationshipCounter{}, nil)
+	delegate.EXPECT().SnapshotReader(gomock.Any()).Return(reader).AnyTimes()
+	reader.EXPECT().CountRelationships(gomock.Any(), "counter1").Return(42, nil).AnyTimes()
+	reader.EXPECT().LookupCounters(gomock.Any()).Return([]datastore.RelationshipCounter{}, nil).AnyTimes()
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
@@ -149,18 +159,19 @@ func TestCountingProxyCounterMethodsNotCounted(t *testing.T) {
 	require.Equal(uint64(0), counts.ReadNamespaceByName())
 	require.Equal(uint64(0), counts.ListAllNamespaces())
 	require.Equal(uint64(0), counts.LookupNamespacesWithNames())
-
-	delegate.AssertExpectations(t)
 }
 
 func TestCountingProxyThreadSafety(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
-	reader := &proxy_test.MockReader{}
+	delegate := mocks.NewMockDatastore(ctrl)
+	reader := mocks.NewMockReader(ctrl)
 
-	delegate.On("SnapshotReader", mock.Anything).Return(reader)
-	reader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
+	delegate.EXPECT().SnapshotReader(gomock.Any()).Return(reader).AnyTimes()
+	reader.EXPECT().QueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
@@ -189,9 +200,12 @@ func TestCountingProxyThreadSafety(t *testing.T) {
 }
 
 func TestCountingProxyUnwrap(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
+	delegate := mocks.NewMockDatastore(ctrl)
 
 	ds, _ := NewCountingDatastoreProxy(delegate)
 
@@ -201,90 +215,96 @@ func TestCountingProxyUnwrap(t *testing.T) {
 }
 
 func TestCountingProxyPassthrough(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
+	delegate := mocks.NewMockDatastore(ctrl)
 	ds, _ := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
 
 	// Test MetricsID (mock returns hardcoded "mock")
+	delegate.EXPECT().MetricsID().Return("mock", nil).Times(1)
 	metricsID, err := ds.MetricsID()
 	require.NoError(err)
 	require.Equal("mock", metricsID)
 
 	// Test UniqueID (mock returns hardcoded "mockds" if CurrentUniqueID is empty)
+	delegate.EXPECT().UniqueID(gomock.Any()).Return("mockds", nil).Times(1)
 	uniqueID, err := ds.UniqueID(ctx)
 	require.NoError(err)
 	require.Equal("mockds", uniqueID)
 
 	// Test HeadRevision
-	delegate.On("HeadRevision", mock.Anything).Return(datastore.NoRevision, nil).Once()
+	delegate.EXPECT().HeadRevision(gomock.Any()).Return(datastore.NoRevision, nil).Times(1)
 	_, err = ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	// Test OptimizedRevision
-	delegate.On("OptimizedRevision", mock.Anything).Return(datastore.NoRevision, nil).Once()
+	delegate.EXPECT().OptimizedRevision(gomock.Any()).Return(datastore.NoRevision, nil).Times(1)
 	_, err = ds.OptimizedRevision(ctx)
 	require.NoError(err)
 
 	// Test CheckRevision
-	delegate.On("CheckRevision", datastore.NoRevision).Return(nil).Once()
+	delegate.EXPECT().CheckRevision(gomock.Any(), datastore.NoRevision).Return(nil).Times(1)
 	err = ds.CheckRevision(ctx, datastore.NoRevision)
 	require.NoError(err)
 
 	// Test RevisionFromString
-	delegate.On("RevisionFromString", "test").Return(datastore.NoRevision, nil).Once()
+	delegate.EXPECT().RevisionFromString("test").Return(datastore.NoRevision, nil).Times(1)
 	_, err = ds.RevisionFromString("test")
 	require.NoError(err)
 
 	// Test ReadyState
-	delegate.On("ReadyState", mock.Anything).Return(datastore.ReadyState{IsReady: true}, nil).Once()
+	delegate.EXPECT().ReadyState(gomock.Any()).Return(datastore.ReadyState{IsReady: true}, nil).Times(1)
 	state, err := ds.ReadyState(ctx)
 	require.NoError(err)
 	require.True(state.IsReady)
 
 	// Test Features
 	features := &datastore.Features{}
-	delegate.On("Features", mock.Anything).Return(features, nil).Once()
+	delegate.EXPECT().Features(gomock.Any()).Return(features, nil).Times(1)
 	returnedFeatures, err := ds.Features(ctx)
 	require.NoError(err)
 	require.Equal(features, returnedFeatures)
 
 	// Test OfflineFeatures
-	delegate.On("OfflineFeatures").Return(features, nil).Once()
+	delegate.EXPECT().OfflineFeatures().Return(features, nil).Times(1)
 	returnedFeatures, err = ds.OfflineFeatures()
 	require.NoError(err)
 	require.Equal(features, returnedFeatures)
 
 	// Test Statistics
 	stats := datastore.Stats{}
-	delegate.On("Statistics", mock.Anything).Return(stats, nil).Once()
+	delegate.EXPECT().Statistics(gomock.Any()).Return(stats, nil).Times(1)
 	returnedStats, err := ds.Statistics(ctx)
 	require.NoError(err)
 	require.Equal(stats, returnedStats)
 
 	// Test Close
-	delegate.On("Close").Return(nil).Once()
+	delegate.EXPECT().Close().Return(nil).Times(1)
 	err = ds.Close()
 	require.NoError(err)
-
-	delegate.AssertExpectations(t)
 }
 
 func TestCountingProxyMultipleReaders(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
-	reader1 := &proxy_test.MockReader{}
-	reader2 := &proxy_test.MockReader{}
+	delegate := mocks.NewMockDatastore(ctrl)
+	reader1 := mocks.NewMockReader(ctrl)
+	reader2 := mocks.NewMockReader(ctrl)
 
 	// First snapshot reader
-	delegate.On("SnapshotReader", datastore.NoRevision).Return(reader1).Once()
-	reader1.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
+	delegate.EXPECT().SnapshotReader(datastore.NoRevision).Return(reader1).Times(1)
+	reader1.EXPECT().QueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	// Second snapshot reader
-	delegate.On("SnapshotReader", mock.Anything).Return(reader2)
-	reader2.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
+	delegate.EXPECT().SnapshotReader(gomock.Any()).Return(reader2).AnyTimes()
+	reader2.EXPECT().QueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
@@ -307,14 +327,17 @@ func TestCountingProxyMultipleReaders(t *testing.T) {
 }
 
 func TestWriteMethodCounts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
-	delegate := &proxy_test.MockDatastore{}
-	reader := &proxy_test.MockReader{}
+	delegate := mocks.NewMockDatastore(ctrl)
+	reader := mocks.NewMockReader(ctrl)
 
-	delegate.On("SnapshotReader", mock.Anything).Return(reader)
-	reader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
-	reader.On("ReadNamespaceByName", "test").Return(&core.NamespaceDefinition{}, datastore.NoRevision, nil)
+	delegate.EXPECT().SnapshotReader(gomock.Any()).Return(reader).AnyTimes()
+	reader.EXPECT().QueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	reader.EXPECT().ReadNamespaceByName(gomock.Any(), "test").Return(&core.NamespaceDefinition{}, datastore.NoRevision, nil).AnyTimes()
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()

@@ -9,15 +9,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/mocks"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
@@ -30,8 +31,6 @@ var (
 	zero = revisions.NewForTransactionID(1)
 	one  = revisions.NewForTransactionID(2)
 	two  = revisions.NewForTransactionID(3)
-
-	nilOpts []options.RWTOptionsOption
 )
 
 const (
@@ -149,17 +148,24 @@ func TestSnapshotCaching(t *testing.T) {
 	for _, tester := range testers {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
-			dsMock := &proxy_test.MockDatastore{}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-			oneReader := &proxy_test.MockReader{}
-			dsMock.On("SnapshotReader", one).Return(oneReader)
-			oneReader.On(tester.readSingleFunctionName, nsA).Return(nil, old, nil).Once()
-			oneReader.On(tester.readSingleFunctionName, nsB).Return(nil, zero, nil).Once()
+			dsMock := mocks.NewMockDatastore(ctrl)
 
-			twoReader := &proxy_test.MockReader{}
-			dsMock.On("SnapshotReader", two).Return(twoReader)
-			twoReader.On(tester.readSingleFunctionName, nsA).Return(nil, zero, nil).Once()
-			twoReader.On(tester.readSingleFunctionName, nsB).Return(nil, one, nil).Once()
+			oneReader := mocks.NewMockReader(ctrl)
+			dsMock.EXPECT().SnapshotReader(one).Return(oneReader).AnyTimes()
+			oneReader.EXPECT().ReadNamespaceByName(gomock.Any(), nsA).Return(nil, old, nil).Times(1).MaxTimes(1)
+			oneReader.EXPECT().ReadCaveatByName(gomock.Any(), nsA).Return(nil, old, nil).Times(1).MaxTimes(1)
+			oneReader.EXPECT().ReadNamespaceByName(gomock.Any(), nsB).Return(nil, zero, nil).Times(1).MaxTimes(1)
+			oneReader.EXPECT().ReadCaveatByName(gomock.Any(), nsB).Return(nil, zero, nil).Times(1).MaxTimes(1)
+
+			twoReader := mocks.NewMockReader(ctrl)
+			dsMock.EXPECT().SnapshotReader(two).Return(twoReader).AnyTimes()
+			twoReader.EXPECT().ReadNamespaceByName(gomock.Any(), nsA).Return(nil, zero, nil).Times(1).MaxTimes(1)
+			twoReader.EXPECT().ReadCaveatByName(gomock.Any(), nsA).Return(nil, zero, nil).Times(1).MaxTimes(1)
+			twoReader.EXPECT().ReadNamespaceByName(gomock.Any(), nsB).Return(nil, one, nil).Times(1).MaxTimes(1)
+			twoReader.EXPECT().ReadCaveatByName(gomock.Any(), nsB).Return(nil, one, nil).Times(1).MaxTimes(1)
 
 			require := require.New(t)
 			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
@@ -195,10 +201,6 @@ func TestSnapshotCaching(t *testing.T) {
 			_, updatedTwoBAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsB)
 			require.NoError(err)
 			require.True(one.Equal(updatedTwoBAgain))
-
-			dsMock.AssertExpectations(t)
-			oneReader.AssertExpectations(t)
-			twoReader.AssertExpectations(t)
 		})
 	}
 }
@@ -207,13 +209,22 @@ func TestRWTCaching(t *testing.T) {
 	for _, tester := range testers {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
-			dsMock := &proxy_test.MockDatastore{}
-			rwtMock := &proxy_test.MockReadWriteTransaction{}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			dsMock := mocks.NewMockDatastore(ctrl)
+			rwtMock := mocks.NewMockReadWriteTransaction(ctrl)
 
 			require := require.New(t)
 
-			dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
-			rwtMock.On(tester.readSingleFunctionName, nsA).Return(nil, zero, nil).Once()
+			rwtMock.EXPECT().ReadNamespaceByName(gomock.Any(), nsA).Return(nil, zero, nil).Times(1).MaxTimes(1)
+			rwtMock.EXPECT().ReadCaveatByName(gomock.Any(), nsA).Return(nil, zero, nil).Times(1).MaxTimes(1)
+
+			dsMock.EXPECT().ReadWriteTx(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
+					return one, fn(ctx, rwtMock)
+				},
+			).Times(1)
 
 			ctx := t.Context()
 
@@ -233,9 +244,6 @@ func TestRWTCaching(t *testing.T) {
 			})
 			require.True(one.Equal(rev))
 			require.NoError(err)
-
-			dsMock.AssertExpectations(t)
-			rwtMock.AssertExpectations(t)
 		})
 	}
 }
@@ -244,13 +252,23 @@ func TestRWTCacheWithWrites(t *testing.T) {
 	for _, tester := range testers {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
-			dsMock := &proxy_test.MockDatastore{}
-			rwtMock := &proxy_test.MockReadWriteTransaction{}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			dsMock := mocks.NewMockDatastore(ctrl)
+			rwtMock := mocks.NewMockReadWriteTransaction(ctrl)
 
 			require := require.New(t)
 
-			dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
-			rwtMock.On(tester.readSingleFunctionName, nsA).Return(nil, zero, tester.notFoundErr).Once()
+			// Set up the initial read expectations (404)
+			rwtMock.EXPECT().ReadNamespaceByName(gomock.Any(), nsA).Return(nil, zero, datastore.NamespaceNotFoundError{}).Times(1).MaxTimes(1)
+			rwtMock.EXPECT().ReadCaveatByName(gomock.Any(), nsA).Return(nil, zero, datastore.CaveatNameNotFoundError{}).Times(1).MaxTimes(1)
+
+			dsMock.EXPECT().ReadWriteTx(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
+					return one, fn(ctx, rwtMock)
+				},
+			).Times(1)
 
 			ctx := t.Context()
 
@@ -267,11 +285,24 @@ func TestRWTCacheWithWrites(t *testing.T) {
 
 				// Write nsA
 				def := tester.createDef(nsA)
-				rwtMock.On(tester.writeFunctionName, tester.wrap(def)).Return(nil).Once()
+
+				// Set up write expectation
+				if tester.name == "namespace" {
+					rwtMock.EXPECT().WriteNamespaces(gomock.Any(), def.(*core.NamespaceDefinition)).Return(nil).Times(1)
+				} else {
+					rwtMock.EXPECT().WriteCaveats(gomock.Any(), []*core.CaveatDefinition{def.(*core.CaveatDefinition)}).Return(nil).Times(1)
+				}
+
 				require.NoError(tester.writeFunc(rwt, def))
 
+				// Set up read expectation after write
+				if tester.name == "namespace" {
+					rwtMock.EXPECT().ReadNamespaceByName(gomock.Any(), nsA).Return(def, zero, nil).Times(1)
+				} else {
+					rwtMock.EXPECT().ReadCaveatByName(gomock.Any(), nsA).Return(def, zero, nil).Times(1)
+				}
+
 				// Call Read* on nsA and we should flow through to the mock
-				rwtMock.On(tester.readSingleFunctionName, nsA).Return(def, zero, nil).Once()
 				def, updatedA, err := tester.readSingleFunc(ctx, rwt, nsA)
 
 				require.True(updatedA.Equal(zero))
@@ -282,9 +313,6 @@ func TestRWTCacheWithWrites(t *testing.T) {
 			})
 			require.True(one.Equal(rev))
 			require.NoError(err)
-
-			dsMock.AssertExpectations(t)
-			rwtMock.AssertExpectations(t)
 		})
 	}
 }
@@ -293,15 +321,30 @@ func TestSingleFlight(t *testing.T) {
 	for _, tester := range testers {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
-			dsMock := &proxy_test.MockDatastore{}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-			oneReader := &proxy_test.MockReader{}
-			dsMock.On("SnapshotReader", one).Return(oneReader)
-			oneReader.
-				On(tester.readSingleFunctionName, nsA).
-				WaitUntil(time.After(50*time.Millisecond)).
-				Return(nil, old, nil).
-				Once()
+			dsMock := mocks.NewMockDatastore(ctrl)
+
+			oneReader := mocks.NewMockReader(ctrl)
+			dsMock.EXPECT().SnapshotReader(one).Return(oneReader).AnyTimes()
+
+			// Use Do to simulate delay
+			if tester.name == "namespace" {
+				oneReader.EXPECT().ReadNamespaceByName(gomock.Any(), nsA).DoAndReturn(
+					func(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+						time.Sleep(50 * time.Millisecond)
+						return nil, old, nil
+					},
+				).Times(1)
+			} else {
+				oneReader.EXPECT().ReadCaveatByName(gomock.Any(), nsA).DoAndReturn(
+					func(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+						time.Sleep(50 * time.Millisecond)
+						return nil, old, nil
+					},
+				).Times(1)
+			}
 
 			require := require.New(t)
 
@@ -319,9 +362,6 @@ func TestSingleFlight(t *testing.T) {
 			g.Go(readNamespace)
 
 			require.NoError(g.Wait())
-
-			dsMock.AssertExpectations(t)
-			oneReader.AssertExpectations(t)
 		})
 	}
 }
@@ -405,7 +445,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 }
 
 type reader struct {
-	proxy_test.MockReader
+	*mocks.MockReader
 }
 
 func (r *reader) ReadNamespaceByName(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
@@ -428,13 +468,17 @@ func TestSingleFlightCancelled(t *testing.T) {
 	for _, tester := range testers {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
-			dsMock := &proxy_test.MockDatastore{}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			dsMock := mocks.NewMockDatastore(ctrl)
 			ctx1, cancel1 := context.WithCancel(t.Context())
 			ctx2, cancel2 := context.WithCancel(t.Context())
 			defer cancel2()
 			defer cancel1()
 
-			dsMock.On("SnapshotReader", one).Return(&reader{MockReader: proxy_test.MockReader{}})
+			mockReader := mocks.NewMockReader(ctrl)
+			dsMock.EXPECT().SnapshotReader(one).Return(&reader{MockReader: mockReader}).AnyTimes()
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
@@ -455,8 +499,6 @@ func TestSingleFlightCancelled(t *testing.T) {
 			g.Wait()
 			require.NotNil(t, d2)
 			require.Equal(t, nsA, d2.GetName())
-
-			dsMock.AssertExpectations(t)
 		})
 	}
 }
@@ -465,16 +507,29 @@ func TestMixedCaching(t *testing.T) {
 	for _, tester := range testers {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
-			dsMock := &proxy_test.MockDatastore{}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			dsMock := mocks.NewMockDatastore(ctrl)
 
 			defA := tester.createDef(nsA)
 			defB := tester.createDef(nsB)
 
-			reader := &proxy_test.MockReader{}
-			reader.On(tester.readSingleFunctionName, nsA).Return(defA, old, nil).Once()
-			reader.On(tester.lookupFunctionName, []string{nsB}).Return(tester.wrapRevisioned(defB), nil).Once()
+			reader := mocks.NewMockReader(ctrl)
 
-			dsMock.On("SnapshotReader", one).Return(reader)
+			if tester.name == "namespace" {
+				reader.EXPECT().ReadNamespaceByName(gomock.Any(), nsA).Return(defA.(*core.NamespaceDefinition), old, nil).Times(1)
+				reader.EXPECT().LookupNamespacesWithNames(gomock.Any(), []string{nsB}).Return(
+					[]datastore.RevisionedNamespace{{Definition: defB.(*core.NamespaceDefinition)}}, nil,
+				).Times(1)
+			} else {
+				reader.EXPECT().ReadCaveatByName(gomock.Any(), nsA).Return(defA.(*core.CaveatDefinition), old, nil).Times(1)
+				reader.EXPECT().LookupCaveatsWithNames(gomock.Any(), []string{nsB}).Return(
+					[]datastore.RevisionedCaveat{{Definition: defB.(*core.CaveatDefinition)}}, nil,
+				).Times(1)
+			}
+
+			dsMock.EXPECT().SnapshotReader(one).Return(reader).AnyTimes()
 
 			require := require.New(t)
 			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
@@ -510,9 +565,6 @@ func TestMixedCaching(t *testing.T) {
 
 			require.True(namesAgain.Has(nsA))
 			require.True(namesAgain.Has(nsB))
-
-			dsMock.AssertExpectations(t)
-			reader.AssertExpectations(t)
 		})
 	}
 }

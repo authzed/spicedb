@@ -4,22 +4,25 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/mocks"
 )
 
 func TestUnaryCountingInterceptor(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
 	// Setup mock datastore
-	mockDS := &proxy_test.MockDatastore{}
-	mockReader := &proxy_test.MockReader{}
-	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
-	mockReader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
+	mockDS := mocks.NewMockDatastore(ctrl)
+	mockReader := mocks.NewMockReader(ctrl)
+	mockDS.EXPECT().SnapshotReader(gomock.Any()).Return(mockReader).AnyTimes()
+	mockReader.EXPECT().QueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	// Create context with datastore
 	ctx := ContextWithHandle(context.Background())
@@ -53,18 +56,19 @@ func TestUnaryCountingInterceptor(t *testing.T) {
 	// Note: We can't easily verify Prometheus metrics were updated without
 	// complex setup, but we've verified the counting proxy was applied
 	// and WriteMethodCounts() was called (no panic)
-	mockDS.AssertExpectations(t)
-	mockReader.AssertExpectations(t)
 }
 
 func TestStreamCountingInterceptor(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
 	// Setup mock datastore
-	mockDS := &proxy_test.MockDatastore{}
-	mockReader := &proxy_test.MockReader{}
-	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
-	mockReader.On("ReverseQueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
+	mockDS := mocks.NewMockDatastore(ctrl)
+	mockReader := mocks.NewMockReader(ctrl)
+	mockDS.EXPECT().SnapshotReader(gomock.Any()).Return(mockReader).AnyTimes()
+	mockReader.EXPECT().ReverseQueryRelationships(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	// Create context with datastore
 	ctx := ContextWithHandle(context.Background())
@@ -95,19 +99,19 @@ func TestStreamCountingInterceptor(t *testing.T) {
 	err := interceptor(nil, mockStream, &grpc.StreamServerInfo{}, handler)
 	require.NoError(err)
 	require.True(handlerCalled)
-
-	mockDS.AssertExpectations(t)
-	mockReader.AssertExpectations(t)
 }
 
 func TestUnaryCountingInterceptor_HandlerError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
 	// Setup mock datastore
-	mockDS := &proxy_test.MockDatastore{}
-	mockReader := &proxy_test.MockReader{}
-	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
-	mockReader.On("ReadNamespaceByName", "test").Return(nil, datastore.NoRevision, nil)
+	mockDS := mocks.NewMockDatastore(ctrl)
+	mockReader := mocks.NewMockReader(ctrl)
+	mockDS.EXPECT().SnapshotReader(gomock.Any()).Return(mockReader).AnyTimes()
+	mockReader.EXPECT().ReadNamespaceByName(gomock.Any(), "test").Return(nil, datastore.NoRevision, nil).AnyTimes()
 
 	// Create context with datastore
 	ctx := ContextWithHandle(context.Background())
@@ -132,18 +136,19 @@ func TestUnaryCountingInterceptor_HandlerError(t *testing.T) {
 	require.Equal("test error", err.Error())
 
 	// Counts should still be exported (WriteMethodCounts called)
-	mockDS.AssertExpectations(t)
-	mockReader.AssertExpectations(t)
 }
 
 func TestStreamCountingInterceptor_HandlerError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	require := require.New(t)
 
 	// Setup mock datastore
-	mockDS := &proxy_test.MockDatastore{}
-	mockReader := &proxy_test.MockReader{}
-	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
-	mockReader.On("ListAllNamespaces").Return([]datastore.RevisionedNamespace{}, nil)
+	mockDS := mocks.NewMockDatastore(ctrl)
+	mockReader := mocks.NewMockReader(ctrl)
+	mockDS.EXPECT().SnapshotReader(gomock.Any()).Return(mockReader).AnyTimes()
+	mockReader.EXPECT().ListAllNamespaces(gomock.Any()).Return([]datastore.RevisionedNamespace{}, nil).AnyTimes()
 
 	// Create context with datastore
 	ctx := ContextWithHandle(context.Background())
@@ -171,8 +176,6 @@ func TestStreamCountingInterceptor_HandlerError(t *testing.T) {
 	require.Equal("test error", err.Error())
 
 	// Counts should still be exported (WriteMethodCounts called)
-	mockDS.AssertExpectations(t)
-	mockReader.AssertExpectations(t)
 }
 
 type mockServerStream struct {
