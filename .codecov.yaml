@@ -1,0 +1,4 @@
+ignore:
+  - "**/mocks/mock_*.go"
+  # tests that need to be exported so that consumer modules can run them with their own datastore implementation
+  - "pkg/datastore/test"
