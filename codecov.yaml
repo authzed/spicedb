@@ -6,6 +6,9 @@ ignore:
   - "**/*fortesting.go"
   - "**/testutil.go"
   - "**/testutil/*.go"
+  - "**/mocks/mock_*.go"
+  # tests that need to be exported so that consumer modules can run them with their own datastore implementation
+  - "pkg/datastore/test"
 coverage:
   # UI Colors. The first number represents the cutover from red to yellow,
   # and the second represents the cutover from yellow to green.

@@ -708,32 +708,23 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 		continuousCheckpointing = datastore.FeatureSupported
 	}
 
+	watchStatus := datastore.FeatureUnsupported
 	if pgd.watchEnabled {
-		return &datastore.Features{
-			Watch: datastore.Feature{
-				Status: datastore.FeatureSupported,
-			},
-			IntegrityData: datastore.Feature{
-				Status: datastore.FeatureUnsupported,
-			},
-			ContinuousCheckpointing: datastore.Feature{
-				Status: continuousCheckpointing,
-			},
-			WatchEmitsImmediately: datastore.Feature{
-				Status: datastore.FeatureUnsupported,
-			},
-		}, nil
+		watchStatus = datastore.FeatureSupported
 	}
 
 	return &datastore.Features{
 		Watch: datastore.Feature{
+			Status: watchStatus,
+		},
+		WatchEmitsImmediately: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
 		},
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
 		},
 		ContinuousCheckpointing: datastore.Feature{
-			Status: datastore.FeatureUnsupported,
+			Status: continuousCheckpointing,
 		},
 	}, nil
 }

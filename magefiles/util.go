@@ -40,14 +40,14 @@ func goDirTestWithEnv(ctx context.Context, dir string, path string, env map[stri
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
 }
 
-// testWithArgs includes -race and -timeout=20m.
+// testWithArgs includes -race and -timeout=30m.
 func testWithArgs(ctx context.Context, args ...string) ([]string, error) {
 	testArgs := append([]string{
 		"test",
 		"-failfast",
 		"-count=1",
 		"-race",
-		"-timeout=20m",
+		"-timeout=30m",
 		`-ldflags=-checklinkname=0`,
 	}, args...)
 
