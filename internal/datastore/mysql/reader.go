@@ -336,8 +336,8 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 }
 
 // SchemaReader returns a SchemaReader for reading schema information.
-func (r *mysqlReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
+func (mr *mysqlReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(mr), nil
 }
 
 var _ datastore.Reader = &mysqlReader{}

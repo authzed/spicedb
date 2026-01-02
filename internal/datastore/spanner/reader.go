@@ -402,8 +402,8 @@ var queryTuplesForDelete = sql.Select(
 ).From(tableRelationship)
 
 // SchemaReader returns a SchemaReader for reading schema information.
-func (r *spannerReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
+func (sr *spannerReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(sr), nil
 }
 
 var _ datastore.Reader = (*spannerReader)(nil)

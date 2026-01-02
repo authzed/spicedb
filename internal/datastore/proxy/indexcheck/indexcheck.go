@@ -222,6 +222,10 @@ func (rwt *indexcheckingRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames
 	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
 }
 
+func (rwt *indexcheckingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
+	return rwt.delegate.SchemaWriter()
+}
+
 func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	return rwt.delegate.DeleteRelationships(ctx, filter, options...)
 }

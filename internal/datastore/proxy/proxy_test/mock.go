@@ -378,6 +378,15 @@ func (dm *MockReadWriteTransaction) SchemaReader() (datastore.SchemaReader, erro
 	return sr, args.Error(1)
 }
 
+func (dm *MockReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
+	args := dm.Called()
+	var sw datastore.SchemaWriter
+	if args.Get(0) != nil {
+		sw = args.Get(0).(datastore.SchemaWriter)
+	}
+	return sw, args.Error(1)
+}
+
 var (
 	_ datastore.Datastore            = &MockDatastore{}
 	_ datastore.Reader               = &MockReader{}
