@@ -135,7 +135,7 @@ func (err SchemaNotDefinedError) DetailsMetadata() map[string]string {
 // NewSchemaNotDefinedErr constructs a new schema not defined error.
 func NewSchemaNotDefinedErr() error {
 	return SchemaNotDefinedError{
-		error: errors.New("No schema has been defined; please call WriteSchema to start"),
+		error: errors.New("no schema has been defined; please call WriteSchema to start"),
 	}
 }
 

@@ -226,3 +226,7 @@ func (f *fakeRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelation
 func (f *fakeRWT) SchemaReader() (datastore.SchemaReader, error) {
 	return f.fakeSnapshotReader.SchemaReader()
 }
+
+func (f *fakeRWT) SchemaWriter() (datastore.SchemaWriter, error) {
+	return nil, fmt.Errorf("not implemented")
+}

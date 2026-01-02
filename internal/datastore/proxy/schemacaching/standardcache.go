@@ -291,6 +291,10 @@ func (rwt *definitionCachingRWT) LegacyWriteCaveats(ctx context.Context, newConf
 	return nil
 }
 
+func (rwt *definitionCachingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
+	return rwt.ReadWriteTransaction.SchemaWriter()
+}
+
 type cacheEntry struct {
 	definition              schemaDefinition
 	updated                 datastore.Revision

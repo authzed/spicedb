@@ -255,6 +255,10 @@ func (vrwt validatingReadWriteTransaction) LegacyDeleteCaveats(ctx context.Conte
 	return vrwt.delegate.LegacyDeleteCaveats(ctx, names)
 }
 
+func (vrwt validatingReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
+	return vrwt.delegate.SchemaWriter()
+}
+
 func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source datastore.BulkWriteRelationshipSource) (uint64, error) {
 	return vrwt.delegate.BulkLoad(ctx, source)
 }

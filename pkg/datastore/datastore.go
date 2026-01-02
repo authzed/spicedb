@@ -539,6 +539,7 @@ type Reader interface {
 type ReadWriteTransaction interface {
 	Reader
 	LegacySchemaWriter
+	SchemaWriteable
 	CounterRegisterer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.

@@ -586,6 +586,21 @@ func (mr *MockReadWriteTransactionMockRecorder) SchemaReader() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaReader", reflect.TypeOf((*MockReadWriteTransaction)(nil).SchemaReader))
 }
 
+// SchemaWriter mocks base method.
+func (m *MockReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaWriter")
+	ret0, _ := ret[0].(datastore.SchemaWriter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SchemaWriter indicates an expected call of SchemaWriter.
+func (mr *MockReadWriteTransactionMockRecorder) SchemaWriter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaWriter", reflect.TypeOf((*MockReadWriteTransaction)(nil).SchemaWriter))
+}
+
 // StoreCounterValue mocks base method.
 func (m *MockReadWriteTransaction) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	m.ctrl.T.Helper()

@@ -430,8 +430,8 @@ func (cr *crdbReader) addOverlapKey(namespace string) {
 }
 
 // SchemaReader returns a SchemaReader for reading schema information.
-func (r *crdbReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
+func (cr *crdbReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(cr), nil
 }
 
 var _ datastore.Reader = &crdbReader{}

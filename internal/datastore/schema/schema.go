@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"testing"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // LegacySchemaReaderAdapter is a common implementation of SchemaReader that uses the legacy
@@ -36,15 +40,15 @@ func (l *LegacySchemaReaderAdapter) SchemaText() (string, error) {
 		return "", err
 	}
 
+	// Check if there is any schema defined
+	if len(namespaces) == 0 {
+		return "", datastore.NewSchemaNotDefinedErr()
+	}
+
 	// Read all caveats
 	caveats, err := l.ListAllCaveatDefinitions(ctx)
 	if err != nil {
 		return "", err
-	}
-
-	// Check if there is any schema defined
-	if len(namespaces) == 0 {
-		return "", datastore.NewSchemaNotDefinedErr()
 	}
 
 	// Build a list of all schema definitions
@@ -173,3 +177,168 @@ func (l *LegacySchemaReaderAdapter) LookupSchemaDefinitionsByNames(ctx context.C
 }
 
 var _ datastore.SchemaReader = (*LegacySchemaReaderAdapter)(nil)
+
+// LegacySchemaWriterAdapter is a common implementation of SchemaWriter that uses the legacy
+// schema writer methods. This allows datastores to implement the new SchemaWriter interface
+// while still using the legacy methods internally during the transition period.
+type LegacySchemaWriterAdapter struct {
+	legacyWriter datastore.LegacySchemaWriter
+	legacyReader datastore.LegacySchemaReader
+}
+
+// NewLegacySchemaWriterAdapter creates a new LegacySchemaWriterAdapter that wraps a LegacySchemaWriter.
+func NewLegacySchemaWriterAdapter(legacyWriter datastore.LegacySchemaWriter, legacyReader datastore.LegacySchemaReader) *LegacySchemaWriterAdapter {
+	return &LegacySchemaWriterAdapter{
+		legacyWriter: legacyWriter,
+		legacyReader: legacyReader,
+	}
+}
+
+// WriteSchema writes the full set of schema definitions. The schema string is provided for
+// future use but is currently ignored by implementations. The method validates that no
+// definition names overlap, loads existing definitions, replaces changed ones, and deletes
+// definitions no longer present.
+func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *types.TypeSet) error {
+	// Validate that no definition names overlap
+	nameSet := mapz.NewSet[string]()
+	var namespaces []*core.NamespaceDefinition
+	var caveats []*core.CaveatDefinition
+
+	for _, def := range definitions {
+		name := def.GetName()
+		if nameSet.Has(name) {
+			return fmt.Errorf("duplicate definition name: %s", name)
+		}
+		nameSet.Insert(name)
+
+		// Type assertion to determine if it's a namespace or caveat
+		switch typedDef := def.(type) {
+		case *core.NamespaceDefinition:
+			namespaces = append(namespaces, typedDef)
+		case *core.CaveatDefinition:
+			caveats = append(caveats, typedDef)
+		default:
+			return spiceerrors.MustBugf("unknown definition type: %T", def)
+		}
+	}
+
+	// Load existing type and caveat names
+	existingTypeDefs, err := l.legacyReader.LegacyListAllNamespaces(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list existing namespaces: %w", err)
+	}
+
+	existingCaveatDefs, err := l.legacyReader.LegacyListAllCaveats(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list existing caveats: %w", err)
+	}
+
+	// Build maps of existing definitions for comparison
+	existingTypeMap := make(map[string]*core.NamespaceDefinition, len(existingTypeDefs))
+	existingTypeNames := mapz.NewSet[string]()
+	for _, typeDef := range existingTypeDefs {
+		existingTypeMap[typeDef.Definition.Name] = typeDef.Definition
+		existingTypeNames.Insert(typeDef.Definition.Name)
+	}
+
+	existingCaveatMap := make(map[string]*core.CaveatDefinition, len(existingCaveatDefs))
+	existingCaveatNames := mapz.NewSet[string]()
+	for _, caveatDef := range existingCaveatDefs {
+		existingCaveatMap[caveatDef.Definition.Name] = caveatDef.Definition
+		existingCaveatNames.Insert(caveatDef.Definition.Name)
+	}
+
+	// Filter namespaces to only those that are new or changed
+	var namespacesToWrite []*core.NamespaceDefinition
+	newTypeNames := mapz.NewSet[string]()
+	for _, ns := range namespaces {
+		newTypeNames.Insert(ns.Name)
+		existing, exists := existingTypeMap[ns.Name]
+		if !exists || !ns.EqualVT(existing) {
+			namespacesToWrite = append(namespacesToWrite, ns)
+		}
+	}
+
+	// Filter caveats to only those that are new or changed
+	var caveatsToWrite []*core.CaveatDefinition
+	newCaveatNames := mapz.NewSet[string]()
+	for _, caveat := range caveats {
+		newCaveatNames.Insert(caveat.Name)
+		existing, exists := existingCaveatMap[caveat.Name]
+		if !exists || !caveat.EqualVT(existing) {
+			caveatsToWrite = append(caveatsToWrite, caveat)
+		}
+	}
+
+	// Write namespaces (only new and changed)
+	if len(namespacesToWrite) > 0 {
+		if err := l.legacyWriter.LegacyWriteNamespaces(ctx, namespacesToWrite...); err != nil {
+			return fmt.Errorf("failed to write namespaces: %w", err)
+		}
+	}
+
+	// Write caveats (only new and changed)
+	if len(caveatsToWrite) > 0 {
+		if err := l.legacyWriter.LegacyWriteCaveats(ctx, caveatsToWrite); err != nil {
+			return fmt.Errorf("failed to write caveats: %w", err)
+		}
+	}
+
+	// Delete removed namespaces
+	removedTypeNames := existingTypeNames.Subtract(newTypeNames)
+	if removedTypeNames.Len() > 0 {
+		if err := l.legacyWriter.LegacyDeleteNamespaces(ctx, removedTypeNames.AsSlice(), datastore.DeleteNamespacesOnly); err != nil {
+			return fmt.Errorf("failed to delete removed namespaces: %w", err)
+		}
+	}
+
+	// Delete removed caveats
+	removedCaveatNames := existingCaveatNames.Subtract(newCaveatNames)
+	if removedCaveatNames.Len() > 0 {
+		if err := l.legacyWriter.LegacyDeleteCaveats(ctx, removedCaveatNames.AsSlice()); err != nil {
+			return fmt.Errorf("failed to delete removed caveats: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// AddDefinitionsForTesting adds or overwrites the given schema definitions. This method is
+// only for use in testing and requires a testing.TB instance to enforce this constraint.
+func (l *LegacySchemaWriterAdapter) AddDefinitionsForTesting(ctx context.Context, tb testing.TB, definitions ...datastore.SchemaDefinition) error {
+	// The tb parameter ensures this is only called from tests
+	tb.Helper()
+
+	var namespaces []*core.NamespaceDefinition
+	var caveats []*core.CaveatDefinition
+
+	for _, def := range definitions {
+		// Type assertion to determine if it's a namespace or caveat
+		switch typedDef := def.(type) {
+		case *core.NamespaceDefinition:
+			namespaces = append(namespaces, typedDef)
+		case *core.CaveatDefinition:
+			caveats = append(caveats, typedDef)
+		default:
+			return spiceerrors.MustBugf("unknown definition type: %T", def)
+		}
+	}
+
+	// Write namespaces (add or overwrite)
+	if len(namespaces) > 0 {
+		if err := l.legacyWriter.LegacyWriteNamespaces(ctx, namespaces...); err != nil {
+			return fmt.Errorf("failed to write namespaces: %w", err)
+		}
+	}
+
+	// Write caveats (add or overwrite)
+	if len(caveats) > 0 {
+		if err := l.legacyWriter.LegacyWriteCaveats(ctx, caveats); err != nil {
+			return fmt.Errorf("failed to write caveats: %w", err)
+		}
+	}
+
+	return nil
+}
+
+var _ datastore.SchemaWriter = (*LegacySchemaWriterAdapter)(nil)

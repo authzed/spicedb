@@ -370,6 +370,10 @@ func (rwt *observableRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames []
 	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
 }
 
+func (rwt *observableRWT) SchemaWriter() (datastore.SchemaWriter, error) {
+	return rwt.delegate.SchemaWriter()
+}
+
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	ctx, closer := observe(ctx, "DeleteRelationships", "", trace.WithAttributes(
 		filterToAttributes(filter)...,
