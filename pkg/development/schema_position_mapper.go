@@ -62,21 +62,21 @@ type SchemaReference struct {
 	TargetNamePositionOffset int
 }
 
-// Resolver resolves references to schema nodes from source positions.
-type Resolver struct {
+// SchemaPositionMapper maps source positions to references.
+type SchemaPositionMapper struct {
 	schema     *compiler.CompiledSchema
 	typeSystem *schema.TypeSystem
 }
 
-// NewResolver creates a new resolver for the given schema.
-func NewResolver(compiledSchema *compiler.CompiledSchema) (*Resolver, error) {
-	resolver := schema.ResolverForCompiledSchema(*compiledSchema)
+// NewSchemaPositionMapper creates a new schema position mapper.
+func NewSchemaPositionMapper(compiledSchema *compiler.CompiledSchema) (*SchemaPositionMapper, error) {
+	resolver := schema.ResolverForCompiledSchema(compiledSchema)
 	ts := schema.NewTypeSystem(resolver)
-	return &Resolver{schema: compiledSchema, typeSystem: ts}, nil
+	return &SchemaPositionMapper{schema: compiledSchema, typeSystem: ts}, nil
 }
 
 // ReferenceAtPosition returns the reference to the schema node at the given position in the source, if any.
-func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Position) (*SchemaReference, error) {
+func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position input.Position) (*SchemaReference, error) {
 	nodeChain, err := compiler.PositionToAstNodeChain(r.schema, source, position)
 	if err != nil {
 		return nil, err
@@ -256,17 +256,16 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 	return nil, nil
 }
 
-func (r *Resolver) lookupCaveat(caveatName string) (*core.CaveatDefinition, bool) {
-	for _, caveatDef := range r.schema.CaveatDefinitions {
-		if caveatDef.Name == caveatName {
-			return caveatDef, true
-		}
+func (r *SchemaPositionMapper) lookupCaveat(caveatName string) (*core.CaveatDefinition, bool) {
+	c, err := r.typeSystem.GetCaveat(context.Background(), caveatName)
+	if err != nil {
+		return nil, false
 	}
 
-	return nil, false
+	return c, true
 }
 
-func (r *Resolver) lookupRelation(defName, relationName string) (*core.Relation, *schema.Definition, bool) {
+func (r *SchemaPositionMapper) lookupRelation(defName, relationName string) (*core.Relation, *schema.Definition, bool) {
 	ts, err := r.typeSystem.GetDefinition(context.Background(), defName)
 	if err != nil {
 		return nil, nil, false
@@ -280,7 +279,7 @@ func (r *Resolver) lookupRelation(defName, relationName string) (*core.Relation,
 	return rel, ts, true
 }
 
-func (r *Resolver) caveatParamChain(nodeChain *compiler.NodeChain, source input.Source, position input.Position) (string, *core.CaveatDefinition, bool) {
+func (r *SchemaPositionMapper) caveatParamChain(nodeChain *compiler.NodeChain, source input.Source, position input.Position) (string, *core.CaveatDefinition, bool) {
 	if !nodeChain.HasHeadType(dslshape.NodeTypeCaveatExpression) {
 		return "", nil, false
 	}
@@ -339,7 +338,7 @@ func splitCELToken(r rune) bool {
 	return r == ' ' || r == '(' || r == ')' || r == '.' || r == ',' || r == '[' || r == ']' || r == '{' || r == '}' || r == ':' || r == '='
 }
 
-func (r *Resolver) caveatTypeReferenceChain(nodeChain *compiler.NodeChain) (*core.CaveatDefinition, bool) {
+func (r *SchemaPositionMapper) caveatTypeReferenceChain(nodeChain *compiler.NodeChain) (*core.CaveatDefinition, bool) {
 	if !nodeChain.HasHeadType(dslshape.NodeTypeCaveatReference) {
 		return nil, false
 	}
@@ -352,7 +351,7 @@ func (r *Resolver) caveatTypeReferenceChain(nodeChain *compiler.NodeChain) (*cor
 	return r.lookupCaveat(caveatName)
 }
 
-func (r *Resolver) typeReferenceChain(nodeChain *compiler.NodeChain) (*schema.Definition, *core.Relation, bool) {
+func (r *SchemaPositionMapper) typeReferenceChain(nodeChain *compiler.NodeChain) (*schema.Definition, *core.Relation, bool) {
 	if !nodeChain.HasHeadType(dslshape.NodeTypeSpecificTypeReference) {
 		return nil, nil, false
 	}
@@ -390,7 +389,7 @@ func (r *Resolver) typeReferenceChain(nodeChain *compiler.NodeChain) (*schema.De
 	return def, relation, true
 }
 
-func (r *Resolver) relationReferenceChain(nodeChain *compiler.NodeChain) (*core.Relation, *schema.Definition, bool) {
+func (r *SchemaPositionMapper) relationReferenceChain(nodeChain *compiler.NodeChain) (*core.Relation, *schema.Definition, bool) {
 	if !nodeChain.HasHeadType(dslshape.NodeTypeIdentifier) {
 		return nil, nil, false
 	}
