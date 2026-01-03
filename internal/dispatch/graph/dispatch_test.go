@@ -19,19 +19,19 @@ func TestDispatchChunking(t *testing.T) {
 	t.Parallel()
 	schema := `
 		definition user {
-			relation self: user
+			relation parent: user
 		}
 
 		definition res {
 			relation owner : user
-			permission view = owner->self
+			permission view = owner->parent
 		}`
 
 	resources := make([]tuple.Relationship, 0, math.MaxUint16+1)
 	enabled := make([]tuple.Relationship, 0, math.MaxUint16+1)
 	for i := 0; i < math.MaxUint16+1; i++ {
 		resources = append(resources, tuple.MustParse(fmt.Sprintf("res:res1#owner@user:user%d", i)))
-		enabled = append(enabled, tuple.MustParse(fmt.Sprintf("user:user%d#self@user:user%d", i, i)))
+		enabled = append(enabled, tuple.MustParse(fmt.Sprintf("user:user%d#parent@user:user%d", i, i)))
 	}
 
 	ctx, dispatcher, revision := newLocalDispatcherWithSchemaAndRels(t, schema, append(enabled, resources...))

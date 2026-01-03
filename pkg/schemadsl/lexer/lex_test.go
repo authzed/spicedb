@@ -58,6 +58,7 @@ var lexerTests = []lexerTest{
 
 	{"keyword", "definition", []Lexeme{{TokenTypeKeyword, 0, "definition", ""}, tEOF}},
 	{"keyword", "nil", []Lexeme{{TokenTypeKeyword, 0, "nil", ""}, tEOF}},
+	{"identifier", "self", []Lexeme{{TokenTypeIdentifier, 0, "self", ""}, tEOF}},
 	{"identifier", "define", []Lexeme{{TokenTypeIdentifier, 0, "define", ""}, tEOF}},
 	{"typepath", "foo/bar", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},

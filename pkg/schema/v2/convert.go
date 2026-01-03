@@ -239,6 +239,7 @@ func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 		return &RelationReference{
 			relationName: "_this",
 		}, nil
+
 	case *corev1.SetOperation_Child_ComputedUserset:
 		return &RelationReference{
 			relationName: childType.ComputedUserset.GetRelation(),
@@ -264,6 +265,8 @@ func convertChild(child *corev1.SetOperation_Child) (Operation, error) {
 			right:    childType.FunctionedTupleToUserset.GetComputedUserset().GetRelation(),
 			function: functionType,
 		}, nil
+	case *corev1.SetOperation_Child_XSelf:
+		return &SelfReference{}, nil
 	case *corev1.SetOperation_Child_XNil:
 		return &NilReference{}, nil
 	default:

@@ -76,7 +76,10 @@ func CaveatTypeSet(cts *caveattypes.TypeSet) Option {
 	return func(cfg *config) { cfg.caveatTypeSet = cts }
 }
 
-const expirationFlag = "expiration"
+const (
+	expirationFlag = "expiration"
+	selfFlag       = "self"
+)
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
@@ -93,11 +96,8 @@ type ObjectPrefixOption func(*config)
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
 	cfg := &config{
-		allowedFlags: make([]string, 0, 1),
+		allowedFlags: []string{expirationFlag, selfFlag},
 	}
-
-	// Enable `expiration` flag by default.
-	cfg.allowedFlags = append(cfg.allowedFlags, expirationFlag)
 
 	prefix(cfg) // required option
 
