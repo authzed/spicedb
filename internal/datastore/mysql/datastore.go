@@ -512,6 +512,7 @@ type Datastore struct {
 
 // Close closes the data store.
 func (mds *Datastore) Close() error {
+	mds.driver.Close(context.Background())
 	mds.cancelGc()
 	if mds.gcGroup != nil {
 		if err := mds.gcGroup.Wait(); err != nil && !errors.Is(err, context.Canceled) {

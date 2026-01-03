@@ -282,7 +282,7 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	require := require.New(t)
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
@@ -296,6 +296,9 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
+	t.Cleanup(func() {
+		dispatch.Close()
+	})
 
 	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 		ResourceAndRelation: tuple.CoreONR("folder", "oops", "view"),

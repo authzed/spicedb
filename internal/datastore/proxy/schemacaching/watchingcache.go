@@ -136,8 +136,9 @@ func (p *watchingCachingProxy) ReadWriteTx(
 	return p.fallbackCache.ReadWriteTx(ctx, f, opts...)
 }
 
+// Start is async so that prepopulating doesn't block the server start.
+// The caller must cancel the context before calling Close.
 func (p *watchingCachingProxy) Start(ctx context.Context) error {
-	// Start async so that prepopulating doesn't block the server start.
 	go func() {
 		_ = p.startSync(ctx)
 	}()
@@ -350,6 +351,8 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	return nil
 }
 
+// Close stops all resources.
+// The caller must have canceled the context passed to Start.
 func (p *watchingCachingProxy) Close() error {
 	p.caveatCache.setFallbackMode()
 	p.namespaceCache.setFallbackMode()
