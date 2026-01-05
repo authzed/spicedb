@@ -13,7 +13,7 @@ import (
 func TestIsMissingTableError(t *testing.T) {
 	t.Run("returns true for missing table error", func(t *testing.T) {
 		pgErr := &pgconn.PgError{
-			Code:    pgMissingTable,
+			Code:    PgMissingTable,
 			Message: "relation \"caveat\" does not exist",
 		}
 		require.True(t, IsMissingTableError(pgErr))
@@ -38,7 +38,7 @@ func TestIsMissingTableError(t *testing.T) {
 
 	t.Run("returns true for wrapped missing table error", func(t *testing.T) {
 		pgErr := &pgconn.PgError{
-			Code:    pgMissingTable,
+			Code:    PgMissingTable,
 			Message: "relation \"caveat\" does not exist",
 		}
 		wrappedErr := fmt.Errorf("query failed: %w", pgErr)
@@ -49,7 +49,7 @@ func TestIsMissingTableError(t *testing.T) {
 func TestWrapMissingTableError(t *testing.T) {
 	t.Run("wraps missing table error", func(t *testing.T) {
 		pgErr := &pgconn.PgError{
-			Code:    pgMissingTable,
+			Code:    PgMissingTable,
 			Message: "relation \"caveat\" does not exist",
 		}
 		wrapped := WrapMissingTableError(pgErr)
@@ -79,7 +79,7 @@ func TestWrapMissingTableError(t *testing.T) {
 
 	t.Run("preserves original error in chain", func(t *testing.T) {
 		pgErr := &pgconn.PgError{
-			Code:    pgMissingTable,
+			Code:    PgMissingTable,
 			Message: "relation \"caveat\" does not exist",
 		}
 		wrapped := WrapMissingTableError(pgErr)
@@ -88,12 +88,12 @@ func TestWrapMissingTableError(t *testing.T) {
 		// The original postgres error should be accessible via unwrapping
 		var foundPgErr *pgconn.PgError
 		require.ErrorAs(t, wrapped, &foundPgErr)
-		require.Equal(t, pgMissingTable, foundPgErr.Code)
+		require.Equal(t, PgMissingTable, foundPgErr.Code)
 	})
 
 	t.Run("does not double-wrap already wrapped errors", func(t *testing.T) {
 		pgErr := &pgconn.PgError{
-			Code:    pgMissingTable,
+			Code:    PgMissingTable,
 			Message: "relation \"caveat\" does not exist",
 		}
 		// First wrap
