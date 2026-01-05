@@ -15,8 +15,6 @@ import (
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
-const postgresMissingTableErrorCode = "42P01"
-
 var tracer = otel.Tracer("spicedb/internal/datastore/common")
 
 // AlembicPostgresDriver implements a schema migration facility for use in
@@ -74,7 +72,7 @@ func (apd *AlembicPostgresDriver) Version(ctx context.Context) (string, error) {
 
 	if err := apd.db.QueryRow(ctx, "SELECT version_num from alembic_version").Scan(&loaded); err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == postgresMissingTableErrorCode {
+		if errors.As(err, &pgErr) && pgErr.Code == pgxcommon.PgMissingTable {
 			return "", nil
 		}
 		return "", fmt.Errorf("unable to load alembic revision: %w", err)

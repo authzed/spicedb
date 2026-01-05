@@ -14,7 +14,8 @@ func TestSchemaNotInitializedError(t *testing.T) {
 
 	t.Run("error message contains migration instructions", func(t *testing.T) {
 		require.Contains(t, err.Error(), "spicedb datastore migrate")
-		require.Contains(t, err.Error(), "database schema has not been initialized")
+		// The error message now includes the underlying error first, followed by the instruction
+		require.Contains(t, err.Error(), "relation \"caveat\" does not exist")
 	})
 
 	t.Run("unwrap returns underlying error", func(t *testing.T) {
@@ -39,5 +40,16 @@ func TestSchemaNotInitializedError(t *testing.T) {
 		wrappedErr := fmt.Errorf("outer: %w", err)
 		var schemaErr SchemaNotInitializedError
 		require.ErrorAs(t, wrappedErr, &schemaErr)
+	})
+
+	t.Run("grpc status extractable from wrapped error", func(t *testing.T) {
+		// This tests the scenario where SchemaNotInitializedError is wrapped
+		// by another fmt.Errorf (e.g., in crdb/caveat.go). The gRPC library
+		// uses errors.As to extract GRPCStatus from wrapped errors.
+		wrappedErr := fmt.Errorf("outer context: %w", err)
+		var schemaErr SchemaNotInitializedError
+		require.ErrorAs(t, wrappedErr, &schemaErr)
+		status := schemaErr.GRPCStatus()
+		require.Equal(t, codes.FailedPrecondition, status.Code())
 	})
 }
