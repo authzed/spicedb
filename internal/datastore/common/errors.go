@@ -184,8 +184,7 @@ type SchemaNotInitializedError struct {
 }
 
 func (err SchemaNotInitializedError) GRPCStatus() *status.Status {
-	// TODO: Create ERROR_REASON_DATASTORE_NOT_MIGRATED in authzed/api and use it here
-	// See: https://github.com/authzed/spicedb/pull/2775
+	// TODO: Update to use ERROR_REASON_DATASTORE_NOT_MIGRATED once authzed/api#159 is merged
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.FailedPrecondition,
