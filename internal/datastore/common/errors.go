@@ -184,6 +184,8 @@ type SchemaNotInitializedError struct {
 }
 
 func (err SchemaNotInitializedError) GRPCStatus() *status.Status {
+	// TODO: Create ERROR_REASON_DATASTORE_NOT_MIGRATED in authzed/api and use it here
+	// See: https://github.com/authzed/spicedb/pull/2775
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.FailedPrecondition,
@@ -202,6 +204,6 @@ func (err SchemaNotInitializedError) Unwrap() error {
 // instructing the user to run migrations.
 func NewSchemaNotInitializedError(underlying error) error {
 	return SchemaNotInitializedError{
-		fmt.Errorf("datastore error: the database schema has not been initialized; please run \"spicedb datastore migrate\": %w", underlying),
+		fmt.Errorf("%w. please run \"spicedb datastore migrate\"", underlying),
 	}
 }
