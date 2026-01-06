@@ -297,9 +297,6 @@ func (sr spannerReader) ReadNamespaceByName(ctx context.Context, nsName string) 
 		[]string{colNamespaceConfig, colNamespaceTS},
 	)
 	if err != nil {
-		if IsMissingTableError(err) {
-			return nil, datastore.NoRevision, common.NewSchemaNotInitializedError(err)
-		}
 		if spanner.ErrCode(err) == codes.NotFound {
 			return nil, datastore.NoRevision, datastore.NewNamespaceNotFoundErr(nsName)
 		}
@@ -331,9 +328,6 @@ func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revi
 
 	allNamespaces, err := readAllNamespaces(iter, trace.SpanFromContext(ctx))
 	if err != nil {
-		if IsMissingTableError(err) {
-			return nil, common.NewSchemaNotInitializedError(err)
-		}
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 

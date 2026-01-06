@@ -128,9 +128,6 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 		return row.Scan(&count)
 	}, sql, args...)
 	if err != nil {
-		if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return 0, wrappedErr
-		}
 		return 0, err
 	}
 
@@ -195,9 +192,6 @@ func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName str
 		return nil
 	}, sql, args...)
 	if err != nil {
-		if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, wrappedErr
-		}
 		return nil, err
 	}
 
@@ -213,9 +207,6 @@ func (cr *crdbReader) ReadNamespaceByName(
 		if errors.As(err, &datastore.NamespaceNotFoundError{}) {
 			return nil, datastore.NoRevision, err
 		}
-		if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, datastore.NoRevision, wrappedErr
-		}
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
@@ -229,9 +220,6 @@ func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revisi
 
 	nsDefs, sql, err := loadAllNamespaces(ctx, cr.query, addFromToQuery)
 	if err != nil {
-		if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, wrappedErr
-		}
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 	cr.assertHasExpectedAsOfSystemTime(sql)
@@ -244,9 +232,6 @@ func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []s
 	}
 	nsDefs, err := cr.lookupNamespaces(ctx, cr.query, nsNames)
 	if err != nil {
-		if wrappedErr := pgxcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, wrappedErr
-		}
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 	return nsDefs, nil
