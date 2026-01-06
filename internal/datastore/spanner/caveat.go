@@ -18,9 +18,6 @@ func (sr spannerReader) LegacyReadCaveatByName(ctx context.Context, name string)
 	caveatKey := spanner.Key{name}
 	row, err := sr.txSource().ReadRow(ctx, tableCaveat, caveatKey, []string{colCaveatDefinition, colCaveatTS})
 	if err != nil {
-		if IsMissingTableError(err) {
-			return nil, datastore.NoRevision, common.NewSchemaNotInitializedError(err)
-		}
 		if spanner.ErrCode(err) == codes.NotFound {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
 		}
@@ -86,9 +83,6 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 
 		return nil
 	}); err != nil {
-		if IsMissingTableError(err) {
-			return nil, common.NewSchemaNotInitializedError(err)
-		}
 		return nil, fmt.Errorf(errUnableToListCaveats, err)
 	}
 
