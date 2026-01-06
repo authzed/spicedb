@@ -813,8 +813,8 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 				// by not reading the schema file in and compiling a schema with an empty string.
 				// This prevents duplicate definitions from ending up in the output, as well
 				// as preventing circular imports.
-				log.Debug().Str("filepath", filePath).Msg("file %s has already been visited in another part of the walk")
-				return nil
+				log.Debug().Str("filepath", filePath).Msg("file has already been visited in another part of the walk")
+				continue
 			}
 
 			// Do the actual import here
