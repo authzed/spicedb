@@ -312,9 +312,6 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]an
 
 	cterr := tx.QueryRow(ctx, sql, args...).Scan(&newXID, &newSnapshot, &timestamp)
 	if cterr != nil {
-		if common.IsMissingTableError(cterr) {
-			cterr = dscommon.NewSchemaNotInitializedError(cterr)
-		}
 		err = fmt.Errorf("error when trying to create a new transaction: %w", cterr)
 	}
 	return newXID, newSnapshot, timestamp, err

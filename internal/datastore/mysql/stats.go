@@ -9,7 +9,6 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	mysqlcommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -27,9 +26,6 @@ func (mds *mysqlDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 	if mds.analyzeBeforeStats {
 		_, err := mds.db.ExecContext(ctx, "ANALYZE TABLE "+mds.driver.RelationTuple())
 		if err != nil {
-			if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-				return datastore.Stats{}, wrappedErr
-			}
 			return datastore.Stats{}, fmt.Errorf("unable to run ANALYZE TABLE: %w", err)
 		}
 	}
@@ -51,9 +47,6 @@ func (mds *mysqlDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 	var count sql.NullInt64
 	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return datastore.Stats{}, wrappedErr
-		}
 		return datastore.Stats{}, err
 	}
 
@@ -66,9 +59,6 @@ func (mds *mysqlDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 		}
 		err = mds.db.QueryRowContext(ctx, query, args...).Scan(&count)
 		if err != nil {
-			if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-				return datastore.Stats{}, wrappedErr
-			}
 			return datastore.Stats{}, err
 		}
 	}
@@ -83,9 +73,6 @@ func (mds *mysqlDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, nsQuery)
 	if err != nil {
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return datastore.Stats{}, wrappedErr
-		}
 		return datastore.Stats{}, fmt.Errorf("unable to load namespaces: %w", err)
 	}
 
@@ -110,9 +97,6 @@ func (mds *mysqlDatastore) UniqueID(ctx context.Context) (string, error) {
 
 		var uniqueID string
 		if err := mds.db.QueryRowContext(ctx, sql, args...).Scan(&uniqueID); err != nil {
-			if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-				return "", wrappedErr
-			}
 			return "", fmt.Errorf("unable to query unique ID: %w", err)
 		}
 		mds.uniqueID.Store(&uniqueID)

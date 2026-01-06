@@ -9,7 +9,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	mysqlcommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -41,9 +40,6 @@ func (mr *mysqlReader) LegacyReadCaveatByName(ctx context.Context, name string) 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
-		}
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, datastore.NoRevision, wrappedErr
 		}
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
@@ -86,9 +82,6 @@ func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) 
 
 	rows, err := tx.QueryContext(ctx, listSQL, listArgs...)
 	if err != nil {
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, wrappedErr
-		}
 		return nil, fmt.Errorf(errListCaveats, err)
 	}
 	defer common.LogOnError(ctx, rows.Close)

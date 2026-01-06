@@ -594,11 +594,7 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 			}
 
 			features.Watch.Status = datastore.FeatureUnsupported
-			if pgxcommon.IsMissingTableError(err) {
-				features.Watch.Reason = "Database schema has not been initialized. Please run \"spicedb datastore migrate\": " + err.Error()
-			} else {
-				features.Watch.Reason = "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: " + err.Error()
-			}
+			features.Watch.Reason = "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: " + err.Error()
 			return nil
 		}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "-1s"))
 	} else {

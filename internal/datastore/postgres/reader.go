@@ -85,9 +85,6 @@ func (r *pgReader) CountRelationships(ctx context.Context, name string) (int, er
 		return rows.Err()
 	}, sql, args...)
 	if err != nil {
-		if pgxcommon.IsMissingTableError(err) {
-			err = common.NewSchemaNotInitializedError(err)
-		}
 		return 0, err
 	}
 
@@ -143,9 +140,6 @@ func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]d
 		return rows.Err()
 	}, sql, args...)
 	if err != nil {
-		if pgxcommon.IsMissingTableError(err) {
-			err = common.NewSchemaNotInitializedError(err)
-		}
 		return nil, fmt.Errorf("unable to query counters: %w", err)
 	}
 
@@ -214,9 +208,6 @@ func (r *pgReader) LegacyReadNamespaceByName(ctx context.Context, nsName string)
 	case err == nil:
 		return loaded, version, nil
 	default:
-		if pgxcommon.IsMissingTableError(err) {
-			err = common.NewSchemaNotInitializedError(err)
-		}
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 }
@@ -242,9 +233,6 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxco
 func (r *pgReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, r.aliveFilter)
 	if err != nil {
-		if pgxcommon.IsMissingTableError(err) {
-			err = common.NewSchemaNotInitializedError(err)
-		}
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
@@ -265,9 +253,6 @@ func (r *pgReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames 
 		return r.aliveFilter(original).Where(clause)
 	})
 	if err != nil {
-		if pgxcommon.IsMissingTableError(err) {
-			err = common.NewSchemaNotInitializedError(err)
-		}
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 

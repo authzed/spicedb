@@ -9,7 +9,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	mysqlcommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -77,9 +76,6 @@ func (mr *mysqlReader) CountRelationships(ctx context.Context, name string) (int
 	var count int
 	rows, err := tx.QueryContext(ctx, sql, args...)
 	if err != nil {
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return 0, wrappedErr
-		}
 		return 0, err
 	}
 	defer common.LogOnError(ctx, rows.Close)
@@ -127,9 +123,6 @@ func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) 
 
 	rows, err := tx.QueryContext(ctx, sql, args...)
 	if err != nil {
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, wrappedErr
-		}
 		return nil, err
 	}
 	defer common.LogOnError(ctx, rows.Close)
@@ -230,9 +223,6 @@ func (mr *mysqlReader) LegacyReadNamespaceByName(ctx context.Context, nsName str
 	case err == nil:
 		return loaded, version, nil
 	default:
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, datastore.NoRevision, wrappedErr
-		}
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 }
@@ -275,9 +265,6 @@ func (mr *mysqlReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, query)
 	if err != nil {
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, wrappedErr
-		}
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
@@ -304,9 +291,6 @@ func (mr *mysqlReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNa
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, query)
 	if err != nil {
-		if wrappedErr := mysqlcommon.WrapMissingTableError(err); wrappedErr != nil {
-			return nil, wrappedErr
-		}
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
