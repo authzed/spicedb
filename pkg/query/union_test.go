@@ -149,22 +149,68 @@ func TestUnionIterator(t *testing.T) {
 		require.Empty(paths, "nonexistent subject should return no results")
 	})
 
-	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
+	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
 		union := NewUnion()
-		require.Panics(func() {
-			_, _ = ctx.IterSubjects(union, NewObject("document", "doc1"))
-		})
+
+		// Add test iterators
+		documentAccess := NewDocumentAccessFixedIterator()
+		multiRole := NewMultiRoleFixedIterator()
+
+		union.addSubIterator(documentAccess)
+		union.addSubIterator(multiRole)
+
+		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should return subjects from both iterators, deduplicated
+		require.NotEmpty(paths, "Union should find subjects")
+
+		// Verify we have alice in the results
+		foundAlice := false
+		for _, path := range paths {
+			if path.Subject.ObjectID == "alice" {
+				foundAlice = true
+				break
+			}
+		}
+		require.True(foundAlice, "Should find alice in subjects")
 	})
 
-	t.Run("IterResources_Unimplemented", func(t *testing.T) {
+	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
 		union := NewUnion()
-		require.Panics(func() {
-			_, _ = ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
-		})
+
+		// Add test iterators
+		documentAccess := NewDocumentAccessFixedIterator()
+		multiRole := NewMultiRoleFixedIterator()
+
+		union.addSubIterator(documentAccess)
+		union.addSubIterator(multiRole)
+
+		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should return resources from both iterators, deduplicated
+		require.NotEmpty(paths, "Union should find resources")
+
+		// Verify we have doc1 in the results
+		foundDoc1 := false
+		for _, path := range paths {
+			if path.Resource.ObjectID == "doc1" {
+				foundDoc1 = true
+				break
+			}
+		}
+		require.True(foundDoc1, "Should find doc1 in resources")
 	})
 }
 
@@ -635,5 +681,171 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 
 		require.Len(rels, 1, "Union should deduplicate to one relation")
 		require.Nil(rels[0].Caveat, "No caveat should win over any caveated relations")
+	})
+}
+
+func TestUnionIterSubjectsDeduplication(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("DeduplicateSubjects", func(t *testing.T) {
+		t.Parallel()
+
+		// Create paths with same subject appearing in multiple iterators
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc1#viewer@user:alice")
+
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should be deduplicated to one path
+		require.Len(paths, 1, "Union should deduplicate identical subjects")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+	})
+
+	t.Run("EmptyUnion", func(t *testing.T) {
+		t.Parallel()
+
+		union := NewUnion()
+
+		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "Empty union should return no subjects")
+	})
+
+	t.Run("MultipleSubjects", func(t *testing.T) {
+		t.Parallel()
+
+		// Create paths with different subjects
+		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
+		pathBob := MustPathFromString("document:doc1#viewer@user:bob")
+		pathCarol := MustPathFromString("document:doc1#editor@user:carol")
+
+		iter1 := NewFixedIterator(pathAlice)
+		iter2 := NewFixedIterator(pathBob, pathCarol)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should return all three subjects
+		require.Len(paths, 3, "Union should return all unique subjects")
+
+		subjectIDs := make(map[string]bool)
+		for _, path := range paths {
+			subjectIDs[path.Subject.ObjectID] = true
+		}
+		require.Contains(subjectIDs, "alice")
+		require.Contains(subjectIDs, "bob")
+		require.Contains(subjectIDs, "carol")
+	})
+}
+
+func TestUnionIterResourcesDeduplication(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("DeduplicateResources", func(t *testing.T) {
+		t.Parallel()
+
+		// Create paths with same resource appearing in multiple iterators
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc1#editor@user:alice")
+
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should be deduplicated to one path per resource
+		require.Len(paths, 1, "Union should deduplicate resources")
+		require.Equal("doc1", paths[0].Resource.ObjectID)
+	})
+
+	t.Run("EmptyUnion", func(t *testing.T) {
+		t.Parallel()
+
+		union := NewUnion()
+
+		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "Empty union should return no resources")
+	})
+
+	t.Run("MultipleResources", func(t *testing.T) {
+		t.Parallel()
+
+		// Create paths with different resources
+		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")
+		pathDoc2 := MustPathFromString("document:doc2#viewer@user:alice")
+		pathDoc3 := MustPathFromString("document:doc3#editor@user:alice")
+
+		iter1 := NewFixedIterator(pathDoc1)
+		iter2 := NewFixedIterator(pathDoc2, pathDoc3)
+
+		union := NewUnion()
+		union.addSubIterator(iter1)
+		union.addSubIterator(iter2)
+
+		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should return all three resources
+		require.Len(paths, 3, "Union should return all unique resources")
+
+		resourceIDs := make(map[string]bool)
+		for _, path := range paths {
+			resourceIDs[path.Resource.ObjectID] = true
+		}
+		require.Contains(resourceIDs, "doc1")
+		require.Contains(resourceIDs, "doc2")
+		require.Contains(resourceIDs, "doc3")
 	})
 }
