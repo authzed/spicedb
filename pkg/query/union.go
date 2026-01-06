@@ -66,11 +66,11 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 }
 
 func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: union.go IterSubjectsImpl")
 }
 
 func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: union.go IterResourcesImpl")
 }
 
 func (u *Union) Clone() Iterator {

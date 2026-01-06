@@ -132,11 +132,11 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 }
 
 func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: intersection.go IterSubjectsImpl")
 }
 
 func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: intersection.go IterResourcesImpl")
 }
 
 func (i *Intersection) Clone() Iterator {

@@ -138,11 +138,11 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 }
 
 func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: exclusion.go IterSubjectsImpl")
 }
 
 func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: exclusion.go IterResourcesImpl")
 }
 
 func (e *Exclusion) Clone() Iterator {

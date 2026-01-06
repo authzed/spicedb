@@ -122,11 +122,11 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 }
 
 func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: arrow.go IterSubjectsImpl")
 }
 
 func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: arrow.go IterResourcesImpl")
 }
 
 func (a *Arrow) Clone() Iterator {

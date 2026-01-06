@@ -141,11 +141,11 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 }
 
 func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: intersection_arrow.go IterSubjectsImpl")
 }
 
 func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: intersection_arrow.go IterResourcesImpl")
 }
 
 func (ia *IntersectionArrow) Clone() Iterator {
