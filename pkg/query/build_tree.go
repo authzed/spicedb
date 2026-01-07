@@ -172,8 +172,10 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 
 	case *schema.NilReference:
 		return NewEmptyFixedIterator(), nil
+
 	case *schema.SelfReference:
-		return NewEmptyFixedIterator(), nil // TODO is this ok?
+		// TODO: is it the name of the permission we want?
+		return NewSelf(p.Name()), nil
 
 	case *schema.RelationReference:
 		return b.buildIteratorFromSchemaInternal(p.Parent().Name(), perm.RelationName(), true)

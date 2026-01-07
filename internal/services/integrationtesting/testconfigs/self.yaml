@@ -5,20 +5,12 @@ schema: >-
     relation related: user
     permission me_or_related = related + self
   }
-
-  definition resource {
-    relation viewer: user#me_or_related | user
-    permission view = viewer
-  }
 relationships: |
-  resource:first#viewer@user:tom#me_or_related
   user:tom#related@user:tommyboy
-  resource:second#viewer@user:tom
 assertions:
   assertTrue:
-    - "resource:first#view@user:tom"
-    - "resource:first#view@user:tommyboy"
-    - "resource:second#view@user:tom"
+    - "user:tom#me_or_related@user:tom"
+    - "user:tommyboy#me_or_related@user:tommyboy"
+    - "user:tom#me_or_related@user:tommyboy"
   assertFalse:
-    - "resource:first#view@user:fred"
-    - "resource:second#view@user:tommyboy"
+    - "user:tommyboy#me_or_related@user:tom"
