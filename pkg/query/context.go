@@ -275,21 +275,19 @@ func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType 
 		startTime := time.Now()
 		resultCount := 0
 
+		defer func() {
+			elapsed := time.Since(startTime)
+			ctx.recordAnalysisResults(iterID, opType, resultCount, elapsed)
+		}()
+
 		for path, err := range pathSeq {
 			if err == nil {
 				resultCount++
 			}
 			if !yield(path, err) {
-				// Record partial results and timing before early exit
-				elapsed := time.Since(startTime)
-				ctx.recordAnalysisResults(iterID, opType, resultCount, elapsed)
 				return
 			}
 		}
-
-		// Record final result count and timing
-		elapsed := time.Since(startTime)
-		ctx.recordAnalysisResults(iterID, opType, resultCount, elapsed)
 	}
 }
 
