@@ -240,7 +240,7 @@ func TestWarnings(t *testing.T) {
 		{
 			name: "exclusion operation",
 			schema: `definition user {}
-			
+
 			definition document {
 				relation viewer: user
 				relation editor: user
@@ -249,95 +249,33 @@ func TestWarnings(t *testing.T) {
 			`,
 			expectedWarning: nil,
 		},
-		// Mixed operators tests
 		{
-			name: "mixed operators without parentheses - exclusion and intersection",
+			name: "mixed operators without parentheses",
 			schema: `definition user {}
-			
+
 			definition document {
-				relation foo: user
-				relation bar: user
-				relation baz: user
-				permission view = foo - bar & baz
-			}
-			`,
-			expectedWarning: &developerv1.DeveloperWarning{
-				Message:    "Permission \"view\" mixes exclusion (-) and intersection (&) at the same level of nesting; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
-				Line:       7,
-				Column:     5,
-				SourceCode: "view",
-			},
-		},
-		{
-			name: "mixed operators without parentheses - union and exclusion",
-			schema: `definition user {}
-			
-			definition document {
-				relation foo: user
-				relation bar: user
-				relation baz: user
-				permission view = foo + bar - baz
-			}
-			`,
-			expectedWarning: &developerv1.DeveloperWarning{
-				Message:    "Permission \"view\" mixes union (+) and exclusion (-) at the same level of nesting; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
-				Line:       7,
-				Column:     5,
-				SourceCode: "view",
-			},
-		},
-		{
-			name: "mixed operators with parentheses - no warning",
-			schema: `definition user {}
-			
-			definition document {
-				relation foo: user
-				relation bar: user
-				relation baz: user
-				permission view = (foo - bar) & baz
-			}
-			`,
-			expectedWarning: nil,
-		},
-		{
-			name: "mixed operators with parentheses on right - no warning",
-			schema: `definition user {}
-			
-			definition document {
-				relation foo: user
-				relation bar: user
-				relation baz: user
-				permission view = foo - (bar & baz)
-			}
-			`,
-			expectedWarning: nil,
-		},
-		{
-			name: "single operator type - no warning",
-			schema: `definition user {}
-			
-			definition document {
-				relation foo: user
-				relation bar: user
-				relation baz: user
-				permission view = foo + bar + baz
-			}
-			`,
-			expectedWarning: nil,
-		},
-		{
-			name: "arrow with mixed operators - no false positive on arrow",
-			schema: `definition user {}
-			
-			definition group {
-				relation member: user
-				permission view = member
-			}
-			
-			definition document {
-				relation parent: group
 				relation viewer: user
-				permission view = parent->view + viewer
+				relation editor: user
+				relation admin: user
+				permission view = viewer + editor - admin
+			}
+			`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       7,
+				Column:     23,
+				SourceCode: "view",
+			},
+		},
+		{
+			name: "mixed operators with parentheses does not warn",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				permission view = (viewer + editor) - admin
 			}
 			`,
 			expectedWarning: nil,
@@ -345,63 +283,34 @@ func TestWarnings(t *testing.T) {
 		{
 			name: "mixed operators warning disabled",
 			schema: `definition user {}
-			
-			definition document {
-				relation foo: user
-				relation bar: user
-				relation baz: user
 
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
 				// spicedb-ignore-warning: mixed-operators-without-parentheses
-				permission view = foo - bar & baz
+				permission view = viewer + editor - admin
 			}
 			`,
 			expectedWarning: nil,
 		},
-		// Multi-line expression tests
 		{
-			name: "multi-line mixed operators with operator at end of line",
+			name: "mixed operators with outer parentheses still warns",
 			schema: `definition user {}
-			
+
 			definition document {
-				relation foo: user
-				relation bar: user
-				relation baz: user
-				permission view = foo +
-					bar - baz
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				permission view = (viewer + editor - admin)
 			}
 			`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message:    "Permission \"view\" mixes union (+) and exclusion (-) at the same level of nesting; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
 				Line:       7,
-				Column:     5,
+				Column:     24,
 				SourceCode: "view",
 			},
-		},
-		{
-			name: "multi-line expression with parentheses - no warning",
-			schema: `definition user {}
-			
-			definition document {
-				relation foo: user
-				relation bar: user
-				relation baz: user
-				permission view = (foo +
-					bar) - baz
-			}
-			`,
-			expectedWarning: nil,
-		},
-		{
-			name: "expression with block comment - no warning for same operator",
-			schema: `definition user {}
-			
-			definition document {
-				relation foo: user
-				relation bar: user
-				permission view = foo /* comment */ + bar
-			}
-			`,
-			expectedWarning: nil,
 		},
 	}
 

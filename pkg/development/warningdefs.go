@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/schema"
@@ -231,119 +232,32 @@ var lintArrowReferencingRelation = ttuCheck{
 	},
 }
 
-// CheckExpressionForMixedOperators checks a permission expression for mixed operators
-// at the same parenthetical scope. This is a source-scanning check that detects
-// cases where users mix +, -, and & operators without explicit parentheses.
-//
-// For example:
-//   - "foo + bar" - OK (single operator type)
-//   - "foo - bar & baz" - WARN (mixed - and & at same scope)
-//   - "(foo - bar) & baz" - OK (operators in different scopes)
-//   - "(foo + bar) - (baz & qux)" - OK (operators in different scopes)
-//   - "(foo + bar - baz)" - WARN (mixed inside parentheses)
-func CheckExpressionForMixedOperators(
-	permissionName string,
-	expressionText string,
-	sourcePosition *corev1.SourcePosition,
-) *devinterface.DeveloperWarning {
-	// Use a stack-based approach to track operators in each parenthetical scope.
-	// Each scope is a map of operators seen at that level.
-	type scope struct {
-		operators map[rune]bool
-	}
+var lintMixedOperatorsWithoutParentheses = relationCheck{
+	"mixed-operators-without-parentheses",
+	func(
+		ctx context.Context,
+		relation *corev1.Relation,
+		def *schema.Definition,
+	) (*devinterface.DeveloperWarning, error) {
+		// Only check permissions, not relations.
+		if !def.IsPermission(relation.Name) {
+			return nil, nil
+		}
 
-	// Helper to check if a scope has mixed operators and return warning if so
-	checkScope := func(s scope) *devinterface.DeveloperWarning {
-		if len(s.operators) > 1 {
-			// Build a human-readable list of the mixed operators
-			var opList []string
-			if s.operators['+'] {
-				opList = append(opList, "union (+)")
-			}
-			if s.operators['-'] {
-				opList = append(opList, "exclusion (-)")
-			}
-			if s.operators['&'] {
-				opList = append(opList, "intersection (&)")
-			}
-
+		// Check if the permission has mixed operators without parentheses.
+		if namespace.HasMixedOperatorsWithoutParens(relation) {
+			position := namespace.GetMixedOperatorsPosition(relation)
 			return warningForPosition(
 				"mixed-operators-without-parentheses",
 				fmt.Sprintf(
-					"Permission %q mixes %s at the same level of nesting; consider adding parentheses to clarify precedence",
-					permissionName,
-					strings.Join(opList, " and "),
+					"Permission %q mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence",
+					relation.Name,
 				),
-				permissionName,
-				sourcePosition,
-			)
-		}
-		return nil
-	}
-
-	// Stack of scopes - start with the root scope
-	scopeStack := []scope{{operators: make(map[rune]bool)}}
-
-	runes := []rune(expressionText)
-	for i := 0; i < len(runes); i++ {
-		r := runes[i]
-
-		// Skip whitespace
-		if isWhitespace(r) {
-			continue
+				relation.Name,
+				position,
+			), nil
 		}
 
-		// Enter a new scope on open parenthesis
-		if r == '(' {
-			scopeStack = append(scopeStack, scope{operators: make(map[rune]bool)})
-			continue
-		}
-
-		// Exit scope on close parenthesis - check for mixed operators before popping
-		if r == ')' {
-			if len(scopeStack) > 1 {
-				// Check the scope we're about to pop for mixed operators
-				if warning := checkScope(scopeStack[len(scopeStack)-1]); warning != nil {
-					return warning
-				}
-				scopeStack = scopeStack[:len(scopeStack)-1]
-			}
-			continue
-		}
-
-		// Skip arrow operator (->)
-		if r == '-' && i+1 < len(runes) && runes[i+1] == '>' {
-			i++ // Skip the '>'
-			continue
-		}
-
-		// Skip dot notation for function calls (e.g., parent.all)
-		if r == '.' {
-			continue
-		}
-
-		// Check for operators: +, -, &
-		// Only count operators that are not part of an identifier
-		if r == '+' || r == '-' || r == '&' {
-			// Look back to see if the previous non-whitespace char was an identifier char
-			// If so, this might be part of a different construct, but in SpiceDB schema
-			// these operators should always be surrounded by whitespace or parens
-			currentScope := &scopeStack[len(scopeStack)-1]
-			currentScope.operators[r] = true
-			continue
-		}
-	}
-
-	// Check remaining scopes (including root) for mixed operators
-	for _, s := range scopeStack {
-		if warning := checkScope(s); warning != nil {
-			return warning
-		}
-	}
-
-	return nil
-}
-
-func isWhitespace(r rune) bool {
-	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
+		return nil, nil
+	},
 }

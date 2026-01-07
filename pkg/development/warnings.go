@@ -18,6 +18,7 @@ import (
 var allChecks = checks{
 	relationChecks: []relationCheck{
 		lintRelationReferencesParentType,
+		lintMixedOperatorsWithoutParentheses,
 	},
 	computedUsersetChecks: []computedUsersetCheck{
 		lintPermissionReferencingItself,
@@ -115,123 +116,10 @@ func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinitio
 			}
 
 			warnings = append(warnings, found...)
-
-			// Check for mixed operators without parentheses using source scanning
-			if !shouldSkipCheck(rel.Metadata, "mixed-operators-without-parentheses") {
-				expressionText := extractPermissionExpression(schemaLines, rel.Name, rel.GetSourcePosition())
-				if expressionText != "" {
-					if warning := CheckExpressionForMixedOperators(rel.Name, expressionText, rel.GetSourcePosition()); warning != nil {
-						warnings = append(warnings, warning)
-					}
-				}
-			}
 		}
 	}
 
 	return warnings, nil
-}
-
-// extractPermissionExpression extracts the expression text for a permission from the schema source.
-// It uses the source position to locate the permission and extracts the text after the '=' sign.
-// The schemaLines parameter should be pre-split for performance when checking multiple permissions.
-func extractPermissionExpression(schemaLines []string, _ string, sourcePosition *corev1.SourcePosition) string {
-	if sourcePosition == nil || len(schemaLines) == 0 {
-		return ""
-	}
-
-	lineIdx, err := safecast.Convert[int](sourcePosition.ZeroIndexedLineNumber)
-	if err != nil || lineIdx < 0 || lineIdx >= len(schemaLines) {
-		return ""
-	}
-
-	// Start from the permission's line and look for the expression
-	// The expression is everything after '=' until end of statement
-	var expressionBuilder strings.Builder
-	foundEquals := false
-	parenDepth := 0
-	inBlockComment := false
-	lastNonWhitespaceWasOperator := false
-
-	for i := lineIdx; i < len(schemaLines); i++ {
-		line := schemaLines[i]
-
-		// If this is the first line, start from the column position
-		startCol := 0
-		if i == lineIdx {
-			colPos, err := safecast.Convert[int](sourcePosition.ZeroIndexedColumnPosition)
-			if err == nil && colPos < len(line) {
-				startCol = colPos
-			}
-		}
-
-		lineHasContent := false
-		for j := startCol; j < len(line); j++ {
-			ch := line[j]
-
-			// Handle block comment state
-			if inBlockComment {
-				if ch == '*' && j+1 < len(line) && line[j+1] == '/' {
-					inBlockComment = false
-					j++ // Skip the '/'
-				}
-				continue
-			}
-
-			// Check for start of block comment
-			if ch == '/' && j+1 < len(line) && line[j+1] == '*' {
-				inBlockComment = true
-				j++ // Skip the '*'
-				continue
-			}
-
-			// Check for line comment - skip rest of line
-			if ch == '/' && j+1 < len(line) && line[j+1] == '/' {
-				break
-			}
-
-			if !foundEquals {
-				if ch == '=' {
-					foundEquals = true
-				}
-				continue
-			}
-
-			// Track parenthesis depth for multi-line expressions
-			switch ch {
-			case '(':
-				parenDepth++
-			case ')':
-				parenDepth--
-			}
-
-			// Track if this is an operator (for multi-line continuation detection)
-			isWhitespaceChar := ch == ' ' || ch == '\t'
-			if !isWhitespaceChar {
-				lineHasContent = true
-				lastNonWhitespaceWasOperator = (ch == '+' || ch == '-' || ch == '&')
-			}
-
-			expressionBuilder.WriteByte(ch)
-		}
-
-		// Determine if expression continues on next line:
-		// 1. We're inside parentheses (parenDepth > 0)
-		// 2. We're inside a block comment
-		// 3. The line ended with an operator (suggesting continuation)
-		// 4. The line had no content yet after '=' (e.g., '= \n foo + bar')
-		if foundEquals {
-			continueToNextLine := parenDepth > 0 || inBlockComment || lastNonWhitespaceWasOperator || !lineHasContent
-			if !continueToNextLine {
-				break
-			}
-			// Add space for multi-line expressions
-			if i < len(schemaLines)-1 {
-				expressionBuilder.WriteByte(' ')
-			}
-		}
-	}
-
-	return strings.TrimSpace(expressionBuilder.String())
 }
 
 func shouldSkipCheck(metadata *corev1.Metadata, name string) bool {

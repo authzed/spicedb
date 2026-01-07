@@ -437,6 +437,9 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 		return nil, permissionNode.Errorf("invalid permission expression: %w", err)
 	}
 
+	// Detect mixed operators without parentheses before translation (which may flatten the AST).
+	mixedOpsPosition := detectMixedOperatorsWithoutParens(tctx, expressionNode)
+
 	rewrite, err := translateExpression(tctx, expressionNode)
 	if err != nil {
 		return nil, err
@@ -445,6 +448,14 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 	permission, err := namespace.Relation(permissionName, rewrite)
 	if err != nil {
 		return nil, err
+	}
+
+	// Store mixed operators flag in metadata
+	if mixedOpsPosition != nil {
+		err = namespace.SetMixedOperatorsWithoutParens(permission, true, mixedOpsPosition)
+		if err != nil {
+			return nil, permissionNode.Errorf("error adding mixed operators flag to metadata: %w", err)
+		}
 	}
 
 	if !tctx.skipValidate {
@@ -578,6 +589,14 @@ func translateExpressionOperationDirect(tctx *translationContext, expressionOpNo
 		return namespace.Nil(), nil
 	case dslshape.NodeTypeSelfExpression:
 		return namespace.Self(), nil
+
+	case dslshape.NodeTypeParenthesizedExpression:
+		// Unwrap the parenthesized expression and translate its inner expression.
+		innerExprNode, err := expressionOpNode.Lookup(dslshape.NodeParenthesizedExpressionPredicateInnerExpr)
+		if err != nil {
+			return nil, err
+		}
+		return translateExpressionOperation(tctx, innerExprNode)
 
 	case dslshape.NodeTypeArrowExpression:
 		leftChild, err := expressionOpNode.Lookup(dslshape.NodeExpressionPredicateLeftExpr)
@@ -946,5 +965,93 @@ func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
 	// composable schemas, because each file may declare it separately
 	// and that should be valid.
 	tctx.enabledFlags.Add(flagName)
+	return nil
+}
+
+// operatorType represents the type of set operator in an expression.
+type operatorType int
+
+const (
+	operatorTypeUnknown operatorType = iota
+	operatorTypeUnion
+	operatorTypeIntersection
+	operatorTypeExclusion
+)
+
+// getOperatorType returns the operator type for a given node type, or operatorTypeUnknown if not a set operator.
+func getOperatorType(nodeType dslshape.NodeType) operatorType {
+	switch nodeType {
+	case dslshape.NodeTypeUnionExpression:
+		return operatorTypeUnion
+	case dslshape.NodeTypeIntersectExpression:
+		return operatorTypeIntersection
+	case dslshape.NodeTypeExclusionExpression:
+		return operatorTypeExclusion
+	default:
+		return operatorTypeUnknown
+	}
+}
+
+// detectMixedOperatorsWithoutParens walks the expression AST and detects if there are mixed
+// operators (union, intersection, exclusion) at the same scope level without explicit parentheses.
+// Returns the source position of the first mixed operator found, or nil if none.
+// Parenthesized expressions act as boundaries - mixing inside parens does not trigger a warning
+// since the user explicitly grouped the expression. However, top-level parentheses are unwrapped
+// since they don't clarify internal operator precedence.
+func detectMixedOperatorsWithoutParens(tctx *translationContext, node *dslNode) *core.SourcePosition {
+	// Unwrap top-level parenthesized expressions - they don't clarify internal precedence.
+	// e.g., (a + b - c) should still warn about mixed operators.
+	for node.GetType() == dslshape.NodeTypeParenthesizedExpression {
+		innerNode, err := node.Lookup(dslshape.NodeParenthesizedExpressionPredicateInnerExpr)
+		if err != nil {
+			break
+		}
+		node = innerNode
+	}
+	return detectMixedOperatorsInScope(tctx, node, operatorTypeUnknown)
+}
+
+// detectMixedOperatorsInScope recursively checks for mixed operators within a scope.
+// parentOp is the operator type seen so far at this scope level.
+func detectMixedOperatorsInScope(tctx *translationContext, node *dslNode, parentOp operatorType) *core.SourcePosition {
+	nodeType := node.GetType()
+
+	// Parenthesized expressions act as a boundary - don't propagate operator checking into them.
+	// The user explicitly grouped the expression, so we don't warn about mixing inside.
+	if nodeType == dslshape.NodeTypeParenthesizedExpression {
+		return nil
+	}
+
+	currentOp := getOperatorType(nodeType)
+
+	// If this is a set operator and we've seen a different operator at this scope, it's mixed.
+	if currentOp != operatorTypeUnknown && parentOp != operatorTypeUnknown && currentOp != parentOp {
+		return getSourcePosition(node, tctx.mapper)
+	}
+
+	// If this is a set operator, check children with this operator as the scope's operator.
+	if currentOp != operatorTypeUnknown {
+		effectiveOp := currentOp
+		if parentOp != operatorTypeUnknown {
+			effectiveOp = parentOp // Keep the first operator seen at this scope
+		}
+
+		// Check left child
+		leftChild, err := node.Lookup(dslshape.NodeExpressionPredicateLeftExpr)
+		if err == nil {
+			if pos := detectMixedOperatorsInScope(tctx, leftChild, effectiveOp); pos != nil {
+				return pos
+			}
+		}
+
+		// Check right child
+		rightChild, err := node.Lookup(dslshape.NodeExpressionPredicateRightExpr)
+		if err == nil {
+			if pos := detectMixedOperatorsInScope(tctx, rightChild, effectiveOp); pos != nil {
+				return pos
+			}
+		}
+	}
+
 	return nil
 }
