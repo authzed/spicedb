@@ -260,8 +260,8 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(it)
 	// Should be wrapped in an Alias
-	alias, ok := it.(*Alias)
-	require.True(ok, "Expected Alias wrapper")
+	require.IsType(&Alias{}, it, "Expected Alias wrapper")
+	alias := it.(*Alias)
 	require.IsType(&Exclusion{}, alias.subIt)
 
 	// Verify the explain shows alias structure with exclusion underneath
@@ -315,8 +315,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		alias, ok := it.(*Alias)
-		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Alias{}, it, "Expected Alias wrapper")
+		alias := it.(*Alias)
 		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Test execution doesn't crash
@@ -354,8 +354,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		alias, ok := it.(*Alias)
-		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Alias{}, it, "Expected Alias wrapper")
+		alias := it.(*Alias)
 		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify the structure includes union in main set
@@ -395,8 +395,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		alias, ok := it.(*Alias)
-		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Alias{}, it, "Expected Alias wrapper")
+		alias := it.(*Alias)
 		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify the structure includes intersection in main set
@@ -437,8 +437,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		alias, ok := it.(*Alias)
-		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Alias{}, it, "Expected Alias wrapper")
+		alias := it.(*Alias)
 		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify nested structure

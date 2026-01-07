@@ -92,8 +92,8 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 		require.True(t, changed, "Should reorder union to put higher selectivity first")
 
 		// Verify the order changed
-		resultUnion, ok := result.(*Union)
-		require.True(t, ok)
+		require.IsType(t, &Union{}, result)
+		resultUnion := result.(*Union)
 		require.Len(t, resultUnion.subIts, 2)
 
 		// First should be the higher selectivity item

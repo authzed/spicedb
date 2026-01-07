@@ -65,8 +65,7 @@ func TestWalkWithTransformation(t *testing.T) {
 	require.Len(t, resultUnion.Subiterators(), 2)
 
 	for _, sub := range resultUnion.Subiterators() {
-		_, isFixed := sub.(*FixedIterator)
-		require.True(t, isFixed, "All children should be FixedIterator")
+		require.IsType(t, &FixedIterator{}, sub, "All children should be FixedIterator")
 	}
 }
 
