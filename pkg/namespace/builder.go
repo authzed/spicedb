@@ -73,9 +73,9 @@ func MustRelationWithComment(name string, comment string, rewrite *core.UsersetR
 	return rel
 }
 
-// WithMixedOperators marks the relation as having mixed operators without parentheses.
+// MustWithMixedOperators marks the relation as having mixed operators without parentheses.
 // This should only be used for test expectations.
-func WithMixedOperators(rel *core.Relation, line uint64, column uint64) *core.Relation {
+func MustWithMixedOperators(rel *core.Relation, line uint64, column uint64) *core.Relation {
 	position := &core.SourcePosition{
 		ZeroIndexedLineNumber:     line,
 		ZeroIndexedColumnPosition: column,
