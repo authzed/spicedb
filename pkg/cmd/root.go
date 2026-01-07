@@ -111,6 +111,13 @@ func BuildRootCommand() (*cobra.Command, error) {
 	RegisterTestingFlags(testingCmd, &testServerConfig)
 	rootCmd.AddCommand(testingCmd)
 
+	postgresFDWConfig := new(PostgresFDWConfig)
+	postgresFDWCmd := NewPostgresFDWCommand(rootCmd.Use, postgresFDWConfig)
+	if err := RegisterPostgresFDWFlags(postgresFDWCmd, postgresFDWConfig); err != nil {
+		return nil, fmt.Errorf("failed to register postgres-fdw flags: %w", err)
+	}
+	rootCmd.AddCommand(postgresFDWCmd)
+
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "man",
 		Short: "Generate man page",
