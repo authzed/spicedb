@@ -140,8 +140,7 @@ func isMigrationIssue(msg string) bool {
 }
 
 // formatNotReadyError creates a user-friendly error message for migration issues.
-// TODO(authzed/api#159): Once ERROR_REASON_DATASTORE_NOT_MIGRATED is available in the API,
-// use spiceerrors.WithCodeAndReason to include the structured error reason.
+// TODO: Use ERROR_REASON_DATASTORE_NOT_MIGRATED once authzed-go is updated (authzed/api#159 merged)
 func formatNotReadyError(msg string) error {
 	return status.Errorf(codes.FailedPrecondition,
 		"SpiceDB datastore is not migrated. Please run 'spicedb datastore migrate'. Details: %s", msg)
