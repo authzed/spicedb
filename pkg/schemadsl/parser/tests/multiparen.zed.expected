@@ -42,58 +42,68 @@ NodeTypeFile
                           input-source = multiple parens test
                           start-rune = 44
                   right-expr =>
-                    NodeTypeExclusionExpression
-                      end-rune = 61
+                    NodeTypeParenthesizedExpression
+                      end-rune = 62
                       input-source = multiple parens test
-                      start-rune = 51
-                      left-expr =>
-                        NodeTypeArrowExpression
-                          end-rune = 54
+                      start-rune = 50
+                      inner-expr =>
+                        NodeTypeExclusionExpression
+                          end-rune = 61
                           input-source = multiple parens test
                           start-rune = 51
                           left-expr =>
-                            NodeTypeIdentifier
-                              end-rune = 51
-                              identifier-value = a
+                            NodeTypeArrowExpression
+                              end-rune = 54
                               input-source = multiple parens test
                               start-rune = 51
+                              left-expr =>
+                                NodeTypeIdentifier
+                                  end-rune = 51
+                                  identifier-value = a
+                                  input-source = multiple parens test
+                                  start-rune = 51
+                              right-expr =>
+                                NodeTypeIdentifier
+                                  end-rune = 54
+                                  identifier-value = b
+                                  input-source = multiple parens test
+                                  start-rune = 54
                           right-expr =>
-                            NodeTypeIdentifier
-                              end-rune = 54
-                              identifier-value = b
-                              input-source = multiple parens test
-                              start-rune = 54
-                      right-expr =>
-                        NodeTypeArrowExpression
-                          end-rune = 61
-                          input-source = multiple parens test
-                          start-rune = 58
-                          left-expr =>
-                            NodeTypeIdentifier
-                              end-rune = 58
-                              identifier-value = c
+                            NodeTypeArrowExpression
+                              end-rune = 61
                               input-source = multiple parens test
                               start-rune = 58
-                          right-expr =>
-                            NodeTypeIdentifier
-                              end-rune = 61
-                              identifier-value = d
-                              input-source = multiple parens test
-                              start-rune = 61
+                              left-expr =>
+                                NodeTypeIdentifier
+                                  end-rune = 58
+                                  identifier-value = c
+                                  input-source = multiple parens test
+                                  start-rune = 58
+                              right-expr =>
+                                NodeTypeIdentifier
+                                  end-rune = 61
+                                  identifier-value = d
+                                  input-source = multiple parens test
+                                  start-rune = 61
               right-expr =>
-                NodeTypeIntersectExpression
-                  end-rune = 75
+                NodeTypeParenthesizedExpression
+                  end-rune = 76
                   input-source = multiple parens test
-                  start-rune = 67
-                  left-expr =>
-                    NodeTypeIdentifier
-                      end-rune = 69
-                      identifier-value = maz
+                  start-rune = 66
+                  inner-expr =>
+                    NodeTypeIntersectExpression
+                      end-rune = 75
                       input-source = multiple parens test
                       start-rune = 67
-                  right-expr =>
-                    NodeTypeIdentifier
-                      end-rune = 75
-                      identifier-value = beh
-                      input-source = multiple parens test
-                      start-rune = 73
+                      left-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 69
+                          identifier-value = maz
+                          input-source = multiple parens test
+                          start-rune = 67
+                      right-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 75
+                          identifier-value = beh
+                          input-source = multiple parens test
+                          start-rune = 73

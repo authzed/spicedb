@@ -2,6 +2,7 @@ syntax = "proto3";
 package impl.v1;
 
 import "google/api/expr/v1alpha1/checked.proto";
+import "core/v1/core.proto";
 
 option go_package = "github.com/authzed/spicedb/pkg/proto/impl/v1";
 
@@ -90,6 +91,13 @@ message RelationMetadata {
 
   RelationKind kind = 1;
   TypeAnnotations type_annotations = 2;
+
+  // Indicates whether the permission expression contains mixed operators (union, intersection,
+  // exclusion) at the same scope level without explicit parentheses.
+  bool has_mixed_operators_without_parentheses = 3;
+
+  // The source position of the first mixed operator found, if any.
+  core.v1.SourcePosition mixed_operators_position = 4;
 }
 
 message NamespaceAndRevision {
