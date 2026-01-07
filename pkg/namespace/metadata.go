@@ -269,7 +269,7 @@ func SetMixedOperatorsWithoutParens(relation *core.Relation, hasMixed bool, posi
 	// If no existing PERMISSION RelationMetadata found and we need to set the flag
 	if hasMixed {
 		relationMetadata := &iv1.RelationMetadata{
-			Kind:                               iv1.RelationMetadata_PERMISSION,
+			Kind:                                iv1.RelationMetadata_PERMISSION,
 			HasMixedOperatorsWithoutParentheses: hasMixed,
 			MixedOperatorsPosition:              position,
 		}
