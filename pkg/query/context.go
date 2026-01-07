@@ -27,26 +27,29 @@ func NewTraceLogger() *TraceLogger {
 	}
 }
 
-// EnterIterator logs entering an iterator and pushes it onto the stack
-func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject ObjectAndRelation) {
-	// Get iterator name from Explain
+// iteratorIDPrefix generates a formatted prefix string for an iterator with its ID
+func iteratorIDPrefix(it Iterator) string {
 	explain := it.Explain()
-	iteratorType := explain.Name
-	if iteratorType == "" {
-		iteratorType = explain.Info
+	iteratorName := explain.Name
+	if iteratorName == "" {
+		iteratorName = explain.Info
 	}
 
-	indent := strings.Repeat("  ", t.depth)
-	var idPrefix string
-	if id := it.ID(); id != "" {
-		if len(id) >= 6 {
-			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id[:6])
-		} else {
-			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id)
-		}
-	} else {
-		idPrefix = " " + iteratorType
+	id := it.ID()
+	if id == "" {
+		return " " + iteratorName
 	}
+
+	if len(id) >= 6 {
+		return fmt.Sprintf(" %s[%s]", iteratorName, id[:6])
+	}
+	return fmt.Sprintf(" %s[%s]", iteratorName, id)
+}
+
+// EnterIterator logs entering an iterator and pushes it onto the stack
+func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject ObjectAndRelation) {
+	indent := strings.Repeat("  ", t.depth)
+	idPrefix := iteratorIDPrefix(it)
 
 	resourceStrs := make([]string, len(resources))
 	for i, r := range resources {
@@ -66,25 +69,9 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 	}
 	t.depth--
 
-	// Get iterator name from Explain
-	explain := it.Explain()
-	iteratorType := explain.Name
-	if iteratorType == "" {
-		iteratorType = explain.Info
-	}
-
-	var idPrefix string
-	if id := it.ID(); id != "" {
-		if len(id) >= 6 {
-			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id[:6])
-		} else {
-			idPrefix = fmt.Sprintf(" %s[%s]", iteratorType, id)
-		}
-	} else {
-		idPrefix = " " + iteratorType
-	}
-
 	indent := strings.Repeat("  ", t.depth)
+	idPrefix := iteratorIDPrefix(it)
+
 	pathStrs := make([]string, len(paths))
 	for i, p := range paths {
 		caveatInfo := ""
@@ -123,25 +110,8 @@ func (t *TraceLogger) LogStep(it Iterator, step string, data ...any) {
 		indentLevel = t.depth
 	}
 
-	// Get iterator name from Explain
-	explain := it.Explain()
-	iteratorName := explain.Name
-	if iteratorName == "" {
-		iteratorName = explain.Info
-	}
-
-	var idPrefix string
-	if id := it.ID(); id != "" {
-		if len(id) >= 6 {
-			idPrefix = fmt.Sprintf(" %s[%s]", iteratorName, id[:6])
-		} else {
-			idPrefix = fmt.Sprintf(" %s[%s]", iteratorName, id)
-		}
-	} else {
-		idPrefix = " " + iteratorName
-	}
-
 	indent := strings.Repeat("  ", indentLevel)
+	idPrefix := iteratorIDPrefix(it)
 	message := fmt.Sprintf(step, data...)
 	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, idPrefix, message))
 }

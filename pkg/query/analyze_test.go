@@ -347,8 +347,8 @@ func TestOptimizationImprovements(t *testing.T) {
 			100.0*float64(unoptimizedStats.CheckCalls-optimizedStats.CheckCalls)/float64(unoptimizedStats.CheckCalls))
 
 		// Verify that timing was tracked
-		require.Greater(t, unoptimizedStats.CheckTime, time.Duration(0), "Unoptimized tree should have non-zero Check time")
-		require.Greater(t, optimizedStats.CheckTime, time.Duration(0), "Optimized tree should have non-zero Check time")
+		require.Positive(t, unoptimizedStats.CheckTime, "Unoptimized tree should have non-zero Check time")
+		require.Positive(t, optimizedStats.CheckTime, "Optimized tree should have non-zero Check time")
 
 		t.Logf("Timing - Unoptimized: %v, Optimized: %v", unoptimizedStats.CheckTime, optimizedStats.CheckTime)
 	})
@@ -428,8 +428,8 @@ func TestOptimizationImprovements(t *testing.T) {
 			100.0*float64(unoptimizedStats.CheckCalls-optimizedStats.CheckCalls)/float64(unoptimizedStats.CheckCalls))
 
 		// Verify that timing was tracked
-		require.Greater(t, unoptimizedStats.CheckTime, time.Duration(0), "Unoptimized tree should have non-zero Check time")
-		require.Greater(t, optimizedStats.CheckTime, time.Duration(0), "Optimized tree should have non-zero Check time")
+		require.Positive(t, unoptimizedStats.CheckTime, "Unoptimized tree should have non-zero Check time")
+		require.Positive(t, optimizedStats.CheckTime, "Optimized tree should have non-zero Check time")
 
 		t.Logf("Timing - Unoptimized: %v, Optimized: %v", unoptimizedStats.CheckTime, optimizedStats.CheckTime)
 	})
@@ -531,8 +531,8 @@ func TestOptimizationImprovements(t *testing.T) {
 			100.0*float64(unoptimizedStats.CheckCalls-optimizedStats.CheckCalls)/float64(unoptimizedStats.CheckCalls))
 
 		// Verify that timing was tracked
-		require.Greater(t, unoptimizedStats.CheckTime, time.Duration(0), "Unoptimized tree should have non-zero Check time")
-		require.Greater(t, optimizedStats.CheckTime, time.Duration(0), "Optimized tree should have non-zero Check time")
+		require.Positive(t, unoptimizedStats.CheckTime, "Unoptimized tree should have non-zero Check time")
+		require.Positive(t, optimizedStats.CheckTime, "Optimized tree should have non-zero Check time")
 
 		// Log the analysis trees for visual comparison
 		t.Logf("\nUnoptimized tree:\n%s", FormatAnalysis(unoptimized, analyzeUnoptimized))
