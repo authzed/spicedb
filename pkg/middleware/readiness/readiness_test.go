@@ -349,8 +349,8 @@ func TestGate_NegativeCacheReducesChecks(t *testing.T) {
 
 func TestGate_OnlyBlocksOnMigrationIssues(t *testing.T) {
 	tests := []struct {
-		name         string
-		message      string
+		name          string
+		message       string
 		expectBlocked bool
 	}{
 		{
