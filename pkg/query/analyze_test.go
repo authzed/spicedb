@@ -138,7 +138,7 @@ func TestAnalysisIntegration(t *testing.T) {
 	)
 
 	// Create a context with analysis enabled
-	analyze := make(map[string]AnalyzeStats)
+	analyze := NewAnalyzeCollector()
 	ctx := &Context{
 		Context:  context.Background(),
 		Executor: LocalExecutor{},
@@ -158,13 +158,14 @@ func TestAnalysisIntegration(t *testing.T) {
 	require.Len(t, paths, 1)
 
 	// Verify stats were recorded
-	stats, exists := analyze[fixed.ID()]
+	analyzeStats := analyze.GetStats()
+	stats, exists := analyzeStats[fixed.ID()]
 	require.True(t, exists, "Stats should exist for iterator")
 	require.Equal(t, 1, stats.CheckCalls, "Should have 1 Check call")
 	require.Equal(t, 1, stats.CheckResults, "Should have 1 Check result")
 
 	// Format and verify analysis output
-	output := FormatAnalysis(fixed, analyze)
+	output := FormatAnalysis(fixed, analyzeStats)
 	require.Contains(t, output, "Fixed(2 paths)")
 	require.Contains(t, output, "Calls: Check=1")
 	require.Contains(t, output, "Results: Check=1")
@@ -294,7 +295,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		unoptimized := NewUnion(fixed, empty1, empty2)
 
 		// Execute unoptimized tree
-		analyzeUnoptimized := make(map[string]AnalyzeStats)
+		analyzeUnoptimized := NewAnalyzeCollector()
 		ctxUnoptimized := &Context{
 			Context:  context.Background(),
 			Executor: LocalExecutor{},
@@ -312,7 +313,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.Len(t, paths, 1)
 
 		// Get aggregated stats for unoptimized
-		unoptimizedStats := AggregateAnalyzeStats(analyzeUnoptimized)
+		unoptimizedStats := AggregateAnalyzeStats(analyzeUnoptimized.GetStats())
 
 		// Apply optimizations
 		optimized, changed, err := ApplyOptimizations(unoptimized, StaticOptimizations)
@@ -320,7 +321,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.True(t, changed, "Should have optimized the tree")
 
 		// Execute optimized tree
-		analyzeOptimized := make(map[string]AnalyzeStats)
+		analyzeOptimized := NewAnalyzeCollector()
 		ctxOptimized := &Context{
 			Context:  context.Background(),
 			Executor: LocalExecutor{},
@@ -335,7 +336,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.Len(t, paths, 1)
 
 		// Get aggregated stats for optimized
-		optimizedStats := AggregateAnalyzeStats(analyzeOptimized)
+		optimizedStats := AggregateAnalyzeStats(analyzeOptimized.GetStats())
 
 		// Verify optimization improvements
 		require.Less(t, optimizedStats.CheckCalls, unoptimizedStats.CheckCalls,
@@ -371,7 +372,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		unoptimized := NewUnion(middleUnion)
 
 		// Execute unoptimized tree
-		analyzeUnoptimized := make(map[string]AnalyzeStats)
+		analyzeUnoptimized := NewAnalyzeCollector()
 		ctxUnoptimized := &Context{
 			Context:  context.Background(),
 			Executor: LocalExecutor{},
@@ -389,7 +390,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.Len(t, paths, 1)
 
 		// Get aggregated stats for unoptimized
-		unoptimizedStats := AggregateAnalyzeStats(analyzeUnoptimized)
+		unoptimizedStats := AggregateAnalyzeStats(analyzeUnoptimized.GetStats())
 
 		// Apply optimizations
 		optimized, changed, err := ApplyOptimizations(unoptimized, StaticOptimizations)
@@ -397,7 +398,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.True(t, changed, "Should have optimized the tree")
 
 		// Execute optimized tree
-		analyzeOptimized := make(map[string]AnalyzeStats)
+		analyzeOptimized := NewAnalyzeCollector()
 		ctxOptimized := &Context{
 			Context:  context.Background(),
 			Executor: LocalExecutor{},
@@ -412,7 +413,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.Len(t, paths, 1)
 
 		// Get aggregated stats for optimized
-		optimizedStats := AggregateAnalyzeStats(analyzeOptimized)
+		optimizedStats := AggregateAnalyzeStats(analyzeOptimized.GetStats())
 
 		// Verify optimization improvements
 		require.Less(t, optimizedStats.CheckCalls, unoptimizedStats.CheckCalls,
@@ -472,7 +473,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		unoptimized := NewUnion(emptyIntersection, singletonUnion, emptyFixed, fixed3)
 
 		// Execute unoptimized tree
-		analyzeUnoptimized := make(map[string]AnalyzeStats)
+		analyzeUnoptimized := NewAnalyzeCollector()
 		ctxUnoptimized := &Context{
 			Context:  context.Background(),
 			Executor: LocalExecutor{},
@@ -493,7 +494,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.Len(t, paths, 1)
 
 		// Get aggregated stats for unoptimized
-		unoptimizedStats := AggregateAnalyzeStats(analyzeUnoptimized)
+		unoptimizedStats := AggregateAnalyzeStats(analyzeUnoptimized.GetStats())
 
 		// Apply optimizations
 		optimized, changed, err := ApplyOptimizations(unoptimized, StaticOptimizations)
@@ -501,7 +502,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.True(t, changed, "Should have optimized the tree")
 
 		// Execute optimized tree
-		analyzeOptimized := make(map[string]AnalyzeStats)
+		analyzeOptimized := NewAnalyzeCollector()
 		ctxOptimized := &Context{
 			Context:  context.Background(),
 			Executor: LocalExecutor{},
@@ -516,7 +517,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.Len(t, paths, 1)
 
 		// Get aggregated stats for optimized
-		optimizedStats := AggregateAnalyzeStats(analyzeOptimized)
+		optimizedStats := AggregateAnalyzeStats(analyzeOptimized.GetStats())
 
 		// Verify optimization improvements
 		require.Less(t, optimizedStats.CheckCalls, unoptimizedStats.CheckCalls,
@@ -524,9 +525,9 @@ func TestOptimizationImprovements(t *testing.T) {
 
 		t.Logf("\nComplex optimization scenario:")
 		t.Logf("  Unoptimized: %d iterators, %d Check calls, %v total time",
-			len(analyzeUnoptimized), unoptimizedStats.CheckCalls, unoptimizedStats.CheckTime)
+			len(analyzeUnoptimized.GetStats()), unoptimizedStats.CheckCalls, unoptimizedStats.CheckTime)
 		t.Logf("  Optimized: %d iterators, %d Check calls, %v total time",
-			len(analyzeOptimized), optimizedStats.CheckCalls, optimizedStats.CheckTime)
+			len(analyzeOptimized.GetStats()), optimizedStats.CheckCalls, optimizedStats.CheckTime)
 		t.Logf("  Reduction: %.1f%% fewer Check calls",
 			100.0*float64(unoptimizedStats.CheckCalls-optimizedStats.CheckCalls)/float64(unoptimizedStats.CheckCalls))
 
@@ -535,7 +536,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		require.Positive(t, optimizedStats.CheckTime, "Optimized tree should have non-zero Check time")
 
 		// Log the analysis trees for visual comparison
-		t.Logf("\nUnoptimized tree:\n%s", FormatAnalysis(unoptimized, analyzeUnoptimized))
-		t.Logf("\nOptimized tree:\n%s", FormatAnalysis(optimized, analyzeOptimized))
+		t.Logf("\nUnoptimized tree:\n%s", FormatAnalysis(unoptimized, analyzeUnoptimized.GetStats()))
+		t.Logf("\nOptimized tree:\n%s", FormatAnalysis(optimized, analyzeOptimized.GetStats()))
 	})
 }

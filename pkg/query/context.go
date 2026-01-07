@@ -3,7 +3,9 @@ package query
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
@@ -134,6 +136,75 @@ type AnalyzeStats struct {
 	IterResourcesTime    time.Duration
 }
 
+// AnalyzeCollector is a thread-safe wrapper around the analysis stats map
+type AnalyzeCollector struct {
+	mu    sync.Mutex
+	stats map[string]AnalyzeStats // GUARDED_BY(mu)
+}
+
+// NewAnalyzeCollector creates a new thread-safe analyze collector
+func NewAnalyzeCollector() *AnalyzeCollector {
+	return &AnalyzeCollector{
+		stats: make(map[string]AnalyzeStats),
+	}
+}
+
+// IncrementCall increments the call counter for a given iterator and operation type
+func (ac *AnalyzeCollector) IncrementCall(iterID, opType string) {
+	if ac == nil {
+		return
+	}
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	stats := ac.stats[iterID]
+	switch opType {
+	case "Check":
+		stats.CheckCalls++
+	case "IterSubjects":
+		stats.IterSubjectsCalls++
+	case "IterResources":
+		stats.IterResourcesCalls++
+	}
+	ac.stats[iterID] = stats
+}
+
+// RecordResults updates the result count and timing for an iterator
+func (ac *AnalyzeCollector) RecordResults(iterID, opType string, count int, elapsed time.Duration) {
+	if ac == nil {
+		return
+	}
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	stats := ac.stats[iterID]
+	switch opType {
+	case "Check":
+		stats.CheckResults += count
+		stats.CheckTime += elapsed
+	case "IterSubjects":
+		stats.IterSubjectsResults += count
+		stats.IterSubjectsTime += elapsed
+	case "IterResources":
+		stats.IterResourcesResults += count
+		stats.IterResourcesTime += elapsed
+	}
+	ac.stats[iterID] = stats
+}
+
+// GetStats returns a copy of all stats for reading
+func (ac *AnalyzeCollector) GetStats() map[string]AnalyzeStats {
+	if ac == nil {
+		return nil
+	}
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	result := make(map[string]AnalyzeStats, len(ac.stats))
+	maps.Copy(result, ac.stats)
+	return result
+}
+
 // Context represents a single execution of a query.
 // It is both a standard context.Context and all the query-time specific handles needed to evaluate a query, such as which datastore it is running against.
 //
@@ -144,9 +215,9 @@ type Context struct {
 	Reader            datastore.Reader // Datastore reader for this query at a specific revision
 	CaveatContext     map[string]any
 	CaveatRunner      *caveats.CaveatRunner
-	TraceLogger       *TraceLogger // For debugging iterator execution
-	Analyze           map[string]AnalyzeStats
-	MaxRecursionDepth int // Maximum depth for recursive iterators (0 = use default of 10)
+	TraceLogger       *TraceLogger      // For debugging iterator execution
+	Analyze           *AnalyzeCollector // Thread-safe collector for query analysis stats
+	MaxRecursionDepth int               // Maximum depth for recursive iterators (0 = use default of 10)
 }
 
 func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
@@ -223,22 +294,8 @@ func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType 
 
 	iterID := it.ID()
 
-	// Initialize stats for this iterator if not present
-	if _, exists := ctx.Analyze[iterID]; !exists {
-		ctx.Analyze[iterID] = AnalyzeStats{}
-	}
-
-	// Increment call counter based on operation type
-	stats := ctx.Analyze[iterID]
-	switch opType {
-	case "Check":
-		stats.CheckCalls++
-	case "IterSubjects":
-		stats.IterSubjectsCalls++
-	case "IterResources":
-		stats.IterResourcesCalls++
-	}
-	ctx.Analyze[iterID] = stats
+	// Increment call counter based on operation type (thread-safe)
+	ctx.Analyze.IncrementCall(iterID, opType)
 
 	// Wrap the PathSeq to count results and track timing
 	return func(yield func(Path, error) bool) {
@@ -247,7 +304,7 @@ func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType 
 
 		defer func() {
 			elapsed := time.Since(startTime)
-			ctx.recordAnalysisResults(iterID, opType, resultCount, elapsed)
+			ctx.Analyze.RecordResults(iterID, opType, resultCount, elapsed)
 		}()
 
 		for path, err := range pathSeq {
@@ -259,27 +316,6 @@ func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType 
 			}
 		}
 	}
-}
-
-// recordAnalysisResults updates the result count and timing for an iterator
-func (ctx *Context) recordAnalysisResults(iterID, opType string, count int, elapsed time.Duration) {
-	if ctx.Analyze == nil {
-		return
-	}
-
-	stats := ctx.Analyze[iterID]
-	switch opType {
-	case "Check":
-		stats.CheckResults += count
-		stats.CheckTime += elapsed
-	case "IterSubjects":
-		stats.IterSubjectsResults += count
-		stats.IterSubjectsTime += elapsed
-	case "IterResources":
-		stats.IterResourcesResults += count
-		stats.IterResourcesTime += elapsed
-	}
-	ctx.Analyze[iterID] = stats
 }
 
 // Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
