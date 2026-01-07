@@ -925,7 +925,7 @@ var File_impl_v1_impl_proto protoreflect.FileDescriptor
 
 const file_impl_v1_impl_proto_rawDesc = "" +
 	"\n" +
-	"\x12impl/v1/impl.proto\x12\aimpl.v1\x1a&google/api/expr/v1alpha1/checked.proto\x1a\x12core/v1/core.proto\"l\n" +
+	"\x12impl/v1/impl.proto\x12\aimpl.v1\x1a\x12core/v1/core.proto\x1a&google/api/expr/v1alpha1/checked.proto\"l\n" +
 	"\rDecodedCaveat\x129\n" +
 	"\x03cel\x18\x01 \x01(\v2%.google.api.expr.v1alpha1.CheckedExprH\x00R\x03cel\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04nameB\f\n" +

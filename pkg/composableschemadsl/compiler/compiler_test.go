@@ -573,7 +573,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.WithMixedOperators(
+					namespace.MustWithMixedOperators(
 						namespace.MustRelation("foos",
 							namespace.Exclusion(
 								namespace.Rewrite(
