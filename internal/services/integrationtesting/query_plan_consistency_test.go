@@ -55,7 +55,7 @@ func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 	require := require.New(t)
 
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, testTimedelta, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
 	require.NoError(err)
 	populated, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{filePath})
 	require.NoError(err)

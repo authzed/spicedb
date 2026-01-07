@@ -29,7 +29,7 @@ import (
 func TestMemdbSteelThreads(t *testing.T) {
 	for _, tc := range steelThreadTestCases {
 		t.Run(tc.name, func(t *testing.T) {
-			emptyDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 2*time.Hour)
+			emptyDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 5*time.Second, 2*time.Hour)
 			require.NoError(t, err)
 
 			runSteelThreadTest(t, tc, emptyDS)
