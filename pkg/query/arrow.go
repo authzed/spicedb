@@ -122,7 +122,78 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 }
 
 func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented: arrow.go IterSubjectsImpl")
+	// Arrow: resource -> left subjects -> right subjects
+	// Get subjects from left side, then for each, get subjects from right side
+	return func(yield func(Path, error) bool) {
+		ctx.TraceStep(a, "iterating subjects for resource %s:%s", resource.ObjectType, resource.ObjectID)
+
+		// Get all subjects from the left side
+		leftSeq, err := ctx.IterSubjects(a.left, resource)
+		if err != nil {
+			yield(Path{}, err)
+			return
+		}
+
+		leftPathCount := 0
+		totalResultPaths := 0
+		for leftPath, err := range leftSeq {
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+			leftPathCount++
+
+			// For each left subject, get subjects from right side
+			leftSubjectAsResource := GetObject(leftPath.Subject)
+			ctx.TraceStep(a, "iterating right side for left subject %s:%s", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+
+			rightSeq, err := ctx.IterSubjects(a.right, leftSubjectAsResource)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			rightPathCount := 0
+			for rightPath, err := range rightSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+				rightPathCount++
+
+				// Combine caveats from both sides (AND logic)
+				var combinedCaveat *core.CaveatExpression
+				switch {
+				case leftPath.Caveat != nil && rightPath.Caveat != nil:
+					combinedCaveat = caveats.And(leftPath.Caveat, rightPath.Caveat)
+				case leftPath.Caveat != nil:
+					combinedCaveat = leftPath.Caveat
+				case rightPath.Caveat != nil:
+					combinedCaveat = rightPath.Caveat
+				}
+
+				// Create combined path with resource from left and subject from right
+				combinedPath := Path{
+					Resource:   leftPath.Resource,
+					Relation:   leftPath.Relation,
+					Subject:    rightPath.Subject,
+					Caveat:     combinedCaveat,
+					Expiration: rightPath.Expiration,
+					Integrity:  rightPath.Integrity,
+					Metadata:   make(map[string]any),
+				}
+
+				totalResultPaths++
+				if !yield(combinedPath, nil) {
+					return
+				}
+			}
+
+			ctx.TraceStep(a, "right side returned %d paths for left subject %s:%s", rightPathCount, leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+		}
+
+		ctx.TraceStep(a, "arrow IterSubjects completed: %d left paths, %d total result paths", leftPathCount, totalResultPaths)
+	}, nil
 }
 
 func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {

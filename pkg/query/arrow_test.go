@@ -100,7 +100,7 @@ func TestArrowIterator(t *testing.T) {
 		require.Empty(rels, "nonexistent subject should return no results")
 	})
 
-	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
+	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
 		// Create context with LocalExecutor
@@ -109,9 +109,27 @@ func TestArrowIterator(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		require.Panics(func() {
-			_, _ = ctx.IterSubjects(arrow, NewObject("document", "spec1"))
-		})
+		// Test arrow IterSubjects: find all subjects for a resource through the arrow
+		// This finds subjects who have access to a resource via the left->right path
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "spec1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Expected: spec1 parent is project1, and alice has viewer access to project1
+		// So alice should be returned as a subject
+		require.NotEmpty(paths, "Should find subjects through arrow")
+
+		// Verify alice is in the results
+		foundAlice := false
+		for _, path := range paths {
+			if path.Subject.ObjectID == "alice" {
+				foundAlice = true
+				break
+			}
+		}
+		require.True(foundAlice, "Should find alice as a subject")
 	})
 
 	t.Run("IterResources_Unimplemented", func(t *testing.T) {
@@ -458,5 +476,148 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		require.NoError(err)
 
 		require.Empty(rels, "No matching arrow relations should result in empty result")
+	})
+}
+
+func TestArrowIterSubjects(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("SimpleArrow", func(t *testing.T) {
+		t.Parallel()
+
+		// Left: doc1 -> folder1
+		// Right: folder1 -> alice
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "Should find one subject through arrow")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+		require.Equal("doc1", paths[0].Resource.ObjectID)
+	})
+
+	t.Run("MultipleSubjects", func(t *testing.T) {
+		t.Parallel()
+
+		// Left: doc1 -> folder1
+		// Right: folder1 -> alice, folder1 -> bob
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath2 := MustPathFromString("folder:folder1#viewer@user:bob")
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath1, rightPath2)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 2, "Should find two subjects through arrow")
+
+		subjectIDs := make(map[string]bool)
+		for _, path := range paths {
+			subjectIDs[path.Subject.ObjectID] = true
+		}
+		require.Contains(subjectIDs, "alice")
+		require.Contains(subjectIDs, "bob")
+	})
+
+	t.Run("NoLeftPaths", func(t *testing.T) {
+		t.Parallel()
+
+		// Empty left side
+		leftIter := NewFixedIterator()
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "No left paths should result in no subjects")
+	})
+
+	t.Run("NoRightPaths", func(t *testing.T) {
+		t.Parallel()
+
+		// Left exists but right is empty
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator()
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "No right paths should result in no subjects")
+	})
+
+	t.Run("CaveatCombination", func(t *testing.T) {
+		t.Parallel()
+
+		// Left with caveat
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat",
+				},
+			},
+		}
+
+		// Right with caveat
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat",
+				},
+			},
+		}
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "Should find one subject")
+		require.NotNil(paths[0].Caveat, "Should have combined caveat")
+		require.NotNil(paths[0].Caveat.GetOperation(), "Caveat should be an operation")
+		require.Equal(core.CaveatOperation_AND, paths[0].Caveat.GetOperation().Op, "Caveat should be AND")
 	})
 }
