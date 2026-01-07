@@ -47,9 +47,9 @@ type Gate struct {
 	sfGroup singleflight.Group
 
 	mu            sync.RWMutex
-	cachedReady   bool
-	cachedMessage string
-	cacheTime     time.Time
+	cachedReady   bool      // GUARDED_BY(mu)
+	cachedMessage string    // GUARDED_BY(mu)
+	cacheTime     time.Time // GUARDED_BY(mu)
 }
 
 // NewGate creates a new readiness gate with the given checker.
@@ -87,7 +87,7 @@ func (g *Gate) isReady(ctx context.Context) (bool, string) {
 	g.mu.RUnlock()
 
 	// Slow path: use singleflight to deduplicate concurrent checks
-	result, _, _ := g.sfGroup.Do("readiness", func() (interface{}, error) {
+	result, _, _ := g.sfGroup.Do("readiness", func() (any, error) {
 		// Double-check cache after acquiring singleflight
 		g.mu.RLock()
 		elapsed := time.Since(g.cacheTime)
@@ -149,7 +149,7 @@ func formatNotReadyError(msg string) error {
 // UnaryServerInterceptor returns a gRPC unary interceptor that blocks
 // requests until the datastore is ready.
 func (g *Gate) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		// Bypass health checks so Kubernetes probes work
 		if strings.HasPrefix(info.FullMethod, healthCheckPrefix) {
 			return handler(ctx, req)
@@ -167,7 +167,7 @@ func (g *Gate) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 // StreamServerInterceptor returns a gRPC stream interceptor that blocks
 // streams until the datastore is ready.
 func (g *Gate) StreamServerInterceptor() grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		// Bypass health checks so Kubernetes probes work
 		if strings.HasPrefix(info.FullMethod, healthCheckPrefix) {
 			return handler(srv, ss)

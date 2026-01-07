@@ -44,7 +44,7 @@ func TestGate_BlocksWhenNotReady(t *testing.T) {
 	interceptor := gate.UnaryServerInterceptor()
 	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/authzed.api.v1.PermissionsService/CheckPermission",
-	}, func(ctx context.Context, req interface{}) (interface{}, error) {
+	}, func(ctx context.Context, req any) (any, error) {
 		t.Fatal("handler should not be called when not ready")
 		return nil, nil
 	})
@@ -65,7 +65,7 @@ func TestGate_AllowsWhenReady(t *testing.T) {
 	interceptor := gate.UnaryServerInterceptor()
 	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/authzed.api.v1.PermissionsService/CheckPermission",
-	}, func(ctx context.Context, req interface{}) (interface{}, error) {
+	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
 		return "response", nil
 	})
@@ -85,7 +85,7 @@ func TestGate_BypassesHealthCheck(t *testing.T) {
 	interceptor := gate.UnaryServerInterceptor()
 	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/grpc.health.v1.Health/Check",
-	}, func(ctx context.Context, req interface{}) (interface{}, error) {
+	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
 		return "ok", nil
 	})
@@ -107,7 +107,7 @@ func TestGate_BypassesHealthWatch(t *testing.T) {
 	interceptor := gate.UnaryServerInterceptor()
 	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/grpc.health.v1.Health/Watch",
-	}, func(ctx context.Context, req interface{}) (interface{}, error) {
+	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
 		return "ok", nil
 	})
@@ -122,7 +122,7 @@ func TestGate_CachesReadyState(t *testing.T) {
 
 	interceptor := gate.UnaryServerInterceptor()
 	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return nil, nil
 	}
 
@@ -152,7 +152,7 @@ func TestGate_CacheExpires(t *testing.T) {
 	interceptor := gate.UnaryServerInterceptor()
 	_, _ = interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/test/Method",
-	}, func(ctx context.Context, req interface{}) (interface{}, error) {
+	}, func(ctx context.Context, req any) (any, error) {
 		return nil, nil
 	})
 
@@ -167,7 +167,7 @@ func TestGate_SingleflightPreventsThunderingHerd(t *testing.T) {
 
 	interceptor := gate.UnaryServerInterceptor()
 	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return nil, nil
 	}
 
@@ -196,7 +196,7 @@ func TestGate_HandlesCheckerError(t *testing.T) {
 	interceptor := gate.UnaryServerInterceptor()
 	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/test/Method",
-	}, func(ctx context.Context, req interface{}) (interface{}, error) {
+	}, func(ctx context.Context, req any) (any, error) {
 		t.Fatal("handler should not be called on error")
 		return nil, nil
 	})
@@ -218,7 +218,7 @@ func TestGate_StreamInterceptorBlocksWhenNotReady(t *testing.T) {
 	interceptor := gate.StreamServerInterceptor()
 	err := interceptor(nil, &mockServerStream{}, &grpc.StreamServerInfo{
 		FullMethod: "/authzed.api.v1.WatchService/Watch",
-	}, func(srv interface{}, stream grpc.ServerStream) error {
+	}, func(srv any, stream grpc.ServerStream) error {
 		t.Fatal("handler should not be called when not ready")
 		return nil
 	})
@@ -237,7 +237,7 @@ func TestGate_StreamInterceptorAllowsWhenReady(t *testing.T) {
 	interceptor := gate.StreamServerInterceptor()
 	err := interceptor(nil, &mockServerStream{}, &grpc.StreamServerInfo{
 		FullMethod: "/authzed.api.v1.WatchService/Watch",
-	}, func(srv interface{}, stream grpc.ServerStream) error {
+	}, func(srv any, stream grpc.ServerStream) error {
 		handlerCalled = true
 		return nil
 	})
@@ -266,7 +266,7 @@ func TestGate_NilCheckerPassesThrough(t *testing.T) {
 	interceptor := gate.UnaryServerInterceptor()
 	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/authzed.api.v1.PermissionsService/CheckPermission",
-	}, func(ctx context.Context, req interface{}) (interface{}, error) {
+	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
 		return "response", nil
 	})
@@ -281,7 +281,7 @@ func TestGate_ErrorDoesNotCache(t *testing.T) {
 
 	interceptor := gate.UnaryServerInterceptor()
 	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return nil, nil
 	}
 
@@ -296,7 +296,7 @@ func TestGate_ErrorDoesNotCache(t *testing.T) {
 
 	// Second call should retry (not use cached error)
 	handlerCalled := false
-	_, err = interceptor(context.Background(), nil, info, func(ctx context.Context, req interface{}) (interface{}, error) {
+	_, err = interceptor(context.Background(), nil, info, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
 		return "ok", nil
 	})
@@ -314,7 +314,7 @@ func TestGate_NegativeCacheReducesChecks(t *testing.T) {
 
 	interceptor := gate.UnaryServerInterceptor()
 	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return nil, nil
 	}
 
@@ -365,7 +365,7 @@ func TestGate_ErrorMessageContextAware(t *testing.T) {
 			interceptor := gate.UnaryServerInterceptor()
 			_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 				FullMethod: "/test/Method",
-			}, func(ctx context.Context, req interface{}) (interface{}, error) {
+			}, func(ctx context.Context, req any) (any, error) {
 				return nil, nil
 			})
 
