@@ -1,6 +1,7 @@
 # vim: syntax=dockerfile
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
-ARG BASE=cgr.dev/chainguard/static@sha256:b2e1c3d3627093e54f6805823e73edd17ab93d6c7202e672988080c863e0412b
+# Note: Using glibc-dynamic base instead of static because the postgres-fdw command requires libc
+ARG BASE=cgr.dev/chainguard/glibc-dynamic@sha256:2c50486a00691ab9bf245c5e5e456777ff4bb25c8635be898bd5e2f0ab72eedb
 FROM golang:1.25.5-alpine@sha256:ac09a5f469f307e5da71e766b0bd59c9c49ea460a528cc3e6686513d64a6f1fb AS health-probe-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git

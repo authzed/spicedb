@@ -30,6 +30,7 @@ A database that stores and computes permissions
 - [spicedb datastore](#reference-spicedb-datastore)	 - datastore operations
 - [spicedb lsp](#reference-spicedb-lsp)	 - serve language server protocol
 - [spicedb man](#reference-spicedb-man)	 - Generate man page
+- [spicedb postgres-fdw](#reference-spicedb-postgres-fdw)	 - serve a Postgres Foreign Data Wrapper for SpiceDB (EXPERIMENTAL)
 - [spicedb serve](#reference-spicedb-serve)	 - serve the permissions database
 - [spicedb serve-testing](#reference-spicedb-serve-testing)	 - test server with an in-memory datastore
 - [spicedb version](#reference-spicedb-version)	 - displays the version of SpiceDB
@@ -358,6 +359,36 @@ Generate a man page for SpiceDB.
 
 ```
 spicedb man
+```
+
+### Options Inherited From Parent Flags
+
+```
+      --log-format string    format of logs ("auto", "console", "json") (default "auto")
+      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check   if true, skips checking for new SpiceDB releases
+```
+
+
+
+## Reference: `spicedb postgres-fdw`
+
+EXPERIMENTAL: Serves a Postgres-compatible interface for querying SpiceDB data using foreign data wrappers. This feature is experimental and subject to change.
+
+```
+spicedb postgres-fdw [flags]
+```
+
+### Options
+
+```
+      --postgres-access-token-secret string   (required) The password that Postgres will use to authenticate to the FDW proxy (configured in the Postgres FDW extension's OPTIONS)
+      --postgres-endpoint string              The endpoint at which to serve the Postgres protocol (default ":5432")
+      --postgres-username string              The username that Postgres will use to connect to the FDW proxy (default "postgres")
+      --shutdown-grace-period duration        The duration to wait for the server to shutdown gracefully
+      --spicedb-access-token-secret string    (required) Access token for calling the SpiceDB API
+      --spicedb-api-endpoint string           SpiceDB API endpoint (default "localhost:50051")
+      --spicedb-insecure                      Use insecure connection to SpiceDB API
 ```
 
 ### Options Inherited From Parent Flags
