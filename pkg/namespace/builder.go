@@ -81,7 +81,7 @@ func WithMixedOperators(rel *core.Relation, line uint64, column uint64) *core.Re
 		ZeroIndexedColumnPosition: column,
 	}
 	if err := SetMixedOperatorsWithoutParens(rel, true, position); err != nil {
-		panic(err)
+		panic(spiceerrors.MustBugf("failed to set mixed operators: %s", err.Error()))
 	}
 	return rel
 }
