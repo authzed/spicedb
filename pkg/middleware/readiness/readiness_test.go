@@ -188,24 +188,25 @@ func TestGate_SingleflightPreventsThunderingHerd(t *testing.T) {
 }
 
 func TestGate_HandlesCheckerError(t *testing.T) {
+	// Checker errors are treated as transient - requests pass through
+	// so they can fail naturally with the actual database error
 	checker := &mockChecker{
 		err: errors.New("connection refused"),
 	}
 	gate := NewGate(checker)
 
+	handlerCalled := false
 	interceptor := gate.UnaryServerInterceptor()
 	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/test/Method",
 	}, func(ctx context.Context, req any) (any, error) {
-		t.Fatal("handler should not be called on error")
-		return nil, nil
+		handlerCalled = true
+		return "ok", nil
 	})
 
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	require.Equal(t, codes.FailedPrecondition, st.Code())
-	require.Contains(t, st.Message(), "connection refused")
+	// Request should pass through - checker errors are not migration issues
+	require.NoError(t, err)
+	require.True(t, handlerCalled)
 }
 
 func TestGate_StreamInterceptorBlocksWhenNotReady(t *testing.T) {
@@ -276,23 +277,31 @@ func TestGate_NilCheckerPassesThrough(t *testing.T) {
 }
 
 func TestGate_ErrorDoesNotCache(t *testing.T) {
-	checker := &mockChecker{err: errors.New("temporary connection error")}
+	// Use migration error so it actually blocks
+	checker := &mockChecker{
+		ready:   false,
+		message: "datastore is not migrated",
+	}
 	gate := NewGate(checker)
 
 	interceptor := gate.UnaryServerInterceptor()
 	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
-	handler := func(ctx context.Context, req any) (any, error) {
-		return nil, nil
-	}
 
-	// First call fails with error
-	_, err := interceptor(context.Background(), nil, info, handler)
+	// First call fails due to migration issue
+	_, err := interceptor(context.Background(), nil, info, func(ctx context.Context, req any) (any, error) {
+		return nil, nil
+	})
 	require.Error(t, err)
 	require.Equal(t, int32(1), checker.callCount.Load())
 
 	// Now checker becomes ready
-	checker.err = nil
 	checker.ready = true
+	checker.message = ""
+
+	// Force cache expiry
+	gate.mu.Lock()
+	gate.cacheTime = time.Now().Add(-2 * notReadyCacheTTL)
+	gate.mu.Unlock()
 
 	// Second call should retry (not use cached error)
 	handlerCalled := false
@@ -306,51 +315,58 @@ func TestGate_ErrorDoesNotCache(t *testing.T) {
 }
 
 func TestGate_NegativeCacheReducesChecks(t *testing.T) {
+	// Use a migration-related message so requests are actually blocked
 	checker := &mockChecker{
 		ready:   false,
-		message: "not ready yet",
+		message: "datastore is not migrated",
 	}
 	gate := NewGate(checker)
 
 	interceptor := gate.UnaryServerInterceptor()
 	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
-	handler := func(ctx context.Context, req any) (any, error) {
-		return nil, nil
-	}
 
-	// First call checks readiness
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	// First call checks readiness and is blocked
+	_, err := interceptor(context.Background(), nil, info, func(ctx context.Context, req any) (any, error) {
+		return nil, nil
+	})
+	require.Error(t, err)
 	require.Equal(t, int32(1), checker.callCount.Load())
 
 	// Second call should use negative cache (within notReadyCacheTTL)
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	_, err = interceptor(context.Background(), nil, info, func(ctx context.Context, req any) (any, error) {
+		return nil, nil
+	})
+	require.Error(t, err)
 	require.Equal(t, int32(1), checker.callCount.Load())
 
 	// Third call should use negative cache
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	_, err = interceptor(context.Background(), nil, info, func(ctx context.Context, req any) (any, error) {
+		return nil, nil
+	})
+	require.Error(t, err)
 	require.Equal(t, int32(1), checker.callCount.Load())
 }
 
-func TestGate_ErrorMessageContextAware(t *testing.T) {
+func TestGate_OnlyBlocksOnMigrationIssues(t *testing.T) {
 	tests := []struct {
-		name            string
-		message         string
-		expectMigration bool
+		name         string
+		message      string
+		expectBlocked bool
 	}{
 		{
-			name:            "migration issue",
-			message:         "datastore is not migrated: currently at revision \"\"",
-			expectMigration: true,
+			name:          "migration issue blocks",
+			message:       "datastore is not migrated: currently at revision \"\"",
+			expectBlocked: true,
 		},
 		{
-			name:            "connection pool issue",
-			message:         "spicedb does not have the required minimum connection count",
-			expectMigration: false,
+			name:          "connection pool issue passes through",
+			message:       "spicedb does not have the required minimum connection count",
+			expectBlocked: false,
 		},
 		{
-			name:            "generic not ready",
-			message:         "some other issue",
-			expectMigration: false,
+			name:          "generic not ready passes through",
+			message:       "some other issue",
+			expectBlocked: false,
 		},
 	}
 
@@ -362,22 +378,22 @@ func TestGate_ErrorMessageContextAware(t *testing.T) {
 			}
 			gate := NewGate(checker)
 
+			handlerCalled := false
 			interceptor := gate.UnaryServerInterceptor()
 			_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
 				FullMethod: "/test/Method",
 			}, func(ctx context.Context, req any) (any, error) {
-				return nil, nil
+				handlerCalled = true
+				return "ok", nil
 			})
 
-			require.Error(t, err)
-			errMsg := err.Error()
-
-			if tt.expectMigration {
-				require.Contains(t, errMsg, "spicedb datastore migrate")
-				require.Contains(t, errMsg, "not migrated")
+			if tt.expectBlocked {
+				require.Error(t, err)
+				require.False(t, handlerCalled)
+				require.Contains(t, err.Error(), "spicedb datastore migrate")
 			} else {
-				require.NotContains(t, errMsg, "spicedb datastore migrate")
-				require.Contains(t, errMsg, "not ready")
+				require.NoError(t, err)
+				require.True(t, handlerCalled)
 			}
 		})
 	}

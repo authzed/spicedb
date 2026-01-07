@@ -132,22 +132,25 @@ func (g *Gate) isReady(ctx context.Context) (bool, string) {
 	return r.ready, r.message
 }
 
-// formatNotReadyError creates a user-friendly error message based on the readiness failure reason.
+// isMigrationIssue checks if the readiness failure is due to missing migrations.
+// We only want to block requests for migration issues, not for transient issues
+// like connection pool warmup.
+func isMigrationIssue(msg string) bool {
+	return strings.Contains(msg, "not migrated") || strings.Contains(msg, "migration")
+}
+
+// formatNotReadyError creates a user-friendly error message for migration issues.
 // TODO(authzed/api#159): Once ERROR_REASON_DATASTORE_NOT_MIGRATED is available in the API,
 // use spiceerrors.WithCodeAndReason to include the structured error reason.
 func formatNotReadyError(msg string) error {
-	// Check if this is a migration-related issue
-	if strings.Contains(msg, "not migrated") || strings.Contains(msg, "migration") {
-		return status.Errorf(codes.FailedPrecondition,
-			"SpiceDB datastore is not migrated. Please run 'spicedb datastore migrate'. Details: %s", msg)
-	}
-	// Generic not-ready message for other cases (connection issues, pool not ready, etc.)
 	return status.Errorf(codes.FailedPrecondition,
-		"SpiceDB datastore is not ready. Details: %s", msg)
+		"SpiceDB datastore is not migrated. Please run 'spicedb datastore migrate'. Details: %s", msg)
 }
 
 // UnaryServerInterceptor returns a gRPC unary interceptor that blocks
-// requests until the datastore is ready.
+// requests until the datastore migrations have been applied.
+// Note: This only blocks on migration issues, not on transient issues like
+// connection pool warmup.
 func (g *Gate) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		// Bypass health checks so Kubernetes probes work
@@ -156,7 +159,7 @@ func (g *Gate) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		}
 
 		ready, msg := g.isReady(ctx)
-		if !ready {
+		if !ready && isMigrationIssue(msg) {
 			return nil, formatNotReadyError(msg)
 		}
 
@@ -165,7 +168,9 @@ func (g *Gate) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 }
 
 // StreamServerInterceptor returns a gRPC stream interceptor that blocks
-// streams until the datastore is ready.
+// streams until the datastore migrations have been applied.
+// Note: This only blocks on migration issues, not on transient issues like
+// connection pool warmup.
 func (g *Gate) StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		// Bypass health checks so Kubernetes probes work
@@ -174,7 +179,7 @@ func (g *Gate) StreamServerInterceptor() grpc.StreamServerInterceptor {
 		}
 
 		ready, msg := g.isReady(ss.Context())
-		if !ready {
+		if !ready && isMigrationIssue(msg) {
 			return formatNotReadyError(msg)
 		}
 
