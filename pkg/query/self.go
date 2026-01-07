@@ -29,7 +29,7 @@ func (s *Self) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRela
 				yield(Path{
 					Resource: resource,
 					Relation: s.relation,
-					Subject: subject,
+					Subject:  subject,
 				}, nil)
 			}, nil
 		}
@@ -44,7 +44,7 @@ func (s *Self) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) 
 			Resource: resource,
 			Relation: s.relation,
 			// TODO: is this correct?
-			Subject:  resource.WithEllipses(),
+			Subject: resource.WithEllipses(),
 		}, nil)
 	}, nil
 }
@@ -67,12 +67,12 @@ func (s *Self) Clone() Iterator {
 
 func (s *Self) Explain() Explain {
 	return Explain{
-		Name:       "Self",
-		Info:       "Self(" + s.relation + ")",
+		Name: "Self",
+		Info: "Self(" + s.relation + ")",
 	}
 }
 
-func (f *Self) Subiterators() []Iterator {
+func (s *Self) Subiterators() []Iterator {
 	return nil
 }
 

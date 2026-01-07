@@ -123,6 +123,5 @@ func TestSelfIteratorExplain(t *testing.T) {
 
 	explain := aliasIt.Explain()
 	require.Equal("Self(some_relation)", explain.Info)
-	require.Len(explain.SubExplain, 0)
+	require.Empty(explain.SubExplain)
 }
-

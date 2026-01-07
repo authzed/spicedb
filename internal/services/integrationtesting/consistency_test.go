@@ -307,7 +307,7 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 			// Ensure all non-wildcard terminal subjects that were found in the expansion are accessible.
 			for _, foundSubject := range subjectsFoundSet.ToSlice() {
 				if foundSubject.GetSubjectId() != tuple.PublicWildcard {
-					accessiblity, permissionship, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, foundSubject.Subject())
+					accessiblity, permissionship, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resource, foundSubject.Subject())
 					require.True(t, ok, "missing accessibility for resource %s and subject %s", tuple.StringONR(resource), tuple.StringONR(foundSubject.Subject()))
 
 					// NOTE: an expanded subject must either be accessible directly (e.g. not via a wildcard)
@@ -505,7 +505,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 
 									// For subjects found solely via wildcard, check that a wildcard instead exists in
 									// the result and that the subject is not excluded.
-									accessibility, _, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, assertionRel.Subject)
+									accessibility, _, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resource, assertionRel.Subject)
 									if !ok || accessibility == consistencytestutil.AccessibleViaWildcardOnly {
 										resolvedSubjectsToCheck := resolvedSubjects
 
@@ -710,7 +710,7 @@ func runAssertions(t *testing.T, vctx validationContext) {
 
 							// Check the assertion was returned for an indirect (without context) lookup.
 							resolvedIndirectResourceIds := slices.Collect(maps.Keys(resolvedIndirectResourcesMap))
-							accessibility, _, _ := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(rel.Resource, rel.Subject)
+							accessibility, _, _ := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(rel.Resource, rel.Subject)
 
 							switch permissionship {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
@@ -801,7 +801,7 @@ func validateDevelopmentChecks(t *testing.T, devContext *development.DevContext,
 					cr, err := development.RunCheck(devContext, resource, subject, nil)
 					require.NoError(t, err, "Got unexpected error from development check")
 
-					_, permissionship, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, subject)
+					_, permissionship, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resource, subject)
 					require.True(t, ok)
 					require.Equal(t, permissionship, cr.Permissionship,
 						"Found unexpected membership difference for %s@%s. Expected %v, Found: %v",
@@ -868,6 +868,8 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 	}
 
 	expectedRelations, err := yamlv2.Marshal(expectedMap)
+	fmt.Println("expected relations")
+	fmt.Println(string(expectedRelations))
 	require.NoError(t, err, "Could not marshal expected relations map")
 
 	expectedRelationsMap, devErr := development.ParseExpectedRelationsYAML(string(expectedRelations))
@@ -884,6 +886,8 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 	validationMap, err := validationfile.ParseExpectedRelationsBlock([]byte(updatedValidationYaml))
 	require.NoError(t, err)
 
+	fmt.Println(updatedValidationYaml)
+
 	for resourceKey, expectedSubjects := range validationMap.ValidationMap {
 		for _, expectedSubject := range expectedSubjects {
 			resourceAndRelation := resourceKey.ObjectAndRelation
@@ -892,7 +896,18 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 
 			// For non-wildcard subjects, ensure they are accessible.
 			if subjectWithExceptions.Subject.Subject.ObjectID != tuple.PublicWildcard {
-				accessibility, permissionship, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resourceAndRelation, subjectWithExceptions.Subject.Subject)
+				accessibility, permissionship, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resourceAndRelation, subjectWithExceptions.Subject.Subject)
+				if !ok {
+					fmt.Println("we are not ok")
+					fmt.Println("subject")
+					fmt.Println(subjectWithExceptions.Subject.Subject)
+					fmt.Println("resource and relation")
+					fmt.Println(resourceAndRelation)
+					fmt.Println("accessibility")
+					fmt.Println(accessibility)
+					fmt.Println("permissionship")
+					fmt.Println(permissionship)
+				}
 				require.True(t, ok, "missing expected subject %s in accessibility set", tuple.StringONR(subjectWithExceptions.Subject.Subject))
 
 				switch permissionship {

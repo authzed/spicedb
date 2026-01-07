@@ -238,13 +238,20 @@ func (as *AccessibilitySet) UncomputedPermissionshipFor(resourceAndRelation tupl
 
 // AccessibiliyAndPermissionshipFor returns the computed accessibility and permissionship for the
 // given resource+permission and subject. If not found, returns false.
-func (as *AccessibilitySet) AccessibiliyAndPermissionshipFor(resourceAndRelation tuple.ObjectAndRelation, subject tuple.ObjectAndRelation) (Accessibility, dispatchv1.ResourceCheckResult_Membership, bool) {
+func (as *AccessibilitySet) AccessibilityAndPermissionshipFor(resourceAndRelation tuple.ObjectAndRelation, subject tuple.ObjectAndRelation) (Accessibility, dispatchv1.ResourceCheckResult_Membership, bool) {
 	relString := tuple.MustString(tuple.Relationship{
 		RelationshipReference: tuple.RelationshipReference{
 			Resource: resourceAndRelation,
 			Subject:  subject,
 		},
 	})
+	// Is there something that we could do here?
+	// Find permissions that have a self on them or smth?
+	// It would have to be only those with a union... & self is basically just self, and you could theoretically
+	// define - self
+	// what would that look like?
+	// Or we could just dispatch the check here and now for selfs?
+	// How would you term "accessibilty" for self?
 	accessibility, ok := as.AccessibilityByRelationship[relString]
 	if !ok {
 		return NotAccessible, dispatchv1.ResourceCheckResult_UNKNOWN, false
