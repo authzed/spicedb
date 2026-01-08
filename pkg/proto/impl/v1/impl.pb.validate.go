@@ -1068,6 +1068,37 @@ func (m *RelationMetadata) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for HasMixedOperatorsWithoutParentheses
+
+	if all {
+		switch v := interface{}(m.GetMixedOperatorsPosition()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RelationMetadataValidationError{
+					field:  "MixedOperatorsPosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RelationMetadataValidationError{
+					field:  "MixedOperatorsPosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMixedOperatorsPosition()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RelationMetadataValidationError{
+				field:  "MixedOperatorsPosition",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return RelationMetadataMultiError(errors)
 	}

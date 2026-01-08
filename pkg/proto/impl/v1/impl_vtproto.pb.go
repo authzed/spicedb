@@ -6,6 +6,7 @@ package implv1
 
 import (
 	fmt "fmt"
+	v1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	protohelpers "github.com/planetscale/vtprotobuf/protohelpers"
 	v1alpha1 "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 	proto "google.golang.org/protobuf/proto"
@@ -312,6 +313,14 @@ func (m *RelationMetadata) CloneVT() *RelationMetadata {
 	r := new(RelationMetadata)
 	r.Kind = m.Kind
 	r.TypeAnnotations = m.TypeAnnotations.CloneVT()
+	r.HasMixedOperatorsWithoutParentheses = m.HasMixedOperatorsWithoutParentheses
+	if rhs := m.MixedOperatorsPosition; rhs != nil {
+		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.SourcePosition }); ok {
+			r.MixedOperatorsPosition = vtpb.CloneVT()
+		} else {
+			r.MixedOperatorsPosition = proto.Clone(rhs).(*v1.SourcePosition)
+		}
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -820,6 +829,16 @@ func (this *RelationMetadata) EqualVT(that *RelationMetadata) bool {
 		return false
 	}
 	if !this.TypeAnnotations.EqualVT(that.TypeAnnotations) {
+		return false
+	}
+	if this.HasMixedOperatorsWithoutParentheses != that.HasMixedOperatorsWithoutParentheses {
+		return false
+	}
+	if equal, ok := interface{}(this.MixedOperatorsPosition).(interface{ EqualVT(*v1.SourcePosition) bool }); ok {
+		if !equal.EqualVT(that.MixedOperatorsPosition) {
+			return false
+		}
+	} else if !proto.Equal(this.MixedOperatorsPosition, that.MixedOperatorsPosition) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1579,6 +1598,38 @@ func (m *RelationMetadata) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.MixedOperatorsPosition != nil {
+		if vtmsg, ok := interface{}(m.MixedOperatorsPosition).(interface {
+			MarshalToSizedBufferVT([]byte) (int, error)
+		}); ok {
+			size, err := vtmsg.MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		} else {
+			encoded, err := proto.Marshal(m.MixedOperatorsPosition)
+			if err != nil {
+				return 0, err
+			}
+			i -= len(encoded)
+			copy(dAtA[i:], encoded)
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(encoded)))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.HasMixedOperatorsWithoutParentheses {
+		i--
+		if m.HasMixedOperatorsWithoutParentheses {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x18
+	}
 	if m.TypeAnnotations != nil {
 		size, err := m.TypeAnnotations.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -1976,6 +2027,19 @@ func (m *RelationMetadata) SizeVT() (n int) {
 	}
 	if m.TypeAnnotations != nil {
 		l = m.TypeAnnotations.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.HasMixedOperatorsWithoutParentheses {
+		n += 2
+	}
+	if m.MixedOperatorsPosition != nil {
+		if size, ok := interface{}(m.MixedOperatorsPosition).(interface {
+			SizeVT() int
+		}); ok {
+			l = size.SizeVT()
+		} else {
+			l = proto.Size(m.MixedOperatorsPosition)
+		}
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -3444,6 +3508,70 @@ func (m *RelationMetadata) UnmarshalVT(dAtA []byte) error {
 			}
 			if err := m.TypeAnnotations.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HasMixedOperatorsWithoutParentheses", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.HasMixedOperatorsWithoutParentheses = bool(v != 0)
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MixedOperatorsPosition", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.MixedOperatorsPosition == nil {
+				m.MixedOperatorsPosition = &v1.SourcePosition{}
+			}
+			if unmarshal, ok := interface{}(m.MixedOperatorsPosition).(interface {
+				UnmarshalVT([]byte) error
+			}); ok {
+				if err := unmarshal.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				if err := proto.Unmarshal(dAtA[iNdEx:postIndex], m.MixedOperatorsPosition); err != nil {
+					return err
+				}
 			}
 			iNdEx = postIndex
 		default:

@@ -73,6 +73,19 @@ func MustRelationWithComment(name string, comment string, rewrite *core.UsersetR
 	return rel
 }
 
+// MustWithMixedOperators marks the relation as having mixed operators without parentheses.
+// This should only be used for test expectations.
+func MustWithMixedOperators(rel *core.Relation, line uint64, column uint64) *core.Relation {
+	position := &core.SourcePosition{
+		ZeroIndexedLineNumber:     line,
+		ZeroIndexedColumnPosition: column,
+	}
+	if err := SetMixedOperatorsWithoutParens(rel, true, position); err != nil {
+		panic(spiceerrors.MustBugf("failed to set mixed operators: %s", err.Error()))
+	}
+	return rel
+}
+
 // AllowedRelation creates a relation reference to an allowed relation.
 func AllowedRelation(namespaceName string, relationName string) *core.AllowedRelation {
 	return &core.AllowedRelation{
