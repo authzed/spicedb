@@ -21,7 +21,6 @@ import (
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/cobrautil/v2/cobraproclimits"
-	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
@@ -71,11 +70,7 @@ func ServeExample(programName string) string {
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
 		cobrautil.SyncViperDotEnvPreRunE(programName, "spicedb.env", zerologr.New(&logging.Logger)),
-		cobrazerolog.New(
-			cobrazerolog.WithTarget(func(logger zerolog.Logger) {
-				logging.SetGlobalLogger(logger)
-			}),
-		).RunE(),
+		ConfigureLoggingRunE(),
 		// NOTE: These need to be declared after the logger to access
 		// the logging context.
 		// NOTE: We've observed OOMKill when setting to 1.0 under heavy-load,
