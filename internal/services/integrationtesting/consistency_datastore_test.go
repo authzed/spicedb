@@ -55,7 +55,7 @@ func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
 				cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
 				dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
 				require.NoError(t, err)
-				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
+				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
 				headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
 				require.NoError(t, err)

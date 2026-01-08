@@ -120,7 +120,7 @@ func runConsistencyTestsWithServiceTester(
 	useCachingDispatcher bool,
 ) {
 	// Build an accessibility set.
-	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
+	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
 	dispatcher := consistencytestutil.CreateDispatcherForTesting(t, useCachingDispatcher)
 
