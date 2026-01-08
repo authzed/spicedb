@@ -54,15 +54,13 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.True(t, changed)
 
 		// Should become Union[Caveat(Rel1), Caveat(Rel2)]
-		resultUnion, ok := result.(*Union)
-		require.True(t, ok, "Expected result to be a Union")
+		require.IsType(t, &Union{}, result, "Expected result to be a Union")
+		resultUnion := result.(*Union)
 		require.Len(t, resultUnion.subIts, 2)
 
 		// Both should be wrapped in caveats
-		_, ok1 := resultUnion.subIts[0].(*CaveatIterator)
-		_, ok2 := resultUnion.subIts[1].(*CaveatIterator)
-		require.True(t, ok1, "First subiterator should be a CaveatIterator")
-		require.True(t, ok2, "Second subiterator should be a CaveatIterator")
+		require.IsType(t, &CaveatIterator{}, resultUnion.subIts[0], "First subiterator should be a CaveatIterator")
+		require.IsType(t, &CaveatIterator{}, resultUnion.subIts[1], "Second subiterator should be a CaveatIterator")
 	})
 
 	t.Run("pushes caveat through union only on side with caveat", func(t *testing.T) {
@@ -86,19 +84,19 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.True(t, changed)
 
 		// Should become Union[Caveat(Rel1), Rel2]
-		resultUnion, ok := result.(*Union)
-		require.True(t, ok, "Expected result to be a Union")
+		require.IsType(t, &Union{}, result, "Expected result to be a Union")
+		resultUnion := result.(*Union)
 		require.Len(t, resultUnion.subIts, 2)
 
 		// First should be wrapped, second should not
-		caveat1, ok1 := resultUnion.subIts[0].(*CaveatIterator)
-		rel2Result, ok2 := resultUnion.subIts[1].(*RelationIterator)
-		require.True(t, ok1, "First subiterator should be a CaveatIterator")
-		require.True(t, ok2, "Second subiterator should be a RelationIterator (not wrapped)")
+		require.IsType(t, &CaveatIterator{}, resultUnion.subIts[0], "First subiterator should be a CaveatIterator")
+		require.IsType(t, &RelationIterator{}, resultUnion.subIts[1], "Second subiterator should be a RelationIterator (not wrapped)")
 
 		// Verify the caveat wraps the correct relation
-		caveat1Sub, ok := caveat1.subiterator.(*RelationIterator)
-		require.True(t, ok)
+		caveat1 := resultUnion.subIts[0].(*CaveatIterator)
+		rel2Result := resultUnion.subIts[1].(*RelationIterator)
+		require.IsType(t, &RelationIterator{}, caveat1.subiterator)
+		caveat1Sub := caveat1.subiterator.(*RelationIterator)
 		require.Equal(t, rel1, caveat1Sub)
 		require.Equal(t, rel2, rel2Result)
 	})
@@ -124,10 +122,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.False(t, changed, "Should not optimize through IntersectionArrow")
 
 		// Should remain as Caveat(IntersectionArrow)
-		resultCaveat, ok := result.(*CaveatIterator)
-		require.True(t, ok, "Expected result to still be a CaveatIterator")
-		_, ok = resultCaveat.subiterator.(*IntersectionArrow)
-		require.True(t, ok, "Subiterator should still be IntersectionArrow")
+		require.IsType(t, &CaveatIterator{}, result, "Expected result to still be a CaveatIterator")
+		resultCaveat := result.(*CaveatIterator)
+		require.IsType(t, &IntersectionArrow{}, resultCaveat.subiterator, "Subiterator should still be IntersectionArrow")
 	})
 
 	t.Run("does not push when no subiterators have caveat", func(t *testing.T) {
@@ -151,8 +148,8 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.False(t, changed)
 
 		// Should remain unchanged
-		resultCaveat, ok := result.(*CaveatIterator)
-		require.True(t, ok)
+		require.IsType(t, &CaveatIterator{}, result)
+		resultCaveat := result.(*CaveatIterator)
 		require.Equal(t, caveatIterator, resultCaveat)
 	})
 
@@ -173,8 +170,8 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.False(t, changed)
 
 		// Should remain unchanged
-		resultCaveat, ok := result.(*CaveatIterator)
-		require.True(t, ok)
+		require.IsType(t, &CaveatIterator{}, result)
+		resultCaveat := result.(*CaveatIterator)
 		require.Equal(t, caveatIterator, resultCaveat)
 	})
 
@@ -204,24 +201,21 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		// Union[Union[Caveat(Rel1), Rel2], Caveat(Rel3)]
 		// The outer caveat pushes down to wrap innerUnion and rel3
 		// Then the caveat on innerUnion recursively pushes down to only wrap rel1
-		resultUnion, ok := result.(*Union)
-		require.True(t, ok)
+		require.IsType(t, &Union{}, result)
+		resultUnion := result.(*Union)
 		require.Len(t, resultUnion.subIts, 2)
 
 		// First should be Union[Caveat(Rel1), Rel2] (caveat pushed down further)
-		innerResultUnion, ok1 := resultUnion.subIts[0].(*Union)
-		require.True(t, ok1, "First subiterator should be a Union (caveat pushed down)")
+		require.IsType(t, &Union{}, resultUnion.subIts[0], "First subiterator should be a Union (caveat pushed down)")
+		innerResultUnion := resultUnion.subIts[0].(*Union)
 		require.Len(t, innerResultUnion.subIts, 2)
-		_, ok = innerResultUnion.subIts[0].(*CaveatIterator)
-		require.True(t, ok, "First element of inner union should be Caveat(Rel1)")
-		_, ok = innerResultUnion.subIts[1].(*RelationIterator)
-		require.True(t, ok, "Second element of inner union should be Rel2 (no caveat)")
+		require.IsType(t, &CaveatIterator{}, innerResultUnion.subIts[0], "First element of inner union should be Caveat(Rel1)")
+		require.IsType(t, &RelationIterator{}, innerResultUnion.subIts[1], "Second element of inner union should be Rel2 (no caveat)")
 
 		// Second should be Caveat(Rel3)
-		caveat2, ok2 := resultUnion.subIts[1].(*CaveatIterator)
-		require.True(t, ok2)
-		_, ok = caveat2.subiterator.(*RelationIterator)
-		require.True(t, ok, "Second subiterator should be Caveat(Relation)")
+		require.IsType(t, &CaveatIterator{}, resultUnion.subIts[1])
+		caveat2 := resultUnion.subIts[1].(*CaveatIterator)
+		require.IsType(t, &RelationIterator{}, caveat2.subiterator, "Second subiterator should be Caveat(Relation)")
 	})
 
 	t.Run("works with intersection of relations", func(t *testing.T) {
@@ -244,15 +238,13 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.True(t, changed)
 
 		// Should become Intersection[Caveat(Rel1), Rel2]
-		resultIntersection, ok := result.(*Intersection)
-		require.True(t, ok)
+		require.IsType(t, &Intersection{}, result)
+		resultIntersection := result.(*Intersection)
 		require.Len(t, resultIntersection.subIts, 2)
 
 		// First should be wrapped, second should not
-		_, ok1 := resultIntersection.subIts[0].(*CaveatIterator)
-		_, ok2 := resultIntersection.subIts[1].(*RelationIterator)
-		require.True(t, ok1, "First subiterator should be a CaveatIterator")
-		require.True(t, ok2, "Second subiterator should be a RelationIterator")
+		require.IsType(t, &CaveatIterator{}, resultIntersection.subIts[0], "First subiterator should be a CaveatIterator")
+		require.IsType(t, &RelationIterator{}, resultIntersection.subIts[1], "Second subiterator should be a RelationIterator")
 	})
 }
 

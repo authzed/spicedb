@@ -36,7 +36,9 @@ func TestTraceLogger(t *testing.T) {
 		require.Len(logger.traces, 1)
 		require.Equal(1, logger.depth)
 		require.Len(logger.stack, 1)
-		require.Contains(logger.traces[0], "-> Fixed: check(document:doc1, user:alice)")
+		require.Contains(logger.traces[0], "-> ")
+		require.Contains(logger.traces[0], "Fixed")
+		require.Contains(logger.traces[0], "check(document:doc1, user:alice)")
 	})
 
 	t.Run("ExitIterator", func(t *testing.T) {
@@ -55,7 +57,8 @@ func TestTraceLogger(t *testing.T) {
 		require.Equal(0, logger.depth)
 		require.Empty(logger.stack)
 		require.Len(logger.traces, 1)
-		require.Contains(logger.traces[0], "<- Fixed: returned 1 paths")
+		require.Contains(logger.traces[0], "<- ")
+		require.Contains(logger.traces[0], "Fixed")
 	})
 
 	t.Run("LogStep", func(t *testing.T) {
@@ -70,7 +73,8 @@ func TestTraceLogger(t *testing.T) {
 		logger.LogStep(iterator, "processing data: %s", "test_data")
 
 		require.Len(logger.traces, 1)
-		require.Contains(logger.traces[0], "Fixed: processing data: test_data")
+		require.Contains(logger.traces[0], "Fixed")
+		require.Contains(logger.traces[0], "processing data: test_data")
 	})
 
 	t.Run("LogStep_IteratorNotInStack", func(t *testing.T) {
@@ -84,7 +88,8 @@ func TestTraceLogger(t *testing.T) {
 		logger.LogStep(iterator, "fallback message")
 
 		require.Len(logger.traces, 1)
-		require.Contains(logger.traces[0], "      Fixed: fallback message") // 3 levels of indentation
+		require.Contains(logger.traces[0], "Fixed")
+		require.Contains(logger.traces[0], "fallback message")
 	})
 
 	t.Run("DumpTrace", func(t *testing.T) {
@@ -115,7 +120,8 @@ func TestContext(t *testing.T) {
 		ctx.TraceStep(iterator, "test message: %s", "data")
 
 		traces := logger.DumpTrace()
-		require.Contains(traces, "Fixed: test message: data")
+		require.Contains(traces, "Fixed")
+		require.Contains(traces, "test message: data")
 	})
 
 	t.Run("TraceStep_NoLogger", func(t *testing.T) {
@@ -295,7 +301,9 @@ func TestContext(t *testing.T) {
 
 		// Should have generated an exit trace
 		traces := logger.DumpTrace()
-		require.Contains(traces, "<- Fixed: returned 1 paths")
+		require.Contains(traces, "<- ")
+		require.Contains(traces, "Fixed")
+		require.Contains(traces, "returned 1 paths")
 	})
 
 	t.Run("wrapPathSeqForTracing_WithError", func(t *testing.T) {

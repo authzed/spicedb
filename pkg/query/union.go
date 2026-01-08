@@ -1,12 +1,15 @@
 package query
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Union the set of paths that are in any of underlying subiterators.
 // This is equivalent to `permission foo = bar | baz`
 type Union struct {
+	id     string
 	subIts []Iterator
 }
 
@@ -14,9 +17,12 @@ var _ Iterator = &Union{}
 
 func NewUnion(subiterators ...Iterator) *Union {
 	if len(subiterators) == 0 {
-		return &Union{}
+		return &Union{
+			id: uuid.NewString(),
+		}
 	}
 	return &Union{
+		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
 }
@@ -69,6 +75,7 @@ func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 
 func (u *Union) Clone() Iterator {
 	cloned := &Union{
+		id:     uuid.NewString(),
 		subIts: make([]Iterator, len(u.subIts)),
 	}
 	for idx, subIt := range u.subIts {
@@ -94,5 +101,9 @@ func (u *Union) Subiterators() []Iterator {
 }
 
 func (u *Union) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Union{subIts: newSubs}, nil
+	return &Union{id: uuid.NewString(), subIts: newSubs}, nil
+}
+
+func (u *Union) ID() string {
+	return u.id
 }

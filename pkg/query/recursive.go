@@ -2,6 +2,8 @@ package query
 
 import (
 	"fmt"
+
+	"github.com/google/uuid"
 )
 
 const defaultMaxRecursionDepth = 50
@@ -12,6 +14,7 @@ var _ Iterator = &RecursiveIterator{}
 // It wraps an iterator tree that contains RecursiveSentinel sentinels, and executes the tree
 // repeatedly with increasing depth until a fixed point is reached or max depth is exceeded.
 type RecursiveIterator struct {
+	id             string
 	templateTree   Iterator
 	definitionName string // The schema definition this iterator is recursing on
 	relationName   string // The relation name this iterator is recursing on
@@ -20,6 +23,7 @@ type RecursiveIterator struct {
 // NewRecursiveIterator creates a new recursive iterator controller
 func NewRecursiveIterator(templateTree Iterator, definitionName, relationName string) *RecursiveIterator {
 	return &RecursiveIterator{
+		id:             uuid.NewString(),
 		templateTree:   templateTree,
 		definitionName: definitionName,
 		relationName:   relationName,
@@ -177,6 +181,7 @@ func (r *RecursiveIterator) replaceSentinelsInTree(tree Iterator, replacement It
 // Clone creates a deep copy of the RecursiveIterator
 func (r *RecursiveIterator) Clone() Iterator {
 	return &RecursiveIterator{
+		id:             uuid.NewString(),
 		templateTree:   r.templateTree.Clone(),
 		definitionName: r.definitionName,
 		relationName:   r.relationName,
@@ -200,8 +205,13 @@ func (r *RecursiveIterator) Subiterators() []Iterator {
 
 func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return &RecursiveIterator{
+		id:             uuid.NewString(),
 		templateTree:   newSubs[0],
 		definitionName: r.definitionName,
 		relationName:   r.relationName,
 	}, nil
+}
+
+func (r *RecursiveIterator) ID() string {
+	return r.id
 }

@@ -1,6 +1,8 @@
 package query
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -11,6 +13,7 @@ import (
 //
 // Ex: `folder->owner` and `left->right`
 type Arrow struct {
+	id    string
 	left  Iterator
 	right Iterator
 }
@@ -19,6 +22,7 @@ var _ Iterator = &Arrow{}
 
 func NewArrow(left, right Iterator) *Arrow {
 	return &Arrow{
+		id:    uuid.NewString(),
 		left:  left,
 		right: right,
 	}
@@ -127,6 +131,7 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 
 func (a *Arrow) Clone() Iterator {
 	return &Arrow{
+		id:    uuid.NewString(),
 		left:  a.left.Clone(),
 		right: a.right.Clone(),
 	}
@@ -145,5 +150,9 @@ func (a *Arrow) Subiterators() []Iterator {
 }
 
 func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Arrow{left: newSubs[0], right: newSubs[1]}, nil
+	return &Arrow{id: uuid.NewString(), left: newSubs[0], right: newSubs[1]}, nil
+}
+
+func (a *Arrow) ID() string {
+	return a.id
 }
