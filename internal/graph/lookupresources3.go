@@ -482,6 +482,18 @@ func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, refs l
 func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint schema.ReachabilityEntrypoint) cter.Next[possibleResource] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
 		switch entrypoint.EntrypointKind() {
+		case core.ReachabilityEntrypoint_SELF_ENTRYPOINT:
+			// Self refers to the resource itself as a subject with relation `...`
+			// The subject IDs directly correspond to resource IDs of the containing relation.
+			containingRelation := entrypoint.ContainingRelationOrPermission()
+
+			// Create a synthetic relationships chunk that maps the subject IDs to resources
+			// of the containing relation type.
+			rm := subjectIDsToRelationshipsChunk(refs.req.SubjectRelation, refs.req.SubjectIds, containingRelation)
+
+			// Dispatch to continue finding resources up the tree.
+			return crr.checkedDispatchIter(ctx, refs, currentCursor, rm, containingRelation, entrypoint)
+
 		// If the entrypoint is a relation entrypoint, we need to iterate over the relation's relationships
 		// for the given subject IDs and yield results for dispatching for each. For example, given a relation
 		// of `relation viewer: user`, we would lookup all relationships for the current user(s) and find

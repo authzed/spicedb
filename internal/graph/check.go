@@ -603,9 +603,36 @@ func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentReq
 
 	case *core.SetOperation_Child_XNil:
 		return noMembers()
+	case *core.SetOperation_Child_XSelf:
+		return cc.checkSelf(ctx, crc)
 	default:
 		return checkResultError(spiceerrors.MustBugf("unknown set operation child `%T` in check", child), emptyMetadata)
 	}
+}
+
+func (cc *ConcurrentChecker) checkSelf(ctx context.Context, crc currentRequestContext) CheckResult {
+	log.Ctx(ctx).Trace().Object("self", crc.parentReq).Send()
+
+	// `self` only represents the resource itself, not any child relation.
+	if crc.parentReq.Subject.Relation != tuple.Ellipsis {
+		return noMembers()
+	}
+
+	req := crc.parentReq
+
+	if req.ResourceRelation.Namespace != req.Subject.Namespace {
+		return noMembers()
+	}
+
+	for _, resourceID := range req.ResourceIds {
+		if req.Subject.ObjectId == resourceID {
+			membershipSet := NewMembershipSet()
+			membershipSet.AddDirectMember(resourceID, nil)
+			return checkResultsForMembership(membershipSet, emptyMetadata)
+		}
+	}
+
+	return noMembers()
 }
 
 func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc currentRequestContext, cu *core.ComputedUserset, rr *tuple.RelationReference, resourceIds []string) CheckResult {

@@ -1,0 +1,16 @@
+---
+schema: >-
+  use self
+  definition user {
+    relation related: user
+    permission me_or_related = related + self
+  }
+relationships: |
+  user:tom#related@user:tommyboy
+assertions:
+  assertTrue:
+    - "user:tom#me_or_related@user:tom"
+    - "user:tommyboy#me_or_related@user:tommyboy"
+    - "user:tom#me_or_related@user:tommyboy"
+  assertFalse:
+    - "user:tommyboy#me_or_related@user:tom"

@@ -144,6 +144,9 @@ const (
 	// TUPLESET_TO_USERSET_ENTRYPOINT indicates an entrypoint where the subject's relation is
 	// walked via a `tupleset_to_userset` in the target permission's operation node.
 	ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 2
+	// *
+	// SELF_ENTRYPOINT indicates an entrypoint where the resource is, itself, found.
+	ReachabilityEntrypoint_SELF_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 3
 )
 
 // Enum value maps for ReachabilityEntrypoint_ReachabilityEntrypointKind.
@@ -152,11 +155,13 @@ var (
 		0: "RELATION_ENTRYPOINT",
 		1: "COMPUTED_USERSET_ENTRYPOINT",
 		2: "TUPLESET_TO_USERSET_ENTRYPOINT",
+		3: "SELF_ENTRYPOINT",
 	}
 	ReachabilityEntrypoint_ReachabilityEntrypointKind_value = map[string]int32{
 		"RELATION_ENTRYPOINT":            0,
 		"COMPUTED_USERSET_ENTRYPOINT":    1,
 		"TUPLESET_TO_USERSET_ENTRYPOINT": 2,
+		"SELF_ENTRYPOINT":                3,
 	}
 )
 
@@ -2633,6 +2638,7 @@ type SetOperation_Child struct {
 	//	*SetOperation_Child_UsersetRewrite
 	//	*SetOperation_Child_FunctionedTupleToUserset
 	//	*SetOperation_Child_XNil
+	//	*SetOperation_Child_XSelf
 	ChildType      isSetOperation_Child_ChildType `protobuf_oneof:"child_type"`
 	SourcePosition *SourcePosition                `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
 	// *
@@ -2736,6 +2742,15 @@ func (x *SetOperation_Child) GetXNil() *SetOperation_Child_Nil {
 	return nil
 }
 
+func (x *SetOperation_Child) GetXSelf() *SetOperation_Child_Self {
+	if x != nil {
+		if x, ok := x.ChildType.(*SetOperation_Child_XSelf); ok {
+			return x.XSelf
+		}
+	}
+	return nil
+}
+
 func (x *SetOperation_Child) GetSourcePosition() *SourcePosition {
 	if x != nil {
 		return x.SourcePosition
@@ -2778,6 +2793,10 @@ type SetOperation_Child_XNil struct {
 	XNil *SetOperation_Child_Nil `protobuf:"bytes,6,opt,name=_nil,json=Nil,proto3,oneof"`
 }
 
+type SetOperation_Child_XSelf struct {
+	XSelf *SetOperation_Child_Self `protobuf:"bytes,9,opt,name=_self,json=Self,proto3,oneof"`
+}
+
 func (*SetOperation_Child_XThis) isSetOperation_Child_ChildType() {}
 
 func (*SetOperation_Child_ComputedUserset) isSetOperation_Child_ChildType() {}
@@ -2790,6 +2809,10 @@ func (*SetOperation_Child_FunctionedTupleToUserset) isSetOperation_Child_ChildTy
 
 func (*SetOperation_Child_XNil) isSetOperation_Child_ChildType() {}
 
+func (*SetOperation_Child_XSelf) isSetOperation_Child_ChildType() {}
+
+// NOTE: `this“ is fully deprecated and referred to the *relation* to allow
+// for mixing of data and computation.
 type SetOperation_Child_This struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2862,6 +2885,43 @@ func (*SetOperation_Child_Nil) Descriptor() ([]byte, []int) {
 	return file_core_v1_core_proto_rawDescGZIP(), []int{24, 0, 1}
 }
 
+// `self` refers to the resource-as-a-subject in a permission computation.
+type SetOperation_Child_Self struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetOperation_Child_Self) Reset() {
+	*x = SetOperation_Child_Self{}
+	mi := &file_core_v1_core_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetOperation_Child_Self) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetOperation_Child_Self) ProtoMessage() {}
+
+func (x *SetOperation_Child_Self) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetOperation_Child_Self.ProtoReflect.Descriptor instead.
+func (*SetOperation_Child_Self) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{24, 0, 2}
+}
+
 type TupleToUserset_Tupleset struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Relation      string                 `protobuf:"bytes,1,opt,name=relation,proto3" json:"relation,omitempty"`
@@ -2871,7 +2931,7 @@ type TupleToUserset_Tupleset struct {
 
 func (x *TupleToUserset_Tupleset) Reset() {
 	*x = TupleToUserset_Tupleset{}
-	mi := &file_core_v1_core_proto_msgTypes[40]
+	mi := &file_core_v1_core_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2883,7 +2943,7 @@ func (x *TupleToUserset_Tupleset) String() string {
 func (*TupleToUserset_Tupleset) ProtoMessage() {}
 
 func (x *TupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[40]
+	mi := &file_core_v1_core_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2915,7 +2975,7 @@ type FunctionedTupleToUserset_Tupleset struct {
 
 func (x *FunctionedTupleToUserset_Tupleset) Reset() {
 	*x = FunctionedTupleToUserset_Tupleset{}
-	mi := &file_core_v1_core_proto_msgTypes[41]
+	mi := &file_core_v1_core_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2927,7 +2987,7 @@ func (x *FunctionedTupleToUserset_Tupleset) String() string {
 func (*FunctionedTupleToUserset_Tupleset) ProtoMessage() {}
 
 func (x *FunctionedTupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[41]
+	mi := &file_core_v1_core_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2959,7 +3019,7 @@ type SubjectFilter_RelationFilter struct {
 
 func (x *SubjectFilter_RelationFilter) Reset() {
 	*x = SubjectFilter_RelationFilter{}
-	mi := &file_core_v1_core_proto_msgTypes[42]
+	mi := &file_core_v1_core_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2971,7 +3031,7 @@ func (x *SubjectFilter_RelationFilter) String() string {
 func (*SubjectFilter_RelationFilter) ProtoMessage() {}
 
 func (x *SubjectFilter_RelationFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[42]
+	mi := &file_core_v1_core_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3095,17 +3155,18 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x17ReachabilityEntrypoints\x12A\n" +
 	"\ventrypoints\x18\x01 \x03(\v2\x1f.core.v1.ReachabilityEntrypointR\ventrypoints\x12!\n" +
 	"\fsubject_type\x18\x02 \x01(\tR\vsubjectType\x12E\n" +
-	"\x10subject_relation\x18\x03 \x01(\v2\x1a.core.v1.RelationReferenceR\x0fsubjectRelation\"\xce\x04\n" +
+	"\x10subject_relation\x18\x03 \x01(\v2\x1a.core.v1.RelationReferenceR\x0fsubjectRelation\"\xe4\x04\n" +
 	"\x16ReachabilityEntrypoint\x12N\n" +
 	"\x04kind\x18\x01 \x01(\x0e2:.core.v1.ReachabilityEntrypoint.ReachabilityEntrypointKindR\x04kind\x12C\n" +
 	"\x0ftarget_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceR\x0etargetRelation\x12[\n" +
 	"\rresult_status\x18\x04 \x01(\x0e26.core.v1.ReachabilityEntrypoint.EntrypointResultStatusR\fresultStatus\x12+\n" +
 	"\x11tupleset_relation\x18\x05 \x01(\tR\x10tuplesetRelation\x12:\n" +
-	"\x19computed_userset_relation\x18\x06 \x01(\tR\x17computedUsersetRelation\"z\n" +
+	"\x19computed_userset_relation\x18\x06 \x01(\tR\x17computedUsersetRelation\"\x8f\x01\n" +
 	"\x1aReachabilityEntrypointKind\x12\x17\n" +
 	"\x13RELATION_ENTRYPOINT\x10\x00\x12\x1f\n" +
 	"\x1bCOMPUTED_USERSET_ENTRYPOINT\x10\x01\x12\"\n" +
-	"\x1eTUPLESET_TO_USERSET_ENTRYPOINT\x10\x02\"W\n" +
+	"\x1eTUPLESET_TO_USERSET_ENTRYPOINT\x10\x02\x12\x13\n" +
+	"\x0fSELF_ENTRYPOINT\x10\x03\"W\n" +
 	"\x16EntrypointResultStatus\x12 \n" +
 	"\x1cREACHABLE_CONDITIONAL_RESULT\x10\x00\x12\x1b\n" +
 	"\x17DIRECT_OPERATION_RESULT\x10\x01J\x04\b\x03\x10\x04\"e\n" +
@@ -3129,20 +3190,22 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\fintersection\x18\x02 \x01(\v2\x15.core.v1.SetOperationB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\fintersection\x12?\n" +
 	"\texclusion\x18\x03 \x01(\v2\x15.core.v1.SetOperationB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\texclusion\x12@\n" +
 	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePositionB\x18\n" +
-	"\x11rewrite_operation\x12\x03\xf8B\x01\"\xb2\x05\n" +
+	"\x11rewrite_operation\x12\x03\xf8B\x01\"\xf3\x05\n" +
 	"\fSetOperation\x12B\n" +
-	"\x05child\x18\x01 \x03(\v2\x1b.core.v1.SetOperation.ChildB\x0f\xfaB\f\x92\x01\t\b\x01\"\x05\x8a\x01\x02\x10\x01R\x05child\x1a\xdd\x04\n" +
+	"\x05child\x18\x01 \x03(\v2\x1b.core.v1.SetOperation.ChildB\x0f\xfaB\f\x92\x01\t\b\x01\"\x05\x8a\x01\x02\x10\x01R\x05child\x1a\x9e\x05\n" +
 	"\x05Child\x127\n" +
 	"\x05_this\x18\x01 \x01(\v2 .core.v1.SetOperation.Child.ThisH\x00R\x04This\x12O\n" +
 	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0fcomputedUserset\x12M\n" +
 	"\x10tuple_to_userset\x18\x03 \x01(\v2\x17.core.v1.TupleToUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0etupleToUserset\x12L\n" +
 	"\x0fuserset_rewrite\x18\x04 \x01(\v2\x17.core.v1.UsersetRewriteB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0eusersetRewrite\x12l\n" +
 	"\x1bfunctioned_tuple_to_userset\x18\b \x01(\v2!.core.v1.FunctionedTupleToUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x18functionedTupleToUserset\x124\n" +
-	"\x04_nil\x18\x06 \x01(\v2\x1f.core.v1.SetOperation.Child.NilH\x00R\x03Nil\x12@\n" +
+	"\x04_nil\x18\x06 \x01(\v2\x1f.core.v1.SetOperation.Child.NilH\x00R\x03Nil\x127\n" +
+	"\x05_self\x18\t \x01(\v2 .core.v1.SetOperation.Child.SelfH\x00R\x04Self\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x12%\n" +
 	"\x0eoperation_path\x18\a \x03(\rR\roperationPath\x1a\x06\n" +
 	"\x04This\x1a\x05\n" +
-	"\x03NilB\x11\n" +
+	"\x03Nil\x1a\x06\n" +
+	"\x04SelfB\x11\n" +
 	"\n" +
 	"child_type\x12\x03\xf8B\x01\"\xba\x02\n" +
 	"\x0eTupleToUserset\x12F\n" +
@@ -3212,7 +3275,7 @@ func file_core_v1_core_proto_rawDescGZIP() []byte {
 }
 
 var file_core_v1_core_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
 var file_core_v1_core_proto_goTypes = []any{
 	(RelationTupleUpdate_Operation)(0),                     // 0: core.v1.RelationTupleUpdate.Operation
 	(SetOperationUserset_Operation)(0),                     // 1: core.v1.SetOperationUserset.Operation
@@ -3261,21 +3324,22 @@ var file_core_v1_core_proto_goTypes = []any{
 	(*SetOperation_Child)(nil),                             // 44: core.v1.SetOperation.Child
 	(*SetOperation_Child_This)(nil),                        // 45: core.v1.SetOperation.Child.This
 	(*SetOperation_Child_Nil)(nil),                         // 46: core.v1.SetOperation.Child.Nil
-	(*TupleToUserset_Tupleset)(nil),                        // 47: core.v1.TupleToUserset.Tupleset
-	(*FunctionedTupleToUserset_Tupleset)(nil),              // 48: core.v1.FunctionedTupleToUserset.Tupleset
-	(*SubjectFilter_RelationFilter)(nil),                   // 49: core.v1.SubjectFilter.RelationFilter
-	(*timestamppb.Timestamp)(nil),                          // 50: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),                                // 51: google.protobuf.Struct
-	(*anypb.Any)(nil),                                      // 52: google.protobuf.Any
+	(*SetOperation_Child_Self)(nil),                        // 47: core.v1.SetOperation.Child.Self
+	(*TupleToUserset_Tupleset)(nil),                        // 48: core.v1.TupleToUserset.Tupleset
+	(*FunctionedTupleToUserset_Tupleset)(nil),              // 49: core.v1.FunctionedTupleToUserset.Tupleset
+	(*SubjectFilter_RelationFilter)(nil),                   // 50: core.v1.SubjectFilter.RelationFilter
+	(*timestamppb.Timestamp)(nil),                          // 51: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                                // 52: google.protobuf.Struct
+	(*anypb.Any)(nil),                                      // 53: google.protobuf.Any
 }
 var file_core_v1_core_proto_depIdxs = []int32{
 	12, // 0: core.v1.RelationTuple.resource_and_relation:type_name -> core.v1.ObjectAndRelation
 	12, // 1: core.v1.RelationTuple.subject:type_name -> core.v1.ObjectAndRelation
 	9,  // 2: core.v1.RelationTuple.caveat:type_name -> core.v1.ContextualizedCaveat
 	8,  // 3: core.v1.RelationTuple.integrity:type_name -> core.v1.RelationshipIntegrity
-	50, // 4: core.v1.RelationTuple.optional_expiration_time:type_name -> google.protobuf.Timestamp
-	50, // 5: core.v1.RelationshipIntegrity.hashed_at:type_name -> google.protobuf.Timestamp
-	51, // 6: core.v1.ContextualizedCaveat.context:type_name -> google.protobuf.Struct
+	51, // 4: core.v1.RelationTuple.optional_expiration_time:type_name -> google.protobuf.Timestamp
+	51, // 5: core.v1.RelationshipIntegrity.hashed_at:type_name -> google.protobuf.Timestamp
+	52, // 6: core.v1.ContextualizedCaveat.context:type_name -> google.protobuf.Struct
 	40, // 7: core.v1.CaveatDefinition.parameter_types:type_name -> core.v1.CaveatDefinition.ParameterTypesEntry
 	20, // 8: core.v1.CaveatDefinition.metadata:type_name -> core.v1.Metadata
 	35, // 9: core.v1.CaveatDefinition.source_position:type_name -> core.v1.SourcePosition
@@ -3291,7 +3355,7 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	12, // 19: core.v1.DirectSubject.subject:type_name -> core.v1.ObjectAndRelation
 	36, // 20: core.v1.DirectSubject.caveat_expression:type_name -> core.v1.CaveatExpression
 	18, // 21: core.v1.DirectSubjects.subjects:type_name -> core.v1.DirectSubject
-	52, // 22: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
+	53, // 22: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
 	22, // 23: core.v1.NamespaceDefinition.relation:type_name -> core.v1.Relation
 	20, // 24: core.v1.NamespaceDefinition.metadata:type_name -> core.v1.Metadata
 	35, // 25: core.v1.NamespaceDefinition.source_position:type_name -> core.v1.SourcePosition
@@ -3316,11 +3380,11 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	31, // 44: core.v1.UsersetRewrite.exclusion:type_name -> core.v1.SetOperation
 	35, // 45: core.v1.UsersetRewrite.source_position:type_name -> core.v1.SourcePosition
 	44, // 46: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
-	47, // 47: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
+	48, // 47: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
 	34, // 48: core.v1.TupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
 	35, // 49: core.v1.TupleToUserset.source_position:type_name -> core.v1.SourcePosition
 	4,  // 50: core.v1.FunctionedTupleToUserset.function:type_name -> core.v1.FunctionedTupleToUserset.Function
-	48, // 51: core.v1.FunctionedTupleToUserset.tupleset:type_name -> core.v1.FunctionedTupleToUserset.Tupleset
+	49, // 51: core.v1.FunctionedTupleToUserset.tupleset:type_name -> core.v1.FunctionedTupleToUserset.Tupleset
 	34, // 52: core.v1.FunctionedTupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
 	35, // 53: core.v1.FunctionedTupleToUserset.source_position:type_name -> core.v1.SourcePosition
 	5,  // 54: core.v1.ComputedUserset.object:type_name -> core.v1.ComputedUserset.Object
@@ -3330,7 +3394,7 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	6,  // 58: core.v1.CaveatOperation.op:type_name -> core.v1.CaveatOperation.Operation
 	36, // 59: core.v1.CaveatOperation.children:type_name -> core.v1.CaveatExpression
 	39, // 60: core.v1.RelationshipFilter.optional_subject_filter:type_name -> core.v1.SubjectFilter
-	49, // 61: core.v1.SubjectFilter.optional_relation:type_name -> core.v1.SubjectFilter.RelationFilter
+	50, // 61: core.v1.SubjectFilter.optional_relation:type_name -> core.v1.SubjectFilter.RelationFilter
 	11, // 62: core.v1.CaveatDefinition.ParameterTypesEntry.value:type_name -> core.v1.CaveatTypeReference
 	24, // 63: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry.value:type_name -> core.v1.ReachabilityEntrypoints
 	24, // 64: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry.value:type_name -> core.v1.ReachabilityEntrypoints
@@ -3340,12 +3404,13 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	30, // 68: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
 	33, // 69: core.v1.SetOperation.Child.functioned_tuple_to_userset:type_name -> core.v1.FunctionedTupleToUserset
 	46, // 70: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
-	35, // 71: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
-	72, // [72:72] is the sub-list for method output_type
-	72, // [72:72] is the sub-list for method input_type
-	72, // [72:72] is the sub-list for extension type_name
-	72, // [72:72] is the sub-list for extension extendee
-	0,  // [0:72] is the sub-list for field type_name
+	47, // 71: core.v1.SetOperation.Child._self:type_name -> core.v1.SetOperation.Child.Self
+	35, // 72: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
+	73, // [73:73] is the sub-list for method output_type
+	73, // [73:73] is the sub-list for method input_type
+	73, // [73:73] is the sub-list for extension type_name
+	73, // [73:73] is the sub-list for extension extendee
+	0,  // [0:73] is the sub-list for field type_name
 }
 
 func init() { file_core_v1_core_proto_init() }
@@ -3377,6 +3442,7 @@ func file_core_v1_core_proto_init() {
 		(*SetOperation_Child_UsersetRewrite)(nil),
 		(*SetOperation_Child_FunctionedTupleToUserset)(nil),
 		(*SetOperation_Child_XNil)(nil),
+		(*SetOperation_Child_XSelf)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3384,7 +3450,7 @@ func file_core_v1_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_core_v1_core_proto_rawDesc), len(file_core_v1_core_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   43,
+			NumMessages:   44,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

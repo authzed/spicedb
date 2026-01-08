@@ -33,8 +33,9 @@ const (
 
 	NodeTypeArrowExpression // A TTU in arrow form.
 
-	NodeTypeIdentifier    // An identifier under an expression.
-	NodeTypeNilExpression // A nil keyword
+	NodeTypeIdentifier     // An identifier under an expression.
+	NodeTypeNilExpression  // A nil keyword
+	NodeTypeSelfExpression // A self keyword
 
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
 )

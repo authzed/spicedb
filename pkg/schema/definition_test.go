@@ -409,6 +409,43 @@ func TestDefinition(t *testing.T) {
 			},
 			"",
 		},
+		{
+			"self is valid if used as a relation that exists",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("self", nil),
+				ns.MustRelation("editor", ns.Union(
+					ns.ComputedUserset("self"),
+				)),
+			),
+			[]*core.NamespaceDefinition{},
+			nil,
+			"",
+		},
+		{
+			"self is invalid if used as a relation that doesn't exist",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("editor", ns.Union(
+					ns.ComputedUserset("self"),
+				)),
+			),
+			[]*core.NamespaceDefinition{},
+			nil,
+			"relation/permission `self` not found under definition `document`",
+		},
+		{
+			"self is valid if used as a keyword",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("editor", ns.Union(
+					ns.Self(),
+				)),
+			),
+			[]*core.NamespaceDefinition{},
+			nil,
+			"",
+		},
 	}
 
 	for _, tc := range testCases {
