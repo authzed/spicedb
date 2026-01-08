@@ -265,7 +265,7 @@ func loadCompiled(
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
 	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
-	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(*compiled))
+	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(compiled))
 
 	for _, caveatDef := range compiled.CaveatDefinitions {
 		cverr := namespace.ValidateCaveatDefinition(caveattypes.Default.TypeSet, caveatDef)
