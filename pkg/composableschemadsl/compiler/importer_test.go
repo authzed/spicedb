@@ -1,9 +1,12 @@
 package compiler_test
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +21,9 @@ type importerTest struct {
 	name   string
 	folder string
 }
+
+//go:embed importer-test
+var testFS embed.FS
 
 func (it *importerTest) input() string {
 	b, err := os.ReadFile(fmt.Sprintf("importer-test/%s/root.zed", it.folder))
@@ -79,6 +85,33 @@ func TestImporter(t *testing.T) {
 				SchemaString: inputSchema,
 			}, compiler.AllowUnprefixedObjectType(),
 				compiler.SourceFolder(sourceFolder))
+			require.NoError(t, err)
+
+			generated, _, err := generator.GenerateSchema(compiled.OrderedDefinitions)
+			require.NoError(t, err)
+
+			if os.Getenv("REGEN") == "true" {
+				test.writeExpected(generated)
+			} else {
+				expected := test.expected()
+				if !assert.Equal(t, expected, generated, test.name) {
+					t.Log(generated)
+				}
+			}
+		})
+		t.Run("fs/"+test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys, err := fs.Sub(testFS, filepath.Join("importer-test", test.folder))
+			require.NoError(t, err)
+
+			inputSchema := test.input()
+
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: inputSchema,
+			}, compiler.AllowUnprefixedObjectType(),
+				compiler.SourceFS(fsys))
 			require.NoError(t, err)
 
 			generated, _, err := generator.GenerateSchema(compiled.OrderedDefinitions)

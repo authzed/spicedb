@@ -5,6 +5,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
@@ -770,7 +771,8 @@ type importResolutionContext struct {
 	// NOTE: This depends on an assumption that a depth-first search will always
 	// find a cycle, even if we're otherwise marking globally visited nodes.
 	locallyVisitedFiles *mapz.Set[string]
-	sourceFolder        string
+	sourceFS            fs.FS
+	sourcePrefix        string
 	mapper              input.PositionMapper
 }
 
@@ -793,9 +795,9 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 			if err := validateFilepath(importPath); err != nil {
 				return err
 			}
-			filePath := filepath.Join(itctx.sourceFolder, importPath)
+			filePath := filepath.Join(itctx.sourcePrefix, importPath)
 
-			newSourceFolder := filepath.Dir(filePath)
+			newSourcePrefix := filepath.Dir(filePath)
 
 			currentLocallyVisitedFiles := itctx.locallyVisitedFiles.Copy()
 
@@ -819,14 +821,15 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 
 			// Do the actual import here
 			// This is a new node provided by the translateImport
-			parsedImportRoot, err := importFile(filePath)
+			parsedImportRoot, err := importFile(itctx.sourceFS, filePath)
 			if err != nil {
 				return toContextError("failed to read import in schema file", "", topLevelNode, itctx.mapper)
 			}
 
 			// We recurse on that node to resolve any further imports
 			err = translateImports(importResolutionContext{
-				sourceFolder:         newSourceFolder,
+				sourceFS:             itctx.sourceFS,
+				sourcePrefix:         newSourcePrefix,
 				locallyVisitedFiles:  currentLocallyVisitedFiles,
 				globallyVisitedFiles: itctx.globallyVisitedFiles,
 				mapper:               itctx.mapper,

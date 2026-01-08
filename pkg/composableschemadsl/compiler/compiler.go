@@ -3,6 +3,8 @@ package compiler
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 
 	"google.golang.org/protobuf/proto"
 
@@ -57,9 +59,9 @@ type config struct {
 	allowedFlags     *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
 
-	// In an import context, this is the folder containing
+	// In an import context, this is the FS containing
 	// the importing schema (as opposed to imported schemas)
-	sourceFolder string
+	sourceFS fs.FS
 }
 
 func SkipValidation() Option { return func(cfg *config) { cfg.skipValidation = true } }
@@ -96,7 +98,13 @@ func DisallowExpirationFlag() Option {
 // Config that supplies the root source folder for compilation. Required
 // for relative import syntax to work properly.
 func SourceFolder(sourceFolder string) Option {
-	return func(cfg *config) { cfg.sourceFolder = sourceFolder }
+	return func(cfg *config) { cfg.sourceFS = os.DirFS(sourceFolder) }
+}
+
+// Config that supplies the fs.FS for compilation as an alternative to
+// SourceFolder.
+func SourceFS(fsys fs.FS) Option {
+	return func(cfg *config) { cfg.sourceFS = fsys }
 }
 
 type Option func(*config)
@@ -128,7 +136,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	err = translateImports(importResolutionContext{
 		globallyVisitedFiles: mapz.NewSet[string](),
 		locallyVisitedFiles:  mapz.NewSet[string](),
-		sourceFolder:         cfg.sourceFolder,
+		sourceFS:             cfg.sourceFS,
 		mapper:               mapper,
 	}, root)
 	if err != nil {
