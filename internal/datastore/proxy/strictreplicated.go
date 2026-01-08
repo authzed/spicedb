@@ -104,32 +104,32 @@ type strictReadReplicatedReader struct {
 	primary   datastore.Datastore
 }
 
-func (rr *strictReadReplicatedReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (rr *strictReadReplicatedReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	sr := rr.replica.SnapshotReader(rr.rev)
-	caveat, lastWritten, err := sr.ReadCaveatByName(ctx, name)
+	caveat, lastWritten, err := sr.LegacyReadCaveatByName(ctx, name)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("caveat", name).Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).ReadCaveatByName(ctx, name)
+		return rr.primary.SnapshotReader(rr.rev).LegacyReadCaveatByName(ctx, name)
 	}
 	return caveat, lastWritten, err
 }
 
-func (rr *strictReadReplicatedReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (rr *strictReadReplicatedReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	sr := rr.replica.SnapshotReader(rr.rev)
-	caveats, err := sr.ListAllCaveats(ctx)
+	caveats, err := sr.LegacyListAllCaveats(ctx)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).ListAllCaveats(ctx)
+		return rr.primary.SnapshotReader(rr.rev).LegacyListAllCaveats(ctx)
 	}
 	return caveats, err
 }
 
-func (rr *strictReadReplicatedReader) LookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+func (rr *strictReadReplicatedReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
 	sr := rr.replica.SnapshotReader(rr.rev)
-	caveats, err := sr.LookupCaveatsWithNames(ctx, names)
+	caveats, err := sr.LegacyLookupCaveatsWithNames(ctx, names)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LookupCaveatsWithNames(ctx, names)
+		return rr.primary.SnapshotReader(rr.rev).LegacyLookupCaveatsWithNames(ctx, names)
 	}
 	return caveats, err
 }
@@ -211,32 +211,32 @@ func (rr *strictReadReplicatedReader) ReverseQueryRelationships(
 		})
 }
 
-func (rr *strictReadReplicatedReader) ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (rr *strictReadReplicatedReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	sr := rr.replica.SnapshotReader(rr.rev)
-	namespace, lastWritten, err := sr.ReadNamespaceByName(ctx, nsName)
+	namespace, lastWritten, err := sr.LegacyReadNamespaceByName(ctx, nsName)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("namespace", nsName).Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).ReadNamespaceByName(ctx, nsName)
+		return rr.primary.SnapshotReader(rr.rev).LegacyReadNamespaceByName(ctx, nsName)
 	}
 	return namespace, lastWritten, err
 }
 
-func (rr *strictReadReplicatedReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (rr *strictReadReplicatedReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	sr := rr.replica.SnapshotReader(rr.rev)
-	namespaces, err := sr.ListAllNamespaces(ctx)
+	namespaces, err := sr.LegacyListAllNamespaces(ctx)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).ListAllNamespaces(ctx)
+		return rr.primary.SnapshotReader(rr.rev).LegacyListAllNamespaces(ctx)
 	}
 	return namespaces, err
 }
 
-func (rr *strictReadReplicatedReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (rr *strictReadReplicatedReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	sr := rr.replica.SnapshotReader(rr.rev)
-	namespaces, err := sr.LookupNamespacesWithNames(ctx, nsNames)
+	namespaces, err := sr.LegacyLookupNamespacesWithNames(ctx, nsNames)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LookupNamespacesWithNames(ctx, nsNames)
+		return rr.primary.SnapshotReader(rr.rev).LegacyLookupNamespacesWithNames(ctx, nsNames)
 	}
 	return namespaces, err
 }
@@ -259,4 +259,8 @@ func (rr *strictReadReplicatedReader) LookupCounters(ctx context.Context) ([]dat
 		return rr.primary.SnapshotReader(rr.rev).LookupCounters(ctx)
 	}
 	return counters, err
+}
+
+func (rr *strictReadReplicatedReader) SchemaReader() (datastore.SchemaReader, error) {
+	return rr.replica.SnapshotReader(rr.rev).SchemaReader()
 }

@@ -21,7 +21,7 @@ const (
 	errWriteCaveats = "unable to write caveats: %w"
 )
 
-func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (mr *mysqlReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	filteredReadCaveat := mr.aliveFilter(mr.ReadCaveatQuery)
 	sqlStatement, args, err := filteredReadCaveat.Where(sq.Eq{colName: name}).ToSql()
 	if err != nil {
@@ -51,14 +51,14 @@ func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core
 	return &def, revisions.NewForTransactionID(txID), nil
 }
 
-func (mr *mysqlReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (mr *mysqlReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	if len(caveatNames) == 0 {
 		return nil, nil
 	}
 	return mr.lookupCaveats(ctx, caveatNames)
 }
 
-func (mr *mysqlReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (mr *mysqlReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return mr.lookupCaveats(ctx, nil)
 }
 
@@ -112,7 +112,7 @@ func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) 
 	return caveats, nil
 }
 
-func (rwt *mysqlReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt *mysqlReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	if len(caveats) == 0 {
 		return nil
 	}
@@ -147,7 +147,7 @@ func (rwt *mysqlReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
+func (rwt *mysqlReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	return rwt.deleteCaveatsFromNames(ctx, names)
 }
 

@@ -610,7 +610,7 @@ definition resource {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			validated, err := ValidateSchemaChanges(t.Context(), compiled, caveattypes.Default.TypeSet, false)
+			validated, err := ValidateSchemaChanges(t.Context(), compiled, caveattypes.Default.TypeSet, false, tc.endingSchema)
 			if tc.expectedError != "" && err != nil && tc.expectedError == err.Error() {
 				return
 			}

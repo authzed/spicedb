@@ -12,6 +12,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -272,7 +273,7 @@ func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, name string,
 	return tx.Insert(tableCounters, counter)
 }
 
-func (rwt *memdbReadWriteTx) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
@@ -298,7 +299,7 @@ func (rwt *memdbReadWriteTx) WriteNamespaces(_ context.Context, newConfigs ...*c
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
@@ -336,6 +337,10 @@ func (rwt *memdbReadWriteTx) DeleteNamespaces(_ context.Context, nsNames []strin
 	}
 
 	return nil
+}
+
+func (rwt *memdbReadWriteTx) SchemaWriter() (datastore.SchemaWriter, error) {
+	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
 }
 
 func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {

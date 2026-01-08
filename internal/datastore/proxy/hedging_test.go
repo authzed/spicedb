@@ -46,14 +46,14 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		f                 testFunc
 	}{
 		{
-			"ReadNamespaceByName",
+			"LegacyReadNamespaceByName",
 			true,
 			[]any{nsKnown},
 			[]any{&core.NamespaceDefinition{}, revisionKnown, errKnown},
 			[]any{&core.NamespaceDefinition{}, anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
-				_, rev, err := proxy.SnapshotReader(datastore.NoRevision).ReadNamespaceByName(t.Context(), nsKnown)
+				_, rev, err := proxy.SnapshotReader(datastore.NoRevision).LegacyReadNamespaceByName(t.Context(), nsKnown)
 				require.ErrorIs(errKnown, err)
 				if expectFirst {
 					require.Equal(revisionKnown, rev)

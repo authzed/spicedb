@@ -44,7 +44,7 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	_, _, err = ds.SnapshotReader(startRevision).ReadNamespaceByName(ctx, "unknown")
+	_, _, err = ds.SnapshotReader(startRevision).LegacyReadNamespaceByName(ctx, "unknown")
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 }
 
@@ -61,39 +61,39 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	nsDefs, err := ds.SnapshotReader(startRevision).ListAllNamespaces(ctx)
+	nsDefs, err := ds.SnapshotReader(startRevision).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Empty(nsDefs)
 
 	writtenRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, testUserNS)
+		return rwt.LegacyWriteNamespaces(ctx, testUserNS)
 	})
 	require.NoError(err)
 	require.True(writtenRev.GreaterThan(startRevision))
 
-	nsDefs, err = ds.SnapshotReader(writtenRev).ListAllNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(writtenRev).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Len(nsDefs, 1)
 	require.Equal(testUserNS.Name, nsDefs[0].Definition.Name)
 
 	secondWritten, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, testNamespace)
+		return rwt.LegacyWriteNamespaces(ctx, testNamespace)
 	})
 	require.NoError(err)
 	require.True(secondWritten.GreaterThan(writtenRev))
 
-	nsDefs, err = ds.SnapshotReader(secondWritten).ListAllNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(secondWritten).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Len(nsDefs, 2)
 
-	_, _, err = ds.SnapshotReader(writtenRev).ReadNamespaceByName(ctx, testNamespace.Name)
+	_, _, err = ds.SnapshotReader(writtenRev).LegacyReadNamespaceByName(ctx, testNamespace.Name)
 	require.Error(err)
 
-	nsDefs, err = ds.SnapshotReader(writtenRev).ListAllNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(writtenRev).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Len(nsDefs, 1)
 
-	found, createdRev, err := ds.SnapshotReader(secondWritten).ReadNamespaceByName(ctx, testNamespace.Name)
+	found, createdRev, err := ds.SnapshotReader(secondWritten).LegacyReadNamespaceByName(ctx, testNamespace.Name)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(secondWritten))
 	require.True(createdRev.GreaterThan(startRevision))
@@ -101,40 +101,40 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.Empty(foundDiff)
 
 	updatedRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, updatedNamespace)
+		return rwt.LegacyWriteNamespaces(ctx, updatedNamespace)
 	})
 	require.NoError(err)
 
-	checkUpdated, createdRev, err := ds.SnapshotReader(updatedRevision).ReadNamespaceByName(ctx, testNamespace.Name)
+	checkUpdated, createdRev, err := ds.SnapshotReader(updatedRevision).LegacyReadNamespaceByName(ctx, testNamespace.Name)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(updatedRevision))
 	require.True(createdRev.GreaterThan(startRevision))
 	foundUpdated := cmp.Diff(updatedNamespace, checkUpdated, protocmp.Transform())
 	require.Empty(foundUpdated)
 
-	checkOld, createdRev, err := ds.SnapshotReader(writtenRev).ReadNamespaceByName(ctx, testUserNamespace)
+	checkOld, createdRev, err := ds.SnapshotReader(writtenRev).LegacyReadNamespaceByName(ctx, testUserNamespace)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(writtenRev))
 	require.True(createdRev.GreaterThan(startRevision))
 	require.Empty(cmp.Diff(testUserNS, checkOld, protocmp.Transform()))
 
-	checkOldList, err := ds.SnapshotReader(writtenRev).ListAllNamespaces(ctx)
+	checkOldList, err := ds.SnapshotReader(writtenRev).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Len(checkOldList, 1)
 	require.Equal(testUserNS.Name, checkOldList[0].Definition.Name)
 	require.Empty(cmp.Diff(testUserNS, checkOldList[0].Definition, protocmp.Transform()))
 
-	checkLookup, err := ds.SnapshotReader(secondWritten).LookupNamespacesWithNames(ctx, []string{testNamespace.Name})
+	checkLookup, err := ds.SnapshotReader(secondWritten).LegacyLookupNamespacesWithNames(ctx, []string{testNamespace.Name})
 	require.NoError(err)
 	require.Len(checkLookup, 1)
 	require.Equal(testNamespace.Name, checkLookup[0].Definition.Name)
 	require.Empty(cmp.Diff(testNamespace, checkLookup[0].Definition, protocmp.Transform()))
 
-	checkLookupMultiple, err := ds.SnapshotReader(secondWritten).LookupNamespacesWithNames(ctx, []string{testNamespace.Name, testUserNS.Name})
+	checkLookupMultiple, err := ds.SnapshotReader(secondWritten).LegacyLookupNamespacesWithNames(ctx, []string{testNamespace.Name, testUserNS.Name})
 	require.NoError(err)
 	require.Len(checkLookupMultiple, 2)
 
-	emptyLookup, err := ds.SnapshotReader(secondWritten).LookupNamespacesWithNames(ctx, []string{"anothername"})
+	emptyLookup, err := ds.SnapshotReader(secondWritten).LegacyLookupNamespacesWithNames(ctx, []string{"anothername"})
 	require.NoError(err)
 	require.Empty(emptyLookup)
 }
@@ -162,20 +162,20 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	tRequire.RelationshipExists(ctx, folderTpl, revision)
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, []string{testfixtures.DocumentNS.Name}, datastore.DeleteNamespacesAndRelationships)
+		return rwt.LegacyDeleteNamespaces(ctx, []string{testfixtures.DocumentNS.Name}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
 
-	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
+	_, _, err = ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 
-	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
+	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
 	require.NoError(err)
 	require.NotNil(found)
 	require.True(nsCreatedRev.LessThan(deletedRev))
 
-	allNamespaces, err := ds.SnapshotReader(deletedRev).ListAllNamespaces(ctx)
+	allNamespaces, err := ds.SnapshotReader(deletedRev).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	for _, ns := range allNamespaces {
 		require.NotEqual(testfixtures.DocumentNS.Name, ns.Definition.Name, "deleted namespace '%s' should not be in namespace list", ns.Definition.Name)
@@ -209,20 +209,20 @@ func NamespaceDeleteNoRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	tRequire.NoRelationshipExists(ctx, docTpl, revision)
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, []string{testfixtures.DocumentNS.Name}, datastore.DeleteNamespacesOnly)
+		return rwt.LegacyDeleteNamespaces(ctx, []string{testfixtures.DocumentNS.Name}, datastore.DeleteNamespacesOnly)
 	})
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
 
-	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
+	_, _, err = ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 
-	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
+	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
 	require.NoError(err)
 	require.NotNil(found)
 	require.True(nsCreatedRev.LessThan(deletedRev))
 
-	allNamespaces, err := ds.SnapshotReader(deletedRev).ListAllNamespaces(ctx)
+	allNamespaces, err := ds.SnapshotReader(deletedRev).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	for _, ns := range allNamespaces {
 		require.NotEqual(testfixtures.DocumentNS.Name, ns.Definition.Name, "deleted namespace '%s' should not be in namespace list", ns.Definition.Name)
@@ -236,7 +236,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 	ctx := t.Context()
 
-	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
+	namespaces, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 
 	nsNames := make([]string, 0, len(namespaces))
@@ -245,11 +245,11 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, nsNames, datastore.DeleteNamespacesAndRelationships)
+		return rwt.LegacyDeleteNamespaces(ctx, nsNames, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.NoError(t, err)
 
-	namespacesAfterDel, err := ds.SnapshotReader(deletedRev).ListAllNamespaces(ctx)
+	namespacesAfterDel, err := ds.SnapshotReader(deletedRev).LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Empty(t, namespacesAfterDel)
 }
@@ -265,12 +265,12 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	ctx := t.Context()
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, []string{testfixtures.UserNS.Name}, datastore.DeleteNamespacesAndRelationships)
+		return rwt.LegacyDeleteNamespaces(ctx, []string{testfixtures.UserNS.Name}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
 
-	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.UserNS.Name)
+	_, _, err = ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.UserNS.Name)
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 }
 
@@ -298,18 +298,18 @@ definition document {
 
 	ctx := t.Context()
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
+		err := rwt.LegacyWriteCaveats(ctx, compiled.CaveatDefinitions)
 		if err != nil {
 			return err
 		}
 
-		return rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...)
+		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
 	})
 	require.NoError(err)
 
 	// Attempt to delete the invalid namespace.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespaces(ctx, []string{"invalid"}, datastore.DeleteNamespacesAndRelationships)
+		return rwt.LegacyDeleteNamespaces(ctx, []string{"invalid"}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.Error(err)
 	require.ErrorContains(err, "not found")
@@ -349,24 +349,24 @@ definition document {
 
 	ctx := t.Context()
 	updatedRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
+		err := rwt.LegacyWriteCaveats(ctx, compiled.CaveatDefinitions)
 		if err != nil {
 			return err
 		}
 
-		return rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...)
+		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
 	})
 	require.NoError(err)
 
 	// Read the namespace definition back from the datastore and compare.
 	nsConfig := compiled.ObjectDefinitions[0]
-	readNsDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespaceByName(ctx, nsConfig.Name)
+	readNsDef, _, err := ds.SnapshotReader(updatedRevision).LegacyReadNamespaceByName(ctx, nsConfig.Name)
 	require.NoError(err)
 	testutil.RequireProtoEqual(t, nsConfig, readNsDef, "found changed namespace definition")
 
 	// Read the caveat back from the datastore and compare.
 	caveatDef := compiled.CaveatDefinitions[0]
-	readCaveatDef, _, err := ds.SnapshotReader(updatedRevision).ReadCaveatByName(ctx, caveatDef.Name)
+	readCaveatDef, _, err := ds.SnapshotReader(updatedRevision).LegacyReadCaveatByName(ctx, caveatDef.Name)
 	require.NoError(err)
 	testutil.RequireProtoEqual(t, caveatDef, readCaveatDef, "found changed caveat definition")
 

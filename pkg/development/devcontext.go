@@ -270,7 +270,7 @@ func loadCompiled(
 	for _, caveatDef := range compiled.CaveatDefinitions {
 		cverr := namespace.ValidateCaveatDefinition(caveattypes.Default.TypeSet, caveatDef)
 		if cverr == nil {
-			if err := rwt.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef}); err != nil {
+			if err := rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{caveatDef}); err != nil {
 				return errors, err
 			}
 			continue
@@ -341,7 +341,7 @@ func loadCompiled(
 
 		_, tverr := def.Validate(ctx)
 		if tverr == nil {
-			if err := rwt.WriteNamespaces(ctx, nsDef); err != nil {
+			if err := rwt.LegacyWriteNamespaces(ctx, nsDef); err != nil {
 				return errors, err
 			}
 			continue

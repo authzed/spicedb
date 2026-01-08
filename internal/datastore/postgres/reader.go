@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -199,7 +200,7 @@ func (r *pgReader) ReverseQueryRelationships(
 	)
 }
 
-func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (r *pgReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	loaded, version, err := r.loadNamespace(ctx, nsName, r.query, r.aliveFilter)
 	switch {
 	case errors.As(err, &datastore.NamespaceNotFoundError{}):
@@ -229,7 +230,7 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxco
 	return defs[0].Definition, defs[0].LastWrittenRevision.(postgresRevision), nil
 }
 
-func (r *pgReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (r *pgReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, r.aliveFilter)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
@@ -238,7 +239,7 @@ func (r *pgReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revisione
 	return nsDefsWithRevisions, err
 }
 
-func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (r *pgReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
@@ -302,6 +303,11 @@ func revisionForVersion(version xid8) postgresRevision {
 		xmin: version.Uint64 + 1,
 		xmax: version.Uint64 + 1,
 	}}
+}
+
+// SchemaReader returns a SchemaReader for reading schema information.
+func (r *pgReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 var _ datastore.Reader = &pgReader{}

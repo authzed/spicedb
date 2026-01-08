@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -288,7 +289,7 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 	}
 }
 
-func (sr spannerReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (sr spannerReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	nsKey := spanner.Key{nsName}
 	row, err := sr.txSource().ReadRow(
 		ctx,
@@ -317,7 +318,7 @@ func (sr spannerReader) ReadNamespaceByName(ctx context.Context, nsName string) 
 	return ns, revisions.NewForTime(updated), nil
 }
 
-func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (sr spannerReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	iter := sr.txSource().Read(
 		ctx,
 		tableNamespace,
@@ -334,7 +335,7 @@ func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revi
 	return allNamespaces, nil
 }
 
-func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (sr spannerReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
@@ -400,4 +401,9 @@ var queryTuplesForDelete = sql.Select(
 	colUsersetRelation,
 ).From(tableRelationship)
 
-var _ datastore.Reader = spannerReader{}
+// SchemaReader returns a SchemaReader for reading schema information.
+func (sr *spannerReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(sr), nil
+}
+
+var _ datastore.Reader = (*spannerReader)(nil)

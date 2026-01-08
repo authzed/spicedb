@@ -21,6 +21,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -417,7 +418,7 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 	return uintRowsAffected, false, nil
 }
 
-func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {
+func (rwt *mysqlReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {
 	deletedNamespaceClause := sq.Or{}
 	writeQuery := rwt.WriteNamespaceQuery
 
@@ -457,7 +458,7 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *mysqlReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
@@ -511,6 +512,10 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []st
 	}
 
 	return nil
+}
+
+func (rwt *mysqlReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
+	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
 }
 
 func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {

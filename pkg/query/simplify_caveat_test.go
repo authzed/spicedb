@@ -42,7 +42,7 @@ func TestSimplifyLeafCaveat(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
+		return tx.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
 	})
 	require.NoError(err)
 
@@ -129,7 +129,7 @@ func TestSimplifyAndOperation(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef1, caveatDef2})
+		return tx.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{caveatDef1, caveatDef2})
 	})
 	require.NoError(err)
 
@@ -233,7 +233,7 @@ func TestSimplifyOrOperation(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef1, caveatDef2})
+		return tx.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{caveatDef1, caveatDef2})
 	})
 	require.NoError(err)
 
@@ -349,7 +349,7 @@ func TestSimplifyNestedOperations(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, caveatDefs)
+		return tx.LegacyWriteCaveats(ctx, caveatDefs)
 	})
 	require.NoError(err)
 
@@ -434,7 +434,7 @@ func TestSimplifyOrWithSameCaveatDifferentContexts(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
+		return tx.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
 	})
 	require.NoError(err)
 
@@ -520,7 +520,7 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
+		return tx.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
 	})
 	require.NoError(err)
 
@@ -616,7 +616,7 @@ func TestSimplifyNotWithSameCaveatDifferentContexts(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
+		return tx.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
 	})
 	require.NoError(err)
 
@@ -698,7 +698,7 @@ func TestSimplifyComplexNestedExpressions(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, caveatDefs)
+		return tx.LegacyWriteCaveats(ctx, caveatDefs)
 	})
 	require.NoError(err)
 
@@ -1165,7 +1165,7 @@ func TestSimplifyWithEmptyContext(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, caveatDefs)
+		return tx.LegacyWriteCaveats(ctx, caveatDefs)
 	})
 	require.NoError(err)
 
@@ -1247,7 +1247,7 @@ func TestSimplifyNotConditional(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
+		return tx.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{caveatDef})
 	})
 	require.NoError(err)
 
@@ -1333,7 +1333,7 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 	require.NoError(err)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, caveatDefs)
+		return tx.LegacyWriteCaveats(ctx, caveatDefs)
 	})
 	require.NoError(err)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -233,7 +234,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 
 // ReadNamespace reads a namespace definition and version and returns it, and the revision at
 // which it was created or last written, if found.
-func (r *memdbReader) ReadNamespaceByName(_ context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (r *memdbReader) LegacyReadNamespaceByName(_ context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	if r.initErr != nil {
 		return nil, datastore.NoRevision, r.initErr
 	}
@@ -266,7 +267,7 @@ func (r *memdbReader) ReadNamespaceByName(_ context.Context, nsName string) (ns 
 }
 
 // ListNamespaces lists all namespaces defined.
-func (r *memdbReader) ListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
+func (r *memdbReader) LegacyListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
 	if r.initErr != nil {
 		return nil, r.initErr
 	}
@@ -303,7 +304,7 @@ func (r *memdbReader) ListAllNamespaces(_ context.Context) ([]datastore.Revision
 	return nsDefs, nil
 }
 
-func (r *memdbReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (r *memdbReader) LegacyLookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if r.initErr != nil {
 		return nil, r.initErr
 	}
@@ -591,6 +592,11 @@ func newMemdbTupleIterator(now time.Time, it memdb.ResultIterator, limit *uint64
 			count++
 		}
 	}
+}
+
+// SchemaReader returns a SchemaReader for reading schema information.
+func (r *memdbReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 var _ datastore.Reader = &memdbReader{}

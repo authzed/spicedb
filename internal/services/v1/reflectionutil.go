@@ -23,12 +23,12 @@ func loadCurrentSchema(ctx context.Context) (*diff.DiffableSchema, datastore.Rev
 
 	reader := ds.SnapshotReader(atRevision)
 
-	namespacesAndRevs, err := reader.ListAllNamespaces(ctx)
+	namespacesAndRevs, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return nil, atRevision, err
 	}
 
-	caveatsAndRevs, err := reader.ListAllCaveats(ctx)
+	caveatsAndRevs, err := reader.LegacyListAllCaveats(ctx)
 	if err != nil {
 		return nil, atRevision, err
 	}

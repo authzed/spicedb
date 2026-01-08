@@ -555,10 +555,10 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 
 	reader := ds.SnapshotReader(rev)
 
-	_, userRevision, err := reader.ReadNamespaceByName(t.Context(), "user")
+	_, userRevision, err := reader.LegacyReadNamespaceByName(t.Context(), "user")
 	require.NoError(t, err)
 
-	_, docRevision, err := reader.ReadNamespaceByName(t.Context(), "document")
+	_, docRevision, err := reader.LegacyReadNamespaceByName(t.Context(), "document")
 	require.NoError(t, err)
 
 	require.True(t, docRevision.GreaterThan(userRevision))

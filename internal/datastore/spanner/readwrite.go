@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -355,7 +356,7 @@ func caveatVals(r tuple.Relationship) []any {
 	return vals
 }
 
-func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt spannerReadWriteTXN) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	mutations := make([]*spanner.Mutation, 0, len(newConfigs))
 	for _, newConfig := range newConfigs {
 		serialized, err := newConfig.MarshalVT()
@@ -373,12 +374,12 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 	return rwt.spannerRWT.BufferWrite(mutations)
 }
 
-func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
 
-	namespaces, err := rwt.LookupNamespacesWithNames(ctx, nsNames)
+	namespaces, err := rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -411,6 +412,10 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []s
 	return nil
 }
 
+func (rwt spannerReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
+	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
+}
+
 func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var numLoaded uint64
 	var rel *tuple.Relationship
@@ -434,4 +439,4 @@ func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.Bulk
 	return numLoaded, nil
 }
 
-var _ datastore.ReadWriteTransaction = spannerReadWriteTXN{}
+var _ datastore.ReadWriteTransaction = (*spannerReadWriteTXN)(nil)

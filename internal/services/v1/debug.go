@@ -42,12 +42,12 @@ func ConvertCheckDispatchDebugInformation(
 
 // getFullSchema returns the full schema from the reader.
 func getFullSchema(ctx context.Context, reader datastore.Reader) (string, error) {
-	caveats, err := reader.ListAllCaveats(ctx)
+	caveats, err := reader.LegacyListAllCaveats(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	namespaces, err := reader.ListAllNamespaces(ctx)
+	namespaces, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return "", err
 	}

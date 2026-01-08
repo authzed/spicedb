@@ -622,15 +622,15 @@ type noCaveatsReader struct {
 	datastore.Reader
 }
 
-func (f noCaveatsReader) ReadCaveatByName(ctx context.Context, name string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
+func (f noCaveatsReader) LegacyReadCaveatByName(ctx context.Context, name string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
 	return nil, nil, errors.New("should not be called")
 }
 
-func (f noCaveatsReader) LookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+func (f noCaveatsReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
 	return nil, errors.New("should not be called")
 }
 
-func (f noCaveatsReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (f noCaveatsReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return nil, errors.New("should not be called")
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -198,7 +199,7 @@ func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName str
 	return counters, nil
 }
 
-func (cr *crdbReader) ReadNamespaceByName(
+func (cr *crdbReader) LegacyReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
@@ -213,7 +214,7 @@ func (cr *crdbReader) ReadNamespaceByName(
 	return config, revisions.NewHLCForTime(timestamp), nil
 }
 
-func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (cr *crdbReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	addFromToQuery := func(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
 		return cr.addFromToQuery(query, tableName, noIndexHint)
 	}
@@ -226,7 +227,7 @@ func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revisi
 	return nsDefs, nil
 }
 
-func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (cr *crdbReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
@@ -426,6 +427,11 @@ func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuil
 
 func (cr *crdbReader) addOverlapKey(namespace string) {
 	cr.keyer.addKey(cr.overlapKeySet, namespace)
+}
+
+// SchemaReader returns a SchemaReader for reading schema information.
+func (cr *crdbReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(cr), nil
 }
 
 var _ datastore.Reader = &crdbReader{}

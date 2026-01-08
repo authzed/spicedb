@@ -167,7 +167,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 	// Load the definitions and relationships into the datastore.
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write the caveat definitions.
-		err := rwt.WriteCaveats(ctx, caveatDefs)
+		err := rwt.LegacyWriteCaveats(ctx, caveatDefs)
 		if err != nil {
 			return err
 		}
@@ -190,7 +190,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 				return aerr
 			}
 
-			if err := rwt.WriteNamespaces(ctx, objectDef); err != nil {
+			if err := rwt.LegacyWriteNamespaces(ctx, objectDef); err != nil {
 				return fmt.Errorf("error when loading object definition %s: %w", objectDef.Name, err)
 			}
 		}
