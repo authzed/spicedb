@@ -323,6 +323,214 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			core.RelationTupleUpdate_CREATE,
 			"subjects of type `user with somecaveat and expiration` are not allowed on relation `resource#viewer`",
 		},
+		{
+			"deprecation relation test",
+			`use deprecation
+			definition testuser {}
+			definition user {}
+
+			definition document {
+				@deprecated(error,"deprecated, migrate away")
+				relation editor: testuser
+				relation viewer: user
+			}`,
+			"document:foo#editor@testuser:tom",
+			core.RelationTupleUpdate_CREATE,
+			"relation document#editor is deprecated: deprecated, migrate away",
+		},
+		{
+			"deprecated namespace test",
+			`use deprecation
+			@deprecated(error, "deprecated, migrate away")
+			definition testuser {}
+			definition user {}
+
+			definition document {
+				relation editor: testuser
+			}`,
+			"document:foo#editor@testuser:tom",
+			core.RelationTupleUpdate_CREATE,
+			"resource_type testuser is deprecated: deprecated, migrate away",
+		},
+		{
+			"deprecated relation subject type",
+			`use deprecation
+			definition user {}
+			definition testuser {}
+
+			definition platform {
+				relation viewer: user | @deprecated(warn, "comments") testuser
+				relation auditor: user | @deprecated(error, "test") testuser
+			}`,
+			"platform:foo#auditor@testuser:test",
+			core.RelationTupleUpdate_CREATE,
+			"resource_type testuser is deprecated: test",
+		},
+		{
+			"deprecated relation same subject type with wildcard",
+			`use deprecation
+			definition user {}
+			definition testuser {}
+
+			definition platform {
+				relation viewer: user | @deprecated(warn, "comments") testuser
+				relation auditor: testuser | @deprecated(error, "no wildcard please") testuser:*
+			}`,
+			"platform:foo#auditor@testuser:*",
+			core.RelationTupleUpdate_CREATE,
+			"wildcard allowed type testuser:* is deprecated: no wildcard please",
+		},
+		{
+			"deprecated relation same subject type with write on non-wildcard relation",
+			`use deprecation
+			definition user {}
+			definition testuser {}
+
+			definition platform {
+				relation viewer: user | @deprecated(warn, "comments") testuser
+				relation auditor: testuser | @deprecated(error, "no wildcard please") testuser:*
+			}`,
+			"platform:foo#auditor@testuser:test1",
+			core.RelationTupleUpdate_CREATE,
+			"",
+		},
+		{
+			"deprecated subject without expiration when expiration required",
+			`use expiration
+			use deprecation
+
+			@deprecated(error, "do not use testuser")
+			definition testuser {}
+
+			definition document {
+				relation viewer: testuser with expiration
+			}`,
+			"document:foo#viewer@testuser:tom",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `testuser` are not allowed on relation `document#viewer`; did you mean `testuser with expiration`?",
+		},
+		{
+			"deprecated subject with expiration",
+			`use expiration
+			use deprecation
+
+			@deprecated(error, "do not use testuser")
+			definition testuser {}
+
+			definition document {
+				relation viewer: testuser with expiration
+			}`,
+			"document:foo#viewer@testuser:tom[expiration:2021-01-01T00:00:00Z]",
+			core.RelationTupleUpdate_CREATE,
+			"resource_type testuser is deprecated: do not use testuser",
+		},
+		{
+			"deprecated subject with wrong caveat",
+			`use deprecation
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			@deprecated(error, "do not use testuser")
+			definition testuser {}
+
+			definition document {
+				relation viewer: testuser with somecaveat
+			}`,
+			"document:foo#viewer@testuser:tom[anothercaveat]",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `testuser with anothercaveat` are not allowed on relation `document#viewer`",
+		},
+		{
+			"deprecated subject with correct caveat",
+			`use deprecation
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			@deprecated(error, "do not use testuser")
+			definition testuser {}
+
+			definition document {
+				relation viewer: testuser with somecaveat
+			}`,
+			"document:foo#viewer@testuser:tom[somecaveat]",
+			core.RelationTupleUpdate_CREATE,
+			"resource_type testuser is deprecated: do not use testuser",
+		},
+		{
+			"deprecated subject without caveat when required",
+			`use deprecation
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			@deprecated(error, "do not use testuser")
+			definition testuser {}
+
+			definition document {
+				relation viewer: testuser with somecaveat
+			}`,
+			"document:foo#viewer@testuser:tom",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `testuser` are not allowed on relation `document#viewer` without one of the following caveats: somecaveat",
+		},
+		{
+			"deprecated user with caveat and expiration",
+			`use expiration
+			use deprecation
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition user {}
+
+			definition document {
+				relation viewer: user | @deprecated(error, "don't use this") user with somecaveat and expiration
+			}`,
+			"document:foo#viewer@user:tom[somecaveat][expiration:2021-01-01T00:00:00Z]",
+			core.RelationTupleUpdate_CREATE,
+			"resource_type user with caveat `somecaveat` and expiration is deprecated: don't use this",
+		},
+		{
+			"deprecated user with caveat only",
+			`use deprecation
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition user {}
+
+			definition document {
+				relation viewer: user | @deprecated(error, "caveated access deprecated") user with somecaveat
+			}`,
+			"document:foo#viewer@user:tom[somecaveat]",
+			core.RelationTupleUpdate_CREATE,
+			"resource_type user with caveat `somecaveat` is deprecated: caveated access deprecated",
+		},
+		{
+			"deprecated user with expiration only",
+			`use expiration
+			use deprecation
+
+			definition user {}
+
+			definition document {
+				relation viewer: user | @deprecated(error, "expiring access deprecated") user with expiration
+			}`,
+			"document:foo#viewer@user:tom[expiration:2021-01-01T00:00:00Z]",
+			core.RelationTupleUpdate_CREATE,
+			"resource_type user with expiration is deprecated: expiring access deprecated",
+		},
 	}
 
 	for _, tc := range tcs {
@@ -342,7 +550,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 				op = tuple.Delete
 			}
 
-			// Validate update.
+			// Validate update for delete.
 			err = ValidateRelationshipUpdates(t.Context(), reader, caveattypes.Default.TypeSet, []tuple.RelationshipUpdate{
 				op(tuple.MustParse(tc.relationship)),
 			})
