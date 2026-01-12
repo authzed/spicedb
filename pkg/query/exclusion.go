@@ -138,7 +138,73 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 }
 
 func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented: exclusion.go IterSubjectsImpl")
+	// Get all subjects from the main set
+	ctx.TraceStep(e, "getting subjects from main set for resource %s:%s", resource.ObjectType, resource.ObjectID)
+	mainSeq, err := ctx.IterSubjects(e.mainSet, resource)
+	if err != nil {
+		return nil, err
+	}
+
+	mainPaths, err := CollectAll(mainSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TraceStep(e, "main set returned %d paths", len(mainPaths))
+
+	// If main set is empty, return empty result
+	if len(mainPaths) == 0 {
+		ctx.TraceStep(e, "main set empty, returning empty")
+		return EmptyPathSeq(), nil
+	}
+
+	// Get all subjects from the excluded set
+	ctx.TraceStep(e, "getting subjects from excluded set")
+	excludedSeq, err := ctx.IterSubjects(e.excluded, resource)
+	if err != nil {
+		return nil, err
+	}
+
+	excludedPaths, err := CollectAll(excludedSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
+
+	// Filter main set by excluding paths that are in the excluded set
+	var finalPaths []Path
+	for _, mainPath := range mainPaths {
+		resultPath := mainPath
+		shouldInclude := true
+
+		// Check if this subject exists in the excluded set
+		for _, excludedPath := range excludedPaths {
+			if mainPath.Subject.ObjectID == excludedPath.Subject.ObjectID &&
+				mainPath.Subject.ObjectType == excludedPath.Subject.ObjectType &&
+				mainPath.Subject.Relation == excludedPath.Subject.Relation {
+				// Found matching subject in excluded set - combine caveats
+				ctx.TraceStep(e, "found matching excluded subject, combining caveats")
+				resultPath, shouldInclude = combineExclusionCaveats(mainPath, excludedPath)
+				break
+			}
+		}
+
+		// Only include if path is not completely excluded
+		if shouldInclude {
+			finalPaths = append(finalPaths, resultPath)
+		} else {
+			ctx.TraceStep(e, "subject completely excluded")
+		}
+	}
+
+	return func(yield func(Path, error) bool) {
+		for _, path := range finalPaths {
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}, nil
 }
 
 func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {

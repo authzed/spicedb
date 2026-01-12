@@ -602,12 +602,17 @@ func TestIntersectionArrowIteratorUnimplementedMethods(t *testing.T) {
 		Reader:   ds.SnapshotReader(revision),
 	}
 
-	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
+	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		require.Panics(func() {
-			_, _ = ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
-		})
+		// Test with empty iterators - should return empty
+		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
+		require.NoError(err)
+		require.NotNil(pathSeq)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+		require.Empty(paths, "Empty iterators should return no subjects")
 	})
 
 	t.Run("IterResources_Unimplemented", func(t *testing.T) {
@@ -616,5 +621,188 @@ func TestIntersectionArrowIteratorUnimplementedMethods(t *testing.T) {
 		require.Panics(func() {
 			_, _ = ctx.IterResources(intersectionArrow, ObjectAndRelation{ObjectType: "user", ObjectID: "alice"})
 		})
+	})
+}
+
+func TestIntersectionArrowIterSubjects(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("AllLeftSubjectsSatisfyRight", func(t *testing.T) {
+		t.Parallel()
+
+		// Left: doc1 -> folder1, folder2
+		// Right: folder1 -> alice, folder2 -> alice
+		// All left subjects (folder1, folder2) have alice on right, so result is alice
+		leftPath1 := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath2 := MustPathFromString("document:doc1#parent@folder:folder2")
+		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath2 := MustPathFromString("folder:folder2#viewer@user:alice")
+
+		leftIter := NewFixedIterator(leftPath1, leftPath2)
+		rightIter := NewFixedIterator(rightPath1, rightPath2)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should return alice twice (once for each left path)
+		require.Len(paths, 2, "Should return alice for each left subject")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+		require.Equal("alice", paths[1].Subject.ObjectID)
+	})
+
+	t.Run("NotAllLeftSubjectsSatisfyRight", func(t *testing.T) {
+		t.Parallel()
+
+		// Left: doc1 -> folder1, folder2
+		// Right: folder1 -> alice, folder2 has nothing
+		// Not all left subjects satisfy right, so result is empty
+		leftPath1 := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath2 := MustPathFromString("document:doc1#parent@folder:folder2")
+		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
+
+		leftIter := NewFixedIterator(leftPath1, leftPath2)
+		rightIter := NewFixedIterator(rightPath1)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "Not all left subjects satisfy right, should be empty")
+	})
+
+	t.Run("EmptyLeftIterator", func(t *testing.T) {
+		t.Parallel()
+
+		// No left paths
+		leftIter := NewFixedIterator()
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightIter := NewFixedIterator(rightPath)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "Empty left should return empty")
+	})
+
+	t.Run("MultipleRightSubjects", func(t *testing.T) {
+		t.Parallel()
+
+		// Left: doc1 -> folder1
+		// Right: folder1 -> alice, folder1 -> bob
+		// Should return both alice and bob
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath2 := MustPathFromString("folder:folder1#viewer@user:bob")
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath1, rightPath2)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 2, "Should return both alice and bob")
+
+		subjectIDs := make(map[string]bool)
+		for _, path := range paths {
+			subjectIDs[path.Subject.ObjectID] = true
+		}
+		require.Contains(subjectIDs, "alice")
+		require.Contains(subjectIDs, "bob")
+	})
+
+	t.Run("CaveatCombination", func(t *testing.T) {
+		t.Parallel()
+
+		// Left with caveat, right with caveat
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "left_caveat",
+				},
+			},
+		}
+
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "right_caveat",
+				},
+			},
+		}
+
+		leftIter := NewFixedIterator(leftPath)
+		rightIter := NewFixedIterator(rightPath)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "Should return alice with combined caveats")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+		require.NotNil(paths[0].Caveat, "Should have combined caveat")
+		require.NotNil(paths[0].Caveat.GetOperation(), "Caveat should be an operation")
+		require.Equal(core.CaveatOperation_AND, paths[0].Caveat.GetOperation().Op, "Caveat should be AND")
+	})
+
+	t.Run("ThreeLeftSubjectsAllSatisfy", func(t *testing.T) {
+		t.Parallel()
+
+		// Left: doc1 -> folder1, folder2, folder3
+		// Right: folder1 -> alice, folder2 -> alice, folder3 -> alice
+		leftPath1 := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftPath2 := MustPathFromString("document:doc1#parent@folder:folder2")
+		leftPath3 := MustPathFromString("document:doc1#parent@folder:folder3")
+
+		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightPath2 := MustPathFromString("folder:folder2#viewer@user:alice")
+		rightPath3 := MustPathFromString("folder:folder3#viewer@user:alice")
+
+		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
+		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 3, "Should return alice three times")
+		for _, path := range paths {
+			require.Equal("alice", path.Subject.ObjectID)
+		}
 	})
 }
