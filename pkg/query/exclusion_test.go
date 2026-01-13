@@ -350,16 +350,26 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 	t.Run("Main Set Collection Error", func(t *testing.T) {
 		t.Parallel()
-		// Create an iterator that fails during collection
+		// Create an iterator that fails during iteration
 		mainSet := NewFaultyIterator(false, true)
 		excludedSet := NewFixedIterator(path1)
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		require.Error(err)
-		require.Contains(err.Error(), "faulty iterator collection error")
-		require.Nil(pathSeq)
+		require.NoError(err, "CheckImpl should succeed, error comes during iteration")
+		require.NotNil(pathSeq)
+
+		// The error should be yielded when we try to iterate the sequence
+		foundError := false
+		for _, err := range pathSeq {
+			if err != nil {
+				require.Contains(err.Error(), "faulty iterator collection error")
+				foundError = true
+				break
+			}
+		}
+		require.True(foundError, "Expected error during iteration")
 	})
 
 	t.Run("Excluded Set Collection Error", func(t *testing.T) {
