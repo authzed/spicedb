@@ -148,13 +148,26 @@ func TestIntersectionIterator(t *testing.T) {
 		}
 	})
 
-	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
+	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
 		intersect := NewIntersection()
-		require.Panics(func() {
-			_, _ = ctx.IterSubjects(intersect, NewObject("document", "doc1"))
-		})
+
+		// Add test iterators
+		documentAccess := NewDocumentAccessFixedIterator()
+		multiRole := NewMultiRoleFixedIterator()
+
+		intersect.addSubIterator(documentAccess)
+		intersect.addSubIterator(multiRole)
+
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should return subjects that are in BOTH iterators
+		require.NotEmpty(paths, "Intersection should find common subjects")
 	})
 
 	t.Run("IterResources_Unimplemented", func(t *testing.T) {
@@ -520,5 +533,141 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
 		require.Equal(core.CaveatOperation_AND, relCaveat.GetOperation().Op, "Caveat should be an AND")
 		require.Len(relCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children (caveat1 and caveat2)")
+	})
+}
+
+func TestIntersectionIterSubjects(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("SimpleIntersection", func(t *testing.T) {
+		t.Parallel()
+
+		// Both iterators return alice for doc1
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc1#editor@user:alice")
+
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		intersect := NewIntersection(iter1, iter2)
+
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "Should find alice in intersection")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+	})
+
+	t.Run("NoCommonSubjects", func(t *testing.T) {
+		t.Parallel()
+
+		// Different subjects in each iterator
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc1#editor@user:bob")
+
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		intersect := NewIntersection(iter1, iter2)
+
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "No common subjects should result in empty")
+	})
+
+	t.Run("EmptyIterator", func(t *testing.T) {
+		t.Parallel()
+
+		// One iterator is empty
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator()
+
+		intersect := NewIntersection(iter1, iter2)
+
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "Empty iterator should short-circuit to empty result")
+	})
+
+	t.Run("ThreeIteratorsWithCommonSubject", func(t *testing.T) {
+		t.Parallel()
+
+		// Alice appears in all three
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc1#editor@user:alice")
+		path3 := MustPathFromString("document:doc1#owner@user:alice")
+
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+		iter3 := NewFixedIterator(path3)
+
+		intersect := NewIntersection(iter1, iter2, iter3)
+
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "Should find alice in all three")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+	})
+
+	t.Run("CaveatCombination", func(t *testing.T) {
+		t.Parallel()
+
+		// Both have alice with different caveats
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path1.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat1",
+				},
+			},
+		}
+
+		path2 := MustPathFromString("document:doc1#editor@user:alice")
+		path2.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "caveat2",
+				},
+			},
+		}
+
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		intersect := NewIntersection(iter1, iter2)
+
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "Should find alice with combined caveats")
+		require.NotNil(paths[0].Caveat, "Should have combined caveat")
+		require.NotNil(paths[0].Caveat.GetOperation(), "Caveat should be an operation")
+		require.Equal(core.CaveatOperation_AND, paths[0].Caveat.GetOperation().Op, "Caveat should be AND")
 	})
 }

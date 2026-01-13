@@ -227,7 +227,7 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 }
 
 func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	return nil, spiceerrors.MustBugf("unimplemented: datastore.go IterResourcesImpl")
 }
 
 func (r *RelationIterator) Clone() Iterator {
