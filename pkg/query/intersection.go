@@ -53,7 +53,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 
 		if len(paths) == 0 {
 			ctx.TraceStep(i, "sub-iterator %d returned empty, short-circuiting", iterIdx)
-			return func(yield func(Path, error) bool) {}, nil
+			return EmptyPathSeq(), nil
 		}
 
 		if iterIdx == 0 {
@@ -106,7 +106,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 			pathsByKey = newPathsByKey
 
 			if len(pathsByKey) == 0 {
-				return func(yield func(Path, error) bool) {}, nil
+				return EmptyPathSeq(), nil
 			}
 		}
 

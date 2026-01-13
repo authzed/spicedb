@@ -39,11 +39,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		revision, err := ds.HeadRevision(context.Background())
 		require.NoError(err)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(revision),
-		}
+		ctx := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(revision)))
 
 		// Test: alice should have access because she's a member of ALL teams (team1 and team2)
 		resources := []Object{NewObject("document", "doc1")}
@@ -91,11 +88,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		})
 		require.NoError(err)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(revision),
-		}
+		ctx := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(revision)))
 
 		// Test: alice should NOT have access because she's not a member of ALL teams
 		resources := []Object{NewObject("document", "doc1")}
@@ -134,11 +128,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		})
 		require.NoError(err)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(revision),
-		}
+		ctx := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(revision)))
 
 		// Test: alice should have access because she's a member of the only team
 		resources := []Object{NewObject("document", "doc1")}
@@ -182,11 +173,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		})
 		require.NoError(err)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(revision),
-		}
+		ctx := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(revision)))
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -228,11 +216,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		})
 		require.NoError(err)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(revision),
-		}
+		ctx := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(revision)))
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -270,11 +255,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		})
 		require.NoError(err)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(revision),
-		}
+		ctx := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(revision)))
 
 		resources := []Object{}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -302,11 +284,8 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 	})
 	require.NoError(err)
 
-	ctx := &Context{
-		Context:  context.Background(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()
@@ -532,11 +511,8 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	})
 	require.NoError(err)
 
-	ctx := &Context{
-		Context:  context.Background(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Test that both iterators produce the same results
 	resources := []Object{NewObject("document", "doc1")}
@@ -596,11 +572,8 @@ func TestIntersectionArrowIteratorUnimplementedMethods(t *testing.T) {
 	})
 	require.NoError(err)
 
-	ctx := &Context{
-		Context:  context.Background(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	t.Run("IterSubjects_Unimplemented", func(t *testing.T) {
 		t.Parallel()

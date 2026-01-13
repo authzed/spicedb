@@ -14,10 +14,7 @@ func TestUnionIterator(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_Union", func(t *testing.T) {
 		t.Parallel()
@@ -245,10 +242,7 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	// Create a union with overlapping sub-iterators
 	// This tests the deduplication logic where resources found by earlier
@@ -283,10 +277,7 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	union := NewUnion()
 
@@ -312,10 +303,7 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("DeduplicatesByResourceKey", func(t *testing.T) {
 		t.Parallel()
@@ -465,10 +453,7 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("CombineTwoCaveats_OR_Logic", func(t *testing.T) {
 		t.Parallel()

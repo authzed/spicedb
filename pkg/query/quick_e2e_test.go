@@ -39,11 +39,8 @@ func TestCheck(t *testing.T) {
 	it.addSubIterator(vande)
 	it.addSubIterator(edit)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -70,11 +67,8 @@ func TestBaseIterSubjects(t *testing.T) {
 	vandeRel, _ := docDef.GetRelation("viewer_and_editor")
 	vande := NewRelationIterator(vandeRel.BaseRelations()[0])
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	relSeq, err := ctx.IterSubjects(vande, NewObject("document", "specialplan"))
 	require.NoError(err)
@@ -106,11 +100,8 @@ func TestCheckArrow(t *testing.T) {
 	view := NewRelationIterator(viewRel.BaseRelations()[0])
 	it := NewArrow(folders, view)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
 	require.NoError(err)

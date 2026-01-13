@@ -47,13 +47,10 @@ type queryPlanConsistencyHandle struct {
 }
 
 func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
-	return &query.Context{
-		Context:      t.Context(),
-		Executor:     query.LocalExecutor{},
-		Reader:       q.ds.SnapshotReader(q.revision),
-		CaveatRunner: caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
-		TraceLogger:  query.NewTraceLogger(), // Enable tracing for debugging
-	}
+	return query.NewLocalContext(t.Context(),
+		query.WithReader(q.ds.SnapshotReader(q.revision)),
+		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
+		query.WithTraceLogger(query.NewTraceLogger())) // Enable tracing for debugging
 }
 
 func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {

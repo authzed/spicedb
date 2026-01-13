@@ -20,11 +20,8 @@ func TestExclusionIterator(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Create test paths
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -219,11 +216,8 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -268,11 +262,8 @@ func TestExclusionUnimplementedMethods(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 	mainSet := NewFixedIterator(path1)
@@ -304,11 +295,8 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -378,11 +366,8 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Create test relations
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -567,11 +552,8 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Helper to create paths with caveats
 	createPathWithCaveat := func(relation, caveatName string) Path {
@@ -645,10 +627,7 @@ func TestExclusion_EdgeCases(t *testing.T) {
 	require := require.New(t)
 
 	// Create minimal context for basic testing
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("empty_main_set", func(t *testing.T) {
 		t.Parallel()
