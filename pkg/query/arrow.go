@@ -5,7 +5,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Arrow is an iterator that represents the set of paths that
@@ -180,7 +179,6 @@ func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 					Caveat:     combinedCaveat,
 					Expiration: rightPath.Expiration,
 					Integrity:  rightPath.Integrity,
-					Metadata:   make(map[string]any),
 				}
 
 				totalResultPaths++
@@ -197,7 +195,78 @@ func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 }
 
 func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented: arrow.go IterResourcesImpl")
+	// Arrow: resource -> left subjects -> right subjects
+	// Get resources from right side, then for each, get resources from left side
+	return func(yield func(Path, error) bool) {
+		ctx.TraceStep(a, "iterating resources for subject %s:%s", subject.ObjectType, subject.ObjectID)
+
+		// Get all resources from the right side
+		rightSeq, err := ctx.IterResources(a.right, subject)
+		if err != nil {
+			yield(Path{}, err)
+			return
+		}
+
+		rightPathCount := 0
+		totalResultPaths := 0
+		for rightPath, err := range rightSeq {
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+			rightPathCount++
+
+			// For each right resource, get resources from left side
+			// TODO: see if WithEllipses is correct here
+			rightResourceAsSubject := rightPath.Resource.WithEllipses()
+			ctx.TraceStep(a, "iterating left side for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
+
+			leftSeq, err := ctx.IterResources(a.left, rightResourceAsSubject)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			leftPathCount := 0
+			for leftPath, err := range leftSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+				leftPathCount++
+
+				// Combine caveats from both sides (AND logic)
+				var combinedCaveat *core.CaveatExpression
+				switch {
+				case leftPath.Caveat != nil && rightPath.Caveat != nil:
+					combinedCaveat = caveats.And(leftPath.Caveat, rightPath.Caveat)
+				case leftPath.Caveat != nil:
+					combinedCaveat = leftPath.Caveat
+				case rightPath.Caveat != nil:
+					combinedCaveat = rightPath.Caveat
+				}
+
+				// Create combined path with resource from right and subject from left
+				combinedPath := Path{
+					Resource:   leftPath.Resource,
+					Relation:   leftPath.Relation,
+					Subject:    rightPath.Subject,
+					Caveat:     combinedCaveat,
+					Expiration: rightPath.Expiration,
+					Integrity:  rightPath.Integrity,
+				}
+
+				totalResultPaths++
+				if !yield(combinedPath, nil) {
+					return
+				}
+			}
+
+			ctx.TraceStep(a, "left side returned %d paths for right subject %s:%s", leftPathCount, rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
+		}
+
+		ctx.TraceStep(a, "arrow IterSubjects completed: %d right paths, %d total result paths", rightPathCount, totalResultPaths)
+	}, nil
 }
 
 func (a *Arrow) Clone() Iterator {

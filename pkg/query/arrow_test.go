@@ -11,8 +11,6 @@ import (
 func TestArrowIterator(t *testing.T) {
 	t.Parallel()
 
-	require := require.New(t)
-
 	// Create test iterators using fixed helpers
 	// Left side: document parent relationships to folders
 	leftRels := NewFolderHierarchyFixedIterator()
@@ -24,6 +22,7 @@ func TestArrowIterator(t *testing.T) {
 
 	t.Run("Check", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Create context with LocalExecutor
 		ctx := NewLocalContext(t.Context())
@@ -46,6 +45,7 @@ func TestArrowIterator(t *testing.T) {
 
 	t.Run("Check_EmptyResources", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Create context with LocalExecutor
 		ctx := NewLocalContext(t.Context())
@@ -60,6 +60,7 @@ func TestArrowIterator(t *testing.T) {
 
 	t.Run("Check_NonexistentResource", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Create context with LocalExecutor
 		ctx := NewLocalContext(t.Context())
@@ -75,6 +76,7 @@ func TestArrowIterator(t *testing.T) {
 
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Create context with LocalExecutor
 		ctx := NewLocalContext(t.Context())
@@ -90,6 +92,7 @@ func TestArrowIterator(t *testing.T) {
 
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Create context with LocalExecutor
 		ctx := NewLocalContext(t.Context())
@@ -117,15 +120,33 @@ func TestArrowIterator(t *testing.T) {
 		require.True(foundAlice, "Should find alice as a subject")
 	})
 
-	t.Run("IterResources_Unimplemented", func(t *testing.T) {
+	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
+
+		logger := NewTraceLogger()
 
 		// Create context with LocalExecutor
-		ctx := NewLocalContext(t.Context())
+		ctx := NewLocalContext(t.Context(), WithTraceLogger(logger))
 
-		require.Panics(func() {
-			_, _ = ctx.IterResources(arrow, NewObject("user", "alice").WithEllipses())
-		})
+		// Test arrow IterSubjects: find all resources for a subject through the arrow
+		// This finds which resources a given subject has access to via the left->right path
+		pathSeq, err := ctx.IterResources(arrow, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Expected: spec1 parent is project1, and alice has viewer access to project1
+		// So spec1 should be returned as a resource
+		require.NotEmpty(paths, "Should find resources through arrow")
+
+		// Verify spec1 is in the results
+		resourceIds := make([]string, 0, len(paths))
+		for _, path := range paths {
+			resourceIds = append(resourceIds, path.Resource.ObjectID)
+		}
+		require.Contains(resourceIds, "spec1", "Should find spec1 as a resource")
 	})
 }
 
