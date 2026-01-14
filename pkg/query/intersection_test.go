@@ -167,13 +167,26 @@ func TestIntersectionIterator(t *testing.T) {
 		require.NotEmpty(paths, "Intersection should find common subjects")
 	})
 
-	t.Run("IterResources_Unimplemented", func(t *testing.T) {
+	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
 		intersect := NewIntersection()
-		require.Panics(func() {
-			_, _ = ctx.IterResources(intersect, NewObject("user", "alice").WithEllipses())
-		})
+
+		// Add test iterators
+		documentAccess := NewDocumentAccessFixedIterator()
+		multiRole := NewMultiRoleFixedIterator()
+
+		intersect.addSubIterator(documentAccess)
+		intersect.addSubIterator(multiRole)
+
+		pathSeq, err := ctx.IterResources(intersect, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		// Should return resources that are in BOTH iterators
+		require.NotEmpty(paths, "Intersection should find common resources")
 	})
 }
 
