@@ -143,8 +143,8 @@ func TestValidationString(t *testing.T) {
 				}
 			}
 
-			foundONRStrings := []string{}
 			onrs, _ := vs.ONRS()
+			foundONRStrings := make([]string, 0, len(onrs))
 			for _, onr := range onrs {
 				foundONRStrings = append(foundONRStrings, tuple.StringONR(onr))
 			}

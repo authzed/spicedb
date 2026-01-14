@@ -200,7 +200,7 @@ func (tss *TrackingSubjectSet) removeExact(subjects ...tuple.ObjectAndRelation) 
 }
 
 func (tss *TrackingSubjectSet) getSubjects() []string {
-	var subjects []string
+	var subjects []string //nolint: prealloc  // we can't really know the length here
 	for _, subjectSet := range tss.setByType {
 		for _, foundSubject := range subjectSet.AsSlice() {
 			subjects = append(subjects, tuple.StringONR(foundSubject.subject))
@@ -211,7 +211,7 @@ func (tss *TrackingSubjectSet) getSubjects() []string {
 
 // ToSlice returns a slice of all subjects found in the set.
 func (tss *TrackingSubjectSet) ToSlice() []FoundSubject {
-	subjects := []FoundSubject{}
+	subjects := []FoundSubject{} //nolint: prealloc  // we can't really know the length here
 	for _, bss := range tss.setByType {
 		subjects = append(subjects, bss.AsSlice()...)
 	}

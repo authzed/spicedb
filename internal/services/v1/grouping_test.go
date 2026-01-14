@@ -179,7 +179,7 @@ func TestGroupItems(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			var items []*v1.CheckBulkPermissionsRequestItem
+			items := make([]*v1.CheckBulkPermissionsRequestItem, 0, len(tt.requests))
 			for _, r := range tt.requests {
 				rel, err := tuple.ParseV1Rel(r)
 				require.NoError(t, err)

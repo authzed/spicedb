@@ -247,11 +247,8 @@ func TestContext(t *testing.T) {
 		require.NotNil(wrappedSeq)
 
 		// Collect results to verify it works
-		var paths []Path
-		for path, err := range wrappedSeq {
-			require.NoError(err)
-			paths = append(paths, path)
-		}
+		paths, err := CollectAll(wrappedSeq)
+		require.NoError(err)
 		require.Len(paths, 1)
 		require.Equal(testPath, paths[0])
 	})
@@ -276,12 +273,9 @@ func TestContext(t *testing.T) {
 		wrappedSeq := ctx.wrapPathSeqForTracing(iterator, originalSeq)
 
 		// Collect results
-		var paths []Path
-		for path, err := range wrappedSeq {
-			require.NoError(err)
-			paths = append(paths, path)
-		}
+		paths, err := CollectAll(wrappedSeq)
 
+		require.NoError(err)
 		require.Len(paths, 1)
 		require.Equal(testPath, paths[0])
 

@@ -308,7 +308,7 @@ definition folder {
 				})
 			}
 
-			var schemaDefinitions []compiler.SchemaDefinition
+			schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(defs)+len(caveats))
 			for _, def := range defs {
 				schemaDefinitions = append(schemaDefinitions, def)
 			}
@@ -346,7 +346,7 @@ definition folder {
 				})
 			}
 
-			var expectedSchemaDefinitions []compiler.SchemaDefinition
+			expectedSchemaDefinitions := make([]compiler.SchemaDefinition, 0, len(expectedCompiled.ObjectDefinitions)+len(expectedCompiled.CaveatDefinitions))
 			for _, def := range expectedCompiled.ObjectDefinitions {
 				expectedSchemaDefinitions = append(expectedSchemaDefinitions, def)
 			}
@@ -655,7 +655,7 @@ definition user {}`,
 				})
 			}
 
-			var schemaDefinitions []compiler.SchemaDefinition
+			schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(defs)+len(caveats))
 			for _, def := range defs {
 				schemaDefinitions = append(schemaDefinitions, def)
 			}
@@ -693,7 +693,7 @@ definition user {}`,
 				})
 			}
 
-			var expectedSchemaDefinitions []compiler.SchemaDefinition
+			expectedSchemaDefinitions := make([]compiler.SchemaDefinition, 0, len(expectedCompiled.ObjectDefinitions)+len(expectedCompiled.CaveatDefinitions))
 			for _, def := range expectedCompiled.ObjectDefinitions {
 				expectedSchemaDefinitions = append(expectedSchemaDefinitions, def)
 			}
@@ -1097,7 +1097,7 @@ definition user {}
 				})
 			}
 
-			var schemaDefinitions []compiler.SchemaDefinition
+			schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(defs)+len(caveats))
 			for _, def := range defs {
 				schemaDefinitions = append(schemaDefinitions, def)
 			}
@@ -1135,7 +1135,7 @@ definition user {}
 				})
 			}
 
-			var expectedSchemaDefinitions []compiler.SchemaDefinition
+			expectedSchemaDefinitions := make([]compiler.SchemaDefinition, 0, len(expectedCompiled.ObjectDefinitions)+len(expectedCompiled.CaveatDefinitions))
 			for _, def := range expectedCompiled.ObjectDefinitions {
 				expectedSchemaDefinitions = append(expectedSchemaDefinitions, def)
 			}

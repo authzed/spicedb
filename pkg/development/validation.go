@@ -241,8 +241,9 @@ func GenerateValidation(membershipSet *developmentmembership.Set) (string, error
 
 	for _, onrString := range onrStrings {
 		foundSubjects := subjectsByONR[onrString]
-		var strs []string
-		for _, fs := range foundSubjects.ListFound() {
+		subjectList := foundSubjects.ListFound()
+		strs := make([]string, 0, len(subjectList))
+		for _, fs := range subjectList {
 			strs = append(strs,
 				fmt.Sprintf("[%s] is %s",
 					fs.ToValidationString(),
