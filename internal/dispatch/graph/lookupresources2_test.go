@@ -296,11 +296,12 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 }
 
 func processResults2(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookupResources2Response]) ([]*v1.PossibleResource, uint32, uint32, uint32) {
-	foundResources := []*v1.PossibleResource{}
+	streamResults := stream.Results()
+	foundResources := make([]*v1.PossibleResource, 0, len(streamResults))
 	var maxDepthRequired uint32
 	var maxDispatchCount uint32
 	var maxCachedDispatchCount uint32
-	for _, result := range stream.Results() {
+	for _, result := range streamResults {
 		result.Resource.ForSubjectIds = nil
 		foundResources = append(foundResources, result.Resource)
 		maxDepthRequired = max(maxDepthRequired, result.Metadata.DepthRequired)
@@ -1501,11 +1502,12 @@ func genResourceIds(resourceName string, number int) []string {
 }
 
 func processResults(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookupResources2Response]) ([]*v1.PossibleResource, uint32, uint32, uint32) {
-	foundResources := []*v1.PossibleResource{}
+	streamResults := stream.Results()
+	foundResources := make([]*v1.PossibleResource, 0, len(streamResults))
 	var maxDepthRequired uint32
 	var maxDispatchCount uint32
 	var maxCachedDispatchCount uint32
-	for _, result := range stream.Results() {
+	for _, result := range streamResults {
 		foundResources = append(foundResources, result.Resource)
 		maxDepthRequired = max(maxDepthRequired, result.Metadata.DepthRequired)
 		maxDispatchCount = max(maxDispatchCount, result.Metadata.DispatchCount)

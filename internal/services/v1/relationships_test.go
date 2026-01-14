@@ -886,7 +886,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
-					var preconditions []*v1.Precondition
+					preconditions := make([]*v1.Precondition, 0, len(tc.preconditions))
 					for _, filter := range tc.preconditions {
 						preconditions = append(preconditions, &v1.Precondition{
 							Operation: v1.Precondition_OPERATION_MUST_MATCH,
@@ -894,7 +894,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 						})
 					}
 
-					var mutations []*v1.RelationshipUpdate
+					mutations := make([]*v1.RelationshipUpdate, 0, len(tc.relationships))
 					for _, rel := range tc.relationships {
 						mutations = append(mutations, &v1.RelationshipUpdate{
 							Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
@@ -2317,7 +2317,7 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 
 			// Write the test relationships if any
 			if len(tc.setupRelationships) > 0 {
-				var updates []*v1.RelationshipUpdate
+				updates := make([]*v1.RelationshipUpdate, 0, len(tc.setupRelationships))
 				for _, relStr := range tc.setupRelationships {
 					rel := tuple.MustParse(relStr)
 					updates = append(updates, &v1.RelationshipUpdate{

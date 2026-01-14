@@ -238,7 +238,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 }
 
 func processResults3(stream *dispatch.CloningCollectingDispatchStream[*v1.DispatchLookupResources3Response]) []*v1.PossibleResource {
-	foundResources := []*v1.PossibleResource{}
+	foundResources := []*v1.PossibleResource{} //nolint: prealloc  // we can't easily know the length of foundResources
 	for _, result := range stream.Results() {
 		for _, item := range result.Items {
 			foundResources = append(foundResources, &v1.PossibleResource{

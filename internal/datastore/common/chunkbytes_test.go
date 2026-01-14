@@ -637,7 +637,7 @@ func TestChunkData(t *testing.T) {
 
 			// Verify that reassembling gives us the original data
 			if tt.expectedCount > 0 {
-				var reassembled []byte
+				var reassembled []byte //nolint: prealloc  // it's hard to know the combined length here
 				for _, chunk := range chunks {
 					reassembled = append(reassembled, chunk...)
 				}

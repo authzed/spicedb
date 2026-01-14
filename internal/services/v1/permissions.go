@@ -309,7 +309,7 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.Relati
 			panic("unknown set operation")
 		}
 
-		children := []*core.RelationTupleTreeNode{}
+		children := make([]*core.RelationTupleTreeNode, 0, len(t.Intermediate.Children))
 		for _, child := range t.Intermediate.Children {
 			children = append(children, TranslateRelationshipTree(child))
 		}
@@ -363,8 +363,9 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 			panic("unknown set operation")
 		}
 
-		var children []*v1.PermissionRelationshipTree
-		for _, child := range node.GetIntermediateNode().ChildNodes {
+		childNodes := node.GetIntermediateNode().ChildNodes
+		children := make([]*v1.PermissionRelationshipTree, 0, len(childNodes))
+		for _, child := range childNodes {
 			children = append(children, TranslateExpansionTree(child))
 		}
 

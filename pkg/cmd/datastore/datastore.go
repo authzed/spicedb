@@ -619,7 +619,7 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 }
 
 func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.StrictReadDatastore, error) {
-	pgOpts := []postgres.Option{
+	pgOpts := []postgres.Option{ //nolint: prealloc  // we're not worried about perf here
 		postgres.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
 		postgres.ReadConnsMaxOpen(opts.ReadReplicaConnPool.MaxOpenConns),
 		postgres.ReadConnsMinOpen(opts.ReadReplicaConnPool.MinOpenConns),
@@ -639,7 +639,7 @@ func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, repli
 }
 
 func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
-	pgOpts := []postgres.Option{
+	pgOpts := []postgres.Option{ //nolint: prealloc  // we're not worried about perf here
 		postgres.CredentialsProviderName(opts.CredentialsProviderName),
 		postgres.GCWindow(opts.GCWindow),
 		postgres.GCEnabled(!opts.ReadOnly),
@@ -758,7 +758,7 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 }
 
 func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
-	mysqlOpts := []mysql.Option{
+	mysqlOpts := []mysql.Option{ //nolint: prealloc  // we're not concerned about perf here
 		mysql.MaxOpenConns(opts.ReadReplicaConnPool.MaxOpenConns),
 		mysql.ConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
@@ -776,7 +776,7 @@ func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaU
 }
 
 func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
-	mysqlOpts := []mysql.Option{
+	mysqlOpts := []mysql.Option{ //nolint: prealloc  // we're not concerned about perf here
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCWindow(opts.GCWindow),
 		mysql.GCInterval(opts.GCInterval),

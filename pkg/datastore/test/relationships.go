@@ -1782,7 +1782,7 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			iter, err := reader.QueryRelationships(ctx, tc.filter, options.WithSkipCaveats(tc.withoutCaveats), options.WithSkipExpiration(tc.withoutExpiration), options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 
-			var results []string
+			var results []string //nolint: prealloc  // we don't know the length of this iterator ahead of time
 			for rel, err := range iter {
 				require.NoError(err)
 				results = append(results, tuple.MustString(rel))

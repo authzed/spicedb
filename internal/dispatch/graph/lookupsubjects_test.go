@@ -1025,7 +1025,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 			}, stream)
 			require.NoError(err)
 
-			results := []*v1.FoundSubject{}
+			results := []*v1.FoundSubject{} //nolint: prealloc  // we can't easily know the correct size
 			for _, streamResult := range stream.Results() {
 				for _, foundSubjects := range streamResult.FoundSubjectsByResourceId {
 					results = append(results, foundSubjects.FoundSubjects...)

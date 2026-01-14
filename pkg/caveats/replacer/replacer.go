@@ -13,8 +13,7 @@ func ReplaceVariable(e *cel.Env, existingAst *cel.Ast, oldVarName string, newVar
 		return nil, fmt.Errorf("failed to compile new variable name: %w", iss.Err())
 	}
 
-	inlinedVars := []*InlineVariable{}
-	inlinedVars = append(inlinedVars, newInlineVariable(oldVarName, newExpr))
+	inlinedVars := []*InlineVariable{newInlineVariable(oldVarName, newExpr)}
 
 	opt := cel.NewStaticOptimizer(newModifiedInliningOptimizer(inlinedVars...))
 	optimized, iss := opt.Optimize(e, existingAst)
