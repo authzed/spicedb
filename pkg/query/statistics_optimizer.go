@@ -18,6 +18,7 @@ func (s StatisticsOptimizer) Optimize(it Iterator) (Iterator, bool, error) {
 		s.reorderUnion,
 		s.reorderIntersection,
 		s.rebalanceArrow,
+		WrapOptimizer(optimizeArrowDirection(s.Source)),
 	}
 
 	return ApplyOptimizations(it, optimizers)

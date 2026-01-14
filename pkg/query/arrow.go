@@ -1,10 +1,23 @@
 package query
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+)
+
+// arrowDirection specifies which direction to execute the arrow check
+type arrowDirection int
+
+const (
+	// leftToRight executes IterSubjects on left, Check on right
+	leftToRight arrowDirection = iota
+	// rightToLeft executes IterResources on right, Check on left
+	rightToLeft
 )
 
 // Arrow is an iterator that represents the set of paths that
@@ -12,33 +25,43 @@ import (
 //
 // Ex: `folder->owner` and `left->right`
 type Arrow struct {
-	id    string
-	left  Iterator
-	right Iterator
+	id        string
+	left      Iterator
+	right     Iterator
+	direction arrowDirection // execution direction
 }
 
 var _ Iterator = &Arrow{}
 
 func NewArrow(left, right Iterator) *Arrow {
 	return &Arrow{
-		id:    uuid.NewString(),
-		left:  left,
-		right: right,
+		id:        uuid.NewString(),
+		left:      left,
+		right:     right,
+		direction: leftToRight,
 	}
 }
 
 func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	// TODO -- the ordering, directionality, batching, everything can depend on other statistics.
-	//
 	// There are three major strategies:
-	// - IterSubjects on the left, Check on the right (as per this implementation)
+	// - IterSubjects on the left, Check on the right
 	// - IterResources on the right, Check on the left
 	// - IterSubjects on left, IterResources on right, and intersect the two iterators here (especially if they are known to be sorted)
 	//
-	// But for now, this is a proof-of-concept, so the first one, one-by-one (no batching).
-	// This is going to be the crux of a lot of statistics optimizations -- statistics often
-	// don't restructure the tree, but can affect the best way to evaluate the tree, sometimes dynamically.
+	// But for now, we cover the first two.
+	switch a.direction {
+	case leftToRight:
+		return a.checkLeftToRight(ctx, resources, subject)
+	case rightToLeft:
+		return a.checkRightToLeft(ctx, resources, subject)
+	default:
+		return nil, spiceerrors.MustBugf("unknown arrow direction: %d", a.direction)
+	}
+}
 
+// checkLeftToRight implements the left-to-right strategy:
+// For each resource, IterSubjects on left, then Check on right
+func (a *Arrow) checkLeftToRight(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		ctx.TraceStep(a, "processing %d resources", len(resources))
 
@@ -77,32 +100,7 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 					}
 					rightPathCount++
 
-					// Combine caveats from both sides using Path-based approach
-					// For arrow operations (left->right), both conditions must be satisfied (AND logic)
-					var combinedCaveat *core.CaveatExpression
-					switch {
-					case path.Caveat != nil && checkPath.Caveat != nil:
-						// Both sides have caveats - create combined caveat expression
-						combinedCaveat = caveats.And(path.Caveat, checkPath.Caveat)
-					case path.Caveat != nil:
-						// Only left side has caveat
-						combinedCaveat = path.Caveat
-					case checkPath.Caveat != nil:
-						// Only right side has caveat
-						combinedCaveat = checkPath.Caveat
-					}
-					// else both are nil, combinedCaveat remains nil
-
-					// Create combined path with resource from left and subject from right
-					combinedPath := Path{
-						Resource:   path.Resource,
-						Relation:   path.Relation,
-						Subject:    checkPath.Subject,
-						Caveat:     combinedCaveat,
-						Expiration: checkPath.Expiration,
-						Integrity:  checkPath.Integrity,
-						Metadata:   make(map[string]any),
-					}
+					combinedPath := combineArrowPaths(path, checkPath)
 
 					totalResultPaths++
 					if !yield(combinedPath, nil) {
@@ -118,6 +116,95 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 
 		ctx.TraceStep(a, "arrow completed with %d total result paths", totalResultPaths)
 	}, nil
+}
+
+// checkRightToLeft implements the right-to-left strategy:
+// IterResources on right to get candidate resources, then Check on left
+func (a *Arrow) checkRightToLeft(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	return func(yield func(Path, error) bool) {
+		ctx.TraceStep(a, "arrow check (right-to-left) with %d resources for subject %s:%s",
+			len(resources), subject.ObjectType, subject.ObjectID)
+
+		// Strategy: Start from the right side with the target subject
+		// Get all resources that connect to subject on the right side
+		rightSeq, err := ctx.IterResources(a.right, subject)
+		if err != nil {
+			yield(Path{}, err)
+			return
+		}
+
+		rightPathCount := 0
+		totalResultPaths := 0
+		for rightPath, err := range rightSeq {
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+			rightPathCount++
+
+			// rightPath.Resource is an intermediate object from the right side
+			// Now check if any of our input resources connect to this intermediate via left
+			intermediateAsSubject := ObjectAndRelation{
+				ObjectType: rightPath.Resource.ObjectType,
+				ObjectID:   rightPath.Resource.ObjectID,
+				Relation:   "",
+			}
+
+			leftSeq, err := ctx.Check(a.left, resources, intermediateAsSubject)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			leftPathCount := 0
+			for leftPath, err := range leftSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+				leftPathCount++
+
+				combinedPath := combineArrowPaths(leftPath, rightPath)
+
+				totalResultPaths++
+				if !yield(combinedPath, nil) {
+					return
+				}
+			}
+
+			ctx.TraceStep(a, "left side returned %d paths for intermediate %s:%s",
+				leftPathCount, intermediateAsSubject.ObjectType, intermediateAsSubject.ObjectID)
+		}
+
+		ctx.TraceStep(a, "arrow check (right-to-left) completed: %d right paths, %d total result paths",
+			rightPathCount, totalResultPaths)
+	}, nil
+}
+
+// combineArrowPaths combines a left path and right path into a single path for arrow operations.
+// The combined path uses the resource and relation from the left path, the subject from the right path,
+// and combines caveats from both sides using AND logic.
+func combineArrowPaths(leftPath, rightPath Path) Path {
+	// Combine caveats from both sides using AND logic
+	var combinedCaveat *core.CaveatExpression
+	switch {
+	case leftPath.Caveat != nil && rightPath.Caveat != nil:
+		combinedCaveat = caveats.And(leftPath.Caveat, rightPath.Caveat)
+	case leftPath.Caveat != nil:
+		combinedCaveat = leftPath.Caveat
+	case rightPath.Caveat != nil:
+		combinedCaveat = rightPath.Caveat
+	}
+
+	return Path{
+		Resource:   leftPath.Resource,
+		Relation:   leftPath.Relation,
+		Subject:    rightPath.Subject,
+		Caveat:     combinedCaveat,
+		Expiration: rightPath.Expiration,
+		Integrity:  rightPath.Integrity,
+		Metadata:   make(map[string]any),
+	}
 }
 
 func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
@@ -160,26 +247,7 @@ func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 				}
 				rightPathCount++
 
-				// Combine caveats from both sides (AND logic)
-				var combinedCaveat *core.CaveatExpression
-				switch {
-				case leftPath.Caveat != nil && rightPath.Caveat != nil:
-					combinedCaveat = caveats.And(leftPath.Caveat, rightPath.Caveat)
-				case leftPath.Caveat != nil:
-					combinedCaveat = leftPath.Caveat
-				case rightPath.Caveat != nil:
-					combinedCaveat = rightPath.Caveat
-				}
-
-				// Create combined path with resource from left and subject from right
-				combinedPath := Path{
-					Resource:   leftPath.Resource,
-					Relation:   leftPath.Relation,
-					Subject:    rightPath.Subject,
-					Caveat:     combinedCaveat,
-					Expiration: rightPath.Expiration,
-					Integrity:  rightPath.Integrity,
-				}
+				combinedPath := combineArrowPaths(leftPath, rightPath)
 
 				totalResultPaths++
 				if !yield(combinedPath, nil) {
@@ -235,26 +303,7 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 				}
 				leftPathCount++
 
-				// Combine caveats from both sides (AND logic)
-				var combinedCaveat *core.CaveatExpression
-				switch {
-				case leftPath.Caveat != nil && rightPath.Caveat != nil:
-					combinedCaveat = caveats.And(leftPath.Caveat, rightPath.Caveat)
-				case leftPath.Caveat != nil:
-					combinedCaveat = leftPath.Caveat
-				case rightPath.Caveat != nil:
-					combinedCaveat = rightPath.Caveat
-				}
-
-				// Create combined path with resource from right and subject from left
-				combinedPath := Path{
-					Resource:   leftPath.Resource,
-					Relation:   leftPath.Relation,
-					Subject:    rightPath.Subject,
-					Caveat:     combinedCaveat,
-					Expiration: rightPath.Expiration,
-					Integrity:  rightPath.Integrity,
-				}
+				combinedPath := combineArrowPaths(leftPath, rightPath)
 
 				totalResultPaths++
 				if !yield(combinedPath, nil) {
@@ -271,16 +320,24 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 
 func (a *Arrow) Clone() Iterator {
 	return &Arrow{
-		id:    uuid.NewString(),
-		left:  a.left.Clone(),
-		right: a.right.Clone(),
+		id:        uuid.NewString(),
+		left:      a.left.Clone(),
+		right:     a.right.Clone(),
+		direction: a.direction, // preserve direction
 	}
 }
 
 func (a *Arrow) Explain() Explain {
+	var kind string
+	switch a.direction {
+	case rightToLeft:
+		kind = "RTL"
+	case leftToRight:
+		kind = "LTR"
+	}
 	return Explain{
 		Name:       "Arrow",
-		Info:       "Arrow",
+		Info:       fmt.Sprintf("Arrow(%s)", kind),
 		SubExplain: []Explain{a.left.Explain(), a.right.Explain()},
 	}
 }
@@ -290,7 +347,12 @@ func (a *Arrow) Subiterators() []Iterator {
 }
 
 func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Arrow{id: uuid.NewString(), left: newSubs[0], right: newSubs[1]}, nil
+	return &Arrow{
+		id:        uuid.NewString(),
+		left:      newSubs[0],
+		right:     newSubs[1],
+		direction: a.direction,
+	}, nil
 }
 
 func (a *Arrow) ID() string {
