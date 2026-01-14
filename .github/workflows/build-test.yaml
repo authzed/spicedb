@@ -17,7 +17,7 @@ env:
   DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
 jobs:
   paths-filter:
-    runs-on: "depot-ubuntu-24.04-small"
+    runs-on: "depot-ubuntu-24.04-arm-small"
     outputs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
@@ -47,7 +47,7 @@ jobs:
               - "go.mod"
   build:
     name: "Build Binary & Image"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -66,7 +66,7 @@ jobs:
 
   unit:
     name: "Unit"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -84,7 +84,7 @@ jobs:
 
   steelthread:
     name: "Steelthread"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -118,7 +118,7 @@ jobs:
 
   datastoreinttest:
     name: "Datastore Integration Tests"
-    runs-on: "depot-ubuntu-24.04-8"
+    runs-on: "depot-ubuntu-24.04-arm-8"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -152,7 +152,7 @@ jobs:
 
   datastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-8"
+    runs-on: "depot-ubuntu-24.04-arm-8"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -186,7 +186,7 @@ jobs:
 
   pgdatastoreinttest:
     name: "Datastore Integration Tests"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-4"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -221,7 +221,7 @@ jobs:
 
   pgdatastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-4"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -351,7 +351,7 @@ jobs:
           path: "e2e/newenemy/*.log"
   analyzers-unit-tests:
     name: "Analyzers Unit Tests"
-    runs-on: "depot-ubuntu-24.04-small"
+    runs-on: "depot-ubuntu-24.04-arm-small"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -365,7 +365,7 @@ jobs:
         run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-8"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -391,7 +391,7 @@ jobs:
 
   protobuf:
     name: "Generate Protobufs"
-    runs-on: "depot-ubuntu-24.04-small"
+    runs-on: "depot-ubuntu-24.04-arm-small"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.protochange == 'true'
@@ -417,7 +417,7 @@ jobs:
 
   benchmarks:
     name: "Run Go benchmarks"
-    runs-on: "depot-ubuntu-24.04-8"
+    runs-on: "depot-ubuntu-24.04-arm-8"
     timeout-minutes: 30
     needs: "paths-filter"
     # Benchmarks on Main are ran through a different workflow
