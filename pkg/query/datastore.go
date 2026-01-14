@@ -227,7 +227,28 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 }
 
 func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented: datastore.go IterResourcesImpl")
+	filter := datastore.RelationshipsFilter{
+		OptionalResourceType:     r.base.DefinitionName(),
+		OptionalResourceRelation: r.base.RelationName(),
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: r.base.Type(),
+				OptionalSubjectIds:  []string{subject.ObjectID},
+				RelationFilter:      r.buildSubjectRelationFilter(),
+			},
+		},
+	}
+
+	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
+		options.WithQueryShape(queryshape.MatchingResourcesForSubject),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
 }
 
 func (r *RelationIterator) Clone() Iterator {
