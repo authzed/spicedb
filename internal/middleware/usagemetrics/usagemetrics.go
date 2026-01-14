@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
+	"github.com/authzed/ctxkey"
 	"github.com/authzed/grpcutil"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -87,33 +88,19 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 }
 
 // Create a new type to prevent context collisions
-type responseMetaKey string
-
-var metadataCtxKey responseMetaKey = "dispatched-response-meta"
-
-type metaHandle struct{ metadata *dispatch.ResponseMeta }
+var ctxResponseMeta = ctxkey.NewBoxedWithDefault[*dispatch.ResponseMeta](nil)
 
 // SetInContext should be called in a gRPC handler to correctly set the response metadata
 // for the dispatched request.
 func SetInContext(ctx context.Context, metadata *dispatch.ResponseMeta) {
-	possibleHandle := ctx.Value(metadataCtxKey)
-	if possibleHandle == nil {
-		return
-	}
-
-	handle := possibleHandle.(*metaHandle)
-	handle.metadata = metadata
+	ctxResponseMeta.Set(ctx, metadata)
 }
 
 // FromContext returns any metadata that was stored in the context.
 //
 // This is useful for testing that a handler is properly setting the context.
 func FromContext(ctx context.Context) *dispatch.ResponseMeta {
-	possibleHandle := ctx.Value(metadataCtxKey)
-	if possibleHandle == nil {
-		return nil
-	}
-	return possibleHandle.(*metaHandle).metadata
+	return ctxResponseMeta.Value(ctx)
 }
 
 // contextWithHandle creates a new context with a location to store metadata
@@ -121,6 +108,5 @@ func FromContext(ctx context.Context) *dispatch.ResponseMeta {
 //
 // This should only be called in middleware or testing functions.
 func contextWithHandle(ctx context.Context) context.Context {
-	var handle metaHandle
-	return context.WithValue(ctx, metadataCtxKey, &handle)
+	return ctxResponseMeta.WithBox()(ctx)
 }
