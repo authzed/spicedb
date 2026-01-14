@@ -69,9 +69,8 @@ func executeGC(ctx context.Context, cfg *datastore.Config) error {
 	ctx, cancel := context.WithTimeout(ctx, cfg.GCMaxOperationTime)
 	defer cancel()
 
-	// Disable background GC and hedging.
+	// Disable background GC.
 	cfg.GCInterval = -1 * time.Hour
-	cfg.RequestHedgingEnabled = false
 
 	ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
 	if err != nil {
@@ -118,9 +117,8 @@ func NewRepairDatastoreCommand(programName string, cfg *datastore.Config) *cobra
 func executeRepair(cfg *datastore.Config, args []string) error {
 	ctx := context.Background()
 
-	// Disable background GC and hedging.
+	// Disable background GC.
 	cfg.GCInterval = -1 * time.Hour
-	cfg.RequestHedgingEnabled = false
 
 	ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
 	if err != nil {
