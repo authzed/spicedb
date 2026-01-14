@@ -4,8 +4,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // IntersectionArrow is an iterator that represents the set of relations that
@@ -224,7 +224,84 @@ func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (Pa
 }
 
 func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented: intersection_arrow.go IterResourcesImpl")
+	// IntersectionArrow: ALL left subjects must satisfy the right side
+	ctx.TraceStep(ia, "iterating resources for subject %s:%s", subject.ObjectType, subject.ObjectID)
+
+	// Get all right resources
+	rightSeq, err := ctx.IterResources(ia.right, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	rightPaths, err := CollectAll(rightSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TraceStep(ia, "right side returned %d resources", len(rightPaths))
+
+	if len(rightPaths) == 0 {
+		ctx.TraceStep(ia, "no right resources, returning empty")
+		return EmptyPathSeq(), nil
+	}
+
+	// seenResources is used to avoid rechecking resources that we've already seen
+	seenResources := mapz.NewSet[string]()
+	validResults := make([]Path, 0)
+
+	for _, rightPath := range rightPaths {
+		rightResourceAsSubject := rightPath.Resource.WithEllipses()
+		ctx.TraceStep(ia, "checking left side for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
+
+		leftSeq, err := ctx.IterResources(ia.left, rightResourceAsSubject)
+		if err != nil {
+			return nil, err
+		}
+
+		leftPaths, err := CollectAll(leftSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		ctx.TraceStep(ia, "right subject %s:%s returned %d left resources", rightPath.Resource.ObjectType, rightPath.Resource.ObjectID, len(leftPaths))
+
+		// Make a list of the leftPaths that we haven't seen
+		// before that we need to check
+		leftResources := make([]Object, 0, len(leftPaths))
+		for _, path := range leftPaths {
+			resource := path.Resource
+			key := resource.Key()
+			if notSeen := seenResources.Add(key); !notSeen {
+				leftResources = append(leftResources, path.Resource)
+			}
+		}
+
+		// Now that we have all of the potential left resources, we need to check
+		// them individually against the original subject to ensure that all of their
+		// subjects satisfy the intersection arrow constraint.
+		checkSeq, err := ia.CheckImpl(ctx, leftResources, subject)
+		if err != nil {
+			return nil, err
+		}
+
+		// The remaining values are a part of the resource set
+		for path, err := range checkSeq {
+			if err != nil {
+				return nil, err
+			}
+			validResults = append(validResults, path)
+		}
+	}
+
+	ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final resources", len(validResults))
+
+	return func(yield func(Path, error) bool) {
+		for _, path := range validResults {
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}, nil
 }
 
 func (ia *IntersectionArrow) Clone() Iterator {
