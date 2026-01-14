@@ -12,10 +12,7 @@ func TestAliasIterator(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_BasicRelationRewriting", func(t *testing.T) {
 		t.Parallel()
@@ -287,10 +284,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_SubIteratorError", func(t *testing.T) {
 		t.Parallel()
@@ -414,10 +408,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_MultipleResourcesSelfEdgeWithSubResults", func(t *testing.T) {
 		t.Parallel()

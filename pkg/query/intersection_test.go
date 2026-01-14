@@ -15,10 +15,7 @@ func TestIntersectionIterator(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_Intersection", func(t *testing.T) {
 		t.Parallel()
@@ -186,10 +183,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	original := NewIntersection()
 
@@ -284,10 +278,7 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	// Create an intersection where the first iterator returns no results
 	// This should cause early termination
@@ -319,10 +310,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()

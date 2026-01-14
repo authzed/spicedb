@@ -22,11 +22,8 @@ func TestRecursiveSentinel(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	ctx := &Context{
-		Context:  context.Background(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(datastore.NoRevision),
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)))
 
 	// CheckImpl should return empty
 	seq, err := sentinel.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -64,11 +61,8 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	ctx := &Context{
-		Context:  context.Background(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(datastore.NoRevision),
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)))
 
 	// Execute - should terminate immediately with empty result
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -176,11 +170,8 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	ctx := &Context{
-		Context:  context.Background(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(datastore.NoRevision),
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)))
 
 	// Test CheckImpl with a faulty iterator
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -203,11 +194,8 @@ func TestRecursiveIteratorCollectionError(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	ctx := &Context{
-		Context:  context.Background(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(datastore.NoRevision),
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)))
 
 	// Test CheckImpl with a faulty iterator that fails on collection
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})

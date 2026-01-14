@@ -220,6 +220,52 @@ type Context struct {
 	MaxRecursionDepth int               // Maximum depth for recursive iterators (0 = use default of 10)
 }
 
+// NewLocalContext creates a new query execution context with a LocalExecutor.
+// This is a convenience constructor for tests and local execution scenarios.
+func NewLocalContext(stdContext context.Context, opts ...ContextOption) *Context {
+	ctx := &Context{
+		Context:  stdContext,
+		Executor: LocalExecutor{},
+	}
+	for _, opt := range opts {
+		opt(ctx)
+	}
+	return ctx
+}
+
+// ContextOption is a function that configures a Context.
+type ContextOption func(*Context)
+
+// WithReader sets the datastore reader for the context.
+func WithReader(reader datastore.Reader) ContextOption {
+	return func(ctx *Context) { ctx.Reader = reader }
+}
+
+// WithAnalyze sets the analysis collector for the context.
+func WithAnalyze(analyze *AnalyzeCollector) ContextOption {
+	return func(ctx *Context) { ctx.Analyze = analyze }
+}
+
+// WithTraceLogger sets the trace logger for the context.
+func WithTraceLogger(logger *TraceLogger) ContextOption {
+	return func(ctx *Context) { ctx.TraceLogger = logger }
+}
+
+// WithCaveatRunner sets the caveat runner for the context.
+func WithCaveatRunner(runner *caveats.CaveatRunner) ContextOption {
+	return func(ctx *Context) { ctx.CaveatRunner = runner }
+}
+
+// WithCaveatContext sets the caveat context for the context.
+func WithCaveatContext(caveatCtx map[string]any) ContextOption {
+	return func(ctx *Context) { ctx.CaveatContext = caveatCtx }
+}
+
+// WithMaxRecursionDepth sets the maximum recursion depth for the context.
+func WithMaxRecursionDepth(depth int) ContextOption {
+	return func(ctx *Context) { ctx.MaxRecursionDepth = depth }
+}
+
 func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
 	if ctx.TraceLogger != nil {
 		ctx.TraceLogger.LogStep(it, step, data...)

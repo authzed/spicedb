@@ -108,13 +108,10 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			queryCtx := &Context{
-				Context:       context.Background(),
-				Executor:      LocalExecutor{},
-				Reader:        ds.SnapshotReader(rev),
-				CaveatContext: tc.caveatContext,
-				CaveatRunner:  caveats.NewCaveatRunner(types.NewTypeSet()),
-			}
+			queryCtx := NewLocalContext(context.Background(),
+				WithReader(ds.SnapshotReader(rev)),
+				WithCaveatContext(tc.caveatContext),
+				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 
 			resource := NewObject("document", "doc1")
 			seq, err := queryCtx.IterSubjects(caveatIter, resource)
@@ -203,13 +200,10 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			queryCtx := &Context{
-				Context:       context.Background(),
-				Executor:      LocalExecutor{},
-				Reader:        ds.SnapshotReader(rev),
-				CaveatContext: tc.caveatContext,
-				CaveatRunner:  caveats.NewCaveatRunner(types.NewTypeSet()),
-			}
+			queryCtx := NewLocalContext(context.Background(),
+				WithReader(ds.SnapshotReader(rev)),
+				WithCaveatContext(tc.caveatContext),
+				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 
 			resource := NewObject("document", "doc1")
 			seq, err := queryCtx.IterSubjects(caveatIter, resource)
@@ -398,10 +392,8 @@ func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
 		path := MustPathFromString("document:doc1#view@user:alice")
 		path.Caveat = createTestCaveatExpression("test_caveat", nil)
 
-		ctx := &Context{
-			Context: context.Background(),
-			// CaveatRunner is nil
-		}
+		ctx := NewLocalContext(context.Background())
+		// CaveatRunner is nil in the returned context
 
 		_, _, err := caveatIter.simplifyCaveat(ctx, path)
 		require.Error(err)
@@ -425,10 +417,7 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 		// No caveat filter - should pass through all paths
 		caveatIter := NewCaveatIterator(subIterator, nil)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(context.Background())
 
 		resource := NewObject("document", "doc1")
 		seq, err := caveatIter.IterSubjectsImpl(ctx, resource)
@@ -448,10 +437,7 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIterator, testCaveat)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(context.Background())
 
 		resource := NewObject("document", "doc1")
 		seq, err := caveatIter.IterSubjectsImpl(ctx, resource)
@@ -479,10 +465,7 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 		// No caveat filter - should pass through all paths
 		caveatIter := NewCaveatIterator(subIterator, nil)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(context.Background())
 
 		subject := NewObject("user", "alice").WithEllipses()
 		seq, err := caveatIter.IterResourcesImpl(ctx, subject)
@@ -502,10 +485,7 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIterator, testCaveat)
 
-		ctx := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(context.Background())
 
 		subject := NewObject("user", "alice").WithEllipses()
 		seq, err := caveatIter.IterResourcesImpl(ctx, subject)

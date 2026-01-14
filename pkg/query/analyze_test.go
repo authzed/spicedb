@@ -139,12 +139,9 @@ func TestAnalysisIntegration(t *testing.T) {
 
 	// Create a context with analysis enabled
 	analyze := NewAnalyzeCollector()
-	ctx := &Context{
-		Context:  context.Background(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(datastore.NoRevision),
-		Analyze:  analyze,
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithAnalyze(analyze))
 
 	// Execute a Check operation
 	resources := []Object{{ObjectType: "document", ObjectID: "doc1"}}
@@ -296,12 +293,9 @@ func TestOptimizationImprovements(t *testing.T) {
 
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()
-		ctxUnoptimized := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(datastore.NoRevision),
-			Analyze:  analyzeUnoptimized,
-		}
+		ctxUnoptimized := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithAnalyze(analyzeUnoptimized))
 
 		resources := []Object{{ObjectType: "document", ObjectID: "doc1"}}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
@@ -322,12 +316,9 @@ func TestOptimizationImprovements(t *testing.T) {
 
 		// Execute optimized tree
 		analyzeOptimized := NewAnalyzeCollector()
-		ctxOptimized := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(datastore.NoRevision),
-			Analyze:  analyzeOptimized,
-		}
+		ctxOptimized := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithAnalyze(analyzeOptimized))
 
 		pathSeq, err = ctxOptimized.Check(optimized, resources, subject)
 		require.NoError(t, err)
@@ -373,12 +364,9 @@ func TestOptimizationImprovements(t *testing.T) {
 
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()
-		ctxUnoptimized := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(datastore.NoRevision),
-			Analyze:  analyzeUnoptimized,
-		}
+		ctxUnoptimized := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithAnalyze(analyzeUnoptimized))
 
 		resources := []Object{{ObjectType: "document", ObjectID: "doc1"}}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
@@ -399,12 +387,9 @@ func TestOptimizationImprovements(t *testing.T) {
 
 		// Execute optimized tree
 		analyzeOptimized := NewAnalyzeCollector()
-		ctxOptimized := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(datastore.NoRevision),
-			Analyze:  analyzeOptimized,
-		}
+		ctxOptimized := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithAnalyze(analyzeOptimized))
 
 		pathSeq, err = ctxOptimized.Check(optimized, resources, subject)
 		require.NoError(t, err)
@@ -474,12 +459,9 @@ func TestOptimizationImprovements(t *testing.T) {
 
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()
-		ctxUnoptimized := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(datastore.NoRevision),
-			Analyze:  analyzeUnoptimized,
-		}
+		ctxUnoptimized := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithAnalyze(analyzeUnoptimized))
 
 		resources := []Object{
 			{ObjectType: "document", ObjectID: "doc2"},
@@ -503,12 +485,9 @@ func TestOptimizationImprovements(t *testing.T) {
 
 		// Execute optimized tree
 		analyzeOptimized := NewAnalyzeCollector()
-		ctxOptimized := &Context{
-			Context:  context.Background(),
-			Executor: LocalExecutor{},
-			Reader:   ds.SnapshotReader(datastore.NoRevision),
-			Analyze:  analyzeOptimized,
-		}
+		ctxOptimized := NewLocalContext(context.Background(),
+			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithAnalyze(analyzeOptimized))
 
 		pathSeq, err = ctxOptimized.Check(optimized, resources, subject)
 		require.NoError(t, err)

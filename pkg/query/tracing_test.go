@@ -22,12 +22,10 @@ func TestIteratorTracing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := &Context{
-		Context:     context.Background(),
-		Executor:    LocalExecutor{},
-		Reader:      ds.SnapshotReader(revision),
-		TraceLogger: traceLogger,
-	}
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(revision)),
+		WithTraceLogger(traceLogger),
+	)
 
 	// Create test paths
 	testPath1 := MustPathFromString("document:doc1#view@user:alice")

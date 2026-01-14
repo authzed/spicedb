@@ -26,10 +26,7 @@ func TestArrowIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create context with LocalExecutor
-		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(t.Context())
 
 		// Test arrow operation: find resources where left side connects to right side
 		// This looks for documents whose parent folder has viewers
@@ -51,10 +48,7 @@ func TestArrowIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create context with LocalExecutor
-		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(t.Context())
 
 		pathSeq, err := ctx.Check(arrow, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -68,10 +62,7 @@ func TestArrowIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create context with LocalExecutor
-		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(t.Context())
 
 		pathSeq, err := ctx.Check(arrow, NewObjects("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -86,10 +77,7 @@ func TestArrowIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create context with LocalExecutor
-		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(t.Context())
 
 		pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
@@ -104,10 +92,7 @@ func TestArrowIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create context with LocalExecutor
-		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(t.Context())
 
 		// Test arrow IterSubjects: find all subjects for a resource through the arrow
 		// This finds subjects who have access to a resource via the left->right path
@@ -136,10 +121,7 @@ func TestArrowIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create context with LocalExecutor
-		ctx := &Context{
-			Context:  t.Context(),
-			Executor: LocalExecutor{},
-		}
+		ctx := NewLocalContext(t.Context())
 
 		require.Panics(func() {
 			_, _ = ctx.IterResources(arrow, NewObject("user", "alice").WithEllipses())
@@ -167,10 +149,7 @@ func TestArrowIteratorClone(t *testing.T) {
 	require.Len(clonedExplain.SubExplain, len(originalExplain.SubExplain))
 
 	// Create context with LocalExecutor
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	// Test that both iterators produce the same results
 	resourceIDs := []string{"spec1"}
@@ -220,10 +199,7 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	arrow := NewArrow(leftRels, rightRels)
 
 	// Create context with LocalExecutor
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	// Test with multiple resource IDs
 	pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2", "nonexistent"), NewObject("user", "alice").WithEllipses())
@@ -252,10 +228,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()
