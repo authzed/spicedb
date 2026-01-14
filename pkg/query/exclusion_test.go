@@ -169,6 +169,46 @@ func TestExclusionIterator(t *testing.T) {
 		require.True(foundRelC, "Should contain pathC (doc3)")
 	})
 
+	t.Run("IterSubjects", func(t *testing.T) {
+		t.Parallel()
+
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		mainSet := NewFixedIterator(path1)
+		excludedSet := NewFixedIterator()
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		// mainSet has alice for doc1, excludedSet is empty
+		// Result should be alice (nothing excluded)
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		require.NoError(err)
+		require.NotNil(pathSeq)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+		require.Len(paths, 1, "Should return alice from main set with nothing excluded")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+	})
+
+	t.Run("IterResources", func(t *testing.T) {
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		mainSet := NewFixedIterator(path1)
+		excludedSet := NewFixedIterator()
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		// mainSet has alice for doc1, excludedSet is empty
+		// Result should be alice (nothing excluded)
+		pathSeq, err := ctx.IterResources(exclusion, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+		require.NotNil(pathSeq)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+		require.Len(paths, 1, "Should return alice from main set with nothing excluded")
+		require.Equal("doc1", paths[0].Resource.ObjectID)
+	})
+
 	t.Run("Clone", func(t *testing.T) {
 		t.Parallel()
 		mainSet := NewFixedIterator(path1, path2)
@@ -250,47 +290,6 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 		require.NoError(err)
 		require.Len(rels, 1, "Should return main set when excluded set is empty")
 		require.Equal(path1, rels[0])
-	})
-}
-
-func TestExclusionUnimplementedMethods(t *testing.T) {
-	t.Parallel()
-
-	require := require.New(t)
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
-	require.NoError(err)
-
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-
-	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
-
-	path1 := MustPathFromString("document:doc1#viewer@user:alice")
-	mainSet := NewFixedIterator(path1)
-	excludedSet := NewFixedIterator()
-
-	exclusion := NewExclusion(mainSet, excludedSet)
-
-	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
-
-		// mainSet has alice for doc1, excludedSet is empty
-		// Result should be alice (nothing excluded)
-		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
-		require.NoError(err)
-		require.NotNil(pathSeq)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-		require.Len(paths, 1, "Should return alice from main set with nothing excluded")
-		require.Equal("alice", paths[0].Subject.ObjectID)
-	})
-
-	t.Run("IterResourcesImpl Unimplemented", func(t *testing.T) {
-		t.Parallel()
-		require.Panics(func() {
-			_, _ = ctx.IterResources(exclusion, NewObject("user", "alice").WithEllipses())
-		}, "Should panic since method is unimplemented")
 	})
 }
 

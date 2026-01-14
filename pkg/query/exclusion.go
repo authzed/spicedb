@@ -4,7 +4,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/internal/caveats"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Exclusion represents the set of relations that are in the mainSet but not in the excluded set.
@@ -205,7 +204,71 @@ func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, er
 }
 
 func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented: exclusion.go IterResourcesImpl")
+	// Get all resources from the excluded set first and build a lookup map
+	ctx.TraceStep(e, "getting resources from excluded set for subject %s:%s", subject.ObjectType, subject.ObjectID)
+	excludedSeq, err := ctx.IterResources(e.excluded, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	excludedPaths, err := CollectAll(excludedSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
+
+	// Build a map for O(1) lookup: key is resource key
+	excludedMap := make(map[string]Path, len(excludedPaths))
+	for _, excludedPath := range excludedPaths {
+		key := excludedPath.Resource.Key()
+		excludedMap[key] = excludedPath
+	}
+
+	// Get the main sequence (this catches immediate errors from main set's IterResourcesImpl)
+	ctx.TraceStep(e, "getting sequence from main set")
+	mainSeq, err := ctx.IterResources(e.mainSet, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	// Stream the main set and yield non-excluded subjects immediately
+	return func(yield func(Path, error) bool) {
+		ctx.TraceStep(e, "streaming resources from main set")
+		mainCount := 0
+		yieldedCount := 0
+		for mainPath, err := range mainSeq {
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+			mainCount++
+
+			// Check if this resource exists in the excluded set
+			key := mainPath.Resource.Key()
+			if excludedPath, found := excludedMap[key]; found {
+				// Found matching resource in excluded set - combine caveats
+				ctx.TraceStep(e, "found matching excluded resource, combining caveats")
+				resultPath, shouldInclude := combineExclusionCaveats(mainPath, excludedPath)
+				if shouldInclude {
+					yieldedCount++
+					if !yield(resultPath, nil) {
+						return
+					}
+				} else {
+					ctx.TraceStep(e, "resource completely excluded")
+				}
+			} else {
+				// No exclusion, yield as-is
+				yieldedCount++
+				if !yield(mainPath, nil) {
+					return
+				}
+			}
+		}
+
+		ctx.TraceStep(e, "exclusion completed: %d main resources, %d yielded", mainCount, yieldedCount)
+	}, nil
 }
 
 func (e *Exclusion) Clone() Iterator {
