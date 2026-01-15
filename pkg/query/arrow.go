@@ -201,8 +201,8 @@ func combineArrowPaths(leftPath, rightPath Path) Path {
 		Relation:   leftPath.Relation,
 		Subject:    rightPath.Subject,
 		Caveat:     combinedCaveat,
-		Expiration: rightPath.Expiration,
-		Integrity:  rightPath.Integrity,
+		Expiration: combineExpiration(leftPath.Expiration, rightPath.Expiration),
+		Integrity:  combineIntegrity(leftPath.Integrity, rightPath.Integrity),
 		Metadata:   make(map[string]any),
 	}
 }
