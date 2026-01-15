@@ -101,15 +101,22 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 		if err != nil {
 			return Estimate{}, err
 		}
-		// Arrow currently does IterSubjects on left (ls.Cardinality iterations),
-		// then Check on right for each subject (rs.CheckCost per iteration)
-		// When we get to arrow inversion (ie, calculating which direction to iterate from)
-		// the optimizer pass will compare the costs here, set the flag on the iterator appropriately,
-		// which this function will read and return the improved cost.
+
+		// Calculate CheckCost based on execution direction
+		var checkCost int
+		switch it.direction {
+		case leftToRight:
+			// IterSubjects on left, then Check on right for each result
+			checkCost = ls.IterSubjectsCost + (ls.Cardinality * rs.CheckCost)
+		case rightToLeft:
+			// IterResources on right, then Check on left for each result
+			checkCost = rs.IterResourcesCost + (rs.Cardinality * ls.CheckCost)
+		}
+
 		return Estimate{
 			// Worst case, an arrow is the size of the cartesian product (full outer join) as we join the two subiterators.
 			Cardinality:       ls.Cardinality * rs.Cardinality,
-			CheckCost:         ls.IterSubjectsCost + (ls.Cardinality * rs.CheckCost),
+			CheckCost:         checkCost,
 			CheckSelectivity:  ls.CheckSelectivity * rs.CheckSelectivity,
 			IterResourcesCost: ls.IterResourcesCost + (ls.Cardinality * rs.IterResourcesCost),
 			IterSubjectsCost:  ls.IterSubjectsCost + (ls.Cardinality * rs.IterSubjectsCost),
