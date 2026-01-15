@@ -57,6 +57,7 @@ func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject Obj
 	for i, r := range resources {
 		resourceStrs[i] = fmt.Sprintf("%s:%s", r.ObjectType, r.ObjectID)
 	}
+	// TODO: plumb in the operation and replace check( with that operation
 	t.traces = append(t.traces, fmt.Sprintf("%s-> %s: check(%s, %s:%s)",
 		indent, idPrefix, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
 	t.depth++

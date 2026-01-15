@@ -227,6 +227,9 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 }
 
 func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+	if r.base.Wildcard() {
+		return r.iterResourcesWildcardImpl(ctx, subject)
+	}
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceRelation: r.base.RelationName(),
@@ -243,6 +246,31 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 		options.WithSkipCaveats(r.base.Caveat() == ""),
 		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.MatchingResourcesForSubject),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+}
+
+func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+	filter := datastore.RelationshipsFilter{
+		OptionalResourceType:     r.base.DefinitionName(),
+		OptionalResourceRelation: r.base.RelationName(),
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: subject.ObjectType,
+				OptionalSubjectIds:  []string{tuple.PublicWildcard}, // Look for "*" subjects
+				RelationFilter:      r.buildSubjectRelationFilter(),
+			},
+		},
+	}
+
+	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
+		options.WithQueryShape(queryshape.AllSubjectsForResources),
 	)
 	if err != nil {
 		return nil, err
