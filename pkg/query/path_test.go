@@ -933,3 +933,149 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 		require.Contains(err.Error(), "cannot merge paths with different subjects")
 	})
 }
+
+func TestCombineExpiration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("both_nil", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		result := combineExpiration(nil, nil)
+		require.Nil(result)
+	})
+
+	t.Run("first_nil", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		later := time.Now().Add(time.Hour)
+		result := combineExpiration(nil, &later)
+		require.NotNil(result)
+		require.Equal(later, *result)
+	})
+
+	t.Run("second_nil", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		later := time.Now().Add(time.Hour)
+		result := combineExpiration(&later, nil)
+		require.NotNil(result)
+		require.Equal(later, *result)
+	})
+
+	t.Run("first_earlier", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		earlier := time.Now().Add(time.Hour)
+		later := time.Now().Add(2 * time.Hour)
+		result := combineExpiration(&earlier, &later)
+		require.NotNil(result)
+		require.Equal(earlier, *result)
+	})
+
+	t.Run("second_earlier", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		earlier := time.Now().Add(time.Hour)
+		later := time.Now().Add(2 * time.Hour)
+		result := combineExpiration(&later, &earlier)
+		require.NotNil(result)
+		require.Equal(earlier, *result)
+	})
+
+	t.Run("identical_times", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		now := time.Now().Add(time.Hour)
+		result := combineExpiration(&now, &now)
+		require.NotNil(result)
+		require.Equal(now, *result)
+	})
+}
+
+func TestCombineIntegrity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("both_nil", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		result := combineIntegrity(nil, nil)
+		require.Nil(result) // Should return nil to match codebase convention
+	})
+
+	t.Run("both_empty", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		result := combineIntegrity([]*core.RelationshipIntegrity{}, []*core.RelationshipIntegrity{})
+		require.Nil(result) // Should return nil when both are empty
+	})
+
+	t.Run("first_nil_second_has_values", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
+		result := combineIntegrity(nil, []*core.RelationshipIntegrity{integrity1})
+		require.Len(result, 1)
+		require.Equal(integrity1, result[0])
+	})
+
+	t.Run("first_has_values_second_nil", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
+		result := combineIntegrity([]*core.RelationshipIntegrity{integrity1}, nil)
+		require.Len(result, 1)
+		require.Equal(integrity1, result[0])
+	})
+
+	t.Run("both_have_values", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
+		integrity2 := &core.RelationshipIntegrity{KeyId: "key2"}
+		result := combineIntegrity(
+			[]*core.RelationshipIntegrity{integrity1},
+			[]*core.RelationshipIntegrity{integrity2},
+		)
+		require.Len(result, 2)
+		require.Equal(integrity1, result[0])
+		require.Equal(integrity2, result[1])
+	})
+
+	t.Run("multiple_values_each", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
+		integrity2 := &core.RelationshipIntegrity{KeyId: "key2"}
+		integrity3 := &core.RelationshipIntegrity{KeyId: "key3"}
+		integrity4 := &core.RelationshipIntegrity{KeyId: "key4"}
+		result := combineIntegrity(
+			[]*core.RelationshipIntegrity{integrity1, integrity2},
+			[]*core.RelationshipIntegrity{integrity3, integrity4},
+		)
+		require.Len(result, 4)
+		require.Equal(integrity1, result[0])
+		require.Equal(integrity2, result[1])
+		require.Equal(integrity3, result[2])
+		require.Equal(integrity4, result[3])
+	})
+
+	t.Run("no_aliasing", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+		// Verify that modifying the result doesn't affect the inputs
+		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
+		integrity2 := &core.RelationshipIntegrity{KeyId: "key2"}
+		input1 := []*core.RelationshipIntegrity{integrity1}
+		input2 := []*core.RelationshipIntegrity{integrity2}
+
+		result := combineIntegrity(input1, input2)
+		require.Len(result, 2)
+
+		// Modify result
+		result[0] = &core.RelationshipIntegrity{KeyId: "modified"}
+
+		// Original inputs should be unchanged
+		require.Equal("key1", input1[0].KeyId)
+		require.Equal("key2", input2[0].KeyId)
+	})
+}

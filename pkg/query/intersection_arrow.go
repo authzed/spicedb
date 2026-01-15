@@ -87,8 +87,8 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 					Relation:   path.Relation,
 					Subject:    checkPath.Subject,
 					Caveat:     combinedCaveat,
-					Expiration: checkPath.Expiration,
-					Integrity:  checkPath.Integrity,
+					Expiration: combineExpiration(path.Expiration, checkPath.Expiration),
+					Integrity:  combineIntegrity(path.Integrity, checkPath.Integrity),
 					Metadata:   checkPath.Metadata,
 				}
 				validResults = append(validResults, combinedPath)
@@ -122,13 +122,22 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 			// Return a single path representing the intersection, if one exists.
 			if len(validResults) > 0 {
 				firstResult := validResults[0]
+
+				// Combine expiration and integrity from all results
+				combinedExpiration := firstResult.Expiration
+				combinedIntegrity := firstResult.Integrity
+				for i := 1; i < len(validResults); i++ {
+					combinedExpiration = combineExpiration(combinedExpiration, validResults[i].Expiration)
+					combinedIntegrity = combineIntegrity(combinedIntegrity, validResults[i].Integrity)
+				}
+
 				finalResult := Path{
 					Resource:   resource,
 					Relation:   "",
 					Subject:    subject,
 					Caveat:     intersectionCaveat,
-					Expiration: firstResult.Expiration,
-					Integrity:  firstResult.Integrity,
+					Expiration: combinedExpiration,
+					Integrity:  combinedIntegrity,
 					Metadata:   firstResult.Metadata,
 				}
 
@@ -199,8 +208,8 @@ func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (Pa
 				Relation:   leftPath.Relation,
 				Subject:    rightPath.Subject,
 				Caveat:     combinedCaveat,
-				Expiration: rightPath.Expiration,
-				Integrity:  rightPath.Integrity,
+				Expiration: combineExpiration(leftPath.Expiration, rightPath.Expiration),
+				Integrity:  combineIntegrity(leftPath.Integrity, rightPath.Integrity),
 				Metadata:   make(map[string]any),
 			}
 			validResults = append(validResults, combinedPath)

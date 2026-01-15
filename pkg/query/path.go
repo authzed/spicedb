@@ -120,21 +120,11 @@ func (p Path) mergeFrom(other Path, caveatMerger func(pCaveat, otherCaveat *core
 	// Combine caveats using the provided merger function
 	result.Caveat = caveatMerger(p.Caveat, other.Caveat)
 
-	// Keep any Expiration, and if there are two of them, take the earlier one
-	if other.Expiration != nil {
-		if p.Expiration == nil || other.Expiration.Before(*p.Expiration) {
-			result.Expiration = other.Expiration
-		} else {
-			result.Expiration = p.Expiration
-		}
-	} else {
-		result.Expiration = p.Expiration
-	}
+	// Combine expiration (take the earlier time)
+	result.Expiration = combineExpiration(p.Expiration, other.Expiration)
 
-	// Append all integrities together
-	result.Integrity = make([]*core.RelationshipIntegrity, 0, len(p.Integrity)+len(other.Integrity))
-	result.Integrity = append(result.Integrity, p.Integrity...)
-	result.Integrity = append(result.Integrity, other.Integrity...)
+	// Combine integrity (append all values)
+	result.Integrity = combineIntegrity(p.Integrity, other.Integrity)
 
 	// Merge the metadata by combining both maps
 	// WARNING: This is a simple overwrite strategy and may not be appropriate for all use cases.
@@ -150,6 +140,36 @@ func (p Path) mergeFrom(other Path, caveatMerger func(pCaveat, otherCaveat *core
 	}
 
 	return result, nil
+}
+
+// combineExpiration returns the earlier (shorter) expiration time between two times.
+// If either time is nil, it returns the non-nil time. If both are nil, it returns nil.
+// This ensures the combined path is only valid as long as both constituent paths are valid.
+func combineExpiration(t1, t2 *time.Time) *time.Time {
+	if t2 == nil {
+		return t1
+	}
+	if t1 == nil {
+		return t2
+	}
+	if t2.Before(*t1) {
+		return t2
+	}
+	return t1
+}
+
+// combineIntegrity appends all integrity values from both slices into a new slice.
+// This preserves all integrity proofs from both paths. Returns nil if both inputs are
+// nil or empty, following the codebase convention for Integrity fields.
+func combineIntegrity(i1, i2 []*core.RelationshipIntegrity) []*core.RelationshipIntegrity {
+	// If both are empty, return nil (not empty slice) to match codebase convention
+	if len(i1) == 0 && len(i2) == 0 {
+		return nil
+	}
+	result := make([]*core.RelationshipIntegrity, 0, len(i1)+len(i2))
+	result = append(result, i1...)
+	result = append(result, i2...)
+	return result
 }
 
 func (p Path) IsExpired() bool {
