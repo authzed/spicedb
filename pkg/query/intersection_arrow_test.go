@@ -554,7 +554,7 @@ func TestIntersectionArrowIteratorExplain(t *testing.T) {
 	require.NotEmpty(explainStr)
 }
 
-func TestIntersectionArrowIteratorUnimplementedMethods(t *testing.T) {
+func TestIntersectionArrowIteratorIterSubjects(t *testing.T) {
 	t.Parallel()
 
 	require := require.New(t)
@@ -563,44 +563,41 @@ func TestIntersectionArrowIteratorUnimplementedMethods(t *testing.T) {
 	rightIter := NewFixedIterator()
 	intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-	// Create test context
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	ctx := NewLocalContext(context.Background())
+
+	// Test with empty iterators - should return empty
+	pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
 	require.NoError(err)
+	require.NotNil(pathSeq)
 
-	revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return nil
-	})
+	paths, err := CollectAll(pathSeq)
 	require.NoError(err)
+	require.Empty(paths, "Empty iterators should return no subjects")
+}
 
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(revision)))
+func TestIntersectionArrowIteratorIterResources(t *testing.T) {
+	t.Parallel()
 
-	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
+	require := require.New(t)
 
-		// Test with empty iterators - should return empty
-		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"))
-		require.NoError(err)
-		require.NotNil(pathSeq)
+	leftIter := NewFixedIterator()
+	rightIter := NewFixedIterator()
+	intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-		require.Empty(paths, "Empty iterators should return no subjects")
-	})
+	ctx := NewLocalContext(context.Background())
 
-	t.Run("IterResources_Unimplemented", func(t *testing.T) {
-		t.Parallel()
+	// Test with empty iterators - should return empty
+	pathSeq, err := ctx.IterResources(intersectionArrow, NewObject("user", "alice").WithEllipses())
+	require.NoError(err)
+	require.NotNil(pathSeq)
 
-		require.Panics(func() {
-			_, _ = ctx.IterResources(intersectionArrow, ObjectAndRelation{ObjectType: "user", ObjectID: "alice"})
-		})
-	})
+	paths, err := CollectAll(pathSeq)
+	require.NoError(err)
+	require.Empty(paths, "Empty iterators should return no subjects")
 }
 
 func TestIntersectionArrowIterSubjects(t *testing.T) {
 	t.Parallel()
-
-	require := require.New(t)
 
 	ctx := &Context{
 		Context:  t.Context(),
@@ -609,6 +606,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 
 	t.Run("AllLeftSubjectsSatisfyRight", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Left: doc1 -> folder1, folder2
 		// Right: folder1 -> alice, folder2 -> alice
@@ -637,6 +635,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 
 	t.Run("NotAllLeftSubjectsSatisfyRight", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Left: doc1 -> folder1, folder2
 		// Right: folder1 -> alice, folder2 has nothing
@@ -661,6 +660,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 
 	t.Run("EmptyLeftIterator", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// No left paths
 		leftIter := NewFixedIterator()
@@ -680,6 +680,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 
 	t.Run("MultipleRightSubjects", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Left: doc1 -> folder1
 		// Right: folder1 -> alice, folder1 -> bob
@@ -711,6 +712,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 
 	t.Run("CaveatCombination", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Left with caveat, right with caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
@@ -751,6 +753,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 
 	t.Run("ThreeLeftSubjectsAllSatisfy", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
 		// Left: doc1 -> folder1, folder2, folder3
 		// Right: folder1 -> alice, folder2 -> alice, folder3 -> alice
