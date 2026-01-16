@@ -144,28 +144,8 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 	if err != nil {
 		return nil, err
 	}
-
-	// Transform the wildcard relationships to use the concrete subject
-	return func(yield func(Path, error) bool) {
-		for rel, err := range relIter {
-			if err != nil {
-				if !yield(Path{}, err) {
-					return
-				}
-				continue
-			}
-
-			// Replace the wildcard subject with the concrete subject
-			concreteRel := rel
-			concreteRel.Subject = subject
-
-			// Convert to Path
-			path := FromRelationship(concreteRel)
-			if !yield(path, nil) {
-				return
-			}
-		}
-	}, nil
+	// We rewrite the subject to the concrete subject before returning the paths
+	return RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject), nil
 }
 
 func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
@@ -276,7 +256,8 @@ func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject Objec
 		return nil, err
 	}
 
-	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+	// We rewrite the subject to the concrete subject before returning the paths
+	return RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject), nil
 }
 
 func (r *RelationIterator) Clone() Iterator {

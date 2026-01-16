@@ -362,3 +362,24 @@ func DeduplicatePathSeq(seq PathSeq) PathSeq {
 		}
 	}
 }
+
+func RewriteSubject(seq PathSeq, subject ObjectAndRelation) PathSeq {
+	return func(yield func(Path, error) bool) {
+		for path, err := range seq {
+			if err != nil {
+				if !yield(Path{}, err) {
+					return
+				}
+				continue
+			}
+
+			// Replace the wildcard subject with the concrete subject
+			path.Subject = subject
+
+			// Convert to Path
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}
+}
