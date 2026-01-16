@@ -43,7 +43,8 @@ func TestExecuteGC(t *testing.T) {
 }
 
 func TestExecuteRepair(t *testing.T) {
-	t.Parallel()
+	// NOTE: we don't run these in parallel because the datastore implementations
+	// share enough internals that you end up with duplicate metric registration errors otherwise.
 
 	tests := []struct {
 		name          string
@@ -78,7 +79,6 @@ func TestExecuteRepair(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			cfg := tt.cfgBuilder(t)
 			err := executeRepair(cfg, []string{})
