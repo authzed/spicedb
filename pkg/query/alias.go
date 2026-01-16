@@ -122,6 +122,40 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 		return nil, err
 	}
 
+	// If the relation on the alias iterator is the same
+	// as the subject relation on the subject, we have
+	// a self edge and want to yield it accordingly.
+	if a.relation == subject.Relation {
+		selfPath := Path{
+			Resource: GetObject(subject),
+			Relation: a.relation,
+			Subject:  subject,
+		}
+
+		combined := func(yield func(Path, error) bool) {
+			// Yield the self path first
+			if !yield(selfPath, nil) {
+				return
+			}
+
+			for subPath, err := range subSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+
+				// Then yield remaining paths with the rewrite
+				subPath.Relation = a.relation
+				if !yield(subPath, nil) {
+					return
+				}
+			}
+		}
+
+		return DeduplicatePathSeq(combined), nil
+	}
+
+	// else we don't have a subpath and do the normal logic
 	return func(yield func(Path, error) bool) {
 		for path, err := range subSeq {
 			if err != nil {
