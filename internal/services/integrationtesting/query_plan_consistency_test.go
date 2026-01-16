@@ -228,9 +228,10 @@ func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandl
 						}()
 					}
 
-					requireSameSets(t,
+					require.ElementsMatch(t,
 						slices.Collect(maps.Keys(accessibleResources)),
 						slices.Collect(maps.Keys(resolvedResources)),
+						"expected accessibleResources in list A don't match actual resolvedResources in list B",
 					)
 				})
 			}
@@ -287,9 +288,10 @@ func runQueryPlanLookupSubjects(t *testing.T, handle *queryPlanConsistencyHandle
 						}()
 					}
 
-					requireSameSets(t,
+					require.ElementsMatch(t,
 						slices.Collect(maps.Keys(accessibleSubjects)),
 						slices.Collect(maps.Keys(resolvedSubjects)),
+						"expected accessibleSubjects in list A don't match actual resolvedSubjects in list B",
 					)
 				})
 			}

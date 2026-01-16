@@ -260,7 +260,7 @@ func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRe
 
 	for _, rightPath := range rightPaths {
 		rightResourceAsSubject := rightPath.Resource.WithEllipses()
-		ctx.TraceStep(ia, "checking left side for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
+		ctx.TraceStep(ia, "looking up left resources for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
 
 		leftSeq, err := ctx.IterResources(ia.left, rightResourceAsSubject)
 		if err != nil {
@@ -280,7 +280,7 @@ func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRe
 		for _, path := range leftPaths {
 			resource := path.Resource
 			key := resource.Key()
-			if notSeen := seenResources.Add(key); !notSeen {
+			if notSeen := seenResources.Add(key); notSeen {
 				leftResources = append(leftResources, path.Resource)
 			}
 		}
