@@ -8,9 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -31,27 +30,29 @@ func init() {
 func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 	t.Parallel()
 
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
-
+	ctx := context.Background()
 	serverToken := "mykey"
-	serveResource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository:   "authzed/spicedb",
-		Tag:          "ci",
-		Cmd:          []string{"serve", "--log-level=debug", "--grpc-preshared-key", serverToken, "--telemetry-endpoint=\"\""},
-		ExposedPorts: []string{"50051/tcp"},
-		Env:          []string{"GOMEMLIMIT=1B"}, // NOTE: Absurdly low on purpose
-	}, func(config *docker.HostConfig) {
-		config.RestartPolicy = docker.RestartPolicy{
-			Name: "no",
-		}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "authzed/spicedb:ci",
+			Cmd:          []string{"serve", "--log-level=debug", "--grpc-preshared-key", serverToken, "--telemetry-endpoint=\"\""},
+			ExposedPorts: []string{"50051/tcp"},
+			Env: map[string]string{
+				"GOMEMLIMIT": "1B", // NOTE: Absurdly low on purpose
+			},
+		},
+		Started: true,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(serveResource))
+		require.NoError(t, container.Terminate(ctx))
 	})
 
-	serverPort := serveResource.GetPort("50051/tcp")
+	mappedPort, err := container.MappedPort(ctx, "50051")
+	require.NoError(t, err)
+	serverPort := mappedPort.Port()
+
 	conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", serverPort),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpcutil.WithInsecureBearerToken(serverToken),
