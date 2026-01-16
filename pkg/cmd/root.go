@@ -106,6 +106,13 @@ func BuildRootCommand() (*cobra.Command, error) {
 	}
 	rootCmd.AddCommand(lspCmd)
 
+	postgresFDWConfig := new(PostgresFDWConfig)
+	postgresFDWCmd := NewPostgresFDWCommand(rootCmd.Use, postgresFDWConfig)
+	if err := RegisterPostgresFDWFlags(postgresFDWCmd, postgresFDWConfig); err != nil {
+		return nil, fmt.Errorf("failed to register postgres-fdw flags: %w", err)
+	}
+	rootCmd.AddCommand(postgresFDWCmd)
+
 	var testServerConfig testserver.Config
 	testingCmd := NewTestingCommand(rootCmd.Use, &testServerConfig)
 	RegisterTestingFlags(testingCmd, &testServerConfig)
