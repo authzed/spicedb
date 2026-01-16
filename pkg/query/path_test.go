@@ -28,16 +28,17 @@ func TestPath_ResourceOAR(t *testing.T) {
 
 func TestPath_IsExpired(t *testing.T) {
 	t.Parallel()
-	require := require.New(t)
 
 	t.Run("nil_expiration", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		path := Path{}
 		require.False(path.IsExpired())
 	})
 
 	t.Run("future_expiration", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		future := time.Now().Add(time.Hour)
 		path := Path{Expiration: &future}
 		require.False(path.IsExpired())
@@ -45,6 +46,7 @@ func TestPath_IsExpired(t *testing.T) {
 
 	t.Run("past_expiration", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		past := time.Now().Add(-time.Hour)
 		path := Path{Expiration: &past}
 		require.True(path.IsExpired())
@@ -52,6 +54,7 @@ func TestPath_IsExpired(t *testing.T) {
 
 	t.Run("exact_now_expiration", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		now := time.Now().Add(-time.Millisecond)
 		path := &Path{Expiration: &now}
 		// Should be considered expired if expiration is in the past
@@ -61,10 +64,10 @@ func TestPath_IsExpired(t *testing.T) {
 
 func TestPath_MergeOr(t *testing.T) {
 	t.Parallel()
-	require := require.New(t)
 
 	t.Run("same_resource_and_subject", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		caveat1 := caveats.CaveatExprForTesting("caveat1")
 		caveat2 := caveats.CaveatExprForTesting("caveat2")
 
@@ -92,6 +95,7 @@ func TestPath_MergeOr(t *testing.T) {
 
 	t.Run("different_resources", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		path1 := Path{
 			Resource: NewObject("document", "doc1"),
 			Subject:  NewObjectAndRelation("alice", "user", ""),
@@ -109,6 +113,7 @@ func TestPath_MergeOr(t *testing.T) {
 
 	t.Run("different_subjects", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		path1 := Path{
 			Resource: NewObject("document", "doc1"),
 			Subject:  NewObjectAndRelation("alice", "user", ""),
@@ -127,10 +132,10 @@ func TestPath_MergeOr(t *testing.T) {
 
 func TestPath_MergeAnd(t *testing.T) {
 	t.Parallel()
-	require := require.New(t)
 
 	t.Run("basic_merge", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		caveat1 := caveats.CaveatExprForTesting("caveat1")
 		caveat2 := caveats.CaveatExprForTesting("caveat2")
 
@@ -159,10 +164,10 @@ func TestPath_MergeAnd(t *testing.T) {
 
 func TestPath_MergeAndNot(t *testing.T) {
 	t.Parallel()
-	require := require.New(t)
 
 	t.Run("basic_merge", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		caveat1 := caveats.CaveatExprForTesting("caveat1")
 		caveat2 := caveats.CaveatExprForTesting("caveat2")
 
@@ -191,12 +196,12 @@ func TestPath_MergeAndNot(t *testing.T) {
 
 func TestPath_mergeFrom(t *testing.T) {
 	t.Parallel()
-	require := require.New(t)
 
 	t.Run("relation_handling", func(t *testing.T) {
 		t.Parallel()
 		t.Run("same_relation_preserved", func(t *testing.T) {
 			t.Parallel()
+			require := require.New(t)
 			path1 := Path{
 				Resource: NewObject("document", "doc1"),
 				Relation: "viewer",
@@ -216,6 +221,7 @@ func TestPath_mergeFrom(t *testing.T) {
 
 		t.Run("different_relation_cleared", func(t *testing.T) {
 			t.Parallel()
+			require := require.New(t)
 			path1 := Path{
 				Resource: NewObject("document", "doc1"),
 				Relation: "viewer",
@@ -238,6 +244,7 @@ func TestPath_mergeFrom(t *testing.T) {
 		t.Parallel()
 		t.Run("nil_expiration_both", func(t *testing.T) {
 			t.Parallel()
+			require := require.New(t)
 			path1 := Path{
 				Resource: NewObject("document", "doc1"),
 				Subject:  NewObjectAndRelation("alice", "user", ""),
@@ -255,6 +262,7 @@ func TestPath_mergeFrom(t *testing.T) {
 
 		t.Run("nil_expiration_first", func(t *testing.T) {
 			t.Parallel()
+			require := require.New(t)
 			later := time.Now().Add(time.Hour)
 			path1 := Path{
 				Resource: NewObject("document", "doc1"),
@@ -275,6 +283,7 @@ func TestPath_mergeFrom(t *testing.T) {
 
 		t.Run("earlier_expiration_wins", func(t *testing.T) {
 			t.Parallel()
+			require := require.New(t)
 			earlier := time.Now().Add(time.Hour)
 			later := time.Now().Add(2 * time.Hour)
 
@@ -298,6 +307,7 @@ func TestPath_mergeFrom(t *testing.T) {
 
 	t.Run("integrity_handling", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
 		integrity2 := &core.RelationshipIntegrity{KeyId: "key2"}
 
@@ -322,6 +332,7 @@ func TestPath_mergeFrom(t *testing.T) {
 
 	t.Run("metadata_handling", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		path1 := Path{
 			Resource: NewObject("document", "doc1"),
 			Subject:  NewObjectAndRelation("alice", "user", ""),
@@ -350,6 +361,7 @@ func TestPath_mergeFrom(t *testing.T) {
 
 	t.Run("metadata_nil_initialization", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 		path1 := Path{
 			Resource: NewObject("document", "doc1"),
 			Subject:  NewObjectAndRelation("alice", "user", ""),
@@ -403,6 +415,7 @@ func TestPath_mergeFrom(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
+				require := require.New(t)
 				path1 := Path{
 					Resource: NewObject("document", "doc1"),
 					Subject:  NewObjectAndRelation("alice", "user", ""),
