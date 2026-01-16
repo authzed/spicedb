@@ -227,6 +227,11 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 }
 
 func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+	// If the types don't match, we don't even have to go to the datastore.
+	if subject.ObjectType != r.base.Type() {
+		return EmptyPathSeq(), nil
+	}
+
 	if r.base.Wildcard() {
 		return r.iterResourcesWildcardImpl(ctx, subject)
 	}
@@ -235,7 +240,7 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 		OptionalResourceRelation: r.base.RelationName(),
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
-				OptionalSubjectType: r.base.Type(),
+				OptionalSubjectType: subject.ObjectType,
 				OptionalSubjectIds:  []string{subject.ObjectID},
 				RelationFilter:      r.buildSubjectRelationFilter(),
 			},
