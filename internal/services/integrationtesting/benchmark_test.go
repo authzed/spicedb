@@ -190,7 +190,6 @@ func BenchmarkServices(b *testing.B) {
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10),
 						dsconfig.WithMaxRetries(50),
-						dsconfig.WithRequestHedgingEnabled(false),
 						dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
 					))
 

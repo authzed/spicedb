@@ -261,10 +261,28 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringSliceVar(&opts.BootstrapFiles, flagName("datastore-bootstrap-files"), defaults.BootstrapFiles, "bootstrap data yaml files to load")
 	flagSet.BoolVar(&opts.BootstrapOverwrite, flagName("datastore-bootstrap-overwrite"), defaults.BootstrapOverwrite, "overwrite any existing data with bootstrap data (this can be quite slow)")
 	flagSet.DurationVar(&opts.BootstrapTimeout, flagName("datastore-bootstrap-timeout"), defaults.BootstrapTimeout, "maximum duration before timeout for the bootstrap data to be written")
+
 	flagSet.BoolVar(&opts.RequestHedgingEnabled, flagName("datastore-request-hedging"), defaults.RequestHedgingEnabled, "enable request hedging")
+	err := flagSet.MarkDeprecated(flagName("datastore-request-hedging"), "hedging functionality has been removed and this flag is now a no-op")
+	if err != nil {
+		return err
+	}
 	flagSet.DurationVar(&opts.RequestHedgingInitialSlowValue, flagName("datastore-request-hedging-initial-slow-value"), defaults.RequestHedgingInitialSlowValue, "initial value to use for slow datastore requests, before statistics have been collected")
+	err = flagSet.MarkDeprecated(flagName("datastore-request-hedging-initial-slow-value"), "hedging functionality has been removed and this flag is now a no-op")
+	if err != nil {
+		return err
+	}
 	flagSet.Uint64Var(&opts.RequestHedgingMaxRequests, flagName("datastore-request-hedging-max-requests"), defaults.RequestHedgingMaxRequests, "maximum number of historical requests to consider")
+	err = flagSet.MarkDeprecated(flagName("datastore-request-hedging-max-requests"), "hedging functionality has been removed and this flag is now a no-op")
+	if err != nil {
+		return err
+	}
 	flagSet.Float64Var(&opts.RequestHedgingQuantile, flagName("datastore-request-hedging-quantile"), defaults.RequestHedgingQuantile, "quantile of historical datastore request time over which a request will be considered slow")
+	err = flagSet.MarkDeprecated(flagName("datastore-request-hedging-quantile"), "hedging functionality has been removed and this flag is now a no-op")
+	if err != nil {
+		return err
+	}
+
 	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner)")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), DefaultFollowerReadDelay, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only)")
@@ -348,10 +366,6 @@ func DefaultDatastoreConfig() *Config {
 		BootstrapFiles:                   []string{},
 		BootstrapTimeout:                 10 * time.Second,
 		BootstrapOverwrite:               false,
-		RequestHedgingEnabled:            false,
-		RequestHedgingInitialSlowValue:   10000000,
-		RequestHedgingMaxRequests:        1_000_000,
-		RequestHedgingQuantile:           0.95,
 		SpannerCredentialsFile:           "",
 		SpannerEmulatorHost:              "",
 		TablePrefix:                      "",
@@ -441,25 +455,6 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			}
 		}
 		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("completed datastore initialization from bootstrap files")
-	}
-
-	if opts.RequestHedgingEnabled {
-		log.Ctx(ctx).Info().
-			Stringer("initialSlowRequest", opts.RequestHedgingInitialSlowValue).
-			Uint64("maxRequests", opts.RequestHedgingMaxRequests).
-			Float64("hedgingQuantile", opts.RequestHedgingQuantile).
-			Msg("request hedging enabled")
-
-		hds, err := proxy.NewHedgingProxy(
-			ds,
-			opts.RequestHedgingInitialSlowValue,
-			opts.RequestHedgingMaxRequests,
-			opts.RequestHedgingQuantile,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("error in configuring request hedging: %w", err)
-		}
-		ds = hds
 	}
 
 	if opts.ReadOnly {

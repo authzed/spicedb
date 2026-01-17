@@ -364,7 +364,6 @@ func TestMiddlewareOrdering(t *testing.T) {
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
-		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -444,7 +443,6 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
-		datastore.WithRequestHedgingEnabled(false),
 	)
 	t.Cleanup(func() {
 		ds.Close()

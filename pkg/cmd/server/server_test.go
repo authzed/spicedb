@@ -93,7 +93,6 @@ func TestOTelReporting(t *testing.T) {
 
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
-		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err, "unable to start memdb datastore")
 	t.Cleanup(func() {
@@ -167,7 +166,6 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
-		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err, "unable to start memdb datastore")
 	t.Cleanup(func() {
@@ -290,7 +288,6 @@ func TestRetryPolicy(t *testing.T) {
 
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
-		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err, "unable to start memdb datastore")
 	t.Cleanup(func() {
