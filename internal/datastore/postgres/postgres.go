@@ -503,7 +503,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			return nil, spiceerrors.MustBugf("could not cast timestamp to uint64")
 		}
 
-		return postgresRevision{snapshot: newSnapshot.markComplete(newXID.Uint64), optionalTxID: newXID, optionalNanosTimestamp: nanosTimestamp}, nil
+		return postgresRevision{snapshot: newSnapshot.markComplete(newXID.Uint64), optionalTxID: newXID, optionalInexactNanosTimestamp: nanosTimestamp}, nil
 	}
 
 	if !config.DisableRetries {

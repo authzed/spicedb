@@ -455,7 +455,7 @@ func ReadWriteTxReturnsOptionalRevisionFields(t *testing.T, ds datastore.Datasto
 	require.NoError(err)
 	pgRev, ok := rev.(postgresRevision)
 	require.True(ok)
-	require.Positive(pgRev.optionalNanosTimestamp, "revision timestamp should be set")
+	require.Positive(pgRev.optionalInexactNanosTimestamp, "revision timestamp should be set")
 	require.True(pgRev.optionalTxID.Valid, "revision txid be set")
 }
 
@@ -977,8 +977,8 @@ func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest)
 			5 * time.Second,
 			0,
 			[]postgresRevision{
-				{optionalTxID: NewXid8(3), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{2}}, optionalNanosTimestamp: uint64((time.Second * 1) * time.Nanosecond)},
-				{optionalTxID: NewXid8(2), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{3}}, optionalNanosTimestamp: uint64((time.Second * 2) * time.Nanosecond)},
+				{optionalTxID: NewXid8(3), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{2}}, optionalInexactNanosTimestamp: uint64((time.Second * 1) * time.Nanosecond)},
+				{optionalTxID: NewXid8(2), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{3}}, optionalInexactNanosTimestamp: uint64((time.Second * 2) * time.Nanosecond)},
 			},
 			2, 0,
 		},
@@ -1022,7 +1022,7 @@ func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest)
 				stmt := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 				insertTxn := stmt.Insert(schema.TableTransaction).Columns(schema.ColXID, schema.ColSnapshot, schema.ColTimestamp)
 
-				ts := time.Unix(0, int64(rev.optionalNanosTimestamp)) //nolint:gosec
+				ts := time.Unix(0, int64(rev.optionalInexactNanosTimestamp)) //nolint:gosec
 				sql, args, err := insertTxn.Values(rev.optionalTxID, rev.snapshot, ts).ToSql()
 				require.NoError(err)
 

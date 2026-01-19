@@ -229,8 +229,8 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 			xmax:    xmax,
 			xipList: xips,
 		},
-		optionalTxID:           xid8{Uint64: decoded.OptionalTxid, Valid: decoded.OptionalTxid != 0},
-		optionalNanosTimestamp: decoded.OptionalTimestamp,
+		optionalTxID:                  xid8{Uint64: decoded.OptionalTxid, Valid: decoded.OptionalTxid != 0},
+		optionalInexactNanosTimestamp: decoded.OptionalTimestamp,
 	}, nil
 }
 
@@ -318,10 +318,14 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]an
 }
 
 type postgresRevision struct {
-	snapshot               pgSnapshot
-	optionalTxID           xid8
-	optionalNanosTimestamp uint64
-	optionalMetadata       dscommon.TransactionMetadata
+	snapshot     pgSnapshot
+	optionalTxID xid8
+	// timestamps cannot be used for ordering transactions in PG, but are useful to get a rough estimate of
+	// when did the transaction happen (e.g. for lag-computation purposes on Watch API consumers).
+	// For ordering purposes, only the snapshot values should be used (and it's still possible for two snapshots to
+	// be overlapping)
+	optionalInexactNanosTimestamp uint64
+	optionalMetadata              dscommon.TransactionMetadata
 }
 
 func (pr postgresRevision) ByteSortable() bool {
@@ -374,13 +378,14 @@ func (pr postgresRevision) OptionalTransactionID() (xid8, bool) {
 }
 
 // OptionalNanosTimestamp returns a unix epoch timestamp in nanos representing the time at which the transaction committed
-// as defined by the Postgres primary. This is not guaranteed to be monotonically increasing
+// as defined by the Postgres primary. This is not guaranteed to be monotonically increasing, and thus should
+// not be used for ordering transactions.
 func (pr postgresRevision) OptionalNanosTimestamp() (uint64, bool) {
-	if pr.optionalNanosTimestamp == 0 {
+	if pr.optionalInexactNanosTimestamp == 0 {
 		return 0, false
 	}
 
-	return pr.optionalNanosTimestamp, true
+	return pr.optionalInexactNanosTimestamp, true
 }
 
 // MarshalBinary creates a version of the snapshot that uses relative encoding
@@ -409,7 +414,7 @@ func (pr postgresRevision) MarshalBinary() ([]byte, error) {
 		RelativeXmax:      relativeXmax - xminInt,
 		RelativeXips:      relativeXips,
 		OptionalTxid:      pr.optionalTxID.Uint64,
-		OptionalTimestamp: pr.optionalNanosTimestamp,
+		OptionalTimestamp: pr.optionalInexactNanosTimestamp,
 	}
 
 	return protoRevision.MarshalVT()
