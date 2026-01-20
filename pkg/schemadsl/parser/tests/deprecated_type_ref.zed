@@ -1,0 +1,10 @@
+definition user {}
+
+definition testuser {}
+
+definition platform {
+    relation viewer: user | testuser
+    relation editor: testuser | @deprecated(error, "some comments") testuser
+
+    relation auditor: user | @deprecated(warn, "comments here") testuser:*
+}

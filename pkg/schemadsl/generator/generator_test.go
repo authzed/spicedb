@@ -395,6 +395,63 @@ definition document {
 	relation viewer: user
 }`,
 		},
+		{
+			"deprecation test",
+			`use deprecation
+
+			definition user{}
+
+			@deprecated(error, "comments")
+			definition document {
+				@deprecated(warn, "comment goes here")
+				relation viewer: user
+				
+				@deprecated(error)
+				relation editor: user
+			}`,
+			`use deprecation
+
+definition user {}
+
+@deprecated(error, "comments")
+definition document {
+	@deprecated(warn, "comment goes here")
+	relation viewer: user
+	@deprecated(error)
+	relation editor: user
+}`,
+		},
+		{
+			"allowed relations with deprecation",
+			`use deprecation
+			definition testuser{}
+			definition user{}
+			definition document {
+				relation viewer: testuser | @deprecated(warn, "comment") user
+				relation editor: testuser
+			}`,
+			`use deprecation
+
+definition testuser {}
+
+definition user {}
+
+definition document {
+	relation viewer: testuser | @deprecated(warn, "comment") user
+	relation editor: testuser
+}`,
+		},
+		{
+			"unused deprecation flag",
+			`use deprecation
+			
+			definition document{
+				relation viewer: user
+		}`,
+			`definition document {
+	relation viewer: user
+}`,
+		},
 	}
 
 	for _, test := range tests {

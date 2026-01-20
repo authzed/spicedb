@@ -201,6 +201,8 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 			}
 		}
 
+		// check if any namespace is deprecated
+
 		// Allowed relations verification:
 		// 1) that all allowed relations are not this very relation
 		// 2) that they exist within the referenced namespace

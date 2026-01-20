@@ -1,0 +1,69 @@
+NodeTypeFile
+  end-rune = 205
+  input-source = deprecation inside definition test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 14
+      input-source = deprecation inside definition test
+      start-rune = 0
+      use-flag-name = deprecation
+    NodeTypeDefinition
+      definition-name = deprecated_relation
+      end-rune = 162
+      input-source = deprecation inside definition test
+      start-rune = 17
+      child-node =>
+        NodeTypeDeprecation
+          deprecation-comments = comments
+          deprecation-type = warn
+          end-rune = 83
+          input-source = deprecation inside definition test
+          start-rune = 55
+        NodeTypeRelation
+          end-rune = 109
+          input-source = deprecation inside definition test
+          relation-name = writer
+          start-rune = 89
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 109
+              input-source = deprecation inside definition test
+              start-rune = 106
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 109
+                  input-source = deprecation inside definition test
+                  start-rune = 106
+                  type-name = user
+        NodeTypeDeprecation
+          deprecation-type = error
+          end-rune = 134
+          input-source = deprecation inside definition test
+          start-rune = 117
+        NodeTypeRelation
+          end-rune = 160
+          input-source = deprecation inside definition test
+          relation-name = reader
+          start-rune = 140
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 160
+              input-source = deprecation inside definition test
+              start-rune = 157
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 160
+                  input-source = deprecation inside definition test
+                  start-rune = 157
+                  type-name = user
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 182
+      input-source = deprecation inside definition test
+      start-rune = 165
+    NodeTypeDefinition
+      definition-name = testuser
+      end-rune = 205
+      input-source = deprecation inside definition test
+      start-rune = 184

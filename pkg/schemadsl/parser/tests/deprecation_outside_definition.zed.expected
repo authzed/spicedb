@@ -1,0 +1,82 @@
+NodeTypeFile
+  end-rune = 288
+  input-source = deprecation outside definition test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 14
+      input-source = deprecation outside definition test
+      start-rune = 0
+      use-flag-name = deprecation
+    NodeTypeDeprecation
+      deprecation-comments = user is deprecated
+      deprecation-type = warn
+      end-rune = 55
+      input-source = deprecation outside definition test
+      start-rune = 17
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 74
+      input-source = deprecation outside definition test
+      start-rune = 57
+    NodeTypeDeprecation
+      deprecation-comments = comments here
+      deprecation-type = warn
+      end-rune = 110
+      input-source = deprecation outside definition test
+      start-rune = 77
+    NodeTypeDefinition
+      definition-name = testuser
+      end-rune = 133
+      input-source = deprecation outside definition test
+      start-rune = 112
+    NodeTypeDeprecation
+      deprecation-comments = test
+      deprecation-type = error
+      end-rune = 161
+      input-source = deprecation outside definition test
+      start-rune = 136
+    NodeTypeDefinition
+      definition-name = deprecated_relation
+      end-rune = 288
+      input-source = deprecation outside definition test
+      start-rune = 163
+      child-node =>
+        NodeTypeRelation
+          end-rune = 221
+          input-source = deprecation outside definition test
+          relation-name = writer
+          start-rune = 201
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 221
+              input-source = deprecation outside definition test
+              start-rune = 218
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 221
+                  input-source = deprecation outside definition test
+                  start-rune = 218
+                  type-name = user
+        NodeTypeDeprecation
+          deprecation-comments = test error
+          deprecation-type = error
+          end-rune = 260
+          input-source = deprecation outside definition test
+          start-rune = 229
+        NodeTypeRelation
+          end-rune = 286
+          input-source = deprecation outside definition test
+          relation-name = reader
+          start-rune = 266
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 286
+              input-source = deprecation outside definition test
+              start-rune = 283
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 286
+                  input-source = deprecation outside definition test
+                  start-rune = 283
+                  type-name = user

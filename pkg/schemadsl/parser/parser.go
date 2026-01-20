@@ -69,6 +69,9 @@ Loop:
 			hasSeenDefinition = true
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
 
+		case p.isToken(lexer.TokenTypeAt):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
+
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
 			break Loop
@@ -313,6 +316,9 @@ func (p *sourceParser) consumeDefinition() AstNode {
 
 		case p.isKeyword("permission"):
 			defNode.Connect(dslshape.NodePredicateChild, p.consumePermission())
+
+		case p.isToken(lexer.TokenTypeAt):
+			defNode.Connect(dslshape.NodePredicateChild, p.consumeDeprecation())
 		}
 
 		ok := p.consumeStatementTerminator()
@@ -365,6 +371,58 @@ func (p *sourceParser) consumeTypeReference() AstNode {
 	}
 
 	return refNode
+}
+
+// consumeDeprecation consumes a deprecation statement
+// ```@deprecated(type, relation)```
+func (p *sourceParser) consumeDeprecation() AstNode {
+	depNode := p.startNode(dslshape.NodeTypeDeprecation)
+	defer p.mustFinishNode()
+
+	p.consume(lexer.TokenTypeAt)
+
+	ok := p.consumeKeyword("deprecated")
+	if !ok {
+		return depNode
+	}
+
+	_, ok = p.tryConsume(lexer.TokenTypeLeftParen)
+	if !ok {
+		p.emitErrorf("Expected '(' after 'deprecated' keyword")
+		return depNode
+	}
+
+	// deprecation type
+	deprecationType, ok := p.tryConsume(lexer.TokenTypeIdentifier)
+	if !ok {
+		p.emitErrorf("Expected identifier for deprecation type")
+		return depNode
+	}
+	depNode.MustDecorate(dslshape.NodeDeprecatedType, deprecationType.Value)
+
+	// return early if no comments
+	if p.isToken(lexer.TokenTypeRightParen) {
+		p.consume(lexer.TokenTypeRightParen)
+		return depNode
+	}
+
+	_, ok = p.tryConsume(lexer.TokenTypeComma)
+	if !ok {
+		p.emitErrorf("Expected ',' after deprecation type")
+		return depNode
+	}
+
+	// A comment
+	if p.isToken(lexer.TokenTypeString) {
+		commentTok, _ := p.tryConsume(lexer.TokenTypeString)
+		comment := strings.Trim(commentTok.Value, `"`)
+		depNode.MustDecorate(dslshape.NodeDeprecatedComments, comment)
+
+		p.consume(lexer.TokenTypeRightParen)
+		return depNode
+	}
+
+	return depNode
 }
 
 // tryConsumeWithCaveat tries to consume a caveat `with` expression.
@@ -429,6 +487,10 @@ func (p *sourceParser) consumeExpirationTrait() AstNode {
 // consumeSpecificTypeOpen consumes an identifier as a specific type reference.
 func (p *sourceParser) consumeSpecificTypeWithoutFinish() AstNode {
 	specificNode := p.startNode(dslshape.NodeTypeSpecificTypeReference)
+
+	if p.isToken(lexer.TokenTypeAt) {
+		specificNode.Connect(dslshape.NodeTypeReferenceDeprecatedType, p.consumeDeprecation())
+	}
 
 	typeName, ok := p.consumeTypePath()
 	if !ok {

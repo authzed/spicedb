@@ -1,0 +1,6 @@
+definition deprecated_relation {
+    @deprecated()
+    relation reader: user
+}
+
+definition user {}

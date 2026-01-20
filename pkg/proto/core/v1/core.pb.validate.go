@@ -2536,6 +2536,35 @@ func (m *NamespaceDefinition) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetDeprecation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, NamespaceDefinitionValidationError{
+					field:  "Deprecation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, NamespaceDefinitionValidationError{
+					field:  "Deprecation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDeprecation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return NamespaceDefinitionValidationError{
+				field:  "Deprecation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return NamespaceDefinitionMultiError(errors)
 	}
@@ -2617,6 +2646,127 @@ var _ interface {
 } = NamespaceDefinitionValidationError{}
 
 var _NamespaceDefinition_Name_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$")
+
+// Validate checks the field values on Deprecation with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *Deprecation) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Deprecation with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in DeprecationMultiError, or
+// nil if none found.
+func (m *Deprecation) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Deprecation) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if _, ok := DeprecationType_name[int32(m.GetDeprecationType())]; !ok {
+		err := DeprecationValidationError{
+			field:  "DeprecationType",
+			reason: "value must be one of the defined enum values",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(m.GetComments()) > 256 {
+		err := DeprecationValidationError{
+			field:  "Comments",
+			reason: "value length must be at most 256 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return DeprecationMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeprecationMultiError is an error wrapping multiple validation errors
+// returned by Deprecation.ValidateAll() if the designated constraints aren't met.
+type DeprecationMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeprecationMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeprecationMultiError) AllErrors() []error { return m }
+
+// DeprecationValidationError is the validation error returned by
+// Deprecation.Validate if the designated constraints aren't met.
+type DeprecationValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeprecationValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeprecationValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeprecationValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeprecationValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeprecationValidationError) ErrorName() string { return "DeprecationValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DeprecationValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeprecation.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeprecationValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeprecationValidationError{}
 
 // Validate checks the field values on Relation with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
@@ -2781,6 +2931,35 @@ func (m *Relation) validate(all bool) error {
 	// no validation rules for AliasingRelation
 
 	// no validation rules for CanonicalCacheKey
+
+	if all {
+		switch v := interface{}(m.GetDeprecation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RelationValidationError{
+					field:  "Deprecation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RelationValidationError{
+					field:  "Deprecation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDeprecation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RelationValidationError{
+				field:  "Deprecation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return RelationMultiError(errors)
@@ -3620,6 +3799,35 @@ func (m *AllowedRelation) validate(all bool) error {
 		if err := v.Validate(); err != nil {
 			return AllowedRelationValidationError{
 				field:  "RequiredExpiration",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetDeprecation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AllowedRelationValidationError{
+					field:  "Deprecation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AllowedRelationValidationError{
+					field:  "Deprecation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDeprecation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AllowedRelationValidationError{
+				field:  "Deprecation",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}

@@ -73,6 +73,7 @@ func RegisterGrpcServices(
 			CaveatTypeSet:                    permSysConfig.CaveatTypeSet,
 			AdditiveOnly:                     schemaServiceOption == V1SchemaServiceAdditiveOnly,
 			ExpiringRelsEnabled:              permSysConfig.ExpiringRelationshipsEnabled,
+			FeatureDeprecationEnabled:        permSysConfig.DeprecatedRelationshipsAndObjectsEnabled,
 			PerformanceInsightMetricsEnabled: permSysConfig.PerformanceInsightMetricsEnabled,
 		}
 		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaConfig))

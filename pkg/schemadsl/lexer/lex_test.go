@@ -45,6 +45,7 @@ var lexerTests = []lexerTest{
 
 	{"hash", "#", []Lexeme{{TokenTypeHash, 0, "#", ""}, tEOF}},
 	{"ellipsis", "...", []Lexeme{{TokenTypeEllipsis, 0, "...", ""}, tEOF}},
+	{"token @", "@", []Lexeme{{TokenTypeAt, 0, "@", ""}, tEOF}},
 
 	{"relation reference", "foo#...", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},
@@ -252,6 +253,21 @@ var lexerTests = []lexerTest{
 		{TokenTypeIdentifier, 0, "foo", ""},
 		{TokenTypePeriod, 0, ".", ""},
 		{TokenTypeIdentifier, 0, "all", ""},
+		{TokenTypeLeftParen, 0, "(", ""},
+		{TokenTypeIdentifier, 0, "something", ""},
+		{TokenTypeRightParen, 0, ")", ""},
+		tEOF,
+	}},
+
+	{"deprecation test with keyword", "@deprecated", []Lexeme{
+		{TokenTypeAt, 0, "@", ""},
+		{TokenTypeKeyword, 0, "deprecated", ""},
+		tEOF,
+	}},
+
+	{"deprecation test with keyword and identifier", "@deprecated(something)", []Lexeme{
+		{TokenTypeAt, 0, "@", ""},
+		{TokenTypeKeyword, 0, "deprecated", ""},
 		{TokenTypeLeftParen, 0, "(", ""},
 		{TokenTypeIdentifier, 0, "something", ""},
 		{TokenTypeRightParen, 0, ")", ""},
