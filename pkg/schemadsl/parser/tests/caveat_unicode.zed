@@ -1,0 +1,3 @@
+caveat test_chinese(attr string) {
+  attr == '一级'
+}

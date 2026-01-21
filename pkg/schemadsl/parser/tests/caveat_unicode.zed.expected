@@ -1,0 +1,28 @@
+NodeTypeFile
+  end-rune = 55
+  input-source = caveat with unicode identifier
+  start-rune = 0
+  child-node =>
+    NodeTypeCaveatDefinition
+      caveat-definition-name = test_chinese
+      end-rune = 54
+      input-source = caveat with unicode identifier
+      start-rune = 0
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = attr == '一级'
+          end-rune = 52
+          input-source = caveat with unicode identifier
+          start-rune = 37
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = attr
+          end-rune = 30
+          input-source = caveat with unicode identifier
+          start-rune = 20
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 30
+              input-source = caveat with unicode identifier
+              start-rune = 25
+              type-name = string
