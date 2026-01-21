@@ -136,6 +136,10 @@ message DispatchLookupResources3Request {
 
   repeated string optional_cursor = 7;
   uint32 optional_limit = 8;
+
+  // maximum_concurrency specifies the maximum number of concurrent dispatches.
+  // A value of 0 indicates to use the configured system default.
+  uint32 maximum_concurrency = 9;
 }
 
 message DispatchLookupResources3Response {

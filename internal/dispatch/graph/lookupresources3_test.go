@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1316,4 +1317,152 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 			require.ElementsMatch(tc.expectedResources, foundResourceIDsSlice)
 		})
 	}
+}
+
+// TestLookupResources3ConcurrencySplitting tests that the maximum concurrency is properly split
+// between parallel dispatches in LookupResources3. When processing multiple entrypoints in parallel,
+// the concurrency limit should be divided among them to ensure the total concurrency doesn't exceed
+// the specified limit.
+func TestLookupResources3ConcurrencySplitting(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	// Create a schema with multiple entrypoints that will require recursive dispatches
+	schema := `definition user {}
+
+	definition group {
+		relation member: user
+	}
+
+	definition document {
+		relation viewer: group#member
+		relation editor: group#member
+		relation owner: group#member
+		permission view = viewer + editor + owner
+	}`
+
+	// Create relationships that will trigger dispatches through multiple entrypoints
+	relationships := []tuple.Relationship{
+		// User tom is a member of three different groups
+		tuple.MustParse("group:viewers#member@user:tom"),
+		tuple.MustParse("group:editors#member@user:tom"),
+		tuple.MustParse("group:owners#member@user:tom"),
+		// Documents reference these groups through different relations
+		tuple.MustParse("document:doc1#viewer@group:viewers#member"),
+		tuple.MustParse("document:doc2#editor@group:editors#member"),
+		tuple.MustParse("document:doc3#owner@group:owners#member"),
+	}
+
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schema, relationships, require)
+
+	// Create a dispatcher with a known concurrency limit
+	const concurrencyLimit = uint16(100)
+	params := MustNewDefaultDispatcherParametersForTesting()
+	params.ConcurrencyLimits = SharedConcurrencyLimits(concurrencyLimit)
+
+	// Track concurrency values
+	var maxConcurrencyValues []uint32
+	var maxConcurrencyMutex sync.Mutex
+
+	// Create a tracking wrapper first (without base dispatcher yet)
+	var wrappedDispatcher dispatch.Dispatcher
+	trackingDispatcher := &concurrencyTrackingDispatcher{
+		onLookupResources3: func(req *v1.DispatchLookupResources3Request, stream dispatch.LookupResources3Stream) error {
+			maxConcurrencyMutex.Lock()
+			maxConcurrencyValues = append(maxConcurrencyValues, req.MaximumConcurrency)
+			maxConcurrencyMutex.Unlock()
+			// Dispatch through the wrapped dispatcher to ensure we catch recursive calls
+			return wrappedDispatcher.DispatchLookupResources3(req, stream)
+		},
+	}
+
+	// Create the wrapped dispatcher that uses the tracker as its redispatcher
+	// This creates a setup where: wrappedDispatcher -> uses trackingDispatcher for recursion -> tracks and calls wrappedDispatcher
+	wrappedDispatcher, err = NewDispatcher(trackingDispatcher, params)
+	require.NoError(err)
+	trackingDispatcher.Dispatcher = wrappedDispatcher
+	defer wrappedDispatcher.Close()
+
+	ctx := datastoremw.ContextWithHandle(t.Context())
+	cctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	require.NoError(datastoremw.SetInContext(cctx, ds))
+	stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
+
+	err = wrappedDispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
+		ResourceRelation: RR("document", "view").ToCoreRR(),
+		SubjectRelation:  RR("user", "...").ToCoreRR(),
+		SubjectIds:       []string{"tom"},
+		TerminalSubject:  ONR("user", "tom", "...").ToCoreONR(),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+		OptionalLimit:      veryLargeLimit,
+		MaximumConcurrency: uint32(concurrencyLimit),
+	}, stream)
+
+	require.NoError(err)
+
+	// We should have multiple dispatch calls (initial + recursive dispatches for entrypoints)
+	require.GreaterOrEqual(len(maxConcurrencyValues), 3,
+		"Expected at least 3 dispatches (initial + entrypoint dispatches)")
+
+	// Verify the results are correct
+	foundResources := mapz.NewSet[string]()
+	for _, result := range stream.Results() {
+		for _, item := range result.Items {
+			foundResources.Insert(item.ResourceId)
+		}
+	}
+	require.ElementsMatch([]string{"doc1", "doc2", "doc3"}, foundResources.AsSlice())
+
+	// Find the dispatches that correspond to the entrypoints
+	// These should have split concurrency (less than parent concurrency)
+	var entrypointConcurrencyValues []uint32
+	for _, val := range maxConcurrencyValues {
+		// Skip the initial request and look for the dispatched ones
+		if val > 0 && val < uint32(concurrencyLimit) {
+			entrypointConcurrencyValues = append(entrypointConcurrencyValues, val)
+		}
+	}
+
+	// We should have multiple dispatches with split concurrency
+	require.NotEmpty(entrypointConcurrencyValues,
+		"Expected to find dispatches with split concurrency")
+
+	// The concurrency values should be properly split
+	// With 3 entrypoints and concurrency limit of 100, each should get approximately 100/3 = 33
+	expectedSplitConcurrency := uint32(concurrencyLimit) / 3
+	for _, val := range entrypointConcurrencyValues {
+		require.Less(val, uint32(concurrencyLimit),
+			"Dispatch concurrency (%d) should be less than parent limit (%d)", val, concurrencyLimit)
+		// Should be at least 2 (the minimum enforced in the code)
+		require.GreaterOrEqual(val, uint32(2),
+			"Dispatch concurrency should be at least 2")
+		// Should be close to the expected split value (allowing for rounding and minimum enforcement)
+		require.LessOrEqual(val, expectedSplitConcurrency+2,
+			"Dispatch concurrency (%d) should be close to expected split (%d)", val, expectedSplitConcurrency)
+	}
+}
+
+// concurrencyTrackingDispatcher wraps a dispatcher to track concurrency values.
+type concurrencyTrackingDispatcher struct {
+	dispatch.Dispatcher
+	onLookupResources3 func(*v1.DispatchLookupResources3Request, dispatch.LookupResources3Stream) error
+}
+
+func (c *concurrencyTrackingDispatcher) DispatchLookupResources3(
+	req *v1.DispatchLookupResources3Request,
+	stream dispatch.LookupResources3Stream,
+) error {
+	if c.onLookupResources3 != nil {
+		return c.onLookupResources3(req, stream)
+	}
+	return c.Dispatcher.DispatchLookupResources3(req, stream)
 }

@@ -5,6 +5,8 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/ccoveille/go-safecast/v2"
+
 	cter "github.com/authzed/spicedb/internal/cursorediterator"
 	"github.com/authzed/spicedb/pkg/schema"
 )
@@ -22,7 +24,11 @@ func estimatedConcurrencyLimit[K UniquelyKeyed](
 	// If the optional limit is set to 0, then all results are returned, and therefore
 	// use the maximum concurrency limit that is available.
 	if refs.req.OptionalLimit == 0 {
-		return fn(refs.concurrencyLimit)
+		converted, err := safecast.Convert[uint16](refs.concurrencyLimit)
+		if err != nil {
+			return cter.YieldsError[result](fmt.Errorf("failed to convert concurrency limit: %w", err))
+		}
+		return fn(converted)
 	}
 
 	// If the concurrency limit is set to 1, then we always use that limit.
