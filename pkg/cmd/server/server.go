@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/ecordell/optgen/helpers"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
@@ -560,7 +559,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithoutError(metricsServer.Close)
 
-	log.Ctx(ctx).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
+	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 
 	return &completedServerConfig{
 		ds:                  ds,

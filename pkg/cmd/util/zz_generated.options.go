@@ -3,7 +3,6 @@ package util
 
 import (
 	defaults "github.com/creasty/defaults"
-	helpers "github.com/ecordell/optgen/helpers"
 	"time"
 )
 
@@ -40,23 +39,63 @@ func (g *GRPCServerConfig) ToOption() GRPCServerConfigOption {
 		to.BufferSize = g.BufferSize
 		to.ClientCAPath = g.ClientCAPath
 		to.MaxWorkers = g.MaxWorkers
-		to.flagPrefix = g.flagPrefix
 	}
 }
 
 // DebugMap returns a map form of GRPCServerConfig for debugging
-func (g GRPCServerConfig) DebugMap() map[string]any {
+func (g *GRPCServerConfig) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["Address"] = helpers.DebugValue(g.Address, false)
-	debugMap["Network"] = helpers.DebugValue(g.Network, false)
-	debugMap["TLSCertPath"] = helpers.DebugValue(g.TLSCertPath, false)
-	debugMap["TLSKeyPath"] = helpers.DebugValue(g.TLSKeyPath, false)
-	debugMap["MaxConnAge"] = helpers.DebugValue(g.MaxConnAge, false)
-	debugMap["Enabled"] = helpers.DebugValue(g.Enabled, false)
-	debugMap["BufferSize"] = helpers.DebugValue(g.BufferSize, false)
-	debugMap["ClientCAPath"] = helpers.DebugValue(g.ClientCAPath, false)
-	debugMap["MaxWorkers"] = helpers.DebugValue(g.MaxWorkers, false)
+	if g.Address == "" {
+		debugMap["Address"] = "(empty)"
+	} else {
+		debugMap["Address"] = g.Address
+	}
+	if g.Network == "" {
+		debugMap["Network"] = "(empty)"
+	} else {
+		debugMap["Network"] = g.Network
+	}
+	if g.TLSCertPath == "" {
+		debugMap["TLSCertPath"] = "(empty)"
+	} else {
+		debugMap["TLSCertPath"] = g.TLSCertPath
+	}
+	if g.TLSKeyPath == "" {
+		debugMap["TLSKeyPath"] = "(empty)"
+	} else {
+		debugMap["TLSKeyPath"] = g.TLSKeyPath
+	}
+	debugMap["MaxConnAge"] = g.MaxConnAge
+	debugMap["Enabled"] = g.Enabled
+	debugMap["BufferSize"] = g.BufferSize
+	if g.ClientCAPath == "" {
+		debugMap["ClientCAPath"] = "(empty)"
+	} else {
+		debugMap["ClientCAPath"] = g.ClientCAPath
+	}
+	debugMap["MaxWorkers"] = g.MaxWorkers
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of GRPCServerConfig for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (g *GRPCServerConfig) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(g.DebugMap())
 }
 
 // GRPCServerConfigWithOptions configures an existing GRPCServerConfig with the passed in options set
@@ -166,18 +205,50 @@ func (h *HTTPServerConfig) ToOption() HTTPServerConfigOption {
 		to.HTTPTLSCertPath = h.HTTPTLSCertPath
 		to.HTTPTLSKeyPath = h.HTTPTLSKeyPath
 		to.HTTPEnabled = h.HTTPEnabled
-		to.flagPrefix = h.flagPrefix
 	}
 }
 
 // DebugMap returns a map form of HTTPServerConfig for debugging
-func (h HTTPServerConfig) DebugMap() map[string]any {
+func (h *HTTPServerConfig) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["HTTPAddress"] = helpers.DebugValue(h.HTTPAddress, false)
-	debugMap["HTTPTLSCertPath"] = helpers.DebugValue(h.HTTPTLSCertPath, false)
-	debugMap["HTTPTLSKeyPath"] = helpers.DebugValue(h.HTTPTLSKeyPath, false)
-	debugMap["HTTPEnabled"] = helpers.DebugValue(h.HTTPEnabled, false)
+	if h.HTTPAddress == "" {
+		debugMap["HTTPAddress"] = "(empty)"
+	} else {
+		debugMap["HTTPAddress"] = h.HTTPAddress
+	}
+	if h.HTTPTLSCertPath == "" {
+		debugMap["HTTPTLSCertPath"] = "(empty)"
+	} else {
+		debugMap["HTTPTLSCertPath"] = h.HTTPTLSCertPath
+	}
+	if h.HTTPTLSKeyPath == "" {
+		debugMap["HTTPTLSKeyPath"] = "(empty)"
+	} else {
+		debugMap["HTTPTLSKeyPath"] = h.HTTPTLSKeyPath
+	}
+	debugMap["HTTPEnabled"] = h.HTTPEnabled
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of HTTPServerConfig for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (h *HTTPServerConfig) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(h.DebugMap())
 }
 
 // HTTPServerConfigWithOptions configures an existing HTTPServerConfig with the passed in options set

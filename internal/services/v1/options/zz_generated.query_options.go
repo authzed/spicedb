@@ -3,7 +3,6 @@ package options
 
 import (
 	defaults "github.com/creasty/defaults"
-	helpers "github.com/ecordell/optgen/helpers"
 	"time"
 )
 
@@ -39,13 +38,34 @@ func (e *ExperimentalServerOptions) ToOption() ExperimentalServerOptionsOption {
 }
 
 // DebugMap returns a map form of ExperimentalServerOptions for debugging
-func (e ExperimentalServerOptions) DebugMap() map[string]any {
+func (e *ExperimentalServerOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["StreamReadTimeout"] = helpers.DebugValue(e.StreamReadTimeout, false)
-	debugMap["DefaultExportBatchSize"] = helpers.DebugValue(e.DefaultExportBatchSize, false)
-	debugMap["MaxExportBatchSize"] = helpers.DebugValue(e.MaxExportBatchSize, false)
-	debugMap["BulkCheckMaxConcurrency"] = helpers.DebugValue(e.BulkCheckMaxConcurrency, false)
+	debugMap["StreamReadTimeout"] = e.StreamReadTimeout
+	debugMap["DefaultExportBatchSize"] = e.DefaultExportBatchSize
+	debugMap["MaxExportBatchSize"] = e.MaxExportBatchSize
+	debugMap["BulkCheckMaxConcurrency"] = e.BulkCheckMaxConcurrency
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of ExperimentalServerOptions for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (e *ExperimentalServerOptions) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(e.DebugMap())
 }
 
 // ExperimentalServerOptionsWithOptions configures an existing ExperimentalServerOptions with the passed in options set

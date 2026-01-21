@@ -3,7 +3,6 @@ package datastore
 
 import (
 	defaults "github.com/creasty/defaults"
-	helpers "github.com/ecordell/optgen/helpers"
 	"time"
 )
 
@@ -41,15 +40,36 @@ func (c *ConnPoolConfig) ToOption() ConnPoolConfigOption {
 }
 
 // DebugMap returns a map form of ConnPoolConfig for debugging
-func (c ConnPoolConfig) DebugMap() map[string]any {
+func (c *ConnPoolConfig) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["MaxIdleTime"] = helpers.DebugValue(c.MaxIdleTime, false)
-	debugMap["MaxLifetime"] = helpers.DebugValue(c.MaxLifetime, false)
-	debugMap["MaxLifetimeJitter"] = helpers.DebugValue(c.MaxLifetimeJitter, false)
-	debugMap["MaxOpenConns"] = helpers.DebugValue(c.MaxOpenConns, false)
-	debugMap["MinOpenConns"] = helpers.DebugValue(c.MinOpenConns, false)
-	debugMap["HealthCheckInterval"] = helpers.DebugValue(c.HealthCheckInterval, false)
+	debugMap["MaxIdleTime"] = c.MaxIdleTime
+	debugMap["MaxLifetime"] = c.MaxLifetime
+	debugMap["MaxLifetimeJitter"] = c.MaxLifetimeJitter
+	debugMap["MaxOpenConns"] = c.MaxOpenConns
+	debugMap["MinOpenConns"] = c.MinOpenConns
+	debugMap["HealthCheckInterval"] = c.HealthCheckInterval
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of ConnPoolConfig for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (c *ConnPoolConfig) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(c.DebugMap())
 }
 
 // ConnPoolConfigWithOptions configures an existing ConnPoolConfig with the passed in options set
