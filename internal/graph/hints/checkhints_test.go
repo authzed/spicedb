@@ -112,7 +112,7 @@ func buildReachabilityGraph(t *testing.T, schemaStr string) *schema.DefinitionRe
 	// Write the schema.
 	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		for _, nsDef := range compiled.ObjectDefinitions {
-			if err := tx.WriteNamespaces(ctx, nsDef); err != nil {
+			if err := tx.LegacyWriteNamespaces(ctx, nsDef); err != nil {
 				return err
 			}
 		}

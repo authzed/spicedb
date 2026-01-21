@@ -235,7 +235,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write basic namespaces.
 	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -260,7 +260,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Replace the namespace with a new one.
 	writtenAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -380,7 +380,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -485,7 +485,7 @@ func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) 
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -526,7 +526,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",

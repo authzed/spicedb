@@ -80,17 +80,17 @@ func (m *DatastoreReaderMethodCounts) ReverseQueryRelationships() uint64 {
 }
 
 // ReadNamespaceByName returns the count of ReadNamespaceByName calls.
-func (m *DatastoreReaderMethodCounts) ReadNamespaceByName() uint64 {
+func (m *DatastoreReaderMethodCounts) LegacyReadNamespaceByName() uint64 {
 	return m.readNamespaceByName.Load()
 }
 
 // ListAllNamespaces returns the count of ListAllNamespaces calls.
-func (m *DatastoreReaderMethodCounts) ListAllNamespaces() uint64 {
+func (m *DatastoreReaderMethodCounts) LegacyListAllNamespaces() uint64 {
 	return m.listAllNamespaces.Load()
 }
 
 // LookupNamespacesWithNames returns the count of LookupNamespacesWithNames calls.
-func (m *DatastoreReaderMethodCounts) LookupNamespacesWithNames() uint64 {
+func (m *DatastoreReaderMethodCounts) LegacyLookupNamespacesWithNames() uint64 {
 	return m.lookupNamespacesWithNames.Load()
 }
 
@@ -102,9 +102,9 @@ func (m *DatastoreReaderMethodCounts) LookupNamespacesWithNames() uint64 {
 func WriteMethodCounts(counts *DatastoreReaderMethodCounts) {
 	countingQueryRelationshipsTotal.Add(float64(counts.QueryRelationships()))
 	countingReverseQueryRelationshipsTotal.Add(float64(counts.ReverseQueryRelationships()))
-	countingReadNamespaceByNameTotal.Add(float64(counts.ReadNamespaceByName()))
-	countingListAllNamespacesTotal.Add(float64(counts.ListAllNamespaces()))
-	countingLookupNamespacesWithNamesTotal.Add(float64(counts.LookupNamespacesWithNames()))
+	countingReadNamespaceByNameTotal.Add(float64(counts.LegacyReadNamespaceByName()))
+	countingListAllNamespacesTotal.Add(float64(counts.LegacyListAllNamespaces()))
+	countingLookupNamespacesWithNamesTotal.Add(float64(counts.LegacyLookupNamespacesWithNames()))
 }
 
 // NewCountingDatastoreProxy creates a new datastore proxy that counts Reader method calls.
@@ -225,33 +225,33 @@ func (r *countingReader) ReverseQueryRelationships(ctx context.Context, subjects
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
-func (r *countingReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (r *countingReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	r.counts.readNamespaceByName.Add(1)
-	return r.delegate.ReadNamespaceByName(ctx, nsName)
+	return r.delegate.LegacyReadNamespaceByName(ctx, nsName)
 }
 
-func (r *countingReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (r *countingReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	r.counts.listAllNamespaces.Add(1)
-	return r.delegate.ListAllNamespaces(ctx)
+	return r.delegate.LegacyListAllNamespaces(ctx)
 }
 
-func (r *countingReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (r *countingReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	r.counts.lookupNamespacesWithNames.Add(1)
-	return r.delegate.LookupNamespacesWithNames(ctx, nsNames)
+	return r.delegate.LegacyLookupNamespacesWithNames(ctx, nsNames)
 }
 
 // Passthrough methods - not counted
 
-func (r *countingReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	return r.delegate.ReadCaveatByName(ctx, name)
+func (r *countingReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return r.delegate.LegacyReadCaveatByName(ctx, name)
 }
 
-func (r *countingReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	return r.delegate.ListAllCaveats(ctx)
+func (r *countingReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return r.delegate.LegacyListAllCaveats(ctx)
 }
 
-func (r *countingReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	return r.delegate.LookupCaveatsWithNames(ctx, caveatNames)
+func (r *countingReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	return r.delegate.LegacyLookupCaveatsWithNames(ctx, caveatNames)
 }
 
 func (r *countingReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -260,6 +260,10 @@ func (r *countingReader) CountRelationships(ctx context.Context, name string) (i
 
 func (r *countingReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
 	return r.delegate.LookupCounters(ctx)
+}
+
+func (r *countingReader) SchemaReader() (datastore.SchemaReader, error) {
+	return r.delegate.SchemaReader()
 }
 
 // Type assertions

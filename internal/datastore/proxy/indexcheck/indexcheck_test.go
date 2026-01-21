@@ -178,38 +178,38 @@ func TestIndexCheckingReaderMethods(t *testing.T) {
 	})
 
 	t.Run("ReadCaveatByName", func(t *testing.T) {
-		caveat, rev, err := reader.ReadCaveatByName(t.Context(), "test")
+		caveat, rev, err := reader.LegacyReadCaveatByName(t.Context(), "test")
 		require.Error(t, err)
 		require.Nil(t, caveat)
 		require.Nil(t, rev)
 	})
 
 	t.Run("LookupCaveatsWithNames", func(t *testing.T) {
-		caveats, err := reader.LookupCaveatsWithNames(t.Context(), []string{"test"})
+		caveats, err := reader.LegacyLookupCaveatsWithNames(t.Context(), []string{"test"})
 		require.Error(t, err)
 		require.Nil(t, caveats)
 	})
 
 	t.Run("ListAllCaveats", func(t *testing.T) {
-		caveats, err := reader.ListAllCaveats(t.Context())
+		caveats, err := reader.LegacyListAllCaveats(t.Context())
 		require.Error(t, err)
 		require.Nil(t, caveats)
 	})
 
 	t.Run("ListAllNamespaces", func(t *testing.T) {
-		namespaces, err := reader.ListAllNamespaces(t.Context())
+		namespaces, err := reader.LegacyListAllNamespaces(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, namespaces)
 	})
 
 	t.Run("LookupNamespacesWithNames", func(t *testing.T) {
-		namespaces, err := reader.LookupNamespacesWithNames(t.Context(), []string{"test"})
+		namespaces, err := reader.LegacyLookupNamespacesWithNames(t.Context(), []string{"test"})
 		require.Error(t, err)
 		require.Nil(t, namespaces)
 	})
 
 	t.Run("ReadNamespaceByName", func(t *testing.T) {
-		ns, rev, err := reader.ReadNamespaceByName(t.Context(), "test")
+		ns, rev, err := reader.LegacyReadNamespaceByName(t.Context(), "test")
 		require.Error(t, err)
 		require.Nil(t, ns)
 		require.Nil(t, rev)
@@ -255,12 +255,12 @@ func TestIndexCheckingRWT(t *testing.T) {
 		})
 
 		t.Run("WriteCaveats", func(t *testing.T) {
-			err := indexRWT.WriteCaveats(ctx, []*core.CaveatDefinition{})
+			err := indexRWT.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{})
 			require.NoError(t, err)
 		})
 
 		t.Run("DeleteCaveats", func(t *testing.T) {
-			err := indexRWT.DeleteCaveats(ctx, []string{"test"})
+			err := indexRWT.LegacyDeleteCaveats(ctx, []string{"test"})
 			require.NoError(t, err)
 		})
 
@@ -270,12 +270,12 @@ func TestIndexCheckingRWT(t *testing.T) {
 		})
 
 		t.Run("WriteNamespaces", func(t *testing.T) {
-			err := indexRWT.WriteNamespaces(ctx, &core.NamespaceDefinition{})
+			err := indexRWT.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{})
 			require.NoError(t, err)
 		})
 
 		t.Run("DeleteNamespaces", func(t *testing.T) {
-			err := indexRWT.DeleteNamespaces(ctx, []string{"test"}, datastore.DeleteNamespacesAndRelationships)
+			err := indexRWT.LegacyDeleteNamespaces(ctx, []string{"test"}, datastore.DeleteNamespacesAndRelationships)
 			require.NoError(t, err)
 		})
 

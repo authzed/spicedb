@@ -101,33 +101,35 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 	var referencedNamespaceMap map[string]*schema.Definition
 	var referencedCaveatMap map[string]*core.CaveatDefinition
 
-	if !referencedNamespaceNames.IsEmpty() {
-		foundNamespaces, err := reader.LookupNamespacesWithNames(ctx, referencedNamespaceNames.AsSlice())
+	if !referencedNamespaceNames.IsEmpty() || !referencedCaveatNamesWithContext.IsEmpty() {
+		schemaReader, err := reader.SchemaReader()
 		if err != nil {
 			return nil, nil, err
 		}
+
+		allNames := make([]string, 0, referencedNamespaceNames.Len()+referencedCaveatNamesWithContext.Len())
+		allNames = append(allNames, referencedNamespaceNames.AsSlice()...)
+		allNames = append(allNames, referencedCaveatNamesWithContext.AsSlice()...)
+
+		foundDefs, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, allNames)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+		referencedNamespaceMap = make(map[string]*schema.Definition, 0)
+		referencedCaveatMap = make(map[string]*core.CaveatDefinition, 0)
 
-		referencedNamespaceMap = make(map[string]*schema.Definition, len(foundNamespaces))
-		for _, nsDef := range foundNamespaces {
-			nts, err := schema.NewDefinition(ts, nsDef.Definition)
-			if err != nil {
-				return nil, nil, err
+		for _, def := range foundDefs {
+			if nsDef, ok := def.(*core.NamespaceDefinition); ok {
+				nts, err := schema.NewDefinition(ts, nsDef)
+				if err != nil {
+					return nil, nil, err
+				}
+				referencedNamespaceMap[nsDef.Name] = nts
+			} else if caveatDef, ok := def.(*core.CaveatDefinition); ok {
+				referencedCaveatMap[caveatDef.Name] = caveatDef
 			}
-
-			referencedNamespaceMap[nsDef.Definition.Name] = nts
-		}
-	}
-
-	if !referencedCaveatNamesWithContext.IsEmpty() {
-		foundCaveats, err := reader.LookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
-		if err != nil {
-			return nil, nil, err
-		}
-
-		referencedCaveatMap = make(map[string]*core.CaveatDefinition, len(foundCaveats))
-		for _, caveatDef := range foundCaveats {
-			referencedCaveatMap[caveatDef.Definition.Name] = caveatDef.Definition
 		}
 	}
 	return referencedNamespaceMap, referencedCaveatMap, nil

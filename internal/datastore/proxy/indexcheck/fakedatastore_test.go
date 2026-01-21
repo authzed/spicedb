@@ -107,27 +107,27 @@ type fakeSnapshotReader struct {
 	indexesUsed []string
 }
 
-func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+func (fsr fakeSnapshotReader) LegacyLookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) ReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (fakeSnapshotReader) LegacyReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) LookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+func (fakeSnapshotReader) LegacyLookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) ReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
+func (fakeSnapshotReader) LegacyReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) ListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+func (fakeSnapshotReader) LegacyListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+func (fakeSnapshotReader) LegacyListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
 	return nil, nil
 }
 
@@ -152,6 +152,10 @@ func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string)
 }
 
 func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) SchemaReader() (datastore.SchemaReader, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -191,11 +195,11 @@ func (f *fakeRWT) StoreCounterValue(ctx context.Context, name string, value int,
 	return nil
 }
 
-func (f *fakeRWT) WriteCaveats(ctx context.Context, caveats []*corev1.CaveatDefinition) error {
+func (f *fakeRWT) LegacyWriteCaveats(ctx context.Context, caveats []*corev1.CaveatDefinition) error {
 	return nil
 }
 
-func (f *fakeRWT) DeleteCaveats(ctx context.Context, names []string) error {
+func (f *fakeRWT) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	return nil
 }
 
@@ -203,11 +207,11 @@ func (f *fakeRWT) WriteRelationships(ctx context.Context, mutations []tuple.Rela
 	return nil
 }
 
-func (f *fakeRWT) WriteNamespaces(ctx context.Context, newConfigs ...*corev1.NamespaceDefinition) error {
+func (f *fakeRWT) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*corev1.NamespaceDefinition) error {
 	return nil
 }
 
-func (f *fakeRWT) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (f *fakeRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	return nil
 }
 
@@ -217,4 +221,12 @@ func (f *fakeRWT) DeleteRelationships(ctx context.Context, filter *v1.Relationsh
 
 func (f *fakeRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	return 0, nil
+}
+
+func (f *fakeRWT) SchemaReader() (datastore.SchemaReader, error) {
+	return f.fakeSnapshotReader.SchemaReader()
+}
+
+func (f *fakeRWT) SchemaWriter() (datastore.SchemaWriter, error) {
+	return nil, fmt.Errorf("not implemented")
 }

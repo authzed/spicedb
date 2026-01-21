@@ -107,7 +107,7 @@ func TestUnaryCountingInterceptor_HandlerError(t *testing.T) {
 	mockDS := &proxy_test.MockDatastore{}
 	mockReader := &proxy_test.MockReader{}
 	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
-	mockReader.On("ReadNamespaceByName", "test").Return(nil, datastore.NoRevision, nil)
+	mockReader.On("LegacyReadNamespaceByName", "test").Return(nil, datastore.NoRevision, nil)
 
 	// Create context with datastore
 	ctx := ContextWithHandle(context.Background())
@@ -118,7 +118,7 @@ func TestUnaryCountingInterceptor_HandlerError(t *testing.T) {
 		// Make a call before erroring
 		ds := MustFromContext(ctx)
 		reader := ds.SnapshotReader(datastore.NoRevision)
-		_, _, _ = reader.ReadNamespaceByName(ctx, "test")
+		_, _, _ = reader.LegacyReadNamespaceByName(ctx, "test")
 
 		return nil, &testError{}
 	}
@@ -143,7 +143,7 @@ func TestStreamCountingInterceptor_HandlerError(t *testing.T) {
 	mockDS := &proxy_test.MockDatastore{}
 	mockReader := &proxy_test.MockReader{}
 	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
-	mockReader.On("ListAllNamespaces").Return([]datastore.RevisionedNamespace{}, nil)
+	mockReader.On("LegacyListAllNamespaces").Return([]datastore.RevisionedNamespace{}, nil)
 
 	// Create context with datastore
 	ctx := ContextWithHandle(context.Background())
@@ -157,7 +157,7 @@ func TestStreamCountingInterceptor_HandlerError(t *testing.T) {
 		// Make a call before erroring
 		ds := MustFromContext(ss.Context())
 		reader := ds.SnapshotReader(datastore.NoRevision)
-		_, _ = reader.ListAllNamespaces(ss.Context())
+		_, _ = reader.LegacyListAllNamespaces(ss.Context())
 
 		return &testError{}
 	}

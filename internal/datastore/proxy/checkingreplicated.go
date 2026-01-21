@@ -124,28 +124,28 @@ type checkingStableReader struct {
 	choose       sync.Once
 }
 
-func (rr *checkingStableReader) ReadCaveatByName(ctx context.Context, name string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
+func (rr *checkingStableReader) LegacyReadCaveatByName(ctx context.Context, name string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
 	if err := rr.determineSource(ctx); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
-	return rr.chosenReader.ReadCaveatByName(ctx, name)
+	return rr.chosenReader.LegacyReadCaveatByName(ctx, name)
 }
 
-func (rr *checkingStableReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (rr *checkingStableReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
-	return rr.chosenReader.ListAllCaveats(ctx)
+	return rr.chosenReader.LegacyListAllCaveats(ctx)
 }
 
-func (rr *checkingStableReader) LookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+func (rr *checkingStableReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
 	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
-	return rr.chosenReader.LookupCaveatsWithNames(ctx, names)
+	return rr.chosenReader.LegacyLookupCaveatsWithNames(ctx, names)
 }
 
 func (rr *checkingStableReader) QueryRelationships(
@@ -172,28 +172,28 @@ func (rr *checkingStableReader) ReverseQueryRelationships(
 	return rr.chosenReader.ReverseQueryRelationships(ctx, subjectsFilter, options...)
 }
 
-func (rr *checkingStableReader) ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (rr *checkingStableReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	if err := rr.determineSource(ctx); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
-	return rr.chosenReader.ReadNamespaceByName(ctx, nsName)
+	return rr.chosenReader.LegacyReadNamespaceByName(ctx, nsName)
 }
 
-func (rr *checkingStableReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (rr *checkingStableReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
-	return rr.chosenReader.ListAllNamespaces(ctx)
+	return rr.chosenReader.LegacyListAllNamespaces(ctx)
 }
 
-func (rr *checkingStableReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (rr *checkingStableReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
-	return rr.chosenReader.LookupNamespacesWithNames(ctx, nsNames)
+	return rr.chosenReader.LegacyLookupNamespacesWithNames(ctx, nsNames)
 }
 
 func (rr *checkingStableReader) CountRelationships(ctx context.Context, filter string) (int, error) {
@@ -210,6 +210,14 @@ func (rr *checkingStableReader) LookupCounters(ctx context.Context) ([]datastore
 	}
 
 	return rr.chosenReader.LookupCounters(ctx)
+}
+
+func (rr *checkingStableReader) SchemaReader() (datastore.SchemaReader, error) {
+	if err := rr.determineSource(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return rr.chosenReader.SchemaReader()
 }
 
 // determineSource will choose the replica or primary to read from based on the revision, by checking

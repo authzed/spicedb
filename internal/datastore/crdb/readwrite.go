@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -481,7 +482,7 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 	return rowsAffected, false, nil
 }
 
-func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *crdbReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	rwt.hasNonExpiredDeletionChange = true
 
 	query := queryWriteNamespace
@@ -508,7 +509,7 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 	return nil
 }
 
-func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *crdbReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
@@ -561,6 +562,10 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []str
 	}
 
 	return nil
+}
+
+func (rwt *crdbReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
+	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
 }
 
 var copyCols = []string{

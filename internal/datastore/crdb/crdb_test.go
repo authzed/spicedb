@@ -827,18 +827,18 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 		})
 		require.NoError(err)
 
-		err = rwt.DeleteNamespaces(ctx, []string{"resource2"}, datastore.DeleteNamespacesAndRelationships)
+		err = rwt.LegacyDeleteNamespaces(ctx, []string{"resource2"}, datastore.DeleteNamespacesAndRelationships)
 		require.NoError(err)
 
-		err = rwt.DeleteCaveats(ctx, []string{"somecaveat2"})
+		err = rwt.LegacyDeleteCaveats(ctx, []string{"somecaveat2"})
 		require.NoError(err)
 
-		err = rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{
+		err = rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{
 			Name: "somenewnamespace",
 		})
 		require.NoError(err)
 
-		err = rwt.WriteCaveats(ctx, []*core.CaveatDefinition{{
+		err = rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{{
 			Name: "somenewcaveat",
 		}})
 		require.NoError(err)

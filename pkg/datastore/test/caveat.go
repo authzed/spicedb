@@ -36,7 +36,7 @@ func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	_, _, err = ds.SnapshotReader(startRevision).ReadCaveatByName(ctx, "unknown")
+	_, _, err = ds.SnapshotReader(startRevision).LegacyReadCaveatByName(ctx, "unknown")
 	require.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 }
 
@@ -66,7 +66,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	// The caveat can be looked up by name
 	cr := ds.SnapshotReader(rev)
-	cv, _, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err := cr.LegacyReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
@@ -81,7 +81,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Equal("bytes", cv.ParameterTypes["bar"].ChildTypes[0].TypeName)
 
 	// All caveats can be listed
-	cvs, err := cr.ListAllCaveats(ctx)
+	cvs, err := cr.LegacyListAllCaveats(ctx)
 	req.NoError(err)
 	req.Len(cvs, 2)
 
@@ -91,7 +91,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Empty(foundDiff)
 
 	// Caveats can be found by names
-	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{coreCaveat.Name})
+	cvs, err = cr.LegacyLookupCaveatsWithNames(ctx, []string{coreCaveat.Name})
 	req.NoError(err)
 	req.Len(cvs, 1)
 
@@ -99,31 +99,31 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Empty(foundDiff)
 
 	// Non-existing names returns no caveat
-	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{"doesnotexist"})
+	cvs, err = cr.LegacyLookupCaveatsWithNames(ctx, []string{"doesnotexist"})
 	req.NoError(err)
 	req.Empty(cvs)
 
 	// Empty lookup returns no values.
-	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{})
+	cvs, err = cr.LegacyLookupCaveatsWithNames(ctx, []string{})
 	req.NoError(err)
 	req.Empty(cvs)
 
 	// nil lookup returns no values.
-	cvs, err = cr.LookupCaveatsWithNames(ctx, nil)
+	cvs, err = cr.LegacyLookupCaveatsWithNames(ctx, nil)
 	req.NoError(err)
 	req.Empty(cvs)
 
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.DeleteCaveats(ctx, []string{coreCaveat.Name})
+		return tx.LegacyDeleteCaveats(ctx, []string{coreCaveat.Name})
 	})
 	req.NoError(err)
 	cr = ds.SnapshotReader(rev)
-	_, _, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	_, _, err = cr.LegacyReadCaveatByName(ctx, coreCaveat.Name)
 	req.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 
 	// Returns an error if caveat name or ID does not exist
-	_, _, err = cr.ReadCaveatByName(ctx, "doesnotexist")
+	_, _, err = cr.LegacyReadCaveatByName(ctx, "doesnotexist")
 	req.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 }
 
@@ -274,13 +274,13 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 
 	// check most recent revision
 	cr := ds.SnapshotReader(newRev)
-	cv, _, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err := cr.LegacyReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(newExpression, cv.SerializedExpression)
 
 	// check previous revision
 	cr = ds.SnapshotReader(oldRev)
-	cv, _, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err = cr.LegacyReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(oldExpression, cv.SerializedExpression)
 }
@@ -391,7 +391,7 @@ func assertRelCorrectlyStored(req *require.Assertions, ds datastore.Datastore, r
 func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
 	ctx := t.Context()
 	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { // nolint: errcheck
-		_, _, err := transaction.ReadCaveatByName(ctx, uuid.NewString())
+		_, _, err := transaction.LegacyReadCaveatByName(ctx, uuid.NewString())
 		if !errors.As(err, &datastore.CaveatNameNotFoundError{}) {
 			t.Skip("datastore does not implement CaveatStorer interface")
 		}
@@ -411,7 +411,7 @@ func createTestCaveatedRel(t *testing.T, relString string, caveatName string) tu
 
 func writeCaveats(ctx context.Context, ds datastore.Datastore, coreCaveat ...*core.CaveatDefinition) (datastore.Revision, error) {
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, coreCaveat)
+		return tx.LegacyWriteCaveats(ctx, coreCaveat)
 	})
 	if err != nil {
 		return datastore.NoRevision, err

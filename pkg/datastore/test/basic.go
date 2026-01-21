@@ -36,7 +36,7 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 
 	// Ensure at least a few relationships and namespaces exist.
 	reader := ds.SnapshotReader(revision)
-	nsDefs, err := reader.ListAllNamespaces(ctx)
+	nsDefs, err := reader.LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, nsDefs, "no namespace definitions provided")
 
@@ -65,7 +65,7 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	reader = ds.SnapshotReader(headRev)
-	afterNSDefs, err := reader.ListAllNamespaces(ctx)
+	afterNSDefs, err := reader.LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Empty(t, afterNSDefs, "namespace definitions still exist")
 

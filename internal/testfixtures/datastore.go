@@ -185,7 +185,7 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 	ctx := context.Background()
 
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(ctx, createTestCaveat(require))
+		return tx.LegacyWriteCaveats(ctx, createTestCaveat(require))
 	})
 	require.NoError(err)
 
@@ -262,7 +262,7 @@ func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objec
 	ctx := context.Background()
 	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if len(caveatDefs) > 0 {
-			err := rwt.WriteCaveats(ctx, caveatDefs)
+			err := rwt.LegacyWriteCaveats(ctx, caveatDefs)
 			require.NoError(err)
 		}
 
@@ -277,7 +277,7 @@ func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objec
 			aerr := namespace.AnnotateNamespace(vdef)
 			require.NoError(aerr)
 
-			err = rwt.WriteNamespaces(ctx, nsDef)
+			err = rwt.LegacyWriteNamespaces(ctx, nsDef)
 			require.NoError(err)
 		}
 

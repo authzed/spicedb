@@ -38,7 +38,7 @@ func RunSingleCaveatExpression(
 	ts *caveattypes.TypeSet,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.CaveatReader,
+	reader datastore.SchemaReadable,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
 	runner := NewCaveatRunner(ts)
@@ -66,7 +66,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 	ctx context.Context,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.CaveatReader,
+	reader datastore.SchemaReadable,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
 	ctx, span := tracer.Start(ctx, "RunCaveatExpression")
@@ -82,7 +82,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 
 // PopulateCaveatDefinitionsForExpr populates the CaveatRunner's cache with the definitions
 // referenced in the given caveat expression.
-func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader datastore.CaveatReader) error {
+func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader datastore.SchemaReadable) error {
 	ctx, span := tracer.Start(ctx, "PopulateCaveatDefinitions")
 	defer span.End()
 
@@ -107,14 +107,21 @@ func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, ex
 	}
 
 	// Bulk lookup all of the referenced caveat definitions.
-	caveatDefs, err := reader.LookupCaveatsWithNames(ctx, caveatNames.AsSlice())
+	// TODO(jschorr): Remove the local population here once the general schema cache is in place.
+	schemaReader, err := reader.SchemaReader()
+	if err != nil {
+		return err
+	}
+	foundDefs, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, caveatNames.AsSlice())
 	if err != nil {
 		return err
 	}
 	span.AddEvent(otelconv.EventCaveatsLookedUp)
 
-	for _, cd := range caveatDefs {
-		cr.caveatDefs[cd.Definition.GetName()] = cd.Definition
+	for _, def := range foundDefs {
+		if caveatDef, ok := def.(*core.CaveatDefinition); ok {
+			cr.caveatDefs[caveatDef.GetName()] = caveatDef
+		}
 	}
 
 	return nil

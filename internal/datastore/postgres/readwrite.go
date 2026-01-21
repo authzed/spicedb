@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -123,7 +124,7 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 		return relationSupportSimplifiedTouch, nil
 	}
 
-	namespaces, err := rwt.LookupNamespacesWithNames(ctx, touchedResourceNamespaces.AsSlice())
+	namespaces, err := rwt.LegacyLookupNamespacesWithNames(ctx, touchedResourceNamespaces.AsSlice())
 	if err != nil {
 		return nil, handleWriteError(err)
 	}
@@ -564,7 +565,7 @@ func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.R
 	return numDeleted, nil
 }
 
-func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *pgReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	deletedNamespaceClause := sq.Or{}
 	writeQuery := writeNamespace
 
@@ -606,7 +607,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *pgReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
@@ -662,6 +663,10 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames []strin
 	}
 
 	return nil
+}
+
+func (rwt *pgReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
+	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
 }
 
 func (rwt *pgReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
