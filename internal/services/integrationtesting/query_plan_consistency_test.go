@@ -370,7 +370,7 @@ func TestAccessibilitySetMethods(t *testing.T) {
 		require.NotEqual(0, uncomputed)
 
 		// Test AccessibiliyAndPermissionshipFor
-		accessibility, permissionship, ok := accessibilitySet.AccessibiliyAndPermissionshipFor(resource, subject)
+		accessibility, permissionship, ok := accessibilitySet.AccessibilityAndPermissionshipFor(resource, subject)
 		require.True(ok)
 		require.NotEqual(0, accessibility)
 		require.NotEqual(0, permissionship)

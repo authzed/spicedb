@@ -70,6 +70,165 @@ func TestConsistency(t *testing.T) {
 			}
 		})
 	}
+	// NOTE: this test is defined separately because the integration test harness
+	// can't deal with logic that doesn't have a concrete relation associated with it
+	// as of time of writing.
+	// TODO: remove this test and rename self.yaml.skip to self.yaml
+	t.Run("self keyword consistency test", func(t *testing.T) {
+		options := []server.ConfigOption{
+			server.WithDispatchChunkSize(5),
+			server.WithEnableExperimentalLookupResources(true),
+			server.WithExperimentalLookupResourcesVersion("lr3"),
+		}
+
+		cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, "testconfigs/self.yaml.skip", testTimedelta, options...)
+
+		// Validate the type system for each namespace.
+		headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+		require.NoError(t, err)
+
+		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
+
+		for _, nsDef := range cad.Populated.NamespaceDefinitions {
+			_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
+			require.NoError(t, err)
+		}
+
+		testers := consistencytestutil.ServiceTesters(cad.Conn)
+		tester := testers[0]
+		// Build an accessibility set.
+		accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
+
+		dispatcher := consistencytestutil.CreateDispatcherForTesting(t, false)
+
+		vctx := validationContext{
+			clusterAndData:   cad,
+			accessibilitySet: accessibilitySet,
+			serviceTester:    tester,
+			revision:         headRevision,
+			dispatcher:       dispatcher,
+		}
+
+		// Call a write on each relationship to make sure it type checks.
+		ensureRelationshipWrites(t, vctx)
+
+		// Call a read on each relationship resource type and ensure it finds all expected relationships.
+		validateRelationshipReads(t, vctx)
+
+		// Run the assertions defined in the file.
+		runAssertions(t, vctx)
+
+		// Run basic expansion on each relation and ensure no errors are raised.
+		ensureNoExpansionErrors(t, vctx)
+
+		// We skip validating expansion subjects for this case
+
+		// Validate lookup resources manually for this schema
+
+		// Look for resources for tommyboy
+		foundResources, _, err := vctx.serviceTester.LookupResources(
+			t.Context(),
+			tuple.RelationReference{
+				ObjectType: "user",
+				Relation:   "me_or_related",
+			},
+			tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "tommyboy",
+				Relation:   tuple.Ellipsis,
+			},
+			vctx.revision,
+			nil,
+			10,
+			nil,
+		)
+		require.NoError(t, err)
+		resourceIds := make([]string, 0, len(foundResources))
+		for _, resource := range foundResources {
+			resourceIds = append(resourceIds, resource.ResourceObjectId)
+		}
+
+		// We expect that tommyboy is related to himself and tom
+		require.ElementsMatch(t, []string{"tommyboy", "tom"}, resourceIds, "expected both tom and tommyboy as resources")
+
+		// Look for resources for tommyboy
+		foundResources, _, err = vctx.serviceTester.LookupResources(
+			t.Context(),
+			tuple.RelationReference{
+				ObjectType: "user",
+				Relation:   "me_or_related",
+			},
+			tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "tom",
+				Relation:   tuple.Ellipsis,
+			},
+			vctx.revision,
+			nil,
+			10,
+			nil,
+		)
+		require.NoError(t, err)
+		resourceIds = make([]string, 0, len(foundResources))
+		for _, resource := range foundResources {
+			resourceIds = append(resourceIds, resource.ResourceObjectId)
+		}
+
+		// We expect that tom is related only to himself
+		require.ElementsMatch(t, []string{"tom"}, resourceIds, "expected just tom as resource")
+
+		// Validate lookup subjects manually for this schema
+		// Look for subjects for tommyboy
+		foundSubjects, err := vctx.serviceTester.LookupSubjects(
+			t.Context(),
+			tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "tommyboy",
+				Relation:   "me_or_related",
+			},
+			tuple.RelationReference{
+				ObjectType: "user",
+			},
+			vctx.revision,
+			nil,
+		)
+		require.NoError(t, err)
+		subjectIds := make([]string, 0, len(foundSubjects))
+		for _, subject := range foundSubjects {
+			subjectIds = append(subjectIds, subject.Subject.SubjectObjectId)
+		}
+
+		// We expect that tommyboy is related to himself
+		require.ElementsMatch(t, []string{"tommyboy"}, subjectIds, "expected just tommyboy as subject")
+
+		// Look for subjects for tom
+		foundSubjects, err = vctx.serviceTester.LookupSubjects(
+			t.Context(),
+			tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "tom",
+				Relation:   "me_or_related",
+			},
+			tuple.RelationReference{
+				ObjectType: "user",
+			},
+			vctx.revision,
+			nil,
+		)
+		require.NoError(t, err)
+		subjectIds = make([]string, 0, len(foundSubjects))
+		for _, subject := range foundSubjects {
+			subjectIds = append(subjectIds, subject.Subject.SubjectObjectId)
+		}
+
+		// We expect that tom is related to himself and to tommyboy
+		require.ElementsMatch(t, []string{"tom", "tommyboy"}, subjectIds, "expected tom and tommyboy as subjects")
+
+		// We skip validating the development expected relations for this schema
+
+		// Ensure that the set of reachable subject types matches the actual reachable subjects.
+		validateReachableSubjectTypes(t, vctx)
+	})
 }
 
 func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool, chunkSize uint16) {

@@ -1,4 +1,9 @@
 ---
+# NOTE: this test is currently skipped because the integration test framework
+# can't test logic around relations that aren't concrete as of time of writing.
+# TODO: Remove this comment and remove the `.skip` suffix from this file
+# once the test harness supports it.
+# In the meantime, there's a separately defined consistency test for this case.
 schema: >-
   use self
   definition user {

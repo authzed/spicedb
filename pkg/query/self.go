@@ -1,6 +1,8 @@
 package query
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -8,6 +10,7 @@ import (
 // Resource in the subiterator that connects it to
 // streamed from the sub-iterator to a specified alias relation.
 type Self struct {
+	id       string
 	relation string
 }
 
@@ -15,6 +18,7 @@ var _ Iterator = &Self{}
 
 func NewSelf(relation string) *Self {
 	return &Self{
+		id:       uuid.NewString(),
 		relation: relation,
 	}
 }
@@ -78,4 +82,8 @@ func (s *Self) Subiterators() []Iterator {
 
 func (s *Self) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return nil, spiceerrors.MustBugf("Trying to replace a Self's subiterators")
+}
+
+func (s *Self) ID() string {
+	return s.id
 }
