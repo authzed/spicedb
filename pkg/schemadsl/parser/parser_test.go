@@ -124,6 +124,7 @@ func TestParser(t *testing.T) {
 		{"arrow illegal operations test", "arrowillegalops"},
 		{"arrow illegal function test", "arrowillegalfunc"},
 		{"caveat with keyword parameter test", "caveatwithkeywordparam"},
+		{"caveat with unicode identifier", "caveat_unicode"},
 		{"use expiration test", "useexpiration"},
 		{"use expiration keyword test", "useexpirationkeyword"},
 		{"expiration non-keyword test", "expirationnonkeyword"},

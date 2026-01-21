@@ -66,6 +66,10 @@ var lexerTests = []lexerTest{
 		tEOF,
 	}},
 
+	{"unicode identifier", "一级", []Lexeme{{TokenTypeIdentifier, 0, "一级", ""}, tEOF}},
+	{"unicode singlequoted string literal", "'一级'", []Lexeme{{TokenTypeString, 0, "'一级'", ""}, tEOF}},
+	{"ascii singlequoted string literal", "'foo'", []Lexeme{{TokenTypeString, 0, "'foo'", ""}, tEOF}},
+
 	{"multiple slash path", "foo/bar/baz/bang/zoom", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},
 		{TokenTypeDiv, 0, "/", ""},
@@ -237,7 +241,25 @@ var lexerTests = []lexerTest{
 		},
 	},
 	{
+		"cel string literal with terminators with unicode", `"""hi "一级" """`,
+		[]Lexeme{
+			{TokenTypeString, 0, `"""hi "一级" """`, ""},
+			tEOF,
+		},
+	},
+	{
 		"unterminated cel string literal", "\"hi\nthere\"",
+		[]Lexeme{
+			{
+				Kind:     TokenTypeError,
+				Position: 0,
+				Value:    "\n",
+				Error:    "Unterminated string",
+			},
+		},
+	},
+	{
+		"unterminated cel string literal with unicode", "\"hi\n一级\"",
 		[]Lexeme{
 			{
 				Kind:     TokenTypeError,
