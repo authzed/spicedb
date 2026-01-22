@@ -10,7 +10,10 @@ import (
 // Resource in the subiterator that connects it to
 // streamed from the sub-iterator to a specified alias relation.
 type Self struct {
-	id       string
+	id string
+	// relation is the name of the permission that uses the self keyword,
+	// and is used because otherwise "self" doesn't have an associated relation,
+	// as it's purely checking whether the subject and object are the same.
 	relation string
 }
 
@@ -27,8 +30,11 @@ func (s *Self) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRela
 	// for Self, the check returns the reflexive relation if it's in the set of resources
 	// or else returns an empty set.
 	for _, resource := range resources {
-		// TODO: does the subject relation need to be considered here?
-		if resource.Equals(GetObject(subject)) {
+		// NOTE: we assert that the subject and the object are the same and that
+		// both are ellipses because self is checking whether the subject and the object
+		// are the same, and a subject with a non-ellipsis relation can't semantically
+		// match the object.
+		if subject.Equals(resource.WithEllipses()) {
 			return func(yield func(Path, error) bool) {
 				yield(Path{
 					Resource: resource,
@@ -47,7 +53,7 @@ func (s *Self) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) 
 		yield(Path{
 			Resource: resource,
 			Relation: s.relation,
-			// TODO: is this correct?
+			// NOTE: this is WithEllipses() for the same reason as the comment above.
 			Subject: resource.WithEllipses(),
 		}, nil)
 	}, nil
