@@ -514,6 +514,7 @@ spicedb serve [flags]
       --experimental-dispatch-secondary-upstream-addrs stringToString                   secondary upstream addresses for dispatches, each with a name (default [])
       --experimental-dispatch-secondary-upstream-exprs stringToString                   map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request (default [])
       --experimental-lookup-resources-version lr3                                       if non-empty, the version of the experimental lookup resources API to use: lr3 or empty
+      --experimental-query-plan check                                                   if non-empty, the version of the experimental query plan to use: check or empty
       --grpc-addr string                                                                address to listen on to serve gRPC (default ":50051")
       --grpc-enabled                                                                    enable gRPC gRPC server (default true)
       --grpc-log-requests-enabled                                                       enable logging of API request payloads
