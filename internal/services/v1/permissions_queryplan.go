@@ -52,6 +52,12 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	// Apply basic optimizations to the iterator tree
+	it, _, err = query.ApplyOptimizations(it, query.StaticOptimizations)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
 	// Parse caveat context if provided
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
