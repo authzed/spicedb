@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ccoveille/go-safecast/v2"
 	wire "github.com/jeroenrinzema/psql-wire"
 	"github.com/lib/pq/oid"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -178,9 +179,14 @@ func readRelationshipsWithFilter(filter *v1.RelationshipFilter, consistency *v1.
 			currentCursor = rowsCursor.(*v1.Cursor)
 		}
 
+		limit, err := safecast.Convert[uint32](howMany)
+		if err != nil {
+			return nil, err
+		}
+
 		stream, err := client.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
 			RelationshipFilter: filter,
-			OptionalLimit:      uint32(howMany),
+			OptionalLimit:      limit,
 			OptionalCursor:     currentCursor,
 			Consistency:        consistency,
 		})
@@ -383,6 +389,9 @@ func relationshipsDeleteRunner(ctx context.Context, client *authzed.Client, dele
 			return 0, nil, common.NewQueryError(fmt.Errorf("unsupported column %q", column.Name))
 		}
 	}
-
-	return int64(deleteResp.RelationshipsDeletedCount), values, nil
+	deletedCount, err := safecast.Convert[int64](deleteResp.RelationshipsDeletedCount)
+	if err != nil {
+		return 0, nil, common.NewQueryError(fmt.Errorf("failed to cast deleted count: %w", err))
+	}
+	return deletedCount, values, nil
 }

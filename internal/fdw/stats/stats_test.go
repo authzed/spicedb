@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/fdw/explain"
@@ -319,14 +320,14 @@ func TestConcurrentAccess(t *testing.T) {
 
 	go func() {
 		for i := 0; i < 100; i++ {
-			pkg.AddSample(float32(i), uint(i*10))
+			pkg.AddSample(float32(i), safecast.MustConvert[uint](i*10))
 		}
 		done <- true
 	}()
 
 	go func() {
 		for i := 0; i < 100; i++ {
-			pkg.AddWidthSample(uint(i * 5))
+			pkg.AddWidthSample(safecast.MustConvert[uint](i * 5))
 		}
 		done <- true
 	}()
