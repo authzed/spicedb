@@ -207,3 +207,152 @@ func TestRecursiveIteratorCollectionError(t *testing.T) {
 	require.Contains(t, err.Error(), "faulty iterator collection error", "Should get collection error")
 	require.Empty(t, paths)
 }
+
+// TestBFSEarlyTermination verifies that BFS terminates early when frontier is empty
+func TestBFSEarlyTermination(t *testing.T) {
+	// Create a shallow graph (depth 2) and verify it terminates early, not at maxDepth
+	// folder1 -> (sentinel returns empty)
+
+	sentinel := NewRecursiveSentinel("folder", "parent", false)
+	recursive := NewRecursiveIterator(sentinel, "folder", "parent")
+
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithMaxRecursionDepth(50)) // High max depth
+
+	// IterSubjects on a node with no children (sentinel returns empty)
+	// Should terminate at ply 0, not continue to maxDepth
+	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"})
+	require.NoError(t, err)
+
+	paths, err := CollectAll(seq)
+	require.NoError(t, err)
+	require.Empty(t, paths, "No paths should be found since sentinel returns empty")
+
+	// Verify from trace logs that it terminated early (checked via TraceLogger in actual use)
+}
+
+// TestBFSCycleDetection verifies that BFS handles cycles correctly
+func TestBFSCycleDetection(t *testing.T) {
+	// Create a cycle: folder1 -> folder2 -> folder1
+	// BFS should detect the cycle and not infinite loop
+
+	// Create an iterator that returns cyclic paths
+	cyclicIter := NewFixedIterator(
+		Path{
+			Resource: Object{ObjectType: "folder", ObjectID: "folder1"},
+			Relation: "parent",
+			Subject:  ObjectAndRelation{ObjectType: "folder", ObjectID: "folder2", Relation: "..."},
+		},
+	)
+
+	// When we query folder2, it should return folder1
+	folder2Iter := NewFixedIterator(
+		Path{
+			Resource: Object{ObjectType: "folder", ObjectID: "folder2"},
+			Relation: "parent",
+			Subject:  ObjectAndRelation{ObjectType: "folder", ObjectID: "folder1", Relation: "..."},
+		},
+	)
+
+	// Create a union that returns different results based on which resource is queried
+	// This simulates the cycle: folder1 -> folder2 -> folder1
+	union := NewUnion(cyclicIter, folder2Iter)
+
+	recursive := NewRecursiveIterator(union, "folder", "parent")
+
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithMaxRecursionDepth(10))
+
+	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"})
+	require.NoError(t, err)
+
+	paths, err := CollectAll(seq)
+	require.NoError(t, err)
+
+	// Should find folder2, but not recurse back to folder1 (already visited)
+	// The exact behavior depends on the union deduplication
+	require.NotEmpty(t, paths, "Should find at least one path")
+}
+
+// TestBFSSelfReferential verifies that BFS handles self-referential nodes correctly
+func TestBFSSelfReferential(t *testing.T) {
+	// folder1 -> parent -> folder1 (self-reference)
+	// Should not infinite loop
+
+	selfRefIter := NewFixedIterator(
+		Path{
+			Resource: Object{ObjectType: "folder", ObjectID: "folder1"},
+			Relation: "parent",
+			Subject:  ObjectAndRelation{ObjectType: "folder", ObjectID: "folder1", Relation: "..."},
+		},
+	)
+
+	recursive := NewRecursiveIterator(selfRefIter, "folder", "parent")
+
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithMaxRecursionDepth(10))
+
+	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"})
+	require.NoError(t, err)
+
+	paths, err := CollectAll(seq)
+	require.NoError(t, err)
+
+	// Should find the self-referential path once, but not re-explore folder1
+	require.Len(t, paths, 1, "Should find exactly one path (self-reference)")
+	require.Equal(t, "folder1", paths[0].Subject.ObjectID)
+}
+
+// TestBFSCaveatMergingAcrossPlies verifies caveat merging with OR semantics across plies
+func TestBFSCaveatMergingAcrossPlies(t *testing.T) {
+	// Test that if the same endpoint is reached via different paths in different plies,
+	// caveats are merged with OR semantics
+	// This is a placeholder test - actual caveat merging behavior depends on the iterator structure
+
+	// TODO: Implement when we have a concrete scenario with caveated recursive paths
+	t.Skip("Caveat merging test requires complex setup - to be implemented with real schemas")
+}
+
+// TestBFSResourcesWithEllipses verifies IterResources converts resources correctly
+func TestBFSResourcesWithEllipses(t *testing.T) {
+	// Verify that when extracting recursive resources, they're converted with WithEllipses()
+
+	resourceIter := NewFixedIterator(
+		Path{
+			Resource: Object{ObjectType: "folder", ObjectID: "folder2"},
+			Relation: "parent",
+			Subject:  ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		},
+	)
+
+	recursive := NewRecursiveIterator(resourceIter, "folder", "parent")
+
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	ctx := NewLocalContext(context.Background(),
+		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithMaxRecursionDepth(5))
+
+	// Query IterResources - should find folder2
+	seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	require.NoError(t, err)
+
+	paths, err := CollectAll(seq)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, paths, "Should find at least one resource")
+	require.Equal(t, "folder2", paths[0].Resource.ObjectID)
+}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const defaultMaxRecursionDepth = 50
@@ -37,18 +39,14 @@ func (r *RecursiveIterator) CheckImpl(ctx *Context, resources []Object, subject 
 	})
 }
 
-// IterSubjectsImpl implements iterative deepening for IterSubjects operations
+// IterSubjectsImpl implements BFS traversal for IterSubjects operations
 func (r *RecursiveIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return r.iterativeDeepening(ctx, func(ctx *Context, tree Iterator) (PathSeq, error) {
-		return ctx.IterSubjects(tree, resource)
-	})
+	return r.breadthFirstIterSubjects(ctx, resource)
 }
 
-// IterResourcesImpl implements iterative deepening for IterResources operations
+// IterResourcesImpl implements BFS traversal for IterResources operations
 func (r *RecursiveIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return r.iterativeDeepening(ctx, func(ctx *Context, tree Iterator) (PathSeq, error) {
-		return ctx.IterResources(tree, subject)
-	})
+	return r.breadthFirstIterResources(ctx, subject)
 }
 
 // iterativeDeepening executes the core iterative deepening algorithm
@@ -214,4 +212,192 @@ func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, e
 
 func (r *RecursiveIterator) ID() string {
 	return r.id
+}
+
+// breadthFirstIterSubjects implements BFS traversal for IterSubjects operations.
+func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Object) (PathSeq, error) {
+	ctx.TraceStep(r, "BFS IterSubjects starting with resource %s:%s", resource.ObjectType, resource.ObjectID)
+
+	return breadthFirstIter(
+		ctx,
+		r,
+		resource,
+		// Key function: get unique key for a node
+		func(node Object) string {
+			return node.Key()
+		},
+		// Execute: iterate subjects for a frontier object
+		func(depth1Tree Iterator, frontierNode Object) (PathSeq, error) {
+			return ctx.IterSubjects(depth1Tree, frontierNode)
+		},
+		// Extract recursive node from path
+		func(path Path) (Object, bool) {
+			if r.isRecursiveSubject(path.Subject) {
+				return GetObject(path.Subject), true
+			}
+			return Object{}, false
+		},
+	)
+}
+
+// breadthFirstIterResources implements BFS traversal for IterResources operations.
+func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+	ctx.TraceStep(r, "BFS IterResources starting with subject %s:%s#%s",
+		subject.ObjectType, subject.ObjectID, subject.Relation)
+
+	return breadthFirstIter(
+		ctx,
+		r,
+		subject,
+		ObjectAndRelationKey, // No need for a closure, just call directly!
+		// Execute: iterate resources for a frontier subject
+		func(depth1Tree Iterator, frontierNode ObjectAndRelation) (PathSeq, error) {
+			return ctx.IterResources(depth1Tree, frontierNode)
+		},
+		// Extract recursive node from path
+		func(path Path) (ObjectAndRelation, bool) {
+			if r.isRecursiveResource(path.Resource) {
+				return path.Resource.WithEllipses(), true
+			}
+			return ObjectAndRelation{}, false
+		},
+	)
+}
+
+// breadthFirstIter implements the core BFS algorithm for recursive iteration.
+// It is a generic function that works with both Object and ObjectAndRelation types.
+func breadthFirstIter[T any](
+	ctx *Context,
+	r *RecursiveIterator,
+	startNode T,
+	keyFn func(node T) string,
+	executeFn func(depth1Tree Iterator, frontierNode T) (PathSeq, error),
+	extractNodeFn func(Path) (node T, isRecursive bool),
+) (PathSeq, error) {
+	maxDepth := ctx.MaxRecursionDepth
+	if maxDepth == 0 {
+		maxDepth = defaultMaxRecursionDepth
+	}
+
+	// Build depth-1 tree once (one level of recursive expansion)
+	depth1Tree, err := r.buildTreeAtDepth(1)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(yield func(Path, error) bool) {
+		// Track seen paths globally by endpoints (for cross-ply deduplication)
+		pathsByEndpoint := make(map[string]Path)
+
+		// Track seen recursive nodes to prevent cycles
+		seenRecursiveNodes := make(map[string]bool)
+		seenRecursiveNodes[keyFn(startNode)] = true
+
+		// Initialize frontier with starting node
+		currentFrontier := []T{startNode}
+
+		for ply := 0; ply < maxDepth && len(currentFrontier) > 0; ply++ {
+			ctx.TraceStep(r, "Ply %d: exploring %d frontier nodes", ply, len(currentFrontier))
+
+			// Collect paths from this ply by endpoint
+			plyPaths := make(map[string]Path)
+			var nextFrontier []T
+
+			for _, frontierNode := range currentFrontier {
+				// Execute depth-1 tree on this node
+				pathSeq, err := executeFn(depth1Tree, frontierNode)
+				if err != nil {
+					yield(Path{}, fmt.Errorf("execution failed at ply %d: %w", ply, err))
+					return
+				}
+
+				for path, err := range pathSeq {
+					if err != nil {
+						yield(Path{}, err)
+						return
+					}
+
+					// Merge paths by endpoint with OR semantics
+					endpointKey := path.EndpointsKey()
+					if existing, found := plyPaths[endpointKey]; found {
+						merged, err := existing.MergeOr(path)
+						if err != nil {
+							yield(Path{}, fmt.Errorf("failed to merge paths: %w", err))
+							return
+						}
+						plyPaths[endpointKey] = merged
+					} else {
+						plyPaths[endpointKey] = path
+					}
+
+					// Extract recursive nodes for next ply
+					if node, isRecursive := extractNodeFn(path); isRecursive {
+						nodeKey := keyFn(node)
+						if !seenRecursiveNodes[nodeKey] {
+							seenRecursiveNodes[nodeKey] = true
+							nextFrontier = append(nextFrontier, node)
+							ctx.TraceStep(r, "Found recursive node: %s", nodeKey)
+						}
+					}
+				}
+			}
+
+			// Yield new paths and update global map
+			newPathCount := 0
+			for endpointKey, path := range plyPaths {
+				if existing, found := pathsByEndpoint[endpointKey]; found {
+					// Endpoint already seen in previous ply - merge but don't re-yield
+					merged, err := existing.MergeOr(path)
+					if err != nil {
+						yield(Path{}, fmt.Errorf("failed to merge paths globally: %w", err))
+						return
+					}
+					pathsByEndpoint[endpointKey] = merged
+				} else {
+					// New endpoint - add to global map and yield
+					pathsByEndpoint[endpointKey] = path
+					newPathCount++
+					if !yield(path, nil) {
+						return
+					}
+				}
+			}
+
+			ctx.TraceStep(r, "Ply %d: found %d unique paths (%d new), %d nodes for next ply",
+				ply, len(plyPaths), newPathCount, len(nextFrontier))
+
+			currentFrontier = nextFrontier
+		}
+
+		if len(currentFrontier) == 0 {
+			ctx.TraceStep(r, "BFS completed (no more recursive nodes)")
+		} else {
+			ctx.TraceStep(r, "BFS terminated at max depth %d", maxDepth)
+		}
+	}, nil
+}
+
+// isRecursiveSubject checks if a subject represents a recursive node that should be explored further.
+func (r *RecursiveIterator) isRecursiveSubject(subject ObjectAndRelation) bool {
+	// Must match the definition type
+	if subject.ObjectType != r.definitionName {
+		return false
+	}
+
+	// Must match the relation or be ellipsis/empty
+	// Empty relation means the subject reference doesn't specify a relation
+	// Ellipsis means "any relation on this object"
+	if subject.Relation != r.relationName &&
+		subject.Relation != "" &&
+		subject.Relation != tuple.Ellipsis {
+		return false
+	}
+
+	return true
+}
+
+// isRecursiveResource checks if a resource represents a recursive node that should be explored further.
+func (r *RecursiveIterator) isRecursiveResource(resource Object) bool {
+	// Resources don't have relations, just check type
+	return resource.ObjectType == r.definitionName
 }
