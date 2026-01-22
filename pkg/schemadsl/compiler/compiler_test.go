@@ -1113,6 +1113,18 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
+			"self with use self errors when used as left side of arrow",
+			withTenantPrefix,
+			`use self
+			definition thing {}
+			definition expressioned {
+			  relation other: thing
+				permission foos = self->other
+			}`,
+			"Expected end of statement or definition, found: TokenTypeRightArrow",
+			[]SchemaDefinition{},
+		},
+		{
 			"duplicate use of self pragmas errors",
 			withTenantPrefix,
 			`
