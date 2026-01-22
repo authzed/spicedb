@@ -70,7 +70,8 @@ func TestConsistency(t *testing.T) {
 			}
 		})
 	}
-	// NOTE: this test is defined separately because the integration test harness
+	// NOTE: this test is mostly a copy of runConsistencyTestSuiteForFile
+	// but it is defined separately because the integration test harness
 	// can't deal with logic that doesn't have a concrete relation associated with it
 	// as of time of writing.
 	// TODO: remove this test and rename self.yaml.skip to self.yaml
