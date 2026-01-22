@@ -173,9 +173,9 @@ func (pgd *pgDatastore) Watch(
 				currentTxn = newTxns[len(newTxns)-1]
 				for _, newTx := range newTxns {
 					currentTxn = postgresRevision{
-						snapshot:               currentTxn.snapshot.markComplete(newTx.optionalTxID.Uint64),
-						optionalTxID:           currentTxn.optionalTxID,
-						optionalNanosTimestamp: currentTxn.optionalNanosTimestamp,
+						snapshot:                      currentTxn.snapshot.markComplete(newTx.optionalTxID.Uint64),
+						optionalTxID:                  currentTxn.optionalTxID,
+						optionalInexactNanosTimestamp: currentTxn.optionalInexactNanosTimestamp,
 					}
 				}
 
@@ -229,10 +229,10 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 			}
 
 			ids = append(ids, postgresRevision{
-				snapshot:               nextSnapshot.markComplete(nextXID.Uint64),
-				optionalTxID:           nextXID,
-				optionalNanosTimestamp: nanosTimestamp,
-				optionalMetadata:       metadata,
+				snapshot:                      nextSnapshot.markComplete(nextXID.Uint64),
+				optionalTxID:                  nextXID,
+				optionalInexactNanosTimestamp: nanosTimestamp,
+				optionalMetadata:              metadata,
 			})
 		}
 		if rows.Err() != nil {

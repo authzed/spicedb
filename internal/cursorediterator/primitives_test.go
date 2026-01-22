@@ -20,8 +20,8 @@ func TestJoin(t *testing.T) {
 
 		items, errs := collectAll(result)
 
-		require.Len(t, items, 0)
-		require.Len(t, errs, 0)
+		require.Empty(t, items)
+		require.Empty(t, errs)
 	})
 
 	t.Run("single iterator", func(t *testing.T) {
@@ -180,7 +180,7 @@ func TestJoin(t *testing.T) {
 
 		items, lastError := collectUntilError(result)
 
-		require.Len(t, items, 0)
+		require.Empty(t, items)
 		require.Equal(t, testError, lastError)
 	})
 
@@ -245,7 +245,7 @@ func TestYieldsError(t *testing.T) {
 		items, errs := collectAll(result)
 
 		require.Len(t, items, 1)
-		require.Equal(t, "", items[0]) // Default value for string
+		require.Empty(t, items[0]) // Default value for string
 		require.Len(t, errs, 1)
 		require.Equal(t, testError, errs[0])
 	})
@@ -270,7 +270,7 @@ func TestYieldsError(t *testing.T) {
 		result(func(item string, err error) bool {
 			require.False(t, called, "yield should only be called once")
 			called = true
-			require.Equal(t, "", item)
+			require.Empty(t, item)
 			require.Equal(t, testError, err)
 			return false
 		})
@@ -366,7 +366,7 @@ func TestCountingIterator(t *testing.T) {
 
 		items := collectNoError(t, result)
 
-		require.Len(t, items, 0)
+		require.Empty(t, items)
 		require.Equal(t, 0, finalCount)
 	})
 
@@ -454,8 +454,8 @@ func TestUncursoredEmpty(t *testing.T) {
 
 		items, errs := collectAll(result)
 
-		require.Len(t, items, 0)
-		require.Len(t, errs, 0)
+		require.Empty(t, items)
+		require.Empty(t, errs)
 	})
 
 	t.Run("works with different types", func(t *testing.T) {
@@ -463,8 +463,8 @@ func TestUncursoredEmpty(t *testing.T) {
 
 		items, errs := collectAll(result)
 
-		require.Len(t, items, 0)
-		require.Len(t, errs, 0)
+		require.Empty(t, items)
+		require.Empty(t, errs)
 	})
 
 	t.Run("consumer function never called", func(t *testing.T) {
@@ -766,7 +766,7 @@ func TestSpanned(t *testing.T) {
 
 		items := collectNoError(t, result)
 
-		require.Len(t, items, 0)
+		require.Empty(t, items)
 
 		spans := spanRecorder.Ended()
 		require.Len(t, spans, 1)

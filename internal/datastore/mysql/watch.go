@@ -167,7 +167,7 @@ func (mds *Datastore) loadChanges(
 
 	for rows.Next() {
 		var txnID uint64
-		var metadata structpbWrapper
+		var metadata common.TransactionMetadata
 		err = rows.Scan(
 			&txnID,
 			&metadata,

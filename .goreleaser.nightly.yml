@@ -11,6 +11,8 @@ builds:
       - "amd64"
       - "arm64"
     mod_timestamp: "{{ .CommitTimestamp }}"
+    tags:
+      - "memoryprotection"
     ldflags:
       - "-s -w -checklinkname=0"
       - "-X github.com/jzelinskie/cobrautil/v2.Version=v{{ .Version }}"

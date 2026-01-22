@@ -23,7 +23,7 @@ func (t Test) All(ctx context.Context) {
 	c := Testcons{}
 	mg.CtxDeps(ctx, t.Unit, t.Integration, t.Steelthread, t.Image, t.Analyzers,
 		ds.Crdb, ds.Postgres, ds.Spanner, ds.Mysql,
-		c.Crdb, c.Spanner, c.Postgres, c.Mysql)
+		c.Crdb, c.Postgres, c.Spanner, c.Mysql)
 }
 
 // UnitCover Runs the unit tests and generates a coverage report
@@ -41,7 +41,7 @@ func (t Test) Unit(ctx context.Context) error {
 }
 
 func (Test) unit(ctx context.Context, coverage bool) error {
-	args := []string{"-tags", "ci,skipintegrationtests", "-race", "-timeout", "10m", "-count=1"}
+	args := []string{"-tags", "ci,skipintegrationtests,memoryprotection", "-race", "-timeout", "10m", "-count=1"}
 	if coverage {
 		fmt.Println("running unit tests with coverage")
 		args = append(args, coverageFlags...)
@@ -60,7 +60,12 @@ func (Test) Image(ctx context.Context) error {
 // Integration Run integration tests
 func (Test) Integration(ctx context.Context) error {
 	mg.Deps(checkDocker)
-	return goTest(ctx, "./internal/services/integrationtesting/...", "-tags", "ci,docker", "-timeout", "15m")
+	if err := goTest(ctx, "./internal/services/integrationtesting/...", "-tags", "ci,docker", "-timeout", "15m"); err != nil {
+		return err
+	}
+
+	// This also requires SpiceDB docker image to be built, but we have it isolated because of the dependency with go-rtml
+	return goTest(ctx, "./cmd/spicedb/memoryprotection/...", "-tags", "ci,docker,memoryprotection", "-timeout", "15m")
 }
 
 // e2e Runs e2e tests (new enemy)
@@ -92,7 +97,7 @@ func (Test) E2e(ctx context.Context, crdbVersion string) error {
 	return goDirTest(ctx, "./e2e/newenemy", "./...")
 }
 
-// Integration Run integration tests with cover
+// IntegrationCover Run integration tests with cover
 func (Test) IntegrationCover(ctx context.Context) error {
 	mg.Deps(checkDocker)
 	args := []string{"-tags", "ci,docker", "-timeout", "15m", "-count=1"}

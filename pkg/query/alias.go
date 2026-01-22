@@ -1,8 +1,13 @@
 package query
 
+import (
+	"github.com/google/uuid"
+)
+
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type Alias struct {
+	id       string
 	relation string
 	subIt    Iterator
 }
@@ -13,6 +18,7 @@ var _ Iterator = &Alias{}
 // to use the specified relation name.
 func NewAlias(relation string, subIt Iterator) *Alias {
 	return &Alias{
+		id:       uuid.NewString(),
 		relation: relation,
 		subIt:    subIt,
 	}
@@ -116,6 +122,40 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 		return nil, err
 	}
 
+	// If the relation on the alias iterator is the same
+	// as the subject relation on the subject, we have
+	// a self edge and want to yield it accordingly.
+	if a.relation == subject.Relation {
+		selfPath := Path{
+			Resource: GetObject(subject),
+			Relation: a.relation,
+			Subject:  subject,
+		}
+
+		combined := func(yield func(Path, error) bool) {
+			// Yield the self path first
+			if !yield(selfPath, nil) {
+				return
+			}
+
+			for subPath, err := range subSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+
+				// Then yield remaining paths with the rewrite
+				subPath.Relation = a.relation
+				if !yield(subPath, nil) {
+					return
+				}
+			}
+		}
+
+		return DeduplicatePathSeq(combined), nil
+	}
+
+	// else we don't have a subpath and do the normal logic
 	return func(yield func(Path, error) bool) {
 		for path, err := range subSeq {
 			if err != nil {
@@ -133,6 +173,7 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 
 func (a *Alias) Clone() Iterator {
 	return &Alias{
+		id:       uuid.NewString(),
 		relation: a.relation,
 		subIt:    a.subIt.Clone(),
 	}
@@ -151,5 +192,9 @@ func (a *Alias) Subiterators() []Iterator {
 }
 
 func (a *Alias) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Alias{relation: a.relation, subIt: newSubs[0]}, nil
+	return &Alias{id: uuid.NewString(), relation: a.relation, subIt: newSubs[0]}, nil
+}
+
+func (a *Alias) ID() string {
+	return a.id
 }

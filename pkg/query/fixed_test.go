@@ -11,10 +11,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Parallel()
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	// Create test paths
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")

@@ -19,6 +19,8 @@ builds:
       - "amd64"
       - "arm64"
     mod_timestamp: "{{ .CommitTimestamp }}"
+    tags:
+      - "memoryprotection"
     ldflags:
       - "-s -w -checklinkname=0"
       - "-X github.com/jzelinskie/cobrautil/v2.Version=v{{ .Version }}"
@@ -95,7 +97,7 @@ brews:
         if build.head?
           versionVar = "github.com/jzelinskie/cobrautil/v2.Version"
           versionCmd = "$(git describe --always --abbrev=7 --dirty --tags)"
-          system "go build --ldflags '-s -w -checklinkname=0 -X #{versionVar}=#{versionCmd}' ./cmd/spicedb"
+          system "go build -tags memoryprotection --ldflags '-s -w -checklinkname=0 -X #{versionVar}=#{versionCmd}' ./cmd/spicedb"
         end
         bin.install "spicedb"
         generate_completions_from_executable(bin/"spicedb", "completion", shells: [:bash, :zsh, :fish])

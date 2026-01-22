@@ -309,7 +309,7 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.Relati
 			panic("unknown set operation")
 		}
 
-		children := []*core.RelationTupleTreeNode{}
+		children := make([]*core.RelationTupleTreeNode, 0, len(t.Intermediate.Children))
 		for _, child := range t.Intermediate.Children {
 			children = append(children, TranslateRelationshipTree(child))
 		}
@@ -363,8 +363,9 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 			panic("unknown set operation")
 		}
 
-		var children []*v1.PermissionRelationshipTree
-		for _, child := range node.GetIntermediateNode().ChildNodes {
+		childNodes := node.GetIntermediateNode().ChildNodes
+		children := make([]*v1.PermissionRelationshipTree, 0, len(childNodes))
+		for _, child := range childNodes {
 			children = append(children, TranslateExpansionTree(child))
 		}
 
@@ -899,7 +900,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	return nil
 }
 
-func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.CaveatReader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
+func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.Reader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 	if foundSubject.GetCaveatExpression() != nil {
@@ -1072,32 +1073,34 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			numWritten += streamWritten
 
 			// The stream has terminated because we're awaiting namespace and/or caveat information
-			if len(adapter.awaitingNamespaces) > 0 {
-				nsDefs, err := rwt.LookupNamespacesWithNames(stream.Context(), adapter.awaitingNamespaces)
+			if len(adapter.awaitingNamespaces) > 0 || len(adapter.awaitingCaveats) > 0 {
+				schemaReader, err := rwt.SchemaReader()
 				if err != nil {
 					return err
 				}
 
-				for _, nsDef := range nsDefs {
-					newDef, err := schema.NewDefinition(ts, nsDef.Definition)
-					if err != nil {
-						return err
+				allNames := make([]string, 0, len(adapter.awaitingNamespaces)+len(adapter.awaitingCaveats))
+				allNames = append(allNames, adapter.awaitingNamespaces...)
+				allNames = append(allNames, adapter.awaitingCaveats...)
+
+				foundDefs, err := schemaReader.LookupSchemaDefinitionsByNames(stream.Context(), allNames)
+				if err != nil {
+					return err
+				}
+
+				for _, def := range foundDefs {
+					if nsDef, ok := def.(*core.NamespaceDefinition); ok {
+						newDef, err := schema.NewDefinition(ts, nsDef)
+						if err != nil {
+							return err
+						}
+						loadedNamespaces[nsDef.Name] = newDef
+					} else if caveatDef, ok := def.(*core.CaveatDefinition); ok {
+						loadedCaveats[caveatDef.Name] = caveatDef
 					}
-
-					loadedNamespaces[nsDef.Definition.Name] = newDef
 				}
+
 				adapter.awaitingNamespaces = nil
-			}
-
-			if len(adapter.awaitingCaveats) > 0 {
-				caveats, err := rwt.LookupCaveatsWithNames(stream.Context(), adapter.awaitingCaveats)
-				if err != nil {
-					return err
-				}
-
-				for _, caveat := range caveats {
-					loadedCaveats[caveat.Definition.Name] = caveat.Definition
-				}
 				adapter.awaitingCaveats = nil
 			}
 		}
@@ -1156,7 +1159,7 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 
 	reader := ds.SnapshotReader(atRevision)
 
-	namespaces, err := reader.ListAllNamespaces(ctx)
+	namespaces, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}

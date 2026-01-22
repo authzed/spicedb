@@ -68,9 +68,7 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 
 	// If there is not yet a cached estimated bytes per relationship, read a few relationships and then
 	// compute the average bytes per relationship.
-	sd.cachedEstimatedBytesPerRelationshipLock.RLock()
-	estimatedBytesPerRelationship := sd.cachedEstimatedBytesPerRelationship
-	sd.cachedEstimatedBytesPerRelationshipLock.RUnlock()
+	estimatedBytesPerRelationship := sd.cachedEstimatedBytesPerRelationship.Load()
 
 	if estimatedBytesPerRelationship == 0 {
 		riter := sd.client.Single().Query(ctx, spanner.Statement{SQL: querySomeRandomRelationships})
@@ -121,9 +119,7 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 			return datastore.Stats{}, spiceerrors.MustBugf("could not cast estimated bytes to uint64: %v", err)
 		}
 		if estimatedBytesPerRelationship > 0 {
-			sd.cachedEstimatedBytesPerRelationshipLock.Lock()
-			sd.cachedEstimatedBytesPerRelationship = estimatedBytesPerRelationship
-			sd.cachedEstimatedBytesPerRelationshipLock.Unlock()
+			sd.cachedEstimatedBytesPerRelationship.Store(estimatedBytesPerRelationship)
 		}
 	}
 
@@ -131,7 +127,7 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 		estimatedBytesPerRelationship = defaultEstimatedBytesPerRelationships // Use a default
 	}
 
-	// Reference: https://cloud.google.com/spanner/docs/introspection/table-sizes-statistics
+	// Reference: https://docs.cloud.google.com/spanner/docs/introspection/table-sizes-statistics
 	queryRelationshipByteEstimate := fmt.Sprintf(`SELECT used_bytes FROM %s WHERE
 		interval_end = (
 			SELECT MAX(interval_end)
@@ -139,7 +135,7 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 		)
 		AND table_name = '%s'`, sd.tableSizesStatsTable, sd.tableSizesStatsTable, tableRelationship)
 
-	var byteEstimate spanner.NullInt64
+	var byteEstimate spanner.NullFloat64
 	if err := sd.client.Single().Query(ctx, spanner.Statement{SQL: queryRelationshipByteEstimate}).Do(func(r *spanner.Row) error {
 		return r.Columns(&byteEstimate)
 	}); err != nil {
@@ -157,7 +153,7 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 		}
 	}
 
-	uintByteEstimate, err := safecast.Convert[uint64](byteEstimate.Int64)
+	uintByteEstimate, err := safecast.Convert[uint64](byteEstimate.Float64)
 	if err != nil {
 		return datastore.Stats{}, spiceerrors.MustBugf("unable to cast byteEstimate to uint64: %v", err)
 	}

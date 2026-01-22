@@ -306,8 +306,8 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 			}
 
 			// Verify that the compiled schema and v2 schema have consistent data
-			require.Equal(t, len(compiled.ObjectDefinitions), len(v2Schema.Definitions()))
-			require.Equal(t, len(compiled.CaveatDefinitions), len(v2Schema.Caveats()))
+			require.Len(t, v2Schema.Definitions(), len(compiled.ObjectDefinitions))
+			require.Len(t, v2Schema.Caveats(), len(compiled.CaveatDefinitions))
 
 			// Check that each compiled definition maps to a v2 definition
 			for _, compiledDef := range compiled.ObjectDefinitions {
@@ -327,8 +327,8 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 					}
 				}
 
-				require.Equal(t, compiledRelations, len(v2Def.Relations()))
-				require.Equal(t, compiledPermissions, len(v2Def.Permissions()))
+				require.Len(t, v2Def.Relations(), compiledRelations)
+				require.Len(t, v2Def.Permissions(), compiledPermissions)
 			}
 
 			// Check that each compiled caveat maps to a v2 caveat

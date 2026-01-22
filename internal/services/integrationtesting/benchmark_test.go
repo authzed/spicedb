@@ -54,7 +54,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "tom",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.GreaterOrEqual(b, len(results), 0)
+				require.NotEmpty(b, results)
 				return err
 			},
 		},
@@ -70,7 +70,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "someguy",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.GreaterOrEqual(b, len(results), 0)
+				require.NotEmpty(b, results)
 				return err
 			},
 		},
@@ -86,7 +86,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "tom",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.GreaterOrEqual(b, len(results), 0)
+				require.NotEmpty(b, results)
 				return err
 			},
 		},
@@ -102,7 +102,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "tom",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.Equal(b, len(results), 499)
+				require.Len(b, results, 499)
 				return err
 			},
 		},
@@ -190,7 +190,6 @@ func BenchmarkServices(b *testing.B) {
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10),
 						dsconfig.WithMaxRetries(50),
-						dsconfig.WithRequestHedgingEnabled(false),
 						dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
 					))
 

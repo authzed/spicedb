@@ -2,9 +2,9 @@
 package datastore
 
 import (
+	"fmt"
 	types "github.com/authzed/spicedb/pkg/caveats/types"
 	defaults "github.com/creasty/defaults"
-	helpers "github.com/ecordell/optgen/helpers"
 	"time"
 )
 
@@ -91,60 +91,149 @@ func (c *Config) ToOption() ConfigOption {
 }
 
 // DebugMap returns a map form of Config for debugging
-func (c Config) DebugMap() map[string]any {
+func (c *Config) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["Engine"] = helpers.DebugValue(c.Engine, false)
-	debugMap["URI"] = helpers.SensitiveDebugValue(c.URI)
-	debugMap["GCWindow"] = helpers.DebugValue(c.GCWindow, false)
-	debugMap["LegacyFuzzing"] = helpers.DebugValue(c.LegacyFuzzing, false)
-	debugMap["RevisionQuantization"] = helpers.DebugValue(c.RevisionQuantization, false)
-	debugMap["MaxRevisionStalenessPercent"] = helpers.DebugValue(c.MaxRevisionStalenessPercent, false)
-	debugMap["CredentialsProviderName"] = helpers.DebugValue(c.CredentialsProviderName, false)
-	debugMap["ReadConnPool"] = helpers.DebugValue(c.ReadConnPool, false)
-	debugMap["WriteConnPool"] = helpers.DebugValue(c.WriteConnPool, false)
-	debugMap["ReadOnly"] = helpers.DebugValue(c.ReadOnly, false)
-	debugMap["EnableDatastoreMetrics"] = helpers.DebugValue(c.EnableDatastoreMetrics, false)
-	debugMap["DisableStats"] = helpers.DebugValue(c.DisableStats, false)
-	debugMap["IncludeQueryParametersInTraces"] = helpers.DebugValue(c.IncludeQueryParametersInTraces, false)
-	debugMap["ReadReplicaConnPool"] = helpers.DebugValue(c.ReadReplicaConnPool, false)
-	debugMap["ReadReplicaURIs"] = helpers.SensitiveDebugValue(c.ReadReplicaURIs)
-	debugMap["ReadReplicaCredentialsProviderName"] = helpers.DebugValue(c.ReadReplicaCredentialsProviderName, false)
-	debugMap["BootstrapFiles"] = helpers.DebugValue(c.BootstrapFiles, true)
-	debugMap["BootstrapFileContents"] = helpers.DebugValue(c.BootstrapFileContents, false)
-	debugMap["BootstrapOverwrite"] = helpers.DebugValue(c.BootstrapOverwrite, false)
-	debugMap["BootstrapTimeout"] = helpers.DebugValue(c.BootstrapTimeout, false)
-	debugMap["RequestHedgingEnabled"] = helpers.DebugValue(c.RequestHedgingEnabled, false)
-	debugMap["RequestHedgingInitialSlowValue"] = helpers.DebugValue(c.RequestHedgingInitialSlowValue, false)
-	debugMap["RequestHedgingMaxRequests"] = helpers.DebugValue(c.RequestHedgingMaxRequests, false)
-	debugMap["RequestHedgingQuantile"] = helpers.DebugValue(c.RequestHedgingQuantile, false)
-	debugMap["FollowerReadDelay"] = helpers.DebugValue(c.FollowerReadDelay, false)
-	debugMap["MaxRetries"] = helpers.DebugValue(c.MaxRetries, false)
-	debugMap["OverlapKey"] = helpers.DebugValue(c.OverlapKey, false)
-	debugMap["OverlapStrategy"] = helpers.DebugValue(c.OverlapStrategy, false)
-	debugMap["EnableConnectionBalancing"] = helpers.DebugValue(c.EnableConnectionBalancing, false)
-	debugMap["ConnectRate"] = helpers.DebugValue(c.ConnectRate, false)
-	debugMap["WriteAcquisitionTimeout"] = helpers.DebugValue(c.WriteAcquisitionTimeout, false)
-	debugMap["GCInterval"] = helpers.DebugValue(c.GCInterval, false)
-	debugMap["GCMaxOperationTime"] = helpers.DebugValue(c.GCMaxOperationTime, false)
-	debugMap["RelaxedIsolationLevel"] = helpers.DebugValue(c.RelaxedIsolationLevel, false)
-	debugMap["SpannerCredentialsFile"] = helpers.DebugValue(c.SpannerCredentialsFile, false)
-	debugMap["SpannerCredentialsJSON"] = helpers.SensitiveDebugValue(c.SpannerCredentialsJSON)
-	debugMap["SpannerEmulatorHost"] = helpers.DebugValue(c.SpannerEmulatorHost, false)
-	debugMap["SpannerMinSessions"] = helpers.DebugValue(c.SpannerMinSessions, false)
-	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
-	debugMap["SpannerDatastoreMetricsOption"] = helpers.DebugValue(c.SpannerDatastoreMetricsOption, false)
-	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
-	debugMap["RelationshipIntegrityEnabled"] = helpers.DebugValue(c.RelationshipIntegrityEnabled, false)
-	debugMap["RelationshipIntegrityCurrentKey"] = helpers.DebugValue(c.RelationshipIntegrityCurrentKey, false)
-	debugMap["RelationshipIntegrityExpiredKeys"] = helpers.DebugValue(c.RelationshipIntegrityExpiredKeys, false)
-	debugMap["WatchBufferLength"] = helpers.DebugValue(c.WatchBufferLength, false)
-	debugMap["WatchBufferWriteTimeout"] = helpers.DebugValue(c.WatchBufferWriteTimeout, false)
-	debugMap["WatchConnectTimeout"] = helpers.DebugValue(c.WatchConnectTimeout, false)
-	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
-	debugMap["AllowedMigrations"] = helpers.DebugValue(c.AllowedMigrations, false)
-	debugMap["ExperimentalColumnOptimization"] = helpers.DebugValue(c.ExperimentalColumnOptimization, false)
-	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
+	if c.Engine == "" {
+		debugMap["Engine"] = "(empty)"
+	} else {
+		debugMap["Engine"] = c.Engine
+	}
+	if c.URI == "" {
+		debugMap["URI"] = "(empty)"
+	} else {
+		debugMap["URI"] = "(sensitive)"
+	}
+	debugMap["GCWindow"] = c.GCWindow
+	debugMap["LegacyFuzzing"] = c.LegacyFuzzing
+	debugMap["RevisionQuantization"] = c.RevisionQuantization
+	debugMap["MaxRevisionStalenessPercent"] = c.MaxRevisionStalenessPercent
+	if c.CredentialsProviderName == "" {
+		debugMap["CredentialsProviderName"] = "(empty)"
+	} else {
+		debugMap["CredentialsProviderName"] = c.CredentialsProviderName
+	}
+	debugMap["ReadConnPool"] = c.ReadConnPool
+	debugMap["WriteConnPool"] = c.WriteConnPool
+	debugMap["ReadOnly"] = c.ReadOnly
+	debugMap["EnableDatastoreMetrics"] = c.EnableDatastoreMetrics
+	debugMap["DisableStats"] = c.DisableStats
+	debugMap["IncludeQueryParametersInTraces"] = c.IncludeQueryParametersInTraces
+	debugMap["ReadReplicaConnPool"] = c.ReadReplicaConnPool
+	debugMap["ReadReplicaURIs"] = "(sensitive)"
+	if c.ReadReplicaCredentialsProviderName == "" {
+		debugMap["ReadReplicaCredentialsProviderName"] = "(empty)"
+	} else {
+		debugMap["ReadReplicaCredentialsProviderName"] = c.ReadReplicaCredentialsProviderName
+	}
+	if c.BootstrapFiles == nil {
+		debugMap["BootstrapFiles"] = "nil"
+	} else {
+		debugBootstrapFiles := make([]any, 0, len(c.BootstrapFiles))
+		for _, v := range c.BootstrapFiles {
+			if v == "" {
+				debugBootstrapFiles = append(debugBootstrapFiles, "(empty)")
+			} else {
+				debugBootstrapFiles = append(debugBootstrapFiles, v)
+			}
+		}
+		debugMap["BootstrapFiles"] = debugBootstrapFiles
+	}
+	if c.BootstrapFileContents == nil {
+		debugMap["BootstrapFileContents"] = "nil"
+	} else {
+		debugMap["BootstrapFileContents"] = fmt.Sprintf("(map of size %d)", len(c.BootstrapFileContents))
+	}
+	debugMap["BootstrapOverwrite"] = c.BootstrapOverwrite
+	debugMap["BootstrapTimeout"] = c.BootstrapTimeout
+	debugMap["RequestHedgingEnabled"] = c.RequestHedgingEnabled
+	debugMap["RequestHedgingInitialSlowValue"] = c.RequestHedgingInitialSlowValue
+	debugMap["RequestHedgingMaxRequests"] = c.RequestHedgingMaxRequests
+	debugMap["RequestHedgingQuantile"] = c.RequestHedgingQuantile
+	debugMap["FollowerReadDelay"] = c.FollowerReadDelay
+	debugMap["MaxRetries"] = c.MaxRetries
+	if c.OverlapKey == "" {
+		debugMap["OverlapKey"] = "(empty)"
+	} else {
+		debugMap["OverlapKey"] = c.OverlapKey
+	}
+	if c.OverlapStrategy == "" {
+		debugMap["OverlapStrategy"] = "(empty)"
+	} else {
+		debugMap["OverlapStrategy"] = c.OverlapStrategy
+	}
+	debugMap["EnableConnectionBalancing"] = c.EnableConnectionBalancing
+	debugMap["ConnectRate"] = c.ConnectRate
+	debugMap["WriteAcquisitionTimeout"] = c.WriteAcquisitionTimeout
+	debugMap["GCInterval"] = c.GCInterval
+	debugMap["GCMaxOperationTime"] = c.GCMaxOperationTime
+	debugMap["RelaxedIsolationLevel"] = c.RelaxedIsolationLevel
+	if c.SpannerCredentialsFile == "" {
+		debugMap["SpannerCredentialsFile"] = "(empty)"
+	} else {
+		debugMap["SpannerCredentialsFile"] = c.SpannerCredentialsFile
+	}
+	debugMap["SpannerCredentialsJSON"] = "(sensitive)"
+	if c.SpannerEmulatorHost == "" {
+		debugMap["SpannerEmulatorHost"] = "(empty)"
+	} else {
+		debugMap["SpannerEmulatorHost"] = c.SpannerEmulatorHost
+	}
+	debugMap["SpannerMinSessions"] = c.SpannerMinSessions
+	debugMap["SpannerMaxSessions"] = c.SpannerMaxSessions
+	if c.SpannerDatastoreMetricsOption == "" {
+		debugMap["SpannerDatastoreMetricsOption"] = "(empty)"
+	} else {
+		debugMap["SpannerDatastoreMetricsOption"] = c.SpannerDatastoreMetricsOption
+	}
+	if c.TablePrefix == "" {
+		debugMap["TablePrefix"] = "(empty)"
+	} else {
+		debugMap["TablePrefix"] = c.TablePrefix
+	}
+	debugMap["RelationshipIntegrityEnabled"] = c.RelationshipIntegrityEnabled
+	debugMap["RelationshipIntegrityCurrentKey"] = c.RelationshipIntegrityCurrentKey
+	if c.RelationshipIntegrityExpiredKeys == nil {
+		debugMap["RelationshipIntegrityExpiredKeys"] = "nil"
+	} else {
+		debugMap["RelationshipIntegrityExpiredKeys"] = fmt.Sprintf("(slice of size %d)", len(c.RelationshipIntegrityExpiredKeys))
+	}
+	debugMap["WatchBufferLength"] = c.WatchBufferLength
+	debugMap["WatchBufferWriteTimeout"] = c.WatchBufferWriteTimeout
+	debugMap["WatchConnectTimeout"] = c.WatchConnectTimeout
+	if c.MigrationPhase == "" {
+		debugMap["MigrationPhase"] = "(empty)"
+	} else {
+		debugMap["MigrationPhase"] = c.MigrationPhase
+	}
+	if c.AllowedMigrations == nil {
+		debugMap["AllowedMigrations"] = "nil"
+	} else {
+		debugMap["AllowedMigrations"] = fmt.Sprintf("(slice of size %d)", len(c.AllowedMigrations))
+	}
+	debugMap["ExperimentalColumnOptimization"] = c.ExperimentalColumnOptimization
+	debugMap["EnableRevisionHeartbeat"] = c.EnableRevisionHeartbeat
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of Config for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (c *Config) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(c.DebugMap())
 }
 
 // ConfigWithOptions configures an existing Config with the passed in options set

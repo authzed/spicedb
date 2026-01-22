@@ -143,26 +143,30 @@ func (m *mockedReader) LookupCounters(ctx context.Context) ([]datastore.Relation
 	panic("not implemented")
 }
 
-func (m *mockedReader) ReadCaveatByName(_ context.Context, _ string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
+func (m *mockedReader) LegacyReadCaveatByName(_ context.Context, _ string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
 	panic("not implemented")
 }
 
-func (m *mockedReader) ListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
+func (m *mockedReader) LegacyListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
 	panic("not implemented")
 }
 
-func (m *mockedReader) LookupCaveatsWithNames(_ context.Context, _ []string) ([]datastore.RevisionedCaveat, error) {
+func (m *mockedReader) LegacyLookupCaveatsWithNames(_ context.Context, _ []string) ([]datastore.RevisionedCaveat, error) {
 	panic("not implemented")
 }
 
-func (m *mockedReader) ReadNamespaceByName(_ context.Context, _ string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (m *mockedReader) LegacyReadNamespaceByName(_ context.Context, _ string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	panic("not implemented")
 }
 
-func (m *mockedReader) ListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
+func (m *mockedReader) LegacyListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
 	panic("not implemented")
 }
 
-func (m *mockedReader) LookupNamespacesWithNames(_ context.Context, _ []string) ([]datastore.RevisionedNamespace, error) {
+func (m *mockedReader) LegacyLookupNamespacesWithNames(_ context.Context, _ []string) ([]datastore.RevisionedNamespace, error) {
+	panic("not implemented")
+}
+
+func (m *mockedReader) SchemaReader() (datastore.SchemaReader, error) {
 	panic("not implemented")
 }

@@ -33,7 +33,7 @@ const (
 	errReadCaveat    = "unable to read caveat: %w"
 )
 
-func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (r *pgReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	filteredReadCaveat := r.aliveFilter(readCaveat)
 	sql, args, err := filteredReadCaveat.Where(sq.Eq{schema.ColCaveatName: name}).ToSql()
 	if err != nil {
@@ -62,14 +62,14 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	return &def, rev, nil
 }
 
-func (r *pgReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (r *pgReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	if len(caveatNames) == 0 {
 		return nil, nil
 	}
 	return r.lookupCaveats(ctx, caveatNames)
 }
 
-func (r *pgReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (r *pgReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return r.lookupCaveats(ctx, nil)
 }
 
@@ -112,7 +112,7 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 	return caveats, nil
 }
 
-func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt *pgReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	if len(caveats) == 0 {
 		return nil
 	}
@@ -147,7 +147,7 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
+func (rwt *pgReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	// mark current caveats as deleted
 	return rwt.deleteCaveatsFromNames(ctx, names)
 }

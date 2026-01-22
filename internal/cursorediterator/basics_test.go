@@ -31,8 +31,8 @@ func TestEmpty(t *testing.T) {
 
 			items, errs := collectAll(emptySeq)
 
-			require.Len(t, items, 0)
-			require.Len(t, errs, 0)
+			require.Empty(t, items)
+			require.Empty(t, errs)
 		})
 	}
 }

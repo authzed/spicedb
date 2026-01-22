@@ -24,6 +24,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/dockertest/v3"
+	"github.com/prometheus/client_golang/prometheus"
+	promclient "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -85,6 +88,9 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 			return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 		})
 
@@ -116,9 +122,11 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(ctx, uri, options...)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 			return ds
 		})
-		defer ds.Close()
 
 		tf(t, ds)
 	}
@@ -138,7 +146,6 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	for _, quantization := range quantizationDurations {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
 			t.Parallel()
-			require := require.New(t)
 			ctx := context.Background()
 
 			ds := engine.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -151,27 +158,29 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 					DebugAnalyzeBeforeStatistics(),
 					WithAcquireTimeout(5*time.Second),
 				)
-				require.NoError(err)
+				require.NoError(t, err)
 				return ds
 			})
 			t.Cleanup(func() {
-				require.NoError(ds.Close())
+				_ = ds.Close()
 			})
 
-			r, err := ds.ReadyState(ctx)
-			require.NoError(err)
-			require.True(r.IsReady)
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				r, err := ds.ReadyState(ctx)
+				require.NoError(c, err)
+				require.True(c, r.IsReady, "datastore not ready: %s", r.Message)
+			}, 3*time.Second, 50*time.Millisecond)
 
 			// Revisions should be at least the follower read delay amount in the past
 			for start := time.Now(); time.Since(start) < 50*time.Millisecond; {
 				testRevision, err := ds.OptimizedRevision(ctx)
-				require.NoError(err)
+				require.NoError(t, err)
 
 				nowRevision, err := ds.HeadRevision(ctx)
-				require.NoError(err)
+				require.NoError(t, err)
 
 				diff := nowRevision.(revisions.HLCRevision).TimestampNanoSec() - testRevision.(revisions.HLCRevision).TimestampNanoSec()
-				require.True(diff > followerReadDelay.Nanoseconds())
+				require.Greater(t, diff, followerReadDelay.Nanoseconds())
 			}
 		})
 	}
@@ -208,6 +217,9 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 
 			wrapped, err := proxy.NewRelationshipIntegrityProxy(ds, defaultKeyForTesting, nil)
 			require.NoError(t, err)
@@ -232,6 +244,9 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 				WithAcquireTimeout(5*time.Second),
 			)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 			return ds
 		})
 
@@ -303,6 +318,9 @@ func TestWatchFeatureDetection(t *testing.T) {
 
 			ds, err := NewCRDBDatastore(ctx, connStrings[unprivileged], WithAcquireTimeout(5*time.Second))
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = ds.Close()
+			})
 
 			features, err := ds.Features(ctx)
 			require.NoError(t, err)
@@ -315,7 +333,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 
 				_, errChan := ds.Watch(ctx, headRevision, datastore.WatchJustRelationships())
 				err = <-errChan
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Contains(t, err.Error(), "watch is currently disabled")
 			}
 		})
@@ -809,18 +827,18 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 		})
 		require.NoError(err)
 
-		err = rwt.DeleteNamespaces(ctx, []string{"resource2"}, datastore.DeleteNamespacesAndRelationships)
+		err = rwt.LegacyDeleteNamespaces(ctx, []string{"resource2"}, datastore.DeleteNamespacesAndRelationships)
 		require.NoError(err)
 
-		err = rwt.DeleteCaveats(ctx, []string{"somecaveat2"})
+		err = rwt.LegacyDeleteCaveats(ctx, []string{"somecaveat2"})
 		require.NoError(err)
 
-		err = rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{
+		err = rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{
 			Name: "somenewnamespace",
 		})
 		require.NoError(err)
 
-		err = rwt.WriteCaveats(ctx, []*core.CaveatDefinition{{
+		err = rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{{
 			Name: "somenewcaveat",
 		}})
 		require.NoError(err)
@@ -871,4 +889,74 @@ func TestWrapErr(t *testing.T) {
 	// unmodified so that higher layers can interpret them - in this case
 	// so we can return ResourceExhausted if we see this error.
 	require.Equal(t, wrapError(pool.ErrAcquire), pool.ErrAcquire)
+}
+
+func TestRegisterPrometheusCollectors(t *testing.T) {
+	const (
+		readMaxConns  = 10
+		writeMaxConns = 20
+	)
+	// Create read & write pools
+	readPoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", readMaxConns))
+	require.NoError(t, err)
+	readPool, err := pool.NewRetryPool(t.Context(), "read", readPoolConfig, nil, 18, 20)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		readPool.Close()
+	})
+
+	writePoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", writeMaxConns))
+	require.NoError(t, err)
+	writePool, err := pool.NewRetryPool(t.Context(), "read", writePoolConfig, nil, 18, 20)
+	require.NoError(t, err)
+
+	// Create datastore with those pools
+	cds := &crdbDatastore{readPool: readPool, writePool: writePool, cancel: func() {}}
+	t.Cleanup(func() {
+		_ = cds.Close()
+	})
+
+	err = cds.registerPrometheusCollectors(false)
+	require.NoError(t, err)
+	require.Empty(t, cds.collectors)
+
+	// Register collectors and verify the values of the metrics
+	err = cds.registerPrometheusCollectors(true)
+	require.NoError(t, err)
+	require.Len(t, cds.collectors, 2)
+
+	metricFamily, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	var maxConnsMetricFamily *promclient.MetricFamily
+	for _, metric := range metricFamily {
+		if metric.GetName() == "pgxpool_max_conns" {
+			maxConnsMetricFamily = metric
+			break
+		}
+	}
+	require.NotNil(t, maxConnsMetricFamily)
+	require.Len(t, maxConnsMetricFamily.GetMetric(), 2)
+	metrics := []*promclient.Metric{maxConnsMetricFamily.GetMetric()[0], maxConnsMetricFamily.GetMetric()[1]}
+
+	var poolReadMetric, poolWriteMetric *promclient.Metric
+
+	for _, metric := range metrics {
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == "pool_usage" {
+				switch label.GetValue() {
+				case "read":
+					poolReadMetric = metric
+				case "write":
+					poolWriteMetric = metric
+				default:
+					t.Errorf("unknown label value for pool_usage")
+				}
+			}
+		}
+	}
+
+	require.NotNil(t, poolWriteMetric)
+	require.Equal(t, float64(writeMaxConns), poolWriteMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
+	require.NotNil(t, poolReadMetric)
+	require.Equal(t, float64(readMaxConns), poolReadMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
 }

@@ -27,11 +27,12 @@ type ValidatedSchemaChanges struct {
 	newCaveatDefNames    *mapz.Set[string]
 	newObjectDefNames    *mapz.Set[string]
 	additiveOnly         bool
+	schemaText           string
 }
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
-func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool) (*ValidatedSchemaChanges, error) {
+func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool, schemaText string) (*ValidatedSchemaChanges, error) {
 	// 1) Validate the caveats defined.
 	newCaveatDefNames := mapz.NewSet[string]()
 	for _, caveatDef := range compiled.CaveatDefinitions {
@@ -67,6 +68,7 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 		newCaveatDefNames:    newCaveatDefNames,
 		newObjectDefNames:    newObjectDefNames,
 		additiveOnly:         additiveOnly,
+		schemaText:           schemaText,
 	}, nil
 }
 
@@ -92,17 +94,30 @@ type AppliedSchemaChanges struct {
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
-	existingCaveats, err := rwt.ListAllCaveats(ctx)
+	schemaReader, err := rwt.SchemaReader()
 	if err != nil {
 		return nil, err
 	}
 
-	existingObjectDefs, err := rwt.ListAllNamespaces(ctx)
+	existingCaveatDefs, err := schemaReader.ListAllCaveatDefinitions(ctx)
 	if err != nil {
 		return nil, err
 	}
+	existingCaveats := make([]*core.CaveatDefinition, 0, len(existingCaveatDefs))
+	for _, caveatDef := range existingCaveatDefs {
+		existingCaveats = append(existingCaveats, caveatDef.Definition)
+	}
 
-	return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
+	existingTypeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	existingObjectDefs := make([]*core.NamespaceDefinition, 0, len(existingTypeDefs))
+	for _, typeDef := range existingTypeDefs {
+		existingObjectDefs = append(existingObjectDefs, typeDef.Definition)
+	}
+
+	return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, existingCaveats, existingObjectDefs)
 }
 
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against
@@ -190,34 +205,43 @@ func ApplySchemaChangesOverExisting(
 		}
 	}
 
-	// Write the new/changes caveats.
-	if len(caveatDefsWithChanges) > 0 {
-		if err := rwt.WriteCaveats(ctx, caveatDefsWithChanges); err != nil {
-			return nil, err
-		}
-	}
+	if validated.additiveOnly {
+		// DEPRECATED: Use of legacy methods for additive-only schema changes is deprecated.
+		// This path is maintained for backwards compatibility but will be removed in a future version.
 
-	// Write the new/changed namespaces.
-	if len(objectDefsWithChanges) > 0 {
-		if err := rwt.WriteNamespaces(ctx, objectDefsWithChanges...); err != nil {
-			return nil, err
-		}
-	}
-
-	if !validated.additiveOnly {
-		// Delete the removed namespaces. Note that we don't need to delete relationships here,
-		// as that is handled by the ensureNoRelationshipsExistWithResourceType call above.
-		if removedObjectDefNames.Len() > 0 {
-			if err := rwt.DeleteNamespaces(ctx, removedObjectDefNames.AsSlice(), datastore.DeleteNamespacesOnly); err != nil {
+		// Write the new/changes caveats.
+		if len(caveatDefsWithChanges) > 0 {
+			if err := rwt.LegacyWriteCaveats(ctx, caveatDefsWithChanges); err != nil {
 				return nil, err
 			}
 		}
 
-		// Delete the removed caveats.
-		if !removedCaveatDefNames.IsEmpty() {
-			if err := rwt.DeleteCaveats(ctx, removedCaveatDefNames.AsSlice()); err != nil {
+		// Write the new/changed namespaces.
+		if len(objectDefsWithChanges) > 0 {
+			if err := rwt.LegacyWriteNamespaces(ctx, objectDefsWithChanges...); err != nil {
 				return nil, err
 			}
+		}
+	} else {
+		// Use the new WriteSchema method for non-additive changes, which handles
+		// writing and deleting in a single operation.
+		schemaWriter, err := rwt.SchemaWriter()
+		if err != nil {
+			return nil, err
+		}
+
+		// Build the full list of schema definitions to write
+		definitions := make([]datastore.SchemaDefinition, 0, len(validated.compiled.ObjectDefinitions)+len(validated.compiled.CaveatDefinitions))
+		for _, caveatDef := range validated.compiled.CaveatDefinitions {
+			definitions = append(definitions, caveatDef)
+		}
+		for _, objectDef := range validated.compiled.ObjectDefinitions {
+			definitions = append(definitions, objectDef)
+		}
+
+		// WriteSchema will handle writing new/changed definitions and deleting removed ones
+		if err := schemaWriter.WriteSchema(ctx, definitions, validated.schemaText, caveatTypeSet); err != nil {
+			return nil, err
 		}
 	}
 

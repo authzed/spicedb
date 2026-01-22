@@ -158,8 +158,8 @@ func TestRemoveNullIterators(t *testing.T) {
 		require.True(t, changed)
 
 		// Should remove both empty iterators, leaving a union with 2 elements
-		resultUnion, ok := result.(*Union)
-		require.True(t, ok)
+		require.IsType(t, &Union{}, result)
+		resultUnion := result.(*Union)
 		require.Len(t, resultUnion.subIts, 2)
 		require.Equal(t, fixed1, resultUnion.subIts[0])
 		require.Equal(t, fixed2, resultUnion.subIts[1])
@@ -177,9 +177,9 @@ func TestRemoveNullIterators(t *testing.T) {
 		require.True(t, changed)
 
 		// Should return an empty fixed iterator
-		resultFixed, ok := result.(*FixedIterator)
-		require.True(t, ok)
-		require.Len(t, resultFixed.paths, 0)
+		require.IsType(t, &FixedIterator{}, result)
+		resultFixed := result.(*FixedIterator)
+		require.Empty(t, resultFixed.paths)
 	})
 
 	t.Run("does not change union without empty iterators", func(t *testing.T) {
@@ -221,9 +221,9 @@ func TestRemoveNullIterators(t *testing.T) {
 		require.True(t, changed)
 
 		// Should return an empty fixed iterator
-		resultFixed, ok := result.(*FixedIterator)
-		require.True(t, ok)
-		require.Len(t, resultFixed.paths, 0)
+		require.IsType(t, &FixedIterator{}, result)
+		resultFixed := result.(*FixedIterator)
+		require.Empty(t, resultFixed.paths)
 	})
 }
 
@@ -244,8 +244,8 @@ func TestApplyOptimizations(t *testing.T) {
 
 		// The outer union should still be a union (has 2 elements)
 		// but the inner singleton union should be collapsed
-		resultUnion, ok := result.(*Union)
-		require.True(t, ok)
+		require.IsType(t, &Union{}, result)
+		resultUnion := result.(*Union)
 		require.Len(t, resultUnion.subIts, 2)
 		require.Equal(t, fixed, resultUnion.subIts[0])
 	})
@@ -412,8 +412,12 @@ func TestApplyOptimizations(t *testing.T) {
 		// Both should result in an empty fixed iterator
 		// After removing all empties, we get Union[], which then gets optimized
 		// to an empty fixed iterator by CollapseSingletonUnionAndIntersection
-		require.Equal(t, result1, result2)
-		_, ok := result1.(*FixedIterator)
-		require.True(t, ok, "result1 should be a FixedIterator (empty), got %T", result1)
+		require.IsType(t, &FixedIterator{}, result1, "result1 should be a FixedIterator (empty)")
+		require.IsType(t, &FixedIterator{}, result2, "result2 should be a FixedIterator (empty)")
+		// Check that both are empty
+		fixed1 := result1.(*FixedIterator)
+		fixed2 := result2.(*FixedIterator)
+		require.Empty(t, fixed1.paths)
+		require.Empty(t, fixed2.paths)
 	})
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -77,8 +78,8 @@ func TestRewriteError(t *testing.T) {
 			config: &ConfigForErrors{
 				MaximumAPIDepth: 50,
 			},
-			expectedCode:     codes.ResourceExhausted,
-			expectedContains: "max depth exceeded: this usually indicates a recursive or too deep data dependency. See https://spicedb.dev/d/debug-max-depth",
+			expectedCode:     codes.FailedPrecondition,
+			expectedContains: "max depth exceeded: this usually indicates a recursive or too deep data dependency. See " + sharederrors.MaxDepthErrorLink,
 		},
 		// pool
 		{
@@ -239,7 +240,7 @@ func TestRewriteError(t *testing.T) {
 			}
 
 			errorRewritten := RewriteError(ctx, tt.inputError, tt.config)
-			require.NotNil(t, errorRewritten)
+			require.Error(t, errorRewritten)
 			grpcutil.RequireStatus(t, tt.expectedCode, errorRewritten)
 			t.Log(errorRewritten.Error())
 			if tt.expectedContains != "" {

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/ecordell/optgen/helpers"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
@@ -55,6 +54,8 @@ import (
 // ConsistentHashringBuilder is a balancer Builder that uses xxhash as the
 // underlying hash for the ConsistentHashringBalancers it creates.
 var ConsistentHashringBuilder = consistent.NewBuilder(xxhash.Sum64)
+
+var DefaultMemoryUsageProvider memoryprotection.MemoryUsageProvider
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
@@ -143,7 +144,7 @@ type Config struct {
 	StreamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor] `debugmap:"hidden"`
 
 	// Middleware for Memory Protection
-	MemoryProtectionEnabled bool `debugmap:"visible" default:"true"`
+	EnableMemoryProtectionMiddleware bool `debugmap:"visible" default:"true"`
 
 	// Middleware for internal dispatch API
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor  `debugmap:"hidden"`
@@ -409,7 +410,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
 	}
 
-	memoryUsageProvider := c.buildMemoryUsageProvider()
+	memoryUsageProvider := c.BuildMemoryUsageProvider()
 
 	opts := MiddlewareOption{
 		Logger:                    log.Logger,
@@ -558,7 +559,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithoutError(metricsServer.Close)
 
-	log.Ctx(ctx).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
+	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 
 	return &completedServerConfig{
 		ds:                  ds,
@@ -576,11 +577,16 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}, nil
 }
 
-func (c *Config) buildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
-	if c.MemoryProtectionEnabled {
-		return memoryprotection.NewRealTimeMemoryUsageProvider()
+func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
+	if c.EnableMemoryProtectionMiddleware {
+		if DefaultMemoryUsageProvider != nil {
+			return DefaultMemoryUsageProvider
+		}
+
+		log.Warn().Msg("memory protection is enabled, but no default is configured; falling back to using noop provider")
+		return memoryprotection.NewNoopMemoryUsageProvider()
 	}
-	return &memoryprotection.HarcodedMemoryLimitProvider{AcceptAllRequests: true}
+	return &memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 }
 
 func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, closeables *closeableStack, otelOpts []otelgrpc.Option) (util.RunnableGRPCServer, error) {

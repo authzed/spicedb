@@ -37,9 +37,10 @@ func ParseDispatchExpression(methodName string, exprString string) (*DispatchExp
 		return nil, errors.New("unable to initialize dispatch expression type registry")
 	}
 
-	opts := make([]cel.EnvOption, 0)
-	opts = append(opts, cel.OptionalTypes(cel.OptionalTypesVersion(0)))
-	opts = append(opts, cel.Variable("request", cel.DynType))
+	opts := []cel.EnvOption{
+		cel.OptionalTypes(cel.OptionalTypesVersion(0)),
+		cel.Variable("request", cel.DynType),
+	}
 
 	celEnv, err := cel.NewEnv(opts...)
 	if err != nil {

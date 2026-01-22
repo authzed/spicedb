@@ -2,7 +2,7 @@ package compiler
 
 import (
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
@@ -16,8 +16,8 @@ type CircularImportError struct {
 	filePath string
 }
 
-func importFile(filePath string) (*dslNode, error) {
-	schemaBytes, err := os.ReadFile(filePath)
+func importFile(fsys fs.FS, filePath string) (*dslNode, error) {
+	schemaBytes, err := fs.ReadFile(fsys, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read import in schema file: %w", err)
 	}

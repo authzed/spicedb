@@ -474,8 +474,9 @@ func TestMembershipSetWithCaveats(t *testing.T) {
 }
 
 func verifySubjects(t *testing.T, require *require.Assertions, fs FoundSubjects, expected ...string) {
-	foundSubjects := []tuple.ObjectAndRelation{}
-	for _, found := range fs.ListFound() {
+	foundList := fs.ListFound()
+	foundSubjects := make([]tuple.ObjectAndRelation, 0, len(foundList))
+	for _, found := range foundList {
 		foundSubjects = append(foundSubjects, found.Subject())
 
 		_, ok := fs.LookupSubject(found.Subject())

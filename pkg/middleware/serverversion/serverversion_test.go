@@ -95,7 +95,7 @@ func (s *serverVersionMiddlewareTestSuite) TestStreamInterceptor_WithVersionRequ
 			break
 		}
 		if err != nil {
-			s.Require().Fail("unexpected error receiving from stream: %v", err)
+			s.Require().Fail("unexpected error receiving from stream:", err)
 		}
 	}
 

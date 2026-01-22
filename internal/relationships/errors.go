@@ -48,7 +48,7 @@ func NewInvalidSubjectTypeError(
 			if allowedType.RequiredCaveat != nil &&
 				allowedType.RequiredCaveat.CaveatName != "" &&
 				allowedType.Namespace == relationship.Subject.ObjectType &&
-				allowedType.GetRelation() == relationship.Subject.Relation &&
+				allowedType.GetRelation() == relationship.Subject.Relation && relationship.Subject.ObjectID != tuple.PublicWildcard &&
 				(allowedType.RequiredExpiration != nil) == (relationship.OptionalExpiration != nil) {
 				allowedCaveatsForSubject.Add(allowedType.RequiredCaveat.CaveatName)
 			}

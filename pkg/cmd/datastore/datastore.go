@@ -206,11 +206,15 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	}
 	defaults := DefaultDatastoreConfig()
 
+	// NOTE: we set this manually here because this is a value that was never intended to be
+	// controlled by an external flag, but we still want the default value to be propagated through.
+	opts.CaveatTypeSet = defaults.CaveatTypeSet
+
 	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
-	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\"). Only supported for postgres and mysql.")
+	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\"). (Postgres and MySQL drivers only).")
 	flagSet.StringVar(&opts.ReadReplicaCredentialsProviderName, flagName("datastore-read-replica-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
 	var legacyConnPool ConnPoolConfig
@@ -249,26 +253,44 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	var unusedSplitQueryCount uint16
 
 	flagSet.DurationVar(&opts.GCWindow, flagName("datastore-gc-window"), defaults.GCWindow, "amount of time before revisions are garbage collected")
-	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), defaults.GCInterval, "amount of time between passes of garbage collection (postgres driver only)")
-	flagSet.DurationVar(&opts.GCMaxOperationTime, flagName("datastore-gc-max-operation-time"), defaults.GCMaxOperationTime, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
+	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), defaults.GCInterval, "amount of time between passes of garbage collection (Postgres driver only)")
+	flagSet.DurationVar(&opts.GCMaxOperationTime, flagName("datastore-gc-max-operation-time"), defaults.GCMaxOperationTime, "maximum amount of time a garbage collection pass can operate before timing out (Postgres driver only)")
 	flagSet.DurationVar(&opts.RevisionQuantization, flagName("datastore-revision-quantization-interval"), defaults.RevisionQuantization, "boundary interval to which to round the quantized revision")
 	flagSet.Float64Var(&opts.MaxRevisionStalenessPercent, flagName("datastore-revision-quantization-max-staleness-percent"), defaults.MaxRevisionStalenessPercent, "float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%)")
 	flagSet.BoolVar(&opts.ReadOnly, flagName("datastore-readonly"), defaults.ReadOnly, "set the service to read-only mode")
 	flagSet.StringSliceVar(&opts.BootstrapFiles, flagName("datastore-bootstrap-files"), defaults.BootstrapFiles, "bootstrap data yaml files to load")
 	flagSet.BoolVar(&opts.BootstrapOverwrite, flagName("datastore-bootstrap-overwrite"), defaults.BootstrapOverwrite, "overwrite any existing data with bootstrap data (this can be quite slow)")
 	flagSet.DurationVar(&opts.BootstrapTimeout, flagName("datastore-bootstrap-timeout"), defaults.BootstrapTimeout, "maximum duration before timeout for the bootstrap data to be written")
+
 	flagSet.BoolVar(&opts.RequestHedgingEnabled, flagName("datastore-request-hedging"), defaults.RequestHedgingEnabled, "enable request hedging")
+	err := flagSet.MarkDeprecated(flagName("datastore-request-hedging"), "hedging functionality has been removed and this flag is now a no-op")
+	if err != nil {
+		return err
+	}
 	flagSet.DurationVar(&opts.RequestHedgingInitialSlowValue, flagName("datastore-request-hedging-initial-slow-value"), defaults.RequestHedgingInitialSlowValue, "initial value to use for slow datastore requests, before statistics have been collected")
+	err = flagSet.MarkDeprecated(flagName("datastore-request-hedging-initial-slow-value"), "hedging functionality has been removed and this flag is now a no-op")
+	if err != nil {
+		return err
+	}
 	flagSet.Uint64Var(&opts.RequestHedgingMaxRequests, flagName("datastore-request-hedging-max-requests"), defaults.RequestHedgingMaxRequests, "maximum number of historical requests to consider")
+	err = flagSet.MarkDeprecated(flagName("datastore-request-hedging-max-requests"), "hedging functionality has been removed and this flag is now a no-op")
+	if err != nil {
+		return err
+	}
 	flagSet.Float64Var(&opts.RequestHedgingQuantile, flagName("datastore-request-hedging-quantile"), defaults.RequestHedgingQuantile, "quantile of historical datastore request time over which a request will be considered slow")
+	err = flagSet.MarkDeprecated(flagName("datastore-request-hedging-quantile"), "hedging functionality has been removed and this flag is now a no-op")
+	if err != nil {
+		return err
+	}
+
 	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner)")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
-	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), DefaultFollowerReadDelay, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach and spanner drivers only) or read replicas (postgres and mysql drivers only)")
+	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), DefaultFollowerReadDelay, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only)")
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
-	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", "strategy to generate transaction overlap keys (\"request\", \"prefix\", \"static\", \"insecure\") (cockroach driver only - see "+sharederrors.CrdbOverlapErrorLink+" for details)")
-	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
-	flagSet.BoolVar(&opts.EnableConnectionBalancing, flagName("datastore-connection-balancing"), defaults.EnableConnectionBalancing, "enable connection balancing between database nodes (cockroach driver only)")
-	flagSet.DurationVar(&opts.ConnectRate, flagName("datastore-connect-rate"), 100*time.Millisecond, "rate at which new connections are allowed to the datastore (at a rate of 1/duration) (cockroach driver only)")
+	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", "strategy to generate transaction overlap keys (\"request\", \"prefix\", \"static\", \"insecure\") (CockroachDB driver only - see "+sharederrors.CrdbOverlapErrorLink+" for details)")
+	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only)")
+	flagSet.BoolVar(&opts.EnableConnectionBalancing, flagName("datastore-connection-balancing"), defaults.EnableConnectionBalancing, "enable connection balancing between database nodes (CockroachDB driver only)")
+	flagSet.DurationVar(&opts.ConnectRate, flagName("datastore-connect-rate"), 100*time.Millisecond, "rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only)")
 	flagSet.StringVar(&opts.SpannerCredentialsFile, flagName("datastore-spanner-credentials"), "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
 	flagSet.StringVar(&opts.SpannerEmulatorHost, flagName("datastore-spanner-emulator-host"), "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	flagSet.Uint64Var(&opts.SpannerMinSessions, flagName("datastore-spanner-min-sessions"), 100, "minimum number of sessions across all Spanner gRPC connections the client can have at a given time")
@@ -279,12 +301,12 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
-	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (cockroachdb driver only)")
+	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (CockroachDB driver only)")
 	flagSet.BoolVar(&opts.DisableWatchSupport, flagName("datastore-disable-watch-support"), false, "disable watch support (only enable if you absolutely do not need watch)")
-	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (postgres and CRDB drivers only)")
-	flagSet.DurationVar(&opts.WriteAcquisitionTimeout, flagName("write-conn-acquisition-timeout"), defaults.WriteAcquisitionTimeout, "amount of time to wait for a connection to become available, otherwise causes resource exhausted errors (0 means wait indefinitely)")
+	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (Postgres and CockroachDB drivers only)")
+	flagSet.DurationVar(&opts.WriteAcquisitionTimeout, flagName("write-conn-acquisition-timeout"), defaults.WriteAcquisitionTimeout, "amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only)")
 
-	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. only supported on CRDB")
+	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. (CockroachDB driver only)")
 	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyID, flagName("datastore-relationship-integrity-current-key-id"), "", "current key id for relationship integrity checks")
 	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyFilename, flagName("datastore-relationship-integrity-current-key-filename"), "", "current key filename for relationship integrity checks")
 	flagSet.StringArrayVar(&opts.RelationshipIntegrityExpiredKeys, flagName("datastore-relationship-integrity-expired-keys"), []string{}, "config for expired keys for relationship integrity checks")
@@ -295,7 +317,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
-	flagSet.BoolVar(&opts.RelaxedIsolationLevel, flagName("datastore-relaxed-isolation-level"), false, "used to relax the isolation level used in transactions (postgres driver only)")
+	flagSet.BoolVar(&opts.RelaxedIsolationLevel, flagName("datastore-relaxed-isolation-level"), false, "used to relax the isolation level used in transactions (Postgres driver only)")
 	if err := flagSet.MarkHidden(flagName("datastore-relaxed-isolation-level")); err != nil {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
@@ -344,10 +366,6 @@ func DefaultDatastoreConfig() *Config {
 		BootstrapFiles:                   []string{},
 		BootstrapTimeout:                 10 * time.Second,
 		BootstrapOverwrite:               false,
-		RequestHedgingEnabled:            false,
-		RequestHedgingInitialSlowValue:   10000000,
-		RequestHedgingMaxRequests:        1_000_000,
-		RequestHedgingQuantile:           0.95,
 		SpannerCredentialsFile:           "",
 		SpannerEmulatorHost:              "",
 		TablePrefix:                      "",
@@ -364,6 +382,7 @@ func DefaultDatastoreConfig() *Config {
 		ExperimentalColumnOptimization:   true,
 		IncludeQueryParametersInTraces:   false,
 		WriteAcquisitionTimeout:          30 * time.Millisecond,
+		CaveatTypeSet:                    caveattypes.Default.TypeSet,
 	}
 }
 
@@ -405,7 +424,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 
-		nsDefs, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
+		nsDefs, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
@@ -436,25 +455,6 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			}
 		}
 		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("completed datastore initialization from bootstrap files")
-	}
-
-	if opts.RequestHedgingEnabled {
-		log.Ctx(ctx).Info().
-			Stringer("initialSlowRequest", opts.RequestHedgingInitialSlowValue).
-			Uint64("maxRequests", opts.RequestHedgingMaxRequests).
-			Float64("hedgingQuantile", opts.RequestHedgingQuantile).
-			Msg("request hedging enabled")
-
-		hds, err := proxy.NewHedgingProxy(
-			ds,
-			opts.RequestHedgingInitialSlowValue,
-			opts.RequestHedgingMaxRequests,
-			opts.RequestHedgingQuantile,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("error in configuring request hedging: %w", err)
-		}
-		ds = hds
 	}
 
 	if opts.ReadOnly {
@@ -614,7 +614,7 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 }
 
 func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.StrictReadDatastore, error) {
-	pgOpts := []postgres.Option{
+	pgOpts := []postgres.Option{ //nolint: prealloc  // we're not worried about perf here
 		postgres.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
 		postgres.ReadConnsMaxOpen(opts.ReadReplicaConnPool.MaxOpenConns),
 		postgres.ReadConnsMinOpen(opts.ReadReplicaConnPool.MinOpenConns),
@@ -634,7 +634,7 @@ func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, repli
 }
 
 func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
-	pgOpts := []postgres.Option{
+	pgOpts := []postgres.Option{ //nolint: prealloc  // we're not worried about perf here
 		postgres.CredentialsProviderName(opts.CredentialsProviderName),
 		postgres.GCWindow(opts.GCWindow),
 		postgres.GCEnabled(!opts.ReadOnly),
@@ -753,7 +753,7 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 }
 
 func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
-	mysqlOpts := []mysql.Option{
+	mysqlOpts := []mysql.Option{ //nolint: prealloc  // we're not concerned about perf here
 		mysql.MaxOpenConns(opts.ReadReplicaConnPool.MaxOpenConns),
 		mysql.ConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
@@ -771,7 +771,7 @@ func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaU
 }
 
 func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
-	mysqlOpts := []mysql.Option{
+	mysqlOpts := []mysql.Option{ //nolint: prealloc  // we're not concerned about perf here
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCWindow(opts.GCWindow),
 		mysql.GCInterval(opts.GCInterval),

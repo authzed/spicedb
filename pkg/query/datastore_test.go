@@ -23,10 +23,7 @@ func TestRelationIterator(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("SubjectTypeMismatchReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
@@ -150,10 +147,7 @@ func TestRelationIteratorSubjectTypeMismatchScenarios(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	// Test only mismatched types since matching types require a real datastore
 	testCases := []struct {
@@ -216,10 +210,7 @@ func TestRelationIteratorWildcard(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("WildcardSubjectTypeMismatchReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
@@ -304,10 +295,7 @@ func TestRelationIteratorWildcardSubjectTypeMismatchScenarios(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	// Test wildcard relations with various subject type mismatches
 	testCases := []struct {

@@ -31,9 +31,7 @@ func TestSpannerDatastore(t *testing.T) {
 	ctx := context.Background()
 	b := testdatastore.RunSpannerForTesting(t, "", "head")
 
-	// TODO(jschorr): Once https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/issues/74 has been resolved,
-	// change back to `All` to re-enable watch and GC tests.
-	// GC tests are disabled because they depend also on the ability to configure change streams with custom retention.
+	// Transaction tests are excluded because, for reasons unknown, one cannot read its own write in one transaction in the Spanner emulator.
 	test.AllWithExceptions(t, test.DatastoreTesterFunc(func(revisionQuantization, _, _ time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(ctx, uri,
@@ -43,7 +41,7 @@ func TestSpannerDatastore(t *testing.T) {
 			return ds
 		})
 		return ds, nil
-	}), test.WithCategories(test.GCCategory, test.WatchCategory, test.StatsCategory, test.TransactionCategory), false)
+	}), test.WithCategories(test.GCCategory, test.StatsCategory, test.TransactionCategory), false)
 
 	t.Run("TestFakeStats", createDatastoreTest(
 		b,
@@ -67,11 +65,12 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 	}
 }
 
+// See real table schema in https://docs.cloud.google.com/spanner/docs/introspection/table-sizes-statistics
 const createFakeStatsTable = `
 CREATE TABLE fake_stats_table (
   interval_end TIMESTAMP,
   table_name STRING(MAX),
-  used_bytes INT64,
+  used_bytes FLOAT64,
 ) PRIMARY KEY (table_name, interval_end)
 `
 
@@ -80,13 +79,15 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 	spannerDS.tableSizesStatsTable = "fake_stats_table"
 
 	spannerClient := spannerDS.client
-	ctx := context.Background()
 
-	adminClient, err := admin.NewDatabaseAdminClient(ctx)
+	adminClient, err := admin.NewDatabaseAdminClient(t.Context())
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = adminClient.Close()
+	})
 
 	// Manually add the stats table to simulate the table that the emulator doesn't create.
-	updateOp, err := adminClient.UpdateDatabaseDdl(ctx, &databasepb.UpdateDatabaseDdlRequest{
+	updateOp, err := adminClient.UpdateDatabaseDdl(t.Context(), &databasepb.UpdateDatabaseDdlRequest{
 		Database: spannerClient.DatabaseName(),
 		Statements: []string{
 			createFakeStatsTable,
@@ -94,16 +95,16 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 	})
 	require.NoError(t, err)
 
-	err = updateOp.Wait(ctx)
+	err = updateOp.Wait(t.Context())
 	require.NoError(t, err)
 
 	// Call stats with no stats rows and no relationship rows.
-	stats, err := ds.Statistics(ctx)
+	stats, err := ds.Statistics(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), stats.EstimatedRelationshipCount)
 
 	// Add some relationships.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		return tx.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:tom")),
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:sarah")),
@@ -113,25 +114,25 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(t, err)
 
 	// Call stats with no stats rows and some relationship rows.
-	stats, err = ds.Statistics(ctx)
+	stats, err = ds.Statistics(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), stats.EstimatedRelationshipCount)
 
 	// Add some stats row with a byte count.
-	_, err = spannerClient.Apply(ctx, []*spanner.Mutation{
+	_, err = spannerClient.Apply(t.Context(), []*spanner.Mutation{
 		spanner.Insert("fake_stats_table", []string{"interval_end", "table_name", "used_bytes"}, []any{
-			time.Now().UTC().Add(-100 * time.Second), tableRelationship, 100,
+			time.Now().UTC().Add(-100 * time.Second), tableRelationship, float64(100),
 		}),
 	})
 	require.NoError(t, err)
 
 	// Call stats with a stats row and some relationship rows and ensure we get an estimate.
-	stats, err = ds.Statistics(ctx)
+	stats, err = ds.Statistics(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), stats.EstimatedRelationshipCount)
 
 	// Add some more relationships.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		return tx.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:tommy1236512365123651236512365123612365123655")),
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:sara1236512365123651236512365123651236512365")),
@@ -140,8 +141,8 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 	})
 	require.NoError(t, err)
 
-	// Call stats again and ensure it uses the cached relationship size value, even if we'd addded more relationships.
-	stats, err = ds.Statistics(ctx)
+	// Call stats again and ensure it uses the cached relationship size value, even if we'd added more relationships.
+	stats, err = ds.Statistics(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), stats.EstimatedRelationshipCount)
 }

@@ -5,8 +5,8 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -27,8 +27,8 @@ type translationContext struct {
 	mapper           input.PositionMapper
 	schemaString     string
 	skipValidate     bool
-	allowedFlags     []string
-	enabledFlags     []string
+	allowedFlags     *mapz.Set[string]
+	enabledFlags     *mapz.Set[string]
 	existingNames    *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
 
@@ -519,7 +519,7 @@ func translateExpressionDirect(tctx *translationContext, expressionNode *dslNode
 		if err != nil {
 			return nil, err
 		}
-		var ops []*core.SetOperation_Child
+		var ops []*core.SetOperation_Child //nolint: prealloc  // we can't really know the length of ops ahead of time
 		ops = append(ops, collapseOps(leftOperation, lookup)...)
 		ops = append(ops, collapseOps(rightOperation, lookup)...)
 		return builder(ops[0], ops[1:]...), nil
@@ -668,29 +668,6 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 		return nil, typeRefNode.Errorf("%w", err)
 	}
 
-	if typeRefNode.Has(dslshape.NodeSpecificReferencePredicateWildcard) {
-		ref := &core.AllowedRelation{
-			Namespace: nspath,
-			RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
-				PublicWildcard: &core.AllowedRelation_PublicWildcard{},
-			},
-		}
-
-		err = addWithCaveats(tctx, typeRefNode, ref)
-		if err != nil {
-			return nil, typeRefNode.Errorf("invalid caveat: %w", err)
-		}
-
-		if !tctx.skipValidate {
-			if err := ref.Validate(); err != nil {
-				return nil, typeRefNode.Errorf("invalid type relation: %w", err)
-			}
-		}
-
-		ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
-		return ref, nil
-	}
-
 	relationName := Ellipsis
 	if typeRefNode.Has(dslshape.NodeSpecificReferencePredicateRelation) {
 		relationName, err = typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateRelation)
@@ -706,6 +683,12 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 		},
 	}
 
+	if typeRefNode.Has(dslshape.NodeSpecificReferencePredicateWildcard) {
+		ref.RelationOrWildcard = &core.AllowedRelation_PublicWildcard_{
+			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
+		}
+	}
+
 	// Add the caveat(s), if any.
 	err = addWithCaveats(tctx, typeRefNode, ref)
 	if err != nil {
@@ -713,25 +696,9 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 	}
 
 	// Add the expiration trait, if any.
-	if traitNode, err := typeRefNode.Lookup(dslshape.NodeSpecificReferencePredicateTrait); err == nil {
-		traitName, err := traitNode.GetString(dslshape.NodeTraitPredicateTrait)
-		if err != nil {
-			return nil, typeRefNode.Errorf("invalid trait: %w", err)
-		}
-
-		if traitName != "expiration" {
-			return nil, typeRefNode.Errorf("invalid trait: %s", traitName)
-		}
-
-		if !slices.Contains(tctx.allowedFlags, "expiration") {
-			return nil, typeRefNode.Errorf("expiration trait is not allowed")
-		}
-
-		if !slices.Contains(tctx.enabledFlags, "expiration") {
-			return nil, typeRefNode.Errorf("expiration flag is not enabled; add `use expiration` to top of file")
-		}
-
-		ref.RequiredExpiration = &core.ExpirationTrait{}
+	err = addWithExpiration(tctx, typeRefNode, ref)
+	if err != nil {
+		return nil, typeRefNode.Errorf("invalid expiration: %w", err)
 	}
 
 	if !tctx.skipValidate {
@@ -742,6 +709,31 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 
 	ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
 	return ref, nil
+}
+
+func addWithExpiration(tctx *translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
+	if traitNode, err := typeRefNode.Lookup(dslshape.NodeSpecificReferencePredicateTrait); err == nil {
+		traitName, err := traitNode.GetString(dslshape.NodeTraitPredicateTrait)
+		if err != nil {
+			return err
+		}
+
+		if traitName != "expiration" {
+			return fmt.Errorf("invalid trait: %s", traitName)
+		}
+
+		if !tctx.allowedFlags.Has("expiration") {
+			return errors.New("expiration trait is not allowed")
+		}
+
+		if !tctx.enabledFlags.Has("expiration") {
+			return errors.New("expiration flag is not enabled; add `use expiration` to top of file")
+		}
+
+		ref.RequiredExpiration = &core.ExpirationTrait{}
+	}
+
+	return nil
 }
 
 func addWithCaveats(tctx *translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
@@ -779,7 +771,8 @@ type importResolutionContext struct {
 	// NOTE: This depends on an assumption that a depth-first search will always
 	// find a cycle, even if we're otherwise marking globally visited nodes.
 	locallyVisitedFiles *mapz.Set[string]
-	sourceFolder        string
+	sourceFS            fs.FS
+	sourcePrefix        string
 	mapper              input.PositionMapper
 }
 
@@ -802,9 +795,9 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 			if err := validateFilepath(importPath); err != nil {
 				return err
 			}
-			filePath := filepath.Join(itctx.sourceFolder, importPath)
+			filePath := filepath.Join(itctx.sourcePrefix, importPath)
 
-			newSourceFolder := filepath.Dir(filePath)
+			newSourcePrefix := filepath.Dir(filePath)
 
 			currentLocallyVisitedFiles := itctx.locallyVisitedFiles.Copy()
 
@@ -822,20 +815,21 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 				// by not reading the schema file in and compiling a schema with an empty string.
 				// This prevents duplicate definitions from ending up in the output, as well
 				// as preventing circular imports.
-				log.Debug().Str("filepath", filePath).Msg("file %s has already been visited in another part of the walk")
-				return nil
+				log.Debug().Str("filepath", filePath).Msg("file has already been visited in another part of the walk")
+				continue
 			}
 
 			// Do the actual import here
 			// This is a new node provided by the translateImport
-			parsedImportRoot, err := importFile(filePath)
+			parsedImportRoot, err := importFile(itctx.sourceFS, filePath)
 			if err != nil {
 				return toContextError("failed to read import in schema file", "", topLevelNode, itctx.mapper)
 			}
 
 			// We recurse on that node to resolve any further imports
 			err = translateImports(importResolutionContext{
-				sourceFolder:         newSourceFolder,
+				sourceFS:             itctx.sourceFS,
+				sourcePrefix:         newSourcePrefix,
 				locallyVisitedFiles:  currentLocallyVisitedFiles,
 				globallyVisitedFiles: itctx.globallyVisitedFiles,
 				mapper:               itctx.mapper,
@@ -946,9 +940,9 @@ func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
 	if err != nil {
 		return err
 	}
-	if slices.Contains(tctx.enabledFlags, flagName) {
-		return useFlagNode.Errorf("found duplicate use flag: %s", flagName)
-	}
-	tctx.enabledFlags = append(tctx.enabledFlags, flagName)
+	// NOTE: we're okay with multiple instances of a given `use` directive in
+	// composable schemas, because each file may declare it separately
+	// and that should be valid.
+	tctx.enabledFlags.Add(flagName)
 	return nil
 }

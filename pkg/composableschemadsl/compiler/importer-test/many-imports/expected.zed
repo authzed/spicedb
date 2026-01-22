@@ -1,0 +1,32 @@
+// caveat
+definition d_caveat {}
+
+// teams
+definition teams {
+	relation d_caveat: d_caveat
+}
+
+// apps
+definition apps {
+	relation d_caveat: d_caveat
+	relation teams: teams
+}
+
+// aws
+definition aws {
+	relation d_caveat: d_caveat
+	relation teams: teams
+}
+
+// iam
+definition iam {
+	relation apps: apps
+	relation d_caveat: d_caveat
+	relation teams: teams
+}
+
+// okta
+definition okta {
+	relation d_caveat: d_caveat
+	relation teams: teams
+}

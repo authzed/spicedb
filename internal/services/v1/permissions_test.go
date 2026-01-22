@@ -432,7 +432,7 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 	})
 
 	req.Error(err)
-	grpcutil.RequireStatus(t, codes.ResourceExhausted, err)
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 
 	s, ok := status.FromError(err)
 	req.True(ok)

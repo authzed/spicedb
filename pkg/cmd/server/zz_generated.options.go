@@ -2,13 +2,13 @@
 package server
 
 import (
+	"fmt"
 	dispatch "github.com/authzed/spicedb/internal/dispatch"
 	graph "github.com/authzed/spicedb/internal/dispatch/graph"
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
 	defaults "github.com/creasty/defaults"
-	helpers "github.com/ecordell/optgen/helpers"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpc "google.golang.org/grpc"
 	"time"
@@ -100,7 +100,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
-		to.MemoryProtectionEnabled = c.MemoryProtectionEnabled
+		to.EnableMemoryProtectionMiddleware = c.EnableMemoryProtectionMiddleware
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
@@ -114,76 +114,169 @@ func (c *Config) ToOption() ConfigOption {
 }
 
 // DebugMap returns a map form of Config for debugging
-func (c Config) DebugMap() map[string]any {
+func (c *Config) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["GRPCServer"] = helpers.DebugValue(c.GRPCServer, false)
-	debugMap["GRPCAuthFunc"] = helpers.DebugValue(c.GRPCAuthFunc, false)
-	debugMap["PresharedSecureKey"] = helpers.SensitiveDebugValue(c.PresharedSecureKey)
-	debugMap["ShutdownGracePeriod"] = helpers.DebugValue(c.ShutdownGracePeriod, false)
-	debugMap["DisableVersionResponse"] = helpers.DebugValue(c.DisableVersionResponse, false)
-	debugMap["ServerName"] = helpers.DebugValue(c.ServerName, false)
-	debugMap["HTTPGateway"] = helpers.DebugValue(c.HTTPGateway, false)
-	debugMap["HTTPGatewayUpstreamAddr"] = helpers.DebugValue(c.HTTPGatewayUpstreamAddr, false)
-	debugMap["HTTPGatewayUpstreamTLSCertPath"] = helpers.DebugValue(c.HTTPGatewayUpstreamTLSCertPath, false)
-	debugMap["HTTPGatewayCorsEnabled"] = helpers.DebugValue(c.HTTPGatewayCorsEnabled, false)
-	debugMap["HTTPGatewayCorsAllowedOrigins"] = helpers.DebugValue(c.HTTPGatewayCorsAllowedOrigins, true)
-	debugMap["DatastoreConfig"] = helpers.DebugValue(c.DatastoreConfig, false)
-	debugMap["Datastore"] = helpers.DebugValue(c.Datastore, false)
-	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
-	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
-	debugMap["EnableExperimentalWatchableSchemaCache"] = helpers.DebugValue(c.EnableExperimentalWatchableSchemaCache, false)
-	debugMap["SchemaWatchHeartbeat"] = helpers.DebugValue(c.SchemaWatchHeartbeat, false)
-	debugMap["NamespaceCacheConfig"] = helpers.DebugValue(c.NamespaceCacheConfig, false)
-	debugMap["SchemaPrefixesRequired"] = helpers.DebugValue(c.SchemaPrefixesRequired, false)
-	debugMap["DispatchServer"] = helpers.DebugValue(c.DispatchServer, false)
-	debugMap["DispatchMaxDepth"] = helpers.DebugValue(c.DispatchMaxDepth, false)
-	debugMap["GlobalDispatchConcurrencyLimit"] = helpers.DebugValue(c.GlobalDispatchConcurrencyLimit, false)
-	debugMap["DispatchConcurrencyLimits"] = helpers.DebugValue(c.DispatchConcurrencyLimits, false)
-	debugMap["DispatchUpstreamAddr"] = helpers.DebugValue(c.DispatchUpstreamAddr, false)
-	debugMap["DispatchUpstreamCAPath"] = helpers.DebugValue(c.DispatchUpstreamCAPath, false)
-	debugMap["DispatchUpstreamTimeout"] = helpers.DebugValue(c.DispatchUpstreamTimeout, false)
-	debugMap["DispatchClientMetricsEnabled"] = helpers.DebugValue(c.DispatchClientMetricsEnabled, false)
-	debugMap["DispatchClientMetricsPrefix"] = helpers.DebugValue(c.DispatchClientMetricsPrefix, false)
-	debugMap["DispatchClusterMetricsEnabled"] = helpers.DebugValue(c.DispatchClusterMetricsEnabled, false)
-	debugMap["DispatchClusterMetricsPrefix"] = helpers.DebugValue(c.DispatchClusterMetricsPrefix, false)
-	debugMap["Dispatcher"] = helpers.DebugValue(c.Dispatcher, false)
-	debugMap["DispatchHashringReplicationFactor"] = helpers.DebugValue(c.DispatchHashringReplicationFactor, false)
-	debugMap["DispatchHashringSpread"] = helpers.DebugValue(c.DispatchHashringSpread, false)
-	debugMap["DispatchChunkSize"] = helpers.DebugValue(c.DispatchChunkSize, false)
-	debugMap["DispatchSecondaryUpstreamAddrs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamAddrs, false)
-	debugMap["DispatchSecondaryUpstreamExprs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamExprs, false)
-	debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = helpers.DebugValue(c.DispatchSecondaryMaximumPrimaryHedgingDelays, false)
-	debugMap["DispatchCacheConfig"] = helpers.DebugValue(c.DispatchCacheConfig, false)
-	debugMap["ClusterDispatchCacheConfig"] = helpers.DebugValue(c.ClusterDispatchCacheConfig, false)
-	debugMap["LR3ResourceChunkCacheConfig"] = helpers.DebugValue(c.LR3ResourceChunkCacheConfig, false)
-	debugMap["DisableV1SchemaAPI"] = helpers.DebugValue(c.DisableV1SchemaAPI, false)
-	debugMap["V1SchemaAdditiveOnly"] = helpers.DebugValue(c.V1SchemaAdditiveOnly, false)
-	debugMap["MaximumUpdatesPerWrite"] = helpers.DebugValue(c.MaximumUpdatesPerWrite, false)
-	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
-	debugMap["MaxDatastoreReadPageSize"] = helpers.DebugValue(c.MaxDatastoreReadPageSize, false)
-	debugMap["StreamingAPITimeout"] = helpers.DebugValue(c.StreamingAPITimeout, false)
-	debugMap["WatchHeartbeat"] = helpers.DebugValue(c.WatchHeartbeat, false)
-	debugMap["MaxReadRelationshipsLimit"] = helpers.DebugValue(c.MaxReadRelationshipsLimit, false)
-	debugMap["MaxDeleteRelationshipsLimit"] = helpers.DebugValue(c.MaxDeleteRelationshipsLimit, false)
-	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
-	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
-	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
-	debugMap["ExperimentalLookupResourcesVersion"] = helpers.DebugValue(c.ExperimentalLookupResourcesVersion, false)
-	debugMap["ExperimentalQueryPlan"] = helpers.DebugValue(c.ExperimentalQueryPlan, false)
-	debugMap["EnableRelationshipExpiration"] = helpers.DebugValue(c.EnableRelationshipExpiration, false)
-	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
-	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
-	debugMap["MismatchZedTokenBehavior"] = helpers.DebugValue(c.MismatchZedTokenBehavior, false)
-	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
-	debugMap["MemoryProtectionEnabled"] = helpers.DebugValue(c.MemoryProtectionEnabled, false)
-	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
-	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
-	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
-	debugMap["TelemetryInterval"] = helpers.DebugValue(c.TelemetryInterval, false)
-	debugMap["EnableRequestLogs"] = helpers.DebugValue(c.EnableRequestLogs, false)
-	debugMap["EnableResponseLogs"] = helpers.DebugValue(c.EnableResponseLogs, false)
-	debugMap["DisableGRPCLatencyHistogram"] = helpers.DebugValue(c.DisableGRPCLatencyHistogram, false)
+	debugMap["GRPCServer"] = c.GRPCServer
+	debugMap["GRPCAuthFunc"] = c.GRPCAuthFunc
+	debugMap["PresharedSecureKey"] = "(sensitive)"
+	debugMap["ShutdownGracePeriod"] = c.ShutdownGracePeriod
+	debugMap["DisableVersionResponse"] = c.DisableVersionResponse
+	if c.ServerName == "" {
+		debugMap["ServerName"] = "(empty)"
+	} else {
+		debugMap["ServerName"] = c.ServerName
+	}
+	debugMap["HTTPGateway"] = c.HTTPGateway
+	if c.HTTPGatewayUpstreamAddr == "" {
+		debugMap["HTTPGatewayUpstreamAddr"] = "(empty)"
+	} else {
+		debugMap["HTTPGatewayUpstreamAddr"] = c.HTTPGatewayUpstreamAddr
+	}
+	if c.HTTPGatewayUpstreamTLSCertPath == "" {
+		debugMap["HTTPGatewayUpstreamTLSCertPath"] = "(empty)"
+	} else {
+		debugMap["HTTPGatewayUpstreamTLSCertPath"] = c.HTTPGatewayUpstreamTLSCertPath
+	}
+	debugMap["HTTPGatewayCorsEnabled"] = c.HTTPGatewayCorsEnabled
+	if c.HTTPGatewayCorsAllowedOrigins == nil {
+		debugMap["HTTPGatewayCorsAllowedOrigins"] = "nil"
+	} else {
+		debugHTTPGatewayCorsAllowedOrigins := make([]any, 0, len(c.HTTPGatewayCorsAllowedOrigins))
+		for _, v := range c.HTTPGatewayCorsAllowedOrigins {
+			if v == "" {
+				debugHTTPGatewayCorsAllowedOrigins = append(debugHTTPGatewayCorsAllowedOrigins, "(empty)")
+			} else {
+				debugHTTPGatewayCorsAllowedOrigins = append(debugHTTPGatewayCorsAllowedOrigins, v)
+			}
+		}
+		debugMap["HTTPGatewayCorsAllowedOrigins"] = debugHTTPGatewayCorsAllowedOrigins
+	}
+	debugMap["DatastoreConfig"] = c.DatastoreConfig
+	debugMap["Datastore"] = c.Datastore
+	debugMap["MaxCaveatContextSize"] = c.MaxCaveatContextSize
+	debugMap["MaxRelationshipContextSize"] = c.MaxRelationshipContextSize
+	debugMap["EnableExperimentalWatchableSchemaCache"] = c.EnableExperimentalWatchableSchemaCache
+	debugMap["SchemaWatchHeartbeat"] = c.SchemaWatchHeartbeat
+	debugMap["NamespaceCacheConfig"] = c.NamespaceCacheConfig
+	debugMap["SchemaPrefixesRequired"] = c.SchemaPrefixesRequired
+	debugMap["DispatchServer"] = c.DispatchServer
+	debugMap["DispatchMaxDepth"] = c.DispatchMaxDepth
+	debugMap["GlobalDispatchConcurrencyLimit"] = c.GlobalDispatchConcurrencyLimit
+	debugMap["DispatchConcurrencyLimits"] = c.DispatchConcurrencyLimits
+	if c.DispatchUpstreamAddr == "" {
+		debugMap["DispatchUpstreamAddr"] = "(empty)"
+	} else {
+		debugMap["DispatchUpstreamAddr"] = c.DispatchUpstreamAddr
+	}
+	if c.DispatchUpstreamCAPath == "" {
+		debugMap["DispatchUpstreamCAPath"] = "(empty)"
+	} else {
+		debugMap["DispatchUpstreamCAPath"] = c.DispatchUpstreamCAPath
+	}
+	debugMap["DispatchUpstreamTimeout"] = c.DispatchUpstreamTimeout
+	debugMap["DispatchClientMetricsEnabled"] = c.DispatchClientMetricsEnabled
+	if c.DispatchClientMetricsPrefix == "" {
+		debugMap["DispatchClientMetricsPrefix"] = "(empty)"
+	} else {
+		debugMap["DispatchClientMetricsPrefix"] = c.DispatchClientMetricsPrefix
+	}
+	debugMap["DispatchClusterMetricsEnabled"] = c.DispatchClusterMetricsEnabled
+	if c.DispatchClusterMetricsPrefix == "" {
+		debugMap["DispatchClusterMetricsPrefix"] = "(empty)"
+	} else {
+		debugMap["DispatchClusterMetricsPrefix"] = c.DispatchClusterMetricsPrefix
+	}
+	debugMap["Dispatcher"] = c.Dispatcher
+	debugMap["DispatchHashringReplicationFactor"] = c.DispatchHashringReplicationFactor
+	debugMap["DispatchHashringSpread"] = c.DispatchHashringSpread
+	debugMap["DispatchChunkSize"] = c.DispatchChunkSize
+	if c.DispatchSecondaryUpstreamAddrs == nil {
+		debugMap["DispatchSecondaryUpstreamAddrs"] = "nil"
+	} else {
+		debugMap["DispatchSecondaryUpstreamAddrs"] = fmt.Sprintf("(map of size %d)", len(c.DispatchSecondaryUpstreamAddrs))
+	}
+	if c.DispatchSecondaryUpstreamExprs == nil {
+		debugMap["DispatchSecondaryUpstreamExprs"] = "nil"
+	} else {
+		debugMap["DispatchSecondaryUpstreamExprs"] = fmt.Sprintf("(map of size %d)", len(c.DispatchSecondaryUpstreamExprs))
+	}
+	if c.DispatchSecondaryMaximumPrimaryHedgingDelays == nil {
+		debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = "nil"
+	} else {
+		debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = fmt.Sprintf("(map of size %d)", len(c.DispatchSecondaryMaximumPrimaryHedgingDelays))
+	}
+	debugMap["DispatchCacheConfig"] = c.DispatchCacheConfig
+	debugMap["ClusterDispatchCacheConfig"] = c.ClusterDispatchCacheConfig
+	debugMap["LR3ResourceChunkCacheConfig"] = c.LR3ResourceChunkCacheConfig
+	debugMap["DisableV1SchemaAPI"] = c.DisableV1SchemaAPI
+	debugMap["V1SchemaAdditiveOnly"] = c.V1SchemaAdditiveOnly
+	debugMap["MaximumUpdatesPerWrite"] = c.MaximumUpdatesPerWrite
+	debugMap["MaximumPreconditionCount"] = c.MaximumPreconditionCount
+	debugMap["MaxDatastoreReadPageSize"] = c.MaxDatastoreReadPageSize
+	debugMap["StreamingAPITimeout"] = c.StreamingAPITimeout
+	debugMap["WatchHeartbeat"] = c.WatchHeartbeat
+	debugMap["MaxReadRelationshipsLimit"] = c.MaxReadRelationshipsLimit
+	debugMap["MaxDeleteRelationshipsLimit"] = c.MaxDeleteRelationshipsLimit
+	debugMap["MaxLookupResourcesLimit"] = c.MaxLookupResourcesLimit
+	debugMap["MaxBulkExportRelationshipsLimit"] = c.MaxBulkExportRelationshipsLimit
+	debugMap["EnableExperimentalLookupResources"] = c.EnableExperimentalLookupResources
+	if c.ExperimentalLookupResourcesVersion == "" {
+		debugMap["ExperimentalLookupResourcesVersion"] = "(empty)"
+	} else {
+		debugMap["ExperimentalLookupResourcesVersion"] = c.ExperimentalLookupResourcesVersion
+	}
+	if c.ExperimentalQueryPlan == "" {
+		debugMap["ExperimentalQueryPlan"] = "(empty)"
+	} else {
+		debugMap["ExperimentalQueryPlan"] = c.ExperimentalQueryPlan
+	}
+	debugMap["EnableRelationshipExpiration"] = c.EnableRelationshipExpiration
+	debugMap["EnableRevisionHeartbeat"] = c.EnableRevisionHeartbeat
+	debugMap["EnablePerformanceInsightMetrics"] = c.EnablePerformanceInsightMetrics
+	if c.MismatchZedTokenBehavior == "" {
+		debugMap["MismatchZedTokenBehavior"] = "(empty)"
+	} else {
+		debugMap["MismatchZedTokenBehavior"] = c.MismatchZedTokenBehavior
+	}
+	debugMap["MetricsAPI"] = c.MetricsAPI
+	debugMap["EnableMemoryProtectionMiddleware"] = c.EnableMemoryProtectionMiddleware
+	debugMap["SilentlyDisableTelemetry"] = c.SilentlyDisableTelemetry
+	if c.TelemetryCAOverridePath == "" {
+		debugMap["TelemetryCAOverridePath"] = "(empty)"
+	} else {
+		debugMap["TelemetryCAOverridePath"] = c.TelemetryCAOverridePath
+	}
+	if c.TelemetryEndpoint == "" {
+		debugMap["TelemetryEndpoint"] = "(empty)"
+	} else {
+		debugMap["TelemetryEndpoint"] = c.TelemetryEndpoint
+	}
+	debugMap["TelemetryInterval"] = c.TelemetryInterval
+	debugMap["EnableRequestLogs"] = c.EnableRequestLogs
+	debugMap["EnableResponseLogs"] = c.EnableResponseLogs
+	debugMap["DisableGRPCLatencyHistogram"] = c.DisableGRPCLatencyHistogram
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of Config for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (c *Config) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(c.DebugMap())
 }
 
 // ConfigWithOptions configures an existing Config with the passed in options set
@@ -685,10 +778,10 @@ func SetStreamingMiddlewareModification(streamingMiddlewareModification []Middle
 	}
 }
 
-// WithMemoryProtectionEnabled returns an option that can set MemoryProtectionEnabled on a Config
-func WithMemoryProtectionEnabled(memoryProtectionEnabled bool) ConfigOption {
+// WithEnableMemoryProtectionMiddleware returns an option that can set EnableMemoryProtectionMiddleware on a Config
+func WithEnableMemoryProtectionMiddleware(enableMemoryProtectionMiddleware bool) ConfigOption {
 	return func(c *Config) {
-		c.MemoryProtectionEnabled = memoryProtectionEnabled
+		c.EnableMemoryProtectionMiddleware = enableMemoryProtectionMiddleware
 	}
 }
 

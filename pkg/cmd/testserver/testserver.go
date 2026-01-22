@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	helpers "github.com/ecordell/optgen/helpers"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
@@ -64,7 +63,7 @@ func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, er
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {
-	log.Ctx(context.Background()).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
+	log.Ctx(context.Background()).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 
 	cts := caveattypes.TypeSetOrDefault(c.CaveatTypeSet)
 
@@ -112,7 +111,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	})
 	opts := *server.NewMiddlewareOptionWithOptions(noAuth,
 		server.WithLogger(log.Logger),
-		server.WithMemoryUsageProvider(&memoryprotection.HarcodedMemoryLimitProvider{AcceptAllRequests: true}))
+		server.WithMemoryUsageProvider(&memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}))
 	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
 
 	unaryMiddleware, err := server.DefaultUnaryMiddleware(opts)

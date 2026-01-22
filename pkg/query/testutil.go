@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -179,6 +181,7 @@ func NewLargeFixedIterator() *FixedIterator {
 
 // FaultyIterator is a test helper that simulates iterator errors
 type FaultyIterator struct {
+	id                  string
 	shouldFailOnCheck   bool
 	shouldFailOnCollect bool
 }
@@ -229,6 +232,7 @@ func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 
 func (f *FaultyIterator) Clone() Iterator {
 	return &FaultyIterator{
+		id:                  uuid.NewString(),
 		shouldFailOnCheck:   f.shouldFailOnCheck,
 		shouldFailOnCollect: f.shouldFailOnCollect,
 	}
@@ -246,9 +250,14 @@ func (f *FaultyIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, erro
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf FaultyIterator's subiterators")
 }
 
+func (f *FaultyIterator) ID() string {
+	return f.id
+}
+
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions
 func NewFaultyIterator(shouldFailOnCheck, shouldFailOnCollect bool) *FaultyIterator {
 	return &FaultyIterator{
+		id:                  uuid.NewString(),
 		shouldFailOnCheck:   shouldFailOnCheck,
 		shouldFailOnCollect: shouldFailOnCollect,
 	}

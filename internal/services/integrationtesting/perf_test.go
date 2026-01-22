@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -40,7 +41,6 @@ func TestBurst(t *testing.T) {
 				dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 				dsconfig.WithRevisionQuantization(10),
 				dsconfig.WithMaxRetries(50),
-				dsconfig.WithRequestHedgingEnabled(false),
 				dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
 			ds, revision := tf.StandardDatastoreWithData(ds, require.New(t))
 
@@ -66,7 +66,7 @@ func TestBurst(t *testing.T) {
 						Permission: "viewer",
 						Subject:    rel.Subject,
 					})
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}()
 				run <- struct{}{}
 			}

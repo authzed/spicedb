@@ -2,10 +2,10 @@
 package testserver
 
 import (
+	"fmt"
 	types "github.com/authzed/spicedb/pkg/caveats/types"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	defaults "github.com/creasty/defaults"
-	helpers "github.com/ecordell/optgen/helpers"
 )
 
 type ConfigOption func(c *Config)
@@ -50,22 +50,47 @@ func (c *Config) ToOption() ConfigOption {
 }
 
 // DebugMap returns a map form of Config for debugging
-func (c Config) DebugMap() map[string]any {
+func (c *Config) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["GRPCServer"] = helpers.DebugValue(c.GRPCServer, false)
-	debugMap["ReadOnlyGRPCServer"] = helpers.DebugValue(c.ReadOnlyGRPCServer, false)
-	debugMap["HTTPGateway"] = helpers.DebugValue(c.HTTPGateway, false)
-	debugMap["ReadOnlyHTTPGateway"] = helpers.DebugValue(c.ReadOnlyHTTPGateway, false)
-	debugMap["LoadConfigs"] = helpers.DebugValue(c.LoadConfigs, false)
-	debugMap["MaximumUpdatesPerWrite"] = helpers.DebugValue(c.MaximumUpdatesPerWrite, false)
-	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
-	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
-	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
-	debugMap["MaxReadRelationshipsLimit"] = helpers.DebugValue(c.MaxReadRelationshipsLimit, false)
-	debugMap["MaxDeleteRelationshipsLimit"] = helpers.DebugValue(c.MaxDeleteRelationshipsLimit, false)
-	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
-	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
+	debugMap["GRPCServer"] = c.GRPCServer
+	debugMap["ReadOnlyGRPCServer"] = c.ReadOnlyGRPCServer
+	debugMap["HTTPGateway"] = c.HTTPGateway
+	debugMap["ReadOnlyHTTPGateway"] = c.ReadOnlyHTTPGateway
+	if c.LoadConfigs == nil {
+		debugMap["LoadConfigs"] = "nil"
+	} else {
+		debugMap["LoadConfigs"] = fmt.Sprintf("(slice of size %d)", len(c.LoadConfigs))
+	}
+	debugMap["MaximumUpdatesPerWrite"] = c.MaximumUpdatesPerWrite
+	debugMap["MaximumPreconditionCount"] = c.MaximumPreconditionCount
+	debugMap["MaxCaveatContextSize"] = c.MaxCaveatContextSize
+	debugMap["MaxRelationshipContextSize"] = c.MaxRelationshipContextSize
+	debugMap["MaxReadRelationshipsLimit"] = c.MaxReadRelationshipsLimit
+	debugMap["MaxDeleteRelationshipsLimit"] = c.MaxDeleteRelationshipsLimit
+	debugMap["MaxLookupResourcesLimit"] = c.MaxLookupResourcesLimit
+	debugMap["MaxBulkExportRelationshipsLimit"] = c.MaxBulkExportRelationshipsLimit
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of Config for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (c *Config) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(c.DebugMap())
 }
 
 // ConfigWithOptions configures an existing Config with the passed in options set

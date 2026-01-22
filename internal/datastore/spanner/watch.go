@@ -60,7 +60,7 @@ func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.R
 	}
 
 	updates := make(chan datastore.RevisionChanges, watchBufferLength)
-	errs := make(chan error, 1)
+	errs := make(chan error, 2) // we may try to send >1 error
 
 	if opts.EmissionStrategy == datastore.EmitImmediatelyStrategy {
 		close(updates)
@@ -154,7 +154,7 @@ func (sd *spannerDatastore) watch(
 		database,
 		CombinedChangeStreamName,
 		changestreams.Config{
-			StartTimestamp:    afterRevision.Time(),
+			StartTimestamp:    afterRevision.Time().Add(1 * time.Nanosecond), // records with commit_timestamp greater than or equal to start_timestamp will be returned
 			HeartbeatInterval: heartbeatInterval,
 			SpannerClientOptions: []option.ClientOption{
 				option.WithCredentialsFile(sd.config.credentialsFilePath),
@@ -174,7 +174,7 @@ func (sd *spannerDatastore) watch(
 	}
 	defer reader.Close()
 
-	metadataForTransactionTag := xsync.Map[string, TransactionMetadata]{}
+	metadataForTransactionTag := xsync.NewMap[string, common.TransactionMetadata]()
 
 	addMetadataForTransactionTag := func(ctx context.Context, tracked *common.Changes[revisions.TimestampRevision, int64], revision revisions.TimestampRevision, transactionTag string) error {
 		if metadata, ok := metadataForTransactionTag.Load(transactionTag); ok {
@@ -191,21 +191,29 @@ func (sd *spannerDatastore) watch(
 		return tracked.AddRevisionMetadata(ctx, revision, transactionMetadata)
 	}
 
+	// This is a concurrent-safe map for incomplete transactions (transactions where IsLastRecordInTransactionInPartition=false).
+	// For example if you send a write with both DELETEs and TOUCHEs, we get *two* separate DataChangeRecords for them,
+	// but we only want to send them as *one* group.
+	txnBuffer := xsync.NewMap[string, *common.Changes[revisions.TimestampRevision, int64]]()
+
 	// NOTE: the callback below might be called concurrently across partitions.
 	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
 		// See: https://cloud.google.com/spanner/docs/change-streams/details
 		for _, record := range result.ChangeRecords {
-			tracked := common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)
-
 			for _, dcr := range record.DataChangeRecords {
+				txnID := dcr.ServerTransactionID
 				changeRevision := revisions.NewForTime(dcr.CommitTimestamp)
 				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
+
+				// Get or create tracked changes for this transaction.
+				tracked, _ := txnBuffer.LoadOrStore(txnID, common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize))
 
 				// See: https://cloud.google.com/spanner/docs/ttl
 				// > TTL supports auditing its deletions through change streams. Change
 				// > streams data records that track TTL changes to a database have the
 				// > transaction_tag field set to RowDeletionPolicy and the
 				// > is_system_transaction field set to true.
+				// TODO could we not replace this with a filter on the change stream? https://docs.cloud.google.com/spanner/docs/change-streams/manage#filter-ttl-deletes
 				if modType == "DELETE" && dcr.TransactionTag == "RowDeletionPolicy" && dcr.IsSystemTransaction {
 					// Skip deletions that are performed by TTL policy.
 					// TODO(jschorr): once we decide to emit events for GCed expired rels, change to emit those
@@ -213,6 +221,9 @@ func (sd *spannerDatastore) watch(
 					continue
 				}
 
+				// NOTE when testing against the Spanner emulator, and until https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/issues/280 is solved,
+				// uncomment this line to test that transaction metadata is sent as part of the Watch response correctly.
+				// dcr.TransactionTag = "some-value"
 				if len(dcr.TransactionTag) > 0 {
 					if err := addMetadataForTransactionTag(ctx, tracked, changeRevision, dcr.TransactionTag); err != nil {
 						return err
@@ -263,7 +274,7 @@ func (sd *spannerDatastore) watch(
 							}
 
 						case tableCaveat:
-							caveatNameValue, ok := primaryKeyColumnValues[colNamespaceName]
+							caveatNameValue, ok := primaryKeyColumnValues[colName]
 							if !ok {
 								return spiceerrors.MustBugf("missing caveat name")
 							}
@@ -363,26 +374,32 @@ func (sd *spannerDatastore) watch(
 						return spiceerrors.MustBugf("unknown modtype in spanner change stream record")
 					}
 				}
-			}
 
-			if !tracked.IsEmpty() {
-				changes, err := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
-				if err != nil {
-					return err
-				}
+				// Only send changes when we've received the last record for this transaction in this partition.
+				if dcr.IsLastRecordInTransactionInPartition {
+					// Remove from buffer since we have all the records for this transaction.
+					txnBuffer.Delete(txnID)
 
-				for _, revChange := range changes {
-					revChange := revChange
-					if !sendChange(revChange) {
-						return datastore.NewWatchDisconnectedErr()
+					if !tracked.IsEmpty() {
+						changes, err := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+						if err != nil {
+							return err
+						}
+
+						for _, revChange := range changes {
+							if !sendChange(revChange) {
+								return datastore.NewWatchDisconnectedErr()
+							}
+						}
 					}
 				}
-			}
 
-			if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
-				for _, hbr := range record.HeartbeatRecords {
+				// When there are data changes written to the partition,
+				// data_change_record.commit_timestamp can be used instead of heartbeat_record.timestamp to tell
+				// that the reader is making forward progress in reading the partition.
+				if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
 					if !sendChange(datastore.RevisionChanges{
-						Revision:     revisions.NewForTime(hbr.Timestamp),
+						Revision:     revisions.NewForTime(dcr.CommitTimestamp),
 						IsCheckpoint: true,
 					}) {
 						return datastore.NewWatchDisconnectedErr()

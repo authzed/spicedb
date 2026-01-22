@@ -235,7 +235,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write basic namespaces.
 	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -260,7 +260,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Replace the namespace with a new one.
 	writtenAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -380,7 +380,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -485,7 +485,7 @@ func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) 
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -526,7 +526,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(
+		return rwt.LegacyWriteNamespaces(
 			ctx,
 			namespace.Namespace(
 				"resource",
@@ -764,7 +764,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Let's make sure both Now() and transactionCreated() have timezones aligned
-	req.True(ts.Sub(startTimeUTC) < 5*time.Minute)
+	req.Less(ts.Sub(startTimeUTC), 5*time.Minute)
 
 	revision, err := ds.OptimizedRevision(ctx)
 	req.NoError(err)
@@ -782,7 +782,7 @@ func TestMySQLMigrations(t *testing.T) {
 
 	version, err := migrationDriver.Version(context.Background())
 	req.NoError(err)
-	req.Equal("", version)
+	req.Empty(version)
 
 	err = migrations.Manager.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err)
@@ -804,7 +804,7 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 
 	version, err := migrationDriver.Version(context.Background())
 	req.NoError(err)
-	req.Equal("", version)
+	req.Empty(version)
 
 	err = migrations.Manager.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err)

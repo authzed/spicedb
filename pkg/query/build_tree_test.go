@@ -30,11 +30,8 @@ func TestBuildTree(t *testing.T) {
 	it, err := BuildIteratorFromSchema(dsSchema, "document", "edit")
 	require.NoError(err)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -63,11 +60,8 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 	explain := it.Explain()
 	require.Contains(explain.String(), "Union", "edit permission should create a union iterator")
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -117,11 +111,8 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	explain := it.Explain()
 	require.NotEmpty(explain.String())
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Just test that the iterator can be executed without error
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
@@ -219,11 +210,8 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	require.NotEmpty(explain.String())
 	require.Contains(explain.String(), "Intersection", "should create intersection iterator")
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Test execution
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
@@ -260,8 +248,8 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(it)
 	// Should be wrapped in an Alias
-	alias, ok := it.(*Alias)
-	require.True(ok, "Expected Alias wrapper")
+	require.IsType(&Alias{}, it, "Expected Alias wrapper")
+	alias := it.(*Alias)
 	require.IsType(&Exclusion{}, alias.subIt)
 
 	// Verify the explain shows alias structure with exclusion underneath
@@ -285,11 +273,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	userDef := testfixtures.UserNS.CloneVT()
 
@@ -315,8 +300,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		alias, ok := it.(*Alias)
-		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Alias{}, it, "Expected Alias wrapper")
+		alias := it.(*Alias)
 		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Test execution doesn't crash
@@ -354,8 +339,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		alias, ok := it.(*Alias)
-		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Alias{}, it, "Expected Alias wrapper")
+		alias := it.(*Alias)
 		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify the structure includes union in main set
@@ -395,8 +380,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		alias, ok := it.(*Alias)
-		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Alias{}, it, "Expected Alias wrapper")
+		alias := it.(*Alias)
 		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify the structure includes intersection in main set
@@ -437,8 +422,8 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		alias, ok := it.(*Alias)
-		require.True(ok, "Expected Alias wrapper")
+		require.IsType(&Alias{}, it, "Expected Alias wrapper")
+		alias := it.(*Alias)
 		require.IsType(&Exclusion{}, alias.subIt)
 
 		// Verify nested structure
@@ -548,11 +533,8 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	require.NotEmpty(explain.String())
 	require.Contains(explain.String(), "Relation", "should create relation iterator")
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Test execution
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
@@ -571,11 +553,8 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	userDef := testfixtures.UserNS.CloneVT()
 

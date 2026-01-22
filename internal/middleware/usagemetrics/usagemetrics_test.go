@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/stretchr/testify/suite"
@@ -111,8 +112,8 @@ func (s *metricsMiddlewareTestSuite) TestTrailers_Stream() {
 func (s *metricsMiddlewareTestSuite) TestErrCtx() {
 	var trailerMD metadata.MD
 
-	// SimpleCtx times out after two seconds
-	_, err := s.Client.PingError(s.SimpleCtx(), &testpb.PingErrorRequest{}, grpc.Trailer(&trailerMD))
+	// Make a request with an immediate deadline
+	_, err := s.Client.PingError(s.DeadlineCtx(time.Now()), &testpb.PingErrorRequest{}, grpc.Trailer(&trailerMD))
 
 	// the error may come from the grpc framework (client-side timeout) or from the API itself (it's a race)
 	s.Require().Equal(codes.DeadlineExceeded, status.Code(err))

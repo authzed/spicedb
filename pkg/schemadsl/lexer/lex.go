@@ -162,19 +162,20 @@ func (l *Lexer) errorf(currentRune rune, format string, args ...any) stateFn {
 
 // peekValue looks forward for the given value string. If found, returns true.
 func (l *Lexer) peekValue(value string) bool {
-	for index, runeValue := range value {
+	// NOTE: we manually track start position here because we can't count on the
+	// runes that we're next()ing over to all have the same width.
+	startPos := l.pos
+	for _, runeValue := range value {
 		r := l.next()
 		if r != runeValue {
-			for j := 0; j <= index; j++ {
-				l.backup()
-			}
+			// Restore to starting position on mismatch.
+			l.pos = startPos
 			return false
 		}
 	}
 
-	for i := 0; i < len(value); i++ {
-		l.backup()
-	}
+	// Restore to starting position after successful peek.
+	l.pos = startPos
 
 	return true
 }
@@ -188,14 +189,15 @@ func (l *Lexer) accept(valid string) bool {
 	return false
 }
 
-// acceptString consumes the full given string, if the next tokens in the stream.
+// acceptString consumes the full given string, if the next token is in the stream.
 func (l *Lexer) acceptString(value string) bool {
-	for index, runeValue := range value {
+	// NOTE: we manually track start position here because we can't count on the
+	// runes that we're next()ing over to all have the same width.
+	startPos := l.pos
+	for _, runeValue := range value {
 		if l.next() != runeValue {
-			for i := 0; i <= index; i++ {
-				l.backup()
-			}
-
+			// Restore to the starting position on mismatch.
+			l.pos = startPos
 			return false
 		}
 	}

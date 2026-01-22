@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 func TestInvalidModification(t *testing.T) {
@@ -353,15 +355,20 @@ func (m mockStreamInterceptor) streamIntercept(_ any, _ grpc.ServerStream, _ *gr
 }
 
 func TestMiddlewareOrdering(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
-		datastore.WithRequestHedgingEnabled(false),
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	c := ConfigWithOptions(
 		&Config{},
@@ -377,11 +384,15 @@ func TestMiddlewareOrdering(t *testing.T) {
 
 	clientConn, err := rs.GRPCDialContext(ctx)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = clientConn.Close()
+	})
 
 	psc := v1.NewPermissionsServiceClient(clientConn)
 
+	errChan := make(chan error, 1)
 	go func() {
-		_ = rs.Run(ctx)
+		errChan <- rs.Run(ctx)
 	}()
 	time.Sleep(100 * time.Millisecond)
 
@@ -417,18 +428,27 @@ func TestMiddlewareOrdering(t *testing.T) {
 
 	_, err = lrc.Recv()
 	require.NoError(t, err)
+
+	cancel()
+	require.NoError(t, <-errChan)
 }
 
 func TestIncorrectOrderAssertionFails(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
-		datastore.WithRequestHedgingEnabled(false),
 	)
+	t.Cleanup(func() {
+		ds.Close()
+	})
 	require.NoError(t, err)
+
 	noopUnary := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		return nil, nil
 	}
@@ -474,11 +494,15 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 
 	clientConn, err := rs.GRPCDialContext(ctx)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = clientConn.Close()
+	})
 
 	psc := v1.NewPermissionsServiceClient(clientConn)
 
+	errChan := make(chan error, 1)
 	go func() {
-		_ = rs.Run(ctx)
+		errChan <- rs.Run(ctx)
 	}()
 	time.Sleep(100 * time.Millisecond)
 
@@ -515,4 +539,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 
 	_, err = lrc.Recv()
 	require.ErrorContains(t, err, "expected interceptor does-not-exist to be already executed")
+
+	cancel()
+	require.NoError(t, <-errChan)
 }

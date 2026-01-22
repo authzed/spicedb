@@ -503,7 +503,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			return nil, spiceerrors.MustBugf("could not cast timestamp to uint64")
 		}
 
-		return postgresRevision{snapshot: newSnapshot.markComplete(newXID.Uint64), optionalTxID: newXID, optionalNanosTimestamp: nanosTimestamp}, nil
+		return postgresRevision{snapshot: newSnapshot.markComplete(newXID.Uint64), optionalTxID: newXID, optionalInexactNanosTimestamp: nanosTimestamp}, nil
 	}
 
 	if !config.DisableRetries {
@@ -708,32 +708,23 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 		continuousCheckpointing = datastore.FeatureSupported
 	}
 
+	watchStatus := datastore.FeatureUnsupported
 	if pgd.watchEnabled {
-		return &datastore.Features{
-			Watch: datastore.Feature{
-				Status: datastore.FeatureSupported,
-			},
-			IntegrityData: datastore.Feature{
-				Status: datastore.FeatureUnsupported,
-			},
-			ContinuousCheckpointing: datastore.Feature{
-				Status: continuousCheckpointing,
-			},
-			WatchEmitsImmediately: datastore.Feature{
-				Status: datastore.FeatureUnsupported,
-			},
-		}, nil
+		watchStatus = datastore.FeatureSupported
 	}
 
 	return &datastore.Features{
 		Watch: datastore.Feature{
+			Status: watchStatus,
+		},
+		WatchEmitsImmediately: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
 		},
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
 		},
 		ContinuousCheckpointing: datastore.Feature{
-			Status: datastore.FeatureUnsupported,
+			Status: continuousCheckpointing,
 		},
 	}, nil
 }

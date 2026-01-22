@@ -20,40 +20,43 @@ func DefinitionsOf[T SchemaDefinition](revisionedDefinitions []RevisionedDefinit
 // The data is transactionally deleted, which means it may time out.
 func DeleteAllData(ctx context.Context, ds Datastore) error {
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		nsDefs, err := rwt.ListAllNamespaces(ctx)
+		schemaReader, err := rwt.SchemaReader()
 		if err != nil {
 			return err
 		}
 
 		// Delete all relationships.
-		namespaceNames := make([]string, 0, len(nsDefs))
-		for _, nsDef := range nsDefs {
+		typeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
+		if err != nil {
+			return err
+		}
+		namespaceNames := make([]string, 0, len(typeDefs))
+		for _, typeDef := range typeDefs {
 			_, _, err = rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
-				ResourceType: nsDef.Definition.Name,
+				ResourceType: typeDef.Definition.Name,
 			})
 			if err != nil {
 				return err
 			}
-			namespaceNames = append(namespaceNames, nsDef.Definition.Name)
+			namespaceNames = append(namespaceNames, typeDef.Definition.Name)
 		}
 
 		// Delete all caveats.
-		caveatDefs, err := rwt.ListAllCaveats(ctx)
+		caveatDefs, err := schemaReader.ListAllCaveatDefinitions(ctx)
 		if err != nil {
 			return err
 		}
-
 		caveatNames := make([]string, 0, len(caveatDefs))
 		for _, caveatDef := range caveatDefs {
 			caveatNames = append(caveatNames, caveatDef.Definition.Name)
 		}
 
-		if err := rwt.DeleteCaveats(ctx, caveatNames); err != nil {
+		if err := rwt.LegacyDeleteCaveats(ctx, caveatNames); err != nil {
 			return err
 		}
 
 		// Delete all namespaces.
-		if err := rwt.DeleteNamespaces(ctx, namespaceNames, DeleteNamespacesAndRelationships); err != nil {
+		if err := rwt.LegacyDeleteNamespaces(ctx, namespaceNames, DeleteNamespacesAndRelationships); err != nil {
 			return err
 		}
 

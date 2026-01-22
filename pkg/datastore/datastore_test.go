@@ -585,12 +585,12 @@ func TestUnwrapAs(t *testing.T) {
 	ds := fakeDatastore{delegate: fakeDatastore{fakeDatastoreError{}}}
 	result = UnwrapAs[error](ds)
 	require.Error(t, result)
-	require.IsType(t, fakeDatastoreError{}, result)
+	require.ErrorIs(t, fakeDatastoreError{}, result)
 
 	errorable := fakeDatastoreError{}
 	result = UnwrapAs[error](errorable)
 	require.Error(t, result)
-	require.IsType(t, fakeDatastoreError{}, result)
+	require.ErrorIs(t, fakeDatastoreError{}, result)
 }
 
 type fakeDatastoreError struct {

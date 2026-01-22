@@ -3,7 +3,10 @@ package query
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -26,22 +29,37 @@ func NewTraceLogger() *TraceLogger {
 	}
 }
 
-// EnterIterator logs entering an iterator and pushes it onto the stack
-func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject ObjectAndRelation) {
-	// Get iterator name from Explain
+// iteratorIDPrefix generates a formatted prefix string for an iterator with its ID
+func iteratorIDPrefix(it Iterator) string {
 	explain := it.Explain()
-	iteratorType := explain.Name
-	if iteratorType == "" {
-		iteratorType = explain.Info
+	iteratorName := explain.Name
+	if iteratorName == "" {
+		iteratorName = explain.Info
 	}
 
+	id := it.ID()
+	if id == "" {
+		return " " + iteratorName
+	}
+
+	if len(id) >= 6 {
+		return fmt.Sprintf(" %s[%s]", iteratorName, id[:6])
+	}
+	return fmt.Sprintf(" %s[%s]", iteratorName, id)
+}
+
+// EnterIterator logs entering an iterator and pushes it onto the stack
+func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject ObjectAndRelation) {
 	indent := strings.Repeat("  ", t.depth)
+	idPrefix := iteratorIDPrefix(it)
+
 	resourceStrs := make([]string, len(resources))
 	for i, r := range resources {
 		resourceStrs[i] = fmt.Sprintf("%s:%s", r.ObjectType, r.ObjectID)
 	}
+	// TODO: plumb in the operation and replace check( with that operation
 	t.traces = append(t.traces, fmt.Sprintf("%s-> %s: check(%s, %s:%s)",
-		indent, iteratorType, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
+		indent, idPrefix, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
 	t.depth++
 	t.stack = append(t.stack, it) // Push iterator pointer onto stack
 }
@@ -54,14 +72,9 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 	}
 	t.depth--
 
-	// Get iterator name from Explain
-	explain := it.Explain()
-	iteratorType := explain.Name
-	if iteratorType == "" {
-		iteratorType = explain.Info
-	}
-
 	indent := strings.Repeat("  ", t.depth)
+	idPrefix := iteratorIDPrefix(it)
+
 	pathStrs := make([]string, len(paths))
 	for i, p := range paths {
 		caveatInfo := ""
@@ -78,7 +91,7 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 			p.Subject.ObjectType, p.Subject.ObjectID, caveatInfo)
 	}
 	t.traces = append(t.traces, fmt.Sprintf("%s<- %s: returned %d paths: [%s]",
-		indent, iteratorType, len(paths), strings.Join(pathStrs, ", ")))
+		indent, idPrefix, len(paths), strings.Join(pathStrs, ", ")))
 }
 
 // LogStep logs an intermediate step within an iterator, using the iterator pointer to find the correct indentation level
@@ -100,21 +113,97 @@ func (t *TraceLogger) LogStep(it Iterator, step string, data ...any) {
 		indentLevel = t.depth
 	}
 
-	// Get iterator name from Explain
-	explain := it.Explain()
-	iteratorName := explain.Name
-	if iteratorName == "" {
-		iteratorName = explain.Info
-	}
-
 	indent := strings.Repeat("  ", indentLevel)
+	idPrefix := iteratorIDPrefix(it)
 	message := fmt.Sprintf(step, data...)
-	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, iteratorName, message))
+	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, idPrefix, message))
 }
 
 // DumpTrace returns all traces as a string
 func (t *TraceLogger) DumpTrace() string {
 	return strings.Join(t.traces, "\n")
+}
+
+// AnalyzeStats collects the number of operations performed for each iterator as a query takes place.
+type AnalyzeStats struct {
+	CheckCalls           int
+	IterSubjectsCalls    int
+	IterResourcesCalls   int
+	CheckResults         int
+	IterSubjectsResults  int
+	IterResourcesResults int
+	CheckTime            time.Duration
+	IterSubjectsTime     time.Duration
+	IterResourcesTime    time.Duration
+}
+
+// AnalyzeCollector is a thread-safe wrapper around the analysis stats map
+type AnalyzeCollector struct {
+	mu    sync.Mutex
+	stats map[string]AnalyzeStats // GUARDED_BY(mu)
+}
+
+// NewAnalyzeCollector creates a new thread-safe analyze collector
+func NewAnalyzeCollector() *AnalyzeCollector {
+	return &AnalyzeCollector{
+		stats: make(map[string]AnalyzeStats),
+	}
+}
+
+// IncrementCall increments the call counter for a given iterator and operation type
+func (ac *AnalyzeCollector) IncrementCall(iterID, opType string) {
+	if ac == nil {
+		return
+	}
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	stats := ac.stats[iterID]
+	switch opType {
+	case "Check":
+		stats.CheckCalls++
+	case "IterSubjects":
+		stats.IterSubjectsCalls++
+	case "IterResources":
+		stats.IterResourcesCalls++
+	}
+	ac.stats[iterID] = stats
+}
+
+// RecordResults updates the result count and timing for an iterator
+func (ac *AnalyzeCollector) RecordResults(iterID, opType string, count int, elapsed time.Duration) {
+	if ac == nil {
+		return
+	}
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	stats := ac.stats[iterID]
+	switch opType {
+	case "Check":
+		stats.CheckResults += count
+		stats.CheckTime += elapsed
+	case "IterSubjects":
+		stats.IterSubjectsResults += count
+		stats.IterSubjectsTime += elapsed
+	case "IterResources":
+		stats.IterResourcesResults += count
+		stats.IterResourcesTime += elapsed
+	}
+	ac.stats[iterID] = stats
+}
+
+// GetStats returns a copy of all stats for reading
+func (ac *AnalyzeCollector) GetStats() map[string]AnalyzeStats {
+	if ac == nil {
+		return nil
+	}
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	result := make(map[string]AnalyzeStats, len(ac.stats))
+	maps.Copy(result, ac.stats)
+	return result
 }
 
 // Context represents a single execution of a query.
@@ -127,8 +216,55 @@ type Context struct {
 	Reader            datastore.Reader // Datastore reader for this query at a specific revision
 	CaveatContext     map[string]any
 	CaveatRunner      *caveats.CaveatRunner
-	TraceLogger       *TraceLogger // For debugging iterator execution
-	MaxRecursionDepth int          // Maximum depth for recursive iterators (0 = use default of 10)
+	TraceLogger       *TraceLogger      // For debugging iterator execution
+	Analyze           *AnalyzeCollector // Thread-safe collector for query analysis stats
+	MaxRecursionDepth int               // Maximum depth for recursive iterators (0 = use default of 10)
+}
+
+// NewLocalContext creates a new query execution context with a LocalExecutor.
+// This is a convenience constructor for tests and local execution scenarios.
+func NewLocalContext(stdContext context.Context, opts ...ContextOption) *Context {
+	ctx := &Context{
+		Context:  stdContext,
+		Executor: LocalExecutor{},
+	}
+	for _, opt := range opts {
+		opt(ctx)
+	}
+	return ctx
+}
+
+// ContextOption is a function that configures a Context.
+type ContextOption func(*Context)
+
+// WithReader sets the datastore reader for the context.
+func WithReader(reader datastore.Reader) ContextOption {
+	return func(ctx *Context) { ctx.Reader = reader }
+}
+
+// WithAnalyze sets the analysis collector for the context.
+func WithAnalyze(analyze *AnalyzeCollector) ContextOption {
+	return func(ctx *Context) { ctx.Analyze = analyze }
+}
+
+// WithTraceLogger sets the trace logger for the context.
+func WithTraceLogger(logger *TraceLogger) ContextOption {
+	return func(ctx *Context) { ctx.TraceLogger = logger }
+}
+
+// WithCaveatRunner sets the caveat runner for the context.
+func WithCaveatRunner(runner *caveats.CaveatRunner) ContextOption {
+	return func(ctx *Context) { ctx.CaveatRunner = runner }
+}
+
+// WithCaveatContext sets the caveat context for the context.
+func WithCaveatContext(caveatCtx map[string]any) ContextOption {
+	return func(ctx *Context) { ctx.CaveatContext = caveatCtx }
+}
+
+// WithMaxRecursionDepth sets the maximum recursion depth for the context.
+func WithMaxRecursionDepth(depth int) ContextOption {
+	return func(ctx *Context) { ctx.MaxRecursionDepth = depth }
 }
 
 func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
@@ -197,6 +333,38 @@ func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq 
 	}
 }
 
+// wrapPathSeqForAnalysis wraps a PathSeq to count results and track timing if analysis is enabled
+func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType string) PathSeq {
+	if ctx.Analyze == nil || it == nil {
+		return pathSeq
+	}
+
+	iterID := it.ID()
+
+	// Increment call counter based on operation type (thread-safe)
+	ctx.Analyze.IncrementCall(iterID, opType)
+
+	// Wrap the PathSeq to count results and track timing
+	return func(yield func(Path, error) bool) {
+		startTime := time.Now()
+		resultCount := 0
+
+		defer func() {
+			elapsed := time.Since(startTime)
+			ctx.Analyze.RecordResults(iterID, opType, resultCount, elapsed)
+		}()
+
+		for path, err := range pathSeq {
+			if err == nil {
+				resultCount++
+			}
+			if !yield(path, err) {
+				return
+			}
+		}
+	}
+}
+
 // Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
 // any of the `resources` are connected to `subject`.
 // Returns the sequence of matching paths, if they exist, at most `len(resources)`.
@@ -212,7 +380,9 @@ func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRela
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "Check")
+	return pathSeq, nil
 }
 
 // IterSubjects returns a sequence of all the paths in this set that match the given resource.
@@ -228,7 +398,9 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object) (PathSeq, error) 
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "IterSubjects")
+	return pathSeq, nil
 }
 
 // IterResources returns a sequence of all the relations in this set that match the given subject.
@@ -244,7 +416,9 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation) (PathS
 		return nil, err
 	}
 
-	return ctx.wrapPathSeqForTracing(tracedIterator, pathSeq), nil
+	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
+	pathSeq = ctx.wrapPathSeqForAnalysis(it, pathSeq, "IterResources")
+	return pathSeq, nil
 }
 
 // Executor as chooses how to proceed given an iterator -- perhaps in parallel, perhaps by RPC, etc -- and chooses how to process iteration from the subtree.

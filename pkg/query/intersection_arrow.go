@@ -1,9 +1,11 @@
 package query
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // IntersectionArrow is an iterator that represents the set of relations that
@@ -12,6 +14,7 @@ import (
 //
 // Ex: `group.all(member)` - user must be member of ALL groups
 type IntersectionArrow struct {
+	id    string
 	left  Iterator
 	right Iterator
 }
@@ -20,6 +23,7 @@ var _ Iterator = &IntersectionArrow{}
 
 func NewIntersectionArrow(left, right Iterator) *IntersectionArrow {
 	return &IntersectionArrow{
+		id:    uuid.NewString(),
 		left:  left,
 		right: right,
 	}
@@ -83,8 +87,8 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 					Relation:   path.Relation,
 					Subject:    checkPath.Subject,
 					Caveat:     combinedCaveat,
-					Expiration: checkPath.Expiration,
-					Integrity:  checkPath.Integrity,
+					Expiration: combineExpiration(path.Expiration, checkPath.Expiration),
+					Integrity:  combineIntegrity(path.Integrity, checkPath.Integrity),
 					Metadata:   checkPath.Metadata,
 				}
 				validResults = append(validResults, combinedPath)
@@ -118,13 +122,22 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 			// Return a single path representing the intersection, if one exists.
 			if len(validResults) > 0 {
 				firstResult := validResults[0]
+
+				// Combine expiration and integrity from all results
+				combinedExpiration := firstResult.Expiration
+				combinedIntegrity := firstResult.Integrity
+				for i := 1; i < len(validResults); i++ {
+					combinedExpiration = combineExpiration(combinedExpiration, validResults[i].Expiration)
+					combinedIntegrity = combineIntegrity(combinedIntegrity, validResults[i].Integrity)
+				}
+
 				finalResult := Path{
 					Resource:   resource,
 					Relation:   "",
 					Subject:    subject,
 					Caveat:     intersectionCaveat,
-					Expiration: firstResult.Expiration,
-					Integrity:  firstResult.Integrity,
+					Expiration: combinedExpiration,
+					Integrity:  combinedIntegrity,
 					Metadata:   firstResult.Metadata,
 				}
 
@@ -137,15 +150,172 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 }
 
 func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	// IntersectionArrow: ALL left subjects must satisfy the right side
+	ctx.TraceStep(ia, "iterating subjects for resource %s:%s", resource.ObjectType, resource.ObjectID)
+
+	// Get all left subjects
+	leftSeq, err := ctx.IterSubjects(ia.left, resource)
+	if err != nil {
+		return nil, err
+	}
+
+	leftPaths, err := CollectAll(leftSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TraceStep(ia, "left side returned %d subjects", len(leftPaths))
+
+	if len(leftPaths) == 0 {
+		ctx.TraceStep(ia, "no left subjects, returning empty")
+		return EmptyPathSeq(), nil
+	}
+
+	// For intersection arrow, we need ALL left subjects to satisfy the right side
+	// Track all valid results
+	var validResults []Path
+	unsatisfied := false
+
+	for _, leftPath := range leftPaths {
+		leftSubjectAsResource := GetObject(leftPath.Subject)
+		ctx.TraceStep(ia, "checking right side for left subject %s:%s", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+
+		rightSeq, err := ctx.IterSubjects(ia.right, leftSubjectAsResource)
+		if err != nil {
+			return nil, err
+		}
+
+		rightPaths, err := CollectAll(rightSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(rightPaths) == 0 {
+			ctx.TraceStep(ia, "left subject %s:%s did NOT satisfy right side", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+			unsatisfied = true
+			break
+		}
+
+		ctx.TraceStep(ia, "left subject %s:%s satisfied with %d right subjects", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID, len(rightPaths))
+
+		// Collect all valid combinations
+		for _, rightPath := range rightPaths {
+			// Combine caveats from left and right with AND logic
+			combinedCaveat := caveats.And(leftPath.Caveat, rightPath.Caveat)
+
+			combinedPath := Path{
+				Resource:   leftPath.Resource,
+				Relation:   leftPath.Relation,
+				Subject:    rightPath.Subject,
+				Caveat:     combinedCaveat,
+				Expiration: combineExpiration(leftPath.Expiration, rightPath.Expiration),
+				Integrity:  combineIntegrity(leftPath.Integrity, rightPath.Integrity),
+				Metadata:   make(map[string]any),
+			}
+			validResults = append(validResults, combinedPath)
+		}
+	}
+
+	if unsatisfied {
+		ctx.TraceStep(ia, "intersection arrow FAILED - not all left subjects satisfied")
+		return EmptyPathSeq(), nil
+	}
+
+	ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final subjects", len(validResults))
+
+	return func(yield func(Path, error) bool) {
+		for _, path := range validResults {
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}, nil
 }
 
 func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	// IntersectionArrow: ALL left subjects must satisfy the right side
+	ctx.TraceStep(ia, "iterating resources for subject %s:%s", subject.ObjectType, subject.ObjectID)
+
+	// Get all right resources
+	rightSeq, err := ctx.IterResources(ia.right, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	rightPaths, err := CollectAll(rightSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TraceStep(ia, "right side returned %d resources", len(rightPaths))
+
+	if len(rightPaths) == 0 {
+		ctx.TraceStep(ia, "no right resources, returning empty")
+		return EmptyPathSeq(), nil
+	}
+
+	// seenResources is used to avoid rechecking resources that we've already seen
+	seenResources := mapz.NewSet[string]()
+	validResults := make([]Path, 0)
+
+	for _, rightPath := range rightPaths {
+		rightResourceAsSubject := rightPath.Resource.WithEllipses()
+		ctx.TraceStep(ia, "looking up left resources for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
+
+		leftSeq, err := ctx.IterResources(ia.left, rightResourceAsSubject)
+		if err != nil {
+			return nil, err
+		}
+
+		leftPaths, err := CollectAll(leftSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		ctx.TraceStep(ia, "right subject %s:%s returned %d left resources", rightPath.Resource.ObjectType, rightPath.Resource.ObjectID, len(leftPaths))
+
+		// Make a list of the leftPaths that we haven't seen
+		// before that we need to check
+		leftResources := make([]Object, 0, len(leftPaths))
+		for _, path := range leftPaths {
+			resource := path.Resource
+			key := resource.Key()
+			if notSeen := seenResources.Add(key); notSeen {
+				leftResources = append(leftResources, path.Resource)
+			}
+		}
+
+		// Now that we have all of the potential left resources, we need to check
+		// them individually against the original subject to ensure that all of their
+		// subjects satisfy the intersection arrow constraint.
+		checkSeq, err := ia.CheckImpl(ctx, leftResources, subject)
+		if err != nil {
+			return nil, err
+		}
+
+		// The remaining values are a part of the resource set
+		for path, err := range checkSeq {
+			if err != nil {
+				return nil, err
+			}
+			validResults = append(validResults, path)
+		}
+	}
+
+	ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final resources", len(validResults))
+
+	return func(yield func(Path, error) bool) {
+		for _, path := range validResults {
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}, nil
 }
 
 func (ia *IntersectionArrow) Clone() Iterator {
 	return &IntersectionArrow{
+		id:    uuid.NewString(),
 		left:  ia.left.Clone(),
 		right: ia.right.Clone(),
 	}
@@ -164,5 +334,9 @@ func (ia *IntersectionArrow) Subiterators() []Iterator {
 }
 
 func (ia *IntersectionArrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &IntersectionArrow{left: newSubs[0], right: newSubs[1]}, nil
+	return &IntersectionArrow{id: uuid.NewString(), left: newSubs[0], right: newSubs[1]}, nil
+}
+
+func (ia *IntersectionArrow) ID() string {
+	return ia.id
 }

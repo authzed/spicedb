@@ -8,6 +8,7 @@ run:
     - "docker"
     - "image"
     - "mage"
+    - "memoryprotection"
     - "!skipintegrationtests"
     - "steelthread"
     - "pgbouncer"
@@ -37,7 +38,7 @@ linters:
     - "spancheck"
     - "staticcheck"
     - "tagalign"
-    # - "testifylint" TODO: fix issues
+    - "testifylint"
     - "tparallel"
     - "unconvert"
     - "usetesting"

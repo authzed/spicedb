@@ -11,6 +11,7 @@ import (
 	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	promclient "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -43,7 +44,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	wg.Add(4)
 	go func() {
 		resp1, err := disp.DispatchCheck(t.Context(), req.CloneVT())
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		// this goroutine mutates the response; other goroutines that read should be unaffected
 		resp1.GetMetadata().GetDebugInfo().GetCheck().GetSubProblems()[0].IsCachedResult = false
 		wg.Done()

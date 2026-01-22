@@ -87,10 +87,10 @@ func TestPostgresDatastoreGC(t *testing.T) {
 func TestDefaultQueryExecMode(t *testing.T) {
 	parsedConfig, err := pgxpool.ParseConfig("postgres://username:password@localhost:5432/dbname")
 	require.NoError(t, err)
-	require.Equal(t, parsedConfig.ConnConfig.DefaultQueryExecMode, pgx.QueryExecModeCacheStatement)
+	require.Equal(t, pgx.QueryExecModeCacheStatement, parsedConfig.ConnConfig.DefaultQueryExecMode)
 
 	common.ConfigureDefaultQueryExecMode(parsedConfig.ConnConfig)
-	require.Equal(t, parsedConfig.ConnConfig.DefaultQueryExecMode, pgx.QueryExecModeExec)
+	require.Equal(t, pgx.QueryExecModeExec, parsedConfig.ConnConfig.DefaultQueryExecMode)
 }
 
 func TestDefaultQueryExecModeOverridden(t *testing.T) {
@@ -98,5 +98,5 @@ func TestDefaultQueryExecModeOverridden(t *testing.T) {
 	require.NoError(t, err)
 
 	common.ConfigureDefaultQueryExecMode(parsedConfig.ConnConfig)
-	require.Equal(t, parsedConfig.ConnConfig.DefaultQueryExecMode, pgx.QueryExecModeCacheStatement)
+	require.Equal(t, pgx.QueryExecModeCacheStatement, parsedConfig.ConnConfig.DefaultQueryExecMode)
 }

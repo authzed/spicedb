@@ -118,7 +118,7 @@ func (err ExceedsMaximumUpdatesError) GRPCStatus() *status.Status {
 // NewExceedsMaximumUpdatesErr creates a new error representing that too many updates were given to a WriteRelationships call.
 func NewExceedsMaximumUpdatesErr(updateCount uint64, maxCountAllowed uint64) ExceedsMaximumUpdatesError {
 	return ExceedsMaximumUpdatesError{
-		error:           fmt.Errorf("update count of %d is greater than maximum allowed of %d", updateCount, maxCountAllowed),
+		error:           fmt.Errorf("too many updates (%d) for WriteRelationships call (maximum: %d); consider using ImportBulkRelationships API instead", updateCount, maxCountAllowed),
 		updateCount:     updateCount,
 		maxCountAllowed: maxCountAllowed,
 	}

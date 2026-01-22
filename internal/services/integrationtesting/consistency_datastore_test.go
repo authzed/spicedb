@@ -36,27 +36,25 @@ func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
 	}
 
 	for _, engineID := range datastore.Engines {
-		for _, filePath := range consistencyTestFiles {
-			t.Run(engineID+"/"+path.Base(filePath), func(t *testing.T) {
-				// FIXME errors arise if spanner is run in parallel
-				if engineID != "spanner" {
-					t.Parallel()
-				}
-
+		t.Run(engineID, func(t *testing.T) {
+			// FIXME errors arise if spanner is run in parallel
+			if engineID != "spanner" {
+				t.Parallel()
+			}
+			for _, filePath := range consistencyTestFiles {
 				rde := testdatastore.RunDatastoreEngine(t, engineID)
 				baseds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 					dsconfig.WithWatchBufferLength(0),
 					dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 					dsconfig.WithRevisionQuantization(10),
 					dsconfig.WithMaxRetries(50),
-					dsconfig.WithRequestHedgingEnabled(false),
 					dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
 				ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 
 				cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
 				dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
 				require.NoError(t, err)
-				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
+				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
 				headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
 				require.NoError(t, err)
@@ -74,12 +72,11 @@ func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
 						dispatcher:       dispatcher,
 					}
 
-					t.Run(tester.Name(), func(t *testing.T) {
-						t.Parallel()
+					t.Run(path.Base(filePath)+"/"+tester.Name(), func(t *testing.T) {
 						runAssertions(t, vctx)
 					})
 				}
-			})
-		}
+			}
+		})
 	}
 }

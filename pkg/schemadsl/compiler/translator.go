@@ -508,7 +508,7 @@ func translateExpressionDirect(tctx *translationContext, expressionNode *dslNode
 		if err != nil {
 			return nil, err
 		}
-		var ops []*core.SetOperation_Child
+		var ops []*core.SetOperation_Child //nolint: prealloc  // we can't know how long `ops` should be ahead of time
 		ops = append(ops, collapseOps(leftOperation, lookup)...)
 		ops = append(ops, collapseOps(rightOperation, lookup)...)
 		return builder(ops[0], ops[1:]...), nil

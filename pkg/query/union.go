@@ -1,12 +1,13 @@
 package query
 
 import (
-	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/google/uuid"
 )
 
 // Union the set of paths that are in any of underlying subiterators.
 // This is equivalent to `permission foo = bar | baz`
 type Union struct {
+	id     string
 	subIts []Iterator
 }
 
@@ -14,9 +15,12 @@ var _ Iterator = &Union{}
 
 func NewUnion(subiterators ...Iterator) *Union {
 	if len(subiterators) == 0 {
-		return &Union{}
+		return &Union{
+			id: uuid.NewString(),
+		}
 	}
 	return &Union{
+		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
 }
@@ -60,15 +64,76 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 }
 
 func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	ctx.TraceStep(u, "processing %d sub-iterators for resource %s:%s", len(u.subIts), resource.ObjectType, resource.ObjectID)
+
+	// Create a concatenated sequence from all sub-iterators
+	combinedSeq := func(yield func(Path, error) bool) {
+		for iterIdx, it := range u.subIts {
+			ctx.TraceStep(u, "processing sub-iterator %d", iterIdx)
+
+			pathSeq, err := ctx.IterSubjects(it, resource)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			pathCount := 0
+			for path, err := range pathSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+				pathCount++
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			ctx.TraceStep(u, "sub-iterator %d returned %d paths", iterIdx, pathCount)
+		}
+	}
+
+	// Wrap with deduplication
+	return DeduplicatePathSeq(combinedSeq), nil
 }
 
 func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	ctx.TraceStep(u, "processing %d sub-iterators for subject %s:%s#%s", len(u.subIts), subject.ObjectType, subject.ObjectID, subject.Relation)
+
+	// Create a concatenated sequence from all sub-iterators
+	combinedSeq := func(yield func(Path, error) bool) {
+		for iterIdx, it := range u.subIts {
+			ctx.TraceStep(u, "processing sub-iterator %d", iterIdx)
+
+			pathSeq, err := ctx.IterResources(it, subject)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			pathCount := 0
+			for path, err := range pathSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+				pathCount++
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			ctx.TraceStep(u, "sub-iterator %d returned %d paths", iterIdx, pathCount)
+		}
+	}
+
+	// Wrap with deduplication
+	return DeduplicatePathSeq(combinedSeq), nil
 }
 
 func (u *Union) Clone() Iterator {
 	cloned := &Union{
+		id:     uuid.NewString(),
 		subIts: make([]Iterator, len(u.subIts)),
 	}
 	for idx, subIt := range u.subIts {
@@ -94,5 +159,9 @@ func (u *Union) Subiterators() []Iterator {
 }
 
 func (u *Union) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Union{subIts: newSubs}, nil
+	return &Union{id: uuid.NewString(), subIts: newSubs}, nil
+}
+
+func (u *Union) ID() string {
+	return u.id
 }

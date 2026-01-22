@@ -57,7 +57,7 @@ func RunDatastoreEngine(t testing.TB, engine string) RunningEngineForTest {
 func RunDatastoreEngineWithBridge(t testing.TB, engine string, bridgeNetworkName string) RunningEngineForTest {
 	switch engine {
 	case "memory":
-		require.Equal(t, "", bridgeNetworkName, "memory datastore does not support bridge networking")
+		require.Empty(t, bridgeNetworkName, "memory datastore does not support bridge networking")
 		return RunMemoryForTesting(t)
 	case "cockroachdb":
 		ver := os.Getenv("CRDB_TEST_VERSION")

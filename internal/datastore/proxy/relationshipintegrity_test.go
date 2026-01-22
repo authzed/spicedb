@@ -245,8 +245,13 @@ func TestBasicIntegrityFailureDueToWriteWithExpiredKey(t *testing.T) {
 }
 
 func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
+	t.Parallel()
+
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ds.Close()
+	})
 
 	headRev, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
@@ -272,10 +277,9 @@ func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Ensure a watch error is raised.
 	select {
-	case <-watchEvents:
-		require.Fail(t, "watch event received")
+	case _, ok := <-watchEvents:
+		require.False(t, ok, "expected immediate channel closure")
 
 	case err := <-errChan:
 		require.Error(t, err)

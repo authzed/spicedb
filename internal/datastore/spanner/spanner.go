@@ -7,7 +7,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -95,8 +94,7 @@ type spannerDatastore struct {
 	database string
 	schema   common.SchemaInformation
 
-	cachedEstimatedBytesPerRelationshipLock sync.RWMutex
-	cachedEstimatedBytesPerRelationship     uint64 // GUARDED_BY(cachedEstimatedBytesPerRelationshipLock)
+	cachedEstimatedBytesPerRelationship atomic.Uint64
 
 	tableSizesStatsTable string
 	filterMaximumIDCount uint16
@@ -234,18 +232,17 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.Timestamp,
 		},
-		MigrationValidator:                      common.NewMigrationValidator(headMigration, config.allowedMigrations),
-		client:                                  client,
-		config:                                  config,
-		database:                                database,
-		watchBufferWriteTimeout:                 config.watchBufferWriteTimeout,
-		watchBufferLength:                       config.watchBufferLength,
-		watchEnabled:                            !config.watchDisabled,
-		cachedEstimatedBytesPerRelationship:     0,
-		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
-		tableSizesStatsTable:                    tableSizesStatsTable,
-		filterMaximumIDCount:                    config.filterMaximumIDCount,
-		schema:                                  *schema,
+		MigrationValidator:                  common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		client:                              client,
+		config:                              config,
+		database:                            database,
+		watchBufferWriteTimeout:             config.watchBufferWriteTimeout,
+		watchBufferLength:                   config.watchBufferLength,
+		watchEnabled:                        !config.watchDisabled,
+		cachedEstimatedBytesPerRelationship: atomic.Uint64{},
+		tableSizesStatsTable:                tableSizesStatsTable,
+		filterMaximumIDCount:                config.filterMaximumIDCount,
+		schema:                              *schema,
 	}
 	// Optimized revision and revision checking use a stale read for the
 	// current timestamp.
@@ -294,30 +291,36 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(r.Time()))}
 	}
 	executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
-	return spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
+	return &spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
 }
 
 func (sd *spannerDatastore) MetricsID() (string, error) {
 	return sd.database, nil
 }
 
-type TransactionMetadata map[string]any
-
-func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transactionTag string) (TransactionMetadata, error) {
+func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transactionTag string) (common.TransactionMetadata, error) {
 	row, err := sd.client.Single().ReadRow(ctx, tableTransactionMetadata, spanner.Key{transactionTag}, []string{colMetadata})
 	if err != nil {
 		if spanner.ErrCode(err) == codes.NotFound {
+			log.Err(err).Str("key", transactionTag).Send()
 			return map[string]any{}, nil
 		}
 
 		return nil, err
 	}
 
-	var metadata map[string]any
-	if err := row.Columns(&metadata); err != nil {
-		return nil, err
+	var metadataJSON spanner.NullJSON
+	if err := row.Columns(&metadataJSON); err != nil {
+		log.Err(err).Str("key", transactionTag).Msg("error unmarshaling transaction metadata json")
+		return map[string]any{}, nil
 	}
 
+	if !metadataJSON.Valid || metadataJSON.Value == nil {
+		log.Err(err).Str("key", transactionTag).Msg("error validating transaction metadata json")
+		return map[string]any{}, nil
+	}
+
+	metadata := metadataJSON.Value.(map[string]any)
 	return metadata, nil
 }
 
@@ -328,6 +331,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 	defer span.End()
 
 	transactionTag := "sdb-rwt-" + uuid.NewString()
+	transactionTag = transactionTag[:36] // there is a column constraint on the length
 
 	ctx, cancel := context.WithCancel(ctx)
 	rs, err := sd.client.ReadWriteTransactionWithOptions(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
@@ -339,7 +343,10 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 			// Insert the metadata into the transaction metadata table.
 			mutation := spanner.Insert(tableTransactionMetadata,
 				[]string{colTransactionTag, colMetadata},
-				[]any{transactionTag, config.Metadata.AsMap()},
+				[]any{transactionTag, spanner.NullJSON{
+					Value: config.Metadata.AsMap(),
+					Valid: true,
+				}},
 			)
 
 			if err := spannerRWT.BufferWrite([]*spanner.Mutation{mutation}); err != nil {
@@ -348,7 +355,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 		}
 
 		executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
-		rwt := spannerReadWriteTXN{
+		rwt := &spannerReadWriteTXN{
 			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
 			spannerRWT,
 		}

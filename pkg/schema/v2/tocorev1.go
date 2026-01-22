@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
 // ToDefinitions converts a Schema to the full set of namespace and caveat definitions.
@@ -22,19 +23,33 @@ func (s *Schema) ToDefinitions() ([]*core.NamespaceDefinition, []*core.CaveatDef
 			return nil, nil, fmt.Errorf("failed to convert definition %s: %w", defName, err)
 		}
 
+		// Encode metadata
+		metadata, err := encodeMetadata(def.metadata)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to encode definition metadata for %s: %w", defName, err)
+		}
+
 		definitions = append(definitions, &core.NamespaceDefinition{
 			Name:     defName,
 			Relation: relations,
+			Metadata: metadata,
 		})
 	}
 
 	// Convert caveats
 	caveats := make([]*core.CaveatDefinition, 0, len(s.caveats))
 	for caveatName, caveat := range s.caveats {
+		// Encode metadata
+		metadata, err := encodeMetadata(caveat.metadata)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to encode caveat metadata for %s: %w", caveatName, err)
+		}
+
 		caveats = append(caveats, &core.CaveatDefinition{
 			Name:                 caveatName,
 			SerializedExpression: []byte(caveat.expression),
 			ParameterTypes:       make(map[string]*core.CaveatTypeReference), // TODO: populate if needed
+			Metadata:             metadata,
 		})
 	}
 
@@ -47,9 +62,25 @@ func defToRelations(def *Definition) ([]*core.Relation, error) {
 
 	// Convert relations
 	for _, rel := range def.relations {
+		// Ensure metadata has RelationKind set to RELATION
+		relMetadata := rel.metadata
+		if relMetadata == nil {
+			relMetadata = NewMetadata()
+		}
+		if relMetadata.RelationKind() == RelationKindUnknown {
+			relMetadata = relMetadata.WithRelationKind(RelationKindRelation)
+		}
+
+		// Encode metadata
+		metadata, err := encodeMetadata(relMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode relation metadata for %s: %w", rel.name, err)
+		}
+
 		relations = append(relations, &core.Relation{
 			Name:            rel.name,
 			TypeInformation: baseRelationsToTypeInfo(rel.baseRelations),
+			Metadata:        metadata,
 		})
 	}
 
@@ -60,9 +91,17 @@ func defToRelations(def *Definition) ([]*core.Relation, error) {
 			return nil, fmt.Errorf("failed to convert permission %s: %w", perm.name, err)
 		}
 
+		// Create metadata marking this as a permission
+		permMetadata := NewMetadata().WithRelationKind(RelationKindPermission)
+		encodedMetadata, err := encodeMetadata(permMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode permission metadata for %s: %w", perm.name, err)
+		}
+
 		relations = append(relations, &core.Relation{
 			Name:           perm.name,
 			UsersetRewrite: rewrite,
+			Metadata:       encodedMetadata,
 		})
 	}
 
@@ -438,4 +477,28 @@ func functionTypeToCore(ft FunctionType) core.FunctionedTupleToUserset_Function 
 	default:
 		return core.FunctionedTupleToUserset_FUNCTION_ANY
 	}
+}
+
+// AsCompiledSchema converts a Schema to a CompiledSchema by calling ToDefinitions
+// and creating a compiled schema structure.
+func (s *Schema) AsCompiledSchema() (*compiler.CompiledSchema, error) {
+	namespaces, caveats, err := s.ToDefinitions()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build ordered definitions by combining namespaces and caveats
+	orderedDefinitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		orderedDefinitions = append(orderedDefinitions, ns)
+	}
+	for _, caveat := range caveats {
+		orderedDefinitions = append(orderedDefinitions, caveat)
+	}
+
+	return &compiler.CompiledSchema{
+		ObjectDefinitions:  namespaces,
+		CaveatDefinitions:  caveats,
+		OrderedDefinitions: orderedDefinitions,
+	}, nil
 }

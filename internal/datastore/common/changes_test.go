@@ -2,12 +2,15 @@ package common
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -404,7 +407,7 @@ func TestAddMetadata(t *testing.T) {
 	require.Len(t, results, 1)
 	require.True(t, ch.IsEmpty())
 
-	require.Equal(t, 1, len(results[0].Metadatas))
+	require.Len(t, results[0].Metadatas, 1)
 	require.Equal(t, map[string]any{"foo": "bar"}, results[0].Metadatas[0].AsMap())
 }
 
@@ -441,8 +444,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 1, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 1)
 		require.Equal(t, metadata, results[0].Metadatas[0].AsMap())
 	})
 
@@ -464,8 +467,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 3, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 3)
 
 		resultMaps := make([]map[string]any, 3)
 		for i, meta := range results[0].Metadatas {
@@ -504,8 +507,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 1, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 1)
 	})
 
 	t.Run("metadata across different revisions", func(t *testing.T) {
@@ -525,12 +528,12 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
 		require.NoError(t, err)
-		require.Equal(t, 2, len(results))
+		require.Len(t, results, 2)
 
-		require.Equal(t, 1, len(results[0].Metadatas))
+		require.Len(t, results[0].Metadatas, 1)
 		require.Equal(t, metadata1, results[0].Metadatas[0].AsMap())
 
-		require.Equal(t, 1, len(results[1].Metadatas))
+		require.Len(t, results[1].Metadatas, 1)
 		require.Equal(t, metadata2, results[1].Metadatas[0].AsMap())
 	})
 
@@ -548,8 +551,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 2, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 2)
 	})
 
 	t.Run("deduplication edge cases", func(t *testing.T) {
@@ -577,8 +580,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 4, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 4)
 	})
 
 	t.Run("metadata ordering preservation", func(t *testing.T) {
@@ -602,8 +605,8 @@ func TestAddRevisionMetadataComprehensive(t *testing.T) {
 
 		results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(results))
-		require.Equal(t, 3, len(results[0].Metadatas))
+		require.Len(t, results, 1)
+		require.Len(t, results[0].Metadatas, 3)
 
 		require.Equal(t, metadata1, results[0].Metadatas[0].AsMap())
 		require.Equal(t, metadata2, results[0].Metadatas[1].AsMap())
@@ -967,4 +970,52 @@ func canonicalize(in []datastore.RevisionChanges) []datastore.RevisionChanges {
 	}
 
 	return out
+}
+
+func TestThreadSafe(t *testing.T) {
+	t.Parallel()
+
+	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, math.MaxInt64)
+
+	var wg errgroup.Group
+	for i := 0; i < 1_000; i++ {
+		wg.Go(func() error {
+			rel := tuple.MustParse("document:" + strconv.Itoa(i) + "#reader@user:anne")
+			return ch.AddRelationshipChange(t.Context(), revisions.NewForTransactionID(1), rel, tuple.UpdateOperationTouch)
+		})
+		wg.Go(func() error {
+			rel := tuple.MustParse("document:" + strconv.Itoa(i) + "#reader@user:anne")
+			return ch.AddRelationshipChange(t.Context(), revisions.NewForTransactionID(1), rel, tuple.UpdateOperationDelete)
+		})
+		wg.Go(func() error {
+			return ch.AddChangedDefinition(t.Context(), revisions.NewForTransactionID(1), &core.NamespaceDefinition{
+				Name: "somenamespace" + strconv.Itoa(i),
+			})
+		})
+		wg.Go(func() error {
+			return ch.AddChangedDefinition(t.Context(), revisions.NewForTransactionID(1), &core.CaveatDefinition{
+				Name: "somenamespace" + strconv.Itoa(i),
+			})
+		})
+		wg.Go(func() error {
+			return ch.AddDeletedNamespace(t.Context(), revisions.NewForTransactionID(1), "type"+strconv.Itoa(i))
+		})
+		wg.Go(func() error {
+			return ch.AddDeletedCaveat(t.Context(), revisions.NewForTransactionID(1), "caveat"+strconv.Itoa(i))
+		})
+		wg.Go(func() error {
+			return ch.AddRevisionMetadata(t.Context(), revisions.NewForTransactionID(1), map[string]any{"foo": i})
+		})
+		wg.Go(func() error {
+			_, err := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
+			return err
+		})
+		wg.Go(func() error {
+			_ = ch.IsEmpty()
+			return nil
+		})
+	}
+
+	err := wg.Wait()
+	require.NoError(t, err)
 }

@@ -7,7 +7,6 @@ import (
 	"maps"
 	"path"
 	"slices"
-	"sort"
 	"testing"
 	"time"
 
@@ -120,7 +119,7 @@ func runConsistencyTestsWithServiceTester(
 	useCachingDispatcher bool,
 ) {
 	// Build an accessibility set.
-	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
+	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
 	dispatcher := consistencytestutil.CreateDispatcherForTesting(t, useCachingDispatcher)
 
@@ -333,19 +332,6 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 		})
 }
 
-func requireSameSets(t *testing.T, expected []string, found []string) {
-	expectedSet := mapz.NewSet(expected...)
-	foundSet := mapz.NewSet(found...)
-
-	orderedExpected := expectedSet.AsSlice()
-	orderedFound := foundSet.AsSlice()
-
-	sort.Strings(orderedExpected)
-	sort.Strings(orderedFound)
-
-	require.Equal(t, orderedExpected, orderedFound)
-}
-
 func requireSubsetOf(t *testing.T, found []string, expected []string) {
 	if len(expected) == 0 {
 		return
@@ -395,9 +381,10 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 								}
 							}
 
-							requireSameSets(t,
+							require.ElementsMatch(t,
 								slices.Collect(maps.Keys(accessibleResources)),
 								slices.Collect(maps.Keys(resolvedResources)),
+								"expected accessibleResources in list A don't match actual resolvedResources in list B",
 							)
 
 							// Ensure that every returned concrete object Checks directly.

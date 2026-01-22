@@ -20,11 +20,8 @@ func TestExclusionIterator(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Create test paths
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -172,6 +169,46 @@ func TestExclusionIterator(t *testing.T) {
 		require.True(foundRelC, "Should contain pathC (doc3)")
 	})
 
+	t.Run("IterSubjects", func(t *testing.T) {
+		t.Parallel()
+
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		mainSet := NewFixedIterator(path1)
+		excludedSet := NewFixedIterator()
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		// mainSet has alice for doc1, excludedSet is empty
+		// Result should be alice (nothing excluded)
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		require.NoError(err)
+		require.NotNil(pathSeq)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+		require.Len(paths, 1, "Should return alice from main set with nothing excluded")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+	})
+
+	t.Run("IterResources", func(t *testing.T) {
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		mainSet := NewFixedIterator(path1)
+		excludedSet := NewFixedIterator()
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		// mainSet has alice for doc1, excludedSet is empty
+		// Result should be alice (nothing excluded)
+		pathSeq, err := ctx.IterResources(exclusion, NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+		require.NotNil(pathSeq)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+		require.Len(paths, 1, "Should return alice from main set with nothing excluded")
+		require.Equal("doc1", paths[0].Resource.ObjectID)
+	})
+
 	t.Run("Clone", func(t *testing.T) {
 		t.Parallel()
 		mainSet := NewFixedIterator(path1, path2)
@@ -219,11 +256,8 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -259,42 +293,6 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 	})
 }
 
-func TestExclusionUnimplementedMethods(t *testing.T) {
-	t.Parallel()
-
-	require := require.New(t)
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
-	require.NoError(err)
-
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
-
-	path1 := MustPathFromString("document:doc1#viewer@user:alice")
-	mainSet := NewFixedIterator(path1)
-	excludedSet := NewFixedIterator()
-
-	exclusion := NewExclusion(mainSet, excludedSet)
-
-	t.Run("IterSubjectsImpl Unimplemented", func(t *testing.T) {
-		t.Parallel()
-		require.Panics(func() {
-			_, _ = ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
-		}, "Should panic since method is unimplemented")
-	})
-
-	t.Run("IterResourcesImpl Unimplemented", func(t *testing.T) {
-		t.Parallel()
-		require.Panics(func() {
-			_, _ = ctx.IterResources(exclusion, NewObject("user", "alice").WithEllipses())
-		}, "Should panic since method is unimplemented")
-	})
-}
-
 func TestExclusionErrorHandling(t *testing.T) {
 	t.Parallel()
 
@@ -304,11 +302,8 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -342,16 +337,26 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 	t.Run("Main Set Collection Error", func(t *testing.T) {
 		t.Parallel()
-		// Create an iterator that fails during collection
+		// Create an iterator that fails during iteration
 		mainSet := NewFaultyIterator(false, true)
 		excludedSet := NewFixedIterator(path1)
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		require.Error(err)
-		require.Contains(err.Error(), "faulty iterator collection error")
-		require.Nil(pathSeq)
+		require.NoError(err, "CheckImpl should succeed, error comes during iteration")
+		require.NotNil(pathSeq)
+
+		// The error should be yielded when we try to iterate the sequence
+		foundError := false
+		for _, err := range pathSeq {
+			if err != nil {
+				require.Contains(err.Error(), "faulty iterator collection error")
+				foundError = true
+				break
+			}
+		}
+		require.True(foundError, "Expected error during iteration")
 	})
 
 	t.Run("Excluded Set Collection Error", func(t *testing.T) {
@@ -378,11 +383,8 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Create test relations
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -547,7 +549,7 @@ func TestCombineExclusionCaveats(t *testing.T) {
 		resultCaveat := result.Caveat
 		require.NotNil(resultCaveat, "Result should have a combined caveat")
 		require.NotNil(resultCaveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(resultCaveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(core.CaveatOperation_AND, resultCaveat.GetOperation().Op, "Caveat should be an AND")
 		require.Len(resultCaveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children (main_caveat AND NOT excluded_caveat)")
 
 		// Verify the result has the same endpoints as main
@@ -567,11 +569,8 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-		Reader:   ds.SnapshotReader(revision),
-	}
+	ctx := NewLocalContext(t.Context(),
+		WithReader(ds.SnapshotReader(revision)))
 
 	// Helper to create paths with caveats
 	createPathWithCaveat := func(relation, caveatName string) Path {
@@ -632,7 +631,7 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 		doc1Caveat := doc1Result.Caveat
 		require.NotNil(doc1Caveat, "doc1 result should have combined caveat")
 		require.NotNil(doc1Caveat.GetOperation(), "Caveat should be an operation")
-		require.Equal(doc1Caveat.GetOperation().Op, core.CaveatOperation_AND, "Caveat should be an AND")
+		require.Equal(core.CaveatOperation_AND, doc1Caveat.GetOperation().Op, "Caveat should be an AND")
 		require.Len(doc1Caveat.GetOperation().GetChildren(), 2, "Caveat should be an AND of two children (caveat1 AND NOT caveat2)")
 
 		// doc2 should have no caveat (original state preserved)
@@ -645,10 +644,7 @@ func TestExclusion_EdgeCases(t *testing.T) {
 	require := require.New(t)
 
 	// Create minimal context for basic testing
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
+	ctx := NewLocalContext(t.Context())
 
 	t.Run("empty_main_set", func(t *testing.T) {
 		t.Parallel()
@@ -701,5 +697,160 @@ func TestExclusion_EdgeCases(t *testing.T) {
 		require.Len(results, 1, "Should return main path when no exclusions match")
 		require.Equal(mainPath.Resource, results[0].Resource)
 		require.Equal(mainPath.Subject, results[0].Subject)
+	})
+}
+
+func TestExclusionIterSubjects(t *testing.T) {
+	t.Parallel()
+
+	require := require.New(t)
+
+	ctx := &Context{
+		Context:  t.Context(),
+		Executor: LocalExecutor{},
+	}
+
+	t.Run("SimpleExclusion", func(t *testing.T) {
+		t.Parallel()
+
+		// Main has alice and bob, exclude bob
+		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
+		pathBob := MustPathFromString("document:doc1#viewer@user:bob")
+
+		mainSet := NewFixedIterator(pathAlice, pathBob)
+		excludedSet := NewFixedIterator(pathBob)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "Should return alice only")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+	})
+
+	t.Run("ExcludeAll", func(t *testing.T) {
+		t.Parallel()
+
+		// Main has alice, exclude alice
+		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
+
+		mainSet := NewFixedIterator(pathAlice)
+		excludedSet := NewFixedIterator(pathAlice)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "All subjects excluded should result in empty")
+	})
+
+	t.Run("ExcludeNone", func(t *testing.T) {
+		t.Parallel()
+
+		// Main has alice, exclude nothing
+		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
+
+		mainSet := NewFixedIterator(pathAlice)
+		excludedSet := NewFixedIterator()
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "No exclusions should return all from main")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+	})
+
+	t.Run("EmptyMainSet", func(t *testing.T) {
+		t.Parallel()
+
+		// Empty main set
+		pathBob := MustPathFromString("document:doc1#viewer@user:bob")
+
+		mainSet := NewFixedIterator()
+		excludedSet := NewFixedIterator(pathBob)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Empty(paths, "Empty main set should return empty")
+	})
+
+	t.Run("MultipleSubjectsPartialExclusion", func(t *testing.T) {
+		t.Parallel()
+
+		// Main has alice, bob, carol; exclude bob
+		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
+		pathBob := MustPathFromString("document:doc1#viewer@user:bob")
+		pathCarol := MustPathFromString("document:doc1#viewer@user:carol")
+
+		mainSet := NewFixedIterator(pathAlice, pathBob, pathCarol)
+		excludedSet := NewFixedIterator(pathBob)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 2, "Should return alice and carol")
+
+		subjectIDs := make(map[string]bool)
+		for _, path := range paths {
+			subjectIDs[path.Subject.ObjectID] = true
+		}
+		require.Contains(subjectIDs, "alice")
+		require.Contains(subjectIDs, "carol")
+		require.NotContains(subjectIDs, "bob")
+	})
+
+	t.Run("CaveatHandling", func(t *testing.T) {
+		t.Parallel()
+
+		// Main has alice with no caveat, exclude has alice with caveat
+		pathMainAlice := MustPathFromString("document:doc1#viewer@user:alice")
+
+		pathExcludedAlice := MustPathFromString("document:doc1#viewer@user:alice")
+		pathExcludedAlice.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "excluded_caveat",
+				},
+			},
+		}
+
+		mainSet := NewFixedIterator(pathMainAlice)
+		excludedSet := NewFixedIterator(pathExcludedAlice)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		require.NoError(err)
+
+		paths, err := CollectAll(pathSeq)
+		require.NoError(err)
+
+		require.Len(paths, 1, "Should return alice with negated caveat")
+		require.Equal("alice", paths[0].Subject.ObjectID)
+		require.NotNil(paths[0].Caveat, "Should have caveat for conditional exclusion")
 	})
 }

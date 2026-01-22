@@ -124,6 +124,7 @@ func TestParser(t *testing.T) {
 		{"arrow illegal operations test", "arrowillegalops"},
 		{"arrow illegal function test", "arrowillegalfunc"},
 		{"caveat with keyword parameter test", "caveatwithkeywordparam"},
+		{"caveat with unicode identifier", "caveat_unicode"},
 		{"use expiration test", "useexpiration"},
 		{"use expiration keyword test", "useexpirationkeyword"},
 		{"expiration non-keyword test", "expirationnonkeyword"},
@@ -172,7 +173,7 @@ func getParseTree(currentNode *testNode, indentation int) string {
 	parseTree += fmt.Sprintf("%v", currentNode.nodeType)
 	parseTree += "\n"
 
-	keys := make([]string, 0)
+	keys := make([]string, 0, len(currentNode.properties))
 
 	for key := range currentNode.properties {
 		keys = append(keys, key)
@@ -186,7 +187,7 @@ func getParseTree(currentNode *testNode, indentation int) string {
 		parseTree += "\n"
 	}
 
-	keys = make([]string, 0)
+	keys = make([]string, 0, len(currentNode.children))
 
 	for key := range currentNode.children {
 		keys = append(keys, key)

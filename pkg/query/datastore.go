@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -38,6 +40,7 @@ func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) Pa
 //
 // The RelationIterator, being the leaf, generates this set by calling the datastore.
 type RelationIterator struct {
+	id   string
 	base *schema.BaseRelation
 }
 
@@ -45,6 +48,7 @@ var _ Iterator = &RelationIterator{}
 
 func NewRelationIterator(base *schema.BaseRelation) *RelationIterator {
 	return &RelationIterator{
+		id:   uuid.NewString(),
 		base: base,
 	}
 }
@@ -140,28 +144,8 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 	if err != nil {
 		return nil, err
 	}
-
-	// Transform the wildcard relationships to use the concrete subject
-	return func(yield func(Path, error) bool) {
-		for rel, err := range relIter {
-			if err != nil {
-				if !yield(Path{}, err) {
-					return
-				}
-				continue
-			}
-
-			// Replace the wildcard subject with the concrete subject
-			concreteRel := rel
-			concreteRel.Subject = subject
-
-			// Convert to Path
-			path := FromRelationship(concreteRel)
-			if !yield(path, nil) {
-				return
-			}
-		}
-	}, nil
+	// We rewrite the subject to the concrete subject before returning the paths
+	return RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject), nil
 }
 
 func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
@@ -223,11 +207,67 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 }
 
 func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return nil, spiceerrors.MustBugf("unimplemented")
+	// If the types don't match, we don't even have to go to the datastore.
+	if subject.ObjectType != r.base.Type() {
+		return EmptyPathSeq(), nil
+	}
+
+	if r.base.Wildcard() {
+		return r.iterResourcesWildcardImpl(ctx, subject)
+	}
+	filter := datastore.RelationshipsFilter{
+		OptionalResourceType:     r.base.DefinitionName(),
+		OptionalResourceRelation: r.base.RelationName(),
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: subject.ObjectType,
+				OptionalSubjectIds:  []string{subject.ObjectID},
+				RelationFilter:      r.buildSubjectRelationFilter(),
+			},
+		},
+	}
+
+	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
+		options.WithQueryShape(queryshape.MatchingResourcesForSubject),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+}
+
+func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+	filter := datastore.RelationshipsFilter{
+		OptionalResourceType:     r.base.DefinitionName(),
+		OptionalResourceRelation: r.base.RelationName(),
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: subject.ObjectType,
+				OptionalSubjectIds:  []string{tuple.PublicWildcard}, // Look for "*" subjects
+				RelationFilter:      r.buildSubjectRelationFilter(),
+			},
+		},
+	}
+
+	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
+		options.WithQueryShape(queryshape.AllSubjectsForResources),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// We rewrite the subject to the concrete subject before returning the paths
+	return RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject), nil
 }
 
 func (r *RelationIterator) Clone() Iterator {
 	return &RelationIterator{
+		id:   uuid.NewString(),
 		base: r.base,
 	}
 }
@@ -250,4 +290,8 @@ func (r *RelationIterator) Subiterators() []Iterator {
 
 func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf RelationIterator's subiterators")
+}
+
+func (r *RelationIterator) ID() string {
+	return r.id
 }
