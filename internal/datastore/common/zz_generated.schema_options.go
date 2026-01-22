@@ -2,9 +2,9 @@
 package common
 
 import (
+	"fmt"
 	squirrel "github.com/Masterminds/squirrel"
 	defaults "github.com/creasty/defaults"
-	helpers "github.com/ecordell/optgen/helpers"
 )
 
 type SchemaInformationOption func(s *SchemaInformation)
@@ -57,31 +57,120 @@ func (s *SchemaInformation) ToOption() SchemaInformationOption {
 }
 
 // DebugMap returns a map form of SchemaInformation for debugging
-func (s SchemaInformation) DebugMap() map[string]any {
+func (s *SchemaInformation) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["RelationshipTableName"] = helpers.DebugValue(s.RelationshipTableName, false)
-	debugMap["ColNamespace"] = helpers.DebugValue(s.ColNamespace, false)
-	debugMap["ColObjectID"] = helpers.DebugValue(s.ColObjectID, false)
-	debugMap["ColRelation"] = helpers.DebugValue(s.ColRelation, false)
-	debugMap["ColUsersetNamespace"] = helpers.DebugValue(s.ColUsersetNamespace, false)
-	debugMap["ColUsersetObjectID"] = helpers.DebugValue(s.ColUsersetObjectID, false)
-	debugMap["ColUsersetRelation"] = helpers.DebugValue(s.ColUsersetRelation, false)
-	debugMap["ColCaveatName"] = helpers.DebugValue(s.ColCaveatName, false)
-	debugMap["ColCaveatContext"] = helpers.DebugValue(s.ColCaveatContext, false)
-	debugMap["ColExpiration"] = helpers.DebugValue(s.ColExpiration, false)
-	debugMap["ColIntegrityKeyID"] = helpers.DebugValue(s.ColIntegrityKeyID, false)
-	debugMap["ColIntegrityHash"] = helpers.DebugValue(s.ColIntegrityHash, false)
-	debugMap["ColIntegrityTimestamp"] = helpers.DebugValue(s.ColIntegrityTimestamp, false)
-	debugMap["Indexes"] = helpers.DebugValue(s.Indexes, false)
-	debugMap["PaginationFilterType"] = helpers.DebugValue(s.PaginationFilterType, false)
-	debugMap["PlaceholderFormat"] = helpers.DebugValue(s.PlaceholderFormat, false)
-	debugMap["NowFunction"] = helpers.DebugValue(s.NowFunction, false)
-	debugMap["ColumnOptimization"] = helpers.DebugValue(s.ColumnOptimization, false)
-	debugMap["IntegrityEnabled"] = helpers.DebugValue(s.IntegrityEnabled, false)
-	debugMap["ExpirationDisabled"] = helpers.DebugValue(s.ExpirationDisabled, false)
-	debugMap["SortByResourceColumnOrder"] = helpers.DebugValue(s.SortByResourceColumnOrder, false)
-	debugMap["SortBySubjectColumnOrder"] = helpers.DebugValue(s.SortBySubjectColumnOrder, false)
+	if s.RelationshipTableName == "" {
+		debugMap["RelationshipTableName"] = "(empty)"
+	} else {
+		debugMap["RelationshipTableName"] = s.RelationshipTableName
+	}
+	if s.ColNamespace == "" {
+		debugMap["ColNamespace"] = "(empty)"
+	} else {
+		debugMap["ColNamespace"] = s.ColNamespace
+	}
+	if s.ColObjectID == "" {
+		debugMap["ColObjectID"] = "(empty)"
+	} else {
+		debugMap["ColObjectID"] = s.ColObjectID
+	}
+	if s.ColRelation == "" {
+		debugMap["ColRelation"] = "(empty)"
+	} else {
+		debugMap["ColRelation"] = s.ColRelation
+	}
+	if s.ColUsersetNamespace == "" {
+		debugMap["ColUsersetNamespace"] = "(empty)"
+	} else {
+		debugMap["ColUsersetNamespace"] = s.ColUsersetNamespace
+	}
+	if s.ColUsersetObjectID == "" {
+		debugMap["ColUsersetObjectID"] = "(empty)"
+	} else {
+		debugMap["ColUsersetObjectID"] = s.ColUsersetObjectID
+	}
+	if s.ColUsersetRelation == "" {
+		debugMap["ColUsersetRelation"] = "(empty)"
+	} else {
+		debugMap["ColUsersetRelation"] = s.ColUsersetRelation
+	}
+	if s.ColCaveatName == "" {
+		debugMap["ColCaveatName"] = "(empty)"
+	} else {
+		debugMap["ColCaveatName"] = s.ColCaveatName
+	}
+	if s.ColCaveatContext == "" {
+		debugMap["ColCaveatContext"] = "(empty)"
+	} else {
+		debugMap["ColCaveatContext"] = s.ColCaveatContext
+	}
+	if s.ColExpiration == "" {
+		debugMap["ColExpiration"] = "(empty)"
+	} else {
+		debugMap["ColExpiration"] = s.ColExpiration
+	}
+	if s.ColIntegrityKeyID == "" {
+		debugMap["ColIntegrityKeyID"] = "(empty)"
+	} else {
+		debugMap["ColIntegrityKeyID"] = s.ColIntegrityKeyID
+	}
+	if s.ColIntegrityHash == "" {
+		debugMap["ColIntegrityHash"] = "(empty)"
+	} else {
+		debugMap["ColIntegrityHash"] = s.ColIntegrityHash
+	}
+	if s.ColIntegrityTimestamp == "" {
+		debugMap["ColIntegrityTimestamp"] = "(empty)"
+	} else {
+		debugMap["ColIntegrityTimestamp"] = s.ColIntegrityTimestamp
+	}
+	if s.Indexes == nil {
+		debugMap["Indexes"] = "nil"
+	} else {
+		debugMap["Indexes"] = fmt.Sprintf("(slice of size %d)", len(s.Indexes))
+	}
+	debugMap["PaginationFilterType"] = s.PaginationFilterType
+	debugMap["PlaceholderFormat"] = s.PlaceholderFormat
+	if s.NowFunction == "" {
+		debugMap["NowFunction"] = "(empty)"
+	} else {
+		debugMap["NowFunction"] = s.NowFunction
+	}
+	debugMap["ColumnOptimization"] = s.ColumnOptimization
+	debugMap["IntegrityEnabled"] = s.IntegrityEnabled
+	debugMap["ExpirationDisabled"] = s.ExpirationDisabled
+	if s.SortByResourceColumnOrder == nil {
+		debugMap["SortByResourceColumnOrder"] = "nil"
+	} else {
+		debugMap["SortByResourceColumnOrder"] = fmt.Sprintf("(slice of size %d)", len(s.SortByResourceColumnOrder))
+	}
+	if s.SortBySubjectColumnOrder == nil {
+		debugMap["SortBySubjectColumnOrder"] = "nil"
+	} else {
+		debugMap["SortBySubjectColumnOrder"] = fmt.Sprintf("(slice of size %d)", len(s.SortBySubjectColumnOrder))
+	}
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of SchemaInformation for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (s *SchemaInformation) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(s.DebugMap())
 }
 
 // SchemaInformationWithOptions configures an existing SchemaInformation with the passed in options set

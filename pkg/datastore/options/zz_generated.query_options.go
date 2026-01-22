@@ -4,7 +4,6 @@ package options
 import (
 	queryshape "github.com/authzed/spicedb/pkg/datastore/queryshape"
 	defaults "github.com/creasty/defaults"
-	helpers "github.com/ecordell/optgen/helpers"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -44,17 +43,42 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 }
 
 // DebugMap returns a map form of QueryOptions for debugging
-func (q QueryOptions) DebugMap() map[string]any {
+func (q *QueryOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["Limit"] = helpers.DebugValue(q.Limit, false)
-	debugMap["Sort"] = helpers.DebugValue(q.Sort, false)
-	debugMap["After"] = helpers.DebugValue(q.After, false)
-	debugMap["SkipCaveats"] = helpers.DebugValue(q.SkipCaveats, false)
-	debugMap["SkipExpiration"] = helpers.DebugValue(q.SkipExpiration, false)
-	debugMap["SQLCheckAssertionForTest"] = helpers.DebugValue(q.SQLCheckAssertionForTest, false)
-	debugMap["SQLExplainCallbackForTest"] = helpers.DebugValue(q.SQLExplainCallbackForTest, false)
-	debugMap["QueryShape"] = helpers.DebugValue(q.QueryShape, false)
+	if q.Limit == nil {
+		debugMap["Limit"] = "nil"
+	} else {
+		debugMap["Limit"] = *q.Limit
+	}
+	debugMap["Sort"] = q.Sort
+	debugMap["After"] = q.After
+	debugMap["SkipCaveats"] = q.SkipCaveats
+	debugMap["SkipExpiration"] = q.SkipExpiration
+	debugMap["SQLCheckAssertionForTest"] = q.SQLCheckAssertionForTest
+	debugMap["SQLExplainCallbackForTest"] = q.SQLExplainCallbackForTest
+	debugMap["QueryShape"] = q.QueryShape
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of QueryOptions for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (q *QueryOptions) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(q.DebugMap())
 }
 
 // QueryOptionsWithOptions configures an existing QueryOptions with the passed in options set
@@ -165,17 +189,46 @@ func (r *ReverseQueryOptions) ToOption() ReverseQueryOptionsOption {
 }
 
 // DebugMap returns a map form of ReverseQueryOptions for debugging
-func (r ReverseQueryOptions) DebugMap() map[string]any {
+func (r *ReverseQueryOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["ResRelation"] = helpers.DebugValue(r.ResRelation, false)
-	debugMap["LimitForReverse"] = helpers.DebugValue(r.LimitForReverse, false)
-	debugMap["SortForReverse"] = helpers.DebugValue(r.SortForReverse, false)
-	debugMap["AfterForReverse"] = helpers.DebugValue(r.AfterForReverse, false)
-	debugMap["SkipCaveatsForReverse"] = helpers.DebugValue(r.SkipCaveatsForReverse, false)
-	debugMap["SkipExpirationForReverse"] = helpers.DebugValue(r.SkipExpirationForReverse, false)
-	debugMap["SQLExplainCallbackForTestForReverse"] = helpers.DebugValue(r.SQLExplainCallbackForTestForReverse, false)
-	debugMap["QueryShapeForReverse"] = helpers.DebugValue(r.QueryShapeForReverse, false)
+	if r.ResRelation == nil {
+		debugMap["ResRelation"] = "nil"
+	} else {
+		debugMap["ResRelation"] = *r.ResRelation
+	}
+	if r.LimitForReverse == nil {
+		debugMap["LimitForReverse"] = "nil"
+	} else {
+		debugMap["LimitForReverse"] = *r.LimitForReverse
+	}
+	debugMap["SortForReverse"] = r.SortForReverse
+	debugMap["AfterForReverse"] = r.AfterForReverse
+	debugMap["SkipCaveatsForReverse"] = r.SkipCaveatsForReverse
+	debugMap["SkipExpirationForReverse"] = r.SkipExpirationForReverse
+	debugMap["SQLExplainCallbackForTestForReverse"] = r.SQLExplainCallbackForTestForReverse
+	debugMap["QueryShapeForReverse"] = r.QueryShapeForReverse
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of ReverseQueryOptions for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (r *ReverseQueryOptions) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(r.DebugMap())
 }
 
 // ReverseQueryOptionsWithOptions configures an existing ReverseQueryOptions with the passed in options set
@@ -281,12 +334,37 @@ func (r *RWTOptions) ToOption() RWTOptionsOption {
 }
 
 // DebugMap returns a map form of RWTOptions for debugging
-func (r RWTOptions) DebugMap() map[string]any {
+func (r *RWTOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["DisableRetries"] = helpers.DebugValue(r.DisableRetries, false)
-	debugMap["Metadata"] = helpers.DebugValue(r.Metadata, false)
-	debugMap["IncludesExpiredAt"] = helpers.DebugValue(r.IncludesExpiredAt, false)
+	debugMap["DisableRetries"] = r.DisableRetries
+	if r.Metadata == nil {
+		debugMap["Metadata"] = "nil"
+	} else {
+		debugMap["Metadata"] = *r.Metadata
+	}
+	debugMap["IncludesExpiredAt"] = r.IncludesExpiredAt
 	return debugMap
+}
+
+// FlatDebugMap returns a flattened map form of RWTOptions for debugging
+// Nested maps are flattened using dot notation (e.g., "parent.child.field")
+func (r *RWTOptions) FlatDebugMap() map[string]any {
+	var flatten func(m map[string]any) map[string]any
+	flatten = func(m map[string]any) map[string]any {
+		result := make(map[string]any, len(m))
+		for key, value := range m {
+			childMap, ok := value.(map[string]any)
+			if ok {
+				for childKey, childValue := range flatten(childMap) {
+					result[key+"."+childKey] = childValue
+				}
+				continue
+			}
+			result[key] = value
+		}
+		return result
+	}
+	return flatten(r.DebugMap())
 }
 
 // RWTOptionsWithOptions configures an existing RWTOptions with the passed in options set
