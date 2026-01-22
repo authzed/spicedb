@@ -39,7 +39,7 @@ func (s *Self) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRela
 		}
 	}
 	// Return the empty set if none of the resources matches
-	return func(yield func(Path, error) bool) {}, nil
+	return EmptyPathSeq(), nil
 }
 
 func (s *Self) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {

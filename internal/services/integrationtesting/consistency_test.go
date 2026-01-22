@@ -125,7 +125,7 @@ func TestConsistency(t *testing.T) {
 
 		// Validate lookup resources manually for this schema
 
-		// Look for resources for tommyboy
+		// Look for resources for alice
 		foundResources, _, err := vctx.serviceTester.LookupResources(
 			t.Context(),
 			tuple.RelationReference{
@@ -134,7 +134,7 @@ func TestConsistency(t *testing.T) {
 			},
 			tuple.ObjectAndRelation{
 				ObjectType: "user",
-				ObjectID:   "tommyboy",
+				ObjectID:   "alice",
 				Relation:   tuple.Ellipsis,
 			},
 			vctx.revision,
@@ -148,10 +148,10 @@ func TestConsistency(t *testing.T) {
 			resourceIds = append(resourceIds, resource.ResourceObjectId)
 		}
 
-		// We expect that tommyboy is related to himself and tom
-		require.ElementsMatch(t, []string{"tommyboy", "tom"}, resourceIds, "expected both tom and tommyboy as resources")
+		// We expect that alice is related to himself and bob
+		require.ElementsMatch(t, []string{"alice", "bob"}, resourceIds, "expected both bob and alice as resources")
 
-		// Look for resources for tommyboy
+		// Look for resources for alice
 		foundResources, _, err = vctx.serviceTester.LookupResources(
 			t.Context(),
 			tuple.RelationReference{
@@ -160,7 +160,7 @@ func TestConsistency(t *testing.T) {
 			},
 			tuple.ObjectAndRelation{
 				ObjectType: "user",
-				ObjectID:   "tom",
+				ObjectID:   "bob",
 				Relation:   tuple.Ellipsis,
 			},
 			vctx.revision,
@@ -174,16 +174,16 @@ func TestConsistency(t *testing.T) {
 			resourceIds = append(resourceIds, resource.ResourceObjectId)
 		}
 
-		// We expect that tom is related only to himself
-		require.ElementsMatch(t, []string{"tom"}, resourceIds, "expected just tom as resource")
+		// We expect that bob is related only to himself
+		require.ElementsMatch(t, []string{"bob"}, resourceIds, "expected just bob as resource")
 
 		// Validate lookup subjects manually for this schema
-		// Look for subjects for tommyboy
+		// Look for subjects for alice
 		foundSubjects, err := vctx.serviceTester.LookupSubjects(
 			t.Context(),
 			tuple.ObjectAndRelation{
 				ObjectType: "user",
-				ObjectID:   "tommyboy",
+				ObjectID:   "alice",
 				Relation:   "me_or_related",
 			},
 			tuple.RelationReference{
@@ -198,15 +198,15 @@ func TestConsistency(t *testing.T) {
 			subjectIds = append(subjectIds, subject.Subject.SubjectObjectId)
 		}
 
-		// We expect that tommyboy is related to himself
-		require.ElementsMatch(t, []string{"tommyboy"}, subjectIds, "expected just tommyboy as subject")
+		// We expect that alice is related to himself
+		require.ElementsMatch(t, []string{"alice"}, subjectIds, "expected just alice as subject")
 
-		// Look for subjects for tom
+		// Look for subjects for bob
 		foundSubjects, err = vctx.serviceTester.LookupSubjects(
 			t.Context(),
 			tuple.ObjectAndRelation{
 				ObjectType: "user",
-				ObjectID:   "tom",
+				ObjectID:   "bob",
 				Relation:   "me_or_related",
 			},
 			tuple.RelationReference{
@@ -221,8 +221,8 @@ func TestConsistency(t *testing.T) {
 			subjectIds = append(subjectIds, subject.Subject.SubjectObjectId)
 		}
 
-		// We expect that tom is related to himself and to tommyboy
-		require.ElementsMatch(t, []string{"tom", "tommyboy"}, subjectIds, "expected tom and tommyboy as subjects")
+		// We expect that bob is related to himself and to alice
+		require.ElementsMatch(t, []string{"bob", "alice"}, subjectIds, "expected bob and alice as subjects")
 
 		// We skip validating the development expected relations for this schema
 
@@ -1027,8 +1027,6 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 	}
 
 	expectedRelations, err := yamlv2.Marshal(expectedMap)
-	fmt.Println("expected relations")
-	fmt.Println(string(expectedRelations))
 	require.NoError(t, err, "Could not marshal expected relations map")
 
 	expectedRelationsMap, devErr := development.ParseExpectedRelationsYAML(string(expectedRelations))
@@ -1045,8 +1043,6 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 	validationMap, err := validationfile.ParseExpectedRelationsBlock([]byte(updatedValidationYaml))
 	require.NoError(t, err)
 
-	fmt.Println(updatedValidationYaml)
-
 	for resourceKey, expectedSubjects := range validationMap.ValidationMap {
 		for _, expectedSubject := range expectedSubjects {
 			resourceAndRelation := resourceKey.ObjectAndRelation
@@ -1056,17 +1052,6 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 			// For non-wildcard subjects, ensure they are accessible.
 			if subjectWithExceptions.Subject.Subject.ObjectID != tuple.PublicWildcard {
 				accessibility, permissionship, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resourceAndRelation, subjectWithExceptions.Subject.Subject)
-				if !ok {
-					fmt.Println("we are not ok")
-					fmt.Println("subject")
-					fmt.Println(subjectWithExceptions.Subject.Subject)
-					fmt.Println("resource and relation")
-					fmt.Println(resourceAndRelation)
-					fmt.Println("accessibility")
-					fmt.Println(accessibility)
-					fmt.Println("permissionship")
-					fmt.Println(permissionship)
-				}
 				require.True(t, ok, "missing expected subject %s in accessibility set", tuple.StringONR(subjectWithExceptions.Subject.Subject))
 
 				switch permissionship {

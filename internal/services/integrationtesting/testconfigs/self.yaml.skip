@@ -11,11 +11,11 @@ schema: >-
     permission me_or_related = related + self
   }
 relationships: |
-  user:tom#related@user:tommyboy
+  user:bob#related@user:alice
 assertions:
   assertTrue:
-    - "user:tom#me_or_related@user:tom"
-    - "user:tommyboy#me_or_related@user:tommyboy"
-    - "user:tom#me_or_related@user:tommyboy"
+    - "user:bob#me_or_related@user:bob"
+    - "user:alice#me_or_related@user:alice"
+    - "user:bob#me_or_related@user:alice"
   assertFalse:
-    - "user:tommyboy#me_or_related@user:tom"
+    - "user:alice#me_or_related@user:bob"
