@@ -14,6 +14,7 @@ import (
 type ArrowInformation struct {
 	Arrow              *core.TupleToUserset
 	Path               string
+	ParentNamespace    string
 	ParentRelationName string
 }
 
@@ -55,6 +56,14 @@ func (as *ArrowSet) HasPossibleArrowWithComputedUserset(namespaceName string, re
 	return as.arrowsByComputedUsersetNamespaceAndRelation.Has(namespaceName + "#" + relationName)
 }
 
+// LookupArrowsWithComputedUserset returns all arrows that have the given namespace and relation
+// as the computed userset.
+func (as *ArrowSet) LookupArrowsWithComputedUserset(namespaceName string, relationName string) []ArrowInformation {
+	key := namespaceName + "#" + relationName
+	found, _ := as.arrowsByComputedUsersetNamespaceAndRelation.Get(key)
+	return found
+}
+
 // LookupTuplesetArrows finds all arrows with the given namespace and relation name as the arrows' tupleset.
 func (as *ArrowSet) LookupTuplesetArrows(namespaceName string, relationName string) []ArrowInformation {
 	key := namespaceName + "#" + relationName
@@ -79,7 +88,7 @@ func (as *ArrowSet) compute(ctx context.Context) error {
 
 func (as *ArrowSet) add(ttu *core.TupleToUserset, path string, namespaceName string, relationName string) {
 	tsKey := namespaceName + "#" + ttu.Tupleset.Relation
-	as.arrowsByFullTuplesetRelation.Add(tsKey, ArrowInformation{Path: path, Arrow: ttu, ParentRelationName: relationName})
+	as.arrowsByFullTuplesetRelation.Add(tsKey, ArrowInformation{Path: path, Arrow: ttu, ParentNamespace: namespaceName, ParentRelationName: relationName})
 }
 
 func (as *ArrowSet) collectArrowInformationForRelation(ctx context.Context, def *ValidatedDefinition, relationName string) error {
@@ -115,15 +124,15 @@ func (as *ArrowSet) registerTupleToUsersetArrows(ctx context.Context, ttu *core.
 	}
 
 	for _, ast := range allowedSubjectTypes {
-		def, err := as.ts.GetValidatedDefinition(ctx, ast.Namespace)
+		subjectDef, err := as.ts.GetValidatedDefinition(ctx, ast.Namespace)
 		if err != nil {
 			return err
 		}
 
 		// NOTE: this is explicitly added to the arrowsByComputedUsersetNamespaceAndRelation without
 		// checking if the relation/permission exists, because it's needed for schema diff tracking.
-		as.arrowsByComputedUsersetNamespaceAndRelation.Add(ast.Namespace+"#"+computedUsersetRelation, ArrowInformation{Path: updatedPath, Arrow: ttu, ParentRelationName: relation.Name})
-		if def.HasRelation(computedUsersetRelation) {
+		as.arrowsByComputedUsersetNamespaceAndRelation.Add(ast.Namespace+"#"+computedUsersetRelation, ArrowInformation{Path: updatedPath, Arrow: ttu, ParentNamespace: def.Namespace().Name, ParentRelationName: relation.Name})
+		if subjectDef.HasRelation(computedUsersetRelation) {
 			as.reachableComputedUsersetRelationsByTuplesetRelation.Add(ast.Namespace+"#"+tuplesetRelation, ast.Namespace+"#"+computedUsersetRelation)
 		}
 	}
