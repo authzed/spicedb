@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ func TestExecuteMigrate(t *testing.T) {
 	tests := []struct {
 		name          string
 		cfgBuilder    func(t *testing.T) *MigrateConfig
+		ctxBuilder    func(t *testing.T) context.Context
 		revision      string
 		expectedError string
 	}{
@@ -44,6 +46,93 @@ func TestExecuteMigrate(t *testing.T) {
 			},
 			revision:      "head",
 			expectedError: "cannot migrate datastore engine type: unsupported",
+		},
+		{
+			name: "cockroachdb driver creation failure returns error",
+			cfgBuilder: func(t *testing.T) *MigrateConfig {
+				return &MigrateConfig{
+					DatastoreEngine: "cockroachdb",
+					DatastoreURI:    "invalid://not-a-postgres-uri",
+					Timeout:         1 * time.Hour,
+					BatchSize:       1000,
+				}
+			},
+			revision:      migrate.Head,
+			expectedError: "unable to create migration driver for cockroachdb",
+		},
+		{
+			name: "postgres invalid credentials provider returns error",
+			cfgBuilder: func(t *testing.T) *MigrateConfig {
+				return &MigrateConfig{
+					DatastoreEngine:         "postgres",
+					DatastoreURI:            "postgres://localhost:5432/test",
+					CredentialsProviderName: "nonexistent-provider",
+					Timeout:                 1 * time.Hour,
+					BatchSize:               1000,
+				}
+			},
+			revision:      migrate.Head,
+			expectedError: "unknown credentials provider",
+		},
+		{
+			name: "postgres driver creation failure returns error",
+			cfgBuilder: func(t *testing.T) *MigrateConfig {
+				return &MigrateConfig{
+					DatastoreEngine: "postgres",
+					DatastoreURI:    "invalid://not-a-postgres-uri",
+					Timeout:         1 * time.Hour,
+					BatchSize:       1000,
+				}
+			},
+			revision:      migrate.Head,
+			expectedError: "unable to create migration driver for postgres",
+		},
+		{
+			name: "spanner driver creation failure returns error",
+			cfgBuilder: func(t *testing.T) *MigrateConfig {
+				return &MigrateConfig{
+					DatastoreEngine:        "spanner",
+					DatastoreURI:           "projects/test/instances/test/databases/test",
+					SpannerCredentialsFile: "/nonexistent/credentials/file.json",
+					SpannerEmulatorHost:    "",
+					Timeout:                1 * time.Hour,
+					BatchSize:              1000,
+				}
+			},
+			ctxBuilder: func(t *testing.T) context.Context {
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+				return ctx
+			},
+			revision:      migrate.Head,
+			expectedError: "unable to create migration driver for spanner",
+		},
+		{
+			name: "mysql invalid credentials provider returns error",
+			cfgBuilder: func(t *testing.T) *MigrateConfig {
+				return &MigrateConfig{
+					DatastoreEngine:         "mysql",
+					DatastoreURI:            "user:password@tcp(localhost:3306)/db",
+					CredentialsProviderName: "nonexistent-provider",
+					Timeout:                 1 * time.Hour,
+					BatchSize:               1000,
+				}
+			},
+			revision:      migrate.Head,
+			expectedError: "unknown credentials provider",
+		},
+		{
+			name: "mysql driver creation failure returns error",
+			cfgBuilder: func(t *testing.T) *MigrateConfig {
+				return &MigrateConfig{
+					DatastoreEngine: "mysql",
+					DatastoreURI:    "invalid://not-a-mysql-dsn",
+					Timeout:         1 * time.Hour,
+					BatchSize:       1000,
+				}
+			},
+			revision:      migrate.Head,
+			expectedError: "unable to create migration driver for mysql",
 		},
 		{
 			name: "cockroachdb migration runs successfully",
@@ -83,7 +172,11 @@ func TestExecuteMigrate(t *testing.T) {
 			t.Parallel()
 
 			cfg := tt.cfgBuilder(t)
-			err := executeMigrate(t.Context(), cfg, tt.revision)
+			ctx := t.Context()
+			if tt.ctxBuilder != nil {
+				ctx = tt.ctxBuilder(t)
+			}
+			err := executeMigrate(ctx, cfg, tt.revision)
 			if tt.expectedError == "" {
 				require.NoError(t, err)
 				return
