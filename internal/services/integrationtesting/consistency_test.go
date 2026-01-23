@@ -70,6 +70,166 @@ func TestConsistency(t *testing.T) {
 			}
 		})
 	}
+	// NOTE: this test is mostly a copy of runConsistencyTestSuiteForFile
+	// but it is defined separately because the integration test harness
+	// can't deal with logic that doesn't have a concrete relation associated with it
+	// as of time of writing.
+	// TODO: remove this test and rename self.yaml.skip to self.yaml
+	t.Run("self keyword consistency test", func(t *testing.T) {
+		options := []server.ConfigOption{
+			server.WithDispatchChunkSize(5),
+			server.WithEnableExperimentalLookupResources(true),
+			server.WithExperimentalLookupResourcesVersion("lr3"),
+		}
+
+		cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, "testconfigs/self.yaml.skip", testTimedelta, options...)
+
+		// Validate the type system for each namespace.
+		headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+		require.NoError(t, err)
+
+		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
+
+		for _, nsDef := range cad.Populated.NamespaceDefinitions {
+			_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
+			require.NoError(t, err)
+		}
+
+		testers := consistencytestutil.ServiceTesters(cad.Conn)
+		tester := testers[0]
+		// Build an accessibility set.
+		accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
+
+		dispatcher := consistencytestutil.CreateDispatcherForTesting(t, false)
+
+		vctx := validationContext{
+			clusterAndData:   cad,
+			accessibilitySet: accessibilitySet,
+			serviceTester:    tester,
+			revision:         headRevision,
+			dispatcher:       dispatcher,
+		}
+
+		// Call a write on each relationship to make sure it type checks.
+		ensureRelationshipWrites(t, vctx)
+
+		// Call a read on each relationship resource type and ensure it finds all expected relationships.
+		validateRelationshipReads(t, vctx)
+
+		// Run the assertions defined in the file.
+		runAssertions(t, vctx)
+
+		// Run basic expansion on each relation and ensure no errors are raised.
+		ensureNoExpansionErrors(t, vctx)
+
+		// We skip validating expansion subjects for this case
+
+		// Validate lookup resources manually for this schema
+
+		// Look for resources for alice
+		foundResources, _, err := vctx.serviceTester.LookupResources(
+			t.Context(),
+			tuple.RelationReference{
+				ObjectType: "user",
+				Relation:   "me_or_related",
+			},
+			tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "alice",
+				Relation:   tuple.Ellipsis,
+			},
+			vctx.revision,
+			nil,
+			10,
+			nil,
+		)
+		require.NoError(t, err)
+		resourceIds := make([]string, 0, len(foundResources))
+		for _, resource := range foundResources {
+			resourceIds = append(resourceIds, resource.ResourceObjectId)
+		}
+
+		// We expect that alice is related to himself and bob
+		require.ElementsMatch(t, []string{"alice", "bob"}, resourceIds, "expected both bob and alice as resources")
+
+		// Look for resources for alice
+		foundResources, _, err = vctx.serviceTester.LookupResources(
+			t.Context(),
+			tuple.RelationReference{
+				ObjectType: "user",
+				Relation:   "me_or_related",
+			},
+			tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "bob",
+				Relation:   tuple.Ellipsis,
+			},
+			vctx.revision,
+			nil,
+			10,
+			nil,
+		)
+		require.NoError(t, err)
+		resourceIds = make([]string, 0, len(foundResources))
+		for _, resource := range foundResources {
+			resourceIds = append(resourceIds, resource.ResourceObjectId)
+		}
+
+		// We expect that bob is related only to himself
+		require.ElementsMatch(t, []string{"bob"}, resourceIds, "expected just bob as resource")
+
+		// Validate lookup subjects manually for this schema
+		// Look for subjects for alice
+		foundSubjects, err := vctx.serviceTester.LookupSubjects(
+			t.Context(),
+			tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "alice",
+				Relation:   "me_or_related",
+			},
+			tuple.RelationReference{
+				ObjectType: "user",
+			},
+			vctx.revision,
+			nil,
+		)
+		require.NoError(t, err)
+		subjectIds := make([]string, 0, len(foundSubjects))
+		for _, subject := range foundSubjects {
+			subjectIds = append(subjectIds, subject.Subject.SubjectObjectId)
+		}
+
+		// We expect that alice is related to himself
+		require.ElementsMatch(t, []string{"alice"}, subjectIds, "expected just alice as subject")
+
+		// Look for subjects for bob
+		foundSubjects, err = vctx.serviceTester.LookupSubjects(
+			t.Context(),
+			tuple.ObjectAndRelation{
+				ObjectType: "user",
+				ObjectID:   "bob",
+				Relation:   "me_or_related",
+			},
+			tuple.RelationReference{
+				ObjectType: "user",
+			},
+			vctx.revision,
+			nil,
+		)
+		require.NoError(t, err)
+		subjectIds = make([]string, 0, len(foundSubjects))
+		for _, subject := range foundSubjects {
+			subjectIds = append(subjectIds, subject.Subject.SubjectObjectId)
+		}
+
+		// We expect that bob is related to himself and to alice
+		require.ElementsMatch(t, []string{"bob", "alice"}, subjectIds, "expected bob and alice as subjects")
+
+		// We skip validating the development expected relations for this schema
+
+		// Ensure that the set of reachable subject types matches the actual reachable subjects.
+		validateReachableSubjectTypes(t, vctx)
+	})
 }
 
 func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool, chunkSize uint16) {
@@ -307,7 +467,7 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 			// Ensure all non-wildcard terminal subjects that were found in the expansion are accessible.
 			for _, foundSubject := range subjectsFoundSet.ToSlice() {
 				if foundSubject.GetSubjectId() != tuple.PublicWildcard {
-					accessiblity, permissionship, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, foundSubject.Subject())
+					accessiblity, permissionship, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resource, foundSubject.Subject())
 					require.True(t, ok, "missing accessibility for resource %s and subject %s", tuple.StringONR(resource), tuple.StringONR(foundSubject.Subject()))
 
 					// NOTE: an expanded subject must either be accessible directly (e.g. not via a wildcard)
@@ -505,7 +665,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 
 									// For subjects found solely via wildcard, check that a wildcard instead exists in
 									// the result and that the subject is not excluded.
-									accessibility, _, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, assertionRel.Subject)
+									accessibility, _, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resource, assertionRel.Subject)
 									if !ok || accessibility == consistencytestutil.AccessibleViaWildcardOnly {
 										resolvedSubjectsToCheck := resolvedSubjects
 
@@ -710,7 +870,7 @@ func runAssertions(t *testing.T, vctx validationContext) {
 
 							// Check the assertion was returned for an indirect (without context) lookup.
 							resolvedIndirectResourceIds := slices.Collect(maps.Keys(resolvedIndirectResourcesMap))
-							accessibility, _, _ := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(rel.Resource, rel.Subject)
+							accessibility, _, _ := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(rel.Resource, rel.Subject)
 
 							switch permissionship {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
@@ -801,7 +961,7 @@ func validateDevelopmentChecks(t *testing.T, devContext *development.DevContext,
 					cr, err := development.RunCheck(devContext, resource, subject, nil)
 					require.NoError(t, err, "Got unexpected error from development check")
 
-					_, permissionship, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, subject)
+					_, permissionship, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resource, subject)
 					require.True(t, ok)
 					require.Equal(t, permissionship, cr.Permissionship,
 						"Found unexpected membership difference for %s@%s. Expected %v, Found: %v",
@@ -892,7 +1052,7 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 
 			// For non-wildcard subjects, ensure they are accessible.
 			if subjectWithExceptions.Subject.Subject.ObjectID != tuple.PublicWildcard {
-				accessibility, permissionship, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resourceAndRelation, subjectWithExceptions.Subject.Subject)
+				accessibility, permissionship, ok := vctx.accessibilitySet.AccessibilityAndPermissionshipFor(resourceAndRelation, subjectWithExceptions.Subject.Subject)
 				require.True(t, ok, "missing expected subject %s in accessibility set", tuple.StringONR(subjectWithExceptions.Subject.Subject))
 
 				switch permissionship {

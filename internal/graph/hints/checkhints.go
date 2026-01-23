@@ -64,8 +64,8 @@ func AsCheckHintForArrow(checkHint *v1.CheckHint, resourceType string, tuplesetR
 // HintForEntrypoint returns a CheckHint for the given reachability graph entrypoint and associated subject and result.
 func HintForEntrypoint(re schema.ReachabilityEntrypoint, resourceID string, subject tuple.ObjectAndRelation, result *v1.ResourceCheckResult) (*v1.CheckHint, error) {
 	switch re.EntrypointKind() {
-	case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-		return nil, spiceerrors.MustBugf("cannot call CheckHintForResource for kind %v", re.EntrypointKind())
+	case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT, core.ReachabilityEntrypoint_SELF_ENTRYPOINT:
+		return nil, spiceerrors.MustBugf("cannot call HintForEntrypoint for kind %v", re.EntrypointKind())
 
 	case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
 		namespace := re.TargetNamespace()

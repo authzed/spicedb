@@ -1028,7 +1028,7 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
-			"duplicate use pragmas",
+			"duplicate use of expiration pragmas",
 			withTenantPrefix,
 			`
 			use expiration
@@ -1036,6 +1036,103 @@ func TestCompile(t *testing.T) {
 
 			definition simple {
 				relation viewer: user with expiration
+			}`,
+			`found duplicate use flag`,
+			[]SchemaDefinition{},
+		},
+		{
+			"self is allowed when used in arrow and interpreted as relation name",
+			withTenantPrefix,
+			`definition expressioned {
+				permission foos = (arel->self) + brel
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/expressioned",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.TupleToUserset("arel", "self"),
+							namespace.ComputedUserset("brel"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"self is allowed when used in union and interpreted as relation name",
+			withTenantPrefix,
+			`definition expressioned {
+				permission foos = (arel->brel) + self
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/expressioned",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.TupleToUserset("arel", "brel"),
+							namespace.ComputedUserset("self"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"self without use self is allowed when used in permission name",
+			withTenantPrefix,
+			`definition expressioned {
+				permission self = (arel->brel) - drel
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/expressioned",
+					namespace.MustRelation("self",
+						namespace.Exclusion(
+							namespace.TupleToUserset("arel", "brel"),
+							namespace.ComputedUserset("drel"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"self with use self is allowed when used in permission expression",
+			withTenantPrefix,
+			`use self
+			definition expressioned {
+				permission foos = self
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/expressioned",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.Self(),
+						),
+					),
+				),
+			},
+		},
+		{
+			"self with use self errors when used as left side of arrow",
+			withTenantPrefix,
+			`use self
+			definition thing {}
+			definition expressioned {
+			  relation other: thing
+				permission foos = self->other
+			}`,
+			"Expected end of statement or definition, found: TokenTypeRightArrow",
+			[]SchemaDefinition{},
+		},
+		{
+			"duplicate use of self pragmas errors",
+			withTenantPrefix,
+			`
+			use self
+			use self
+
+			definition expressioned {
+				permission foos = ((arel->brel) + self) - drel
 			}`,
 			`found duplicate use flag`,
 			[]SchemaDefinition{},

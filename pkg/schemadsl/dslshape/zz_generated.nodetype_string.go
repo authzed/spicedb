@@ -29,12 +29,13 @@ func _() {
 	_ = x[NodeTypeArrowExpression-18]
 	_ = x[NodeTypeIdentifier-19]
 	_ = x[NodeTypeNilExpression-20]
-	_ = x[NodeTypeCaveatTypeReference-21]
+	_ = x[NodeTypeSelfExpression-21]
+	_ = x[NodeTypeCaveatTypeReference-22]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeAnnotationNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeAnnotationNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeSelfExpressionNodeTypeCaveatTypeReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 200, 221, 250, 273, 295, 318, 345, 372, 395, 413, 434, 461}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 200, 221, 250, 273, 295, 318, 345, 372, 395, 413, 434, 456, 483}
 
 func (i NodeType) String() string {
 	idx := int(i) - 0

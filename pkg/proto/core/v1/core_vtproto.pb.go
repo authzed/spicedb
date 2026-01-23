@@ -664,6 +664,22 @@ func (m *SetOperation_Child_Nil) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (m *SetOperation_Child_Self) CloneVT() *SetOperation_Child_Self {
+	if m == nil {
+		return (*SetOperation_Child_Self)(nil)
+	}
+	r := new(SetOperation_Child_Self)
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *SetOperation_Child_Self) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
 func (m *SetOperation_Child) CloneVT() *SetOperation_Child {
 	if m == nil {
 		return (*SetOperation_Child)(nil)
@@ -742,6 +758,15 @@ func (m *SetOperation_Child_XNil) CloneVT() isSetOperation_Child_ChildType {
 	}
 	r := new(SetOperation_Child_XNil)
 	r.XNil = m.XNil.CloneVT()
+	return r
+}
+
+func (m *SetOperation_Child_XSelf) CloneVT() isSetOperation_Child_ChildType {
+	if m == nil {
+		return (*SetOperation_Child_XSelf)(nil)
+	}
+	r := new(SetOperation_Child_XSelf)
+	r.XSelf = m.XSelf.CloneVT()
 	return r
 }
 
@@ -1965,6 +1990,22 @@ func (this *SetOperation_Child_Nil) EqualMessageVT(thatMsg proto.Message) bool {
 	}
 	return this.EqualVT(that)
 }
+func (this *SetOperation_Child_Self) EqualVT(that *SetOperation_Child_Self) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *SetOperation_Child_Self) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*SetOperation_Child_Self)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
 func (this *SetOperation_Child) EqualVT(that *SetOperation_Child) bool {
 	if this == that {
 		return true
@@ -2147,6 +2188,31 @@ func (this *SetOperation_Child_FunctionedTupleToUserset) EqualVT(thatIface isSet
 		}
 		if q == nil {
 			q = &FunctionedTupleToUserset{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *SetOperation_Child_XSelf) EqualVT(thatIface isSetOperation_Child_ChildType) bool {
+	that, ok := thatIface.(*SetOperation_Child_XSelf)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.XSelf, that.XSelf; p != q {
+		if p == nil {
+			p = &SetOperation_Child_Self{}
+		}
+		if q == nil {
+			q = &SetOperation_Child_Self{}
 		}
 		if !p.EqualVT(q) {
 			return false
@@ -4162,6 +4228,39 @@ func (m *SetOperation_Child_Nil) MarshalToSizedBufferVT(dAtA []byte) (int, error
 	return len(dAtA) - i, nil
 }
 
+func (m *SetOperation_Child_Self) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SetOperation_Child_Self) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *SetOperation_Child_Self) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *SetOperation_Child) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -4369,6 +4468,29 @@ func (m *SetOperation_Child_FunctionedTupleToUserset) MarshalToSizedBufferVT(dAt
 		i = protohelpers.EncodeVarint(dAtA, i, 0)
 		i--
 		dAtA[i] = 0x42
+	}
+	return len(dAtA) - i, nil
+}
+func (m *SetOperation_Child_XSelf) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *SetOperation_Child_XSelf) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.XSelf != nil {
+		size, err := m.XSelf.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x4a
+	} else {
+		i = protohelpers.EncodeVarint(dAtA, i, 0)
+		i--
+		dAtA[i] = 0x4a
 	}
 	return len(dAtA) - i, nil
 }
@@ -5686,6 +5808,16 @@ func (m *SetOperation_Child_Nil) SizeVT() (n int) {
 	return n
 }
 
+func (m *SetOperation_Child_Self) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	n += len(m.unknownFields)
+	return n
+}
+
 func (m *SetOperation_Child) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -5788,6 +5920,20 @@ func (m *SetOperation_Child_FunctionedTupleToUserset) SizeVT() (n int) {
 	_ = l
 	if m.FunctionedTupleToUserset != nil {
 		l = m.FunctionedTupleToUserset.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	} else {
+		n += 2
+	}
+	return n
+}
+func (m *SetOperation_Child_XSelf) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XSelf != nil {
+		l = m.XSelf.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	} else {
 		n += 2
@@ -10016,6 +10162,57 @@ func (m *SetOperation_Child_Nil) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *SetOperation_Child_Self) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SetOperation_Child_Self: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SetOperation_Child_Self: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *SetOperation_Child) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -10401,6 +10598,47 @@ func (m *SetOperation_Child) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 				m.ChildType = &SetOperation_Child_FunctionedTupleToUserset{FunctionedTupleToUserset: v}
+			}
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field XSelf", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.ChildType.(*SetOperation_Child_XSelf); ok {
+				if err := oneof.XSelf.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &SetOperation_Child_Self{}
+				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.ChildType = &SetOperation_Child_XSelf{XSelf: v}
 			}
 			iNdEx = postIndex
 		default:

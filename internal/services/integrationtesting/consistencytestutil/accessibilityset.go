@@ -238,7 +238,7 @@ func (as *AccessibilitySet) UncomputedPermissionshipFor(resourceAndRelation tupl
 
 // AccessibiliyAndPermissionshipFor returns the computed accessibility and permissionship for the
 // given resource+permission and subject. If not found, returns false.
-func (as *AccessibilitySet) AccessibiliyAndPermissionshipFor(resourceAndRelation tuple.ObjectAndRelation, subject tuple.ObjectAndRelation) (Accessibility, dispatchv1.ResourceCheckResult_Membership, bool) {
+func (as *AccessibilitySet) AccessibilityAndPermissionshipFor(resourceAndRelation tuple.ObjectAndRelation, subject tuple.ObjectAndRelation) (Accessibility, dispatchv1.ResourceCheckResult_Membership, bool) {
 	relString := tuple.MustString(tuple.Relationship{
 		RelationshipReference: tuple.RelationshipReference{
 			Resource: resourceAndRelation,

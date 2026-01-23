@@ -6342,6 +6342,48 @@ func (m *SetOperation_Child) validate(all bool) error {
 			}
 		}
 
+	case *SetOperation_Child_XSelf:
+		if v == nil {
+			err := SetOperation_ChildValidationError{
+				field:  "ChildType",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofChildTypePresent = true
+
+		if all {
+			switch v := interface{}(m.GetXSelf()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, SetOperation_ChildValidationError{
+						field:  "XSelf",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, SetOperation_ChildValidationError{
+						field:  "XSelf",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetXSelf()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return SetOperation_ChildValidationError{
+					field:  "XSelf",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	default:
 		_ = v // ensures v is used
 	}
@@ -6639,6 +6681,108 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = SetOperation_Child_NilValidationError{}
+
+// Validate checks the field values on SetOperation_Child_Self with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SetOperation_Child_Self) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SetOperation_Child_Self with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// SetOperation_Child_SelfMultiError, or nil if none found.
+func (m *SetOperation_Child_Self) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SetOperation_Child_Self) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return SetOperation_Child_SelfMultiError(errors)
+	}
+
+	return nil
+}
+
+// SetOperation_Child_SelfMultiError is an error wrapping multiple validation
+// errors returned by SetOperation_Child_Self.ValidateAll() if the designated
+// constraints aren't met.
+type SetOperation_Child_SelfMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SetOperation_Child_SelfMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SetOperation_Child_SelfMultiError) AllErrors() []error { return m }
+
+// SetOperation_Child_SelfValidationError is the validation error returned by
+// SetOperation_Child_Self.Validate if the designated constraints aren't met.
+type SetOperation_Child_SelfValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SetOperation_Child_SelfValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SetOperation_Child_SelfValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SetOperation_Child_SelfValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SetOperation_Child_SelfValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SetOperation_Child_SelfValidationError) ErrorName() string {
+	return "SetOperation_Child_SelfValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SetOperation_Child_SelfValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSetOperation_Child_Self.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SetOperation_Child_SelfValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SetOperation_Child_SelfValidationError{}
 
 // Validate checks the field values on TupleToUserset_Tupleset with the rules
 // defined in the proto definition for this message. If any rules are

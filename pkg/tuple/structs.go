@@ -60,6 +60,10 @@ func (onr ObjectAndRelation) String() string {
 	return onr.ObjectType + ":" + onr.ObjectID + "#" + onr.Relation
 }
 
+func (onr ObjectAndRelation) Equals(other ObjectAndRelation) bool {
+	return onr.ObjectType == other.ObjectType && onr.ObjectID == other.ObjectID && onr.Relation == other.Relation
+}
+
 // RelationshipReference represents a reference to a relationship, i.e. those portions
 // of a relationship that are not the integrity or caveat and thus form the unique
 // identifier of the relationship.
