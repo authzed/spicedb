@@ -72,7 +72,7 @@ func TestIteratorTracing(t *testing.T) {
 		trace := traceLogger.DumpTrace()
 		require.Contains(t, trace, "-> ")
 		require.Contains(t, trace, "Fixed")
-		require.Contains(t, trace, "check(document:doc1, :)")
+		require.Contains(t, trace, "iterSubjects(document:doc1)")
 		require.Contains(t, trace, "<- ")
 		require.Contains(t, trace, "returned 1 paths")
 		require.Contains(t, trace, "iterating subjects for resource document:doc1 from 2 paths")

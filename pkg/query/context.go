@@ -49,19 +49,44 @@ func iteratorIDPrefix(it Iterator) string {
 }
 
 // EnterIterator logs entering an iterator and pushes it onto the stack
-func (t *TraceLogger) EnterIterator(it Iterator, resources []Object, subject ObjectAndRelation) {
+func (t *TraceLogger) EnterIterator(it Iterator, traceString string) {
 	indent := strings.Repeat("  ", t.depth)
 	idPrefix := iteratorIDPrefix(it)
 
+	t.traces = append(
+		t.traces,
+		fmt.Sprintf("%s-> %s: %s",
+			indent,
+			idPrefix,
+			traceString,
+		),
+	)
+	t.depth++
+	t.stack = append(t.stack, it) // Push iterator pointer onto stack
+}
+
+func subjectRelationTraceString(subject ObjectAndRelation) string {
+	var subjectRelation string
+	if subject.Relation != "" {
+		subjectRelation = "#" + subject.Relation
+	}
+	return subjectRelation
+}
+
+func checkTraceString(resources []Object, subject ObjectAndRelation) string {
 	resourceStrs := make([]string, len(resources))
 	for i, r := range resources {
 		resourceStrs[i] = fmt.Sprintf("%s:%s", r.ObjectType, r.ObjectID)
 	}
-	// TODO: plumb in the operation and replace check( with that operation
-	t.traces = append(t.traces, fmt.Sprintf("%s-> %s: check(%s, %s:%s)",
-		indent, idPrefix, strings.Join(resourceStrs, ","), subject.ObjectType, subject.ObjectID))
-	t.depth++
-	t.stack = append(t.stack, it) // Push iterator pointer onto stack
+	return fmt.Sprintf("check(%s, %s:%s%s)", strings.Join(resourceStrs, ", "), subject.ObjectType, subject.ObjectID, subjectRelationTraceString(subject))
+}
+
+func iterResourcesTraceString(subject ObjectAndRelation) string {
+	return fmt.Sprintf("iterResources(%s:%s%s)", subject.ObjectType, subject.ObjectID, subjectRelationTraceString(subject))
+}
+
+func iterSubjectsTraceString(resource Object) string {
+	return fmt.Sprintf("iterSubjects(%s:%s)", resource.ObjectType, resource.ObjectID)
 }
 
 // ExitIterator logs exiting an iterator and pops it from the stack
@@ -273,9 +298,9 @@ func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
 	}
 }
 
-func (ctx *Context) TraceEnter(it Iterator, resources []Object, subject ObjectAndRelation) {
+func (ctx *Context) TraceEnter(it Iterator, traceString string) {
 	if ctx.TraceLogger != nil {
-		ctx.TraceLogger.EnterIterator(it, resources, subject)
+		ctx.TraceLogger.EnterIterator(it, traceString)
 	}
 }
 
@@ -290,11 +315,11 @@ func (ctx *Context) shouldTrace() bool {
 	return ctx.TraceLogger != nil
 }
 
-func (ctx *Context) traceEnterIfEnabled(it Iterator, resources []Object, subject ObjectAndRelation) Iterator {
+func (ctx *Context) traceEnterIfEnabled(it Iterator, traceString string) Iterator {
 	if !ctx.shouldTrace() {
 		return nil
 	}
-	ctx.TraceEnter(it, resources, subject)
+	ctx.TraceEnter(it, traceString)
 	return it
 }
 
@@ -373,7 +398,7 @@ func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRela
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	tracedIterator := ctx.traceEnterIfEnabled(it, resources, subject)
+	tracedIterator := ctx.traceEnterIfEnabled(it, checkTraceString(resources, subject))
 
 	pathSeq, err := ctx.Executor.Check(ctx, it, resources, subject)
 	if err != nil {
@@ -391,7 +416,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object) (PathSeq, error) 
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	tracedIterator := ctx.traceEnterIfEnabled(it, []Object{resource}, ObjectAndRelation{})
+	tracedIterator := ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource))
 
 	pathSeq, err := ctx.Executor.IterSubjects(ctx, it, resource)
 	if err != nil {
@@ -409,7 +434,7 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation) (PathS
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	tracedIterator := ctx.traceEnterIfEnabled(it, []Object{}, subject)
+	tracedIterator := ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject))
 
 	pathSeq, err := ctx.Executor.IterResources(ctx, it, subject)
 	if err != nil {
