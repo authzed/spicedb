@@ -161,8 +161,13 @@ func TestSnapshotCaching(t *testing.T) {
 			twoReader.On(tester.readSingleFunctionName, nsA).Return(nil, zero, nil).Once()
 			twoReader.On(tester.readSingleFunctionName, nsB).Return(nil, one, nil).Once()
 
+			dptc := DatastoreProxyTestCache(t)
+			t.Cleanup(func() {
+				dptc.Close()
+			})
+
 			require := require.New(t)
-			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
 			_, updatedOneA, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsA)
 			require.NoError(err)
@@ -367,7 +372,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
 			ctx := t.Context()
@@ -476,8 +481,13 @@ func TestMixedCaching(t *testing.T) {
 
 			dsMock.On("SnapshotReader", one).Return(reader)
 
+			dptc := DatastoreProxyTestCache(t)
+			t.Cleanup(func() {
+				dptc.Close()
+			})
+
 			require := require.New(t)
-			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
 			dsReader := ds.SnapshotReader(one)
 
@@ -529,6 +539,9 @@ func TestInvalidNamespaceInCache(t *testing.T) {
 	memoryDatastore, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 	ds := NewCachingDatastoreProxy(memoryDatastore, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	headRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
@@ -560,6 +573,9 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 	memoryDatastore, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 	ds := NewCachingDatastoreProxy(memoryDatastore, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	require.NoError(err)
 

@@ -472,6 +472,9 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 }
 
 func (ld *localDispatcher) Close() error {
+	if ld.lookupResourcesHandler3 != nil {
+		ld.lookupResourcesHandler3.Close()
+	}
 	return nil
 }
 

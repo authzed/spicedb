@@ -19,7 +19,8 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
+func TestConsistencyPerDatastore(t *testing.T) {
+	//nolint:tparallel
 	// TODO(jschorr): Re-enable for *all* files once we make this faster.
 	_, filename, _, _ := runtime.Caller(0)
 	consistencyTestFiles := []string{
@@ -54,6 +55,7 @@ func TestConsistencyPerDatastore(t *testing.T) { //nolint:tparallel
 				cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
 				dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
 				require.NoError(t, err)
+				t.Cleanup(func() { dispatcher.Close() })
 				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
 				headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)

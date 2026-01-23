@@ -93,6 +93,12 @@ type ValidatedLookupResources3Request struct {
 	Revision datastore.Revision
 }
 
+func (crr *CursoredLookupResources3) Close() {
+	if crr.relationshipsChunkCache != nil {
+		crr.relationshipsChunkCache.Close()
+	}
+}
+
 // LookupResources3 implements the LookupResources operation, which finds all resources of a given
 // type that a subject can access via a specific permission.
 //
@@ -1319,6 +1325,12 @@ func subjectIDsToRelationshipsChunk(
 
 type relationshipsChunkCache struct {
 	cache cache.Cache[cache.StringKey, any]
+}
+
+func (crc *relationshipsChunkCache) Close() {
+	if crc.cache != nil {
+		crc.cache.Close()
+	}
 }
 
 func (crc *relationshipsChunkCache) storeRelationshipsChunk(rm *relationshipsChunk) {

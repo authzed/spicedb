@@ -473,16 +473,20 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 }
 
 func (cds *crdbDatastore) Close() error {
+	var errs []error
 	cds.cancel()
+	if cds.pruneGroup != nil {
+		errs = append(errs, cds.pruneGroup.Wait())
+	}
 	cds.readPool.Close()
 	cds.writePool.Close()
 	for _, collector := range cds.collectors {
 		ok := prometheus.Unregister(collector)
 		if !ok {
-			return errors.New("could not unregister collector for CRDB datastore")
+			errs = append(errs, errors.New("could not unregister collector for CRDB datastore"))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {

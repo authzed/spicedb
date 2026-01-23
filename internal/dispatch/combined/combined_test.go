@@ -22,7 +22,7 @@ func TestCombinedRecursiveCall(t *testing.T) {
 
 	ctx := datastoremw.ContextWithHandle(t.Context())
 
-	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `

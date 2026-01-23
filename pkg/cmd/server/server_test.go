@@ -40,11 +40,8 @@ func TestServerGracefulTermination(t *testing.T) {
 	})
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, 10*time.Second)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = ds.Close()
-	})
 
 	c := ConfigWithOptions(
 		&Config{},
@@ -392,7 +389,7 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, 10*time.Second)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
 
 	c := ConfigWithOptions(&Config{
