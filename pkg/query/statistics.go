@@ -104,13 +104,23 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 
 		// Calculate CheckCost based on execution direction
 		var checkCost int
+		var iterResourcesCost int
+		var iterSubjectsCost int
 		switch it.direction {
 		case leftToRight:
 			// IterSubjects on left, then Check on right for each result
 			checkCost = ls.IterSubjectsCost + (ls.Cardinality * rs.CheckCost)
+			// IterResources on left, then IterResources on right for each result
+			iterResourcesCost = ls.IterResourcesCost + (ls.Cardinality * rs.IterResourcesCost)
+			// IterSubjects on left, then IterSubjects on right for each result
+			iterSubjectsCost = ls.IterSubjectsCost + (ls.Cardinality * rs.IterSubjectsCost)
 		case rightToLeft:
 			// IterResources on right, then Check on left for each result
 			checkCost = rs.IterResourcesCost + (rs.Cardinality * ls.CheckCost)
+			// IterResources on right, then IterResources on left for each result
+			iterResourcesCost = rs.IterResourcesCost + (rs.Cardinality * ls.IterResourcesCost)
+			// IterSubjects on right, then IterSubjects on left for each result
+			iterSubjectsCost = rs.IterSubjectsCost + (rs.Cardinality * ls.IterSubjectsCost)
 		}
 
 		return Estimate{
@@ -118,8 +128,8 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			Cardinality:       ls.Cardinality * rs.Cardinality,
 			CheckCost:         checkCost,
 			CheckSelectivity:  ls.CheckSelectivity * rs.CheckSelectivity,
-			IterResourcesCost: ls.IterResourcesCost + (ls.Cardinality * rs.IterResourcesCost),
-			IterSubjectsCost:  ls.IterSubjectsCost + (ls.Cardinality * rs.IterSubjectsCost),
+			IterResourcesCost: iterResourcesCost,
+			IterSubjectsCost:  iterSubjectsCost,
 		}, nil
 	case *IntersectionArrow:
 		ls, err := s.Cost(it.left)
@@ -133,11 +143,15 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 		// IntersectionArrow also does IterSubjects on left, then Check on right,
 		// but only yields results when ALL subjects satisfy (more selective), estimated based on the fanout from IterSubjects
 		selectivity := math.Pow(ls.CheckSelectivity, float64(s.Fanout)) * rs.CheckSelectivity
+		checkCost := ls.IterSubjectsCost + (ls.Cardinality * rs.CheckCost)
 		return Estimate{
-			Cardinality:       int(float64(ls.Cardinality*rs.Cardinality) * selectivity),
-			CheckCost:         ls.IterSubjectsCost + (ls.Cardinality * rs.CheckCost),
-			CheckSelectivity:  selectivity,
-			IterResourcesCost: ls.IterResourcesCost + (ls.Cardinality * rs.IterResourcesCost),
+			Cardinality:      int(float64(ls.Cardinality*rs.Cardinality) * selectivity),
+			CheckCost:        checkCost,
+			CheckSelectivity: selectivity,
+			// We have to iterResources on both the left and the right side to get the potential
+			// candidates, but we then need to check each of the candidates, so we pay an additional
+			// check cost.
+			IterResourcesCost: ls.IterResourcesCost + (ls.Cardinality * rs.IterResourcesCost) + checkCost,
 			IterSubjectsCost:  ls.IterSubjectsCost + (ls.Cardinality * rs.IterSubjectsCost),
 		}, nil
 	case *Union:
