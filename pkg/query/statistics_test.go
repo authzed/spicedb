@@ -82,6 +82,41 @@ func TestStaticStatistics_Cost(t *testing.T) {
 
 			// CheckSelectivity: left * right = 0.9 * 0.9 = 0.81
 			require.InDelta(t, 0.81, est.CheckSelectivity, 0.001)
+
+			// IterResourcesCost: left.IterResourcesCost + (left.Cardinality + right.IterResourcesCost)
+			// = 2 + 2 * 1 = 4
+			require.Equal(t, 4, est.IterResourcesCost)
+		})
+
+		t.Run("reversed arrow", func(t *testing.T) {
+			left := NewFixedIterator(
+				MustPathFromString("document:doc1#parent@folder:folder1"),
+				MustPathFromString("document:doc2#parent@folder:folder2"),
+			)
+			right := NewFixedIterator(
+				MustPathFromString("folder:folder1#viewer@user:alice"),
+			)
+			arrow := NewArrow(left, right)
+
+			// Set arrow direction to the other way
+			arrow.direction = rightToLeft
+
+			est, err := stats.Cost(arrow)
+			require.NoError(t, err)
+
+			// Cardinality: left.Cardinality * right.Cardinality = 2 * 1 = 2
+			require.Equal(t, 2, est.Cardinality)
+
+			// CheckCost: right.IterResourcesCost + (right.Cardinality * left.CheckCost)
+			// = 1 + (1 * 2) = 2
+			require.Equal(t, 2, est.CheckCost)
+
+			// CheckSelectivity: left * right = 0.9 * 0.9 = 0.81
+			require.InDelta(t, 0.81, est.CheckSelectivity, 0.001)
+
+			// IterResourcesCost: right.IterResourcesCost + (right.Cardinality + left.IterResourcesCost)
+			// = 1 + 1 * 2 = 3
+			require.Equal(t, 3, est.IterResourcesCost)
 		})
 
 		t.Run("with relation iterator", func(t *testing.T) {
@@ -131,6 +166,10 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		// CheckCost: left.IterSubjectsCost + (left.Cardinality * right.CheckCost)
 		// = 3 + (3 * 1) = 6
 		require.Equal(t, 6, est.CheckCost)
+
+		// IterResourcesCost: left.IterResourcesCost + (left.Cardinality * right.IterResourcesCost) + checkCost
+		// = 3 + (3 * 1) + 6 = 12
+		require.Equal(t, 12, est.IterResourcesCost)
 	})
 
 	t.Run("Union", func(t *testing.T) {
@@ -407,6 +446,9 @@ func TestStaticStatistics_Cost(t *testing.T) {
 
 			// CheckSelectivity: main * exclusionFactor = 0.9 * 0.1 = 0.09
 			require.InDelta(t, 0.09, est.CheckSelectivity, 0.001)
+
+			// IterResourcesCost: sum of both = 3 + 1 = 4
+			require.Equal(t, 4, est.IterResourcesCost)
 		})
 
 		t.Run("exclusion with relation iterator", func(t *testing.T) {
