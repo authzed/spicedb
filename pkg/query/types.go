@@ -55,6 +55,24 @@ type Iterator interface {
 	// ID returns a unique UUID for this instance of an iterator.
 	// Each call to Clone() generates a new UUID for the cloned iterator.
 	ID() string
+
+	// ResourceType returns the ObjectType of this iterator's resources.
+	ResourceType() ObjectType
+
+	// SubjectTypes returns all the ObjectTypes for this iterator tree.
+	SubjectTypes() []ObjectType
+}
+
+type ObjectType struct {
+	Type        string
+	Subrelation string
+}
+
+func NewType(typename string, subrelation ...string) ObjectType {
+	if len(subrelation) == 0 {
+		return ObjectType{Type: typename}
+	}
+	return ObjectType{Type: typename, Subrelation: subrelation[0]}
 }
 
 // Explain describes the state of an iterator tree, in a human-readable fashion, with an Info line at
