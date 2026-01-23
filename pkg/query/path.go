@@ -383,3 +383,26 @@ func RewriteSubject(seq PathSeq, subject ObjectAndRelation) PathSeq {
 		}
 	}
 }
+
+// FilterWildcardSubjects filters out any paths with wildcard subjects.
+func FilterWildcardSubjects(seq PathSeq) PathSeq {
+	return func(yield func(Path, error) bool) {
+		for path, err := range seq {
+			if err != nil {
+				if !yield(Path{}, err) {
+					return
+				}
+				continue
+			}
+
+			// Skip wildcard subjects
+			if path.Subject.ObjectID == tuple.PublicWildcard {
+				continue
+			}
+
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}
+}
