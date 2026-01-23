@@ -177,11 +177,23 @@ func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object)
 		return nil, err
 	}
 
-	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+	// Filter out wildcard subjects to match the behavior of LookupSubjects. Wildcards are not
+	// concrete enumerable subjects. They will be expanded to concrete subjects by the wildcard branch.
+	return FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))), nil
 }
 
 func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
-	filter := datastore.RelationshipsFilter{
+	// When a relation contains a wildcard (e.g., user:*), it means "all subjects of that type"
+	// that have ANY relationship with this resource. We enumerate concrete subjects by:
+	// 1. First checking if a wildcard relationship actually exists for this resource
+	// 2. If yes, querying for all concrete subjects with relationships to this resource
+	//
+	// This avoids doing a full subject enumeration when no wildcard exists (the common case).
+	// When wildcards do exist, we do 2 queries in this branch, but that's the correct semantic
+	// behavior - we only enumerate when there's actually a wildcard to expand.
+
+	// First, check if there's actually a wildcard relationship for this resource
+	wildcardFilter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      []string{resource.ObjectID},
 		OptionalResourceRelation: r.base.RelationName(),
@@ -194,7 +206,47 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 		},
 	}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
+	wildcardIter, err := ctx.Reader.QueryRelationships(ctx, wildcardFilter,
+		options.WithSkipCaveats(r.base.Caveat() == ""),
+		options.WithSkipExpiration(!r.base.Expiration()),
+		options.WithQueryShape(queryshape.AllSubjectsForResources),
+		options.WithLimit(options.LimitOne), // We only need to know if one exists
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if any wildcard relationship exists
+	hasWildcard := false
+	for _, err := range wildcardIter {
+		if err != nil {
+			return nil, err
+		}
+		hasWildcard = true
+		break
+	}
+
+	// If no wildcard relationship exists, return empty - nothing to enumerate
+	if !hasWildcard {
+		return EmptyPathSeq(), nil
+	}
+
+	// Wildcard exists, so enumerate all concrete subjects for this resource.
+	// Note: This may return some of the same subjects as the non-wildcard branch
+	// (when both wildcard and concrete relationships exist), but the Union will
+	// deduplicate them.
+	allSubjectsFilter := datastore.RelationshipsFilter{
+		OptionalResourceType: r.base.DefinitionName(),
+		OptionalResourceIds:  []string{resource.ObjectID},
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: r.base.Type(),
+				RelationFilter:      r.buildSubjectRelationFilter(),
+			},
+		},
+	}
+
+	relIter, err := ctx.Reader.QueryRelationships(ctx, allSubjectsFilter,
 		options.WithSkipCaveats(r.base.Caveat() == ""),
 		options.WithSkipExpiration(!r.base.Expiration()),
 		options.WithQueryShape(queryshape.AllSubjectsForResources),
@@ -203,7 +255,8 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 		return nil, err
 	}
 
-	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+	// Filter out wildcard subjects from the results - we only want concrete subjects
+	return FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))), nil
 }
 
 func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {

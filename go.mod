@@ -71,9 +71,9 @@ require (
 	github.com/jzelinskie/stringz v0.0.3
 	github.com/lib/pq v1.10.9
 	github.com/lithammer/fuzzysearch v1.1.8
-	github.com/lthibault/jitterbug v2.0.0+incompatible
 	github.com/mattn/go-isatty v0.0.20
 	github.com/maypok86/otter/v2 v2.2.1
+	github.com/miparnisari/jitterbug v0.0.0-20260123191925-5442e9d50926
 	github.com/mostynb/go-grpc-compression v1.2.3
 	github.com/muesli/mango-cobra v1.3.0
 	github.com/muesli/roff v0.1.0
