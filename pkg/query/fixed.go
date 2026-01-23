@@ -15,16 +15,49 @@ import (
 // For example: document->folder->ownerGroup->user -- and we'd like to
 // find all documents (IterResources) that traverse a known folder->ownerGroup relationship
 type FixedIterator struct {
-	id    string
-	paths []Path
+	id           string
+	paths        []Path
+	resourceType ObjectType
+	subjectTypes []ObjectType
 }
 
 var _ Iterator = &FixedIterator{}
 
 func NewFixedIterator(paths ...Path) *FixedIterator {
+	var resourceType ObjectType
+	subjectTypeMap := make(map[string]ObjectType)
+
+	if len(paths) > 0 {
+		// Set resource type from first path - just the type, not the relation
+		// Note: For simplicity, we use the resource type from the first path.
+		// Ideally, all paths should have the same resource type, but this isn't strictly enforced.
+		resourceType = ObjectType{
+			Type: paths[0].Resource.ObjectType,
+			// Subrelation is left empty since relations can vary
+		}
+
+		// Collect subject types from all paths
+		for _, path := range paths {
+			subjectType := ObjectType{
+				Type:        path.Subject.ObjectType,
+				Subrelation: path.Subject.Relation,
+			}
+			key := subjectType.Type + "#" + subjectType.Subrelation
+			subjectTypeMap[key] = subjectType
+		}
+	}
+
+	// Convert subject types map to slice
+	subjectTypes := make([]ObjectType, 0, len(subjectTypeMap))
+	for _, st := range subjectTypeMap {
+		subjectTypes = append(subjectTypes, st)
+	}
+
 	return &FixedIterator{
-		id:    uuid.NewString(),
-		paths: paths,
+		id:           uuid.NewString(),
+		paths:        paths,
+		resourceType: resourceType,
+		subjectTypes: subjectTypes,
 	}
 }
 
@@ -102,9 +135,15 @@ func (f *FixedIterator) Clone() Iterator {
 	clonedPaths := make([]Path, len(f.paths))
 	copy(clonedPaths, f.paths)
 
+	// Create a copy of subject types slice
+	clonedSubjectTypes := make([]ObjectType, len(f.subjectTypes))
+	copy(clonedSubjectTypes, f.subjectTypes)
+
 	return &FixedIterator{
-		id:    uuid.NewString(),
-		paths: clonedPaths,
+		id:           uuid.NewString(),
+		paths:        clonedPaths,
+		resourceType: f.resourceType,
+		subjectTypes: clonedSubjectTypes,
 	}
 }
 
@@ -118,4 +157,12 @@ func (f *FixedIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error
 
 func (f *FixedIterator) ID() string {
 	return f.id
+}
+
+func (f *FixedIterator) ResourceType() ObjectType {
+	return f.resourceType
+}
+
+func (f *FixedIterator) SubjectTypes() []ObjectType {
+	return f.subjectTypes
 }

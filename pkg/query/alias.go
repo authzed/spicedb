@@ -198,3 +198,17 @@ func (a *Alias) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 func (a *Alias) ID() string {
 	return a.id
 }
+
+func (a *Alias) ResourceType() ObjectType {
+	// Get the type from the wrapped iterator but use the alias relation
+	subType := a.subIt.ResourceType()
+	return ObjectType{
+		Type:        subType.Type,
+		Subrelation: a.relation,
+	}
+}
+
+func (a *Alias) SubjectTypes() []ObjectType {
+	// Subject types are unchanged by aliasing
+	return a.subIt.SubjectTypes()
+}

@@ -97,3 +97,25 @@ func (e Explain) IndentString(depth int) string {
 	}
 	return fmt.Sprintf("%s%s\n%s", strings.Repeat("\t", depth), e.Info, sb.String())
 }
+
+// collectAndDeduplicateSubjectTypes collects subject types from multiple iterators and deduplicates
+func collectAndDeduplicateSubjectTypes(iterators []Iterator) []ObjectType {
+	if len(iterators) == 0 {
+		return []ObjectType{}
+	}
+
+	seen := make(map[string]bool)
+	var result []ObjectType
+
+	for _, it := range iterators {
+		for _, st := range it.SubjectTypes() {
+			key := st.Type + "#" + st.Subrelation
+			if !seen[key] {
+				seen[key] = true
+				result = append(result, st)
+			}
+		}
+	}
+
+	return result
+}

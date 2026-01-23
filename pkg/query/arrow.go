@@ -358,3 +358,13 @@ func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 func (a *Arrow) ID() string {
 	return a.id
 }
+
+func (a *Arrow) ResourceType() ObjectType {
+	// Arrow's resources come from the left side
+	return a.left.ResourceType()
+}
+
+func (a *Arrow) SubjectTypes() []ObjectType {
+	// Arrow's subjects come from the right side
+	return a.right.SubjectTypes()
+}

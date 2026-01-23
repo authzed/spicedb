@@ -88,3 +88,23 @@ func (r *RecursiveSentinel) ReplaceSubiterators(newSubs []Iterator) (Iterator, e
 func (r *RecursiveSentinel) ID() string {
 	return r.id
 }
+
+func (r *RecursiveSentinel) ResourceType() ObjectType {
+	return ObjectType{
+		Type:        r.definitionName,
+		Subrelation: r.relationName,
+	}
+}
+
+func (r *RecursiveSentinel) SubjectTypes() []ObjectType {
+	// Sentinels don't know their subject types until expanded
+	// Return the recursive type as a placeholder
+	subrel := r.relationName
+	if r.withSubRelations {
+		subrel = "" // Unknown during construction
+	}
+	return []ObjectType{{
+		Type:        r.definitionName,
+		Subrelation: subrel,
+	}}
+}

@@ -165,3 +165,15 @@ func (u *Union) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 func (u *Union) ID() string {
 	return u.id
 }
+
+func (u *Union) ResourceType() ObjectType {
+	if len(u.subIts) == 0 {
+		return ObjectType{}
+	}
+	// All subiterators should have the same resource type
+	return u.subIts[0].ResourceType()
+}
+
+func (u *Union) SubjectTypes() []ObjectType {
+	return collectAndDeduplicateSubjectTypes(u.subIts)
+}

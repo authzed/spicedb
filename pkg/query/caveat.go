@@ -208,6 +208,16 @@ func (c *CaveatIterator) ID() string {
 	return c.id
 }
 
+func (c *CaveatIterator) ResourceType() ObjectType {
+	// Delegate to the wrapped iterator
+	return c.subiterator.ResourceType()
+}
+
+func (c *CaveatIterator) SubjectTypes() []ObjectType {
+	// Delegate to the wrapped iterator
+	return c.subiterator.SubjectTypes()
+}
+
 // buildExplainInfo creates detailed explanation information for the caveat iterator
 func (c *CaveatIterator) buildExplainInfo() string {
 	if c.caveat == nil {

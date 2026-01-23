@@ -341,3 +341,15 @@ func (i *Intersection) ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
 func (i *Intersection) ID() string {
 	return i.id
 }
+
+func (i *Intersection) ResourceType() ObjectType {
+	if len(i.subIts) == 0 {
+		return ObjectType{}
+	}
+	// All subiterators should have the same resource type
+	return i.subIts[0].ResourceType()
+}
+
+func (i *Intersection) SubjectTypes() []ObjectType {
+	return collectAndDeduplicateSubjectTypes(i.subIts)
+}

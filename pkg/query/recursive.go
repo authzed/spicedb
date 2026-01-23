@@ -214,6 +214,16 @@ func (r *RecursiveIterator) ID() string {
 	return r.id
 }
 
+func (r *RecursiveIterator) ResourceType() ObjectType {
+	// Delegate to the template tree
+	return r.templateTree.ResourceType()
+}
+
+func (r *RecursiveIterator) SubjectTypes() []ObjectType {
+	// Delegate to the template tree
+	return r.templateTree.SubjectTypes()
+}
+
 // breadthFirstIterSubjects implements BFS traversal for IterSubjects operations.
 func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Object) (PathSeq, error) {
 	ctx.TraceStep(r, "BFS IterSubjects starting with resource %s:%s", resource.ObjectType, resource.ObjectID)

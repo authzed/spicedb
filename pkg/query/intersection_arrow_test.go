@@ -782,3 +782,42 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		}
 	})
 }
+
+func TestIntersectionArrow_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create left and right iterators
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftIter := NewFixedIterator(leftPath)
+
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightIter := NewFixedIterator(rightPath)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		resourceType := intersectionArrow.ResourceType()
+		require.Equal("document", resourceType.Type) // From left iterator
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create left and right iterators
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftIter := NewFixedIterator(leftPath)
+
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightIter := NewFixedIterator(rightPath)
+
+		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+
+		subjectTypes := intersectionArrow.SubjectTypes()
+		require.Len(subjectTypes, 1) // From right iterator
+		require.Equal("user", subjectTypes[0].Type)
+	})
+}

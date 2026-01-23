@@ -108,3 +108,57 @@ func TestFixedIterator(t *testing.T) {
 		require.Empty(explain.SubExplain)
 	})
 }
+
+func TestFixedIterator_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc2#editor@user:bob")
+		fixed := NewFixedIterator(path1, path2)
+
+		resourceType := fixed.ResourceType()
+		require.Equal("document", resourceType.Type)
+		require.Empty(resourceType.Subrelation) // Relations vary, so subrelation is empty
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc2#editor@user:bob")
+		path3 := MustPathFromString("document:doc3#owner@group:engineers#member")
+		fixed := NewFixedIterator(path1, path2, path3)
+
+		subjectTypes := fixed.SubjectTypes()
+		require.Len(subjectTypes, 2, "Should have 2 unique subject types")
+
+		// Check that both user and group types are present
+		typeMap := make(map[string]bool)
+		for _, st := range subjectTypes {
+			key := st.Type + "#" + st.Subrelation
+			typeMap[key] = true
+		}
+
+		require.True(typeMap["user#..."] || typeMap["user#"])
+		require.True(typeMap["group#member"])
+	})
+
+	t.Run("EmptyIterator", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		fixed := NewFixedIterator()
+
+		resourceType := fixed.ResourceType()
+		require.Empty(resourceType.Type)
+		require.Empty(resourceType.Subrelation)
+
+		subjectTypes := fixed.SubjectTypes()
+		require.Empty(subjectTypes)
+	})
+}

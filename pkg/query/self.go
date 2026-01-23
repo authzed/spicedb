@@ -14,15 +14,17 @@ type Self struct {
 	// relation is the name of the permission that uses the self keyword,
 	// and is used because otherwise "self" doesn't have an associated relation,
 	// as it's purely checking whether the subject and object are the same.
-	relation string
+	relation     string
+	resourceType ObjectType
 }
 
 var _ Iterator = &Self{}
 
-func NewSelf(relation string) *Self {
+func NewSelf(relation string, resourceType ObjectType) *Self {
 	return &Self{
-		id:       uuid.NewString(),
-		relation: relation,
+		id:           uuid.NewString(),
+		relation:     relation,
+		resourceType: resourceType,
 	}
 }
 
@@ -71,7 +73,9 @@ func (s *Self) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathS
 
 func (s *Self) Clone() Iterator {
 	return &Self{
-		relation: s.relation,
+		id:           uuid.NewString(),
+		relation:     s.relation,
+		resourceType: s.resourceType,
 	}
 }
 
@@ -92,4 +96,13 @@ func (s *Self) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 
 func (s *Self) ID() string {
 	return s.id
+}
+
+func (s *Self) ResourceType() ObjectType {
+	return s.resourceType
+}
+
+func (s *Self) SubjectTypes() []ObjectType {
+	// Self is self-referential - subjects are the same type as resources
+	return []ObjectType{s.resourceType}
 }
