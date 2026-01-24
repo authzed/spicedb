@@ -509,7 +509,7 @@ func TestCompile(t *testing.T) {
 			"invalid definition name",
 			nilPrefix,
 			`definition someTenant/fo {}`,
-			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z_][a-z0-9_]{1,62}[a-z0-9]/)*[a-z_][a-z0-9_]{1,62}[a-z0-9]$\"",
 			[]SchemaDefinition{},
 		},
 		{
@@ -518,7 +518,7 @@ func TestCompile(t *testing.T) {
 			`definition some_tenant/foos {
 				relation ab: some_tenant/foos
 			}`,
-			"parse error in `invalid relation name`, line 2, column 5: error in relation ab: invalid Relation.Name: value does not match regex pattern \"^[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			"parse error in `invalid relation name`, line 2, column 5: error in relation ab: invalid Relation.Name: value does not match regex pattern \"^[a-z_][a-z0-9_]{1,62}[a-z0-9]$\"",
 			[]SchemaDefinition{},
 		},
 		{
@@ -1150,6 +1150,66 @@ func TestCompile(t *testing.T) {
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveatAndExpiration("sometenant/user", "...", namespace.AllowedCaveat("sometenant/somecaveat")),
+					),
+				),
+			},
+		},
+		{
+			"underscore prefix namespace",
+			AllowUnprefixedObjectType(),
+			`definition _private_resource {
+				relation owner: user
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("_private_resource",
+					namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
+				),
+			},
+		},
+		{
+			"underscore prefix relation",
+			withTenantPrefix,
+			`definition resource {
+				relation _internal_owner: sometenant/user
+				relation viewer: sometenant/user
+				permission view = viewer + _internal_owner
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/resource",
+					namespace.MustRelation("_internal_owner", nil, namespace.AllowedRelation("sometenant/user", "...")),
+					namespace.MustRelation("viewer", nil, namespace.AllowedRelation("sometenant/user", "...")),
+					namespace.MustRelation("view",
+						namespace.Union(
+							namespace.ComputedUserset("viewer"),
+							namespace.ComputedUserset("_internal_owner"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"underscore prefix permission",
+			withTenantPrefix,
+			`definition document {
+				relation owner: sometenant/user
+				permission _internal_edit = owner
+				permission edit = _internal_edit
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/document",
+					namespace.MustRelation("owner", nil, namespace.AllowedRelation("sometenant/user", "...")),
+					namespace.MustRelation("_internal_edit",
+						namespace.Union(
+							namespace.ComputedUserset("owner"),
+						),
+					),
+					namespace.MustRelation("edit",
+						namespace.Union(
+							namespace.ComputedUserset("_internal_edit"),
+						),
 					),
 				),
 			},
