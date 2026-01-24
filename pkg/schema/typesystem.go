@@ -22,12 +22,12 @@ type (
 type TypeSystem struct {
 	sync.Mutex
 	validatedDefinitions map[string]*ValidatedDefinition // GUARDED_BY(Mutex)
-	resolver             Resolver
+	resolver             TypeSystemResolver
 	wildcardCheckCache   map[string]*WildcardTypeReference
 }
 
-// NewTypeSystem builds a TypeSystem object from a resolver, which can look up the definitions.
-func NewTypeSystem(resolver Resolver) *TypeSystem {
+// NewTypeSystem builds a TypeSystem object from a resolver, which can look up type definitions and caveats.
+func NewTypeSystem(resolver TypeSystemResolver) *TypeSystem {
 	return &TypeSystem{
 		validatedDefinitions: make(map[string]*ValidatedDefinition),
 		resolver:             resolver,
@@ -39,6 +39,11 @@ func NewTypeSystem(resolver Resolver) *TypeSystem {
 func (ts *TypeSystem) GetDefinition(ctx context.Context, definition string) (*Definition, error) {
 	v, _, err := ts.getDefinition(ctx, definition)
 	return v, err
+}
+
+// GetCaveat looks up and returns a caveat struct.
+func (ts *TypeSystem) GetCaveat(ctx context.Context, caveatName string) (*Caveat, error) {
+	return ts.resolver.LookupCaveat(ctx, caveatName)
 }
 
 // getDefinition is an internal helper for GetDefinition and GetValidatedDefinition

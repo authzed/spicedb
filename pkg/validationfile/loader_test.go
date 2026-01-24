@@ -154,7 +154,7 @@ func TestPopulateFromFiles(t *testing.T) {
 			name:          "invalid caveat",
 			filePaths:     []string{"testdata/invalid_caveat.yaml"},
 			want:          nil,
-			expectedError: &ExpectedError{message: "could not lookup caveat `some_caveat` for relation `reader`: caveat `some_caveat` not found"},
+			expectedError: &ExpectedError{message: "could not lookup caveat `some_caveat` for relation `reader`: caveat with name `some_caveat` not found"},
 		},
 		{
 			name:          "invalid caveated relationship",

@@ -387,7 +387,7 @@ func TestToDefinitionsRoundTripWithTypeSystem(t *testing.T) {
 				ObjectDefinitions: defs,
 				CaveatDefinitions: caveats,
 			}
-			resolver := pkgschema.ResolverForSchema(*compiled2)
+			resolver := pkgschema.ResolverForSchema(compiled2)
 			ts := pkgschema.NewTypeSystem(resolver)
 
 			// Step 5: Run tester functions for each definition
@@ -633,7 +633,7 @@ func TestToDefinitionsFlattenedRoundTripWithTypeSystem(t *testing.T) {
 				ObjectDefinitions: defs,
 				CaveatDefinitions: caveats,
 			}
-			resolver := pkgschema.ResolverForSchema(*compiled2)
+			resolver := pkgschema.ResolverForSchema(compiled2)
 			ts := pkgschema.NewTypeSystem(resolver)
 
 			// Step 7: Run tester functions for each definition
@@ -690,7 +690,7 @@ func TestToDefinitionsRoundTripWithTypeSystemNegativeCases(t *testing.T) {
 		ObjectDefinitions: defs,
 		CaveatDefinitions: caveats,
 	}
-	resolver := pkgschema.ResolverForSchema(*compiled2)
+	resolver := pkgschema.ResolverForSchema(compiled2)
 	ts := pkgschema.NewTypeSystem(resolver)
 
 	def, err := ts.GetDefinition(ctx, "resource")

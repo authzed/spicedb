@@ -127,7 +127,7 @@ func TestLookupTuplesetArrows(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			arrowSet, err := buildArrowSet(t.Context(), res)
 			require.NoError(t, err)
 
@@ -259,7 +259,7 @@ func TestAllReachableRelations(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			arrows, err := buildArrowSet(t.Context(), res)
 			require.NoError(t, err)
 
@@ -520,7 +520,7 @@ func TestLookupArrowsWithComputedUserset(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			arrowSet, err := buildArrowSet(t.Context(), res)
 			require.NoError(t, err)
 

@@ -212,7 +212,7 @@ func TestTypecheckingJustTypes(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
@@ -395,7 +395,7 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			ts := NewTypeSystem(res)
 			for _, resource := range schema.ObjectDefinitions {
 				for _, relation := range resource.Relation {
@@ -503,7 +503,7 @@ func TestTypeAnnotationsValidation(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(t, err)
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			ts := NewTypeSystem(res)
 
 			var foundError error
@@ -579,7 +579,7 @@ func TestIncompleteSchema(t *testing.T) {
 			}
 			schema.ObjectDefinitions = missingDefs
 
-			res := ResolverForCompiledSchema(*schema)
+			res := ResolverForCompiledSchema(schema)
 			ts := NewTypeSystem(res)
 			_, err = ts.GetRecursiveTerminalTypesForRelation(t.Context(), "resource", "view")
 			require.Error(t, err)

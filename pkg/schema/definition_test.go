@@ -1,17 +1,12 @@
 package schema
 
 import (
-	"context"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -269,7 +264,7 @@ func TestDefinition(t *testing.T) {
 				ns.Namespace("user"),
 			},
 			nil,
-			"could not lookup caveat `unknown` for relation `viewer`: caveat `unknown` not found",
+			"could not lookup caveat `unknown` for relation `viewer`: caveat with name `unknown` not found",
 		},
 		{
 			"valid caveat",
@@ -453,26 +448,12 @@ func TestDefinition(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
-			require.NoError(err)
-
 			ctx := t.Context()
 
-			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.LegacyWriteNamespaces(ctx, tc.toCheck)
-				if err != nil {
-					return err
-				}
-				for _, otherNS := range tc.otherNamespaces {
-					if err := rwt.LegacyWriteNamespaces(ctx, otherNS); err != nil {
-						return err
-					}
-				}
-				cw := rwt.(datastore.LegacySchemaWriter)
-				return cw.LegacyWriteCaveats(ctx, tc.caveats)
-			})
-			require.NoError(err)
-			resolver := ResolverForDatastoreReader(ds.SnapshotReader(lastRevision))
+			predefinedNamespaces := make([]*core.NamespaceDefinition, 0)
+			predefinedNamespaces = append(predefinedNamespaces, tc.toCheck)
+			predefinedNamespaces = append(predefinedNamespaces, tc.otherNamespaces...)
+			resolver := ResolverForPredefinedDefinitions(PredefinedElements{Definitions: predefinedNamespaces, Caveats: tc.caveats})
 
 			ts := NewTypeSystem(resolver)
 
@@ -1541,10 +1522,7 @@ func TestTypeSystemAccessors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
-			require.NoError(err)
-
-			ctx := datastoremw.ContextWithDatastore(t.Context(), ds)
+			ctx := t.Context()
 
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -1552,14 +1530,7 @@ func TestTypeSystemAccessors(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(t.Context())
-			require.NoError(err)
-
-			reader := ds.SnapshotReader(lastRevision)
-			resolver := ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
-				Definitions: compiled.ObjectDefinitions,
-				Caveats:     compiled.CaveatDefinitions,
-			})
+			resolver := ResolverForCompiledSchema(compiled)
 			ts := NewTypeSystem(resolver)
 			for _, nsDef := range compiled.ObjectDefinitions {
 				vts, err := ts.GetValidatedDefinition(ctx, nsDef.GetName())

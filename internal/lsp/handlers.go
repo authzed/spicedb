@@ -222,7 +222,7 @@ func (s *Server) textDocHover(_ context.Context, r *jsonrpc2.Request) (*Hover, e
 			return err
 		}
 
-		resolver, err := development.NewResolver(compiled)
+		resolver, err := development.NewSchemaPositionMapper(compiled)
 		if err != nil {
 			return err
 		}
