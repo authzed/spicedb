@@ -240,7 +240,7 @@ func TestWarnings(t *testing.T) {
 		{
 			name: "exclusion operation",
 			schema: `definition user {}
-			
+
 			definition document {
 				relation viewer: user
 				relation editor: user
@@ -248,6 +248,133 @@ func TestWarnings(t *testing.T) {
 			}
 			`,
 			expectedWarning: nil,
+		},
+		{
+			name: "mixed operators without parentheses",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				permission view = viewer + editor - admin
+			}
+			`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       7,
+				Column:     23,
+				SourceCode: "view",
+			},
+		},
+		{
+			name: "mixed operators with parentheses does not warn",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				permission view = (viewer + editor) - admin
+			}
+			`,
+			expectedWarning: nil,
+		},
+		{
+			name: "mixed operators warning disabled",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				// spicedb-ignore-warning: mixed-operators-without-parentheses
+				permission view = viewer + editor - admin
+			}
+			`,
+			expectedWarning: nil,
+		},
+		{
+			name: "mixed operators with outer parentheses still warns",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				permission view = (viewer + editor - admin)
+			}
+			`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       7,
+				Column:     24,
+				SourceCode: "view",
+			},
+		},
+		{
+			name: "mixed intersection and exclusion without parentheses",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				permission view = viewer & editor - admin
+			}
+			`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       7,
+				Column:     23,
+				SourceCode: "view",
+			},
+		},
+		{
+			name: "mixed intersection and union without parentheses",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				permission view = viewer & editor + admin
+			}
+			`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       7,
+				Column:     32,
+				SourceCode: "view",
+			},
+		},
+		{
+			name: "same operators repeated does not warn",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				relation admin: user
+				permission view = viewer + editor + admin
+			}
+			`,
+			expectedWarning: nil,
+		},
+		{
+			name: "relation name referencing parent is a relation not permission",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer_document: user
+				permission view = viewer_document
+			}`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Relation \"viewer_document\" references parent type \"document\" in its name; it is recommended to drop the suffix (relation-name-references-parent)",
+				Line:       4,
+				Column:     5,
+				SourceCode: "viewer_document",
+			},
 		},
 	}
 

@@ -29,15 +29,16 @@ func _() {
 	_ = x[NodeTypeIdentifier-18]
 	_ = x[NodeTypeNilExpression-19]
 	_ = x[NodeTypeSelfExpression-20]
-	_ = x[NodeTypeCaveatTypeReference-21]
-	_ = x[NodeTypeImport-22]
-	_ = x[NodeTypePartial-23]
-	_ = x[NodeTypePartialReference-24]
+	_ = x[NodeTypeParenthesizedExpression-21]
+	_ = x[NodeTypeCaveatTypeReference-22]
+	_ = x[NodeTypeImport-23]
+	_ = x[NodeTypePartial-24]
+	_ = x[NodeTypePartialReference-25]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeSelfExpressionNodeTypeCaveatTypeReferenceNodeTypeImportNodeTypePartialNodeTypePartialReference"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeUseFlagNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeTraitReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeSelfExpressionNodeTypeParenthesizedExpressionNodeTypeCaveatTypeReferenceNodeTypeImportNodeTypePartialNodeTypePartialReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 199, 228, 251, 273, 296, 323, 350, 373, 391, 412, 434, 461, 475, 490, 514}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 55, 73, 97, 120, 144, 160, 178, 199, 228, 251, 273, 296, 323, 350, 373, 391, 412, 434, 465, 492, 506, 521, 545}
 
 func (i NodeType) String() string {
 	idx := int(i) - 0

@@ -573,16 +573,19 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.MustRelation("foos",
-						namespace.Exclusion(
-							namespace.Rewrite(
-								namespace.Union(
-									namespace.ComputedUserset("bars"),
-									namespace.ComputedUserset("bazs"),
+					namespace.MustWithMixedOperators(
+						namespace.MustRelation("foos",
+							namespace.Exclusion(
+								namespace.Rewrite(
+									namespace.Union(
+										namespace.ComputedUserset("bars"),
+										namespace.ComputedUserset("bazs"),
+									),
 								),
+								namespace.ComputedUserset("mehs"),
 							),
-							namespace.ComputedUserset("mehs"),
 						),
+						1, 22, // line 1, column 22 (0-indexed)
 					),
 				),
 			},
