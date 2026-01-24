@@ -135,10 +135,10 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 	}, nil
 }
 
-func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// Get all subjects from the excluded set first and build a lookup map
 	ctx.TraceStep(e, "getting subjects from excluded set for resource %s:%s", resource.ObjectType, resource.ObjectID)
-	excludedSeq, err := ctx.IterSubjects(e.excluded, resource)
+	excludedSeq, err := ctx.IterSubjects(e.excluded, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, er
 
 	// Get the main sequence (this catches immediate errors from main set's IterSubjectsImpl)
 	ctx.TraceStep(e, "getting sequence from main set")
-	mainSeq, err := ctx.IterSubjects(e.mainSet, resource)
+	mainSeq, err := ctx.IterSubjects(e.mainSet, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
 	}
@@ -203,10 +203,10 @@ func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, er
 	}, nil
 }
 
-func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// Get all resources from the excluded set first and build a lookup map
 	ctx.TraceStep(e, "getting resources from excluded set for subject %s:%s", subject.ObjectType, subject.ObjectID)
-	excludedSeq, err := ctx.IterResources(e.excluded, subject)
+	excludedSeq, err := ctx.IterResources(e.excluded, subject, filterResourceType)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (
 
 	// Get the main sequence (this catches immediate errors from main set's IterResourcesImpl)
 	ctx.TraceStep(e, "getting sequence from main set")
-	mainSeq, err := ctx.IterResources(e.mainSet, subject)
+	mainSeq, err := ctx.IterResources(e.mainSet, subject, filterResourceType)
 	if err != nil {
 		return nil, err
 	}

@@ -50,12 +50,12 @@ func (r *RecursiveSentinel) CheckImpl(ctx *Context, resources []Object, subject 
 }
 
 // IterSubjectsImpl returns an empty PathSeq since sentinels don't execute during construction
-func (r *RecursiveSentinel) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (r *RecursiveSentinel) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	return EmptyPathSeq(), nil
 }
 
 // IterResourcesImpl returns an empty PathSeq since sentinels don't execute during construction
-func (r *RecursiveSentinel) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (r *RecursiveSentinel) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	return EmptyPathSeq(), nil
 }
 

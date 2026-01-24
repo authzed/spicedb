@@ -65,7 +65,7 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	return DeduplicatePathSeq(combinedSeq), nil
 }
 
-func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (u *Union) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(u, "processing %d sub-iterators for resource %s:%s", len(u.subIts), resource.ObjectType, resource.ObjectID)
 
 	// Create a concatenated sequence from all sub-iterators
@@ -73,7 +73,7 @@ func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 		for iterIdx, it := range u.subIts {
 			ctx.TraceStep(u, "processing sub-iterator %d", iterIdx)
 
-			pathSeq, err := ctx.IterSubjects(it, resource)
+			pathSeq, err := ctx.IterSubjects(it, resource, filterSubjectType)
 			if err != nil {
 				yield(Path{}, err)
 				return
@@ -99,7 +99,7 @@ func (u *Union) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 	return DeduplicatePathSeq(combinedSeq), nil
 }
 
-func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(u, "processing %d sub-iterators for subject %s:%s#%s", len(u.subIts), subject.ObjectType, subject.ObjectID, subject.Relation)
 
 	// Create a concatenated sequence from all sub-iterators
@@ -107,7 +107,7 @@ func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 		for iterIdx, it := range u.subIts {
 			ctx.TraceStep(u, "processing sub-iterator %d", iterIdx)
 
-			pathSeq, err := ctx.IterResources(it, subject)
+			pathSeq, err := ctx.IterResources(it, subject, filterResourceType)
 			if err != nil {
 				yield(Path{}, err)
 				return

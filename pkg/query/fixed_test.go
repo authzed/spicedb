@@ -53,7 +53,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := ctx.IterSubjects(fixed, NewObject("document", "doc1"))
+		seq, err := ctx.IterSubjects(fixed, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		results, err := CollectAll(seq)
@@ -70,7 +70,7 @@ func TestFixedIterator(t *testing.T) {
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
-		seq, err := ctx.IterResources(fixed, NewObject("user", "alice").WithEllipses())
+		seq, err := ctx.IterResources(fixed, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		results, err := CollectAll(seq)

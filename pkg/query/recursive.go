@@ -40,13 +40,13 @@ func (r *RecursiveIterator) CheckImpl(ctx *Context, resources []Object, subject 
 }
 
 // IterSubjectsImpl implements BFS traversal for IterSubjects operations
-func (r *RecursiveIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	return r.breadthFirstIterSubjects(ctx, resource)
+func (r *RecursiveIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+	return r.breadthFirstIterSubjects(ctx, resource, filterSubjectType)
 }
 
 // IterResourcesImpl implements BFS traversal for IterResources operations
-func (r *RecursiveIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	return r.breadthFirstIterResources(ctx, subject)
+func (r *RecursiveIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+	return r.breadthFirstIterResources(ctx, subject, filterResourceType)
 }
 
 // iterativeDeepening executes the core iterative deepening algorithm
@@ -225,7 +225,7 @@ func (r *RecursiveIterator) SubjectTypes() ([]ObjectType, error) {
 }
 
 // breadthFirstIterSubjects implements BFS traversal for IterSubjects operations.
-func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Object) (PathSeq, error) {
+func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(r, "BFS IterSubjects starting with resource %s:%s", resource.ObjectType, resource.ObjectID)
 
 	return breadthFirstIter(
@@ -238,7 +238,7 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 		},
 		// Execute: iterate subjects for a frontier object
 		func(depth1Tree Iterator, frontierNode Object) (PathSeq, error) {
-			return ctx.IterSubjects(depth1Tree, frontierNode)
+			return ctx.IterSubjects(depth1Tree, frontierNode, filterSubjectType)
 		},
 		// Extract recursive node from path
 		func(path Path) (Object, bool) {
@@ -251,7 +251,7 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 }
 
 // breadthFirstIterResources implements BFS traversal for IterResources operations.
-func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(r, "BFS IterResources starting with subject %s:%s#%s",
 		subject.ObjectType, subject.ObjectID, subject.Relation)
 
@@ -262,7 +262,7 @@ func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject Obje
 		ObjectAndRelationKey, // No need for a closure, just call directly!
 		// Execute: iterate resources for a frontier subject
 		func(depth1Tree Iterator, frontierNode ObjectAndRelation) (PathSeq, error) {
-			return ctx.IterResources(depth1Tree, frontierNode)
+			return ctx.IterResources(depth1Tree, frontierNode, filterResourceType)
 		},
 		// Extract recursive node from path
 		func(path Path) (ObjectAndRelation, bool) {

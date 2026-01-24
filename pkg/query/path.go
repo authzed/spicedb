@@ -406,3 +406,77 @@ func FilterWildcardSubjects(seq PathSeq) PathSeq {
 		}
 	}
 }
+
+// FilterResourcesByType filters a PathSeq to only include paths where the resource
+// matches the specified ObjectType. If filter.Type is empty, no filtering is applied.
+func FilterResourcesByType(seq PathSeq, filter ObjectType) PathSeq {
+	return func(yield func(Path, error) bool) {
+		for path, err := range seq {
+			if err != nil {
+				if !yield(Path{}, err) {
+					return
+				}
+				continue
+			}
+
+			// Empty Type means no filtering
+			if filter.Type == "" {
+				if !yield(path, nil) {
+					return
+				}
+				continue
+			}
+
+			// Check if resource matches the filter
+			if path.Resource.ObjectType != filter.Type {
+				continue // Skip this path
+			}
+
+			// If Subrelation specified, check relation too
+			if filter.Subrelation != "" && path.Relation != filter.Subrelation {
+				continue
+			}
+
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}
+}
+
+// FilterSubjectsByType filters a PathSeq to only include paths where the subject
+// matches the specified ObjectType. If filter.Type is empty, no filtering is applied.
+func FilterSubjectsByType(seq PathSeq, filter ObjectType) PathSeq {
+	return func(yield func(Path, error) bool) {
+		for path, err := range seq {
+			if err != nil {
+				if !yield(Path{}, err) {
+					return
+				}
+				continue
+			}
+
+			// Empty Type means no filtering
+			if filter.Type == "" {
+				if !yield(path, nil) {
+					return
+				}
+				continue
+			}
+
+			// Check if subject matches the filter
+			if path.Subject.ObjectType != filter.Type {
+				continue
+			}
+
+			// If Subrelation specified, check it too
+			if filter.Subrelation != "" && path.Subject.Relation != filter.Subrelation {
+				continue
+			}
+
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}
+}

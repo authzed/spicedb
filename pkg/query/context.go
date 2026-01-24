@@ -81,12 +81,26 @@ func checkTraceString(resources []Object, subject ObjectAndRelation) string {
 	return fmt.Sprintf("check(%s, %s:%s%s)", strings.Join(resourceStrs, ", "), subject.ObjectType, subject.ObjectID, subjectRelationTraceString(subject))
 }
 
-func iterResourcesTraceString(subject ObjectAndRelation) string {
-	return fmt.Sprintf("iterResources(%s:%s%s)", subject.ObjectType, subject.ObjectID, subjectRelationTraceString(subject))
+func iterResourcesTraceString(subject ObjectAndRelation, filter ObjectType) string {
+	filterStr := ""
+	if filter.Type != "" {
+		filterStr = ", filter=" + filter.Type
+		if filter.Subrelation != "" {
+			filterStr += "#" + filter.Subrelation
+		}
+	}
+	return fmt.Sprintf("iterResources(%s:%s%s%s)", subject.ObjectType, subject.ObjectID, subjectRelationTraceString(subject), filterStr)
 }
 
-func iterSubjectsTraceString(resource Object) string {
-	return fmt.Sprintf("iterSubjects(%s:%s)", resource.ObjectType, resource.ObjectID)
+func iterSubjectsTraceString(resource Object, filter ObjectType) string {
+	filterStr := ""
+	if filter.Type != "" {
+		filterStr = ", filter=" + filter.Type
+		if filter.Subrelation != "" {
+			filterStr += "#" + filter.Subrelation
+		}
+	}
+	return fmt.Sprintf("iterSubjects(%s:%s%s)", resource.ObjectType, resource.ObjectID, filterStr)
 }
 
 // ExitIterator logs exiting an iterator and pops it from the stack
@@ -411,14 +425,16 @@ func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRela
 }
 
 // IterSubjects returns a sequence of all the paths in this set that match the given resource.
-func (ctx *Context) IterSubjects(it Iterator, resource Object) (PathSeq, error) {
+// The filterSubjectType parameter filters results to only include subjects matching the
+// specified ObjectType. If filterSubjectType.Type is empty, no filtering is applied.
+func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	tracedIterator := ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource))
+	tracedIterator := ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource, filterSubjectType))
 
-	pathSeq, err := ctx.Executor.IterSubjects(ctx, it, resource)
+	pathSeq, err := ctx.Executor.IterSubjects(ctx, it, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
 	}
@@ -429,14 +445,16 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object) (PathSeq, error) 
 }
 
 // IterResources returns a sequence of all the relations in this set that match the given subject.
-func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation) (PathSeq, error) {
+// The filterResourceType parameter filters results to only include resources matching the
+// specified ObjectType. If filterResourceType.Type is empty, no filtering is applied.
+func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	tracedIterator := ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject))
+	tracedIterator := ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject, filterResourceType))
 
-	pathSeq, err := ctx.Executor.IterResources(ctx, it, subject)
+	pathSeq, err := ctx.Executor.IterResources(ctx, it, subject, filterResourceType)
 	if err != nil {
 		return nil, err
 	}
@@ -456,8 +474,12 @@ type Executor interface {
 	Check(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) (PathSeq, error)
 
 	// IterSubjects returns a sequence of all the relations in this set that match the given resource.
-	IterSubjects(ctx *Context, it Iterator, resource Object) (PathSeq, error)
+	// The filterSubjectType parameter filters results to only include subjects matching the
+	// specified ObjectType. If filterSubjectType.Type is empty, no filtering is applied.
+	IterSubjects(ctx *Context, it Iterator, resource Object, filterSubjectType ObjectType) (PathSeq, error)
 
 	// IterResources returns a sequence of all the relations in this set that match the given subject.
-	IterResources(ctx *Context, it Iterator, subject ObjectAndRelation) (PathSeq, error)
+	// The filterResourceType parameter filters results to only include resources matching the
+	// specified ObjectType. If filterResourceType.Type is empty, no filtering is applied.
+	IterResources(ctx *Context, it Iterator, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error)
 }

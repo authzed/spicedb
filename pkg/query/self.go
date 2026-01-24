@@ -49,7 +49,7 @@ func (s *Self) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRela
 	return EmptyPathSeq(), nil
 }
 
-func (s *Self) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (s *Self) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		yield(Path{
 			Resource: resource,
@@ -60,7 +60,7 @@ func (s *Self) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) 
 	}, nil
 }
 
-func (s *Self) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (s *Self) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		yield(Path{
 			Resource: GetObject(subject),

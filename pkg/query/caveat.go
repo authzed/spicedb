@@ -38,16 +38,16 @@ func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 	return c.runCaveats(ctx, subSeq)
 }
 
-func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	subSeq, err := ctx.IterSubjects(c.subiterator, resource)
+func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+	subSeq, err := ctx.IterSubjects(c.subiterator, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
 	}
 	return c.runCaveats(ctx, subSeq)
 }
 
-func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	subSeq, err := ctx.IterResources(c.subiterator, subject)
+func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+	subSeq, err := ctx.IterResources(c.subiterator, subject, filterResourceType)
 	if err != nil {
 		return nil, err
 	}
