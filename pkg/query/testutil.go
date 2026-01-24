@@ -204,7 +204,7 @@ func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 	return EmptyPathSeq(), nil
 }
 
-func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	if f.shouldFailOnCheck {
 		return nil, errors.New("faulty iterator error")
 	}
@@ -218,7 +218,7 @@ func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSe
 	return EmptyPathSeq(), nil
 }
 
-func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	if f.shouldFailOnCheck {
 		return nil, errors.New("faulty iterator error")
 	}

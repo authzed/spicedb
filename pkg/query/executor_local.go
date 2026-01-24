@@ -14,11 +14,21 @@ func (l LocalExecutor) Check(ctx *Context, it Iterator, resources []Object, subj
 }
 
 // IterSubjects returns a sequence of all the paths in this set that match the given resource.
-func (l LocalExecutor) IterSubjects(ctx *Context, it Iterator, resource Object) (PathSeq, error) {
-	return it.IterSubjectsImpl(ctx, resource)
+func (l LocalExecutor) IterSubjects(ctx *Context, it Iterator, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+	pathSeq, err := it.IterSubjectsImpl(ctx, resource, filterSubjectType)
+	if err != nil {
+		return nil, err
+	}
+	// Apply filtering wrapper - this is where the actual filtering happens
+	return FilterSubjectsByType(pathSeq, filterSubjectType), nil
 }
 
 // IterResources returns a sequence of all the paths in this set that match the given subject.
-func (l LocalExecutor) IterResources(ctx *Context, it Iterator, subject ObjectAndRelation) (PathSeq, error) {
-	return it.IterResourcesImpl(ctx, subject)
+func (l LocalExecutor) IterResources(ctx *Context, it Iterator, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+	pathSeq, err := it.IterResourcesImpl(ctx, subject, filterResourceType)
+	if err != nil {
+		return nil, err
+	}
+	// Apply filtering wrapper - this is where the actual filtering happens
+	return FilterResourcesByType(pathSeq, filterResourceType), nil
 }

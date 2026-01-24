@@ -207,7 +207,7 @@ func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandl
 					// Perform a lookup call and ensure it returns the at least the same set of object IDs.
 					// Loop until all resources have been found or we've hit max iterations.
 					resolvedResources := make(map[string]bool)
-					paths, err := queryCtx.IterResources(it, subject)
+					paths, err := queryCtx.IterResources(it, subject, query.NoObjectFilter())
 					require.NoError(t, err)
 
 					for path, err := range paths {
@@ -266,7 +266,7 @@ func runQueryPlanLookupSubjects(t *testing.T, handle *queryPlanConsistencyHandle
 						ObjectType: resource.ObjectType,
 						ObjectID:   resource.ObjectID,
 					}
-					paths, err := queryCtx.IterSubjects(it, resourceObj)
+					paths, err := queryCtx.IterSubjects(it, resourceObj, query.NoObjectFilter())
 					require.NoError(t, err)
 
 					for path, err := range paths {

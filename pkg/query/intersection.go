@@ -131,7 +131,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 	}, nil
 }
 
-func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(i, "iterating subjects for resource %s:%s from %d sub-iterators", resource.ObjectType, resource.ObjectID, len(i.subIts))
 
 	// Track paths by subject key for combining with AND logic
@@ -140,7 +140,7 @@ func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq,
 	for iterIdx, it := range i.subIts {
 		ctx.TraceStep(i, "processing sub-iterator %d", iterIdx)
 
-		pathSeq, err := ctx.IterSubjects(it, resource)
+		pathSeq, err := ctx.IterSubjects(it, resource, filterSubjectType)
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +220,7 @@ func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq,
 	}, nil
 }
 
-func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(i, "iterating resources for subject %s:%s from %d sub-iterators", subject.ObjectType, subject.ObjectID, len(i.subIts))
 
 	// Track paths by resource key for combining with AND logic
@@ -229,7 +229,7 @@ func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation
 	for iterIdx, it := range i.subIts {
 		ctx.TraceStep(i, "processing sub-iterator %d", iterIdx)
 
-		pathSeq, err := ctx.IterResources(it, subject)
+		pathSeq, err := ctx.IterResources(it, subject, filterResourceType)
 		if err != nil {
 			return nil, err
 		}

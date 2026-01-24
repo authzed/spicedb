@@ -56,7 +56,7 @@ func TestSelfIterator(t *testing.T) {
 		t.Parallel()
 
 		selfIt := NewSelf("view", "user")
-		pathSeq, err := ctx.IterResources(selfIt, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(selfIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -76,7 +76,7 @@ func TestSelfIterator(t *testing.T) {
 		t.Parallel()
 
 		selfIt := NewSelf("view", "user")
-		pathSeq, err := ctx.IterSubjects(selfIt, NewObject("user", "alice"))
+		pathSeq, err := ctx.IterSubjects(selfIt, NewObject("user", "alice"), NoObjectFilter())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)

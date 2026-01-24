@@ -61,7 +61,7 @@ func TestIteratorTracing(t *testing.T) {
 		ctx.TraceLogger = traceLogger
 
 		resource := NewObject("document", "doc1")
-		seq, err := ctx.IterSubjects(fixedIter, resource)
+		seq, err := ctx.IterSubjects(fixedIter, resource, NoObjectFilter())
 		require.NoError(t, err)
 
 		paths, err := CollectAll(seq)

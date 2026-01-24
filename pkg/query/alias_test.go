@@ -133,7 +133,7 @@ func TestAliasIterator(t *testing.T) {
 		subIt := NewDocumentAccessFixedIterator()
 		aliasIt := NewAlias("permission", subIt)
 
-		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -154,7 +154,7 @@ func TestAliasIterator(t *testing.T) {
 		subIt := NewDocumentAccessFixedIterator()
 		aliasIt := NewAlias("can_view", subIt)
 
-		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -178,7 +178,7 @@ func TestAliasIterator(t *testing.T) {
 
 		// Check for a self-edge: user:alice#admin@user:alice#admin
 		subject := NewObjectAndRelation("alice", "user", "admin")
-		pathSeq, err := ctx.IterResources(aliasIt, subject)
+		pathSeq, err := ctx.IterResources(aliasIt, subject, NoObjectFilter())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -359,7 +359,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("error_test", faultyIt)
 
-		_, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"))
+		_, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.Error(err, "should propagate error from sub-iterator")
 		require.Contains(err.Error(), "faulty iterator error", "should get faulty iterator error")
 	})
@@ -372,7 +372,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("collection_error_test", faultyIt)
 
-		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err, "initial IterSubjects should succeed")
 
 		// Error should occur during collection
@@ -389,7 +389,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("error_test", faultyIt)
 
-		_, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses())
+		_, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.Error(err, "should propagate error from sub-iterator")
 		require.Contains(err.Error(), "faulty iterator error", "should get faulty iterator error")
 	})
@@ -402,7 +402,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("collection_error_test", faultyIt)
 
-		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err, "initial IterResources should succeed")
 
 		// Error should occur during collection
@@ -528,7 +528,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		subIt := NewEmptyFixedIterator()
 		aliasIt := NewAlias("empty_relation", subIt)
 
-		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -543,7 +543,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		subIt := NewEmptyFixedIterator()
 		aliasIt := NewAlias("empty_relation", subIt)
 
-		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		rels, err := CollectAll(pathSeq)
@@ -666,7 +666,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		subIt := NewDocumentAccessFixedIterator()
 		aliasIt := NewAlias("early_subjects", subIt)
 
-		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		// Consume only the first path and stop iteration
@@ -689,7 +689,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		subIt := NewDocumentAccessFixedIterator()
 		aliasIt := NewAlias("early_resources", subIt)
 
-		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		// Consume only the first path and stop iteration

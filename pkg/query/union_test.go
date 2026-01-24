@@ -143,7 +143,7 @@ func TestUnionIterator(t *testing.T) {
 
 		union := NewUnion(documentAccess, multiRole)
 
-		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -171,7 +171,7 @@ func TestUnionIterator(t *testing.T) {
 		multiRole := NewMultiRoleFixedIterator()
 		union := NewUnion(documentAccess, multiRole)
 
-		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -674,7 +674,7 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 		union.addSubIterator(iter1)
 		union.addSubIterator(iter2)
 
-		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -690,7 +690,7 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 
 		union := NewUnion()
 
-		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -714,7 +714,7 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 		union.addSubIterator(iter1)
 		union.addSubIterator(iter2)
 
-		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -757,7 +757,7 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 		union.addSubIterator(iter1)
 		union.addSubIterator(iter2)
 
-		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -773,7 +773,7 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 
 		union := NewUnion()
 
-		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -797,7 +797,7 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 		union.addSubIterator(iter1)
 		union.addSubIterator(iter2)
 
-		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
