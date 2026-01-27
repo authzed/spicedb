@@ -26,8 +26,10 @@ type ValidatedSchemaChanges struct {
 	validatedDefinitions map[string]*schema.ValidatedDefinition
 	newCaveatDefNames    *mapz.Set[string]
 	newObjectDefNames    *mapz.Set[string]
-	additiveOnly         bool
-	schemaText           string
+	// additiveOnly indicates whether all operations should be applied
+	// or only those operations which are additive (i.e. not changes or deletions)
+	additiveOnly bool
+	schemaText   string
 }
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
@@ -120,7 +122,7 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against
 // existing caveat and object definitions given.
 // The idea is that the given schema will be diffed against the existing objects given, and any
-// objects not named in one of those two will be preserved.
+// objects not named in one of those two which are present in the datastore will be preserved.
 func ApplySchemaChangesOverExisting(
 	ctx context.Context,
 	rwt datastore.ReadWriteTransaction,
