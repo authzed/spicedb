@@ -19,7 +19,7 @@ RUN CGO_ENABLED=0 go install -a -tags netgo -ldflags=-w
 
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
 # Note: Using glibc-dynamic base instead of static because the postgres-fdw command requires libc
-FROM cgr.dev/chainguard/glibc-dynamic@sha256:530fc40b687b95f6c5e8a9b62da03306754da5ef45178e632b7486603bfb7096
+FROM cgr.dev/chainguard/glibc-dynamic@sha256:3f5dc064fa077619b186d21a426c07fb3868668ffe104db8ba3e46347a80a1d3
 COPY --from=health-probe-builder /go/bin/grpc-health-probe /bin/grpc_health_probe
 COPY --from=spicedb-builder /go/src/app/spicedb /usr/local/bin/spicedb
 ENV PATH="$PATH:/usr/local/bin"
