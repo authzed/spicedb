@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -26,7 +25,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 
 	// Try at revision 1, which should use the replica.
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
-	ns, err := reader.LegacyListAllNamespaces(t.Context())
+	ns, err := reader.ListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, ns)
 
@@ -34,7 +33,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 
 	// Try at revision 2, which should use the primary.
 	reader = replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("2"))
-	ns, err = reader.LegacyListAllNamespaces(t.Context())
+	ns, err = reader.ListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, ns)
 
@@ -49,7 +48,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t
 	require.NoError(t, err)
 
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
-	ns, err := reader.LegacyLookupNamespacesWithNames(t.Context(), []string{"ns1"})
+	ns, err := reader.LookupNamespacesWithNames(t.Context(), []string{"ns1"})
 	require.NoError(t, err)
 	require.Len(t, ns, 1)
 }
@@ -73,7 +72,7 @@ func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 
 			// Try at revision 1, which should use the replica.
 			reader := ds.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
-			_, _, err := reader.LegacyReadNamespaceByName(t.Context(), "expecterror")
+			_, _, err := reader.ReadNamespaceByName(t.Context(), "expecterror")
 			require.Error(t, err)
 			require.ErrorContains(t, err, "raising an expected error")
 		})
@@ -175,7 +174,7 @@ type fakeSnapshotReader struct {
 	indexesUsed []string
 }
 
-func (fsr fakeSnapshotReader) LegacyLookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
 	if fsr.state == "primary" {
 		return []datastore.RevisionedDefinition[*corev1.NamespaceDefinition]{
 			{
@@ -194,7 +193,7 @@ func (fsr fakeSnapshotReader) LegacyLookupNamespacesWithNames(_ context.Context,
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) LegacyReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (fakeSnapshotReader) ReadNamespaceByName(_ context.Context, nsName string) (ns *corev1.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	if nsName == "expecterror" {
 		return nil, nil, fmt.Errorf("raising an expected error")
 	}
@@ -202,19 +201,19 @@ func (fakeSnapshotReader) LegacyReadNamespaceByName(_ context.Context, nsName st
 	return nil, nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) LegacyLookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+func (fakeSnapshotReader) LookupCaveatsWithNames(_ context.Context, names []string) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) LegacyReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
+func (fakeSnapshotReader) ReadCaveatByName(_ context.Context, name string) (caveat *corev1.CaveatDefinition, lastWritten datastore.Revision, err error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) LegacyListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
+func (fakeSnapshotReader) ListAllCaveats(context.Context) ([]datastore.RevisionedDefinition[*corev1.CaveatDefinition], error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (fakeSnapshotReader) LegacyListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+func (fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
 	return nil, nil
 }
 
@@ -240,10 +239,6 @@ func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string)
 
 func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
 	return nil, fmt.Errorf("not implemented")
-}
-
-func (fsr fakeSnapshotReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(fsr), nil
 }
 
 func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCallbackForTest) datastore.RelationshipIterator {

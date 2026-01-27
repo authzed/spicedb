@@ -12,8 +12,8 @@ import (
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
-func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, isAdditiveOnly bool, schemaText string) (*shared.ValidatedSchemaChanges, error) {
-	return ValidateSchemaChangesWithCaveatTypeSet(ctx, compiled, caveattypes.Default.TypeSet, isAdditiveOnly, schemaText)
+func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, isAdditiveOnly bool) (*shared.ValidatedSchemaChanges, error) {
+	return ValidateSchemaChangesWithCaveatTypeSet(ctx, compiled, caveattypes.Default.TypeSet, isAdditiveOnly)
 }
 
 func ValidateSchemaChangesWithCaveatTypeSet(
@@ -21,9 +21,8 @@ func ValidateSchemaChangesWithCaveatTypeSet(
 	compiled *compiler.CompiledSchema,
 	caveatTypeSet *caveattypes.TypeSet,
 	isAdditiveOnly bool,
-	schemaText string,
 ) (*shared.ValidatedSchemaChanges, error) {
-	return shared.ValidateSchemaChanges(ctx, compiled, caveatTypeSet, isAdditiveOnly, schemaText)
+	return shared.ValidateSchemaChanges(ctx, compiled, caveatTypeSet, isAdditiveOnly)
 }
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified

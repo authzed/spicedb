@@ -55,52 +55,48 @@ type definitionCachingReader struct {
 	p   *definitionCachingProxy
 }
 
-func (r *definitionCachingReader) LegacyReadNamespaceByName(
+func (r *definitionCachingReader) ReadNamespaceByName(
 	ctx context.Context,
 	name string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	return readAndCache(ctx, r, namespaceCacheKeyPrefix, name,
 		func(ctx context.Context, name string) (*core.NamespaceDefinition, datastore.Revision, error) {
-			return r.Reader.LegacyReadNamespaceByName(ctx, name)
+			return r.Reader.ReadNamespaceByName(ctx, name)
 		},
 		estimatedNamespaceDefinitionSize)
 }
 
-func (r *definitionCachingReader) LegacyLookupNamespacesWithNames(
+func (r *definitionCachingReader) LookupNamespacesWithNames(
 	ctx context.Context,
 	nsNames []string,
 ) ([]datastore.RevisionedNamespace, error) {
 	return listAndCache(ctx, r, namespaceCacheKeyPrefix, nsNames,
 		func(ctx context.Context, names []string) ([]datastore.RevisionedNamespace, error) {
-			return r.Reader.LegacyLookupNamespacesWithNames(ctx, names)
+			return r.Reader.LookupNamespacesWithNames(ctx, names)
 		},
 		estimatedNamespaceDefinitionSize)
 }
 
-func (r *definitionCachingReader) LegacyReadCaveatByName(
+func (r *definitionCachingReader) ReadCaveatByName(
 	ctx context.Context,
 	name string,
 ) (*core.CaveatDefinition, datastore.Revision, error) {
 	return readAndCache(ctx, r, caveatCacheKeyPrefix, name,
 		func(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-			return r.Reader.LegacyReadCaveatByName(ctx, name)
+			return r.Reader.ReadCaveatByName(ctx, name)
 		},
 		estimatedCaveatDefinitionSize)
 }
 
-func (r *definitionCachingReader) LegacyLookupCaveatsWithNames(
+func (r *definitionCachingReader) LookupCaveatsWithNames(
 	ctx context.Context,
 	caveatNames []string,
 ) ([]datastore.RevisionedCaveat, error) {
 	return listAndCache(ctx, r, caveatCacheKeyPrefix, caveatNames,
 		func(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
-			return r.Reader.LegacyLookupCaveatsWithNames(ctx, names)
+			return r.Reader.LookupCaveatsWithNames(ctx, names)
 		},
 		estimatedCaveatDefinitionSize)
-}
-
-func (r *definitionCachingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.Reader.SchemaReader()
 }
 
 func listAndCache[T schemaDefinition](
@@ -220,23 +216,23 @@ type definitionEntry struct {
 	notFound error
 }
 
-func (rwt *definitionCachingRWT) LegacyReadNamespaceByName(
+func (rwt *definitionCachingRWT) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	return readAndCacheInTransaction(
 		ctx, rwt, "namespace", nsName, func(ctx context.Context, name string) (*core.NamespaceDefinition, datastore.Revision, error) {
-			return rwt.ReadWriteTransaction.LegacyReadNamespaceByName(ctx, name)
+			return rwt.ReadWriteTransaction.ReadNamespaceByName(ctx, name)
 		})
 }
 
-func (rwt *definitionCachingRWT) LegacyReadCaveatByName(
+func (rwt *definitionCachingRWT) ReadCaveatByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.CaveatDefinition, datastore.Revision, error) {
 	return readAndCacheInTransaction(
 		ctx, rwt, "caveat", nsName, func(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-			return rwt.ReadWriteTransaction.LegacyReadCaveatByName(ctx, name)
+			return rwt.ReadWriteTransaction.ReadCaveatByName(ctx, name)
 		})
 }
 
@@ -267,8 +263,8 @@ func readAndCacheInTransaction[T schemaDefinition](
 	return entry.loaded.(T), entry.updated, entry.notFound
 }
 
-func (rwt *definitionCachingRWT) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
-	if err := rwt.ReadWriteTransaction.LegacyWriteNamespaces(ctx, newConfigs...); err != nil {
+func (rwt *definitionCachingRWT) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	if err := rwt.ReadWriteTransaction.WriteNamespaces(ctx, newConfigs...); err != nil {
 		return err
 	}
 
@@ -279,8 +275,8 @@ func (rwt *definitionCachingRWT) LegacyWriteNamespaces(ctx context.Context, newC
 	return nil
 }
 
-func (rwt *definitionCachingRWT) LegacyWriteCaveats(ctx context.Context, newConfigs []*core.CaveatDefinition) error {
-	if err := rwt.ReadWriteTransaction.LegacyWriteCaveats(ctx, newConfigs); err != nil {
+func (rwt *definitionCachingRWT) WriteCaveats(ctx context.Context, newConfigs []*core.CaveatDefinition) error {
+	if err := rwt.ReadWriteTransaction.WriteCaveats(ctx, newConfigs); err != nil {
 		return err
 	}
 
@@ -289,10 +285,6 @@ func (rwt *definitionCachingRWT) LegacyWriteCaveats(ctx context.Context, newConf
 	}
 
 	return nil
-}
-
-func (rwt *definitionCachingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
-	return rwt.ReadWriteTransaction.SchemaWriter()
 }
 
 type cacheEntry struct {

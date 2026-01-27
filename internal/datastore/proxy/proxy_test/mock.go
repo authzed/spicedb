@@ -106,7 +106,7 @@ type MockReader struct {
 	mock.Mock
 }
 
-func (dm *MockReader) LegacyReadNamespaceByName(
+func (dm *MockReader) ReadNamespaceByName(
 	_ context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
@@ -170,17 +170,17 @@ func (dm *MockReader) ReverseQueryRelationships(
 	return results, args.Error(1)
 }
 
-func (dm *MockReader) LegacyListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
+func (dm *MockReader) ListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
 	args := dm.Called()
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReader) LegacyLookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (dm *MockReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	args := dm.Called(nsNames)
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReader) LegacyReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (dm *MockReader) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	args := dm.Called(name)
 
 	var def *core.CaveatDefinition
@@ -191,23 +191,14 @@ func (dm *MockReader) LegacyReadCaveatByName(_ context.Context, name string) (*c
 	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockReader) LegacyLookupCaveatsWithNames(_ context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (dm *MockReader) LookupCaveatsWithNames(_ context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	args := dm.Called(caveatNames)
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
-func (dm *MockReader) LegacyListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
+func (dm *MockReader) ListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
 	args := dm.Called()
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
-}
-
-func (dm *MockReader) SchemaReader() (datastore.SchemaReader, error) {
-	args := dm.Called()
-	var sr datastore.SchemaReader
-	if args.Get(0) != nil {
-		sr = args.Get(0).(datastore.SchemaReader)
-	}
-	return sr, args.Error(1)
 }
 
 type MockReadWriteTransaction struct {
@@ -224,7 +215,7 @@ func (dm *MockReadWriteTransaction) LookupCounters(ctx context.Context) ([]datas
 	return args.Get(0).([]datastore.RelationshipCounter), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) LegacyReadNamespaceByName(
+func (dm *MockReadWriteTransaction) ReadNamespaceByName(
 	_ context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
@@ -278,12 +269,12 @@ func (dm *MockReadWriteTransaction) ReverseQueryRelationships(
 	return results, args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) LegacyListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
+func (dm *MockReadWriteTransaction) ListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
 	args := dm.Called()
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) LegacyLookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (dm *MockReadWriteTransaction) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	args := dm.Called(nsNames)
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
@@ -298,12 +289,12 @@ func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filte
 	return 0, false, args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (dm *MockReadWriteTransaction) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	args := dm.Called(newConfigs)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) LegacyDeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	xs := make([]any, 0, len(nsNames)+1)
 	for _, nsName := range nsNames {
 		xs = append(xs, nsName)
@@ -324,7 +315,7 @@ func (dm *MockReadWriteTransaction) BulkLoad(_ context.Context, iter datastore.B
 	return uintArg, args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) LegacyReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (dm *MockReadWriteTransaction) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	args := dm.Called(name)
 
 	var def *core.CaveatDefinition
@@ -335,22 +326,22 @@ func (dm *MockReadWriteTransaction) LegacyReadCaveatByName(_ context.Context, na
 	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockReadWriteTransaction) LegacyLookupCaveatsWithNames(_ context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (dm *MockReadWriteTransaction) LookupCaveatsWithNames(_ context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	args := dm.Called(caveatNames)
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) LegacyListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
+func (dm *MockReadWriteTransaction) ListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
 	args := dm.Called()
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) LegacyWriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
+func (dm *MockReadWriteTransaction) WriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
 	args := dm.Called(caveats)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) LegacyDeleteCaveats(_ context.Context, _ []string) error {
+func (dm *MockReadWriteTransaction) DeleteCaveats(_ context.Context, _ []string) error {
 	panic("not used")
 }
 
@@ -367,24 +358,6 @@ func (dm *MockReadWriteTransaction) UnregisterCounter(ctx context.Context, name 
 func (dm *MockReadWriteTransaction) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	args := dm.Called(name, value, computedAtRevision)
 	return args.Error(0)
-}
-
-func (dm *MockReadWriteTransaction) SchemaReader() (datastore.SchemaReader, error) {
-	args := dm.Called()
-	var sr datastore.SchemaReader
-	if args.Get(0) != nil {
-		sr = args.Get(0).(datastore.SchemaReader)
-	}
-	return sr, args.Error(1)
-}
-
-func (dm *MockReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
-	args := dm.Called()
-	var sw datastore.SchemaWriter
-	if args.Get(0) != nil {
-		sw = args.Get(0).(datastore.SchemaWriter)
-	}
-	return sw, args.Error(1)
 }
 
 var (

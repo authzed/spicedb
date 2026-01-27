@@ -58,7 +58,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 					}
 				}()
 
-				return rwt.LegacyWriteNamespaces(ctx, ns.Namespace(
+				return rwt.WriteNamespaces(ctx, ns.Namespace(
 					"resource",
 					relationList...,
 				))
@@ -72,7 +72,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 					}
 				}()
 
-				return rwt.LegacyWriteNamespaces(ctx, ns.Namespace("user", relationList...))
+				return rwt.WriteNamespaces(ctx, ns.Namespace("user", relationList...))
 			})
 
 			return g.Wait()

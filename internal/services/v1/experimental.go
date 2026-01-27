@@ -265,34 +265,32 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			numWritten += streamWritten
 
 			// The stream has terminated because we're awaiting namespace and/or caveat information
-			if len(adapter.awaitingNamespaces) > 0 || len(adapter.awaitingCaveats) > 0 {
-				schemaReader, err := rwt.SchemaReader()
+			if len(adapter.awaitingNamespaces) > 0 {
+				nsDefs, err := rwt.LookupNamespacesWithNames(stream.Context(), adapter.awaitingNamespaces)
 				if err != nil {
 					return err
 				}
 
-				allNames := make([]string, 0, len(adapter.awaitingNamespaces)+len(adapter.awaitingCaveats))
-				allNames = append(allNames, adapter.awaitingNamespaces...)
-				allNames = append(allNames, adapter.awaitingCaveats...)
-
-				foundDefs, err := schemaReader.LookupSchemaDefinitionsByNames(stream.Context(), allNames)
-				if err != nil {
-					return err
-				}
-
-				for _, def := range foundDefs {
-					if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-						newDef, err := schema.NewDefinition(ts, nsDef)
-						if err != nil {
-							return err
-						}
-						loadedNamespaces[nsDef.Name] = newDef
-					} else if caveatDef, ok := def.(*core.CaveatDefinition); ok {
-						loadedCaveats[caveatDef.Name] = caveatDef
+				for _, nsDef := range nsDefs {
+					newDef, err := schema.NewDefinition(ts, nsDef.Definition)
+					if err != nil {
+						return err
 					}
+
+					loadedNamespaces[nsDef.Definition.Name] = newDef
+				}
+				adapter.awaitingNamespaces = nil
+			}
+
+			if len(adapter.awaitingCaveats) > 0 {
+				caveats, err := rwt.LookupCaveatsWithNames(stream.Context(), adapter.awaitingCaveats)
+				if err != nil {
+					return err
 				}
 
-				adapter.awaitingNamespaces = nil
+				for _, caveat := range caveats {
+					loadedCaveats[caveat.Definition.Name] = caveat.Definition
+				}
 				adapter.awaitingCaveats = nil
 			}
 		}
@@ -350,7 +348,7 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 
 	reader := ds.SnapshotReader(atRevision)
 
-	namespaces, err := reader.LegacyListAllNamespaces(ctx)
+	namespaces, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -611,7 +609,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		}
 	}
 
-	allNamespaces, err := ds.LegacyListAllNamespaces(ctx)
+	allNamespaces, err := ds.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

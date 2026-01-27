@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -23,6 +25,7 @@ import (
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -89,18 +92,41 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	reader := ds.SnapshotReader(headRevision)
 
-	schemaReader, err := reader.SchemaReader()
+	nsDefs, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	schemaText, err := schemaReader.SchemaText()
+	caveatDefs, err := reader.ListAllCaveats(ctx)
+	if err != nil {
+		return nil, ss.rewriteError(ctx, err)
+	}
+
+	if len(nsDefs) == 0 {
+		return nil, status.Errorf(codes.NotFound, "No schema has been defined; please call WriteSchema to start")
+	}
+
+	schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(nsDefs)+len(caveatDefs))
+	for _, caveatDef := range caveatDefs {
+		schemaDefinitions = append(schemaDefinitions, caveatDef.Definition)
+	}
+
+	for _, nsDef := range nsDefs {
+		schemaDefinitions = append(schemaDefinitions, nsDef.Definition)
+	}
+
+	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)
+	if err != nil {
+		return nil, ss.rewriteError(ctx, err)
+	}
+
+	dispatchCount, err := genutil.EnsureUInt32(len(nsDefs) + len(caveatDefs))
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: 1,
+		DispatchCount: dispatchCount,
 	})
 
 	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, ds)
@@ -139,7 +165,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
 	// Do as much validation as we can before talking to the datastore.
-	validated, err := shared.ValidateSchemaChanges(ctx, compiled, ss.caveatTypeSet, ss.additiveOnly, in.GetSchema())
+	validated, err := shared.ValidateSchemaChanges(ctx, compiled, ss.caveatTypeSet, ss.additiveOnly)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -281,18 +307,14 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		}
 	}
 
-	schemaReader, err := ds.SchemaReader()
-	if err != nil {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
-	}
-	typeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
+	allNamespaces, err := ds.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	allDefinitions := make([]*core.NamespaceDefinition, 0, len(typeDefs))
-	for _, typeDef := range typeDefs {
-		allDefinitions = append(allDefinitions, typeDef.Definition)
+	allDefinitions := make([]*core.NamespaceDefinition, 0, len(allNamespaces))
+	for _, ns := range allNamespaces {
+		allDefinitions = append(allDefinitions, ns.Definition)
 	}
 
 	rg := vdef.Reachability()

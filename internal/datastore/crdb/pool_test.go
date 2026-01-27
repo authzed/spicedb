@@ -129,7 +129,7 @@ func TestTxReset(t *testing.T) {
 					defer func() { i++ }()
 					return tt.errors[i]
 				}
-				return rwt.LegacyWriteNamespaces(ctx, testUserNS)
+				return rwt.WriteNamespaces(ctx, testUserNS)
 			})
 			if tt.expectError {
 				require.Error(t, err)

@@ -26,12 +26,12 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 
 	// Load all namespace and caveat definitions to build the schema
 	// TODO: Better schema caching
-	namespaces, err := reader.LegacyListAllNamespaces(ctx)
+	namespaces, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	caveats, err := reader.LegacyListAllCaveats(ctx)
+	caveats, err := reader.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}

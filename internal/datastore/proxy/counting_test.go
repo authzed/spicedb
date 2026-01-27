@@ -23,9 +23,9 @@ func TestCountingProxyBasicCounting(t *testing.T) {
 	delegate.On("SnapshotReader", mock.Anything).Return(reader)
 	reader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
 	reader.On("ReverseQueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
-	reader.On("LegacyReadNamespaceByName", mock.Anything, mock.Anything).Return(&core.NamespaceDefinition{}, datastore.NoRevision, nil)
-	reader.On("LegacyListAllNamespaces", mock.Anything).Return([]datastore.RevisionedNamespace{}, nil)
-	reader.On("LegacyLookupNamespacesWithNames", mock.Anything, mock.Anything).Return([]datastore.RevisionedNamespace{}, nil)
+	reader.On("ReadNamespaceByName", mock.Anything, mock.Anything).Return(&core.NamespaceDefinition{}, datastore.NoRevision, nil)
+	reader.On("ListAllNamespaces", mock.Anything).Return([]datastore.RevisionedNamespace{}, nil)
+	reader.On("LookupNamespacesWithNames", mock.Anything, mock.Anything).Return([]datastore.RevisionedNamespace{}, nil)
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
@@ -33,9 +33,9 @@ func TestCountingProxyBasicCounting(t *testing.T) {
 	// Verify all counters start at 0
 	require.Equal(uint64(0), counts.QueryRelationships())
 	require.Equal(uint64(0), counts.ReverseQueryRelationships())
-	require.Equal(uint64(0), counts.LegacyReadNamespaceByName())
-	require.Equal(uint64(0), counts.LegacyListAllNamespaces())
-	require.Equal(uint64(0), counts.LegacyLookupNamespacesWithNames())
+	require.Equal(uint64(0), counts.ReadNamespaceByName())
+	require.Equal(uint64(0), counts.ListAllNamespaces())
+	require.Equal(uint64(0), counts.LookupNamespacesWithNames())
 
 	r := ds.SnapshotReader(datastore.NoRevision)
 
@@ -48,17 +48,17 @@ func TestCountingProxyBasicCounting(t *testing.T) {
 	require.NoError(err)
 	require.Equal(uint64(1), counts.ReverseQueryRelationships())
 
-	_, _, err = r.LegacyReadNamespaceByName(ctx, "test")
+	_, _, err = r.ReadNamespaceByName(ctx, "test")
 	require.NoError(err)
-	require.Equal(uint64(1), counts.LegacyReadNamespaceByName())
+	require.Equal(uint64(1), counts.ReadNamespaceByName())
 
-	_, err = r.LegacyListAllNamespaces(ctx)
+	_, err = r.ListAllNamespaces(ctx)
 	require.NoError(err)
-	require.Equal(uint64(1), counts.LegacyListAllNamespaces())
+	require.Equal(uint64(1), counts.ListAllNamespaces())
 
-	_, err = r.LegacyLookupNamespacesWithNames(ctx, []string{"test"})
+	_, err = r.LookupNamespacesWithNames(ctx, []string{"test"})
 	require.NoError(err)
-	require.Equal(uint64(1), counts.LegacyLookupNamespacesWithNames())
+	require.Equal(uint64(1), counts.LookupNamespacesWithNames())
 }
 
 func TestCountingProxyMultipleCalls(t *testing.T) {
@@ -97,28 +97,28 @@ func TestCountingProxyCaveatMethodsNotCounted(t *testing.T) {
 	reader := &proxy_test.MockReader{}
 
 	delegate.On("SnapshotReader", mock.Anything).Return(reader)
-	reader.On("LegacyReadCaveatByName", "test").Return(&core.CaveatDefinition{}, datastore.NoRevision, nil)
-	reader.On("LegacyListAllCaveats").Return([]datastore.RevisionedCaveat{}, nil)
-	reader.On("LegacyLookupCaveatsWithNames", mock.Anything).Return([]datastore.RevisionedCaveat{}, nil)
+	reader.On("ReadCaveatByName", "test").Return(&core.CaveatDefinition{}, datastore.NoRevision, nil)
+	reader.On("ListAllCaveats").Return([]datastore.RevisionedCaveat{}, nil)
+	reader.On("LookupCaveatsWithNames", mock.Anything).Return([]datastore.RevisionedCaveat{}, nil)
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
 	r := ds.SnapshotReader(datastore.NoRevision)
 
 	// Call caveat methods
-	_, _, err := r.LegacyReadCaveatByName(ctx, "test")
+	_, _, err := r.ReadCaveatByName(ctx, "test")
 	require.NoError(err)
-	_, err = r.LegacyListAllCaveats(ctx)
+	_, err = r.ListAllCaveats(ctx)
 	require.NoError(err)
-	_, err = r.LegacyLookupCaveatsWithNames(ctx, []string{"test"})
+	_, err = r.LookupCaveatsWithNames(ctx, []string{"test"})
 	require.NoError(err)
 
 	// Verify no counters changed
 	require.Equal(uint64(0), counts.QueryRelationships())
 	require.Equal(uint64(0), counts.ReverseQueryRelationships())
-	require.Equal(uint64(0), counts.LegacyReadNamespaceByName())
-	require.Equal(uint64(0), counts.LegacyListAllNamespaces())
-	require.Equal(uint64(0), counts.LegacyLookupNamespacesWithNames())
+	require.Equal(uint64(0), counts.ReadNamespaceByName())
+	require.Equal(uint64(0), counts.ListAllNamespaces())
+	require.Equal(uint64(0), counts.LookupNamespacesWithNames())
 
 	delegate.AssertExpectations(t)
 }
@@ -146,9 +146,9 @@ func TestCountingProxyCounterMethodsNotCounted(t *testing.T) {
 	// Verify no counters changed
 	require.Equal(uint64(0), counts.QueryRelationships())
 	require.Equal(uint64(0), counts.ReverseQueryRelationships())
-	require.Equal(uint64(0), counts.LegacyReadNamespaceByName())
-	require.Equal(uint64(0), counts.LegacyListAllNamespaces())
-	require.Equal(uint64(0), counts.LegacyLookupNamespacesWithNames())
+	require.Equal(uint64(0), counts.ReadNamespaceByName())
+	require.Equal(uint64(0), counts.ListAllNamespaces())
+	require.Equal(uint64(0), counts.LookupNamespacesWithNames())
 
 	delegate.AssertExpectations(t)
 }
@@ -314,7 +314,7 @@ func TestWriteMethodCounts(t *testing.T) {
 
 	delegate.On("SnapshotReader", mock.Anything).Return(reader)
 	reader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
-	reader.On("LegacyReadNamespaceByName", "test").Return(&core.NamespaceDefinition{}, datastore.NoRevision, nil)
+	reader.On("ReadNamespaceByName", "test").Return(&core.NamespaceDefinition{}, datastore.NoRevision, nil)
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
@@ -325,11 +325,11 @@ func TestWriteMethodCounts(t *testing.T) {
 	require.NoError(err)
 	_, err = r.QueryRelationships(ctx, datastore.RelationshipsFilter{})
 	require.NoError(err)
-	_, _, err = r.LegacyReadNamespaceByName(ctx, "test")
+	_, _, err = r.ReadNamespaceByName(ctx, "test")
 	require.NoError(err)
 
 	require.Equal(uint64(2), counts.QueryRelationships())
-	require.Equal(uint64(1), counts.LegacyReadNamespaceByName())
+	require.Equal(uint64(1), counts.ReadNamespaceByName())
 
 	// WriteMethodCounts should not panic and should be callable
 	// Note: We can't easily test the actual Prometheus counters without

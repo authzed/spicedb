@@ -45,7 +45,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 
 	// Write the schema
 	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
+		return rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...)
 	})
 	require.NoError(err)
 
@@ -154,7 +154,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 
 	// Write the schema
 	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
+		return rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...)
 	})
 	require.NoError(err)
 
