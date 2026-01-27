@@ -711,7 +711,8 @@ func TestArrow_Types(t *testing.T) {
 
 		arrow := NewArrow(leftIter, rightIter)
 
-		resourceType := arrow.ResourceType()
+		resourceType, err := arrow.ResourceType()
+		require.NoError(err)
 		require.Equal("document", resourceType.Type) // From left iterator
 	})
 
@@ -728,7 +729,8 @@ func TestArrow_Types(t *testing.T) {
 
 		arrow := NewArrow(leftIter, rightIter)
 
-		subjectTypes := arrow.SubjectTypes()
+		subjectTypes, err := arrow.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1) // From right iterator
 		require.Equal("user", subjectTypes[0].Type)
 	})

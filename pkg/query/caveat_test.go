@@ -548,7 +548,8 @@ func TestCaveatIterator_Types(t *testing.T) {
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIter, testCaveat)
 
-		resourceType := caveatIter.ResourceType()
+		resourceType, err := caveatIter.ResourceType()
+		require.NoError(err)
 		require.Equal("document", resourceType.Type) // From subiterator
 	})
 
@@ -562,7 +563,8 @@ func TestCaveatIterator_Types(t *testing.T) {
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIter, testCaveat)
 
-		subjectTypes := caveatIter.SubjectTypes()
+		subjectTypes, err := caveatIter.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1) // From subiterator
 		require.Equal("user", subjectTypes[0].Type)
 	})

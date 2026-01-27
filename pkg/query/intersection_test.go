@@ -690,7 +690,8 @@ func TestIntersection_Types(t *testing.T) {
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
-		resourceType := intersect.ResourceType()
+		resourceType, err := intersect.ResourceType()
+		require.NoError(err)
 		require.Equal("document", resourceType.Type)
 		require.Empty(resourceType.Subrelation) // First subiterator determines this
 	})
@@ -701,7 +702,8 @@ func TestIntersection_Types(t *testing.T) {
 
 		intersect := NewIntersection()
 
-		resourceType := intersect.ResourceType()
+		resourceType, err := intersect.ResourceType()
+		require.NoError(err)
 		require.Empty(resourceType.Type)
 		require.Empty(resourceType.Subrelation)
 	})
@@ -720,18 +722,11 @@ func TestIntersection_Types(t *testing.T) {
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
-		subjectTypes := intersect.SubjectTypes()
+		subjectTypes, err := intersect.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 2, "Should collect all subject types from all iterators")
-
-		// Check that both user and group types are present
-		typeMap := make(map[string]bool)
-		for _, st := range subjectTypes {
-			key := st.Type + "#" + st.Subrelation
-			typeMap[key] = true
-		}
-
-		require.True(typeMap["user#..."] || typeMap["user#"])
-		require.True(typeMap["group#member"])
+		require.Contains(subjectTypes, ObjectType{Type: "user", Subrelation: tuple.Ellipsis})
+		require.Contains(subjectTypes, ObjectType{Type: "group", Subrelation: "member"})
 	})
 
 	t.Run("SubjectTypes_Deduplication", func(t *testing.T) {
@@ -748,7 +743,8 @@ func TestIntersection_Types(t *testing.T) {
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
-		subjectTypes := intersect.SubjectTypes()
+		subjectTypes, err := intersect.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1, "Should deduplicate subject types")
 		require.Equal("user", subjectTypes[0].Type)
 	})
@@ -759,7 +755,28 @@ func TestIntersection_Types(t *testing.T) {
 
 		intersect := NewIntersection()
 
-		subjectTypes := intersect.SubjectTypes()
+		subjectTypes, err := intersect.SubjectTypes()
+		require.NoError(err)
 		require.Empty(subjectTypes)
+	})
+
+	t.Run("ResourceType_Mismatch", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create intersection with mismatched resource types
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("folder:folder1#viewer@user:bob")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		// This should panic in tests (via MustBugf)
+		require.Panics(func() {
+			_, _ = intersect.ResourceType()
+		})
 	})
 }

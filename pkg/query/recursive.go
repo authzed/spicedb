@@ -214,12 +214,12 @@ func (r *RecursiveIterator) ID() string {
 	return r.id
 }
 
-func (r *RecursiveIterator) ResourceType() ObjectType {
+func (r *RecursiveIterator) ResourceType() (ObjectType, error) {
 	// Delegate to the template tree
 	return r.templateTree.ResourceType()
 }
 
-func (r *RecursiveIterator) SubjectTypes() []ObjectType {
+func (r *RecursiveIterator) SubjectTypes() ([]ObjectType, error) {
 	// Delegate to the template tree
 	return r.templateTree.SubjectTypes()
 }

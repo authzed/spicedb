@@ -302,12 +302,12 @@ func (e *Exclusion) ID() string {
 	return e.id
 }
 
-func (e *Exclusion) ResourceType() ObjectType {
+func (e *Exclusion) ResourceType() (ObjectType, error) {
 	// Exclusion's resources come from the main set
 	return e.mainSet.ResourceType()
 }
 
-func (e *Exclusion) SubjectTypes() []ObjectType {
+func (e *Exclusion) SubjectTypes() ([]ObjectType, error) {
 	// Exclusion's subjects come from the main set only
 	// (excluded set is subtracted, doesn't add new types)
 	return e.mainSet.SubjectTypes()

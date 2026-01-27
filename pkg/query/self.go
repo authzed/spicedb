@@ -98,11 +98,11 @@ func (s *Self) ID() string {
 	return s.id
 }
 
-func (s *Self) ResourceType() ObjectType {
-	return s.resourceType
+func (s *Self) ResourceType() (ObjectType, error) {
+	return s.resourceType, nil
 }
 
-func (s *Self) SubjectTypes() []ObjectType {
+func (s *Self) SubjectTypes() ([]ObjectType, error) {
 	// Self is self-referential - subjects are the same type as resources
-	return []ObjectType{s.resourceType}
+	return []ObjectType{s.resourceType}, nil
 }

@@ -159,10 +159,10 @@ func (f *FixedIterator) ID() string {
 	return f.id
 }
 
-func (f *FixedIterator) ResourceType() ObjectType {
-	return f.resourceType
+func (f *FixedIterator) ResourceType() (ObjectType, error) {
+	return f.resourceType, nil
 }
 
-func (f *FixedIterator) SubjectTypes() []ObjectType {
-	return f.subjectTypes
+func (f *FixedIterator) SubjectTypes() ([]ObjectType, error) {
+	return f.subjectTypes, nil
 }

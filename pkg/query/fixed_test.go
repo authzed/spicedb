@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestFixedIterator(t *testing.T) {
@@ -120,7 +122,8 @@ func TestFixedIterator_Types(t *testing.T) {
 		path2 := MustPathFromString("document:doc2#editor@user:bob")
 		fixed := NewFixedIterator(path1, path2)
 
-		resourceType := fixed.ResourceType()
+		resourceType, err := fixed.ResourceType()
+		require.NoError(err)
 		require.Equal("document", resourceType.Type)
 		require.Empty(resourceType.Subrelation) // Relations vary, so subrelation is empty
 	})
@@ -134,18 +137,11 @@ func TestFixedIterator_Types(t *testing.T) {
 		path3 := MustPathFromString("document:doc3#owner@group:engineers#member")
 		fixed := NewFixedIterator(path1, path2, path3)
 
-		subjectTypes := fixed.SubjectTypes()
+		subjectTypes, err := fixed.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 2, "Should have 2 unique subject types")
-
-		// Check that both user and group types are present
-		typeMap := make(map[string]bool)
-		for _, st := range subjectTypes {
-			key := st.Type + "#" + st.Subrelation
-			typeMap[key] = true
-		}
-
-		require.True(typeMap["user#..."] || typeMap["user#"])
-		require.True(typeMap["group#member"])
+		require.Contains(subjectTypes, ObjectType{Type: "user", Subrelation: tuple.Ellipsis})
+		require.Contains(subjectTypes, ObjectType{Type: "group", Subrelation: "member"})
 	})
 
 	t.Run("EmptyIterator", func(t *testing.T) {
@@ -154,11 +150,13 @@ func TestFixedIterator_Types(t *testing.T) {
 
 		fixed := NewFixedIterator()
 
-		resourceType := fixed.ResourceType()
+		resourceType, err := fixed.ResourceType()
+		require.NoError(err)
 		require.Empty(resourceType.Type)
 		require.Empty(resourceType.Subrelation)
 
-		subjectTypes := fixed.SubjectTypes()
+		subjectTypes, err := fixed.SubjectTypes()
+		require.NoError(err)
 		require.Empty(subjectTypes)
 	})
 }

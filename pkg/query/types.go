@@ -3,6 +3,9 @@ package query
 import (
 	"fmt"
 	"strings"
+
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // Plan is the external-facing notion of a query plan. These follow the general API for
@@ -57,10 +60,12 @@ type Iterator interface {
 	ID() string
 
 	// ResourceType returns the ObjectType of this iterator's resources.
-	ResourceType() ObjectType
+	// Returns an error if resource types are inconsistent (e.g., in unions/intersections).
+	ResourceType() (ObjectType, error)
 
 	// SubjectTypes returns all the ObjectTypes for this iterator tree.
-	SubjectTypes() []ObjectType
+	// Returns an error if subject types cannot be determined.
+	SubjectTypes() ([]ObjectType, error)
 }
 
 type ObjectType struct {
@@ -70,9 +75,13 @@ type ObjectType struct {
 
 func NewType(typename string, subrelation ...string) ObjectType {
 	if len(subrelation) == 0 {
-		return ObjectType{Type: typename}
+		return ObjectType{Type: typename, Subrelation: tuple.Ellipsis}
 	}
 	return ObjectType{Type: typename, Subrelation: subrelation[0]}
+}
+
+func (t ObjectType) String() string {
+	return fmt.Sprintf("%s#%s", t.Type, t.Subrelation)
 }
 
 // Explain describes the state of an iterator tree, in a human-readable fashion, with an Info line at
@@ -99,16 +108,22 @@ func (e Explain) IndentString(depth int) string {
 }
 
 // collectAndDeduplicateSubjectTypes collects subject types from multiple iterators and deduplicates
-func collectAndDeduplicateSubjectTypes(iterators []Iterator) []ObjectType {
+func collectAndDeduplicateSubjectTypes(iterators []Iterator) ([]ObjectType, error) {
 	if len(iterators) == 0 {
-		return []ObjectType{}
+		return []ObjectType{}, nil
 	}
+	set := mapz.NewSet[string]()
 
 	seen := make(map[string]bool)
 	var result []ObjectType
 
 	for _, it := range iterators {
-		for _, st := range it.SubjectTypes() {
+		subjectTypes, err := it.SubjectTypes()
+		if err != nil {
+			return nil, err
+		}
+		for _, st := range subjectTypes {
+			set.Add(st.String())
 			key := st.Type + "#" + st.Subrelation
 			if !seen[key] {
 				seen[key] = true
@@ -117,5 +132,5 @@ func collectAndDeduplicateSubjectTypes(iterators []Iterator) []ObjectType {
 		}
 	}
 
-	return result
+	return result, nil
 }

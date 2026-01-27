@@ -15,7 +15,8 @@ func TestRecursiveSentinel_Types(t *testing.T) {
 
 		sentinel := NewRecursiveSentinel("folder", "parent", false)
 
-		resourceType := sentinel.ResourceType()
+		resourceType, err := sentinel.ResourceType()
+		require.NoError(err)
 		require.Equal("folder", resourceType.Type)
 		require.Equal("parent", resourceType.Subrelation)
 	})
@@ -26,7 +27,8 @@ func TestRecursiveSentinel_Types(t *testing.T) {
 
 		sentinel := NewRecursiveSentinel("folder", "parent", false)
 
-		subjectTypes := sentinel.SubjectTypes()
+		subjectTypes, err := sentinel.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("folder", subjectTypes[0].Type)
 		require.Equal("parent", subjectTypes[0].Subrelation)
@@ -38,7 +40,8 @@ func TestRecursiveSentinel_Types(t *testing.T) {
 
 		sentinel := NewRecursiveSentinel("folder", "parent", true)
 
-		subjectTypes := sentinel.SubjectTypes()
+		subjectTypes, err := sentinel.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("folder", subjectTypes[0].Type)
 		require.Empty(subjectTypes[0].Subrelation) // Unknown during construction

@@ -89,14 +89,14 @@ func (r *RecursiveSentinel) ID() string {
 	return r.id
 }
 
-func (r *RecursiveSentinel) ResourceType() ObjectType {
+func (r *RecursiveSentinel) ResourceType() (ObjectType, error) {
 	return ObjectType{
 		Type:        r.definitionName,
 		Subrelation: r.relationName,
-	}
+	}, nil
 }
 
-func (r *RecursiveSentinel) SubjectTypes() []ObjectType {
+func (r *RecursiveSentinel) SubjectTypes() ([]ObjectType, error) {
 	// Sentinels don't know their subject types until expanded
 	// Return the recursive type as a placeholder
 	subrel := r.relationName
@@ -106,5 +106,5 @@ func (r *RecursiveSentinel) SubjectTypes() []ObjectType {
 	return []ObjectType{{
 		Type:        r.definitionName,
 		Subrelation: subrel,
-	}}
+	}}, nil
 }

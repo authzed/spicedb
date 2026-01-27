@@ -208,12 +208,12 @@ func (c *CaveatIterator) ID() string {
 	return c.id
 }
 
-func (c *CaveatIterator) ResourceType() ObjectType {
+func (c *CaveatIterator) ResourceType() (ObjectType, error) {
 	// Delegate to the wrapped iterator
 	return c.subiterator.ResourceType()
 }
 
-func (c *CaveatIterator) SubjectTypes() []ObjectType {
+func (c *CaveatIterator) SubjectTypes() ([]ObjectType, error) {
 	// Delegate to the wrapped iterator
 	return c.subiterator.SubjectTypes()
 }

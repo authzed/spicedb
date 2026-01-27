@@ -135,7 +135,8 @@ func TestSelf_Types(t *testing.T) {
 
 		selfIt := NewSelf("view", ObjectType{Type: "user", Subrelation: "view"})
 
-		resourceType := selfIt.ResourceType()
+		resourceType, err := selfIt.ResourceType()
+		require.NoError(err)
 		require.Equal("user", resourceType.Type)
 		require.Equal("view", resourceType.Subrelation)
 	})
@@ -146,7 +147,8 @@ func TestSelf_Types(t *testing.T) {
 
 		selfIt := NewSelf("view", ObjectType{Type: "user", Subrelation: "view"})
 
-		subjectTypes := selfIt.SubjectTypes()
+		subjectTypes, err := selfIt.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("user", subjectTypes[0].Type)
 		require.Equal("view", subjectTypes[0].Subrelation)
@@ -158,8 +160,10 @@ func TestSelf_Types(t *testing.T) {
 
 		selfIt := NewSelf("edit", ObjectType{Type: "document", Subrelation: "edit"})
 
-		resourceType := selfIt.ResourceType()
-		subjectTypes := selfIt.SubjectTypes()
+		resourceType, err := selfIt.ResourceType()
+		require.NoError(err)
+		subjectTypes, err := selfIt.SubjectTypes()
+		require.NoError(err)
 
 		require.Len(subjectTypes, 1)
 		require.Equal(resourceType, subjectTypes[0], "Self iterator should have same resource and subject types")

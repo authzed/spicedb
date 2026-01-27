@@ -369,7 +369,8 @@ func TestRecursiveIterator_Types(t *testing.T) {
 		templateTree := NewFixedIterator(path)
 		recursive := NewRecursiveIterator(templateTree, "folder", "parent")
 
-		resourceType := recursive.ResourceType()
+		resourceType, err := recursive.ResourceType()
+		require.NoError(err)
 		require.Equal("folder", resourceType.Type) // From templateTree
 	})
 
@@ -382,7 +383,8 @@ func TestRecursiveIterator_Types(t *testing.T) {
 		templateTree := NewFixedIterator(path)
 		recursive := NewRecursiveIterator(templateTree, "folder", "parent")
 
-		subjectTypes := recursive.SubjectTypes()
+		subjectTypes, err := recursive.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1) // From templateTree
 		require.Equal("folder", subjectTypes[0].Type)
 	})

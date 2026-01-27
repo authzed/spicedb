@@ -758,7 +758,8 @@ func TestAlias_Types(t *testing.T) {
 		subIter := NewFixedIterator(path)
 		alias := NewAlias("admin", subIter)
 
-		resourceType := alias.ResourceType()
+		resourceType, err := alias.ResourceType()
+		require.NoError(err)
 		require.Equal("document", resourceType.Type)
 		require.Equal("admin", resourceType.Subrelation) // Alias changes the relation name
 	})
@@ -772,7 +773,8 @@ func TestAlias_Types(t *testing.T) {
 		subIter := NewFixedIterator(path)
 		alias := NewAlias("admin", subIter)
 
-		subjectTypes := alias.SubjectTypes()
+		subjectTypes, err := alias.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1) // From subiterator, unchanged
 		require.Equal("user", subjectTypes[0].Type)
 	})

@@ -799,7 +799,8 @@ func TestIntersectionArrow_Types(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		resourceType := intersectionArrow.ResourceType()
+		resourceType, err := intersectionArrow.ResourceType()
+		require.NoError(err)
 		require.Equal("document", resourceType.Type) // From left iterator
 	})
 
@@ -816,7 +817,8 @@ func TestIntersectionArrow_Types(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
 
-		subjectTypes := intersectionArrow.SubjectTypes()
+		subjectTypes, err := intersectionArrow.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1) // From right iterator
 		require.Equal("user", subjectTypes[0].Type)
 	})

@@ -261,12 +261,12 @@ func (f *FaultyIterator) ID() string {
 	return f.id
 }
 
-func (f *FaultyIterator) ResourceType() ObjectType {
-	return f.resourceType
+func (f *FaultyIterator) ResourceType() (ObjectType, error) {
+	return f.resourceType, nil
 }
 
-func (f *FaultyIterator) SubjectTypes() []ObjectType {
-	return f.subjectTypes
+func (f *FaultyIterator) SubjectTypes() ([]ObjectType, error) {
+	return f.subjectTypes, nil
 }
 
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions

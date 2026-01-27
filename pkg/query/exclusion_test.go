@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestExclusionIterator(t *testing.T) {
@@ -870,7 +871,8 @@ func TestExclusion_Types(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		resourceType := exclusion.ResourceType()
+		resourceType, err := exclusion.ResourceType()
+		require.NoError(err)
 		require.Equal("document", resourceType.Type) // From mainSet
 	})
 
@@ -887,17 +889,10 @@ func TestExclusion_Types(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		subjectTypes := exclusion.SubjectTypes()
+		subjectTypes, err := exclusion.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 2) // Only from mainSet, not excludedSet
-
-		// Check that both user and group types are present
-		typeMap := make(map[string]bool)
-		for _, st := range subjectTypes {
-			key := st.Type + "#" + st.Subrelation
-			typeMap[key] = true
-		}
-
-		require.True(typeMap["user#..."] || typeMap["user#"])
-		require.True(typeMap["group#member"])
+		require.Contains(subjectTypes, ObjectType{Type: "user", Subrelation: tuple.Ellipsis})
+		require.Contains(subjectTypes, ObjectType{Type: "group", Subrelation: "member"})
 	})
 }

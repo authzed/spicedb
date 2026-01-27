@@ -356,7 +356,8 @@ func TestRelationIterator_Types(t *testing.T) {
 		baseRel := createTestBaseRelation("document", "viewer", "user", "")
 		relationIter := NewRelationIterator(baseRel)
 
-		resourceType := relationIter.ResourceType()
+		resourceType, err := relationIter.ResourceType()
+		require.NoError(err)
 		require.Equal("document", resourceType.Type)
 		require.Equal("viewer", resourceType.Subrelation)
 	})
@@ -368,7 +369,8 @@ func TestRelationIterator_Types(t *testing.T) {
 		baseRel := createTestBaseRelation("document", "viewer", "user", "")
 		relationIter := NewRelationIterator(baseRel)
 
-		subjectTypes := relationIter.SubjectTypes()
+		subjectTypes, err := relationIter.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("user", subjectTypes[0].Type)
 		require.Empty(subjectTypes[0].Subrelation)
@@ -381,7 +383,8 @@ func TestRelationIterator_Types(t *testing.T) {
 		baseRel := createTestBaseRelation("document", "viewer", "group", "member")
 		relationIter := NewRelationIterator(baseRel)
 
-		subjectTypes := relationIter.SubjectTypes()
+		subjectTypes, err := relationIter.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("group", subjectTypes[0].Type)
 		require.Equal("member", subjectTypes[0].Subrelation)
@@ -394,7 +397,8 @@ func TestRelationIterator_Types(t *testing.T) {
 		baseRel := createTestWildcardBaseRelation("document", "viewer", "user")
 		relationIter := NewRelationIterator(baseRel)
 
-		subjectTypes := relationIter.SubjectTypes()
+		subjectTypes, err := relationIter.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("user", subjectTypes[0].Type)
 		require.Empty(subjectTypes[0].Subrelation) // Wildcards return empty subrelation
@@ -407,7 +411,8 @@ func TestRelationIterator_Types(t *testing.T) {
 		baseRel := createTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
 		relationIter := NewRelationIterator(baseRel)
 
-		subjectTypes := relationIter.SubjectTypes()
+		subjectTypes, err := relationIter.SubjectTypes()
+		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("user", subjectTypes[0].Type)
 		require.Empty(subjectTypes[0].Subrelation) // Ellipsis returns empty subrelation
