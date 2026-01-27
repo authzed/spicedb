@@ -2,6 +2,10 @@ package query
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/google/uuid"
 )
 
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
@@ -108,26 +112,43 @@ func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectTyp
 		return nil, err
 	}
 
-	// Check if we should add a self-edge: the resource type must be a valid subject type
-	// for this iterator, and either no filter is applied or the filter matches.
+	// Check if we should add a self-edge by testing if the resource (as a subject)
+	// exists in the datastore. We do this by calling IterResources on the sub-iterator
+	// with the resource as the subject. If it returns anything, the resource exists
+	// as a subject and we should add the self-edge.
 	shouldAddSelfEdge := false
 
-	// First, check if the resource type is a valid subject type for this iterator
-	subjectTypes, err := a.SubjectTypes()
-	if err == nil {
-		for _, subjType := range subjectTypes {
-			if subjType.Type == resource.ObjectType && subjType.Subrelation == a.relation {
-				// Resource type matches a subject type, now check if filter allows it
-				if filterSubjectType.Type == "" || // No filter applied
-					(resource.ObjectType == filterSubjectType.Type &&
-						(filterSubjectType.Subrelation == "" || filterSubjectType.Subrelation == a.relation)) {
-					shouldAddSelfEdge = true
-					break
-				}
+	// Only check if the filter allows this resource type as a subject
+	typeMatches := filterSubjectType.Type == "" || filterSubjectType.Type == resource.ObjectType
+	relationMatches := filterSubjectType.Subrelation == "" || filterSubjectType.Subrelation == a.relation
+
+	if typeMatches && relationMatches && ctx.Reader != nil {
+		// Test if resource#relation exists as a subject by querying the datastore directly
+		// We check if there are ANY relationships where resource#relation appears as the subject
+		filter := datastore.RelationshipsFilter{
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
+				OptionalSubjectType: resource.ObjectType,
+				OptionalSubjectIds:  []string{resource.ObjectID},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(a.relation),
+			}},
+		}
+
+		iter, err := ctx.Reader.QueryRelationships(ctx, filter, options.WithLimit(options.LimitOne))
+		if err != nil {
+			return nil, err
+		}
+
+		// If the query returns any relationship, the resource exists as a subject
+		for _, err := range iter {
+			if err != nil {
+				return nil, err
 			}
+			shouldAddSelfEdge = true
+			break
 		}
 	}
 
+	// Use the helper method that prepends self-edge if needed
 	return a.maybePrependSelfEdge(resource, subSeq, shouldAddSelfEdge), nil
 }
 
