@@ -632,3 +632,148 @@ definition resource {
 		})
 	}
 }
+
+func TestApplySchemaChangesOverExisting(t *testing.T) {
+	tcs := []struct {
+		name                         string
+		staticSchema                 string
+		startingSchema               string
+		patchSchema                  string
+		expectedSchema               string
+		relationships                []string
+		expectedAppliedSchemaChanges AppliedSchemaChanges
+		expectedError                string
+	}{
+		{
+			name:         "empty static schema",
+			staticSchema: "",
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation viewer: user
+					permission view = viewer
+				}
+
+				caveat hasFortyTwo(value int) {
+				value == 42
+				}
+			`,
+			patchSchema: `
+				definition user {}
+
+				definition organization {
+					relation member: user
+					permission admin = member
+				}
+
+				caveat catchTwentyTwo(value int) {
+				value == 22
+				}
+			`,
+			expectedSchema: "caveat catchTwentyTwo(value int) {\n\tvalue == 22\n}\n\ndefinition organization {\n\trelation member: user\n\tpermission admin = member\n}\n\ndefinition user {}",
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount:   5,
+				NewObjectDefNames:     []string{"organization"},
+				RemovedObjectDefNames: []string{"document"},
+				NewCaveatDefNames:     []string{"catchTwentyTwo"},
+				RemovedCaveatDefNames: []string{"hasFortyTwo"},
+			},
+		},
+		{
+			name: "basic static schema",
+			staticSchema: `
+			definition admin {}
+			`,
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation viewer: user
+					permission view = viewer
+				}
+
+				caveat hasFortyTwo(value int) {
+				value == 42
+				}
+			`,
+			patchSchema: `
+				definition user {}
+
+				definition organization {
+					relation member: user
+					permission admin = member
+				}
+
+				caveat catchTwentyTwo(value int) {
+				value == 22
+				}
+			`,
+			expectedSchema: "caveat catchTwentyTwo(value int) {\n\tvalue == 22\n}\n\ndefinition admin {}\n\ndefinition organization {\n\trelation member: user\n\tpermission admin = member\n}\n\ndefinition user {}",
+			// NOTE: we're expecting that the `admin` part of the schema stays there.
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount:   5,
+				NewObjectDefNames:     []string{"organization"},
+				RemovedObjectDefNames: []string{"document"},
+				NewCaveatDefNames:     []string{"catchTwentyTwo"},
+				RemovedCaveatDefNames: []string{"hasFortyTwo"},
+			},
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+			require.NoError(err)
+
+			// Write the initial schema.
+			relationships := make([]tuple.Relationship, 0, len(tc.relationships))
+			for _, rel := range tc.relationships {
+				relationships = append(relationships, tuple.MustParse(rel))
+			}
+
+			schemaInDB := tc.staticSchema + "\n\n" + tc.startingSchema
+
+			compiledStartingSchema, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: tc.startingSchema,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(err)
+
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schemaInDB, relationships, require)
+
+			// Update the schema and ensure it works.
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: tc.patchSchema,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(err)
+
+			validated, err := ValidateSchemaChanges(t.Context(), compiled, caveattypes.Default.TypeSet, false, tc.patchSchema)
+			if tc.expectedError != "" && err != nil && tc.expectedError == err.Error() {
+				return
+			}
+
+			require.NoError(err)
+
+			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				applied, err := ApplySchemaChangesOverExisting(t.Context(), rwt, caveattypes.Default.TypeSet, validated, compiledStartingSchema.CaveatDefinitions, compiledStartingSchema.ObjectDefinitions)
+				if tc.expectedError != "" {
+					require.EqualError(err, tc.expectedError)
+					return nil
+				}
+
+				require.NoError(err)
+				require.Equal(tc.expectedAppliedSchemaChanges, *applied)
+
+				reader, err := rwt.SchemaReader()
+				require.NoError(err)
+				schema, err := reader.SchemaText()
+				require.NoError(err)
+				require.Equal(tc.expectedSchema, schema)
+				return nil
+			})
+			require.NoError(err)
+		})
+	}
+}

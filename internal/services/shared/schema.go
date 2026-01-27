@@ -119,6 +119,8 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against
 // existing caveat and object definitions given.
+// The idea is that the given schema will be diffed against the existing objects given, and any
+// objects not named in one of those two will be preserved.
 func ApplySchemaChangesOverExisting(
 	ctx context.Context,
 	rwt datastore.ReadWriteTransaction,
@@ -227,14 +229,43 @@ func ApplySchemaChangesOverExisting(
 			return nil, err
 		}
 
+		// Get the list of extant definitions so that we can add them to the
+		// list of definitions that should be written in the single shot
+		reader, err := rwt.SchemaReader()
+		if err != nil {
+			return nil, err
+		}
+		allExtantDefinitions, err := reader.ListAllSchemaDefinitions(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		writtenDefinitionNames := mapz.NewSet[string]()
+		for _, def := range validated.compiled.CaveatDefinitions {
+			writtenDefinitionNames.Add(def.Name)
+		}
+		for _, def := range validated.compiled.ObjectDefinitions {
+			writtenDefinitionNames.Add(def.Name)
+		}
+
+		changedDefinitionNames := writtenDefinitionNames.Union(removedObjectDefNames).Union(removedCaveatDefNames)
+
+		unchangedDefinitions := make([]datastore.SchemaDefinition, 0)
+		for _, def := range allExtantDefinitions {
+			if !changedDefinitionNames.Has(def.GetName()) {
+				unchangedDefinitions = append(unchangedDefinitions, def)
+			}
+		}
+
 		// Build the full list of schema definitions to write
-		definitions := make([]datastore.SchemaDefinition, 0, len(validated.compiled.ObjectDefinitions)+len(validated.compiled.CaveatDefinitions))
+		definitions := make([]datastore.SchemaDefinition, 0, len(validated.compiled.ObjectDefinitions)+len(validated.compiled.CaveatDefinitions)+len(unchangedDefinitions))
 		for _, caveatDef := range validated.compiled.CaveatDefinitions {
 			definitions = append(definitions, caveatDef)
 		}
 		for _, objectDef := range validated.compiled.ObjectDefinitions {
 			definitions = append(definitions, objectDef)
 		}
+		definitions = append(definitions, unchangedDefinitions...)
 
 		// WriteSchema will handle writing new/changed definitions and deleting removed ones
 		if err := schemaWriter.WriteSchema(ctx, definitions, validated.schemaText, caveatTypeSet); err != nil {
