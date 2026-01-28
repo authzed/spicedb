@@ -732,6 +732,8 @@ github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584 h1:mP7EpcUL90EKcf/F
 github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584/go.mod h1:wnimjr5RPPouIhZQ3ztDBLMUKKuUroj3U9Jy0PxeaEE=
 github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b h1:wbh8IK+aMLTCey9sZasO7b6BWLAJnHHvb79fvWCXwxw=
 github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b/go.mod h1:s3qC7V7XIbiNWERv7Lfljy/Lx25/V1Qlexb0WJuA8uQ=
+github.com/authzed/jitterbug v0.0.0-20260128162915-e97d76daaa24 h1:BXaWSanmHFu3P0xWfTDPpwcJIQ/oSol29+CWe4lSGSU=
+github.com/authzed/jitterbug v0.0.0-20260128162915-e97d76daaa24/go.mod h1:WvEk4YHnUsmbUaWA/VseQty3X91f6/jEHek5mjYDZUg=
 github.com/aws/aws-sdk-go-v2 v1.40.1 h1:difXb4maDZkRH0x//Qkwcfpdg1XQVXEAEs2DdXldFFc=
 github.com/aws/aws-sdk-go-v2 v1.40.1/go.mod h1:MayyLB8y+buD9hZqkCW3kX1AKq07Y5pXxtgB+rRFhz0=
 github.com/aws/aws-sdk-go-v2/config v1.32.3 h1:cpz7H2uMNTDa0h/5CYL5dLUEzPSLo2g0NkbxTRJtSSU=
@@ -1415,8 +1417,6 @@ github.com/mgechev/revive v1.12.0 h1:Q+/kkbbwerrVYPv9d9efaPGmAO/NsxwW/nE6ahpQaCU
 github.com/mgechev/revive v1.12.0/go.mod h1:VXsY2LsTigk8XU9BpZauVLjVrhICMOV3k1lpB3CXrp8=
 github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8/go.mod h1:mC1jAcsrzbxHt8iiaC+zU4b1ylILSosueou12R++wfY=
 github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3/go.mod h1:RagcQ7I8IeTMnF8JTXieKnO4Z6JCsikNEzj0DwauVzE=
-github.com/miparnisari/jitterbug v0.0.0-20260123191925-5442e9d50926 h1:x6smVPDCc4p3j4qtG5qO1uNcsPH8hVWMr7jQz0A3teI=
-github.com/miparnisari/jitterbug v0.0.0-20260123191925-5442e9d50926/go.mod h1:wJ0MaDbnqNGatytpnTRAm4Y/U4xMzIf4sGNCeynJZto=
 github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db h1:62I3jR2EmQ4l5rM/4FEfDWcRD+abF5XlKShorW5LRoQ=
 github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db/go.mod h1:l0dey0ia/Uv7NcFFVbCLtqEBQbrT4OCwCSKTEv6enCw=
 github.com/mitchellh/go-homedir v1.1.0 h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG+4E0Y=
