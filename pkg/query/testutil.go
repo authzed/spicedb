@@ -184,6 +184,8 @@ type FaultyIterator struct {
 	id                  string
 	shouldFailOnCheck   bool
 	shouldFailOnCollect bool
+	resourceType        ObjectType
+	subjectTypes        []ObjectType
 }
 
 var _ Iterator = &FaultyIterator{}
@@ -231,10 +233,15 @@ func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 }
 
 func (f *FaultyIterator) Clone() Iterator {
+	clonedSubjectTypes := make([]ObjectType, len(f.subjectTypes))
+	copy(clonedSubjectTypes, f.subjectTypes)
+
 	return &FaultyIterator{
 		id:                  uuid.NewString(),
 		shouldFailOnCheck:   f.shouldFailOnCheck,
 		shouldFailOnCollect: f.shouldFailOnCollect,
+		resourceType:        f.resourceType,
+		subjectTypes:        clonedSubjectTypes,
 	}
 }
 
@@ -254,11 +261,21 @@ func (f *FaultyIterator) ID() string {
 	return f.id
 }
 
+func (f *FaultyIterator) ResourceType() (ObjectType, error) {
+	return f.resourceType, nil
+}
+
+func (f *FaultyIterator) SubjectTypes() ([]ObjectType, error) {
+	return f.subjectTypes, nil
+}
+
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions
-func NewFaultyIterator(shouldFailOnCheck, shouldFailOnCollect bool) *FaultyIterator {
+func NewFaultyIterator(shouldFailOnCheck, shouldFailOnCollect bool, resourceType ObjectType, subjectTypes []ObjectType) *FaultyIterator {
 	return &FaultyIterator{
 		id:                  uuid.NewString(),
 		shouldFailOnCheck:   shouldFailOnCheck,
 		shouldFailOnCollect: shouldFailOnCollect,
+		resourceType:        resourceType,
+		subjectTypes:        subjectTypes,
 	}
 }

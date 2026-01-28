@@ -534,3 +534,38 @@ func TestCaveatIterator_BuildExplainInfo(t *testing.T) {
 		require.Contains(info, "user")
 	})
 }
+
+func TestCaveatIterator_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create a caveat iterator with a subiterator
+		path := MustPathFromString("document:doc1#viewer@user:alice")
+		subIter := NewFixedIterator(path)
+		testCaveat := createTestCaveat("test_caveat", nil)
+		caveatIter := NewCaveatIterator(subIter, testCaveat)
+
+		resourceType, err := caveatIter.ResourceType()
+		require.NoError(err)
+		require.Equal("document", resourceType.Type) // From subiterator
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create a caveat iterator with a subiterator
+		path := MustPathFromString("document:doc1#viewer@user:alice")
+		subIter := NewFixedIterator(path)
+		testCaveat := createTestCaveat("test_caveat", nil)
+		caveatIter := NewCaveatIterator(subIter, testCaveat)
+
+		subjectTypes, err := caveatIter.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 1) // From subiterator
+		require.Equal("user", subjectTypes[0].Type)
+	})
+}

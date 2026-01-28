@@ -3,6 +3,9 @@ package query
 import (
 	"fmt"
 	"strings"
+
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // Plan is the external-facing notion of a query plan. These follow the general API for
@@ -55,6 +58,30 @@ type Iterator interface {
 	// ID returns a unique UUID for this instance of an iterator.
 	// Each call to Clone() generates a new UUID for the cloned iterator.
 	ID() string
+
+	// ResourceType returns the ObjectType of this iterator's resources.
+	// Returns an error if resource types are inconsistent (e.g., in unions/intersections).
+	ResourceType() (ObjectType, error)
+
+	// SubjectTypes returns all the ObjectTypes for this iterator tree.
+	// Returns an error if subject types cannot be determined.
+	SubjectTypes() ([]ObjectType, error)
+}
+
+type ObjectType struct {
+	Type        string
+	Subrelation string
+}
+
+func NewType(typename string, subrelation ...string) ObjectType {
+	if len(subrelation) == 0 {
+		return ObjectType{Type: typename, Subrelation: tuple.Ellipsis}
+	}
+	return ObjectType{Type: typename, Subrelation: subrelation[0]}
+}
+
+func (t ObjectType) String() string {
+	return fmt.Sprintf("%s#%s", t.Type, t.Subrelation)
 }
 
 // Explain describes the state of an iterator tree, in a human-readable fashion, with an Info line at
@@ -78,4 +105,30 @@ func (e Explain) IndentString(depth int) string {
 		sb.WriteString(sub.IndentString(depth + 1))
 	}
 	return fmt.Sprintf("%s%s\n%s", strings.Repeat("\t", depth), e.Info, sb.String())
+}
+
+// collectAndDeduplicateSubjectTypes collects subject types from multiple iterators and deduplicates
+func collectAndDeduplicateSubjectTypes(iterators []Iterator) ([]ObjectType, error) {
+	if len(iterators) == 0 {
+		return []ObjectType{}, nil
+	}
+	set := mapz.NewSet[string]()
+
+	var result []ObjectType
+
+	for _, it := range iterators {
+		subjectTypes, err := it.SubjectTypes()
+		if err != nil {
+			return nil, err
+		}
+		for _, st := range subjectTypes {
+			key := st.String()
+			if !set.Has(key) {
+				set.Add(st.String())
+				result = append(result, st)
+			}
+		}
+	}
+
+	return result, nil
 }

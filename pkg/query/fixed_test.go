@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestFixedIterator(t *testing.T) {
@@ -106,5 +108,55 @@ func TestFixedIterator(t *testing.T) {
 		explain := fixed.Explain()
 		require.Equal("Fixed(3 paths)", explain.Info)
 		require.Empty(explain.SubExplain)
+	})
+}
+
+func TestFixedIterator_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc2#editor@user:bob")
+		fixed := NewFixedIterator(path1, path2)
+
+		resourceType, err := fixed.ResourceType()
+		require.NoError(err)
+		require.Equal("document", resourceType.Type)
+		require.Empty(resourceType.Subrelation) // Relations vary, so subrelation is empty
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc2#editor@user:bob")
+		path3 := MustPathFromString("document:doc3#owner@group:engineers#member")
+		fixed := NewFixedIterator(path1, path2, path3)
+
+		subjectTypes, err := fixed.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 2, "Should have 2 unique subject types")
+		require.Contains(subjectTypes, ObjectType{Type: "user", Subrelation: tuple.Ellipsis})
+		require.Contains(subjectTypes, ObjectType{Type: "group", Subrelation: "member"})
+	})
+
+	t.Run("EmptyIterator", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		fixed := NewFixedIterator()
+
+		resourceType, err := fixed.ResourceType()
+		require.NoError(err)
+		require.Empty(resourceType.Type)
+		require.Empty(resourceType.Subrelation)
+
+		subjectTypes, err := fixed.SubjectTypes()
+		require.NoError(err)
+		require.Empty(subjectTypes)
 	})
 }

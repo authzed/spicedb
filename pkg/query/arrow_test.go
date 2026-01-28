@@ -694,3 +694,44 @@ func TestArrowIteratorBidirectional(t *testing.T) {
 		require.Empty(rels, "No matching arrow relations should result in empty result")
 	})
 }
+
+func TestArrow_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create left and right iterators
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftIter := NewFixedIterator(leftPath)
+
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		resourceType, err := arrow.ResourceType()
+		require.NoError(err)
+		require.Equal("document", resourceType.Type) // From left iterator
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create left and right iterators
+		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
+		leftIter := NewFixedIterator(leftPath)
+
+		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
+		rightIter := NewFixedIterator(rightPath)
+
+		arrow := NewArrow(leftIter, rightIter)
+
+		subjectTypes, err := arrow.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 1) // From right iterator
+		require.Equal("user", subjectTypes[0].Type)
+	})
+}

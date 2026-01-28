@@ -198,3 +198,11 @@ func (a *Alias) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 func (a *Alias) ID() string {
 	return a.id
 }
+
+func (a *Alias) ResourceType() (ObjectType, error) {
+	return a.subIt.ResourceType()
+}
+
+func (a *Alias) SubjectTypes() ([]ObjectType, error) {
+	return a.subIt.SubjectTypes()
+}

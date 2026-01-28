@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestExclusionIterator(t *testing.T) {
@@ -310,7 +311,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 	t.Run("Main Set Error Propagation", func(t *testing.T) {
 		t.Parallel()
 		// Create a faulty iterator for the main set
-		mainSet := NewFaultyIterator(true, false)
+		mainSet := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		excludedSet := NewFixedIterator(path1)
 
 		exclusion := NewExclusion(mainSet, excludedSet)
@@ -325,7 +326,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 		t.Parallel()
 		// Create a normal main set and faulty excluded set
 		mainSet := NewFixedIterator(path1)
-		excludedSet := NewFaultyIterator(true, false)
+		excludedSet := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
@@ -338,7 +339,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 	t.Run("Main Set Collection Error", func(t *testing.T) {
 		t.Parallel()
 		// Create an iterator that fails during iteration
-		mainSet := NewFaultyIterator(false, true)
+		mainSet := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		excludedSet := NewFixedIterator(path1)
 
 		exclusion := NewExclusion(mainSet, excludedSet)
@@ -363,7 +364,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 		t.Parallel()
 		// Create an iterator that fails during collection
 		mainSet := NewFixedIterator(path1)
-		excludedSet := NewFaultyIterator(false, true)
+		excludedSet := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
@@ -852,5 +853,46 @@ func TestExclusionIterSubjects(t *testing.T) {
 		require.Len(paths, 1, "Should return alice with negated caveat")
 		require.Equal("alice", paths[0].Subject.ObjectID)
 		require.NotNil(paths[0].Caveat, "Should have caveat for conditional exclusion")
+	})
+}
+
+func TestExclusion_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create main set and excluded set
+		mainPath := MustPathFromString("document:doc1#viewer@user:alice")
+		excludePath := MustPathFromString("document:doc1#viewer@user:bob")
+		mainSet := NewFixedIterator(mainPath)
+		excludedSet := NewFixedIterator(excludePath)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		resourceType, err := exclusion.ResourceType()
+		require.NoError(err)
+		require.Equal("document", resourceType.Type) // From mainSet
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create main set and excluded set with different subject types
+		mainPath1 := MustPathFromString("document:doc1#viewer@user:alice")
+		mainPath2 := MustPathFromString("document:doc2#viewer@group:engineers#member")
+		excludePath := MustPathFromString("document:doc1#viewer@user:bob")
+		mainSet := NewFixedIterator(mainPath1, mainPath2)
+		excludedSet := NewFixedIterator(excludePath)
+
+		exclusion := NewExclusion(mainSet, excludedSet)
+
+		subjectTypes, err := exclusion.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 2) // Only from mainSet, not excludedSet
+		require.Contains(subjectTypes, ObjectType{Type: "user", Subrelation: tuple.Ellipsis})
+		require.Contains(subjectTypes, ObjectType{Type: "group", Subrelation: "member"})
 	})
 }

@@ -164,7 +164,7 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	// Test error path: execute() returns an error (line 67-70 in iterativeDeepening)
 	// This tests when CheckImpl/IterSubjects/IterResources fails during execution
 
-	faultyIter := NewFaultyIterator(true, false) // Fails on Check
+	faultyIter := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{}) // Fails on Check
 	recursive := NewRecursiveIterator(faultyIter, "folder", "view")
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -188,7 +188,7 @@ func TestRecursiveIteratorCollectionError(t *testing.T) {
 	// Test error path: pathSeq yields an error during iteration (line 78-80 in iterativeDeepening)
 	// This tests when the returned PathSeq fails during collection
 
-	faultyIter := NewFaultyIterator(false, true) // Fails on collection
+	faultyIter := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{}) // Fails on collection
 	recursive := NewRecursiveIterator(faultyIter, "folder", "view")
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -355,4 +355,37 @@ func TestBFSResourcesWithEllipses(t *testing.T) {
 
 	require.NotEmpty(t, paths, "Should find at least one resource")
 	require.Equal(t, "folder2", paths[0].Resource.ObjectID)
+}
+
+func TestRecursiveIterator_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create a recursive iterator with a template tree
+		path := MustPathFromString("folder:folder1#parent@folder:folder2")
+		templateTree := NewFixedIterator(path)
+		recursive := NewRecursiveIterator(templateTree, "folder", "parent")
+
+		resourceType, err := recursive.ResourceType()
+		require.NoError(err)
+		require.Equal("folder", resourceType.Type) // From templateTree
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create a recursive iterator with a template tree
+		path := MustPathFromString("folder:folder1#parent@folder:folder2")
+		templateTree := NewFixedIterator(path)
+		recursive := NewRecursiveIterator(templateTree, "folder", "parent")
+
+		subjectTypes, err := recursive.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 1) // From templateTree
+		require.Equal("folder", subjectTypes[0].Type)
+	})
 }

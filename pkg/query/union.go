@@ -2,6 +2,8 @@ package query
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Union the set of paths that are in any of underlying subiterators.
@@ -164,4 +166,34 @@ func (u *Union) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 
 func (u *Union) ID() string {
 	return u.id
+}
+
+func (u *Union) ResourceType() (ObjectType, error) {
+	if len(u.subIts) == 0 {
+		return ObjectType{}, nil
+	}
+
+	// Get the resource type from the first subiterator
+	firstType, err := u.subIts[0].ResourceType()
+	if err != nil {
+		return ObjectType{}, err
+	}
+
+	// Validate that all subiterators have the same resource type
+	for idx, subIt := range u.subIts[1:] {
+		subType, err := subIt.ResourceType()
+		if err != nil {
+			return ObjectType{}, err
+		}
+		if firstType != subType {
+			return ObjectType{}, spiceerrors.MustBugf("union resource type mismatch: subiterator 0 has type %s, subiterator %d has type %s",
+				firstType.String(), idx+1, subType.String())
+		}
+	}
+
+	return firstType, nil
+}
+
+func (u *Union) SubjectTypes() ([]ObjectType, error) {
+	return collectAndDeduplicateSubjectTypes(u.subIts)
 }

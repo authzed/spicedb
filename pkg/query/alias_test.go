@@ -328,7 +328,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		require := require.New(t)
 
 		// Create a faulty sub-iterator
-		faultyIt := NewFaultyIterator(true, false)
+		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("error_test", faultyIt)
 
 		_, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
@@ -340,7 +340,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails during collection
-		faultyIt := NewFaultyIterator(false, true)
+		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("collection_error_test", faultyIt)
 
 		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
@@ -356,7 +356,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails on IterSubjectsImpl
-		faultyIt := NewFaultyIterator(true, false)
+		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("error_test", faultyIt)
 
 		_, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"))
@@ -369,7 +369,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails during collection
-		faultyIt := NewFaultyIterator(false, true)
+		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("collection_error_test", faultyIt)
 
 		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"))
@@ -386,7 +386,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails on IterResourcesImpl
-		faultyIt := NewFaultyIterator(true, false)
+		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("error_test", faultyIt)
 
 		_, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses())
@@ -399,7 +399,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails during collection
-		faultyIt := NewFaultyIterator(false, true)
+		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("collection_error_test", faultyIt)
 
 		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses())
@@ -416,7 +416,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that errors on CheckImpl
-		faultyIt := NewFaultyIterator(true, false)
+		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("self", faultyIt)
 
 		// Create a self-edge scenario
@@ -432,7 +432,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails during collection
-		faultyIt := NewFaultyIterator(false, true)
+		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		aliasIt := NewAlias("self", faultyIt)
 
 		// Create a self-edge scenario
@@ -743,5 +743,38 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 			}
 		}
 		require.True(foundSelfEdge, "should find self-edge relation")
+	})
+}
+
+func TestAlias_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create an alias iterator
+		path := MustPathFromString("document:doc1#viewer@user:alice")
+		subIter := NewFixedIterator(path)
+		alias := NewAlias("admin", subIter)
+
+		resourceType, err := alias.ResourceType()
+		require.NoError(err)
+		require.Equal("document", resourceType.Type)
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create an alias iterator
+		path := MustPathFromString("document:doc1#viewer@user:alice")
+		subIter := NewFixedIterator(path)
+		alias := NewAlias("admin", subIter)
+
+		subjectTypes, err := alias.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 1) // From subiterator, unchanged
+		require.Equal("user", subjectTypes[0].Type)
 	})
 }

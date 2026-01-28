@@ -19,15 +19,12 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_Union", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a union of different access patterns
-		union := NewUnion()
-
 		// Add different iterators with distinct data sets
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
-		union.addSubIterator(documentAccess)
-		union.addSubIterator(multiRole)
+		// Create a union of different access patterns
+		union := NewUnion(documentAccess, multiRole)
 
 		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -70,10 +67,8 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.addSubIterator(documentAccess)
+		union := NewUnion(documentAccess)
 
 		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -92,10 +87,8 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.addSubIterator(documentAccess)
+		union := NewUnion(documentAccess)
 
 		pathSeq, err := ctx.Check(union, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -108,16 +101,13 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EarlyTermination", func(t *testing.T) {
 		t.Parallel()
 
-		// Test the optimization where union stops checking remaining resources
-		// once all have been found by earlier sub-iterators
-		union := NewUnion()
-
 		// Add iterators that might find the same resource
 		documentAccess := NewDocumentAccessFixedIterator()
 		singleUser := NewSingleUserFixedIterator("alice")
 
-		union.addSubIterator(documentAccess)
-		union.addSubIterator(singleUser)
+		// Test the optimization where union stops checking remaining resources
+		// once all have been found by earlier sub-iterators
+		union := NewUnion(documentAccess, singleUser)
 
 		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -132,10 +122,8 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.addSubIterator(documentAccess)
+		union := NewUnion(documentAccess)
 
 		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
@@ -149,14 +137,11 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
-		union.addSubIterator(documentAccess)
-		union.addSubIterator(multiRole)
+		union := NewUnion(documentAccess, multiRole)
 
 		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
 		require.NoError(err)
@@ -181,14 +166,10 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
-
-		union.addSubIterator(documentAccess)
-		union.addSubIterator(multiRole)
+		union := NewUnion(documentAccess, multiRole)
 
 		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -832,5 +813,113 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 		require.Contains(resourceIDs, "doc1")
 		require.Contains(resourceIDs, "doc2")
 		require.Contains(resourceIDs, "doc3")
+	})
+}
+
+func TestUnion_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create union with fixed iterators
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc2#editor@user:bob")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		union := NewUnion(iter1, iter2)
+
+		resourceType, err := union.ResourceType()
+		require.NoError(err)
+		require.Equal("document", resourceType.Type)
+		require.Empty(resourceType.Subrelation) // First subiterator determines this
+	})
+
+	t.Run("ResourceType_EmptyUnion", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		union := NewUnion()
+
+		resourceType, err := union.ResourceType()
+		require.NoError(err)
+		require.Empty(resourceType.Type)
+		require.Empty(resourceType.Subrelation)
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create union with different subject types across iterators
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc2#editor@group:engineers#member")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		union := NewUnion(iter1, iter2)
+
+		subjectTypes, err := union.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 2, "Should have 2 unique subject types")
+
+		// Check that both user and group types are present
+		typeMap := make(map[string]bool)
+		for _, st := range subjectTypes {
+			key := st.Type + "#" + st.Subrelation
+			typeMap[key] = true
+		}
+
+		require.True(typeMap["user#..."] || typeMap["user#"])
+		require.True(typeMap["group#member"])
+	})
+
+	t.Run("SubjectTypes_Deduplication", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create union where multiple iterators have same subject types
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc2#editor@user:bob")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		union := NewUnion(iter1, iter2)
+
+		subjectTypes, err := union.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 1, "Should deduplicate subject types")
+		require.Equal("user", subjectTypes[0].Type)
+	})
+
+	t.Run("SubjectTypes_EmptyUnion", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		union := NewUnion()
+
+		subjectTypes, err := union.SubjectTypes()
+		require.NoError(err)
+		require.Empty(subjectTypes)
+	})
+
+	t.Run("ResourceType_Mismatch", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create union with mismatched resource types
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("folder:folder1#viewer@user:bob")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		union := NewUnion(iter1, iter2)
+
+		// This should panic in tests (via MustBugf)
+		require.Panics(func() {
+			_, _ = union.ResourceType()
+		})
 	})
 }

@@ -340,3 +340,13 @@ func (ia *IntersectionArrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, 
 func (ia *IntersectionArrow) ID() string {
 	return ia.id
 }
+
+func (ia *IntersectionArrow) ResourceType() (ObjectType, error) {
+	// IntersectionArrow's resources come from the left side
+	return ia.left.ResourceType()
+}
+
+func (ia *IntersectionArrow) SubjectTypes() ([]ObjectType, error) {
+	// IntersectionArrow's subjects come from the right side
+	return ia.right.SubjectTypes()
+}

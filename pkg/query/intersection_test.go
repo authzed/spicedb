@@ -672,3 +672,111 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		require.Equal(core.CaveatOperation_AND, paths[0].Caveat.GetOperation().Op, "Caveat should be AND")
 	})
 }
+
+func TestIntersection_Types(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResourceType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create intersection with fixed iterators
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc1#editor@user:alice")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		resourceType, err := intersect.ResourceType()
+		require.NoError(err)
+		require.Equal("document", resourceType.Type)
+		require.Empty(resourceType.Subrelation) // First subiterator determines this
+	})
+
+	t.Run("ResourceType_EmptyIntersection", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		intersect := NewIntersection()
+
+		resourceType, err := intersect.ResourceType()
+		require.NoError(err)
+		require.Empty(resourceType.Type)
+		require.Empty(resourceType.Subrelation)
+	})
+
+	t.Run("SubjectTypes", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create intersection with different subject types across iterators
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc1#editor@group:engineers#member")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		subjectTypes, err := intersect.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 2, "Should collect all subject types from all iterators")
+		require.Contains(subjectTypes, ObjectType{Type: "user", Subrelation: tuple.Ellipsis})
+		require.Contains(subjectTypes, ObjectType{Type: "group", Subrelation: "member"})
+	})
+
+	t.Run("SubjectTypes_Deduplication", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create intersection where multiple iterators have same subject types
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc1#editor@user:bob")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		subjectTypes, err := intersect.SubjectTypes()
+		require.NoError(err)
+		require.Len(subjectTypes, 1, "Should deduplicate subject types")
+		require.Equal("user", subjectTypes[0].Type)
+	})
+
+	t.Run("SubjectTypes_EmptyIntersection", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		intersect := NewIntersection()
+
+		subjectTypes, err := intersect.SubjectTypes()
+		require.NoError(err)
+		require.Empty(subjectTypes)
+	})
+
+	t.Run("ResourceType_Mismatch", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Create intersection with mismatched resource types
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("folder:folder1#viewer@user:bob")
+		iter1 := NewFixedIterator(path1)
+		iter2 := NewFixedIterator(path2)
+
+		intersect := NewIntersection()
+		intersect.addSubIterator(iter1)
+		intersect.addSubIterator(iter2)
+
+		// This should panic in tests (via MustBugf)
+		require.Panics(func() {
+			_, _ = intersect.ResourceType()
+		})
+	})
+}

@@ -2,6 +2,8 @@ package query
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Intersection the set of paths that are in all of underlying subiterators.
@@ -340,4 +342,34 @@ func (i *Intersection) ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
 
 func (i *Intersection) ID() string {
 	return i.id
+}
+
+func (i *Intersection) ResourceType() (ObjectType, error) {
+	if len(i.subIts) == 0 {
+		return ObjectType{}, nil
+	}
+
+	// Get the resource type from the first subiterator
+	firstType, err := i.subIts[0].ResourceType()
+	if err != nil {
+		return ObjectType{}, err
+	}
+
+	// Validate that all subiterators have the same resource type
+	for idx, subIt := range i.subIts[1:] {
+		subType, err := subIt.ResourceType()
+		if err != nil {
+			return ObjectType{}, err
+		}
+		if firstType != subType {
+			return ObjectType{}, spiceerrors.MustBugf("intersection resource type mismatch: subiterator 0 has type %s, subiterator %d has type %s",
+				firstType.String(), idx+1, subType.String())
+		}
+	}
+
+	return firstType, nil
+}
+
+func (i *Intersection) SubjectTypes() ([]ObjectType, error) {
+	return collectAndDeduplicateSubjectTypes(i.subIts)
 }

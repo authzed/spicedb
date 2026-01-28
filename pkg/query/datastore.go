@@ -348,3 +348,35 @@ func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, er
 func (r *RelationIterator) ID() string {
 	return r.id
 }
+
+func (r *RelationIterator) ResourceType() (ObjectType, error) {
+	return ObjectType{
+		Type:        r.base.DefinitionName(),
+		Subrelation: r.base.RelationName(),
+	}, nil
+}
+
+func (r *RelationIterator) SubjectTypes() ([]ObjectType, error) {
+	// For wildcards, return the base type with no subrelation
+	if r.base.Wildcard() {
+		return []ObjectType{{
+			Type:        r.base.Type(),
+			Subrelation: "",
+		}}, nil
+	}
+
+	// For ellipsis, return the base type with empty subrelation
+	// Ellipsis means "any relation on this type"
+	if r.base.Subrelation() == tuple.Ellipsis {
+		return []ObjectType{{
+			Type:        r.base.Type(),
+			Subrelation: "",
+		}}, nil
+	}
+
+	// For regular subrelations, return the specific type and subrelation
+	return []ObjectType{{
+		Type:        r.base.Type(),
+		Subrelation: r.base.Subrelation(),
+	}}, nil
+}
