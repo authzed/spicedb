@@ -312,6 +312,7 @@ func newPostgresDatastore(
 		writePool:               nil, /* disabled by default */
 		collectors:              collectors,
 		watchBufferLength:       config.watchBufferLength,
+		watchBufferMaximumSize:  config.watchBufferMaximumSize,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		optimizedRevisionQuery:  revisionQuery,
 		validTransactionQuery:   validTransactionQuery,
@@ -379,6 +380,7 @@ type pgDatastore struct {
 	readPool, writePool            pgxcommon.ConnPooler
 	collectors                     []prometheus.Collector
 	watchBufferLength              uint16
+	watchBufferMaximumSize         uint64
 	watchBufferWriteTimeout        time.Duration
 	optimizedRevisionQuery         string
 	validTransactionQuery          string

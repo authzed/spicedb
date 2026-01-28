@@ -606,6 +606,11 @@ type WatchOptions struct {
 	// given the zero value, the datastore's default will be used.
 	WatchBufferLength uint16
 
+	// WatchBufferMaximumSize is the size of the buffer for the watch channel,
+	// provided as a humanized byte string or as a percentage. If set, overrides
+	// the value set for WatchBufferLength.
+	WatchBufferMaximumSize string
+
 	// WatchBufferWriteTimeout is the timeout for writing to the watch channel.
 	// If given the zero value, the datastore's default will be used.
 	WatchBufferWriteTimeout time.Duration

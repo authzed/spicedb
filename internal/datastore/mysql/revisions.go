@@ -70,7 +70,7 @@ const (
 		) as unknown;`
 )
 
-func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
+func (mds *mysqlDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	var rev uint64
 	var validForNanos time.Duration
 	if err := mds.db.QueryRowContext(ctx, mds.optimizedRevisionQuery).
@@ -80,7 +80,7 @@ func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revi
 	return revisions.NewForTransactionID(rev), validForNanos, nil
 }
 
-func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	revision, err := mds.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
@@ -92,7 +92,7 @@ func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, err
 	return revisions.NewForTransactionID(revision), nil
 }
 
-func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	if revision == datastore.NoRevision {
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
@@ -118,7 +118,7 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revi
 	return nil
 }
 
-func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
+func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	// slightly changed to support no revisions at all, needed for runtime seeding of first transaction
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
@@ -144,7 +144,7 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 	return *revision, nil
 }
 
-func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint64) (bool, bool, error) {
+func (mds *mysqlDatastore) checkValidTransaction(ctx context.Context, revisionTx uint64) (bool, bool, error) {
 	ctx, span := tracer.Start(ctx, "checkValidTransaction")
 	defer span.End()
 
@@ -164,7 +164,7 @@ func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint
 	return freshEnough.Bool, unknown.Bool, nil
 }
 
-func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx, metadata map[string]any) (newTxnID uint64, err error) {
+func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx, metadata map[string]any) (newTxnID uint64, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 

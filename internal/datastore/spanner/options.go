@@ -39,6 +39,7 @@ const (
 
 type spannerOptions struct {
 	watchBufferLength           uint16
+	watchBufferMaximumSize      uint64
 	watchBufferWriteTimeout     time.Duration
 	revisionQuantization        time.Duration
 	followerReadDelay           time.Duration
@@ -148,6 +149,12 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 // after which the caller to the watch will be disconnected.
 func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
 	return func(so *spannerOptions) { so.watchBufferWriteTimeout = watchBufferWriteTimeout }
+}
+
+// WatchBufferMaximumSize is the maximum size in bytes of the watch buffer.
+// If this value is exceeded the caller will receive an error.
+func WatchBufferMaximumSize(maxSize uint64) Option {
+	return func(so *spannerOptions) { so.watchBufferMaximumSize = maxSize }
 }
 
 // RevisionQuantization is the time bucket size to which advertised revisions
