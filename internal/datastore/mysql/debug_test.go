@@ -80,7 +80,7 @@ func TestParseExplain(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			parsed, err := (&Datastore{}).ParseExplain(tc.input)
+			parsed, err := (&mysqlDatastore{}).ParseExplain(tc.input)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)

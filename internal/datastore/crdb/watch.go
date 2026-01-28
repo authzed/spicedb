@@ -70,7 +70,7 @@ type changeDetails struct {
 
 func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := options.WatchBufferLength
-	if watchBufferLength <= 0 {
+	if watchBufferLength == 0 {
 		watchBufferLength = cds.watchBufferLength
 	}
 
@@ -344,7 +344,12 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 			content:    opts.Content,
 		}
 	} else {
-		tracked = common.NewChanges(revisions.HLCKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)
+		watchBufferSize := opts.MaximumBufferedChangesByteSize
+		if watchBufferSize == 0 {
+			watchBufferSize = cds.watchChangeBufferMaximumSize
+		}
+
+		tracked = common.NewChanges(revisions.HLCKeyFunc, opts.Content, watchBufferSize)
 	}
 
 	for changes.Next() {

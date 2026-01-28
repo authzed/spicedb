@@ -33,7 +33,7 @@ const (
 )
 
 // Implement TestableDatastore interface
-func (mds *Datastore) ExampleRetryableError() error {
+func (mds *mysqlDatastore) ExampleRetryableError() error {
 	return &mysql.MySQLError{
 		Number: errMysqlDeadlock,
 	}
@@ -152,8 +152,8 @@ func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 }
 
 func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) {
-	mds := ds.(*Datastore)
-	mds2 := ds2.(*Datastore)
+	mds := ds.(*mysqlDatastore)
+	mds2 := ds2.(*mysqlDatastore)
 
 	// Acquire a lock.
 	ctx := context.Background()
@@ -194,7 +194,7 @@ func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
 
 	// ensure datastore is seeded right after initialization
 	ctx := context.Background()
-	isSeeded, err := ds.(*Datastore).isSeeded(ctx)
+	isSeeded, err := ds.(*mysqlDatastore).isSeeded(ctx)
 	req.NoError(err)
 	req.True(isSeeded, "expected datastore to be seeded after initialization")
 
@@ -247,7 +247,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed.
-	mds := ds.(*Datastore)
+	mds := ds.(*mysqlDatastore)
 
 	mgg, err := mds.BuildGarbageCollector(ctx)
 	req.NoError(err)
@@ -391,7 +391,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	})
 	req.NoError(err)
 
-	mds := ds.(*Datastore)
+	mds := ds.(*mysqlDatastore)
 
 	mgg, err := mds.BuildGarbageCollector(ctx)
 	req.NoError(err)
@@ -537,7 +537,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	})
 	req.NoError(err)
 
-	mds := ds.(*Datastore)
+	mds := ds.(*mysqlDatastore)
 
 	mgg, err := mds.BuildGarbageCollector(ctx)
 	req.NoError(err)
@@ -679,7 +679,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				require.NoError(err)
 				return ds
 			})
-			mds := ds.(*Datastore)
+			mds := ds.(*mysqlDatastore)
 
 			mgg, err := mds.BuildGarbageCollector(ctx)
 			require.NoError(err)
@@ -733,7 +733,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 
 	// Setting db default time zone to before UTC
 	ctx := context.Background()
-	db := ds.(*Datastore).db
+	db := ds.(*mysqlDatastore).db
 	_, err := db.ExecContext(ctx, "SET GLOBAL time_zone = 'America/New_York';")
 	req.NoError(err)
 
@@ -742,7 +742,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 
 	// Get timestamp in UTC as reference
-	mgg, err := ds.(*Datastore).BuildGarbageCollector(ctx)
+	mgg, err := ds.(*mysqlDatastore).BuildGarbageCollector(ctx)
 	req.NoError(err)
 	defer mgg.Close()
 
@@ -752,13 +752,13 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	// Transaction timestamp should not be stored in system time zone
 	tx, err := db.BeginTx(ctx, nil)
 	req.NoError(err)
-	txID, err := ds.(*Datastore).createNewTransaction(ctx, tx, nil)
+	txID, err := ds.(*mysqlDatastore).createNewTransaction(ctx, tx, nil)
 	req.NoError(err)
 	err = tx.Commit()
 	req.NoError(err)
 
 	var ts time.Time
-	query, args, err := sb.Select(colTimestamp).From(ds.(*Datastore).driver.RelationTupleTransaction()).Where(sq.Eq{colID: txID}).ToSql()
+	query, args, err := sb.Select(colTimestamp).From(ds.(*mysqlDatastore).driver.RelationTupleTransaction()).Where(sq.Eq{colID: txID}).ToSql()
 	req.NoError(err)
 	err = db.QueryRowContext(ctx, query, args...).Scan(&ts)
 	req.NoError(err)

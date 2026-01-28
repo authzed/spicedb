@@ -450,7 +450,7 @@ func TestDefinition(t *testing.T) {
 
 			ctx := t.Context()
 
-			predefinedNamespaces := make([]*core.NamespaceDefinition, 0)
+			predefinedNamespaces := make([]*core.NamespaceDefinition, 0, 1+len(tc.otherNamespaces))
 			predefinedNamespaces = append(predefinedNamespaces, tc.toCheck)
 			predefinedNamespaces = append(predefinedNamespaces, tc.otherNamespaces...)
 			resolver := ResolverForPredefinedDefinitions(PredefinedElements{Definitions: predefinedNamespaces, Caveats: tc.caveats})

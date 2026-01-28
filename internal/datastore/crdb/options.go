@@ -16,6 +16,7 @@ type crdbOptions struct {
 	connectRate                 time.Duration
 
 	watchBufferLength              uint16
+	watchChangeBufferMaximumSize   uint64
 	watchBufferWriteTimeout        time.Duration
 	watchConnectTimeout            time.Duration
 	revisionQuantization           time.Duration
@@ -262,6 +263,12 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 // after which the caller to the watch will be disconnected.
 func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
 	return func(po *crdbOptions) { po.watchBufferWriteTimeout = watchBufferWriteTimeout }
+}
+
+// WatchBufferMaximumSize is the maximum size in bytes of the watch buffer.
+// If this value is exceeded the caller will receive an error.
+func WatchChangeBufferMaximumSize(maxSize uint64) Option {
+	return func(po *crdbOptions) { po.watchChangeBufferMaximumSize = maxSize }
 }
 
 // WatchConnectTimeout is the maximum timeout for connecting the watch stream

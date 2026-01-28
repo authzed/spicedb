@@ -19,17 +19,17 @@ type input struct {
 }
 
 // See: https://dev.mysql.com/doc/refman/8.4/en/explain.html
-func (mds *Datastore) PreExplainStatements() []string {
+func (mds *mysqlDatastore) PreExplainStatements() []string {
 	return []string{
 		"SET @@explain_json_format_version = 2;",
 	}
 }
 
-func (mds *Datastore) BuildExplainQuery(sql string, args []any) (string, []any, error) {
+func (mds *mysqlDatastore) BuildExplainQuery(sql string, args []any) (string, []any, error) {
 	return "EXPLAIN FORMAT=JSON " + sql, args, nil
 }
 
-func (mds *Datastore) ParseExplain(explainJSON string) (datastore.ParsedExplain, error) {
+func (mds *mysqlDatastore) ParseExplain(explainJSON string) (datastore.ParsedExplain, error) {
 	// Unmarshal the explain JSON.
 	parsed := explain{}
 	if err := json.Unmarshal([]byte(explainJSON), &parsed); err != nil {
@@ -49,4 +49,4 @@ func (mds *Datastore) ParseExplain(explainJSON string) (datastore.ParsedExplain,
 	}, nil
 }
 
-var _ datastore.SQLDatastore = &Datastore{}
+var _ datastore.SQLDatastore = &mysqlDatastore{}

@@ -85,9 +85,10 @@ type spannerDatastore struct {
 	revisions.CommonDecoder
 	*common.MigrationValidator
 
-	watchBufferLength       uint16
-	watchBufferWriteTimeout time.Duration
-	watchEnabled            bool
+	watchBufferLength            uint16
+	watchChangeBufferMaximumSize uint64
+	watchBufferWriteTimeout      time.Duration
+	watchEnabled                 bool
 
 	client   *spanner.Client
 	config   spannerOptions

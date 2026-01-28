@@ -261,18 +261,19 @@ type crdbDatastore struct {
 	revisions.CommonDecoder
 	*common.MigrationValidator
 
-	dburl                   string
-	readPool, writePool     *pool.RetryPool
-	collectors              []prometheus.Collector
-	watchBufferLength       uint16
-	watchBufferWriteTimeout time.Duration
-	watchConnectTimeout     time.Duration
-	writeOverlapKeyer       overlapKeyer
-	overlapKeyInit          func(ctx context.Context) keySet
-	analyzeBeforeStatistics bool
-	gcWindow                time.Duration
-	schema                  common.SchemaInformation
-	acquireTimeout          time.Duration
+	dburl                        string
+	readPool, writePool          *pool.RetryPool
+	collectors                   []prometheus.Collector
+	watchBufferLength            uint16
+	watchChangeBufferMaximumSize uint64
+	watchBufferWriteTimeout      time.Duration
+	watchConnectTimeout          time.Duration
+	writeOverlapKeyer            overlapKeyer
+	overlapKeyInit               func(ctx context.Context) keySet
+	analyzeBeforeStatistics      bool
+	gcWindow                     time.Duration
+	schema                       common.SchemaInformation
+	acquireTimeout               time.Duration
 
 	beginChangefeedQuery string
 	transactionNowQuery  string
