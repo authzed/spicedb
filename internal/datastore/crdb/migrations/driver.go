@@ -15,8 +15,6 @@ import (
 const (
 	errUnableToInstantiate = "unable to instantiate CRDBDriver: %w"
 
-	postgresMissingTableErrorCode = "42P01"
-
 	queryLoadVersion  = "SELECT version_num from schema_version"
 	queryWriteVersion = "UPDATE schema_version SET version_num=$1 WHERE version_num=$2"
 )
@@ -52,7 +50,7 @@ func (apd *CRDBDriver) Version(ctx context.Context) (string, error) {
 
 	if err := apd.db.QueryRow(ctx, queryLoadVersion).Scan(&loaded); err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == postgresMissingTableErrorCode {
+		if errors.As(err, &pgErr) && pgErr.Code == pgxcommon.PgMissingTable {
 			return "", nil
 		}
 		return "", fmt.Errorf("unable to load alembic revision: %w", err)
