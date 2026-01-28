@@ -200,17 +200,9 @@ func (a *Alias) ID() string {
 }
 
 func (a *Alias) ResourceType() (ObjectType, error) {
-	// Get the type from the wrapped iterator but use the alias relation
-	subType, err := a.subIt.ResourceType()
-	if err != nil {
-		return ObjectType{}, err
-	}
-	return ObjectType{
-		Type: subType.Type,
-	}, nil
+	return a.subIt.ResourceType()
 }
 
 func (a *Alias) SubjectTypes() ([]ObjectType, error) {
-	// Subject types are unchanged by aliasing
 	return a.subIt.SubjectTypes()
 }

@@ -761,7 +761,6 @@ func TestAlias_Types(t *testing.T) {
 		resourceType, err := alias.ResourceType()
 		require.NoError(err)
 		require.Equal("document", resourceType.Type)
-		require.Equal("admin", resourceType.Subrelation) // Alias changes the relation name
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {

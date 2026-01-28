@@ -114,7 +114,6 @@ func collectAndDeduplicateSubjectTypes(iterators []Iterator) ([]ObjectType, erro
 	}
 	set := mapz.NewSet[string]()
 
-	seen := make(map[string]bool)
 	var result []ObjectType
 
 	for _, it := range iterators {
@@ -123,10 +122,9 @@ func collectAndDeduplicateSubjectTypes(iterators []Iterator) ([]ObjectType, erro
 			return nil, err
 		}
 		for _, st := range subjectTypes {
-			set.Add(st.String())
-			key := st.Type + "#" + st.Subrelation
-			if !seen[key] {
-				seen[key] = true
+			key := st.String()
+			if !set.Has(key) {
+				set.Add(st.String())
 				result = append(result, st)
 			}
 		}

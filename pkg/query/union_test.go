@@ -19,15 +19,12 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_Union", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a union of different access patterns
-		union := NewUnion()
-
 		// Add different iterators with distinct data sets
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
-		union.addSubIterator(documentAccess)
-		union.addSubIterator(multiRole)
+		// Create a union of different access patterns
+		union := NewUnion(documentAccess, multiRole)
 
 		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -70,10 +67,8 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.addSubIterator(documentAccess)
+		union := NewUnion(documentAccess)
 
 		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -92,10 +87,8 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.addSubIterator(documentAccess)
+		union := NewUnion(documentAccess)
 
 		pathSeq, err := ctx.Check(union, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -108,16 +101,13 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EarlyTermination", func(t *testing.T) {
 		t.Parallel()
 
-		// Test the optimization where union stops checking remaining resources
-		// once all have been found by earlier sub-iterators
-		union := NewUnion()
-
 		// Add iterators that might find the same resource
 		documentAccess := NewDocumentAccessFixedIterator()
 		singleUser := NewSingleUserFixedIterator("alice")
 
-		union.addSubIterator(documentAccess)
-		union.addSubIterator(singleUser)
+		// Test the optimization where union stops checking remaining resources
+		// once all have been found by earlier sub-iterators
+		union := NewUnion(documentAccess, singleUser)
 
 		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -132,10 +122,8 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		documentAccess := NewDocumentAccessFixedIterator()
-		union.addSubIterator(documentAccess)
+		union := NewUnion(documentAccess)
 
 		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
@@ -149,14 +137,11 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
-		union.addSubIterator(documentAccess)
-		union.addSubIterator(multiRole)
+		union := NewUnion(documentAccess, multiRole)
 
 		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"))
 		require.NoError(err)
@@ -181,14 +166,10 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
-		union := NewUnion()
-
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
-
-		union.addSubIterator(documentAccess)
-		union.addSubIterator(multiRole)
+		union := NewUnion(documentAccess, multiRole)
 
 		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -848,9 +829,7 @@ func TestUnion_Types(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		union := NewUnion()
-		union.addSubIterator(iter1)
-		union.addSubIterator(iter2)
+		union := NewUnion(iter1, iter2)
 
 		resourceType, err := union.ResourceType()
 		require.NoError(err)
@@ -880,9 +859,7 @@ func TestUnion_Types(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		union := NewUnion()
-		union.addSubIterator(iter1)
-		union.addSubIterator(iter2)
+		union := NewUnion(iter1, iter2)
 
 		subjectTypes, err := union.SubjectTypes()
 		require.NoError(err)
@@ -909,9 +886,7 @@ func TestUnion_Types(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		union := NewUnion()
-		union.addSubIterator(iter1)
-		union.addSubIterator(iter2)
+		union := NewUnion(iter1, iter2)
 
 		subjectTypes, err := union.SubjectTypes()
 		require.NoError(err)
@@ -940,9 +915,7 @@ func TestUnion_Types(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		union := NewUnion()
-		union.addSubIterator(iter1)
-		union.addSubIterator(iter2)
+		union := NewUnion(iter1, iter2)
 
 		// This should panic in tests (via MustBugf)
 		require.Panics(func() {

@@ -10,21 +10,20 @@ import (
 // Resource in the subiterator that connects it to
 // streamed from the sub-iterator to a specified alias relation.
 type Self struct {
-	id string
-	// relation is the name of the permission that uses the self keyword,
-	// and is used because otherwise "self" doesn't have an associated relation,
-	// as it's purely checking whether the subject and object are the same.
-	relation     string
-	resourceType ObjectType
+	id       string
+	relation string
+	// typeName is the name of the type associated with the self definition.
+	// It's used to generate the ObjectType for ResourceType() and SubjectTypes().
+	typeName string
 }
 
 var _ Iterator = &Self{}
 
-func NewSelf(relation string, resourceType ObjectType) *Self {
+func NewSelf(relation string, typeName string) *Self {
 	return &Self{
-		id:           uuid.NewString(),
-		relation:     relation,
-		resourceType: resourceType,
+		id:       uuid.NewString(),
+		relation: relation,
+		typeName: typeName,
 	}
 }
 
@@ -73,9 +72,9 @@ func (s *Self) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathS
 
 func (s *Self) Clone() Iterator {
 	return &Self{
-		id:           uuid.NewString(),
-		relation:     s.relation,
-		resourceType: s.resourceType,
+		id:       uuid.NewString(),
+		relation: s.relation,
+		typeName: s.typeName,
 	}
 }
 
@@ -99,10 +98,10 @@ func (s *Self) ID() string {
 }
 
 func (s *Self) ResourceType() (ObjectType, error) {
-	return s.resourceType, nil
+	return ObjectType{Type: s.typeName}, nil
 }
 
 func (s *Self) SubjectTypes() ([]ObjectType, error) {
 	// Self is self-referential - subjects are the same type as resources
-	return []ObjectType{s.resourceType}, nil
+	return []ObjectType{{Type: s.typeName}}, nil
 }

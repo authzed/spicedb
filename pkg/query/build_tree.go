@@ -174,11 +174,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return NewFixedIterator(), nil
 
 	case *schema.SelfReference:
-		resourceType := ObjectType{
-			Type:        p.Parent().Name(),
-			Subrelation: p.Name(),
-		}
-		return NewSelf(p.Name(), resourceType), nil
+		return NewSelf(p.Name(), p.Parent().Name()), nil
 
 	case *schema.RelationReference:
 		return b.buildIteratorFromSchemaInternal(p.Parent().Name(), perm.RelationName(), true)
