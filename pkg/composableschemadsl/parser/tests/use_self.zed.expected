@@ -72,32 +72,37 @@ NodeTypeFile
                   input-source = self test
                   start-rune = 125
                   left-expr =>
-                    NodeTypeUnionExpression
-                      end-rune = 137
+                    NodeTypeParenthesizedExpression
+                      end-rune = 138
                       input-source = self test
-                      start-rune = 126
-                      left-expr =>
+                      start-rune = 125
+                      inner-expr =>
                         NodeTypeUnionExpression
-                          end-rune = 130
+                          end-rune = 137
                           input-source = self test
                           start-rune = 126
                           left-expr =>
-                            NodeTypeIdentifier
-                              end-rune = 126
-                              identifier-value = a
+                            NodeTypeUnionExpression
+                              end-rune = 130
                               input-source = self test
                               start-rune = 126
+                              left-expr =>
+                                NodeTypeIdentifier
+                                  end-rune = 126
+                                  identifier-value = a
+                                  input-source = self test
+                                  start-rune = 126
+                              right-expr =>
+                                NodeTypeIdentifier
+                                  end-rune = 130
+                                  identifier-value = b
+                                  input-source = self test
+                                  start-rune = 130
                           right-expr =>
-                            NodeTypeIdentifier
-                              end-rune = 130
-                              identifier-value = b
+                            NodeTypeSelfExpression
+                              end-rune = 137
                               input-source = self test
-                              start-rune = 130
-                      right-expr =>
-                        NodeTypeSelfExpression
-                          end-rune = 137
-                          input-source = self test
-                          start-rune = 134
+                              start-rune = 134
                   right-expr =>
                     NodeTypeIdentifier
                       end-rune = 142
