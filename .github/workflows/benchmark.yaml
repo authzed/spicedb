@@ -11,7 +11,7 @@ permissions:
 jobs:
   benchmarks:
     name: "Run Go benchmarks on Main"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-8" # same as build-test.yaml
     timeout-minutes: 15
     steps:
       - uses: "actions/checkout@v6"
@@ -43,14 +43,9 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
           comment-on-alert: true
 
-      - name: "Get CPU information"
-        uses: "kenchan0130/actions-system-info@master"
-        id: "system-info"
-
       - name: "Save benchmark JSON"
         uses: "actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb" # v5.0.1
         with:
           path: "./cache/benchmark-data.json"
           # Save with commit hash to avoid "cache already exists"
-          # Save with OS & CPU info to prevent comparing against results from different CPUs
-          key: "${{ github.sha }}-${{ runner.os }}-${{ steps.system-info.outputs.cpu-model }}-go-benchmark"
+          key: "${{ github.sha }}-${{ runner.os }}-go-benchmark"
