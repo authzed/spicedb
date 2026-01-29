@@ -4,9 +4,11 @@ on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
+  # NOTE! Do NOT add any other "on", because this workflow has permission to write to the repo!
 
 permissions:
-  contents: "read"
+  # permission to update benchmark contents in gh-pages branch
+  contents: "write"
 
 jobs:
   benchmarks:
@@ -42,6 +44,18 @@ jobs:
           fail-on-alert: true
           github-token: "${{ secrets.GITHUB_TOKEN }}"
           comment-on-alert: true
+
+      - name: "Publish to gh-pages. See https://authzed.github.io/spicedb/dev/bench/"
+        uses: "benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b" # v1.20.7
+        with:
+          # What benchmark tool the output.txt came from
+          tool: "go"
+          # Where the output from the benchmark tool is stored
+          output-file-path: "bench_output.txt"
+          gh-pages-branch: "gh-pages"
+          auto-push: "true"
+          # auto-push requires token
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: "Save benchmark JSON"
         uses: "actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb" # v5.0.1
