@@ -5,7 +5,6 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/google/uuid"
 )
 
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
@@ -112,44 +111,67 @@ func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectTyp
 		return nil, err
 	}
 
-	// Check if we should add a self-edge by testing if the resource (as a subject)
-	// exists in the datastore. We do this by calling IterResources on the sub-iterator
-	// with the resource as the subject. If it returns anything, the resource exists
-	// as a subject and we should add the self-edge.
-	shouldAddSelfEdge := false
+	// Check if we should add a self-edge based on identity semantics.
+	// The dispatcher Check includes an identity check (see filterForFoundMemberResource
+	// in internal/graph/check.go): if the resource (with relation) matches the subject
+	// exactly, it returns MEMBER. This only applies if the resource actually appears
+	// as a subject in the data and the filter allows it.
+	shouldAddSelfEdge := a.shouldIncludeSelfEdge(ctx, resource, filterSubjectType)
 
-	// Only check if the filter allows this resource type as a subject
+	return a.maybePrependSelfEdge(resource, subSeq, shouldAddSelfEdge), nil
+}
+
+// shouldIncludeSelfEdge checks if a self-edge should be included for the given resource.
+// This matches the dispatcher's identity check behavior: if resource#relation appears as
+// a subject anywhere in the datastore (expired or not), and the filter allows it, we
+// include a self-edge in the results.
+func (a *Alias) shouldIncludeSelfEdge(ctx *Context, resource Object, filterSubjectType ObjectType) bool {
+	// First check: does the filter allow this resource type as a subject?
 	typeMatches := filterSubjectType.Type == "" || filterSubjectType.Type == resource.ObjectType
 	relationMatches := filterSubjectType.Subrelation == "" || filterSubjectType.Subrelation == a.relation
-
-	if typeMatches && relationMatches && ctx.Reader != nil {
-		// Test if resource#relation exists as a subject by querying the datastore directly
-		// We check if there are ANY relationships where resource#relation appears as the subject
-		filter := datastore.RelationshipsFilter{
-			OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
-				OptionalSubjectType: resource.ObjectType,
-				OptionalSubjectIds:  []string{resource.ObjectID},
-				RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(a.relation),
-			}},
-		}
-
-		iter, err := ctx.Reader.QueryRelationships(ctx, filter, options.WithLimit(options.LimitOne))
-		if err != nil {
-			return nil, err
-		}
-
-		// If the query returns any relationship, the resource exists as a subject
-		for _, err := range iter {
-			if err != nil {
-				return nil, err
-			}
-			shouldAddSelfEdge = true
-			break
-		}
+	if !typeMatches || !relationMatches || ctx.Reader == nil {
+		return false
 	}
 
-	// Use the helper method that prepends self-edge if needed
-	return a.maybePrependSelfEdge(resource, subSeq, shouldAddSelfEdge), nil
+	// Second check: does the resource actually appear as a subject in the data?
+	// We check for ANY relationships (expired or not) because the dispatcher's
+	// identity check applies regardless of expiration.
+	exists, err := a.resourceExistsAsSubject(ctx, resource)
+	if err != nil {
+		// On error, conservatively return false rather than failing the entire operation
+		return false
+	}
+	return exists
+}
+
+// resourceExistsAsSubject queries the datastore to check if the given resource appears
+// as a subject in any relationship, including expired relationships.
+func (a *Alias) resourceExistsAsSubject(ctx *Context, resource Object) (bool, error) {
+	filter := datastore.RelationshipsFilter{
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
+			OptionalSubjectType: resource.ObjectType,
+			OptionalSubjectIds:  []string{resource.ObjectID},
+			RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(a.relation),
+		}},
+		OptionalExpirationOption: datastore.ExpirationFilterOptionNone,
+	}
+
+	iter, err := ctx.Reader.QueryRelationships(ctx, filter,
+		options.WithLimit(options.LimitOne),
+		options.WithSkipExpiration(true)) // Include expired relationships
+	if err != nil {
+		return false, err
+	}
+
+	// Check if any relationship exists
+	for _, err := range iter {
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
