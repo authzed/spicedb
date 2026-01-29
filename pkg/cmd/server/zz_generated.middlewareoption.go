@@ -46,8 +46,6 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.MismatchingZedTokenOption = m.MismatchingZedTokenOption
 		to.MemoryUsageProvider = m.MemoryUsageProvider
 		to.ReadinessChecker = m.ReadinessChecker
-		to.unaryDatastoreMiddleware = m.unaryDatastoreMiddleware
-		to.streamDatastoreMiddleware = m.streamDatastoreMiddleware
 	}
 }
 
