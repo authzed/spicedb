@@ -12,6 +12,7 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/spf13/pflag"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/mysql"
@@ -171,6 +172,7 @@ type Config struct {
 
 	// Internal
 	WatchBufferLength       uint16        `debugmap:"visible"`
+	WatchBufferMaximumSize  string        `debugmap:"visible"`
 	WatchBufferWriteTimeout time.Duration `debugmap:"visible"`
 	WatchConnectTimeout     time.Duration `debugmap:"visible"`
 	DisableWatchSupport     bool          `debugmap:"hidden"`
@@ -300,6 +302,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
+	flagSet.StringVar(&opts.WatchBufferMaximumSize, flagName("datastore-watch-buffer-maximum-size"), "", "how much memory to reserve for the watch buffer, either as a humanized byte string value or a percentage")
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
 	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (CockroachDB driver only)")
 	flagSet.BoolVar(&opts.DisableWatchSupport, flagName("datastore-disable-watch-support"), false, "disable watch support (only enable if you absolutely do not need watch)")
@@ -533,6 +536,11 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}
 
+	watchBufferMaximumSize, err := common.WatchBufferSize(opts.WatchBufferMaximumSize)
+	if err != nil {
+		return nil, err
+	}
+
 	return crdb.NewCRDBDatastore(
 		ctx,
 		opts.URI,
@@ -557,6 +565,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
+		crdb.WatchBufferMaximumSize(watchBufferMaximumSize),
 		crdb.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		crdb.WatchConnectTimeout(opts.WatchConnectTimeout),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
@@ -603,12 +612,18 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}
 
+	watchBufferMaximumSize, err := common.WatchBufferSize(opts.WatchBufferMaximumSize)
+	if err != nil {
+		return nil, err
+	}
+
 	return []postgres.Option{
 		postgres.EnableTracing(),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(maxRetries),
 		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		postgres.WithColumnOptimization(opts.ExperimentalColumnOptimization),
+		postgres.WatchBufferMaximumSize(watchBufferMaximumSize),
 		postgres.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 	}, nil
 }
@@ -682,6 +697,11 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		metricsOption = spanner.DatastoreMetricsOptionNone
 	}
 
+	watchBufferMaximumSize, err := common.WatchBufferSize(opts.WatchBufferMaximumSize)
+	if err != nil {
+		return nil, err
+	}
+
 	return spanner.NewSpannerDatastore(
 		ctx,
 		opts.URI,
@@ -691,6 +711,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 		spanner.CredentialsJSON(opts.SpannerCredentialsJSON),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
+		spanner.WatchBufferMaximumSize(watchBufferMaximumSize),
 		spanner.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 		spanner.DisableStats(opts.DisableStats),
@@ -739,11 +760,19 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}
 
+	watchBufferMaximumSize, err := common.WatchBufferSize(opts.WatchBufferMaximumSize)
+	if err != nil {
+		return nil, err
+	}
+
 	return []mysql.Option{
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.MaxRetries(maxRetries),
 		mysql.OverrideLockWaitTimeout(1),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		mysql.WatchBufferLength(opts.WatchBufferLength),
+		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
+		mysql.WatchBufferMaximumSize(watchBufferMaximumSize),
 		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),
@@ -757,8 +786,6 @@ func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaU
 		mysql.MaxOpenConns(opts.ReadReplicaConnPool.MaxOpenConns),
 		mysql.ConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
-		mysql.WatchBufferLength(opts.WatchBufferLength),
-		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		mysql.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
 	}
 
@@ -780,8 +807,6 @@ func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datas
 		mysql.MaxOpenConns(opts.ReadConnPool.MaxOpenConns),
 		mysql.ConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
-		mysql.WatchBufferLength(opts.WatchBufferLength),
-		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		mysql.WithWatchDisabled(opts.DisableWatchSupport),
 		mysql.CredentialsProviderName(opts.CredentialsProviderName),
 		mysql.FollowerReadDelay(opts.FollowerReadDelay),

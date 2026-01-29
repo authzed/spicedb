@@ -86,6 +86,7 @@ type spannerDatastore struct {
 	*common.MigrationValidator
 
 	watchBufferLength       uint16
+	watchBufferMaximumSize  uint64
 	watchBufferWriteTimeout time.Duration
 	watchEnabled            bool
 

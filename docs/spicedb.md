@@ -123,6 +123,7 @@ spicedb datastore gc [flags]
       --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
       --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
+      --datastore-watch-buffer-maximum-size string                            how much memory to reserve for the watch buffer, either as a humanized byte string value or a percentage
       --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-connect-timeout duration                              how long the watch connection should wait before timing out (CockroachDB driver only) (default 1s)
       --otel-endpoint string                                                  OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
@@ -288,6 +289,7 @@ spicedb datastore repair [flags]
       --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
       --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
+      --datastore-watch-buffer-maximum-size string                            how much memory to reserve for the watch buffer, either as a humanized byte string value or a percentage
       --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-connect-timeout duration                              how long the watch connection should wait before timing out (CockroachDB driver only) (default 1s)
       --otel-endpoint string                                                  OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
@@ -476,6 +478,7 @@ spicedb serve [flags]
       --datastore-tx-overlap-key string                                                 static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                            strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
       --datastore-watch-buffer-length uint16                                            how large the watch buffer should be before blocking (default 1024)
+      --datastore-watch-buffer-maximum-size string                                      how much memory to reserve for the watch buffer, either as a humanized byte string value or a percentage
       --datastore-watch-buffer-write-timeout duration                                   how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-connect-timeout duration                                        how long the watch connection should wait before timing out (CockroachDB driver only) (default 1s)
       --disable-version-response                                                        disables version response support in the API

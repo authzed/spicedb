@@ -40,6 +40,7 @@ type mysqlOptions struct {
 	maxRevisionStalenessPercent float64
 	followerReadDelay           time.Duration
 	watchBufferLength           uint16
+	watchBufferMaximumSize      uint64
 	watchBufferWriteTimeout     time.Duration
 	tablePrefix                 string
 	enablePrometheusStats       bool
@@ -118,6 +119,12 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 // after which the caller to the watch will be disconnected.
 func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
 	return func(mo *mysqlOptions) { mo.watchBufferWriteTimeout = watchBufferWriteTimeout }
+}
+
+// WatchBufferMaximumSize is the maximum size in bytes of the watch buffer.
+// If this value is exceeded the caller will receive an error.
+func WatchBufferMaximumSize(maxSize uint64) Option {
+	return func(mo *mysqlOptions) { mo.watchBufferMaximumSize = maxSize }
 }
 
 // RevisionQuantization is the time bucket size to which advertised

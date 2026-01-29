@@ -16,28 +16,28 @@ import (
 )
 
 var (
-	_ common.GarbageCollectableDatastore = (*Datastore)(nil)
+	_ common.GarbageCollectableDatastore = (*mysqlDatastore)(nil)
 	_ common.GarbageCollector            = (*mysqlGarbageCollector)(nil)
 )
 
 type mysqlGarbageCollector struct {
-	mds      *Datastore
+	mds      *mysqlDatastore
 	isClosed bool
 }
 
-func (mds *Datastore) BuildGarbageCollector(ctx context.Context) (common.GarbageCollector, error) {
+func (mds *mysqlDatastore) BuildGarbageCollector(ctx context.Context) (common.GarbageCollector, error) {
 	return &mysqlGarbageCollector{mds: mds, isClosed: false}, nil
 }
 
-func (mds *Datastore) HasGCRun() bool {
+func (mds *mysqlDatastore) HasGCRun() bool {
 	return mds.gcHasRun.Load()
 }
 
-func (mds *Datastore) MarkGCCompleted() {
+func (mds *mysqlDatastore) MarkGCCompleted() {
 	mds.gcHasRun.Store(true)
 }
 
-func (mds *Datastore) ResetGCCompleted() {
+func (mds *mysqlDatastore) ResetGCCompleted() {
 	mds.gcHasRun.Store(false)
 }
 

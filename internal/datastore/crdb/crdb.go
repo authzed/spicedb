@@ -265,6 +265,7 @@ type crdbDatastore struct {
 	readPool, writePool     *pool.RetryPool
 	collectors              []prometheus.Collector
 	watchBufferLength       uint16
+	watchBufferMaximumSize  uint64
 	watchBufferWriteTimeout time.Duration
 	watchConnectTimeout     time.Duration
 	writeOverlapKeyer       overlapKeyer

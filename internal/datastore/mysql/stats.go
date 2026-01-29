@@ -22,7 +22,7 @@ const (
 	metadataUniqueIDColumn = "unique_id"
 )
 
-func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+func (mds *mysqlDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	if mds.analyzeBeforeStats {
 		_, err := mds.db.ExecContext(ctx, "ANALYZE TABLE "+mds.driver.RelationTuple())
 		if err != nil {
@@ -88,7 +88,7 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	}, nil
 }
 
-func (mds *Datastore) UniqueID(ctx context.Context) (string, error) {
+func (mds *mysqlDatastore) UniqueID(ctx context.Context) (string, error) {
 	if mds.uniqueID.Load() == nil {
 		sql, args, err := sb.Select(metadataUniqueIDColumn).From(mds.driver.Metadata()).ToSql()
 		if err != nil {
