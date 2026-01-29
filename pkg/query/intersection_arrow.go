@@ -34,7 +34,7 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 		for _, resource := range resources {
 			ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
 
-			subit, err := ctx.IterSubjects(ia.left, resource)
+			subit, err := ctx.IterSubjects(ia.left, resource, NoObjectFilter())
 			if err != nil {
 				yield(Path{}, err)
 				return
@@ -149,12 +149,12 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 	}, nil
 }
 
-func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// IntersectionArrow: ALL left subjects must satisfy the right side
 	ctx.TraceStep(ia, "iterating subjects for resource %s:%s", resource.ObjectType, resource.ObjectID)
 
 	// Get all left subjects
-	leftSeq, err := ctx.IterSubjects(ia.left, resource)
+	leftSeq, err := ctx.IterSubjects(ia.left, resource, NoObjectFilter())
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (Pa
 		leftSubjectAsResource := GetObject(leftPath.Subject)
 		ctx.TraceStep(ia, "checking right side for left subject %s:%s", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
 
-		rightSeq, err := ctx.IterSubjects(ia.right, leftSubjectAsResource)
+		rightSeq, err := ctx.IterSubjects(ia.right, leftSubjectAsResource, filterSubjectType)
 		if err != nil {
 			return nil, err
 		}
@@ -232,12 +232,12 @@ func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object) (Pa
 	}, nil
 }
 
-func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// IntersectionArrow: ALL left subjects must satisfy the right side
 	ctx.TraceStep(ia, "iterating resources for subject %s:%s", subject.ObjectType, subject.ObjectID)
 
 	// Get all right resources
-	rightSeq, err := ctx.IterResources(ia.right, subject)
+	rightSeq, err := ctx.IterResources(ia.right, subject, NoObjectFilter())
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRe
 		rightResourceAsSubject := rightPath.Resource.WithEllipses()
 		ctx.TraceStep(ia, "looking up left resources for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
 
-		leftSeq, err := ctx.IterResources(ia.left, rightResourceAsSubject)
+		leftSeq, err := ctx.IterResources(ia.left, rightResourceAsSubject, filterResourceType)
 		if err != nil {
 			return nil, err
 		}

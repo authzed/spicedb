@@ -69,7 +69,7 @@ func (a *Arrow) checkLeftToRight(ctx *Context, resources []Object, subject Objec
 		for resourceIdx, resource := range resources {
 			ctx.TraceStep(a, "processing resource %d: %s:%s", resourceIdx, resource.ObjectType, resource.ObjectID)
 
-			subit, err := ctx.IterSubjects(a.left, resource)
+			subit, err := ctx.IterSubjects(a.left, resource, NoObjectFilter())
 			if err != nil {
 				yield(Path{}, err)
 				return
@@ -127,7 +127,7 @@ func (a *Arrow) checkRightToLeft(ctx *Context, resources []Object, subject Objec
 
 		// Strategy: Start from the right side with the target subject
 		// Get all resources that connect to subject on the right side
-		rightSeq, err := ctx.IterResources(a.right, subject)
+		rightSeq, err := ctx.IterResources(a.right, subject, NoObjectFilter())
 		if err != nil {
 			yield(Path{}, err)
 			return
@@ -207,14 +207,14 @@ func combineArrowPaths(leftPath, rightPath Path) Path {
 	}
 }
 
-func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// Arrow: resource -> left subjects -> right subjects
 	// Get subjects from left side, then for each, get subjects from right side
 	return func(yield func(Path, error) bool) {
 		ctx.TraceStep(a, "iterating subjects for resource %s:%s", resource.ObjectType, resource.ObjectID)
 
 		// Get all subjects from the left side
-		leftSeq, err := ctx.IterSubjects(a.left, resource)
+		leftSeq, err := ctx.IterSubjects(a.left, resource, NoObjectFilter())
 		if err != nil {
 			yield(Path{}, err)
 			return
@@ -233,7 +233,7 @@ func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 			leftSubjectAsResource := GetObject(leftPath.Subject)
 			ctx.TraceStep(a, "iterating right side for left subject %s:%s", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
 
-			rightSeq, err := ctx.IterSubjects(a.right, leftSubjectAsResource)
+			rightSeq, err := ctx.IterSubjects(a.right, leftSubjectAsResource, filterSubjectType)
 			if err != nil {
 				yield(Path{}, err)
 				return
@@ -262,14 +262,14 @@ func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 	}, nil
 }
 
-func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// Arrow: resource -> left subjects -> right subjects
 	// Get resources from right side, then for each, get resources from left side
 	return func(yield func(Path, error) bool) {
 		ctx.TraceStep(a, "iterating resources for subject %s:%s", subject.ObjectType, subject.ObjectID)
 
 		// Get all resources from the right side
-		rightSeq, err := ctx.IterResources(a.right, subject)
+		rightSeq, err := ctx.IterResources(a.right, subject, NoObjectFilter())
 		if err != nil {
 			yield(Path{}, err)
 			return
@@ -289,7 +289,7 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (Path
 			rightResourceAsSubject := rightPath.Resource.WithEllipses()
 			ctx.TraceStep(a, "iterating left side for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
 
-			leftSeq, err := ctx.IterResources(a.left, rightResourceAsSubject)
+			leftSeq, err := ctx.IterResources(a.left, rightResourceAsSubject, filterResourceType)
 			if err != nil {
 				yield(Path{}, err)
 				return

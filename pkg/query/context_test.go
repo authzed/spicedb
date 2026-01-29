@@ -221,7 +221,7 @@ func TestContext(t *testing.T) {
 		iterator := NewFixedIterator(testPath)
 
 		require.Panics(func() {
-			_, _ = ctx.IterSubjects(iterator, NewObject("document", "doc1"))
+			_, _ = ctx.IterSubjects(iterator, NewObject("document", "doc1"), NoObjectFilter())
 		})
 	})
 
@@ -237,7 +237,7 @@ func TestContext(t *testing.T) {
 		iterator := NewFixedIterator(testPath)
 
 		require.Panics(func() {
-			_, _ = ctx.IterResources(iterator, NewObject("user", "alice").WithEllipses())
+			_, _ = ctx.IterResources(iterator, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		})
 	})
 
