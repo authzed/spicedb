@@ -68,7 +68,7 @@ func (pgd *pgDatastore) Watch(
 	options datastore.WatchOptions,
 ) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := options.WatchBufferLength
-	if watchBufferLength <= 0 {
+	if watchBufferLength == 0 {
 		watchBufferLength = pgd.watchBufferLength
 	}
 
@@ -252,7 +252,12 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 	filter := make(map[uint64]int, len(revisions))
 	txidToRevision := make(map[uint64]postgresRevision, len(revisions))
 
-	tracked := common.NewChanges(revisionKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
+	watchBufferSize := options.MaximumBufferedChangesByteSize
+	if watchBufferSize == 0 {
+		watchBufferSize = pgd.watchChangeBufferMaximumSize
+	}
+
+	tracked := common.NewChanges(revisionKeyFunc, options.Content, watchBufferSize)
 
 	for i, rev := range revisions {
 		if rev.optionalTxID.Uint64 < xmin {

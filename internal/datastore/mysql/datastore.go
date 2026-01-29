@@ -126,7 +126,7 @@ func NewReadOnlyMySQLDatastore(
 	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
-func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, options ...Option) (*Datastore, error) {
+func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, options ...Option) (*mysqlDatastore, error) {
 	isPrimary := replicaIndex == primaryInstanceID
 	config, err := generateConfig(options)
 	if err != nil {
@@ -253,30 +253,31 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		common.SetIndexes(indexes),
 	)
 
-	store := &Datastore{
-		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
-		db:                      db,
-		driver:                  driver,
-		collectors:              collectors,
-		url:                     uri,
-		revisionQuantization:    config.revisionQuantization,
-		gcWindow:                config.gcWindow,
-		gcInterval:              config.gcInterval,
-		gcTimeout:               config.gcMaxOperationTime,
-		gcCtx:                   gcCtx,
-		cancelGc:                cancelGc,
-		watchEnabled:            !config.watchDisabled,
-		watchBufferLength:       config.watchBufferLength,
-		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
-		optimizedRevisionQuery:  revisionQuery,
-		validTransactionQuery:   validTransactionQuery,
-		createTxn:               createTxn,
-		createBaseTxn:           createBaseTxn,
-		QueryBuilder:            queryBuilder,
-		readTxOptions:           &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
-		maxRetries:              config.maxRetries,
-		analyzeBeforeStats:      config.analyzeBeforeStats,
-		schema:                  *schema,
+	store := &mysqlDatastore{
+		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		db:                           db,
+		driver:                       driver,
+		collectors:                   collectors,
+		url:                          uri,
+		revisionQuantization:         config.revisionQuantization,
+		gcWindow:                     config.gcWindow,
+		gcInterval:                   config.gcInterval,
+		gcTimeout:                    config.gcMaxOperationTime,
+		gcCtx:                        gcCtx,
+		cancelGc:                     cancelGc,
+		watchEnabled:                 !config.watchDisabled,
+		watchBufferLength:            config.watchBufferLength,
+		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
+		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
+		optimizedRevisionQuery:       revisionQuery,
+		validTransactionQuery:        validTransactionQuery,
+		createTxn:                    createTxn,
+		createBaseTxn:                createBaseTxn,
+		QueryBuilder:                 queryBuilder,
+		readTxOptions:                &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
+		maxRetries:                   config.maxRetries,
+		analyzeBeforeStats:           config.analyzeBeforeStats,
+		schema:                       *schema,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
@@ -316,11 +317,11 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	return store, nil
 }
 
-func (mds *Datastore) MetricsID() (string, error) {
+func (mds *mysqlDatastore) MetricsID() (string, error) {
 	return common.MetricsIDFromURL(mds.url)
 }
 
-func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (mds *mysqlDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
 		if err != nil {
@@ -348,7 +349,7 @@ func noCleanup() error { return nil }
 
 // ReadWriteTx starts a read/write transaction, which will be committed if no error is
 // returned and rolled back if an error is returned.
-func (mds *Datastore) ReadWriteTx(
+func (mds *mysqlDatastore) ReadWriteTx(
 	ctx context.Context,
 	fn datastore.TxUserFunc,
 	opts ...options.RWTOptionsOption,
@@ -472,8 +473,10 @@ func newMySQLExecutor(tx querier, explainable datastore.Explainable) common.Exec
 }
 
 // Datastore is a MySQL-based implementation of the datastore.Datastore interface
-type Datastore struct {
+type mysqlDatastore struct {
+	*revisions.CachedOptimizedRevisions
 	*common.MigrationValidator
+
 	db                 *sql.DB
 	driver             *migrations.MySQLDriver
 	readTxOptions      *sql.TxOptions
@@ -481,16 +484,17 @@ type Datastore struct {
 	analyzeBeforeStats bool
 	collectors         []prometheus.Collector
 
-	revisionQuantization    time.Duration
-	gcWindow                time.Duration
-	gcInterval              time.Duration
-	gcTimeout               time.Duration
-	watchBufferLength       uint16
-	watchBufferWriteTimeout time.Duration
-	watchEnabled            bool
-	maxRetries              uint8
-	filterMaximumIDCount    uint16
-	schema                  common.SchemaInformation
+	revisionQuantization         time.Duration
+	gcWindow                     time.Duration
+	gcInterval                   time.Duration
+	gcTimeout                    time.Duration
+	watchBufferLength            uint16
+	watchChangeBufferMaximumSize uint64
+	watchBufferWriteTimeout      time.Duration
+	watchEnabled                 bool
+	maxRetries                   uint8
+	filterMaximumIDCount         uint16
+	schema                       common.SchemaInformation
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string
@@ -506,12 +510,11 @@ type Datastore struct {
 	uniqueID atomic.Pointer[string]
 
 	*QueryBuilder
-	*revisions.CachedOptimizedRevisions
 	revisions.CommonDecoder
 }
 
 // Close closes the data store.
-func (mds *Datastore) Close() error {
+func (mds *mysqlDatastore) Close() error {
 	mds.driver.Close(context.Background())
 	mds.cancelGc()
 	if mds.gcGroup != nil {
@@ -533,7 +536,7 @@ func (mds *Datastore) Close() error {
 //   - checking if the current migration version is compatible is implemented with IsHeadCompatible
 //   - Database seeding is handled here, so that we can decouple schema migration from data migration
 //     and support skeema-based migrations.
-func (mds *Datastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+func (mds *mysqlDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	if err := mds.db.PingContext(ctx); err != nil {
 		return datastore.ReadyState{}, err
 	}
@@ -561,11 +564,11 @@ func (mds *Datastore) ReadyState(ctx context.Context) (datastore.ReadyState, err
 	return state, nil
 }
 
-func (mds *Datastore) Features(_ context.Context) (*datastore.Features, error) {
+func (mds *mysqlDatastore) Features(_ context.Context) (*datastore.Features, error) {
 	return mds.OfflineFeatures()
 }
 
-func (mds *Datastore) OfflineFeatures() (*datastore.Features, error) {
+func (mds *mysqlDatastore) OfflineFeatures() (*datastore.Features, error) {
 	watchSupported := datastore.FeatureUnsupported
 	if mds.watchEnabled {
 		watchSupported = datastore.FeatureSupported
@@ -588,7 +591,7 @@ func (mds *Datastore) OfflineFeatures() (*datastore.Features, error) {
 }
 
 // isSeeded determines if the backing database has been seeded
-func (mds *Datastore) isSeeded(ctx context.Context) (bool, error) {
+func (mds *mysqlDatastore) isSeeded(ctx context.Context) (bool, error) {
 	headRevision, err := mds.HeadRevision(ctx)
 	if err != nil {
 		return false, err
@@ -606,7 +609,7 @@ func (mds *Datastore) isSeeded(ctx context.Context) (bool, error) {
 }
 
 // seedDatabase initializes the first transaction revision if necessary.
-func (mds *Datastore) seedDatabase(ctx context.Context) error {
+func (mds *mysqlDatastore) seedDatabase(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "seedDatabase")
 	defer span.End()
 

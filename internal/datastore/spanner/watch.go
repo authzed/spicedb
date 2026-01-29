@@ -55,7 +55,7 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 
 func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := opts.WatchBufferLength
-	if watchBufferLength <= 0 {
+	if watchBufferLength == 0 {
 		watchBufferLength = sd.watchBufferLength
 	}
 
@@ -196,6 +196,11 @@ func (sd *spannerDatastore) watch(
 	// but we only want to send them as *one* group.
 	txnBuffer := xsync.NewMap[string, *common.Changes[revisions.TimestampRevision, int64]]()
 
+	watchBufferSize := opts.MaximumBufferedChangesByteSize
+	if watchBufferSize == 0 {
+		watchBufferSize = sd.watchChangeBufferMaximumSize
+	}
+
 	// NOTE: the callback below might be called concurrently across partitions.
 	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
 		// See: https://cloud.google.com/spanner/docs/change-streams/details
@@ -206,7 +211,7 @@ func (sd *spannerDatastore) watch(
 				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
 
 				// Get or create tracked changes for this transaction.
-				tracked, _ := txnBuffer.LoadOrStore(txnID, common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize))
+				tracked, _ := txnBuffer.LoadOrStore(txnID, common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, watchBufferSize))
 
 				// See: https://cloud.google.com/spanner/docs/ttl
 				// > TTL supports auditing its deletions through change streams. Change

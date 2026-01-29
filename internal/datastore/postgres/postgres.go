@@ -306,32 +306,33 @@ func newPostgresDatastore(
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
-		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
-		dburl:                   pgURL,
-		readPool:                pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
-		writePool:               nil, /* disabled by default */
-		collectors:              collectors,
-		watchBufferLength:       config.watchBufferLength,
-		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
-		optimizedRevisionQuery:  revisionQuery,
-		validTransactionQuery:   validTransactionQuery,
-		revisionHeartbeatQuery:  revisionHeartbeatQuery,
-		gcWindow:                config.gcWindow,
-		gcInterval:              config.gcInterval,
-		gcTimeout:               config.gcMaxOperationTime,
-		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
-		watchEnabled:            watchEnabled,
-		workerCtx:               gcCtx,
-		cancelGc:                cancelGc,
-		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
-		maxRetries:              config.maxRetries,
-		credentialsProvider:     credentialsProvider,
-		isPrimary:               isPrimary,
-		inStrictReadMode:        config.readStrictMode,
-		filterMaximumIDCount:    config.filterMaximumIDCount,
-		schema:                  *schema.Schema(config.columnOptimizationOption, false),
-		quantizationPeriodNanos: quantizationPeriodNanos,
-		isolationLevel:          isolationLevel,
+		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		dburl:                        pgURL,
+		readPool:                     pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
+		writePool:                    nil, /* disabled by default */
+		collectors:                   collectors,
+		watchBufferLength:            config.watchBufferLength,
+		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
+		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
+		optimizedRevisionQuery:       revisionQuery,
+		validTransactionQuery:        validTransactionQuery,
+		revisionHeartbeatQuery:       revisionHeartbeatQuery,
+		gcWindow:                     config.gcWindow,
+		gcInterval:                   config.gcInterval,
+		gcTimeout:                    config.gcMaxOperationTime,
+		analyzeBeforeStatistics:      config.analyzeBeforeStatistics,
+		watchEnabled:                 watchEnabled,
+		workerCtx:                    gcCtx,
+		cancelGc:                     cancelGc,
+		readTxOptions:                pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		maxRetries:                   config.maxRetries,
+		credentialsProvider:          credentialsProvider,
+		isPrimary:                    isPrimary,
+		inStrictReadMode:             config.readStrictMode,
+		filterMaximumIDCount:         config.filterMaximumIDCount,
+		schema:                       *schema.Schema(config.columnOptimizationOption, false),
+		quantizationPeriodNanos:      quantizationPeriodNanos,
+		isolationLevel:               isolationLevel,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -379,6 +380,7 @@ type pgDatastore struct {
 	readPool, writePool            pgxcommon.ConnPooler
 	collectors                     []prometheus.Collector
 	watchBufferLength              uint16
+	watchChangeBufferMaximumSize   uint64
 	watchBufferWriteTimeout        time.Duration
 	optimizedRevisionQuery         string
 	validTransactionQuery          string

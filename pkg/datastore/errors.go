@@ -299,7 +299,7 @@ type MaximumChangesSizeExceededError struct {
 
 // NewMaximumChangesSizeExceededError creates a new MaximumChangesSizeExceededError.
 func NewMaximumChangesSizeExceededError(maxSize uint64) error {
-	return MaximumChangesSizeExceededError{fmt.Errorf("maximum changes byte size of %d exceeded", maxSize), maxSize}
+	return MaximumChangesSizeExceededError{fmt.Errorf("maximum changes byte size of %d exceeded; adjust --datastore-watch-change-buffer-maximum-size accordingly", maxSize), maxSize}
 }
 
 var (

@@ -80,6 +80,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.RelationshipIntegrityCurrentKey = c.RelationshipIntegrityCurrentKey
 		to.RelationshipIntegrityExpiredKeys = c.RelationshipIntegrityExpiredKeys
 		to.WatchBufferLength = c.WatchBufferLength
+		to.WatchChangeBufferMaximumSize = c.WatchChangeBufferMaximumSize
 		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
 		to.WatchConnectTimeout = c.WatchConnectTimeout
 		to.DisableWatchSupport = c.DisableWatchSupport
@@ -198,6 +199,11 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["RelationshipIntegrityExpiredKeys"] = fmt.Sprintf("(slice of size %d)", len(c.RelationshipIntegrityExpiredKeys))
 	}
 	debugMap["WatchBufferLength"] = c.WatchBufferLength
+	if c.WatchChangeBufferMaximumSize == "" {
+		debugMap["WatchChangeBufferMaximumSize"] = "(empty)"
+	} else {
+		debugMap["WatchChangeBufferMaximumSize"] = c.WatchChangeBufferMaximumSize
+	}
 	debugMap["WatchBufferWriteTimeout"] = c.WatchBufferWriteTimeout
 	debugMap["WatchConnectTimeout"] = c.WatchConnectTimeout
 	if c.MigrationPhase == "" {
@@ -620,6 +626,13 @@ func SetRelationshipIntegrityExpiredKeys(relationshipIntegrityExpiredKeys []stri
 func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 	return func(c *Config) {
 		c.WatchBufferLength = watchBufferLength
+	}
+}
+
+// WithWatchChangeBufferMaximumSize returns an option that can set WatchChangeBufferMaximumSize on a Config
+func WithWatchChangeBufferMaximumSize(watchChangeBufferMaximumSize string) ConfigOption {
+	return func(c *Config) {
+		c.WatchChangeBufferMaximumSize = watchChangeBufferMaximumSize
 	}
 }
 

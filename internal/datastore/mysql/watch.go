@@ -20,9 +20,9 @@ const (
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
-func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := options.WatchBufferLength
-	if watchBufferLength <= 0 {
+	if watchBufferLength == 0 {
 		watchBufferLength = mds.watchBufferLength
 	}
 
@@ -124,7 +124,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 	return updates, errs
 }
 
-func (mds *Datastore) loadChanges(
+func (mds *mysqlDatastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
 	options datastore.WatchOptions,
@@ -138,7 +138,12 @@ func (mds *Datastore) loadChanges(
 		return changes, newRevision, err
 	}
 
-	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
+	watchBufferSize := options.MaximumBufferedChangesByteSize
+	if watchBufferSize == 0 {
+		watchBufferSize = mds.watchChangeBufferMaximumSize
+	}
+
+	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content, watchBufferSize)
 
 	// Load any metadata for the revision range.
 	sql, args, err := mds.LoadRevisionRange.Where(sq.Or{

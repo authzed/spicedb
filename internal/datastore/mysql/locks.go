@@ -9,7 +9,7 @@ const (
 	gcRunLock lockName = "gc_run"
 )
 
-func (mds *Datastore) tryAcquireLock(ctx context.Context, lockName lockName) (bool, error) {
+func (mds *mysqlDatastore) tryAcquireLock(ctx context.Context, lockName lockName) (bool, error) {
 	// Acquire the lock, with max 1s timeout.
 	// A lock obtained with GET_LOCK() is released explicitly by executing RELEASE_LOCK()
 	//
@@ -29,7 +29,7 @@ func (mds *Datastore) tryAcquireLock(ctx context.Context, lockName lockName) (bo
 	return acquired == 1, nil
 }
 
-func (mds *Datastore) releaseLock(ctx context.Context, lockName lockName) error {
+func (mds *mysqlDatastore) releaseLock(ctx context.Context, lockName lockName) error {
 	// See: https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html#function_release-lock
 	_, err := mds.db.ExecContext(ctx, `
 		SELECT RELEASE_LOCK(?)

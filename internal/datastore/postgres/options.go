@@ -16,15 +16,16 @@ type postgresOptions struct {
 
 	credentialsProviderName string
 
-	watchBufferLength       uint16
-	watchBufferWriteTimeout time.Duration
-	revisionQuantization    time.Duration
-	followerReadDelay       time.Duration
-	gcWindow                time.Duration
-	gcInterval              time.Duration
-	gcMaxOperationTime      time.Duration
-	maxRetries              uint8
-	filterMaximumIDCount    uint16
+	watchBufferLength            uint16
+	watchChangeBufferMaximumSize uint64
+	watchBufferWriteTimeout      time.Duration
+	revisionQuantization         time.Duration
+	followerReadDelay            time.Duration
+	gcWindow                     time.Duration
+	gcInterval                   time.Duration
+	gcMaxOperationTime           time.Duration
+	maxRetries                   uint8
+	filterMaximumIDCount         uint16
 
 	enablePrometheusStats          bool
 	analyzeBeforeStatistics        bool
@@ -281,6 +282,12 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 // after which the caller to the watch will be disconnected.
 func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
 	return func(po *postgresOptions) { po.watchBufferWriteTimeout = watchBufferWriteTimeout }
+}
+
+// WatchBufferMaximumSize is the maximum size in bytes of the watch buffer.
+// If this value is exceeded the caller will receive an error.
+func WatchChangeBufferMaximumSize(maxSize uint64) Option {
+	return func(po *postgresOptions) { po.watchChangeBufferMaximumSize = maxSize }
 }
 
 // RevisionQuantization is the time bucket size to which advertised
