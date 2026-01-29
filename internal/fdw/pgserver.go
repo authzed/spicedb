@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	wire "github.com/jeroenrinzema/psql-wire"
-	pg_query "github.com/pganalyze/pg_query_go/v6"
+	pgquery "github.com/wasilibs/go-pgquery"
 
 	"github.com/authzed/authzed-go/v1"
 
@@ -113,7 +113,7 @@ func (p *PgBackend) Close() error {
 }
 
 func (p *PgBackend) handler(ctx context.Context, query string) (wire.PreparedStatements, error) {
-	parsed, err := pg_query.Parse(query)
+	parsed, err := pgquery.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse query: %w", err)
 	}

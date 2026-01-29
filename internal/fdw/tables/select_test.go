@@ -3,8 +3,8 @@ package tables
 import (
 	"testing"
 
-	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/stretchr/testify/require"
+	pgquery "github.com/wasilibs/go-pgquery"
 )
 
 func TestParseSelectStatement(t *testing.T) {
@@ -175,7 +175,7 @@ func TestParseSelectStatement(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			parsed, err := pg_query.Parse(tc.query)
+			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
 			slc, err := ParseSelectStatement(parsed.Stmts[0].Stmt.GetSelectStmt(), false)
