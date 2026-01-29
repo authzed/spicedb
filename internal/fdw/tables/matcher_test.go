@@ -3,8 +3,8 @@ package tables
 import (
 	"testing"
 
-	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/stretchr/testify/require"
+	pgquery "github.com/wasilibs/go-pgquery"
 )
 
 func TestPatternMatcher(t *testing.T) {
@@ -66,7 +66,7 @@ func TestPatternMatcher(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			parsed, err := pg_query.Parse(tc.query)
+			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
 			selectStmt := parsed.Stmts[0].Stmt.GetSelectStmt()
@@ -134,7 +134,7 @@ func TestEqualityPattern(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			parsed, err := pg_query.Parse(tc.query)
+			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
 			selectStmt := parsed.Stmts[0].Stmt.GetSelectStmt()
@@ -187,7 +187,7 @@ func TestSubQueryPlaceholderPattern(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			parsed, err := pg_query.Parse(tc.query)
+			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
 			selectStmt := parsed.Stmts[0].Stmt.GetSelectStmt()
@@ -240,7 +240,7 @@ func TestColumnRefPattern(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			parsed, err := pg_query.Parse(tc.query)
+			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
 			selectStmt := parsed.Stmts[0].Stmt.GetSelectStmt()
@@ -266,7 +266,7 @@ func TestColumnRefPattern(t *testing.T) {
 // BenchmarkPatternMatcher compares the performance of pattern matching vs old approach
 func BenchmarkPatternMatcher(b *testing.B) {
 	query := "SELECT * FROM relationships WHERE resource_type = 'document' AND resource_id = 'doc1' AND relation = 'viewer'"
-	parsed, err := pg_query.Parse(query)
+	parsed, err := pgquery.Parse(query)
 	require.NoError(b, err)
 
 	selectStmt := parsed.Stmts[0].Stmt.GetSelectStmt()
