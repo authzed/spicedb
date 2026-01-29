@@ -417,7 +417,7 @@ jobs:
 
   benchmarks:
     name: "Run Go benchmarks"
-    runs-on: "depot-ubuntu-24.04-arm-8"
+    runs-on: "depot-ubuntu-24.04-arm-8" # same as benchmark.yaml
     timeout-minutes: 30
     needs: "paths-filter"
     # Benchmarks on Main are ran through a different workflow
@@ -441,10 +441,6 @@ jobs:
           set -o pipefail
           go run mage.go benchmark:all | tee ${{ github.sha }}_bench_output.txt
 
-      - name: "Get CPU information"
-        uses: "kenchan0130/actions-system-info@master"
-        id: "system-info"
-
       - name: "Get Main branch SHA"
         id: "get-main-branch-sha"
         run: |
@@ -456,7 +452,7 @@ jobs:
         id: "downloadbenchmark"
         with:
           path: "./cache/benchmark-data.json"
-          key: "${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-${{ steps.system-info.outputs.cpu-model }}-go-benchmark"
+          key: "${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-go-benchmark"
 
       - name: "Compare benchmarks with Main"
         uses: "benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b" # v1.20.7
