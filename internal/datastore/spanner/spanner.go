@@ -238,6 +238,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		config:                              config,
 		database:                            database,
 		watchBufferWriteTimeout:             config.watchBufferWriteTimeout,
+		watchChangeBufferMaximumSize:        config.watchChangeBufferMaximumSize,
 		watchBufferLength:                   config.watchBufferLength,
 		watchEnabled:                        !config.watchDisabled,
 		cachedEstimatedBytesPerRelationship: atomic.Uint64{},

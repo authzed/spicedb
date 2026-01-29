@@ -912,7 +912,7 @@ func runAssertions(t *testing.T, vctx validationContext) {
 						require.NoError(t, err)
 
 						for _, result := range results {
-							require.Equal(t, entry.expectedPermissionship, result.GetItem().Permissionship, "Bulk check for assertion request `%s` returned %s; expected %s", result.GetRequest(), result.GetItem().Permissionship, entry.expectedPermissionship)
+							require.Equal(t, entry.expectedPermissionship, result.GetItem().GetPermissionship(), "Bulk check for assertion request `%s` returned %s; expected %s", result.GetRequest(), result.GetItem().GetPermissionship(), entry.expectedPermissionship)
 						}
 					}
 				})

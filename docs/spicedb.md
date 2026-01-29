@@ -125,7 +125,7 @@ spicedb datastore gc [flags]
       --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
       --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                     how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
-      --datastore-watch-connect-timeout duration                              how long the watch connection should wait before timing out (CockroachDB driver only) (default 1s)
+      --datastore-watch-connect-timeout duration                              how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only) (default 1s)
       --otel-endpoint string                                                  OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
       --otel-insecure                                                         connect to the OpenTelemetry collector in plaintext
       --otel-provider string                                                  OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
@@ -291,7 +291,7 @@ spicedb datastore repair [flags]
       --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
       --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                     how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
-      --datastore-watch-connect-timeout duration                              how long the watch connection should wait before timing out (CockroachDB driver only) (default 1s)
+      --datastore-watch-connect-timeout duration                              how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only) (default 1s)
       --otel-endpoint string                                                  OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
       --otel-insecure                                                         connect to the OpenTelemetry collector in plaintext
       --otel-provider string                                                  OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
@@ -480,7 +480,7 @@ spicedb serve [flags]
       --datastore-watch-buffer-length uint16                                            how large the watch buffer should be before blocking (default 1024)
       --datastore-watch-buffer-write-timeout duration                                   how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                               how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
-      --datastore-watch-connect-timeout duration                                        how long the watch connection should wait before timing out (CockroachDB driver only) (default 1s)
+      --datastore-watch-connect-timeout duration                                        how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only) (default 1s)
       --disable-version-response                                                        disables version response support in the API
       --dispatch-cache-enabled                                                          enable caching of dispatch calls this server makes to other servers (default true)
       --dispatch-cache-max-cost string                                                  upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server makes to other servers (default "30%")
