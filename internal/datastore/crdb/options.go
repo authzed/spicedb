@@ -35,6 +35,8 @@ type crdbOptions struct {
 	includeQueryParametersInTraces bool
 	watchDisabled                  bool
 	acquireTimeout                 time.Duration
+	watchDiskBufferEnabled         bool
+	watchDiskBufferPath            string
 }
 
 const (
@@ -66,6 +68,8 @@ const (
 	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces = false
 	defaultWatchDisabled                  = false
+	defaultWatchDiskBufferEnabled         = false
+	defaultWatchDiskBufferPath            = "" // Empty = use temp directory
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -93,6 +97,8 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		watchDisabled:                  defaultWatchDisabled,
 		acquireTimeout:                 defaultAcquireTimeout,
+		watchDiskBufferEnabled:         defaultWatchDiskBufferEnabled,
+		watchDiskBufferPath:            defaultWatchDiskBufferPath,
 	}
 
 	for _, option := range options {
@@ -396,4 +402,17 @@ func WithWatchDisabled(isDisabled bool) Option {
 // from the pool with Try* methods before applying backpressure.
 func WithAcquireTimeout(timeout time.Duration) Option {
 	return func(po *crdbOptions) { po.acquireTimeout = timeout }
+}
+
+// WithWatchDiskBufferEnabled enables disk buffering for the watch API.
+// This is useful for CockroachDB changefeeds that can take hours to emit checkpoints,
+// preventing memory exhaustion during long checkpoint delays.
+func WithWatchDiskBufferEnabled(enabled bool) Option {
+	return func(po *crdbOptions) { po.watchDiskBufferEnabled = enabled }
+}
+
+// WithWatchDiskBufferPath sets the path for watch disk buffer storage.
+// If empty, a temporary directory will be used.
+func WithWatchDiskBufferPath(path string) Option {
+	return func(po *crdbOptions) { po.watchDiskBufferPath = path }
 }

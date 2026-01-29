@@ -9,7 +9,7 @@ import (
 
 // Docs Generate documentation in markdown format
 func (g Gen) Docs() error {
-	cmd := exec.Command("go", "run", "./cmd/docs")
+	cmd := exec.Command("go", "run", "-tags", "memoryprotection,pebblegozstd", "./cmd/docs")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

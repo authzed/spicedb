@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -338,10 +339,31 @@ type (
 func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, sendError sendErrorFunc, sendChange sendChangeFunc, opts datastore.WatchOptions, streaming bool) {
 	var tracked changeTracker[revisions.HLCRevision, revisions.HLCRevision]
 	if streaming {
-		tracked = &streamingChangeProvider{
-			sendChange: sendChange,
-			sendError:  sendError,
-			content:    opts.Content,
+		// Try to use disk buffering if enabled
+		if cds.watchBufferDB != nil {
+			diskProvider, err := newDiskBufferedChangeProvider(
+				cds.watchBufferDB,
+				opts.Content,
+				sendChange,
+				sendError,
+			)
+			if err != nil {
+				log.Warn().Err(err).Msg("failed to create disk buffer provider, falling back to streaming")
+				tracked = &streamingChangeProvider{
+					sendChange: sendChange,
+					sendError:  sendError,
+					content:    opts.Content,
+				}
+			} else {
+				tracked = diskProvider
+			}
+		} else {
+			// Use streaming (current behavior)
+			tracked = &streamingChangeProvider{
+				sendChange: sendChange,
+				sendError:  sendError,
+				content:    opts.Content,
+			}
 		}
 	} else {
 		tracked = common.NewChanges(revisions.HLCKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)

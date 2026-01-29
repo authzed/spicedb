@@ -95,6 +95,14 @@ linters:
       - linters:
           - "perfsprint"
         path: '(.+)_test\.go'
+      - linters:
+          - "prealloc"
+        path: 'internal/datastore/common/changebuffer/store_test\.go'
+        text: "Consider pre-allocating `changes`"
+      - linters:
+          - "prealloc"
+        path: 'internal/datastore/crdb/watch_diskbuffer\.go'
+        text: "Consider pre-allocating `changes`"
     paths:
       - "third_party$"
       - "builtin$"

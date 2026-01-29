@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"sync"
@@ -13,6 +15,8 @@ import (
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast/v2"
+	"github.com/cockroachdb/pebble"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -213,6 +217,24 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
+	// Initialize disk buffer if enabled
+	if config.watchDiskBufferEnabled {
+		bufferPath := config.watchDiskBufferPath
+		if bufferPath == "" {
+			// Use temp directory with unique name
+			bufferPath = filepath.Join(os.TempDir(), "spicedb-watch-buffer-"+uuid.New().String())
+		}
+
+		// Open Pebble DB with default options
+		ds.watchBufferDB, err = pebble.Open(bufferPath, &pebble.Options{})
+		if err != nil {
+			ds.cancel()
+			return nil, fmt.Errorf("failed to open watch buffer database: %w", err)
+		}
+
+		log.Ctx(ctx).Info().Str("path", bufferPath).Msg("watch disk buffer enabled")
+	}
+
 	err = ds.registerPrometheusCollectors(config.enablePrometheusStats)
 	if err != nil {
 		ds.cancel()
@@ -273,6 +295,8 @@ type crdbDatastore struct {
 	gcWindow                time.Duration
 	schema                  common.SchemaInformation
 	acquireTimeout          time.Duration
+
+	watchBufferDB *pebble.DB // nil if disk buffering disabled
 
 	beginChangefeedQuery string
 	transactionNowQuery  string
@@ -473,20 +497,21 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 }
 
 func (cds *crdbDatastore) Close() error {
-	var errs []error
 	cds.cancel()
-	if cds.pruneGroup != nil {
-		errs = append(errs, cds.pruneGroup.Wait())
+	if cds.watchBufferDB != nil {
+		if err := cds.watchBufferDB.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to close watch buffer database")
+		}
 	}
 	cds.readPool.Close()
 	cds.writePool.Close()
 	for _, collector := range cds.collectors {
 		ok := prometheus.Unregister(collector)
 		if !ok {
-			errs = append(errs, errors.New("could not unregister collector for CRDB datastore"))
+			return errors.New("could not unregister collector for CRDB datastore")
 		}
 	}
-	return errors.Join(errs...)
+	return nil
 }
 
 func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {

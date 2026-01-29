@@ -147,6 +147,8 @@ type Config struct {
 	EnableConnectionBalancing bool          `debugmap:"visible"`
 	ConnectRate               time.Duration `debugmap:"visible"`
 	WriteAcquisitionTimeout   time.Duration `debugmap:"visible"`
+	WatchDiskBufferEnabled    bool          `debugmap:"visible"`
+	WatchDiskBufferPath       string        `debugmap:"visible"`
 
 	// Postgres
 	GCInterval            time.Duration `debugmap:"visible"`
@@ -305,6 +307,8 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.BoolVar(&opts.DisableWatchSupport, flagName("datastore-disable-watch-support"), false, "disable watch support (only enable if you absolutely do not need watch)")
 	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (Postgres and CockroachDB drivers only)")
 	flagSet.DurationVar(&opts.WriteAcquisitionTimeout, flagName("write-conn-acquisition-timeout"), defaults.WriteAcquisitionTimeout, "amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only)")
+	flagSet.BoolVar(&opts.WatchDiskBufferEnabled, flagName("datastore-crdb-watch-disk-buffer-enabled"), false, "enable disk buffering for CRDB watch API (reduces memory usage during long checkpoint delays)")
+	flagSet.StringVar(&opts.WatchDiskBufferPath, flagName("datastore-crdb-watch-disk-buffer-path"), "", "path to directory for watch disk buffer (default: temp directory)")
 
 	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. (CockroachDB driver only)")
 	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyID, flagName("datastore-relationship-integrity-current-key-id"), "", "current key id for relationship integrity checks")
@@ -568,6 +572,8 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		crdb.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 		crdb.WithWatchDisabled(opts.DisableWatchSupport),
+		crdb.WithWatchDiskBufferEnabled(opts.WatchDiskBufferEnabled),
+		crdb.WithWatchDiskBufferPath(opts.WatchDiskBufferPath),
 	)
 }
 

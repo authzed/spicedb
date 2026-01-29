@@ -16,7 +16,7 @@ func (Build) Binary() error {
 	return sh.RunV(
 		"go", "build",
 		"-ldflags", "-checklinkname=0", // https://github.com/odigos-io/go-rtml#about-ldflags-checklinkname0
-		"-tags", "memoryprotection",
+		"-tags", "memoryprotection,pebblegozstd",
 		"-o", "./dist",
 		"./cmd/spicedb/main.go",
 	)
@@ -40,6 +40,6 @@ func (Build) Testimage() error {
 // E2e Build the new enemy tests
 func (Build) E2e() error {
 	err1 := sh.Run("go", "get", "./...")
-	err2 := sh.Run("go", "build", "-ldflags=-checklinkname=0", "-tags", "memoryprotection", "-o", "./e2e/newenemy/spicedb", "./cmd/spicedb")
+	err2 := sh.Run("go", "build", "-ldflags=-checklinkname=0", "-tags", "memoryprotection,pebblegozstd", "-o", "./e2e/newenemy/spicedb", "./cmd/spicedb")
 	return errors.Join(err1, err2)
 }

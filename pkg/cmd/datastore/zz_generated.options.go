@@ -66,6 +66,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableConnectionBalancing = c.EnableConnectionBalancing
 		to.ConnectRate = c.ConnectRate
 		to.WriteAcquisitionTimeout = c.WriteAcquisitionTimeout
+		to.WatchDiskBufferEnabled = c.WatchDiskBufferEnabled
+		to.WatchDiskBufferPath = c.WatchDiskBufferPath
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.RelaxedIsolationLevel = c.RelaxedIsolationLevel
@@ -164,6 +166,12 @@ func (c *Config) DebugMap() map[string]any {
 	debugMap["EnableConnectionBalancing"] = c.EnableConnectionBalancing
 	debugMap["ConnectRate"] = c.ConnectRate
 	debugMap["WriteAcquisitionTimeout"] = c.WriteAcquisitionTimeout
+	debugMap["WatchDiskBufferEnabled"] = c.WatchDiskBufferEnabled
+	if c.WatchDiskBufferPath == "" {
+		debugMap["WatchDiskBufferPath"] = "(empty)"
+	} else {
+		debugMap["WatchDiskBufferPath"] = c.WatchDiskBufferPath
+	}
 	debugMap["GCInterval"] = c.GCInterval
 	debugMap["GCMaxOperationTime"] = c.GCMaxOperationTime
 	debugMap["RelaxedIsolationLevel"] = c.RelaxedIsolationLevel
@@ -508,6 +516,20 @@ func WithConnectRate(connectRate time.Duration) ConfigOption {
 func WithWriteAcquisitionTimeout(writeAcquisitionTimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.WriteAcquisitionTimeout = writeAcquisitionTimeout
+	}
+}
+
+// WithWatchDiskBufferEnabled returns an option that can set WatchDiskBufferEnabled on a Config
+func WithWatchDiskBufferEnabled(watchDiskBufferEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.WatchDiskBufferEnabled = watchDiskBufferEnabled
+	}
+}
+
+// WithWatchDiskBufferPath returns an option that can set WatchDiskBufferPath on a Config
+func WithWatchDiskBufferPath(watchDiskBufferPath string) ConfigOption {
+	return func(c *Config) {
+		c.WatchDiskBufferPath = watchDiskBufferPath
 	}
 }
 

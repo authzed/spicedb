@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git gcc libc6-d
 COPY . .
 # https://github.com/odigos-io/go-rtml#about-ldflags-checklinkname0
 # Build with CGO enabled for postgres-fdw support
-RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 go build -tags memoryprotection -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
+# Use pebblegozstd tag to use pure Go zstd (avoids duplicate symbol conflicts with DataDog/zstd)
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 go build -tags memoryprotection,pebblegozstd -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
 
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
 FROM golang:1.25.5-alpine@sha256:ac09a5f469f307e5da71e766b0bd59c9c49ea460a528cc3e6686513d64a6f1fb AS health-probe-builder

@@ -101,7 +101,8 @@ func (Lint) Analyzers() error {
 		// Skip generated protobuf files for this check
 		// Also skip test where we're explicitly using proto.Marshal to assert
 		// that the proto.Marshal behavior matches foo.MarshalVT()
-		"-protomarshalcheck.skip-files=.pb,serialization_test.go",
+		// Skip changebuffer/store.go which uses structpb.Struct from google.golang.org/protobuf (no VT methods)
+		"-protomarshalcheck.skip-files=.pb,serialization_test.go,changebuffer/store.go",
 		// Skip our dispatch codec logic that explicitly calls MarshalVT with proto.Marshal as a fallback
 		// Skip our internal telemetry reporter which uses a prometheus proto definition that we don't control
 		"-protomarshalcheck.skip-pkg=github.com/authzed/spicedb/pkg/proto/dispatch/v1,github.com/authzed/spicedb/internal/telemetry",

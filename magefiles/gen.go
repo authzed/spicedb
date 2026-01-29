@@ -21,7 +21,7 @@ func (g Gen) All() error {
 // Go Run go codegen
 func (Gen) Go() error {
 	fmt.Println("generating go")
-	return sh.RunV("go", "generate", "./...")
+	return sh.RunV("go", "generate", "-tags", "memoryprotection,pebblegozstd", "./...")
 }
 
 // Proto Run proto codegen
@@ -43,7 +43,7 @@ func (Gen) Completions() error {
 		}
 		defer f.Close()
 
-		if err := RunSh("go", WithDir("."), WithStdout(f))("run", "./cmd/spicedb/main.go", "completion", shell); err != nil {
+		if err := RunSh("go", WithDir("."), WithStdout(f))("run", "-tags", "memoryprotection,pebblegozstd", "./cmd/spicedb/main.go", "completion", shell); err != nil {
 			return err
 		}
 	}
@@ -63,5 +63,5 @@ func (Gen) Manpages() error {
 	defer f.Close()
 
 	fmt.Println("generating man page")
-	return RunSh("go", WithDir("."), WithStdout(f))("run", "./cmd/spicedb/main.go", "man")
+	return RunSh("go", WithDir("."), WithStdout(f))("run", "-tags", "memoryprotection,pebblegozstd", "./cmd/spicedb/main.go", "man")
 }
