@@ -157,7 +157,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
-		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -179,7 +179,7 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
-		pathSeq, err := ctx.IterResources(intersect, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(intersect, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -559,7 +559,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 		intersect := NewIntersection(iter1, iter2)
 
-		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -581,7 +581,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 		intersect := NewIntersection(iter1, iter2)
 
-		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -600,7 +600,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 		intersect := NewIntersection(iter1, iter2)
 
-		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -623,7 +623,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 		intersect := NewIntersection(iter1, iter2, iter3)
 
-		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -660,7 +660,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 		intersect := NewIntersection(iter1, iter2)
 
-		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)

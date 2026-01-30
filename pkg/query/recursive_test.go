@@ -34,7 +34,7 @@ func TestRecursiveSentinel(t *testing.T) {
 	require.Empty(t, paths)
 
 	// IterSubjectsImpl should return empty
-	seq, err = sentinel.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"})
+	seq, err = sentinel.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
 	require.NoError(t, err)
 
 	paths, err = CollectAll(seq)
@@ -225,7 +225,7 @@ func TestBFSEarlyTermination(t *testing.T) {
 
 	// IterSubjects on a node with no children (sentinel returns empty)
 	// Should terminate at ply 0, not continue to maxDepth
-	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"})
+	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
 	require.NoError(t, err)
 
 	paths, err := CollectAll(seq)
@@ -271,7 +271,7 @@ func TestBFSCycleDetection(t *testing.T) {
 		WithReader(ds.SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(10))
 
-	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"})
+	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
 	require.NoError(t, err)
 
 	paths, err := CollectAll(seq)
@@ -304,7 +304,7 @@ func TestBFSSelfReferential(t *testing.T) {
 		WithReader(ds.SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(10))
 
-	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"})
+	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
 	require.NoError(t, err)
 
 	paths, err := CollectAll(seq)
@@ -347,7 +347,7 @@ func TestBFSResourcesWithEllipses(t *testing.T) {
 		WithMaxRecursionDepth(5))
 
 	// Query IterResources - should find folder2
-	seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
 	require.NoError(t, err)
 
 	paths, err := CollectAll(seq)

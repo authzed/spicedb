@@ -181,7 +181,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		// mainSet has alice for doc1, excludedSet is empty
 		// Result should be alice (nothing excluded)
-		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 		require.NotNil(pathSeq)
 
@@ -200,7 +200,7 @@ func TestExclusionIterator(t *testing.T) {
 
 		// mainSet has alice for doc1, excludedSet is empty
 		// Result should be alice (nothing excluded)
-		pathSeq, err := ctx.IterResources(exclusion, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(exclusion, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 		require.NotNil(pathSeq)
 
@@ -723,7 +723,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -744,7 +744,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -764,7 +764,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -785,7 +785,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -807,7 +807,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -844,7 +844,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 		exclusion := NewExclusion(mainSet, excludedSet)
 
-		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)

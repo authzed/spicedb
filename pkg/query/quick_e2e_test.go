@@ -70,7 +70,7 @@ func TestBaseIterSubjects(t *testing.T) {
 	ctx := NewLocalContext(t.Context(),
 		WithReader(ds.SnapshotReader(revision)))
 
-	relSeq, err := ctx.IterSubjects(vande, NewObject("document", "specialplan"))
+	relSeq, err := ctx.IterSubjects(vande, NewObject("document", "specialplan"), NoObjectFilter())
 	require.NoError(err)
 
 	_, err = CollectAll(relSeq)

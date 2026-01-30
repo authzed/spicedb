@@ -95,8 +95,8 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	return DeduplicatePathSeq(rewritten), nil
 }
 
-func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
-	subSeq, err := ctx.IterSubjects(a.subIt, resource)
+func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+	subSeq, err := ctx.IterSubjects(a.subIt, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +116,8 @@ func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
 	}, nil
 }
 
-func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	subSeq, err := ctx.IterResources(a.subIt, subject)
+func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+	subSeq, err := ctx.IterResources(a.subIt, subject, filterResourceType)
 	if err != nil {
 		return nil, err
 	}

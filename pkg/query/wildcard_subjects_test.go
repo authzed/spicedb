@@ -72,7 +72,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 		nonWildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
-		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "first"))
+		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(subjects)
@@ -91,7 +91,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 		wildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
-		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "first"))
+		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(subjects)
@@ -112,7 +112,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 		union.addSubIterator(NewRelationIterator(viewerRel.BaseRelations()[1])) // user:*
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
-		subjects, err := queryCtx.IterSubjects(union, NewObject("resource", "first"))
+		subjects, err := queryCtx.IterSubjects(union, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(subjects)
@@ -179,7 +179,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 		wildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
-		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "second"))
+		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "second"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(subjects)
@@ -195,7 +195,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 		nonWildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
-		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "second"))
+		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "second"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(subjects)

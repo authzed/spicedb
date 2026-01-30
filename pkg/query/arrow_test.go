@@ -112,7 +112,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Test arrow IterSubjects: find all subjects for a resource through the arrow
 		// This finds subjects who have access to a resource via the left->right path
-		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "spec1"))
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "spec1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -144,7 +144,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Test arrow IterSubjects: find all resources for a subject through the arrow
 		// This finds which resources a given subject has access to via the left->right path
-		pathSeq, err := ctx.IterResources(arrow, NewObject("user", "alice").WithEllipses())
+		pathSeq, err := ctx.IterResources(arrow, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -509,7 +509,7 @@ func TestArrowIterSubjects(t *testing.T) {
 
 		arrow := NewArrow(leftIter, rightIter)
 
-		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -534,7 +534,7 @@ func TestArrowIterSubjects(t *testing.T) {
 
 		arrow := NewArrow(leftIter, rightIter)
 
-		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -560,7 +560,7 @@ func TestArrowIterSubjects(t *testing.T) {
 
 		arrow := NewArrow(leftIter, rightIter)
 
-		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -579,7 +579,7 @@ func TestArrowIterSubjects(t *testing.T) {
 
 		arrow := NewArrow(leftIter, rightIter)
 
-		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)
@@ -616,7 +616,7 @@ func TestArrowIterSubjects(t *testing.T) {
 
 		arrow := NewArrow(leftIter, rightIter)
 
-		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"))
+		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
 
 		paths, err := CollectAll(pathSeq)

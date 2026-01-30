@@ -17,10 +17,14 @@ type Plan interface {
 	CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error)
 
 	// IterSubjectsImpl returns a sequence of all the paths in this set that match the given resourceID.
-	IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error)
+	// The filterSubjectType parameter filters the results to only include subjects matching the
+	// specified ObjectType. If filterSubjectType.Type is empty, no filtering is applied.
+	IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error)
 
 	// IterResourcesImpl returns a sequence of all the paths in this set that match the given subjectID.
-	IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error)
+	// The filterResourceType parameter filters the results to only include resources matching the
+	// specified ObjectType. If filterResourceType.Type is empty, no filtering is applied.
+	IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error)
 
 	// Explain generates a human-readable tree that describes each iterator and its state.
 	Explain() Explain
@@ -82,6 +86,12 @@ func NewType(typename string, subrelation ...string) ObjectType {
 
 func (t ObjectType) String() string {
 	return fmt.Sprintf("%s#%s", t.Type, t.Subrelation)
+}
+
+// NoObjectFilter returns an empty ObjectType that indicates no filtering should be applied.
+// Use this instead of ObjectType{} for clarity when calling IterResources or IterSubjects.
+func NoObjectFilter() ObjectType {
+	return ObjectType{}
 }
 
 // Explain describes the state of an iterator tree, in a human-readable fashion, with an Info line at

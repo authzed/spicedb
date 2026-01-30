@@ -114,7 +114,7 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 
 			resource := NewObject("document", "doc1")
-			seq, err := queryCtx.IterSubjects(caveatIter, resource)
+			seq, err := queryCtx.IterSubjects(caveatIter, resource, NoObjectFilter())
 
 			var expectedMatchingPaths []Path
 			for _, path := range tc.expectedPaths {
@@ -206,7 +206,7 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 
 			resource := NewObject("document", "doc1")
-			seq, err := queryCtx.IterSubjects(caveatIter, resource)
+			seq, err := queryCtx.IterSubjects(caveatIter, resource, NoObjectFilter())
 
 			// These tests expect caveat-related errors because no actual caveat definitions exist
 			if err != nil {
@@ -420,7 +420,7 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 		ctx := NewLocalContext(context.Background())
 
 		resource := NewObject("document", "doc1")
-		seq, err := caveatIter.IterSubjectsImpl(ctx, resource)
+		seq, err := caveatIter.IterSubjectsImpl(ctx, resource, NoObjectFilter())
 
 		require.NoError(err)
 		require.NotNil(seq)
@@ -440,7 +440,7 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 		ctx := NewLocalContext(context.Background())
 
 		resource := NewObject("document", "doc1")
-		seq, err := caveatIter.IterSubjectsImpl(ctx, resource)
+		seq, err := caveatIter.IterSubjectsImpl(ctx, resource, NoObjectFilter())
 
 		require.NoError(err) // Initial call should not error
 		require.NotNil(seq)
@@ -468,7 +468,7 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 		ctx := NewLocalContext(context.Background())
 
 		subject := NewObject("user", "alice").WithEllipses()
-		seq, err := caveatIter.IterResourcesImpl(ctx, subject)
+		seq, err := caveatIter.IterResourcesImpl(ctx, subject, NoObjectFilter())
 
 		require.NoError(err)
 		require.NotNil(seq)
@@ -488,7 +488,7 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 		ctx := NewLocalContext(context.Background())
 
 		subject := NewObject("user", "alice").WithEllipses()
-		seq, err := caveatIter.IterResourcesImpl(ctx, subject)
+		seq, err := caveatIter.IterResourcesImpl(ctx, subject, NoObjectFilter())
 
 		require.NoError(err) // Initial call should not error
 		require.NotNil(seq)

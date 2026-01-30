@@ -83,7 +83,7 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject Obje
 	}, nil
 }
 
-func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		var resultPaths []Path
 
@@ -103,7 +103,7 @@ func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object) (PathSeq
 	}, nil
 }
 
-func (f *FixedIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (f *FixedIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		var resultPaths []Path
 
