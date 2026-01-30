@@ -58,22 +58,18 @@ func TestConsistencyPerDatastore(t *testing.T) {
 				require.NoError(t, err)
 
 				// Run the assertions within each file.
-				testers := consistencytestutil.ServiceTesters(cad.Conn)
-				for _, tester := range testers {
-					tester := tester
-
-					vctx := validationContext{
-						clusterAndData:   cad,
-						accessibilitySet: accessibilitySet,
-						serviceTester:    tester,
-						revision:         headRevision,
-						dispatcher:       dispatcher,
-					}
-
-					t.Run(path.Base(filePath)+"/"+tester.Name(), func(t *testing.T) {
-						runAssertions(t, vctx)
-					})
+				tester := consistencytestutil.NewServiceTester(cad.Conn)
+				vctx := validationContext{
+					clusterAndData:   cad,
+					accessibilitySet: accessibilitySet,
+					serviceTester:    tester,
+					revision:         headRevision,
+					dispatcher:       dispatcher,
 				}
+
+				t.Run(path.Base(filePath)+"/"+tester.Name(), func(t *testing.T) {
+					runAssertions(t, vctx)
+				})
 			}
 		})
 	}

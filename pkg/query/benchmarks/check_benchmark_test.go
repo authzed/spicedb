@@ -31,6 +31,9 @@ func BenchmarkCheck(b *testing.B) {
 
 			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(b, err)
+			b.Cleanup(func() {
+				require.NoError(b, rawDS.Close())
+			})
 
 			queries, err := benchmark.Setup(ctx, rawDS)
 			require.NoError(b, err)
