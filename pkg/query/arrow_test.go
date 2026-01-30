@@ -713,7 +713,8 @@ func TestArrow_Types(t *testing.T) {
 
 		resourceType, err := arrow.ResourceType()
 		require.NoError(err)
-		require.Equal("document", resourceType.Type) // From left iterator
+		require.Len(resourceType, 1)
+		require.Equal("document", resourceType[0].Type) // From left iterator
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestRecursiveSentinel_Types(t *testing.T) {
@@ -17,8 +19,9 @@ func TestRecursiveSentinel_Types(t *testing.T) {
 
 		resourceType, err := sentinel.ResourceType()
 		require.NoError(err)
-		require.Equal("folder", resourceType.Type)
-		require.Equal("parent", resourceType.Subrelation)
+		require.Len(resourceType, 1)
+		require.Equal("folder", resourceType[0].Type)
+		require.Equal(tuple.Ellipsis, resourceType[0].Subrelation)
 	})
 
 	t.Run("SubjectTypes_WithoutSubRelations", func(t *testing.T) {

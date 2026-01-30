@@ -358,8 +358,9 @@ func TestRelationIterator_Types(t *testing.T) {
 
 		resourceType, err := relationIter.ResourceType()
 		require.NoError(err)
-		require.Equal("document", resourceType.Type)
-		require.Equal("viewer", resourceType.Subrelation)
+		require.Len(resourceType, 1)
+		require.Equal("document", resourceType[0].Type)
+		require.Equal(tuple.Ellipsis, resourceType[0].Subrelation)
 	})
 
 	t.Run("SubjectTypes_NoSubrelation", func(t *testing.T) {

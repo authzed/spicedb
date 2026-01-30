@@ -63,9 +63,9 @@ type Iterator interface {
 	// Each call to Clone() generates a new UUID for the cloned iterator.
 	ID() string
 
-	// ResourceType returns the ObjectType of this iterator's resources.
-	// Returns an error if resource types are inconsistent (e.g., in unions/intersections).
-	ResourceType() (ObjectType, error)
+	// ResourceType returns the ObjectType(s) of this iterator's resources.
+	// Returns a slice to support iterators that can return multiple types (e.g., unions).
+	ResourceType() ([]ObjectType, error)
 
 	// SubjectTypes returns all the ObjectTypes for this iterator tree.
 	// Returns an error if subject types cannot be determined.

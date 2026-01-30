@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // Self is an iterator that produces a synthetic relation for every
@@ -61,6 +62,11 @@ func (s *Self) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType
 }
 
 func (s *Self) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+	// Only return a self-edge if the subject type matches the iterator's resource type
+	if s.typeName != subject.ObjectType {
+		return EmptyPathSeq(), nil
+	}
+
 	return func(yield func(Path, error) bool) {
 		yield(Path{
 			Resource: GetObject(subject),
@@ -97,11 +103,17 @@ func (s *Self) ID() string {
 	return s.id
 }
 
-func (s *Self) ResourceType() (ObjectType, error) {
-	return ObjectType{Type: s.typeName}, nil
+func (s *Self) ResourceType() ([]ObjectType, error) {
+	return []ObjectType{{
+		Type:        s.typeName,
+		Subrelation: tuple.Ellipsis,
+	}}, nil
 }
 
 func (s *Self) SubjectTypes() ([]ObjectType, error) {
 	// Self is self-referential - subjects are the same type as resources
-	return []ObjectType{{Type: s.typeName}}, nil
+	return []ObjectType{{
+		Type:        s.typeName,
+		Subrelation: tuple.Ellipsis,
+	}}, nil
 }

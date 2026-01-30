@@ -137,7 +137,8 @@ func TestSelf_Types(t *testing.T) {
 
 		resourceType, err := selfIt.ResourceType()
 		require.NoError(err)
-		require.Equal("user", resourceType.Type)
+		require.Len(resourceType, 1)
+		require.Equal("user", resourceType[0].Type)
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
@@ -164,6 +165,7 @@ func TestSelf_Types(t *testing.T) {
 		require.NoError(err)
 
 		require.Len(subjectTypes, 1)
-		require.Equal(resourceType, subjectTypes[0], "Self iterator should have same resource and subject types")
+		require.Len(resourceType, 1)
+		require.Equal(resourceType[0], subjectTypes[0], "Self iterator should have same resource and subject types")
 	})
 }

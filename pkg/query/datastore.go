@@ -354,11 +354,11 @@ func (r *RelationIterator) ID() string {
 	return r.id
 }
 
-func (r *RelationIterator) ResourceType() (ObjectType, error) {
-	return ObjectType{
+func (r *RelationIterator) ResourceType() ([]ObjectType, error) {
+	return []ObjectType{{
 		Type:        r.base.DefinitionName(),
-		Subrelation: r.base.RelationName(),
-	}, nil
+		Subrelation: tuple.Ellipsis,
+	}}, nil
 }
 
 func (r *RelationIterator) SubjectTypes() ([]ObjectType, error) {

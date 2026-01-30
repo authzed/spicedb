@@ -760,7 +760,8 @@ func TestAlias_Types(t *testing.T) {
 
 		resourceType, err := alias.ResourceType()
 		require.NoError(err)
-		require.Equal("document", resourceType.Type)
+		require.Len(resourceType, 1)
+		require.Equal("document", resourceType[0].Type)
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {

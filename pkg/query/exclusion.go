@@ -302,7 +302,7 @@ func (e *Exclusion) ID() string {
 	return e.id
 }
 
-func (e *Exclusion) ResourceType() (ObjectType, error) {
+func (e *Exclusion) ResourceType() ([]ObjectType, error) {
 	// Exclusion's resources come from the main set
 	return e.mainSet.ResourceType()
 }

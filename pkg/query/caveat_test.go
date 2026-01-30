@@ -550,7 +550,8 @@ func TestCaveatIterator_Types(t *testing.T) {
 
 		resourceType, err := caveatIter.ResourceType()
 		require.NoError(err)
-		require.Equal("document", resourceType.Type) // From subiterator
+		require.Len(resourceType, 1)
+		require.Equal("document", resourceType[0].Type) // From subiterator
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {

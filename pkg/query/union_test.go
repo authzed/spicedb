@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestUnionIterator(t *testing.T) {
@@ -833,8 +834,8 @@ func TestUnion_Types(t *testing.T) {
 
 		resourceType, err := union.ResourceType()
 		require.NoError(err)
-		require.Equal("document", resourceType.Type)
-		require.Empty(resourceType.Subrelation) // First subiterator determines this
+		require.Len(resourceType, 1)
+		require.Equal("document", resourceType[0].Type)
 	})
 
 	t.Run("ResourceType_EmptyUnion", func(t *testing.T) {
@@ -845,8 +846,7 @@ func TestUnion_Types(t *testing.T) {
 
 		resourceType, err := union.ResourceType()
 		require.NoError(err)
-		require.Empty(resourceType.Type)
-		require.Empty(resourceType.Subrelation)
+		require.Empty(resourceType)
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
@@ -917,9 +917,11 @@ func TestUnion_Types(t *testing.T) {
 
 		union := NewUnion(iter1, iter2)
 
-		// This should panic in tests (via MustBugf)
-		require.Panics(func() {
-			_, _ = union.ResourceType()
-		})
+		// Union now collects all types instead of panicking
+		resourceTypes, err := union.ResourceType()
+		require.NoError(err)
+		require.Len(resourceTypes, 2)
+		require.Contains(resourceTypes, ObjectType{Type: "document", Subrelation: tuple.Ellipsis})
+		require.Contains(resourceTypes, ObjectType{Type: "folder", Subrelation: tuple.Ellipsis})
 	})
 }

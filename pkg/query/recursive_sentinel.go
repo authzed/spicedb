@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var _ Iterator = &RecursiveSentinel{}
@@ -89,11 +90,11 @@ func (r *RecursiveSentinel) ID() string {
 	return r.id
 }
 
-func (r *RecursiveSentinel) ResourceType() (ObjectType, error) {
-	return ObjectType{
+func (r *RecursiveSentinel) ResourceType() ([]ObjectType, error) {
+	return []ObjectType{{
 		Type:        r.definitionName,
-		Subrelation: r.relationName,
-	}, nil
+		Subrelation: tuple.Ellipsis,
+	}}, nil
 }
 
 func (r *RecursiveSentinel) SubjectTypes() ([]ObjectType, error) {

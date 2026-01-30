@@ -3,7 +3,7 @@ package query
 import (
 	"github.com/google/uuid"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
 
 // Union the set of paths that are in any of underlying subiterators.
@@ -168,30 +168,23 @@ func (u *Union) ID() string {
 	return u.id
 }
 
-func (u *Union) ResourceType() (ObjectType, error) {
+func (u *Union) ResourceType() ([]ObjectType, error) {
 	if len(u.subIts) == 0 {
-		return ObjectType{}, nil
+		return []ObjectType{}, nil
 	}
 
-	// Get the resource type from the first subiterator
-	firstType, err := u.subIts[0].ResourceType()
-	if err != nil {
-		return ObjectType{}, err
-	}
+	// Collect all resource types from sub-iterators and deduplicate
+	result := mapz.NewSet[ObjectType]()
 
-	// Validate that all subiterators have the same resource type
-	for idx, subIt := range u.subIts[1:] {
-		subType, err := subIt.ResourceType()
+	for _, subIt := range u.subIts {
+		subTypes, err := subIt.ResourceType()
 		if err != nil {
-			return ObjectType{}, err
+			return nil, err
 		}
-		if firstType != subType {
-			return ObjectType{}, spiceerrors.MustBugf("union resource type mismatch: subiterator 0 has type %s, subiterator %d has type %s",
-				firstType.String(), idx+1, subType.String())
-		}
+		result.Extend(subTypes)
 	}
 
-	return firstType, nil
+	return result.AsSlice(), nil
 }
 
 func (u *Union) SubjectTypes() ([]ObjectType, error) {

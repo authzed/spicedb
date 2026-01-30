@@ -371,7 +371,8 @@ func TestRecursiveIterator_Types(t *testing.T) {
 
 		resourceType, err := recursive.ResourceType()
 		require.NoError(err)
-		require.Equal("folder", resourceType.Type) // From templateTree
+		require.Len(resourceType, 1)
+		require.Equal("folder", resourceType[0].Type) // From templateTree
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {

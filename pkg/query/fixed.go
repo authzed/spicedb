@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // FixedIterator represents a fixed set of pre-computed paths.
@@ -32,8 +33,8 @@ func NewFixedIterator(paths ...Path) *FixedIterator {
 		// Note: For simplicity, we use the resource type from the first path.
 		// Ideally, all paths should have the same resource type, but this isn't strictly enforced.
 		resourceType = ObjectType{
-			Type: paths[0].Resource.ObjectType,
-			// Subrelation is left empty since relations can vary
+			Type:        paths[0].Resource.ObjectType,
+			Subrelation: tuple.Ellipsis, // Resource types use ellipsis
 		}
 
 		// Collect subject types from all paths
@@ -159,8 +160,11 @@ func (f *FixedIterator) ID() string {
 	return f.id
 }
 
-func (f *FixedIterator) ResourceType() (ObjectType, error) {
-	return f.resourceType, nil
+func (f *FixedIterator) ResourceType() ([]ObjectType, error) {
+	if f.resourceType.Type == "" {
+		return []ObjectType{}, nil
+	}
+	return []ObjectType{f.resourceType}, nil
 }
 
 func (f *FixedIterator) SubjectTypes() ([]ObjectType, error) {

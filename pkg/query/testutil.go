@@ -261,8 +261,11 @@ func (f *FaultyIterator) ID() string {
 	return f.id
 }
 
-func (f *FaultyIterator) ResourceType() (ObjectType, error) {
-	return f.resourceType, nil
+func (f *FaultyIterator) ResourceType() ([]ObjectType, error) {
+	if f.resourceType.Type == "" {
+		return []ObjectType{}, nil
+	}
+	return []ObjectType{f.resourceType}, nil
 }
 
 func (f *FaultyIterator) SubjectTypes() ([]ObjectType, error) {

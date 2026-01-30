@@ -282,6 +282,13 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 				yield(Path{}, err)
 				return
 			}
+
+			// Filter out self-edges where resource == subject (these are intermediate steps
+			// that shouldn't be propagated through arrows as they have the wrong subject)
+			if rightPath.Resource.Equals(GetObject(rightPath.Subject)) {
+				continue
+			}
+
 			rightPathCount++
 
 			// For each right resource, get resources from left side
@@ -359,7 +366,7 @@ func (a *Arrow) ID() string {
 	return a.id
 }
 
-func (a *Arrow) ResourceType() (ObjectType, error) {
+func (a *Arrow) ResourceType() ([]ObjectType, error) {
 	// Arrow's resources come from the left side
 	return a.left.ResourceType()
 }
