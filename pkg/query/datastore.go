@@ -270,19 +270,18 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 		return EmptyPathSeq(), nil
 	}
 
-	// Check if subject relation matches what this iterator expects.
-	// - If subject has ellipsis ("..."), it means "any relation" and should match anything
-	// - If iterator expects ellipsis, it accepts any subject relation
-	// - Otherwise, both must have the same specific relation
-	if subject.Relation != tuple.Ellipsis &&
-		r.base.Subrelation() != tuple.Ellipsis &&
-		r.base.Subrelation() != subject.Relation {
-		return EmptyPathSeq(), nil
-	}
-
+	// Handle wildcards first - they don't have subrelations and match any query relation
 	if r.base.Wildcard() {
 		return r.iterResourcesWildcardImpl(ctx, subject)
 	}
+
+	// Check if subject relation matches what this iterator expects.
+	// Both the schema's expected subrelation and the query's subject relation must match exactly.
+	// Ellipsis is a specific relation value, not a wildcard.
+	if r.base.Subrelation() != subject.Relation {
+		return EmptyPathSeq(), nil
+	}
+
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceRelation: r.base.RelationName(),
