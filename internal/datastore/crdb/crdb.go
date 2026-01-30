@@ -180,24 +180,20 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
-		CommonDecoder:                revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
-		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
-		dburl:                        url,
-		acquireTimeout:               config.acquireTimeout,
-		watchBufferLength:            config.watchBufferLength,
-		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
-		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
-		watchConnectTimeout:          config.watchConnectTimeout,
-		writeOverlapKeyer:            keyer,
-		overlapKeyInit:               keySetInit,
-		beginChangefeedQuery:         changefeedQuery,
-		transactionNowQuery:          transactionNowQuery,
-		analyzeBeforeStatistics:      config.analyzeBeforeStatistics,
-		filterMaximumIDCount:         config.filterMaximumIDCount,
-		supportsIntegrity:            config.withIntegrity,
-		gcWindow:                     config.gcWindow,
-		watchEnabled:                 !config.watchDisabled,
-		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
+		CommonDecoder:           revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
+		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		dburl:                   url,
+		acquireTimeout:          config.acquireTimeout,
+		writeOverlapKeyer:       keyer,
+		overlapKeyInit:          keySetInit,
+		beginChangefeedQuery:    changefeedQuery,
+		transactionNowQuery:     transactionNowQuery,
+		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
+		filterMaximumIDCount:    config.filterMaximumIDCount,
+		supportsIntegrity:       config.withIntegrity,
+		gcWindow:                config.gcWindow,
+		watchEnabled:            !config.watchDisabled,
+		schema:                  *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
 
@@ -262,19 +258,15 @@ type crdbDatastore struct {
 	revisions.CommonDecoder
 	*common.MigrationValidator
 
-	dburl                        string
-	readPool, writePool          *pool.RetryPool
-	collectors                   []prometheus.Collector
-	watchBufferLength            uint16
-	watchChangeBufferMaximumSize uint64
-	watchBufferWriteTimeout      time.Duration
-	watchConnectTimeout          time.Duration
-	writeOverlapKeyer            overlapKeyer
-	overlapKeyInit               func(ctx context.Context) keySet
-	analyzeBeforeStatistics      bool
-	gcWindow                     time.Duration
-	schema                       common.SchemaInformation
-	acquireTimeout               time.Duration
+	dburl                   string
+	readPool, writePool     *pool.RetryPool
+	collectors              []prometheus.Collector
+	writeOverlapKeyer       overlapKeyer
+	overlapKeyInit          func(ctx context.Context) keySet
+	analyzeBeforeStatistics bool
+	gcWindow                time.Duration
+	schema                  common.SchemaInformation
+	acquireTimeout          time.Duration
 
 	beginChangefeedQuery string
 	transactionNowQuery  string

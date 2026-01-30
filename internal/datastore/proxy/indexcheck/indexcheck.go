@@ -72,6 +72,10 @@ func (p *indexcheckingProxy) RevisionFromString(serialized string) (datastore.Re
 	return p.delegate.RevisionFromString(serialized)
 }
 
+func (p *indexcheckingProxy) DefaultsWatchOptions() datastore.WatchOptions {
+	return p.delegate.DefaultsWatchOptions()
+}
+
 func (p *indexcheckingProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	return p.delegate.Watch(ctx, afterRevision, options)
 }

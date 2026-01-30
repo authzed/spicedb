@@ -12,7 +12,6 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/spf13/pflag"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/mysql"
@@ -301,10 +300,10 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
-	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
-	flagSet.StringVar(&opts.WatchChangeBufferMaximumSize, flagName("datastore-watch-change-buffer-maximum-size"), "15%", "how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted.")
-	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
-	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only)")
+	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), defaults.WatchBufferLength, "how large the watch buffer should be before blocking")
+	flagSet.StringVar(&opts.WatchChangeBufferMaximumSize, flagName("datastore-watch-change-buffer-maximum-size"), defaults.WatchChangeBufferMaximumSize, "how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted.")
+	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), defaults.WatchBufferWriteTimeout, "how long the watch buffer should queue before forcefully disconnecting the reader")
+	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), defaults.WatchConnectTimeout, "how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only)")
 	flagSet.BoolVar(&opts.DisableWatchSupport, flagName("datastore-disable-watch-support"), false, "disable watch support (only enable if you absolutely do not need watch)")
 	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (Postgres and CockroachDB drivers only)")
 	flagSet.DurationVar(&opts.WriteAcquisitionTimeout, flagName("write-conn-acquisition-timeout"), defaults.WriteAcquisitionTimeout, "amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only)")
@@ -537,11 +536,6 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}
 
-	watchChangeBufferMaximumSize, err := common.WatchBufferSize(opts.WatchChangeBufferMaximumSize)
-	if err != nil {
-		return nil, err
-	}
-
 	return crdb.NewCRDBDatastore(
 		ctx,
 		opts.URI,
@@ -565,10 +559,6 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.MaxRetries(maxRetries),
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
-		crdb.WatchBufferLength(opts.WatchBufferLength),
-		crdb.WatchChangeBufferMaximumSize(watchChangeBufferMaximumSize),
-		crdb.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
-		crdb.WatchConnectTimeout(opts.WatchConnectTimeout),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
 		crdb.ConnectRate(opts.ConnectRate),
@@ -613,18 +603,12 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}
 
-	watchChangeBufferMaximumSize, err := common.WatchBufferSize(opts.WatchChangeBufferMaximumSize)
-	if err != nil {
-		return nil, err
-	}
-
 	return []postgres.Option{
 		postgres.EnableTracing(),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(maxRetries),
 		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		postgres.WithColumnOptimization(opts.ExperimentalColumnOptimization),
-		postgres.WatchChangeBufferMaximumSize(watchChangeBufferMaximumSize),
 		postgres.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 	}, nil
 }
@@ -671,8 +655,6 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
-		postgres.WatchBufferLength(opts.WatchBufferLength),
-		postgres.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		postgres.WithWatchDisabled(opts.DisableWatchSupport),
 		postgres.MigrationPhase(opts.MigrationPhase),
 		postgres.AllowedMigrations(opts.AllowedMigrations),
@@ -698,11 +680,6 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		metricsOption = spanner.DatastoreMetricsOptionNone
 	}
 
-	watchChangeBufferMaximumSize, err := common.WatchBufferSize(opts.WatchChangeBufferMaximumSize)
-	if err != nil {
-		return nil, err
-	}
-
 	return spanner.NewSpannerDatastore(
 		ctx,
 		opts.URI,
@@ -711,9 +688,6 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 		spanner.CredentialsJSON(opts.SpannerCredentialsJSON),
-		spanner.WatchBufferLength(opts.WatchBufferLength),
-		spanner.WatchChangeBufferMaximumSize(watchChangeBufferMaximumSize),
-		spanner.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 		spanner.DisableStats(opts.DisableStats),
 		spanner.WithDatastoreMetricsOption(metricsOption),
@@ -761,19 +735,11 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 		return nil, errors.New("max-retries could not be cast to uint8")
 	}
 
-	watchChangeBufferMaximumSize, err := common.WatchBufferSize(opts.WatchChangeBufferMaximumSize)
-	if err != nil {
-		return nil, err
-	}
-
 	return []mysql.Option{
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.MaxRetries(maxRetries),
 		mysql.OverrideLockWaitTimeout(1),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
-		mysql.WatchBufferLength(opts.WatchBufferLength),
-		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
-		mysql.WatchChangeBufferMaximumSize(watchChangeBufferMaximumSize),
 		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),

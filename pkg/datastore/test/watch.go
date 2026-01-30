@@ -242,7 +242,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	startWatchRevision := setupDatastore(ds, require)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	changes, errchan := ds.Watch(ctx, startWatchRevision, datastore.WatchJustRelationships())
+	changes, errchan := ds.Watch(ctx, startWatchRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, makeTestRel("test", "test"))
@@ -294,7 +294,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// TOUCH a relationship and ensure watch sees it.
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	afterTouchRevision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch,
@@ -323,7 +323,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with no changes and ensure it does *not* appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom"))
@@ -342,7 +342,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with a caveat name change and ensure it does appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	afterNameChange, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]"))
@@ -363,7 +363,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with a caveat context change and ensure it does appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterNameChange, datastore.WatchJustRelationships())
+	changes, errchan = ds.Watch(ctx, afterNameChange, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))
@@ -398,7 +398,7 @@ func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	lowestRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	metadata, err := structpb.NewStruct(map[string]any{"somekey": "somevalue"})
@@ -443,7 +443,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 	lowestRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	metadata, err := structpb.NewStruct(map[string]any{"somekey": "somevalue"})
@@ -483,7 +483,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// TOUCH a relationship and ensure watch sees it.
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	afterTouchRevision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch,
@@ -512,7 +512,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// DELETE the relationship
-	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationDelete, tuple.MustParse("document:firstdoc#viewer@user:tom"))
@@ -574,7 +574,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	lowestRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema(ds))
 	require.Empty(errchan)
 
 	// Addition
@@ -801,6 +801,7 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships | datastore.WatchSchema,
 		CheckpointInterval: 100 * time.Millisecond,
+		WatchBufferLength:  1000,
 	})
 	require.Empty(errchan)
 

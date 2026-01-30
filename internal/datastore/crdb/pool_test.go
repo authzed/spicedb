@@ -107,7 +107,6 @@ func TestTxReset(t *testing.T) {
 					uri,
 					GCWindow(24*time.Hour),
 					RevisionQuantization(5*time.Second),
-					WatchBufferLength(128),
 					MaxRetries(tt.maxRetries),
 					WithAcquireTimeout(5*time.Second),
 				)

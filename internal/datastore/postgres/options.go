@@ -16,16 +16,13 @@ type postgresOptions struct {
 
 	credentialsProviderName string
 
-	watchBufferLength            uint16
-	watchChangeBufferMaximumSize uint64
-	watchBufferWriteTimeout      time.Duration
-	revisionQuantization         time.Duration
-	followerReadDelay            time.Duration
-	gcWindow                     time.Duration
-	gcInterval                   time.Duration
-	gcMaxOperationTime           time.Duration
-	maxRetries                   uint8
-	filterMaximumIDCount         uint16
+	revisionQuantization time.Duration
+	followerReadDelay    time.Duration
+	gcWindow             time.Duration
+	gcInterval           time.Duration
+	gcMaxOperationTime   time.Duration
+	maxRetries           uint8
+	filterMaximumIDCount uint16
 
 	enablePrometheusStats          bool
 	analyzeBeforeStatistics        bool
@@ -93,8 +90,6 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		gcWindow:                       defaultGarbageCollectionWindow,
 		gcInterval:                     defaultGarbageCollectionInterval,
 		gcMaxOperationTime:             defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:              defaultWatchBufferLength,
-		watchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
 		revisionQuantization:           defaultQuantization,
 		maxRevisionStalenessPercent:    defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:          defaultEnablePrometheusStats,
@@ -268,26 +263,6 @@ func ReadConnsMaxOpen(conns int) Option {
 // This value defaults to having no maximum.
 func WriteConnsMaxOpen(conns int) Option {
 	return func(po *postgresOptions) { po.writePoolOpts.MaxOpenConns = &conns }
-}
-
-// WatchBufferLength is the number of entries that can be stored in the watch
-// buffer while awaiting read by the client.
-//
-// This value defaults to 128.
-func WatchBufferLength(watchBufferLength uint16) Option {
-	return func(po *postgresOptions) { po.watchBufferLength = watchBufferLength }
-}
-
-// WatchBufferWriteTimeout is the maximum timeout for writing to the watch buffer,
-// after which the caller to the watch will be disconnected.
-func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
-	return func(po *postgresOptions) { po.watchBufferWriteTimeout = watchBufferWriteTimeout }
-}
-
-// WatchBufferMaximumSize is the maximum size in bytes of the watch buffer.
-// If this value is exceeded the caller will receive an error.
-func WatchChangeBufferMaximumSize(maxSize uint64) Option {
-	return func(po *postgresOptions) { po.watchChangeBufferMaximumSize = maxSize }
 }
 
 // RevisionQuantization is the time bucket size to which advertised

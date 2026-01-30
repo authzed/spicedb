@@ -254,30 +254,27 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	)
 
 	store := &mysqlDatastore{
-		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
-		db:                           db,
-		driver:                       driver,
-		collectors:                   collectors,
-		url:                          uri,
-		revisionQuantization:         config.revisionQuantization,
-		gcWindow:                     config.gcWindow,
-		gcInterval:                   config.gcInterval,
-		gcTimeout:                    config.gcMaxOperationTime,
-		gcCtx:                        gcCtx,
-		cancelGc:                     cancelGc,
-		watchEnabled:                 !config.watchDisabled,
-		watchBufferLength:            config.watchBufferLength,
-		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
-		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
-		optimizedRevisionQuery:       revisionQuery,
-		validTransactionQuery:        validTransactionQuery,
-		createTxn:                    createTxn,
-		createBaseTxn:                createBaseTxn,
-		QueryBuilder:                 queryBuilder,
-		readTxOptions:                &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
-		maxRetries:                   config.maxRetries,
-		analyzeBeforeStats:           config.analyzeBeforeStats,
-		schema:                       *schema,
+		MigrationValidator:     common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		db:                     db,
+		driver:                 driver,
+		collectors:             collectors,
+		url:                    uri,
+		revisionQuantization:   config.revisionQuantization,
+		gcWindow:               config.gcWindow,
+		gcInterval:             config.gcInterval,
+		gcTimeout:              config.gcMaxOperationTime,
+		gcCtx:                  gcCtx,
+		cancelGc:               cancelGc,
+		watchEnabled:           !config.watchDisabled,
+		optimizedRevisionQuery: revisionQuery,
+		validTransactionQuery:  validTransactionQuery,
+		createTxn:              createTxn,
+		createBaseTxn:          createBaseTxn,
+		QueryBuilder:           queryBuilder,
+		readTxOptions:          &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
+		maxRetries:             config.maxRetries,
+		analyzeBeforeStats:     config.analyzeBeforeStats,
+		schema:                 *schema,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
@@ -484,17 +481,14 @@ type mysqlDatastore struct {
 	analyzeBeforeStats bool
 	collectors         []prometheus.Collector
 
-	revisionQuantization         time.Duration
-	gcWindow                     time.Duration
-	gcInterval                   time.Duration
-	gcTimeout                    time.Duration
-	watchBufferLength            uint16
-	watchChangeBufferMaximumSize uint64
-	watchBufferWriteTimeout      time.Duration
-	watchEnabled                 bool
-	maxRetries                   uint8
-	filterMaximumIDCount         uint16
-	schema                       common.SchemaInformation
+	revisionQuantization time.Duration
+	gcWindow             time.Duration
+	gcInterval           time.Duration
+	gcTimeout            time.Duration
+	watchEnabled         bool
+	maxRetries           uint8
+	filterMaximumIDCount uint16
+	schema               common.SchemaInformation
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string
