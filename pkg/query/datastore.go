@@ -270,6 +270,16 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 		return EmptyPathSeq(), nil
 	}
 
+	// Check if subject relation matches what this iterator expects.
+	// - If subject has ellipsis ("..."), it means "any relation" and should match anything
+	// - If iterator expects ellipsis, it accepts any subject relation
+	// - Otherwise, both must have the same specific relation
+	if subject.Relation != tuple.Ellipsis &&
+		r.base.Subrelation() != tuple.Ellipsis &&
+		r.base.Subrelation() != subject.Relation {
+		return EmptyPathSeq(), nil
+	}
+
 	if r.base.Wildcard() {
 		return r.iterResourcesWildcardImpl(ctx, subject)
 	}

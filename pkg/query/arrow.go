@@ -283,9 +283,10 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 				return
 			}
 
-			// Filter out self-edges where resource == subject (these are intermediate steps
-			// that shouldn't be propagated through arrows as they have the wrong subject)
-			if rightPath.Resource.Equals(GetObject(rightPath.Subject)) {
+			// Filter out self-edges where the right resource (object + relation) matches the original subject
+			// (these are circular references that shouldn't be propagated through arrows).
+			// We need to check both the object (type+ID) AND the relation to identify true self-edges.
+			if rightPath.Resource.Equals(GetObject(subject)) && rightPath.Relation == subject.Relation {
 				continue
 			}
 
