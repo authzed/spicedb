@@ -74,7 +74,7 @@ func crdbTestVersion() string {
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -82,7 +82,6 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 				uri,
 				GCWindow(gcWindow),
 				RevisionQuantization(revisionQuantization),
-				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
 				WithAcquireTimeout(5*time.Second),
@@ -202,7 +201,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -210,7 +209,6 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 				uri,
 				GCWindow(gcWindow),
 				RevisionQuantization(revisionQuantization),
-				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
 				WithIntegrity(true),
@@ -229,7 +227,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 		return ds, nil
 	}), false)
 
-	unwrappedTester := test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	unwrappedTester := test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -237,7 +235,6 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 				uri,
 				GCWindow(gcWindow),
 				RevisionQuantization(revisionQuantization),
-				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
 				WithIntegrity(true),
@@ -331,7 +328,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 				headRevision, err := ds.HeadRevision(ctx)
 				require.NoError(t, err)
 
-				_, errChan := ds.Watch(ctx, headRevision, datastore.WatchJustRelationships())
+				_, errChan := ds.Watch(ctx, headRevision, datastore.WatchJustRelationships(ds))
 				err = <-errChan
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "watch is currently disabled")

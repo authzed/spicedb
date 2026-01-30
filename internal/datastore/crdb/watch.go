@@ -68,13 +68,18 @@ type changeDetails struct {
 	}
 }
 
-func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
-	watchBufferLength := options.WatchBufferLength
-	if watchBufferLength == 0 {
-		watchBufferLength = cds.watchBufferLength
+func (cds *crdbDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	return datastore.WatchOptions{
+		CheckpointInterval:             1 * time.Second,
+		WatchBufferLength:              defaultWatchBufferLength,
+		WatchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
+		WatchConnectTimeout:            defaultWatchConnectTimeout,
+		MaximumBufferedChangesByteSize: 0, // 0 means no limit
 	}
+}
 
-	updates := make(chan datastore.RevisionChanges, watchBufferLength)
+func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	updates := make(chan datastore.RevisionChanges, options.WatchBufferLength)
 	errs := make(chan error, 1)
 
 	// If checkpoints + schema is requested, this is likely used by the schema watching cache,
@@ -121,17 +126,12 @@ func (cds *crdbDatastore) watch(
 	defer close(updates)
 	defer close(errs)
 
-	watchConnectTimeout := opts.WatchConnectTimeout
-	if watchConnectTimeout <= 0 {
-		watchConnectTimeout = cds.watchConnectTimeout
-	}
-
 	// get non-pooled connection for watch
 	// "applications should explicitly create dedicated connections to consume
 	// changefeed data, instead of using a connection pool as most client
 	// drivers do by default."
 	// see: https://www.cockroachlabs.com/docs/v22.2/changefeed-for#considerations
-	conn, err := pgxcommon.ConnectWithInstrumentationAndTimeout(ctx, cds.dburl, watchConnectTimeout)
+	conn, err := pgxcommon.ConnectWithInstrumentationAndTimeout(ctx, cds.dburl, opts.WatchConnectTimeout)
 	if err != nil {
 		errs <- err
 		return
@@ -153,18 +153,7 @@ func (cds *crdbDatastore) watch(
 		return
 	}
 
-	if opts.CheckpointInterval < 0 {
-		errs <- errors.New("invalid checkpoint interval given")
-		return
-	}
-
-	// Default: 1s
-	resolvedDuration := 1 * time.Second
-	if opts.CheckpointInterval > 0 {
-		resolvedDuration = opts.CheckpointInterval
-	}
-
-	resolvedDurationString := strconv.FormatInt(resolvedDuration.Milliseconds(), 10) + "ms"
+	resolvedDurationString := strconv.FormatInt(opts.CheckpointInterval.Milliseconds(), 10) + "ms"
 	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision, resolvedDurationString)
 
 	sendError := func(err error) {
@@ -186,11 +175,6 @@ func (cds *crdbDatastore) watch(
 		errs <- err
 	}
 
-	watchBufferWriteTimeout := opts.WatchBufferWriteTimeout
-	if watchBufferWriteTimeout <= 0 {
-		watchBufferWriteTimeout = cds.watchBufferWriteTimeout
-	}
-
 	sendChange := func(change datastore.RevisionChanges) error {
 		select {
 		case updates <- change:
@@ -200,7 +184,7 @@ func (cds *crdbDatastore) watch(
 			// If we cannot immediately write, setup the timer and try again.
 		}
 
-		timer := time.NewTimer(watchBufferWriteTimeout)
+		timer := time.NewTimer(opts.WatchBufferWriteTimeout)
 		defer timer.Stop()
 
 		select {
@@ -344,12 +328,7 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 			content:    opts.Content,
 		}
 	} else {
-		watchBufferSize := opts.MaximumBufferedChangesByteSize
-		if watchBufferSize == 0 {
-			watchBufferSize = cds.watchChangeBufferMaximumSize
-		}
-
-		tracked = common.NewChanges(revisions.HLCKeyFunc, opts.Content, watchBufferSize)
+		tracked = common.NewChanges(revisions.HLCKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)
 	}
 
 	for changes.Next() {

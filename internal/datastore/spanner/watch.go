@@ -53,13 +53,19 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 	return matches[1], matches[2], matches[3], nil
 }
 
-func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
-	watchBufferLength := opts.WatchBufferLength
-	if watchBufferLength == 0 {
-		watchBufferLength = sd.watchBufferLength
+func (sd *spannerDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	return datastore.WatchOptions{
+		CheckpointInterval:             100 * time.Millisecond,
+		WatchBufferLength:              defaultWatchBufferLength,
+		WatchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
+		MaximumBufferedChangesByteSize: 0, // 0 means no limit
+		// Spanner does not use WatchConnectTimeout
+		// Spanner does not support EmitImmediatelyStrategy
 	}
+}
 
-	updates := make(chan datastore.RevisionChanges, watchBufferLength)
+func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	updates := make(chan datastore.RevisionChanges, opts.WatchBufferLength)
 	errs := make(chan error, 2) // we may try to send >1 error
 
 	if opts.EmissionStrategy == datastore.EmitImmediatelyStrategy {
@@ -83,12 +89,6 @@ func (sd *spannerDatastore) watch(
 	defer close(updates)
 	defer close(errs)
 
-	// NOTE: 100ms is the minimum allowed.
-	heartbeatInterval := opts.CheckpointInterval
-	if heartbeatInterval < 100*time.Millisecond {
-		heartbeatInterval = 100 * time.Millisecond
-	}
-
 	sendError := func(err error) {
 		if errors.Is(ctx.Err(), context.Canceled) || common.IsCancellationError(err) {
 			errs <- datastore.NewWatchCanceledErr()
@@ -108,11 +108,6 @@ func (sd *spannerDatastore) watch(
 		return
 	}
 
-	watchBufferWriteTimeout := opts.WatchBufferWriteTimeout
-	if watchBufferWriteTimeout <= 0 {
-		watchBufferWriteTimeout = sd.watchBufferWriteTimeout
-	}
-
 	sendChange := func(change datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
@@ -122,7 +117,7 @@ func (sd *spannerDatastore) watch(
 			// If we cannot immediately write, setup the timer and try again.
 		}
 
-		timer := time.NewTimer(watchBufferWriteTimeout)
+		timer := time.NewTimer(opts.WatchBufferWriteTimeout)
 		defer timer.Stop()
 
 		select {
@@ -155,7 +150,7 @@ func (sd *spannerDatastore) watch(
 		CombinedChangeStreamName,
 		changestreams.Config{
 			StartTimestamp:    afterRevision.Time().Add(1 * time.Nanosecond), // records with commit_timestamp greater than or equal to start_timestamp will be returned
-			HeartbeatInterval: heartbeatInterval,
+			HeartbeatInterval: opts.CheckpointInterval,
 			SpannerClientOptions: []option.ClientOption{
 				option.WithCredentialsFile(sd.config.credentialsFilePath),
 			},
@@ -196,11 +191,6 @@ func (sd *spannerDatastore) watch(
 	// but we only want to send them as *one* group.
 	txnBuffer := xsync.NewMap[string, *common.Changes[revisions.TimestampRevision, int64]]()
 
-	watchBufferSize := opts.MaximumBufferedChangesByteSize
-	if watchBufferSize == 0 {
-		watchBufferSize = sd.watchChangeBufferMaximumSize
-	}
-
 	// NOTE: the callback below might be called concurrently across partitions.
 	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
 		// See: https://cloud.google.com/spanner/docs/change-streams/details
@@ -211,7 +201,7 @@ func (sd *spannerDatastore) watch(
 				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
 
 				// Get or create tracked changes for this transaction.
-				tracked, _ := txnBuffer.LoadOrStore(txnID, common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, watchBufferSize))
+				tracked, _ := txnBuffer.LoadOrStore(txnID, common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize))
 
 				// See: https://cloud.google.com/spanner/docs/ttl
 				// > TTL supports auditing its deletions through change streams. Change

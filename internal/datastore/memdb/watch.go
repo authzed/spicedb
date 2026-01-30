@@ -14,24 +14,23 @@ import (
 
 const errWatchError = "watch error: %w"
 
-func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
-	watchBufferLength := options.WatchBufferLength
-	if watchBufferLength == 0 {
-		watchBufferLength = mdb.watchBufferLength
+func (mdb *memdbDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	return datastore.WatchOptions{
+		WatchBufferLength:       defaultWatchBufferLength,
+		WatchBufferWriteTimeout: 100 * time.Millisecond,
+		// memdb does not use CheckpointInterval, WatchConnectTimeout, or MaximumBufferedChangesByteSize
+		// memdb does not support EmitImmediatelyStrategy
 	}
+}
 
-	updates := make(chan datastore.RevisionChanges, watchBufferLength)
+func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	updates := make(chan datastore.RevisionChanges, options.WatchBufferLength)
 	errs := make(chan error, 1)
 
 	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy {
 		close(updates)
 		errs <- errors.New("emit immediately strategy is unsupported in MemDB")
 		return updates, errs
-	}
-
-	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
-	if watchBufferWriteTimeout == 0 {
-		watchBufferWriteTimeout = mdb.watchBufferWriteTimeout
 	}
 
 	sendChange := func(change datastore.RevisionChanges) bool {
@@ -43,7 +42,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, opt
 			// If we cannot immediately write, setup the timer and try again.
 		}
 
-		timer := time.NewTimer(watchBufferWriteTimeout)
+		timer := time.NewTimer(options.WatchBufferWriteTimeout)
 		defer timer.Stop()
 
 		select {

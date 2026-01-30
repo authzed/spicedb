@@ -157,6 +157,22 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 		return err
 	}
 
+	watchOptions, err := datastore.BuildAndValidateWatchOptions(
+		datastore.ServerWatchConfig{
+			CheckpointInterval: p.watchHeartbeat,
+		},
+		datastore.ClientWatchOptions{
+			Content: datastore.WatchSchema | datastore.WatchCheckpoints,
+		},
+		p.DefaultsWatchOptions(),
+	)
+	if err != nil {
+		p.namespaceCache.setFallbackMode()
+		p.caveatCache.setFallbackMode()
+		log.Warn().Err(err).Msg("error building watch options")
+		return err
+	}
+
 	// Start watching for expired entries to be GCed.
 	go (func() {
 		log.Debug().Str("revision", headRev.String()).Msg("starting watching cache GC goroutine")
@@ -241,10 +257,8 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
 
 			log.Debug().Str("revision", headRev.String()).Dur("watch-heartbeat", p.watchHeartbeat).Msg("beginning schema watch")
-			ssc, serrc := p.Watch(ctx, headRev, datastore.WatchOptions{
-				Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
-				CheckpointInterval: p.watchHeartbeat,
-			})
+
+			ssc, serrc := p.Watch(ctx, headRev, watchOptions)
 			spiceerrors.DebugAssertNotNilf(ssc, "ssc is nil")
 			spiceerrors.DebugAssertNotNilf(serrc, "serrc is nil")
 

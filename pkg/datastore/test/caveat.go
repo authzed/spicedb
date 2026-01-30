@@ -349,7 +349,7 @@ func expectRelChange(t *testing.T, ds datastore.Datastore, revBeforeWrite datast
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	chanRevisionChanges, chanErr := ds.Watch(ctx, revBeforeWrite, datastore.WatchJustRelationships())
+	chanRevisionChanges, chanErr := ds.Watch(ctx, revBeforeWrite, datastore.WatchJustRelationships(ds))
 	require.Empty(t, chanErr)
 
 	changeWait := time.NewTimer(waitForChangesTimeout)
