@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // arrowDirection specifies which direction to execute the arrow check
@@ -25,20 +26,32 @@ const (
 //
 // Ex: `folder->owner` and `left->right`
 type Arrow struct {
-	id        string
-	left      Iterator
-	right     Iterator
-	direction arrowDirection // execution direction
+	id            string
+	left          Iterator
+	right         Iterator
+	direction     arrowDirection // execution direction
+	isSchemaArrow bool           // true for schema arrows (relation->permission), false for subrelation arrows
 }
 
 var _ Iterator = &Arrow{}
 
 func NewArrow(left, right Iterator) *Arrow {
 	return &Arrow{
-		id:        uuid.NewString(),
-		left:      left,
-		right:     right,
-		direction: leftToRight,
+		id:            uuid.NewString(),
+		left:          left,
+		right:         right,
+		direction:     leftToRight,
+		isSchemaArrow: false, // default to subrelation arrow
+	}
+}
+
+func NewSchemaArrow(left, right Iterator) *Arrow {
+	return &Arrow{
+		id:            uuid.NewString(),
+		left:          left,
+		right:         right,
+		direction:     leftToRight,
+		isSchemaArrow: true,
 	}
 }
 
@@ -92,23 +105,14 @@ func (a *Arrow) checkLeftToRight(ctx *Context, resources []Object, subject Objec
 					return
 				}
 
-				rightPathCount := 0
-				for checkPath, err := range checkit {
-					if err != nil {
-						yield(Path{}, err)
-						return
-					}
-					rightPathCount++
-
-					combinedPath := combineArrowPaths(path, checkPath)
-
-					totalResultPaths++
-					if !yield(combinedPath, nil) {
-						return
-					}
+				// Process right check results and combine with left path
+				count, ok := processLeftPathSequence(checkit, path, yield)
+				totalResultPaths += count
+				if !ok {
+					return
 				}
 
-				ctx.TraceStep(a, "right side returned %d paths for subject %s:%s", rightPathCount, path.Subject.ObjectType, path.Subject.ObjectID)
+				ctx.TraceStep(a, "right side returned %d paths for subject %s:%s", count, path.Subject.ObjectType, path.Subject.ObjectID)
 			}
 
 			ctx.TraceStep(a, "left side returned %d paths for resource %s:%s", leftPathCount, resource.ObjectType, resource.ObjectID)
@@ -156,29 +160,79 @@ func (a *Arrow) checkRightToLeft(ctx *Context, resources []Object, subject Objec
 				return
 			}
 
-			leftPathCount := 0
-			for leftPath, err := range leftSeq {
-				if err != nil {
-					yield(Path{}, err)
-					return
-				}
-				leftPathCount++
-
-				combinedPath := combineArrowPaths(leftPath, rightPath)
-
-				totalResultPaths++
-				if !yield(combinedPath, nil) {
-					return
-				}
+			// Process left check results and combine with right path
+			count, ok := processRightPathSequence(leftSeq, rightPath, yield)
+			totalResultPaths += count
+			if !ok {
+				return
 			}
 
 			ctx.TraceStep(a, "left side returned %d paths for intermediate %s:%s",
-				leftPathCount, intermediateAsSubject.ObjectType, intermediateAsSubject.ObjectID)
+				count, intermediateAsSubject.ObjectType, intermediateAsSubject.ObjectID)
 		}
 
 		ctx.TraceStep(a, "arrow check (right-to-left) completed: %d right paths, %d total result paths",
 			rightPathCount, totalResultPaths)
 	}, nil
+}
+
+// processPathSequence is a helper that iterates a path sequence, combines each path with a fixed path,
+// and yields the results. It handles error propagation and counting.
+//
+// Parameters:
+//   - seq: the sequence to iterate over
+//   - fixedPath: the path to combine with each iterated path
+//   - isLeft: if true, fixedPath is the left side in combineArrowPaths; if false, it's the right side
+//   - yield: the yield function to call for each combined path
+//
+// Returns (count, ok) where count is the number of paths processed and ok is false if iteration
+// should stop (due to error or yield returning false), true otherwise.
+func processPathSequence(
+	seq PathSeq,
+	fixedPath Path,
+	isLeft bool,
+	yield func(Path, error) bool,
+) (int, bool) {
+	count := 0
+	for iteratedPath, err := range seq {
+		if err != nil {
+			yield(Path{}, err)
+			return count, false
+		}
+
+		var combinedPath Path
+		if isLeft {
+			combinedPath = combineArrowPaths(fixedPath, iteratedPath)
+		} else {
+			combinedPath = combineArrowPaths(iteratedPath, fixedPath)
+		}
+
+		count++
+		if !yield(combinedPath, nil) {
+			return count, false
+		}
+	}
+	return count, true
+}
+
+// processLeftPathSequence processes a sequence where the fixed path is on the left side.
+// Returns (count, ok) where count is paths processed and ok indicates whether to continue.
+func processLeftPathSequence(
+	seq PathSeq,
+	leftPath Path,
+	yield func(Path, error) bool,
+) (int, bool) {
+	return processPathSequence(seq, leftPath, true, yield)
+}
+
+// processRightPathSequence processes a sequence where the fixed path is on the right side.
+// Returns (count, ok) where count is paths processed and ok indicates whether to continue.
+func processRightPathSequence(
+	seq PathSeq,
+	rightPath Path,
+	yield func(Path, error) bool,
+) (int, bool) {
+	return processPathSequence(seq, rightPath, false, yield)
 }
 
 // combineArrowPaths combines a left path and right path into a single path for arrow operations.
@@ -239,23 +293,14 @@ func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectTyp
 				return
 			}
 
-			rightPathCount := 0
-			for rightPath, err := range rightSeq {
-				if err != nil {
-					yield(Path{}, err)
-					return
-				}
-				rightPathCount++
-
-				combinedPath := combineArrowPaths(leftPath, rightPath)
-
-				totalResultPaths++
-				if !yield(combinedPath, nil) {
-					return
-				}
+			// Process right subjects and combine with left path
+			count, ok := processLeftPathSequence(rightSeq, leftPath, yield)
+			totalResultPaths += count
+			if !ok {
+				return
 			}
 
-			ctx.TraceStep(a, "right side returned %d paths for left subject %s:%s", rightPathCount, leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+			ctx.TraceStep(a, "right side returned %d paths for left subject %s:%s", count, leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
 		}
 
 		ctx.TraceStep(a, "arrow IterSubjects completed: %d left paths, %d total result paths", leftPathCount, totalResultPaths)
@@ -289,34 +334,92 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 
 			rightPathCount++
 
-			// For each right resource, get resources from left side
-			// TODO: see if WithEllipses is correct here
-			rightResourceAsSubject := rightPath.Resource.WithEllipses()
-			ctx.TraceStep(a, "iterating left side for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
-
-			leftSeq, err := ctx.IterResources(a.left, rightResourceAsSubject, filterResourceType)
-			if err != nil {
-				yield(Path{}, err)
-				return
-			}
-
+			// For each right resource, query the left side.
+			// For schema arrows (relation->permission), we need to query with BOTH:
+			// 1. The specific relation from the path
+			// 2. The same resource with ellipsis (to match stored relationships with ellipsis subjects)
+			// For subrelation arrows (relation: type#subrelation), we only query with the specific relation.
+			rightResourceAsSubject := rightPath.ResourceOAR()
 			leftPathCount := 0
-			for leftPath, err := range leftSeq {
+
+			if a.isSchemaArrow {
+				// Schema arrow: query with both specific relation and ellipsis
+				rightResourceWithEllipsis := ObjectAndRelation{
+					ObjectType: rightResourceAsSubject.ObjectType,
+					ObjectID:   rightResourceAsSubject.ObjectID,
+					Relation:   tuple.Ellipsis,
+				}
+
+				ctx.TraceStep(a, "iterating left side for right resource %s:%s#%s (and ellipsis, schema arrow)",
+					rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID, rightResourceAsSubject.Relation)
+
+				// Query with specific relation
+				leftSeqSpecific, err := ctx.IterResources(a.left, rightResourceAsSubject, filterResourceType)
 				if err != nil {
 					yield(Path{}, err)
 					return
 				}
-				leftPathCount++
 
-				combinedPath := combineArrowPaths(leftPath, rightPath)
-
-				totalResultPaths++
-				if !yield(combinedPath, nil) {
+				// Query with ellipsis
+				leftSeqEllipsis, err := ctx.IterResources(a.left, rightResourceWithEllipsis, filterResourceType)
+				if err != nil {
+					yield(Path{}, err)
 					return
 				}
-			}
 
-			ctx.TraceStep(a, "left side returned %d paths for right subject %s:%s", leftPathCount, rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
+				// Process both sequences
+				count1, ok := processRightPathSequence(leftSeqSpecific, rightPath, yield)
+				leftPathCount += count1
+				totalResultPaths += count1
+				if !ok {
+					return
+				}
+
+				count2, ok := processRightPathSequence(leftSeqEllipsis, rightPath, yield)
+				leftPathCount += count2
+				totalResultPaths += count2
+				if !ok {
+					return
+				}
+
+				ctx.TraceStep(a, "left side returned %d paths for right subject %s:%s#%s (and ellipsis, schema arrow)", leftPathCount, rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID, rightResourceAsSubject.Relation)
+			} else {
+				// Subrelation arrow: query with the left iterator's expected subrelation
+				// Get the expected subject types from the left iterator
+				leftSubjectTypes, err := a.left.SubjectTypes()
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+
+				// Use the expected subrelation from the left iterator
+				// (for subrelation arrows, there should be exactly one expected type)
+				if len(leftSubjectTypes) > 0 && leftSubjectTypes[0].Type == rightResourceAsSubject.ObjectType {
+					expectedSubject := ObjectAndRelation{
+						ObjectType: rightResourceAsSubject.ObjectType,
+						ObjectID:   rightResourceAsSubject.ObjectID,
+						Relation:   leftSubjectTypes[0].Subrelation,
+					}
+
+					ctx.TraceStep(a, "iterating left side for right resource %s:%s#%s (subrelation arrow, using expected subrelation %s)",
+						rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID, rightResourceAsSubject.Relation, expectedSubject.Relation)
+
+					leftSeq, err := ctx.IterResources(a.left, expectedSubject, filterResourceType)
+					if err != nil {
+						yield(Path{}, err)
+						return
+					}
+
+					count, ok := processRightPathSequence(leftSeq, rightPath, yield)
+					leftPathCount += count
+					totalResultPaths += count
+					if !ok {
+						return
+					}
+
+					ctx.TraceStep(a, "left side returned %d paths for right subject %s:%s#%s (subrelation arrow)", leftPathCount, expectedSubject.ObjectType, expectedSubject.ObjectID, expectedSubject.Relation)
+				}
+			}
 		}
 
 		ctx.TraceStep(a, "arrow IterSubjects completed: %d right paths, %d total result paths", rightPathCount, totalResultPaths)
@@ -325,10 +428,11 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 
 func (a *Arrow) Clone() Iterator {
 	return &Arrow{
-		id:        uuid.NewString(),
-		left:      a.left.Clone(),
-		right:     a.right.Clone(),
-		direction: a.direction, // preserve direction
+		id:            uuid.NewString(),
+		left:          a.left.Clone(),
+		right:         a.right.Clone(),
+		direction:     a.direction,     // preserve direction
+		isSchemaArrow: a.isSchemaArrow, // preserve arrow type
 	}
 }
 
@@ -353,10 +457,11 @@ func (a *Arrow) Subiterators() []Iterator {
 
 func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return &Arrow{
-		id:        uuid.NewString(),
-		left:      newSubs[0],
-		right:     newSubs[1],
-		direction: a.direction,
+		id:            uuid.NewString(),
+		left:          newSubs[0],
+		right:         newSubs[1],
+		direction:     a.direction,
+		isSchemaArrow: a.isSchemaArrow,
 	}, nil
 }
 

@@ -314,7 +314,17 @@ func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide st
 			}
 			return nil, err
 		}
-		arrow := NewArrow(left, right)
+		// Use NewSchemaArrow only for BaseRelations without subrelations.
+		// BaseRelations with subrelations (like folder#parent) should use regular arrows
+		// because they need strict subrelation matching.
+		var arrow *Arrow
+		if br.Subrelation() != "" && br.Subrelation() != tuple.Ellipsis {
+			// Has a specific subrelation: use regular arrow (no ellipsis queries)
+			arrow = NewArrow(left, right)
+		} else {
+			// No subrelation or ellipsis: use schema arrow (with ellipsis queries)
+			arrow = NewSchemaArrow(left, right)
+		}
 		union.addSubIterator(arrow)
 	}
 
