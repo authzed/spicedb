@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -99,8 +100,11 @@ func (r *definitionCachingReader) LegacyLookupCaveatsWithNames(
 		estimatedCaveatDefinitionSize)
 }
 
+// SchemaReader returns a reference to this reader, but wrapped in such a way
+// that the legacy methods are used to drive the new methods, which ensures
+// that caching logic stays in place.
 func (r *definitionCachingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.Reader.SchemaReader()
+	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 func listAndCache[T schemaDefinition](
@@ -291,8 +295,18 @@ func (rwt *definitionCachingRWT) LegacyWriteCaveats(ctx context.Context, newConf
 	return nil
 }
 
+// SchemaWriter returns a wrapper around the definitionCachingRWT that ensures
+// that the caching logic in this proxy is exercised when a handle on the
+// SchemaWriter is requested.
 func (rwt *definitionCachingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
-	return rwt.ReadWriteTransaction.SchemaWriter()
+	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt.ReadWriteTransaction), nil
+}
+
+// SchemaReader returns a wrapper around the definitionCachingRWT that ensures
+// that the caching logic in this proxy is exercised when a handle on the
+// SchemaReader is requested.
+func (rwt *definitionCachingRWT) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(rwt), nil
 }
 
 type cacheEntry struct {

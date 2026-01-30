@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -35,8 +38,10 @@ var (
 )
 
 const (
-	nsA = "namespace_a"
-	nsB = "namespace_b"
+	nsA     = "namespace_a"
+	nsB     = "namespace_b"
+	caveatA = "caveat_a"
+	caveatB = "caveat_b"
 )
 
 // TestNilUnmarshal asserts that if we get a nil NamespaceDefinition from a
@@ -53,7 +58,7 @@ func TestNilUnmarshal(t *testing.T) {
 	require.Equal(t, nsDef, newDef)
 }
 
-type testerDef struct {
+type oldTesterDef struct {
 	name                   string
 	readSingleFunctionName string
 	readSingleFunc         func(ctx context.Context, reader datastore.Reader, name string) (datastore.SchemaDefinition, datastore.Revision, error)
@@ -71,7 +76,7 @@ type testerDef struct {
 	wrapRevisioned func(def datastore.SchemaDefinition) any
 }
 
-var testers = []testerDef{
+var oldtesters = []oldTesterDef{
 	{
 		"namespace",
 
@@ -145,8 +150,8 @@ var testers = []testerDef{
 	},
 }
 
-func TestSnapshotCaching(t *testing.T) {
-	for _, tester := range testers {
+func TestOldSnapshotCaching(t *testing.T) {
+	for _, tester := range oldtesters {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
@@ -208,8 +213,162 @@ func TestSnapshotCaching(t *testing.T) {
 	}
 }
 
-func TestRWTCaching(t *testing.T) {
-	for _, tester := range testers {
+func TestSnapshotCaching(t *testing.T) {
+	dsMock := &proxy_test.MockDatastore{}
+
+	oneReader := &proxy_test.MockReader{}
+	dsMock.On("SnapshotReader", one).Return(oneReader)
+	oneReader.On("LegacyReadNamespaceByName", nsA).Return(nil, old, nil).Once()
+	oneReader.On("LegacyReadNamespaceByName", nsB).Return(nil, zero, nil).Once()
+	oneReader.On("LegacyReadCaveatByName", caveatA).Return(nil, old, nil).Once()
+	oneReader.On("LegacyReadCaveatByName", caveatB).Return(nil, zero, nil).Once()
+
+	twoReader := &proxy_test.MockReader{}
+	dsMock.On("SnapshotReader", two).Return(twoReader)
+	twoReader.On("LegacyReadNamespaceByName", nsA).Return(nil, zero, nil).Once()
+	twoReader.On("LegacyReadNamespaceByName", nsB).Return(nil, one, nil).Once()
+	twoReader.On("LegacyReadCaveatByName", caveatA).Return(nil, zero, nil).Once()
+	twoReader.On("LegacyReadCaveatByName", caveatB).Return(nil, one, nil).Once()
+
+	dptc := DatastoreProxyTestCache(t)
+	t.Cleanup(func() {
+		dptc.Close()
+	})
+
+	require := require.New(t)
+	ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+
+	// Get a handle on the reader for A
+	dsForA := ds.SnapshotReader(one)
+	schemaReaderForA, err := dsForA.SchemaReader()
+	require.NoError(err)
+
+	// Check that revisions match after one read for A
+	// Namespace
+	revNsDef, found, err := schemaReaderForA.LookupTypeDefByName(t.Context(), nsA)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(old.Equal(revNsDef.LastWrittenRevision))
+
+	// Caveat
+	revCaveatDef, found, err := schemaReaderForA.LookupCaveatDefByName(t.Context(), caveatA)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(old.Equal(revCaveatDef.LastWrittenRevision))
+
+	// Check that revisions match after another read on A
+	// Namespace
+	revNsDef, found, err = schemaReaderForA.LookupTypeDefByName(t.Context(), nsA)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(old.Equal(revNsDef.LastWrittenRevision))
+
+	// Caveat
+	revCaveatDef, found, err = schemaReaderForA.LookupCaveatDefByName(t.Context(), caveatA)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(old.Equal(revCaveatDef.LastWrittenRevision))
+
+	// Get a handle on the reader for B
+	dsForB := ds.SnapshotReader(one)
+	schemaReaderForB, err := dsForB.SchemaReader()
+	require.NoError(err)
+
+	// Check that revisions match after one read for B
+	// Namespace
+	revNsDef, found, err = schemaReaderForB.LookupTypeDefByName(t.Context(), nsB)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(zero.Equal(revNsDef.LastWrittenRevision))
+
+	// Caveat
+	revCaveatDef, found, err = schemaReaderForB.LookupCaveatDefByName(t.Context(), caveatB)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
+
+	// And again
+	// Namespace
+	revNsDef, found, err = schemaReaderForB.LookupTypeDefByName(t.Context(), nsB)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(zero.Equal(revNsDef.LastWrittenRevision))
+
+	// Caveat
+	revCaveatDef, found, err = schemaReaderForB.LookupCaveatDefByName(t.Context(), caveatB)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
+
+	// Get a handle on the second reader for A
+	dsForA = ds.SnapshotReader(two)
+	schemaReaderForA, err = dsForA.SchemaReader()
+	require.NoError(err)
+
+	// Check that revisions match after one read for A on the zero revision
+	// Namespace
+	revNsDef, found, err = schemaReaderForA.LookupTypeDefByName(t.Context(), nsA)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(zero.Equal(revNsDef.LastWrittenRevision))
+
+	// Caveat
+	revCaveatDef, found, err = schemaReaderForA.LookupCaveatDefByName(t.Context(), caveatA)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
+
+	// Check that revisions match after another read for A on the zero revision
+	// Namespace
+	revNsDef, found, err = schemaReaderForA.LookupTypeDefByName(t.Context(), nsA)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(zero.Equal(revNsDef.LastWrittenRevision))
+
+	// Caveat
+	revCaveatDef, found, err = schemaReaderForA.LookupCaveatDefByName(t.Context(), caveatA)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
+
+	// Get a handle on the second reader for B
+	dsForB = ds.SnapshotReader(two)
+	schemaReaderForB, err = dsForB.SchemaReader()
+	require.NoError(err)
+
+	// Check that revisions match after one read for B on the zero revision
+	// Namespace
+	revNsDef, found, err = schemaReaderForB.LookupTypeDefByName(t.Context(), nsB)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(one.Equal(revNsDef.LastWrittenRevision))
+
+	// Caveat
+	revCaveatDef, found, err = schemaReaderForB.LookupCaveatDefByName(t.Context(), caveatB)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(one.Equal(revCaveatDef.LastWrittenRevision))
+
+	// Check that revisions match after another read for B on the zero revision
+	// Namespace
+	revNsDef, found, err = schemaReaderForB.LookupTypeDefByName(t.Context(), nsB)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(one.Equal(revNsDef.LastWrittenRevision))
+
+	// Caveat
+	revCaveatDef, found, err = schemaReaderForB.LookupCaveatDefByName(t.Context(), caveatB)
+	require.NoError(err)
+	require.True(found, "could not find expected definition")
+	require.True(one.Equal(revCaveatDef.LastWrittenRevision))
+
+	dsMock.AssertExpectations(t)
+	oneReader.AssertExpectations(t)
+	twoReader.AssertExpectations(t)
+}
+
+func TestOldRWTCaching(t *testing.T) {
+	for _, tester := range oldtesters {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
@@ -245,8 +404,61 @@ func TestRWTCaching(t *testing.T) {
 	}
 }
 
-func TestRWTCacheWithWrites(t *testing.T) {
-	for _, tester := range testers {
+func TestRWTCaching(t *testing.T) {
+	dsMock := &proxy_test.MockDatastore{}
+	rwtMock := &proxy_test.MockReadWriteTransaction{}
+
+	require := require.New(t)
+
+	dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
+	rwtMock.On("LegacyReadNamespaceByName", nsA).Return(nil, zero, nil).Once()
+	rwtMock.On("LegacyReadCaveatByName", caveatA).Return(nil, zero, nil).Once()
+
+	ctx := t.Context()
+
+	ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+
+	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// get a handle on the reader
+		reader, err := rwt.SchemaReader()
+		require.NoError(err)
+
+		// read the namespace
+		nsRevDef, found, err := reader.LookupTypeDefByName(ctx, nsA)
+		require.NoError(err)
+		require.True(found)
+		require.True(zero.Equal(nsRevDef.LastWrittenRevision))
+
+		// read the caveat
+		caveatRevDef, found, err := reader.LookupCaveatDefByName(ctx, caveatA)
+		require.NoError(err)
+		require.True(found)
+		require.True(zero.Equal(caveatRevDef.LastWrittenRevision))
+
+		// This will not call out the mock RWT again, the mock will panic if it does.
+		// read the namespace
+		nsRevDef, found, err = reader.LookupTypeDefByName(ctx, nsA)
+		require.NoError(err)
+		require.True(found)
+		require.True(zero.Equal(nsRevDef.LastWrittenRevision))
+
+		// read the caveat
+		caveatRevDef, found, err = reader.LookupCaveatDefByName(ctx, caveatA)
+		require.NoError(err)
+		require.True(found)
+		require.True(zero.Equal(caveatRevDef.LastWrittenRevision))
+
+		return nil
+	})
+	require.True(one.Equal(rev))
+	require.NoError(err)
+
+	dsMock.AssertExpectations(t)
+	rwtMock.AssertExpectations(t)
+}
+
+func TestOldRWTCacheWithWrites(t *testing.T) {
+	for _, tester := range oldtesters {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
@@ -294,8 +506,8 @@ func TestRWTCacheWithWrites(t *testing.T) {
 	}
 }
 
-func TestSingleFlight(t *testing.T) {
-	for _, tester := range testers {
+func TestOldSingleFlight(t *testing.T) {
+	for _, tester := range oldtesters {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
@@ -331,7 +543,68 @@ func TestSingleFlight(t *testing.T) {
 	}
 }
 
-func TestSnapshotCachingRealDatastore(t *testing.T) {
+func TestSingleFlight(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		dsMock := &proxy_test.MockDatastore{}
+
+		oneReader := &proxy_test.MockReader{}
+		dsMock.On("SnapshotReader", one).Return(oneReader)
+		oneReader.
+			On("LegacyReadNamespaceByName", nsA).
+			WaitUntil(time.After(50*time.Millisecond)).
+			Return(nil, old, nil).
+			Once()
+		oneReader.
+			On("LegacyReadCaveatByName", caveatA).
+			WaitUntil(time.After(50*time.Millisecond)).
+			Return(nil, old, nil).
+			Once()
+
+		assert := assert.New(t)
+
+		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+		snapshotReader := ds.SnapshotReader(one)
+		schemaReader, err := snapshotReader.SchemaReader()
+		if !assert.NoError(err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
+			return
+		}
+
+		readNamespace := func() {
+			nsRevDef, found, err := schemaReader.LookupTypeDefByName(t.Context(), nsA)
+			if !assert.NoError(err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
+				return
+			}
+			assert.True(found)
+			assert.True(old.Equal(nsRevDef.LastWrittenRevision))
+		}
+
+		readCaveat := func() {
+			caveatRevDef, found, err := schemaReader.LookupCaveatDefByName(t.Context(), caveatA)
+			if !assert.NoError(err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
+				return
+			}
+			assert.True(found)
+			assert.True(old.Equal(caveatRevDef.LastWrittenRevision))
+		}
+
+		// NOTE: if the singleflight isn't working, the second call to land will invoke
+		// the mock a second time and panic.
+		go readNamespace()
+		go readNamespace()
+		go readCaveat()
+		go readCaveat()
+
+		// Let the timers elapse
+		time.Sleep(100 * time.Millisecond)
+
+		// Clean up
+		synctest.Wait()
+		dsMock.AssertExpectations(t)
+		oneReader.AssertExpectations(t)
+	})
+}
+
+func TestOldSnapshotCachingRealDatastore(t *testing.T) {
 	tcs := []struct {
 		name          string
 		nsDef         *core.NamespaceDefinition
@@ -409,11 +682,98 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 	}
 }
 
-type reader struct {
+func TestSnapshotCachingRealDatastore(t *testing.T) {
+	tcs := []struct {
+		name          string
+		nsDef         *core.NamespaceDefinition
+		namespaceName string
+		caveatDef     *core.CaveatDefinition
+		caveatName    string
+	}{
+		{
+			"missing",
+			nil,
+			"somenamespace",
+			nil,
+			"somecaveat",
+		},
+		{
+			"defined",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("owner",
+					nil,
+					ns.AllowedRelation("user", "..."),
+				),
+				ns.MustRelation("editor",
+					nil,
+					ns.AllowedRelation("user", "..."),
+				),
+			),
+			"document",
+			ns.MustCaveatDefinition(caveats.MustEnvForVariablesWithDefaultTypeSet(
+				map[string]caveattypes.VariableType{
+					"somevar": caveattypes.Default.IntType,
+				},
+			), "somecaveat", "somevar < 42"),
+			"somecaveat",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+			require.NoError(t, err)
+
+			ctx := t.Context()
+			ds := NewCachingDatastoreProxy(rawDS, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+
+			if tc.nsDef != nil {
+				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+					schemaWriter, err := rwt.SchemaWriter()
+					if err != nil {
+						return err
+					}
+					return schemaWriter.WriteSchema(ctx, []datastore.SchemaDefinition{tc.nsDef, tc.caveatDef}, "", caveattypes.Default.TypeSet)
+				})
+				require.NoError(t, err)
+			}
+
+			headRev, err := ds.HeadRevision(ctx)
+			require.NoError(t, err)
+
+			reader := ds.SnapshotReader(headRev)
+			schemaReader, err := reader.SchemaReader()
+			require.NoError(t, err)
+
+			nsRevDef, _, err := schemaReader.LookupTypeDefByName(ctx, tc.namespaceName)
+			require.NoError(t, err)
+			testutil.RequireProtoEqual(t, tc.nsDef, nsRevDef.Definition, "found different namespaces")
+
+			nsRevDef2, _, err := schemaReader.LookupTypeDefByName(ctx, tc.namespaceName)
+			require.NoError(t, err)
+			testutil.RequireProtoEqual(t, tc.nsDef, nsRevDef2.Definition, "found different namespaces")
+
+			caveatRevDef, _, err := schemaReader.LookupCaveatDefByName(ctx, tc.caveatName)
+			require.NoError(t, err)
+			testutil.RequireProtoEqual(t, tc.caveatDef, caveatRevDef.Definition, "found different caveats")
+
+			caveatRevDef2, _, err := schemaReader.LookupCaveatDefByName(ctx, tc.caveatName)
+			require.NoError(t, err)
+			testutil.RequireProtoEqual(t, tc.caveatDef, caveatRevDef2.Definition, "found different caveats")
+		})
+	}
+}
+
+// singleflightReader is used to test singleflight context cancellation
+// behavior.
+type singleflightReader struct {
 	proxy_test.MockReader
 }
 
-func (r *reader) LegacyReadNamespaceByName(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (r *singleflightReader) LegacyReadNamespaceByName(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+	// NOTE: the sleep is here to ensure that the context can be cancelled before this executes.
 	time.Sleep(10 * time.Millisecond)
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil, old, fmt.Errorf("error")
@@ -421,7 +781,8 @@ func (r *reader) LegacyReadNamespaceByName(ctx context.Context, namespace string
 	return &core.NamespaceDefinition{Name: namespace}, old, nil
 }
 
-func (r *reader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (r *singleflightReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	// NOTE: the sleep is here to ensure that the context can be cancelled before this executes.
 	time.Sleep(10 * time.Millisecond)
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil, old, fmt.Errorf("error")
@@ -429,8 +790,30 @@ func (r *reader) LegacyReadCaveatByName(ctx context.Context, name string) (*core
 	return &core.CaveatDefinition{Name: name}, old, nil
 }
 
-func TestSingleFlightCancelled(t *testing.T) {
-	for _, tester := range testers {
+func (r *singleflightReader) LookupCaveatDefByName(ctx context.Context, name string) (datastore.RevisionedCaveat, error) {
+	time.Sleep(10 * time.Millisecond)
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return datastore.RevisionedCaveat{}, fmt.Errorf("error")
+	}
+	return datastore.RevisionedCaveat{
+		Definition:          &core.CaveatDefinition{Name: name},
+		LastWrittenRevision: old,
+	}, nil
+}
+
+func (r *singleflightReader) LookupTypeDefByName(ctx context.Context, name string) (datastore.RevisionedTypeDefinition, error) {
+	time.Sleep(10 * time.Millisecond)
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return datastore.RevisionedTypeDefinition{}, fmt.Errorf("error")
+	}
+	return datastore.RevisionedTypeDefinition{
+		Definition:          &core.NamespaceDefinition{Name: name},
+		LastWrittenRevision: old,
+	}, nil
+}
+
+func TestOldSingleFlightCancelled(t *testing.T) {
+	for _, tester := range oldtesters {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
@@ -439,7 +822,7 @@ func TestSingleFlightCancelled(t *testing.T) {
 			defer cancel2()
 			defer cancel1()
 
-			dsMock.On("SnapshotReader", one).Return(&reader{MockReader: proxy_test.MockReader{}})
+			dsMock.On("SnapshotReader", one).Return(&singleflightReader{MockReader: proxy_test.MockReader{}})
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
@@ -466,8 +849,55 @@ func TestSingleFlightCancelled(t *testing.T) {
 	}
 }
 
-func TestMixedCaching(t *testing.T) {
-	for _, tester := range testers {
+func TestSingleFlightCancelled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		dsMock := &proxy_test.MockDatastore{}
+		ctx1, cancel1 := context.WithCancel(t.Context())
+		defer cancel1()
+		// Note that ctx2 will not be cancelled
+		ctx2 := t.Context()
+
+		dsMock.On("SnapshotReader", one).Return(&singleflightReader{MockReader: proxy_test.MockReader{}})
+
+		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+		snapshotReader := ds.SnapshotReader(one)
+		schemaReader, err := snapshotReader.SchemaReader()
+		if !assert.NoError(t, err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
+			return
+		}
+
+		var nsRevDef datastore.RevisionedTypeDefinition
+		var caveatRevDef datastore.RevisionedCaveat
+		go func() {
+			_, _, _ = schemaReader.LookupTypeDefByName(ctx1, nsA)
+			_, _, _ = schemaReader.LookupCaveatDefByName(ctx1, caveatA)
+		}()
+		go func() {
+			time.Sleep(5 * time.Millisecond)
+			nsRevDef, _, _ = schemaReader.LookupTypeDefByName(ctx2, nsA)
+			caveatRevDef, _, _ = schemaReader.LookupCaveatDefByName(ctx2, caveatA)
+		}()
+
+		// Cancel the context immediately after spinning the goroutines
+		cancel1()
+		// Sleep long enough to allow other goroutines to complete
+		time.Sleep(50 * time.Millisecond)
+		// Clean up
+		synctest.Wait()
+
+		// Assert that the second request made in the singleflight window
+		// still succeeds
+		assert.NotNil(t, nsRevDef)
+		assert.NotNil(t, caveatRevDef)
+		assert.Equal(t, nsA, nsRevDef.Definition.GetName())
+		assert.Equal(t, caveatA, caveatRevDef.Definition.GetName())
+
+		dsMock.AssertExpectations(t)
+	})
+}
+
+func TestOldMixedCaching(t *testing.T) {
+	for _, tester := range oldtesters {
 		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
@@ -527,9 +957,94 @@ func TestMixedCaching(t *testing.T) {
 	}
 }
 
+func TestMixedCaching(t *testing.T) {
+	dsMock := &proxy_test.MockDatastore{}
+
+	nsDefA := &core.NamespaceDefinition{
+		Name: nsA,
+	}
+	nsDefB := &core.NamespaceDefinition{
+		Name: nsB,
+	}
+
+	caveatDefA := &core.CaveatDefinition{
+		Name: caveatA,
+	}
+	caveatDefB := &core.CaveatDefinition{
+		Name: caveatB,
+	}
+
+	reader := &proxy_test.MockReader{}
+	reader.Test(t)
+	reader.On("LegacyReadNamespaceByName", nsA).Return(nsDefA, old, nil).Once()
+	reader.On("LegacyReadCaveatByName", caveatA).Return(caveatDefA, old, nil).Once()
+	// NOTE: we're using `mock.Anything` here because the order of the constructed set of
+	// lookups is nondeterministic, so the args to this function are nondeterministic.
+	reader.On("LegacyLookupNamespacesWithNames", mock.Anything).Return([]datastore.RevisionedTypeDefinition{
+		{
+			Definition:          nsDefB,
+			LastWrittenRevision: old,
+		},
+	}, nil).Once()
+	// We add another call that returns nothing to account for the fact that the second lookup will
+	// attempt to find the caveats in the namespace cache, which shouldn't return anything.
+	reader.On("LegacyLookupNamespacesWithNames", mock.Anything).Return([]datastore.RevisionedTypeDefinition{}, nil).Once()
+	// Same here
+	reader.On("LegacyLookupCaveatsWithNames", mock.Anything).Return([]datastore.RevisionedCaveat{
+		{
+			Definition:          caveatDefB,
+			LastWrittenRevision: old,
+		},
+	}, nil).Once()
+	// We add another call that returns nothing to account for the fact that the second lookup will
+	// attempt to find the namespaces in the caveat cache, which shouldn't return anything.
+	reader.On("LegacyLookupCaveatsWithNames", mock.Anything).Return([]datastore.RevisionedCaveat{}, nil).Once()
+
+	dsMock.On("SnapshotReader", one).Return(reader)
+
+	dptc := DatastoreProxyTestCache(t)
+	t.Cleanup(func() {
+		dptc.Close()
+	})
+
+	require := require.New(t)
+	ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+
+	dsReader := ds.SnapshotReader(one)
+	schemaReader, err := dsReader.SchemaReader()
+	require.NoError(err)
+
+	// Lookup name A and caveat A, which should populate the cache
+	_, _, err = schemaReader.LookupTypeDefByName(t.Context(), nsA)
+	require.NoError(err)
+	_, _, err = schemaReader.LookupCaveatDefByName(t.Context(), caveatA)
+	require.NoError(err)
+
+	// Lookup As and Bs, which should only lookup Bs and use As from cache.
+	defMap, err := schemaReader.LookupSchemaDefinitionsByNames(t.Context(), []string{nsA, nsB, caveatA, caveatB})
+	require.NoError(err)
+	require.Len(defMap, 4)
+	require.Contains(defMap, nsA)
+	require.Contains(defMap, nsB)
+	require.Contains(defMap, caveatA)
+	require.Contains(defMap, caveatB)
+
+	// Lookup As and Bs, which should use both from cache.
+	defMapAgain, err := schemaReader.LookupSchemaDefinitionsByNames(t.Context(), []string{nsA, nsB, caveatA, caveatB})
+	require.NoError(err)
+	require.Len(defMapAgain, 4)
+	require.Contains(defMap, nsA)
+	require.Contains(defMap, nsB)
+	require.Contains(defMapAgain, caveatA)
+	require.Contains(defMapAgain, caveatB)
+
+	dsMock.AssertExpectations(t)
+	reader.AssertExpectations(t)
+}
+
 // NOTE: This uses a full memdb datastore because we want to exercise
 // the cache behavior without mocking it.
-func TestInvalidNamespaceInCache(t *testing.T) {
+func TestOldInvalidNamespaceInCache(t *testing.T) {
 	invalidNamespace := "invalid_namespace"
 
 	require := require.New(t)
@@ -562,7 +1077,45 @@ func TestInvalidNamespaceInCache(t *testing.T) {
 	require.NoError(err)
 }
 
-func TestMixedInvalidNamespacesInCache(t *testing.T) {
+// NOTE: This uses a full memdb datastore because we want to exercise
+// the cache behavior without mocking it.
+func TestInvalidNamespaceInCache(t *testing.T) {
+	invalidNamespace := "invalid_namespace"
+
+	require := require.New(t)
+
+	ctx := t.Context()
+
+	memoryDatastore, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	require.NoError(err)
+	ds := NewCachingDatastoreProxy(memoryDatastore, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+	t.Cleanup(func() {
+		ds.Close()
+	})
+
+	headRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	dsReader := ds.SnapshotReader(headRevision)
+	schemaReader, err := dsReader.SchemaReader()
+	require.NoError(err)
+
+	namespace, found, err := schemaReader.LookupTypeDefByName(ctx, invalidNamespace)
+	require.Zero(namespace)
+	// NOTE: we're expecting this to be false, because the namespace doesn't exist.
+	// However, the act of calling it sets the cache value to nil, which means that
+	// subsequent calls to the cache return that nil value. That's what needed to
+	// be filtered out of the list call.
+	require.False(found)
+	require.NoError(err)
+
+	// Look it up again - in the bug that this captures,
+	// it was populated into the cache and came back out.
+	defMap, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, []string{invalidNamespace})
+	require.Empty(defMap)
+	require.NoError(err)
+}
+
+func TestOldMixedInvalidNamespacesInCache(t *testing.T) {
 	invalidNamespace := "invalid_namespace"
 	validNamespace := "valid_namespace"
 
@@ -602,5 +1155,55 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 	found, err := dsReader.LegacyLookupNamespacesWithNames(ctx, []string{invalidNamespace, validNamespace})
 	require.Len(found, 1)
 	require.Equal(validNamespace, found[0].Definition.Name)
+	require.NoError(err)
+}
+
+func TestMixedInvalidNamespacesInCache(t *testing.T) {
+	invalidNamespace := "invalid_namespace"
+	validNamespace := "valid_namespace"
+
+	require := require.New(t)
+
+	ctx := t.Context()
+
+	memoryDatastore, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	require.NoError(err)
+	ds := NewCachingDatastoreProxy(memoryDatastore, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+	t.Cleanup(func() {
+		ds.Close()
+	})
+
+	require.NoError(err)
+
+	// Write in the valid namespace
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		schemaWriter, err := rwt.SchemaWriter()
+		require.NoError(err)
+		writeErr := schemaWriter.WriteSchema(ctx, []datastore.SchemaDefinition{
+			&core.NamespaceDefinition{
+				Name: validNamespace,
+			},
+		}, "", caveattypes.Default.TypeSet)
+		return writeErr
+	})
+	require.NoError(err)
+
+	dsReader := ds.SnapshotReader(revision)
+	schemaReader, err := dsReader.SchemaReader()
+	require.NoError(err)
+
+	namespace, found, err := schemaReader.LookupTypeDefByName(ctx, invalidNamespace)
+	require.Zero(namespace)
+	// NOTE: we're expecting this to be false, because the namespace doesn't exist.
+	// However, the act of calling it sets the cache value to nil, which means that
+	// subsequent calls to the cache return that nil value. That's what needed to
+	// be filtered out of the list call.
+	require.False(found)
+	require.NoError(err)
+
+	// We're asserting that we find the thing we're looking for and don't receive a notfound value
+	defMap, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, []string{invalidNamespace, validNamespace})
+	require.Len(defMap, 1)
+	require.Contains(defMap, validNamespace)
 	require.NoError(err)
 }
