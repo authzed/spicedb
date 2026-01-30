@@ -54,7 +54,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "tom",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.NotEmpty(b, results)
+				require.Len(b, results, 2)
 				return err
 			},
 		},
@@ -70,7 +70,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "someguy",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.NotEmpty(b, results)
+				require.Len(b, results, 1)
 				return err
 			},
 		},
@@ -86,7 +86,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectID:   "tom",
 					Relation:   tuple.Ellipsis,
 				}, revision, nil, 0, nil)
-				require.NotEmpty(b, results)
+				require.Len(b, results, 2)
 				return err
 			},
 		},
@@ -177,50 +177,36 @@ func BenchmarkServices(b *testing.B) {
 	}
 
 	for _, bt := range bts {
-		b.Run(bt.title, func(b *testing.B) {
-			for _, engineID := range enginesToBenchmark {
-				b.Run(engineID, func(b *testing.B) {
-					b.StopTimer()
+		contents, err := testFiles.ReadFile(bt.fileName)
+		require.NoError(b, err)
 
-					brequire := require.New(b)
+		for _, engineID := range enginesToBenchmark {
+			rde := testdatastore.RunDatastoreEngine(b, engineID)
+			ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
+				dsconfig.WithWatchBufferLength(0),
+				dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
+				dsconfig.WithRevisionQuantization(10),
+				dsconfig.WithMaxRetries(50),
+				dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
+			))
+			b.Cleanup(func() {
+				ds.Close()
+			})
 
-					rde := testdatastore.RunDatastoreEngine(b, engineID)
-					ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
-						dsconfig.WithWatchBufferLength(0),
-						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-						dsconfig.WithRevisionQuantization(10),
-						dsconfig.WithMaxRetries(50),
-						dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
-					))
+			_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, map[string][]byte{
+				"testfile": contents,
+			})
+			require.NoError(b, err)
 
-					contents, err := testFiles.ReadFile(bt.fileName)
-					require.NoError(b, err)
+			conn, cleanup := testserver.TestClusterWithDispatch(b, 1, ds)
+			b.Cleanup(cleanup)
+			tester := consistencytestutil.NewServiceTester(conn[0])
 
-					_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, map[string][]byte{
-						"testfile": contents,
-					})
-					brequire.NoError(err)
-
-					conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds)
-					b.Cleanup(cleanup)
-
-					dsCtx := datalayer.ContextWithHandle(context.Background())
-					brequire.NoError(datalayer.SetInContext(dsCtx, datalayer.NewDataLayer(ds)))
-
-					testers := consistencytestutil.ServiceTesters(conn[0])
-
-					b.StartTimer()
-
-					for _, tester := range testers {
-						b.Run(tester.Name(), func(b *testing.B) {
-							require := require.New(b)
-							for n := 0; n < b.N; n++ {
-								require.NoError(bt.runner(dsCtx, b, tester, revision))
-							}
-						})
-					}
-				})
-			}
-		})
+			b.Run(bt.title+"/"+engineID+"/"+tester.Name(), func(b *testing.B) {
+				for n := 0; n < b.N; n++ {
+					require.NoError(b, bt.runner(b.Context(), b, tester, revision))
+				}
+			})
+		}
 	}
 }
