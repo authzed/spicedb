@@ -283,12 +283,9 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 				return
 			}
 
-			// Filter out self-edges where the right resource (object + relation) matches the original subject
-			// (these are circular references that shouldn't be propagated through arrows).
-			// We need to check both the object (type+ID) AND the relation to identify true self-edges.
-			if rightPath.Resource.Equals(GetObject(subject)) && rightPath.Relation == subject.Relation {
-				continue
-			}
+			// Note: We used to filter self-edges here, but self-edges from Alias represent valid identity checks
+			// (e.g., team:first#member accessing team:first via member). Removing the filter allows these
+			// identity relationships to propagate through arrows correctly.
 
 			rightPathCount++
 
