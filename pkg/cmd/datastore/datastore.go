@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -101,16 +102,24 @@ func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
 	_ = flagSet.MarkDeprecated("datastore-conn-healthcheck-interval", warning)
 }
 
-//go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.options.go . Config
+//go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure,password -output zz_generated.options.go . Config
 type Config struct {
-	Engine                      string        `debugmap:"visible"`
-	URI                         string        `debugmap:"sensitive"`
+	Engine string `debugmap:"visible"`
+	URI    string `debugmap:"sensitive"`
+
+	// Granular connection parameters (alternative to URI)
+	Host     string `debugmap:"visible"`
+	Port     string `debugmap:"visible"`
+	Username string `debugmap:"visible"`
+	Password string `debugmap:"sensitive"`
+	Database string `debugmap:"visible"`
+
 	GCWindow                    time.Duration `debugmap:"visible"`
 	LegacyFuzzing               time.Duration `debugmap:"visible"`
 	RevisionQuantization        time.Duration `debugmap:"visible"`
 	MaxRevisionStalenessPercent float64       `debugmap:"visible"`
 	CredentialsProviderName     string        `debugmap:"visible"`
-	FilterMaximumIDCount        uint16        `debugmap:"hidden"    default:"100"`
+	FilterMaximumIDCount        uint16        `debugmap:"hidden"  default:"100"`
 
 	// Options
 	ReadConnPool                   ConnPoolConfig `debugmap:"visible"`
@@ -214,6 +223,14 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+
+	// Granular connection parameters (alternative to datastore-conn-uri)
+	flagSet.StringVar(&opts.Host, flagName("datastore-host"), defaults.Host, "datastore host (used to build connection URI if datastore-conn-uri is not provided)")
+	flagSet.StringVar(&opts.Port, flagName("datastore-port"), defaults.Port, "datastore port (used to build connection URI if datastore-conn-uri is not provided)")
+	flagSet.StringVar(&opts.Username, flagName("datastore-username"), defaults.Username, "datastore username (used to build connection URI if datastore-conn-uri is not provided)")
+	flagSet.StringVar(&opts.Password, flagName("datastore-password"), defaults.Password, "datastore password (used to build connection URI if datastore-conn-uri is not provided)")
+	flagSet.StringVar(&opts.Database, flagName("datastore-database"), defaults.Database, "datastore database name (used to build connection URI if datastore-conn-uri is not provided)")
+
 	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
 	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\"). (Postgres and MySQL drivers only).")
@@ -390,11 +407,75 @@ func DefaultDatastoreConfig() *Config {
 	}
 }
 
+// buildConnectionURI constructs a connection URI from granular connection parameters.
+// Returns an empty string if granular parameters are not provided.
+func buildConnectionURI(engine, host, port, username, password, database string) string {
+	// Only build URI if at least host is provided
+	if host == "" {
+		return ""
+	}
+
+	// Set default port based on engine if not provided
+	if port == "" {
+		switch engine {
+		case PostgresEngine:
+			port = "5432"
+		case CockroachEngine:
+			port = "26257"
+		case MySQLEngine:
+			port = "3306"
+		}
+	}
+
+	// URL encode credentials to handle special characters like @, :, /
+	encodedUsername := url.QueryEscape(username)
+	encodedPassword := ""
+	if password != "" {
+		encodedPassword = ":" + url.QueryEscape(password)
+	}
+
+	// Build URI based on engine type
+	switch engine {
+	case PostgresEngine, CockroachEngine:
+		// Format: postgres://username:password@host:port/database
+		uri := fmt.Sprintf("postgres://%s%s@%s:%s", encodedUsername, encodedPassword, host, port)
+		if database != "" {
+			uri += "/" + url.PathEscape(database)
+		}
+		return uri
+	case MySQLEngine:
+		// MySQL uses DSN format: username:password@tcp(host:port)/database?parseTime=true
+		// Special characters in username/password must be URL-encoded per go-sql-driver/mysql docs
+		encodedMySQLUsername := url.QueryEscape(username)
+		encodedMySQLPassword := ""
+		if password != "" {
+			encodedMySQLPassword = ":" + url.QueryEscape(password)
+		}
+		dsn := fmt.Sprintf("%s%s@tcp(%s:%s)", encodedMySQLUsername, encodedMySQLPassword, host, port)
+		if database != "" {
+			dsn += "/" + database
+		}
+		// parseTime=true is required for MySQL to handle time.Time correctly
+		dsn += "?parseTime=true"
+		return dsn
+	default:
+		return ""
+	}
+}
+
 // NewDatastore initializes a datastore given the options
 func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datastore, error) {
 	opts := DefaultDatastoreConfig()
 	for _, o := range options {
 		o(opts)
+	}
+
+	// If URI is not provided but granular connection parameters are, build the URI
+	if opts.URI == "" && opts.Host != "" {
+		opts.URI = buildConnectionURI(opts.Engine, opts.Host, opts.Port, opts.Username, opts.Password, opts.Database)
+		if opts.URI == "" {
+			return nil, fmt.Errorf("unable to build connection URI from provided parameters for engine: %s", opts.Engine)
+		}
 	}
 
 	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {
