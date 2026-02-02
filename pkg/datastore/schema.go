@@ -42,6 +42,12 @@ type SchemaReader interface {
 
 	// LookupSchemaDefinitionsByNames looks up type and caveat definitions by name.
 	LookupSchemaDefinitionsByNames(ctx context.Context, names []string) (map[string]SchemaDefinition, error)
+
+	// LookupTypeDefinitionsByNames looks up type definitions by name.
+	LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]SchemaDefinition, error)
+
+	// LookupCaveatDefinitionsByNames looks up type definitions by name.
+	LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]SchemaDefinition, error)
 }
 
 // SchemaWriteable is an interface for datastores that support writing schema information.

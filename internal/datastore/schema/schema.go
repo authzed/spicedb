@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
@@ -151,6 +153,30 @@ func (l *LegacySchemaReaderAdapter) ListAllSchemaDefinitions(ctx context.Context
 
 // LookupSchemaDefinitionsByNames looks up type and caveat definitions by name.
 func (l *LegacySchemaReaderAdapter) LookupSchemaDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
+	nameSet := mapz.NewSet(names...)
+	allDefs := make(map[string]datastore.SchemaDefinition, len(names))
+
+	// Look up as typedefs first
+	typeDefs, err := l.LookupTypeDefinitionsByNames(ctx, names)
+	if err != nil {
+		return nil, err
+	}
+
+	// Look up remaining names as caveats
+	remainingNames := nameSet.Subtract(mapz.NewSet(slices.Collect(maps.Keys(typeDefs))...))
+	caveatDefs, err := l.LookupCaveatDefinitionsByNames(ctx, remainingNames.AsSlice())
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge the maps and return
+	// NOTE: we're able to do this naively because caveat names and definition names can't overlap.
+	maps.Copy(allDefs, typeDefs)
+	maps.Copy(allDefs, caveatDefs)
+	return allDefs, nil
+}
+
+func (l *LegacySchemaReaderAdapter) LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
 	result := make(map[string]datastore.SchemaDefinition)
 
 	// Try to look up as namespaces
@@ -162,8 +188,13 @@ func (l *LegacySchemaReaderAdapter) LookupSchemaDefinitionsByNames(ctx context.C
 	for _, ns := range namespaces {
 		result[ns.Definition.Name] = ns.Definition
 	}
+	return result, nil
+}
 
-	// Try to look up as caveats
+// LookupCaveatDefinitionsByNames looks up type definitions by name.
+func (l *LegacySchemaReaderAdapter) LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
+	result := make(map[string]datastore.SchemaDefinition)
+
 	caveats, err := l.legacyReader.LegacyLookupCaveatsWithNames(ctx, names)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup caveats: %w", err)
