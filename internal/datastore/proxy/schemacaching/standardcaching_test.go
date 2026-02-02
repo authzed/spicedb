@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -978,27 +977,21 @@ func TestMixedCaching(t *testing.T) {
 	reader.Test(t)
 	reader.On("LegacyReadNamespaceByName", nsA).Return(nsDefA, old, nil).Once()
 	reader.On("LegacyReadCaveatByName", caveatA).Return(caveatDefA, old, nil).Once()
-	// NOTE: we're using `mock.Anything` here because the order of the constructed set of
-	// lookups is nondeterministic, so the args to this function are nondeterministic.
-	reader.On("LegacyLookupNamespacesWithNames", mock.Anything).Return([]datastore.RevisionedTypeDefinition{
+	// NOTE: the mocks here only expect the Bs because the caching layer is going to
+	// grab entries from the cache before going to the reader, which means we don't
+	// expect to see requests for the already-cached values hit this layer.
+	reader.On("LegacyLookupNamespacesWithNames", []string{nsB}).Return([]datastore.RevisionedTypeDefinition{
 		{
 			Definition:          nsDefB,
 			LastWrittenRevision: old,
 		},
 	}, nil).Once()
-	// We add another call that returns nothing to account for the fact that the second lookup will
-	// attempt to find the caveats in the namespace cache, which shouldn't return anything.
-	reader.On("LegacyLookupNamespacesWithNames", mock.Anything).Return([]datastore.RevisionedTypeDefinition{}, nil).Once()
-	// Same here
-	reader.On("LegacyLookupCaveatsWithNames", mock.Anything).Return([]datastore.RevisionedCaveat{
+	reader.On("LegacyLookupCaveatsWithNames", []string{caveatB}).Return([]datastore.RevisionedCaveat{
 		{
 			Definition:          caveatDefB,
 			LastWrittenRevision: old,
 		},
 	}, nil).Once()
-	// We add another call that returns nothing to account for the fact that the second lookup will
-	// attempt to find the namespaces in the caveat cache, which shouldn't return anything.
-	reader.On("LegacyLookupCaveatsWithNames", mock.Anything).Return([]datastore.RevisionedCaveat{}, nil).Once()
 
 	dsMock.On("SnapshotReader", one).Return(reader)
 
@@ -1021,22 +1014,30 @@ func TestMixedCaching(t *testing.T) {
 	require.NoError(err)
 
 	// Lookup As and Bs, which should only lookup Bs and use As from cache.
-	defMap, err := schemaReader.LookupSchemaDefinitionsByNames(t.Context(), []string{nsA, nsB, caveatA, caveatB})
+	typeDefMap, err := schemaReader.LookupTypeDefinitionsByNames(t.Context(), []string{nsA, nsB})
 	require.NoError(err)
-	require.Len(defMap, 4)
-	require.Contains(defMap, nsA)
-	require.Contains(defMap, nsB)
-	require.Contains(defMap, caveatA)
-	require.Contains(defMap, caveatB)
+	require.Len(typeDefMap, 2)
+	require.Contains(typeDefMap, nsA)
+	require.Contains(typeDefMap, nsB)
+
+	caveatDefMap, err := schemaReader.LookupCaveatDefinitionsByNames(t.Context(), []string{caveatA, caveatB})
+	require.NoError(err)
+	require.Len(caveatDefMap, 2)
+	require.Contains(caveatDefMap, caveatA)
+	require.Contains(caveatDefMap, caveatB)
 
 	// Lookup As and Bs, which should use both from cache.
-	defMapAgain, err := schemaReader.LookupSchemaDefinitionsByNames(t.Context(), []string{nsA, nsB, caveatA, caveatB})
+	typeDefMapAgain, err := schemaReader.LookupTypeDefinitionsByNames(t.Context(), []string{nsA, nsB})
 	require.NoError(err)
-	require.Len(defMapAgain, 4)
-	require.Contains(defMap, nsA)
-	require.Contains(defMap, nsB)
-	require.Contains(defMapAgain, caveatA)
-	require.Contains(defMapAgain, caveatB)
+	require.Len(typeDefMapAgain, 2)
+	require.Contains(typeDefMapAgain, nsA)
+	require.Contains(typeDefMapAgain, nsB)
+
+	caveatDefMapAgain, err := schemaReader.LookupCaveatDefinitionsByNames(t.Context(), []string{caveatA, caveatB})
+	require.NoError(err)
+	require.Len(caveatDefMapAgain, 2)
+	require.Contains(caveatDefMapAgain, caveatA)
+	require.Contains(caveatDefMapAgain, caveatB)
 
 	dsMock.AssertExpectations(t)
 	reader.AssertExpectations(t)

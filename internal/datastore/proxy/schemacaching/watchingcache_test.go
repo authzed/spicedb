@@ -214,9 +214,11 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsRevDef.Definition.Name)
 
-	// NOTE: we don't read via lookup because we can't retain the semantic of the test
-	// with the LookupSchemaDefinitionsByNames behavior where it checks for namespaces
-	// first and then caveats.
+	// Repeat with lookup
+	nsDefMap, err := schemaReader.LookupTypeDefinitionsByNames(t.Context(), []string{"somenamespace"})
+	require.NoError(t, err)
+	require.Len(t, nsDefMap, 1)
+	require.Equal(t, "somenamespace", nsDefMap["somenamespace"].GetName())
 
 	// Delete the namespace at revision 5.
 	fakeDS.updateNamespace("somenamespace", nil, rev("5"))
@@ -236,6 +238,11 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, found)
 
+	// Lookup at revision 5.
+	nsDefMap, err = schemaReader.LookupTypeDefinitionsByNames(t.Context(), []string{"somenamespace"})
+	require.NoError(t, err)
+	require.Empty(t, nsDefMap)
+
 	// Update a caveat.
 	fakeDS.updateCaveat("somecaveat", &corev1.CaveatDefinition{Name: "somecaveat"}, rev("6"))
 
@@ -248,6 +255,12 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	caveatRevDef, _, err := schemaReader.LookupCaveatDefByName(t.Context(), "somecaveat")
 	require.NoError(t, err)
 	require.Equal(t, "somecaveat", caveatRevDef.Definition.Name)
+
+	// Lookup at revision 6.
+	caveatDefMap, err := schemaReader.LookupCaveatDefinitionsByNames(t.Context(), []string{"somecaveat"})
+	require.NoError(t, err)
+	require.Len(t, caveatDefMap, 1)
+	require.Equal(t, "somecaveat", caveatDefMap["somecaveat"].GetName())
 
 	// Get a handle on the schemaReader at rev 1
 	reader = wcache.SnapshotReader(rev("1"))
