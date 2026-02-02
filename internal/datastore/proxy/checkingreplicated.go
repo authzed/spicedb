@@ -212,6 +212,8 @@ func (rr *checkingStableReader) LookupCounters(ctx context.Context) ([]datastore
 	return rr.chosenReader.LookupCounters(ctx)
 }
 
+// SchemaReader chooses the appropriate reader and then returns a reference to the
+// SchemaReader associated with that reader.
 func (rr *checkingStableReader) SchemaReader() (datastore.SchemaReader, error) {
 	if err := rr.determineSource(context.Background()); err != nil {
 		return nil, err

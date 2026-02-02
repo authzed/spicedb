@@ -181,6 +181,8 @@ func (r *indexcheckingReader) ReverseQueryRelationships(ctx context.Context, sub
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
+// SchemaReader returns a reference to the wrapped reader, since this
+// proxy does not interact with schema methods.
 func (r *indexcheckingReader) SchemaReader() (datastore.SchemaReader, error) {
 	return r.delegate.SchemaReader()
 }

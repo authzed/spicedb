@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -262,8 +263,10 @@ func (r *countingReader) LookupCounters(ctx context.Context) ([]datastore.Relati
 	return r.delegate.LookupCounters(ctx)
 }
 
+// SchemaReader returns a wrapped version of the countingReader that exercises
+// the legacy methods when the new methods are invoked.
 func (r *countingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.delegate.SchemaReader()
+	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 // Type assertions
