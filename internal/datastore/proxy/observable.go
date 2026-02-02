@@ -12,6 +12,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -277,8 +278,10 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 	}, nil
 }
 
+// SchemaReader returns a wrapped version of the proxy that exercises the
+// legacy methods to implement the new methods.
 func (r *observableReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.delegate.SchemaReader()
+	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 type observableRWT struct {
