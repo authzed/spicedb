@@ -248,30 +248,107 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 	)
 }
 
+// replaceRecursiveSentinel clones the iterator tree and replaces RecursiveSentinel
+// nodes matching this RecursiveIterator's definition with the provided replacement iterator.
+func (r *RecursiveIterator) replaceRecursiveSentinel(tree Iterator, replacement Iterator) (Iterator, error) {
+	// Use existing Walk function to traverse and clone the tree
+	return Walk(tree, func(it Iterator) (Iterator, error) {
+		// Only replace sentinels that match this RecursiveIterator's definition
+		if sentinel, ok := it.(*RecursiveSentinel); ok {
+			if sentinel.DefinitionName() == r.definitionName &&
+				sentinel.RelationName() == r.relationName {
+				return replacement, nil // Replace with Fixed iterator
+			}
+		}
+		return it, nil // Keep node as-is
+	})
+}
+
 // breadthFirstIterResources implements BFS traversal for IterResources operations.
+// It queries with a constant subject at each ply, replacing the RecursiveSentinel with
+// a Fixed iterator containing frontier paths from the previous ply.
 func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
-	ctx.TraceStep(r, "BFS IterResources starting with subject %s:%s#%s",
+	ctx.TraceStep(r, "BFS IterResources with constant subject %s:%s#%s",
 		subject.ObjectType, subject.ObjectID, subject.Relation)
 
-	return breadthFirstIter(
-		ctx,
-		r,
-		subject,
-		ObjectAndRelationKey, // No need for a closure, just call directly!
-		// Execute: iterate resources for a frontier subject
-		func(depth1Tree Iterator, frontierNode ObjectAndRelation) (PathSeq, error) {
-			return ctx.IterResources(depth1Tree, frontierNode, filterResourceType)
-		},
-		// Extract recursive node from path
-		func(path Path) (ObjectAndRelation, bool) {
-			if r.isRecursiveResource(path.Resource) {
-				// Use the resource with its relation from the path, not ellipsis
-				// This preserves the specific relation (e.g., #member) for the next level
-				return path.ResourceOAR(), true
+	maxDepth := ctx.MaxRecursionDepth
+	if maxDepth == 0 {
+		maxDepth = defaultMaxRecursionDepth
+	}
+
+	return func(yield func(Path, error) bool) {
+		// Track all paths yielded (for deduplication)
+		yieldedPaths := make(map[string]Path)
+
+		// Current frontier: all paths from previous ply
+		var frontierPaths []Path
+
+		// Start with the original tree (sentinel returns empty at ply 0)
+		currentTree := r.templateTree
+
+		for ply := 0; ply < maxDepth; ply++ {
+			ctx.TraceStep(r, "Ply %d: querying with %d frontier paths", ply, len(frontierPaths))
+
+			// Query IterResources with the ORIGINAL subject
+			plySeq, err := ctx.IterResources(currentTree, subject, filterResourceType)
+			if err != nil {
+				yield(Path{}, err)
+				return
 			}
-			return ObjectAndRelation{}, false
-		},
-	)
+
+			// Collect paths from this ply
+			var newPaths []Path
+			for path, err := range plySeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+
+				// Deduplicate by endpoint
+				key := path.EndpointsKey()
+				if existing, seen := yieldedPaths[key]; seen {
+					// Merge with OR semantics
+					merged, err := existing.MergeOr(path)
+					if err != nil {
+						yield(Path{}, err)
+						return
+					}
+					yieldedPaths[key] = merged
+					// Don't yield again, but update frontier
+					newPaths = append(newPaths, merged)
+				} else {
+					// New path - yield and add to frontier
+					yieldedPaths[key] = path
+					newPaths = append(newPaths, path)
+					if !yield(path, nil) {
+						return
+					}
+				}
+			}
+
+			ctx.TraceStep(r, "Ply %d: found %d new paths", ply, len(newPaths))
+
+			// If no new paths, we're done
+			if len(newPaths) == 0 {
+				ctx.TraceStep(r, "BFS completed (no new paths at ply %d)", ply)
+				return
+			}
+
+			// Prepare for next ply: clone tree and replace sentinel with Fixed(frontier)
+			frontierPaths = newPaths // Use ALL new paths as frontier
+			fixedFrontier := NewFixedIterator(frontierPaths...)
+
+			// Clone tree with sentinel replaced by Fixed frontier
+			modifiedTree, err := r.replaceRecursiveSentinel(r.templateTree, fixedFrontier)
+			if err != nil {
+				yield(Path{}, fmt.Errorf("failed to replace sentinel: %w", err))
+				return
+			}
+			currentTree = modifiedTree
+		}
+
+		ctx.TraceStep(r, "BFS terminated at max depth %d", maxDepth)
+	}, nil
 }
 
 // breadthFirstIter implements the core BFS algorithm for recursive iteration.
@@ -394,20 +471,5 @@ func (r *RecursiveIterator) isRecursiveSubject(subject ObjectAndRelation) bool {
 		return false
 	}
 
-	// For IterSubjects, we should recursively expand any subject of the same type,
-	// regardless of its specific relation. This is because:
-	// 1. Permissions can include other relations (e.g., member = direct_member + contributor + manager)
-	// 2. When querying engineering#direct_member, we may find applications#member as a subject,
-	//    and we need to expand it to find transitive subjects
-	// 3. The specific relation on the subject determines what we query on that subject,
-	//    but doesn't determine whether it should be expanded
-	//
-	// Note: Empty relation means no relation specified, ellipsis means "any relation"
 	return true
-}
-
-// isRecursiveResource checks if a resource represents a recursive node that should be explored further.
-func (r *RecursiveIterator) isRecursiveResource(resource Object) bool {
-	// Resources don't have relations, just check type
-	return resource.ObjectType == r.definitionName
 }
