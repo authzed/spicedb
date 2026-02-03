@@ -83,16 +83,24 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 	if cc.CacheKindForTesting != "" {
 		switch cc.CacheKindForTesting {
 		case "theine":
-			return cache.NewTheineCache[K, V](&cache.Config{
+			return cache.NewTheineCacheWithMetrics[K, V](cc.Name, &cache.Config{
 				MaxCost:     intMaxCost,
 				NumCounters: cc.NumCounters,
 				DefaultTTL:  cc.defaultTTL,
 			})
 
 		case "otter":
-			return cache.NewOtterCache[K, V](&cache.Config{
-				MaxCost:    intMaxCost,
-				DefaultTTL: cc.defaultTTL,
+			if cc.Metrics {
+				return cache.NewOtterCacheWithMetrics[K, V](cc.Name, &cache.Config{
+					MaxCost:     intMaxCost,
+					NumCounters: cc.NumCounters,
+					DefaultTTL:  cc.defaultTTL,
+				})
+			}
+			return cache.NewOtterCache[K, V](cc.Name, &cache.Config{
+				MaxCost:     intMaxCost,
+				NumCounters: cc.NumCounters,
+				DefaultTTL:  cc.defaultTTL,
 			})
 
 		default:
