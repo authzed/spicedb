@@ -46,7 +46,7 @@ type SchemaReader interface {
 	// LookupTypeDefinitionsByNames looks up type definitions by name.
 	LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]SchemaDefinition, error)
 
-	// LookupCaveatDefinitionsByNames looks up type definitions by name.
+	// LookupCaveatDefinitionsByNames looks up caveat definitions by name.
 	LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]SchemaDefinition, error)
 }
 
