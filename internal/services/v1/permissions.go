@@ -1064,9 +1064,6 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			caveat:                 core.ContextualizedCaveat{},
 			caveatTypeSet:          ps.config.CaveatTypeSet,
 		}
-		resolver := schema.ResolverForDatastoreReader(rwt)
-		ts := schema.NewTypeSystem(resolver)
-
 		var streamWritten uint64
 		var err error
 		for ; adapter.err == nil && err == nil; streamWritten, err = rwt.BulkLoad(stream.Context(), adapter) {
@@ -1085,7 +1082,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 
 				for _, def := range foundDefs {
 					if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-						newDef, err := schema.NewDefinition(ts, nsDef)
+						newDef, err := schema.NewDefinition(nsDef)
 						if err != nil {
 							return err
 						}

@@ -112,10 +112,9 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 			return nil, nil, err
 		}
 		referencedNamespaceMap = make(map[string]*schema.Definition, len(foundNamespaceDefs))
-		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 		for _, def := range foundNamespaceDefs {
 			if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-				nts, err := schema.NewDefinition(ts, nsDef)
+				nts, err := schema.NewDefinition(nsDef)
 				if err != nil {
 					return nil, nil, err
 				}

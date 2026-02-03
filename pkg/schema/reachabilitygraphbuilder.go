@@ -17,7 +17,7 @@ const (
 	reachabilityFirst
 )
 
-func computeReachability(ctx context.Context, def *Definition, relationName string, option reachabilityOption) (*core.ReachabilityGraph, error) {
+func computeReachability(ctx context.Context, ts *TypeSystem, def *Definition, relationName string, option reachabilityOption) (*core.ReachabilityGraph, error) {
 	targetRelation, ok := def.relationMap[relationName]
 	if !ok {
 		return nil, fmt.Errorf("relation `%s` not found under type `%s` missing when computing reachability", relationName, def.nsDef.Name)
@@ -34,7 +34,7 @@ func computeReachability(ctx context.Context, def *Definition, relationName stri
 
 	usersetRewrite := targetRelation.GetUsersetRewrite()
 	if usersetRewrite != nil {
-		return graph, computeRewriteReachability(ctx, graph, usersetRewrite, core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT, targetRelation, def, option)
+		return graph, computeRewriteReachability(ctx, ts, graph, usersetRewrite, core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT, targetRelation, def, option)
 	}
 
 	// If there is no userRewrite, then we have a relation and its entrypoints will all be
@@ -42,33 +42,33 @@ func computeReachability(ctx context.Context, def *Definition, relationName stri
 	return graph, addSubjectLinks(graph, core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT, targetRelation, def)
 }
 
-func computeRewriteReachability(ctx context.Context, graph *core.ReachabilityGraph, rewrite *core.UsersetRewrite, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, targetRelation *core.Relation, def *Definition, option reachabilityOption) error {
+func computeRewriteReachability(ctx context.Context, ts *TypeSystem, graph *core.ReachabilityGraph, rewrite *core.UsersetRewrite, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, targetRelation *core.Relation, def *Definition, option reachabilityOption) error {
 	switch rw := rewrite.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
-		return computeRewriteOpReachability(ctx, rw.Union.Child, operationResultState, graph, targetRelation, def, option)
+		return computeRewriteOpReachability(ctx, ts, rw.Union.Child, operationResultState, graph, targetRelation, def, option)
 
 	case *core.UsersetRewrite_Intersection:
 		// If optimized mode is set, only return the first child of the intersection.
 		if option == reachabilityFirst {
-			return computeRewriteOpReachability(ctx, rw.Intersection.Child[0:1], core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
+			return computeRewriteOpReachability(ctx, ts, rw.Intersection.Child[0:1], core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
 		}
 
-		return computeRewriteOpReachability(ctx, rw.Intersection.Child, core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
+		return computeRewriteOpReachability(ctx, ts, rw.Intersection.Child, core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
 
 	case *core.UsersetRewrite_Exclusion:
 		// If optimized mode is set, only return the first child of the exclusion.
 		if option == reachabilityFirst {
-			return computeRewriteOpReachability(ctx, rw.Exclusion.Child[0:1], core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
+			return computeRewriteOpReachability(ctx, ts, rw.Exclusion.Child[0:1], core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
 		}
 
-		return computeRewriteOpReachability(ctx, rw.Exclusion.Child, core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
+		return computeRewriteOpReachability(ctx, ts, rw.Exclusion.Child, core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT, graph, targetRelation, def, option)
 
 	default:
 		return fmt.Errorf("unknown kind of userset rewrite in reachability computation: %T", rw)
 	}
 }
 
-func computeRewriteOpReachability(ctx context.Context, children []*core.SetOperation_Child, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, graph *core.ReachabilityGraph, targetRelation *core.Relation, def *Definition, option reachabilityOption) error {
+func computeRewriteOpReachability(ctx context.Context, ts *TypeSystem, children []*core.SetOperation_Child, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, graph *core.ReachabilityGraph, targetRelation *core.Relation, def *Definition, option reachabilityOption) error {
 	rr := &core.RelationReference{
 		Namespace: def.nsDef.Name,
 		Relation:  targetRelation.Name,
@@ -92,7 +92,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 			}
 
 		case *core.SetOperation_Child_UsersetRewrite:
-			err := computeRewriteReachability(ctx, graph, child.UsersetRewrite, operationResultState, targetRelation, def, option)
+			err := computeRewriteReachability(ctx, ts, graph, child.UsersetRewrite, operationResultState, targetRelation, def, option)
 			if err != nil {
 				return err
 			}
@@ -100,7 +100,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 		case *core.SetOperation_Child_TupleToUserset:
 			tuplesetRelation := child.TupleToUserset.Tupleset.Relation
 			computedUsersetRelation := child.TupleToUserset.ComputedUserset.Relation
-			if err := computeTTUReachability(ctx, graph, tuplesetRelation, computedUsersetRelation, operationResultState, rr, def); err != nil {
+			if err := computeTTUReachability(ctx, ts, graph, tuplesetRelation, computedUsersetRelation, operationResultState, rr, def); err != nil {
 				return err
 			}
 
@@ -120,7 +120,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 				return spiceerrors.MustBugf("unknown function type `%T` in reachability graph building", child.FunctionedTupleToUserset.Function)
 			}
 
-			if err := computeTTUReachability(ctx, graph, tuplesetRelation, computedUsersetRelation, operationResultState, rr, def); err != nil {
+			if err := computeTTUReachability(ctx, ts, graph, tuplesetRelation, computedUsersetRelation, operationResultState, rr, def); err != nil {
 				return err
 			}
 
@@ -149,6 +149,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 
 func computeTTUReachability(
 	ctx context.Context,
+	ts *TypeSystem,
 	graph *core.ReachabilityGraph,
 	tuplesetRelation string,
 	computedUsersetRelation string,
@@ -192,7 +193,7 @@ func computeTTUReachability(
 		// right side of the arrow.
 
 		// Check if the relation does exist on the allowed type, and only add the entrypoint if present.
-		relDef, err := def.ts.GetDefinition(ctx, allowedRelationType.Namespace)
+		relDef, err := ts.GetDefinition(ctx, allowedRelationType.Namespace)
 		if err != nil {
 			return err
 		}

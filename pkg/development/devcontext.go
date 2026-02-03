@@ -311,7 +311,7 @@ func loadCompiled(
 	}
 
 	for _, nsDef := range compiled.ObjectDefinitions {
-		def, terr := schema.NewDefinition(ts, nsDef)
+		def, terr := schema.NewDefinition(nsDef)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsWithSourceError(terr)
 			// NOTE: zeroes are fine here to mean "unknown"
@@ -344,7 +344,7 @@ func loadCompiled(
 			continue
 		}
 
-		_, tverr := def.Validate(ctx)
+		_, tverr := ts.Validate(ctx, def)
 		if tverr == nil {
 			if err := rwt.LegacyWriteNamespaces(ctx, nsDef); err != nil {
 				return errors, err

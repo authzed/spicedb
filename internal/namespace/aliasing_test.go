@@ -201,11 +201,11 @@ func TestAliasing(t *testing.T) {
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 
-			def, err := schema.NewDefinition(ts, tc.toCheck)
+			def, err := schema.NewDefinition(tc.toCheck)
 			require.NoError(err)
 
 			ctx := t.Context()
-			vdef, terr := def.Validate(ctx)
+			vdef, terr := ts.Validate(ctx, def)
 			require.NoError(terr)
 
 			computed, aerr := computePermissionAliases(vdef)
