@@ -2,6 +2,9 @@ package query
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 // Alias is an iterator that rewrites the Resource's Relation field of all paths
@@ -24,60 +27,46 @@ func NewAlias(relation string, subIt Iterator) *Alias {
 	}
 }
 
-func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	// First, check for self-edge: if the object with internal relation matches the subject
-	for _, resource := range resources {
-		resourceWithAlias := resource.WithRelation(a.relation)
-		if resourceWithAlias.ObjectID == subject.ObjectID &&
-			resourceWithAlias.ObjectType == subject.ObjectType &&
-			resourceWithAlias.Relation == subject.Relation {
-			// Return the self-edge path first
-			selfPath := Path{
-				Resource: GetObject(resourceWithAlias),
-				Relation: resourceWithAlias.Relation,
-				Subject:  subject,
-				Metadata: make(map[string]any),
-			}
-
-			// Also get relations from sub-iterator
-			subSeq, err := ctx.Check(a.subIt, resources, subject)
-			if err != nil {
-				return nil, err
-			}
-
-			// Create combined sequence with self-edge and rewritten paths
-			combined := func(yield func(Path, error) bool) {
-				// Yield the self-edge first
-				if !yield(selfPath, nil) {
+// maybePrependSelfEdge checks if a self-edge should be added and combines it with the given sequence.
+// A self-edge is added when the resource with the alias relation matches the subject.
+func (a *Alias) maybePrependSelfEdge(resource Object, subSeq PathSeq, shouldAddSelfEdge bool) PathSeq {
+	if !shouldAddSelfEdge {
+		// No self-edge, just rewrite paths from sub-iterator
+		return func(yield func(Path, error) bool) {
+			for path, err := range subSeq {
+				if err != nil {
+					yield(Path{}, err)
 					return
 				}
 
-				// Then yield rewritten paths from sub-iterator
-				for path, err := range subSeq {
-					if err != nil {
-						yield(Path{}, err)
-						return
-					}
-
-					path.Relation = a.relation
-					if !yield(path, nil) {
-						return
-					}
+				path.Relation = a.relation
+				if !yield(path, nil) {
+					return
 				}
 			}
-
-			// Wrap with deduplication to handle duplicate paths after rewriting
-			return DeduplicatePathSeq(combined), nil
 		}
 	}
 
-	// No self-edge detected, just rewrite paths from sub-iterator
-	subSeq, err := ctx.Check(a.subIt, resources, subject)
-	if err != nil {
-		return nil, err
+	// Create a self-edge path
+	selfPath := Path{
+		Resource: resource,
+		Relation: a.relation,
+		Subject: ObjectAndRelation{
+			ObjectType: resource.ObjectType,
+			ObjectID:   resource.ObjectID,
+			Relation:   a.relation,
+		},
+		Metadata: make(map[string]any),
 	}
 
-	rewritten := func(yield func(Path, error) bool) {
+	// Combine self-edge with paths from sub-iterator
+	combined := func(yield func(Path, error) bool) {
+		// Yield the self-edge first
+		if !yield(selfPath, nil) {
+			return
+		}
+
+		// Then yield rewritten paths from sub-iterator
 		for path, err := range subSeq {
 			if err != nil {
 				yield(Path{}, err)
@@ -91,8 +80,29 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 		}
 	}
 
-	// Wrap with deduplication to handle duplicate paths after rewriting
-	return DeduplicatePathSeq(rewritten), nil
+	// Wrap with deduplication to handle duplicate paths
+	return DeduplicatePathSeq(combined)
+}
+
+func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	// Get relations from sub-iterator
+	subSeq, err := ctx.Check(a.subIt, resources, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check for self-edge: if any resource with the alias relation matches the subject
+	for _, resource := range resources {
+		resourceWithAlias := resource.WithRelation(a.relation)
+		if resourceWithAlias.ObjectID == subject.ObjectID &&
+			resourceWithAlias.ObjectType == subject.ObjectType &&
+			resourceWithAlias.Relation == subject.Relation {
+			return a.maybePrependSelfEdge(GetObject(resourceWithAlias), subSeq, true), nil
+		}
+	}
+
+	// No self-edge detected, just rewrite paths from sub-iterator
+	return DeduplicatePathSeq(a.maybePrependSelfEdge(Object{}, subSeq, false)), nil
 }
 
 func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
@@ -101,19 +111,67 @@ func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectTyp
 		return nil, err
 	}
 
-	return func(yield func(Path, error) bool) {
-		for path, err := range subSeq {
-			if err != nil {
-				yield(Path{}, err)
-				return
-			}
+	// Check if we should add a self-edge based on identity semantics.
+	// The dispatcher Check includes an identity check (see filterForFoundMemberResource
+	// in internal/graph/check.go): if the resource (with relation) matches the subject
+	// exactly, it returns MEMBER. This only applies if the resource actually appears
+	// as a subject in the data and the filter allows it.
+	shouldAddSelfEdge := a.shouldIncludeSelfEdge(ctx, resource, filterSubjectType)
 
-			path.Relation = a.relation
-			if !yield(path, nil) {
-				return
-			}
+	return a.maybePrependSelfEdge(resource, subSeq, shouldAddSelfEdge), nil
+}
+
+// shouldIncludeSelfEdge checks if a self-edge should be included for the given resource.
+// This matches the dispatcher's identity check behavior: if resource#relation appears as
+// a subject anywhere in the datastore (expired or not), and the filter allows it, we
+// include a self-edge in the results.
+func (a *Alias) shouldIncludeSelfEdge(ctx *Context, resource Object, filterSubjectType ObjectType) bool {
+	// First check: does the filter allow this resource type as a subject?
+	typeMatches := filterSubjectType.Type == "" || filterSubjectType.Type == resource.ObjectType
+	relationMatches := filterSubjectType.Subrelation == "" || filterSubjectType.Subrelation == a.relation
+	if !typeMatches || !relationMatches || ctx.Reader == nil {
+		return false
+	}
+
+	// Second check: does the resource actually appear as a subject in the data?
+	// We check for ANY relationships (expired or not) because the dispatcher's
+	// identity check applies regardless of expiration.
+	exists, err := a.resourceExistsAsSubject(ctx, resource)
+	if err != nil {
+		// On error, conservatively return false rather than failing the entire operation
+		return false
+	}
+	return exists
+}
+
+// resourceExistsAsSubject queries the datastore to check if the given resource appears
+// as a subject in any relationship, including expired relationships.
+func (a *Alias) resourceExistsAsSubject(ctx *Context, resource Object) (bool, error) {
+	filter := datastore.RelationshipsFilter{
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
+			OptionalSubjectType: resource.ObjectType,
+			OptionalSubjectIds:  []string{resource.ObjectID},
+			RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(a.relation),
+		}},
+		OptionalExpirationOption: datastore.ExpirationFilterOptionNone,
+	}
+
+	iter, err := ctx.Reader.QueryRelationships(ctx, filter,
+		options.WithLimit(options.LimitOne),
+		options.WithSkipExpiration(true)) // Include expired relationships
+	if err != nil {
+		return false, err
+	}
+
+	// Check if any relationship exists
+	for _, err := range iter {
+		if err != nil {
+			return false, err
 		}
-	}, nil
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
@@ -122,53 +180,11 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 		return nil, err
 	}
 
-	// If the relation on the alias iterator is the same
-	// as the subject relation on the subject, we have
-	// a self edge and want to yield it accordingly.
-	if a.relation == subject.Relation {
-		selfPath := Path{
-			Resource: GetObject(subject),
-			Relation: a.relation,
-			Subject:  subject,
-		}
+	// If the relation on the alias iterator is the same as the subject relation,
+	// we have a self-edge and should yield it
+	shouldAddSelfEdge := a.relation == subject.Relation
 
-		combined := func(yield func(Path, error) bool) {
-			// Yield the self path first
-			if !yield(selfPath, nil) {
-				return
-			}
-
-			for subPath, err := range subSeq {
-				if err != nil {
-					yield(Path{}, err)
-					return
-				}
-
-				// Then yield remaining paths with the rewrite
-				subPath.Relation = a.relation
-				if !yield(subPath, nil) {
-					return
-				}
-			}
-		}
-
-		return DeduplicatePathSeq(combined), nil
-	}
-
-	// else we don't have a subpath and do the normal logic
-	return func(yield func(Path, error) bool) {
-		for path, err := range subSeq {
-			if err != nil {
-				yield(Path{}, err)
-				return
-			}
-
-			path.Relation = a.relation
-			if !yield(path, nil) {
-				return
-			}
-		}
-	}, nil
+	return a.maybePrependSelfEdge(GetObject(subject), subSeq, shouldAddSelfEdge), nil
 }
 
 func (a *Alias) Clone() Iterator {

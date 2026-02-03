@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const defaultMaxRecursionDepth = 50
@@ -394,15 +392,15 @@ func (r *RecursiveIterator) isRecursiveSubject(subject ObjectAndRelation) bool {
 		return false
 	}
 
-	// Must match the relation or be ellipsis/empty
-	// Empty relation means the subject reference doesn't specify a relation
-	// Ellipsis means "any relation on this object"
-	if subject.Relation != r.relationName &&
-		subject.Relation != "" &&
-		subject.Relation != tuple.Ellipsis {
-		return false
-	}
-
+	// For IterSubjects, we should recursively expand any subject of the same type,
+	// regardless of its specific relation. This is because:
+	// 1. Permissions can include other relations (e.g., member = direct_member + contributor + manager)
+	// 2. When querying engineering#direct_member, we may find applications#member as a subject,
+	//    and we need to expand it to find transitive subjects
+	// 3. The specific relation on the subject determines what we query on that subject,
+	//    but doesn't determine whether it should be expanded
+	//
+	// Note: Empty relation means no relation specified, ellipsis means "any relation"
 	return true
 }
 

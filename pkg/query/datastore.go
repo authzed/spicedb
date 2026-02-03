@@ -231,13 +231,18 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 		return EmptyPathSeq(), nil
 	}
 
-	// Wildcard exists, so enumerate all concrete subjects for this resource.
-	// Note: This may return some of the same subjects as the non-wildcard branch
-	// (when both wildcard and concrete relationships exist), but the Union will
-	// deduplicate them.
+	// Wildcard exists, so enumerate all concrete subjects of the appropriate type.
+	// A wildcard (e.g., user:*) means "all subjects of that type", so we need to enumerate
+	// all defined subjects of that type in the datastore. This may return some of the same
+	// subjects as the non-wildcard branch (when both wildcard and concrete relationships exist),
+	// but the Union will deduplicate them.
+	//
+	// Note: We query for all subjects of the appropriate type, not just those with a relationship
+	// to this specific resource. This matches the semantics of wildcards, which grant access to
+	// ALL subjects of the type, regardless of whether they have other relationships.
 	allSubjectsFilter := datastore.RelationshipsFilter{
-		OptionalResourceType: r.base.DefinitionName(),
-		OptionalResourceIds:  []string{resource.ObjectID},
+		// Note: We intentionally omit OptionalResourceType and OptionalResourceIds to find
+		// all subjects of the appropriate type across all resources
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
 				OptionalSubjectType: r.base.Type(),
