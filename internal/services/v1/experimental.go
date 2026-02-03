@@ -256,8 +256,6 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			caveat:                 core.ContextualizedCaveat{},
 			caveatTypeSet:          es.caveatTypeSet,
 		}
-		resolver := schema.ResolverForDatastoreReader(rwt)
-		ts := schema.NewTypeSystem(resolver)
 
 		var streamWritten uint64
 		var err error
@@ -277,7 +275,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 
 				for _, def := range foundDefs {
 					if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-						newDef, err := schema.NewDefinition(ts, nsDef)
+						newDef, err := schema.NewDefinition(nsDef)
 						if err != nil {
 							return err
 						}
@@ -627,7 +625,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		allDefinitions = append(allDefinitions, ns.Definition)
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  relationName,
@@ -700,7 +698,7 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  req.PermissionName,

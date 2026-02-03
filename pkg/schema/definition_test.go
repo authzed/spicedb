@@ -460,7 +460,7 @@ func TestDefinition(t *testing.T) {
 			def, gerr := ts.GetDefinition(ctx, tc.toCheck.GetName())
 			require.NoError(gerr)
 
-			_, verr := def.Validate(ctx)
+			_, verr := ts.Validate(ctx, def)
 			if tc.expectedError == "" {
 				require.NoError(verr)
 			} else {
