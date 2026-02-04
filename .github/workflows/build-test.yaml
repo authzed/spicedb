@@ -256,7 +256,7 @@ jobs:
 
   crdbdatastoreinttest:
     name: "Datastore Integration Tests"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-4"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -291,7 +291,7 @@ jobs:
 
   crdbdatastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-4"
+    runs-on: "depot-ubuntu-24.04-arm-4"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -326,6 +326,8 @@ jobs:
 
   e2e:
     name: "E2E"
+    # NOTE: the e2e tests can't be run on ARM because chaosd (which is used in the cockroach e2e consistency tests)
+    # doesn't support ARM and it doesn't appear that it will.
     runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
     strategy:
