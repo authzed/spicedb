@@ -282,6 +282,11 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 				yield(Path{}, err)
 				return
 			}
+
+			// Note: We used to filter self-edges here, but self-edges from Alias represent valid identity checks
+			// (e.g., team:first#member accessing team:first via member). Removing the filter allows these
+			// identity relationships to propagate through arrows correctly.
+
 			rightPathCount++
 
 			// For each right resource, get resources from left side
@@ -359,7 +364,7 @@ func (a *Arrow) ID() string {
 	return a.id
 }
 
-func (a *Arrow) ResourceType() (ObjectType, error) {
+func (a *Arrow) ResourceType() ([]ObjectType, error) {
 	// Arrow's resources come from the left side
 	return a.left.ResourceType()
 }

@@ -270,9 +270,18 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 		return EmptyPathSeq(), nil
 	}
 
+	// Handle wildcards first - they don't have subrelations and match any query relation
 	if r.base.Wildcard() {
 		return r.iterResourcesWildcardImpl(ctx, subject)
 	}
+
+	// Check if subject relation matches what this iterator expects.
+	// Both the schema's expected subrelation and the query's subject relation must match exactly.
+	// Ellipsis is a specific relation value, not a wildcard.
+	if r.base.Subrelation() != subject.Relation {
+		return EmptyPathSeq(), nil
+	}
+
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceRelation: r.base.RelationName(),
@@ -354,11 +363,11 @@ func (r *RelationIterator) ID() string {
 	return r.id
 }
 
-func (r *RelationIterator) ResourceType() (ObjectType, error) {
-	return ObjectType{
+func (r *RelationIterator) ResourceType() ([]ObjectType, error) {
+	return []ObjectType{{
 		Type:        r.base.DefinitionName(),
-		Subrelation: r.base.RelationName(),
-	}, nil
+		Subrelation: tuple.Ellipsis,
+	}}, nil
 }
 
 func (r *RelationIterator) SubjectTypes() ([]ObjectType, error) {

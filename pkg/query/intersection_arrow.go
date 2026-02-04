@@ -341,7 +341,7 @@ func (ia *IntersectionArrow) ID() string {
 	return ia.id
 }
 
-func (ia *IntersectionArrow) ResourceType() (ObjectType, error) {
+func (ia *IntersectionArrow) ResourceType() ([]ObjectType, error) {
 	// IntersectionArrow's resources come from the left side
 	return ia.left.ResourceType()
 }

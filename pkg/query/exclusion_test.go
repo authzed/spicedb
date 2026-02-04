@@ -873,7 +873,8 @@ func TestExclusion_Types(t *testing.T) {
 
 		resourceType, err := exclusion.ResourceType()
 		require.NoError(err)
-		require.Equal("document", resourceType.Type) // From mainSet
+		require.Len(resourceType, 1)
+		require.Equal("document", resourceType[0].Type) // From mainSet
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {

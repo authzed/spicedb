@@ -180,9 +180,32 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 		return nil, err
 	}
 
-	// If the relation on the alias iterator is the same as the subject relation,
-	// we have a self-edge and should yield it
-	shouldAddSelfEdge := a.relation == subject.Relation
+	// Check if we should add a self-edge (identity check: permission always grants access to itself)
+	// This matches LookupResources3's logic where subject type+relation must match resource type+relation
+	shouldAddSelfEdge := false
+	if a.relation == subject.Relation {
+		// Get the resource types from the iterator
+		resourceTypes, err := a.ResourceType()
+		if err != nil {
+			return nil, err
+		}
+
+		// Add self-edge if:
+		// - No resource types defined (empty/unconstrained iterator), OR
+		// - Subject type matches one of the possible resource types
+		// This allows self-edges for empty iterators while preventing them in nested contexts
+		// where the types don't match
+		if len(resourceTypes) == 0 {
+			shouldAddSelfEdge = true
+		} else {
+			for _, rt := range resourceTypes {
+				if rt.Type == subject.ObjectType {
+					shouldAddSelfEdge = true
+					break
+				}
+			}
+		}
+	}
 
 	return a.maybePrependSelfEdge(GetObject(subject), subSeq, shouldAddSelfEdge), nil
 }
@@ -215,7 +238,7 @@ func (a *Alias) ID() string {
 	return a.id
 }
 
-func (a *Alias) ResourceType() (ObjectType, error) {
+func (a *Alias) ResourceType() ([]ObjectType, error) {
 	return a.subIt.ResourceType()
 }
 

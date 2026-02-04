@@ -692,8 +692,8 @@ func TestIntersection_Types(t *testing.T) {
 
 		resourceType, err := intersect.ResourceType()
 		require.NoError(err)
-		require.Equal("document", resourceType.Type)
-		require.Empty(resourceType.Subrelation) // First subiterator determines this
+		require.Len(resourceType, 1)
+		require.Equal("document", resourceType[0].Type)
 	})
 
 	t.Run("ResourceType_EmptyIntersection", func(t *testing.T) {
@@ -704,8 +704,7 @@ func TestIntersection_Types(t *testing.T) {
 
 		resourceType, err := intersect.ResourceType()
 		require.NoError(err)
-		require.Empty(resourceType.Type)
-		require.Empty(resourceType.Subrelation)
+		require.Empty(resourceType)
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
@@ -774,9 +773,9 @@ func TestIntersection_Types(t *testing.T) {
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
-		// This should panic in tests (via MustBugf)
-		require.Panics(func() {
-			_, _ = intersect.ResourceType()
-		})
+		// Intersection returns common types - with mismatched types, should be empty
+		resourceTypes, err := intersect.ResourceType()
+		require.NoError(err)
+		require.Empty(resourceTypes, "Intersection of document and folder should be empty")
 	})
 }

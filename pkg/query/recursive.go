@@ -212,7 +212,7 @@ func (r *RecursiveIterator) ID() string {
 	return r.id
 }
 
-func (r *RecursiveIterator) ResourceType() (ObjectType, error) {
+func (r *RecursiveIterator) ResourceType() ([]ObjectType, error) {
 	// Delegate to the template tree
 	return r.templateTree.ResourceType()
 }
@@ -265,7 +265,9 @@ func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject Obje
 		// Extract recursive node from path
 		func(path Path) (ObjectAndRelation, bool) {
 			if r.isRecursiveResource(path.Resource) {
-				return path.Resource.WithEllipses(), true
+				// Use the resource with its relation from the path, not ellipsis
+				// This preserves the specific relation (e.g., #member) for the next level
+				return path.ResourceOAR(), true
 			}
 			return ObjectAndRelation{}, false
 		},
