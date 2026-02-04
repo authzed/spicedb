@@ -68,7 +68,13 @@ type Cache[K KeyString, V any] interface {
 	// Get returns the value for the given key in the cache, if it exists.
 	Get(key K) (V, bool)
 
-	// Set sets a value for the key in the cache, with the given cost.
+	// GetTTL returns the TTL of entries in the cache.
+	// If zero is used, entries are not deleted.
+	GetTTL() time.Duration
+
+	// Set is a best-effort attempt to set a value for the key in the cache, with the given cost.
+	// If GetTTL returns zero, the entry never expires.
+	// Returns true if the value could be set, false if the cost was too high.
 	Set(key K, entry V, cost int64) bool
 
 	// Wait waits for the cache to process and apply updates.
@@ -78,6 +84,7 @@ type Cache[K KeyString, V any] interface {
 	Close()
 
 	// GetMetrics returns the metrics block for the cache.
+	// Some implementations may chose to not return some of these metrics.
 	GetMetrics() Metrics
 
 	zerolog.LogObjectMarshaler
@@ -106,6 +113,7 @@ type noopCache[K KeyString, V any] struct{}
 var _ Cache[StringKey, any] = (*noopCache[StringKey, any])(nil)
 
 func (no *noopCache[K, V]) Get(_ K) (V, bool)          { return *new(V), false }
+func (no *noopCache[K, V]) GetTTL() time.Duration      { return time.Duration(0) }
 func (no *noopCache[K, V]) Set(_ K, _ V, _ int64) bool { return false }
 func (no *noopCache[K, V]) Wait()                      {}
 func (no *noopCache[K, V]) Close()                     {}
