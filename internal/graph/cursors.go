@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 
@@ -161,7 +162,11 @@ func withDatastoreCursorInCursor[T any, Q any](
 	var datastoreCursor options.Cursor
 	datastoreCursorString, _ := ci.headSectionValue()
 	if datastoreCursorString != "" {
-		datastoreCursor = options.ToCursor(tuple.MustParse(datastoreCursorString))
+		parsedCursor, err := tuple.Parse(datastoreCursorString)
+		if err != nil {
+			return fmt.Errorf("could not parse '%s' as tuple: %w", datastoreCursorString, err)
+		}
+		datastoreCursor = options.ToCursor(parsedCursor)
 	}
 
 	if ci.limits.hasExhaustedLimit() {
