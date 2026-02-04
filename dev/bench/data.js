@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770246649344,
+  "lastUpdate": 1770247695893,
   "repoUrl": "https://github.com/authzed/spicedb",
   "entries": {
     "Benchmark": [
@@ -14016,6 +14016,1758 @@ window.BENCHMARK_DATA = {
             "value": 0,
             "unit": "allocs/op",
             "extra": "00000324356887 times"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "maria.ines.parnisari@authzed.com",
+            "name": "Maria Ines Parnisari",
+            "username": "miparnisari"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d753f2662e6ac9ebaa7f0cac79a95038c13e0b3e",
+          "message": " chore: add metrics and tests to all cache implementations (#2874)",
+          "timestamp": "2026-02-04T23:15:35Z",
+          "tree_id": "d6fc4e0cf1de417dfddeff045eb39435da2438fa",
+          "url": "https://github.com/authzed/spicedb/commit/d753f2662e6ac9ebaa7f0cac79a95038c13e0b3e"
+        },
+        "date": 1770247695664,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotRead",
+            "value": 368398,
+            "unit": "ns/op\t   15341 B/op\t     221 allocs/op",
+            "extra": "16173 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotRead - ns/op",
+            "value": 368398,
+            "unit": "ns/op",
+            "extra": "16173 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotRead - B/op",
+            "value": 15341,
+            "unit": "B/op",
+            "extra": "16173 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotRead - allocs/op",
+            "value": 221,
+            "unit": "allocs/op",
+            "extra": "16173 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReadOnlyNamespace",
+            "value": 7813742,
+            "unit": "ns/op\t   94213 B/op\t   20135 allocs/op",
+            "extra": "756 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReadOnlyNamespace - ns/op",
+            "value": 7813742,
+            "unit": "ns/op",
+            "extra": "756 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReadOnlyNamespace - B/op",
+            "value": 94213,
+            "unit": "B/op",
+            "extra": "756 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReadOnlyNamespace - allocs/op",
+            "value": 20135,
+            "unit": "allocs/op",
+            "extra": "756 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource",
+            "value": 7988243,
+            "unit": "ns/op\t   97357 B/op\t   20194 allocs/op",
+            "extra": "752 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource - ns/op",
+            "value": 7988243,
+            "unit": "ns/op",
+            "extra": "752 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource - B/op",
+            "value": 97357,
+            "unit": "B/op",
+            "extra": "752 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource - allocs/op",
+            "value": 20194,
+            "unit": "allocs/op",
+            "extra": "752 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject",
+            "value": 10061092,
+            "unit": "ns/op\t   97325 B/op\t   20194 allocs/op",
+            "extra": "590 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject - ns/op",
+            "value": 10061092,
+            "unit": "ns/op",
+            "extra": "590 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject - B/op",
+            "value": 97325,
+            "unit": "B/op",
+            "extra": "590 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject - allocs/op",
+            "value": 20194,
+            "unit": "allocs/op",
+            "extra": "590 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/ByResource",
+            "value": 7872720,
+            "unit": "ns/op\t   77802 B/op\t   15209 allocs/op",
+            "extra": "754 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/ByResource - ns/op",
+            "value": 7872720,
+            "unit": "ns/op",
+            "extra": "754 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/ByResource - B/op",
+            "value": 77802,
+            "unit": "B/op",
+            "extra": "754 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/ByResource - allocs/op",
+            "value": 15209,
+            "unit": "allocs/op",
+            "extra": "754 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/BySubject",
+            "value": 9716659,
+            "unit": "ns/op\t   77847 B/op\t   15210 allocs/op",
+            "extra": "610 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/BySubject - ns/op",
+            "value": 9716659,
+            "unit": "ns/op",
+            "extra": "610 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/BySubject - B/op",
+            "value": 77847,
+            "unit": "B/op",
+            "extra": "610 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/BySubject - allocs/op",
+            "value": 15210,
+            "unit": "allocs/op",
+            "extra": "610 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/ByResource",
+            "value": 514177,
+            "unit": "ns/op\t   18433 B/op\t     280 allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/ByResource - ns/op",
+            "value": 514177,
+            "unit": "ns/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/ByResource - B/op",
+            "value": 18433,
+            "unit": "B/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/ByResource - allocs/op",
+            "value": 280,
+            "unit": "allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/BySubject",
+            "value": 515540,
+            "unit": "ns/op\t   18433 B/op\t     280 allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/BySubject - ns/op",
+            "value": 515540,
+            "unit": "ns/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/BySubject - B/op",
+            "value": 18433,
+            "unit": "B/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/BySubject - allocs/op",
+            "value": 280,
+            "unit": "allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReverseRead",
+            "value": 7415758,
+            "unit": "ns/op\t  172668 B/op\t   20202 allocs/op",
+            "extra": "757 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReverseRead - ns/op",
+            "value": 7415758,
+            "unit": "ns/op",
+            "extra": "757 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReverseRead - B/op",
+            "value": 172668,
+            "unit": "B/op",
+            "extra": "757 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReverseRead - allocs/op",
+            "value": 20202,
+            "unit": "allocs/op",
+            "extra": "757 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Touch",
+            "value": 16672519,
+            "unit": "ns/op\t   23419 B/op\t     297 allocs/op",
+            "extra": "382 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Touch - ns/op",
+            "value": 16672519,
+            "unit": "ns/op",
+            "extra": "382 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Touch - B/op",
+            "value": 23419,
+            "unit": "B/op",
+            "extra": "382 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Touch - allocs/op",
+            "value": 297,
+            "unit": "allocs/op",
+            "extra": "382 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Create",
+            "value": 17154126,
+            "unit": "ns/op\t   20863 B/op\t     292 allocs/op",
+            "extra": "348 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Create - ns/op",
+            "value": 17154126,
+            "unit": "ns/op",
+            "extra": "348 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Create - B/op",
+            "value": 20863,
+            "unit": "B/op",
+            "extra": "348 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Create - allocs/op",
+            "value": 292,
+            "unit": "allocs/op",
+            "extra": "348 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0_",
+            "value": 23363409,
+            "unit": "ns/op\t 4464652 B/op\t   45848 allocs/op",
+            "extra": "240 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0_ - ns/op",
+            "value": 23363409,
+            "unit": "ns/op",
+            "extra": "240 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0_ - B/op",
+            "value": 4464652,
+            "unit": "B/op",
+            "extra": "240 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0_ - allocs/op",
+            "value": 45848,
+            "unit": "allocs/op",
+            "extra": "240 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.1_",
+            "value": 37019308,
+            "unit": "ns/op\t 4511258 B/op\t   45984 allocs/op",
+            "extra": "189 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.1_ - ns/op",
+            "value": 37019308,
+            "unit": "ns/op",
+            "extra": "189 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.1_ - B/op",
+            "value": 4511258,
+            "unit": "B/op",
+            "extra": "189 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.1_ - allocs/op",
+            "value": 45984,
+            "unit": "allocs/op",
+            "extra": "189 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.25_",
+            "value": 32176455,
+            "unit": "ns/op\t 4441277 B/op\t   46445 allocs/op",
+            "extra": "186 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.25_ - ns/op",
+            "value": 32176455,
+            "unit": "ns/op",
+            "extra": "186 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.25_ - B/op",
+            "value": 4441277,
+            "unit": "B/op",
+            "extra": "186 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.25_ - allocs/op",
+            "value": 46445,
+            "unit": "allocs/op",
+            "extra": "186 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.5_",
+            "value": 43286141,
+            "unit": "ns/op\t 4655871 B/op\t   46956 allocs/op",
+            "extra": "135 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.5_ - ns/op",
+            "value": 43286141,
+            "unit": "ns/op",
+            "extra": "135 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.5_ - B/op",
+            "value": 4655871,
+            "unit": "B/op",
+            "extra": "135 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.5_ - allocs/op",
+            "value": 46956,
+            "unit": "allocs/op",
+            "extra": "135 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/1_",
+            "value": 67957195,
+            "unit": "ns/op\t 5176083 B/op\t   48109 allocs/op",
+            "extra": "87 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/1_ - ns/op",
+            "value": 67957195,
+            "unit": "ns/op",
+            "extra": "87 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/1_ - B/op",
+            "value": 5176083,
+            "unit": "B/op",
+            "extra": "87 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/1_ - allocs/op",
+            "value": 48109,
+            "unit": "allocs/op",
+            "extra": "87 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotRead",
+            "value": 363964,
+            "unit": "ns/op\t   15341 B/op\t     221 allocs/op",
+            "extra": "16360 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotRead - ns/op",
+            "value": 363964,
+            "unit": "ns/op",
+            "extra": "16360 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotRead - B/op",
+            "value": 15341,
+            "unit": "B/op",
+            "extra": "16360 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotRead - allocs/op",
+            "value": 221,
+            "unit": "allocs/op",
+            "extra": "16360 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReadOnlyNamespace",
+            "value": 7651333,
+            "unit": "ns/op\t   94248 B/op\t   20135 allocs/op",
+            "extra": "783 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReadOnlyNamespace - ns/op",
+            "value": 7651333,
+            "unit": "ns/op",
+            "extra": "783 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReadOnlyNamespace - B/op",
+            "value": 94248,
+            "unit": "B/op",
+            "extra": "783 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReadOnlyNamespace - allocs/op",
+            "value": 20135,
+            "unit": "allocs/op",
+            "extra": "783 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource",
+            "value": 7790631,
+            "unit": "ns/op\t   97355 B/op\t   20194 allocs/op",
+            "extra": "766 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource - ns/op",
+            "value": 7790631,
+            "unit": "ns/op",
+            "extra": "766 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource - B/op",
+            "value": 97355,
+            "unit": "B/op",
+            "extra": "766 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource - allocs/op",
+            "value": 20194,
+            "unit": "allocs/op",
+            "extra": "766 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject",
+            "value": 9910960,
+            "unit": "ns/op\t   97392 B/op\t   20195 allocs/op",
+            "extra": "606 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject - ns/op",
+            "value": 9910960,
+            "unit": "ns/op",
+            "extra": "606 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject - B/op",
+            "value": 97392,
+            "unit": "B/op",
+            "extra": "606 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject - allocs/op",
+            "value": 20195,
+            "unit": "allocs/op",
+            "extra": "606 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/ByResource",
+            "value": 7276972,
+            "unit": "ns/op\t   77821 B/op\t   15209 allocs/op",
+            "extra": "820 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/ByResource - ns/op",
+            "value": 7276972,
+            "unit": "ns/op",
+            "extra": "820 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/ByResource - B/op",
+            "value": 77821,
+            "unit": "B/op",
+            "extra": "820 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/ByResource - allocs/op",
+            "value": 15209,
+            "unit": "allocs/op",
+            "extra": "820 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/BySubject",
+            "value": 9616537,
+            "unit": "ns/op\t   77806 B/op\t   15209 allocs/op",
+            "extra": "628 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/BySubject - ns/op",
+            "value": 9616537,
+            "unit": "ns/op",
+            "extra": "628 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/BySubject - B/op",
+            "value": 77806,
+            "unit": "B/op",
+            "extra": "628 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/BySubject - allocs/op",
+            "value": 15209,
+            "unit": "allocs/op",
+            "extra": "628 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/ByResource",
+            "value": 474221,
+            "unit": "ns/op\t   18431 B/op\t     280 allocs/op",
+            "extra": "15853 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/ByResource - ns/op",
+            "value": 474221,
+            "unit": "ns/op",
+            "extra": "15853 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/ByResource - B/op",
+            "value": 18431,
+            "unit": "B/op",
+            "extra": "15853 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/ByResource - allocs/op",
+            "value": 280,
+            "unit": "allocs/op",
+            "extra": "15853 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/BySubject",
+            "value": 506843,
+            "unit": "ns/op\t   18433 B/op\t     280 allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/BySubject - ns/op",
+            "value": 506843,
+            "unit": "ns/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/BySubject - B/op",
+            "value": 18433,
+            "unit": "B/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/BySubject - allocs/op",
+            "value": 280,
+            "unit": "allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReverseRead",
+            "value": 7292977,
+            "unit": "ns/op\t  172674 B/op\t   20202 allocs/op",
+            "extra": "804 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReverseRead - ns/op",
+            "value": 7292977,
+            "unit": "ns/op",
+            "extra": "804 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReverseRead - B/op",
+            "value": 172674,
+            "unit": "B/op",
+            "extra": "804 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReverseRead - allocs/op",
+            "value": 20202,
+            "unit": "allocs/op",
+            "extra": "804 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Touch",
+            "value": 3488101,
+            "unit": "ns/op\t   20933 B/op\t     272 allocs/op",
+            "extra": "1786 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Touch - ns/op",
+            "value": 3488101,
+            "unit": "ns/op",
+            "extra": "1786 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Touch - B/op",
+            "value": 20933,
+            "unit": "B/op",
+            "extra": "1786 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Touch - allocs/op",
+            "value": 272,
+            "unit": "allocs/op",
+            "extra": "1786 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Create",
+            "value": 1967889,
+            "unit": "ns/op\t   18295 B/op\t     266 allocs/op",
+            "extra": "2541 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Create - ns/op",
+            "value": 1967889,
+            "unit": "ns/op",
+            "extra": "2541 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Create - B/op",
+            "value": 18295,
+            "unit": "B/op",
+            "extra": "2541 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Create - allocs/op",
+            "value": 266,
+            "unit": "allocs/op",
+            "extra": "2541 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0_",
+            "value": 16426523,
+            "unit": "ns/op\t 4463478 B/op\t   45824 allocs/op",
+            "extra": "349 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0_ - ns/op",
+            "value": 16426523,
+            "unit": "ns/op",
+            "extra": "349 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0_ - B/op",
+            "value": 4463478,
+            "unit": "B/op",
+            "extra": "349 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0_ - allocs/op",
+            "value": 45824,
+            "unit": "allocs/op",
+            "extra": "349 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.1_",
+            "value": 25643471,
+            "unit": "ns/op\t 4508808 B/op\t   45959 allocs/op",
+            "extra": "204 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.1_ - ns/op",
+            "value": 25643471,
+            "unit": "ns/op",
+            "extra": "204 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.1_ - B/op",
+            "value": 4508808,
+            "unit": "B/op",
+            "extra": "204 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.1_ - allocs/op",
+            "value": 45959,
+            "unit": "allocs/op",
+            "extra": "204 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.25_",
+            "value": 30306076,
+            "unit": "ns/op\t 4438838 B/op\t   46420 allocs/op",
+            "extra": "184 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.25_ - ns/op",
+            "value": 30306076,
+            "unit": "ns/op",
+            "extra": "184 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.25_ - B/op",
+            "value": 4438838,
+            "unit": "B/op",
+            "extra": "184 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.25_ - allocs/op",
+            "value": 46420,
+            "unit": "allocs/op",
+            "extra": "184 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.5_",
+            "value": 45200767,
+            "unit": "ns/op\t 4656868 B/op\t   46933 allocs/op",
+            "extra": "133 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.5_ - ns/op",
+            "value": 45200767,
+            "unit": "ns/op",
+            "extra": "133 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.5_ - B/op",
+            "value": 4656868,
+            "unit": "B/op",
+            "extra": "133 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.5_ - allocs/op",
+            "value": 46933,
+            "unit": "allocs/op",
+            "extra": "133 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/1_",
+            "value": 66270254,
+            "unit": "ns/op\t 5170828 B/op\t   48084 allocs/op",
+            "extra": "85 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/1_ - ns/op",
+            "value": 66270254,
+            "unit": "ns/op",
+            "extra": "85 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/1_ - B/op",
+            "value": 5170828,
+            "unit": "B/op",
+            "extra": "85 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/1_ - allocs/op",
+            "value": 48084,
+            "unit": "allocs/op",
+            "extra": "85 times"
+          },
+          {
+            "name": "BenchmarkQueryRelationships",
+            "value": 448485,
+            "unit": "ns/op\t     696 B/op\t      18 allocs/op",
+            "extra": "13431 times"
+          },
+          {
+            "name": "BenchmarkQueryRelationships - ns/op",
+            "value": 448485,
+            "unit": "ns/op",
+            "extra": "13431 times"
+          },
+          {
+            "name": "BenchmarkQueryRelationships - B/op",
+            "value": 696,
+            "unit": "B/op",
+            "extra": "13431 times"
+          },
+          {
+            "name": "BenchmarkQueryRelationships - allocs/op",
+            "value": 18,
+            "unit": "allocs/op",
+            "extra": "13431 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=true",
+            "value": 2548829,
+            "unit": "ns/op\t 2245617 B/op\t   17080 allocs/op",
+            "extra": "2438 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=true - ns/op",
+            "value": 2548829,
+            "unit": "ns/op",
+            "extra": "2438 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=true - B/op",
+            "value": 2245617,
+            "unit": "B/op",
+            "extra": "2438 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=true - allocs/op",
+            "value": 17080,
+            "unit": "allocs/op",
+            "extra": "2438 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=false",
+            "value": 1962862,
+            "unit": "ns/op\t 2101433 B/op\t   14076 allocs/op",
+            "extra": "3051 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=false - ns/op",
+            "value": 1962862,
+            "unit": "ns/op",
+            "extra": "3051 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=false - B/op",
+            "value": 2101433,
+            "unit": "B/op",
+            "extra": "3051 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=false - allocs/op",
+            "value": 14076,
+            "unit": "allocs/op",
+            "extra": "3051 times"
+          },
+          {
+            "name": "BenchmarkComputeRelationshipHash",
+            "value": 603.3,
+            "unit": "ns/op\t     144 B/op\t       3 allocs/op",
+            "extra": "9939249 times"
+          },
+          {
+            "name": "BenchmarkComputeRelationshipHash - ns/op",
+            "value": 603.3,
+            "unit": "ns/op",
+            "extra": "9939249 times"
+          },
+          {
+            "name": "BenchmarkComputeRelationshipHash - B/op",
+            "value": 144,
+            "unit": "B/op",
+            "extra": "9939249 times"
+          },
+          {
+            "name": "BenchmarkComputeRelationshipHash - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "9939249 times"
+          },
+          {
+            "name": "BenchmarkOptimizedRevisions",
+            "value": 138.6,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "43118571 times"
+          },
+          {
+            "name": "BenchmarkOptimizedRevisions - ns/op",
+            "value": 138.6,
+            "unit": "ns/op",
+            "extra": "43118571 times"
+          },
+          {
+            "name": "BenchmarkOptimizedRevisions - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "43118571 times"
+          },
+          {
+            "name": "BenchmarkOptimizedRevisions - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "43118571 times"
+          },
+          {
+            "name": "BenchmarkSecondaryDispatching",
+            "value": 25818,
+            "unit": "ns/op\t    3977 B/op\t      72 allocs/op",
+            "extra": "325924 times"
+          },
+          {
+            "name": "BenchmarkSecondaryDispatching - ns/op",
+            "value": 25818,
+            "unit": "ns/op",
+            "extra": "325924 times"
+          },
+          {
+            "name": "BenchmarkSecondaryDispatching - B/op",
+            "value": 3977,
+            "unit": "B/op",
+            "extra": "325924 times"
+          },
+          {
+            "name": "BenchmarkSecondaryDispatching - allocs/op",
+            "value": 72,
+            "unit": "allocs/op",
+            "extra": "325924 times"
+          },
+          {
+            "name": "BenchmarkRunDispatchExpression",
+            "value": 1874,
+            "unit": "ns/op\t    1577 B/op\t      34 allocs/op",
+            "extra": "3223681 times"
+          },
+          {
+            "name": "BenchmarkRunDispatchExpression - ns/op",
+            "value": 1874,
+            "unit": "ns/op",
+            "extra": "3223681 times"
+          },
+          {
+            "name": "BenchmarkRunDispatchExpression - B/op",
+            "value": 1577,
+            "unit": "B/op",
+            "extra": "3223681 times"
+          },
+          {
+            "name": "BenchmarkRunDispatchExpression - allocs/op",
+            "value": 34,
+            "unit": "allocs/op",
+            "extra": "3223681 times"
+          },
+          {
+            "name": "BenchmarkPatternMatcher",
+            "value": 3236,
+            "unit": "ns/op\t    5952 B/op\t      50 allocs/op",
+            "extra": "1840540 times"
+          },
+          {
+            "name": "BenchmarkPatternMatcher - ns/op",
+            "value": 3236,
+            "unit": "ns/op",
+            "extra": "1840540 times"
+          },
+          {
+            "name": "BenchmarkPatternMatcher - B/op",
+            "value": 5952,
+            "unit": "B/op",
+            "extra": "1840540 times"
+          },
+          {
+            "name": "BenchmarkPatternMatcher - allocs/op",
+            "value": 50,
+            "unit": "allocs/op",
+            "extra": "1840540 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/cockroachdb/v1",
+            "value": 3245225,
+            "unit": "ns/op\t  297803 B/op\t    4486 allocs/op",
+            "extra": "2521 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/cockroachdb/v1 - ns/op",
+            "value": 3245225,
+            "unit": "ns/op",
+            "extra": "2521 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/cockroachdb/v1 - B/op",
+            "value": 297803,
+            "unit": "B/op",
+            "extra": "2521 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/cockroachdb/v1 - allocs/op",
+            "value": 4486,
+            "unit": "allocs/op",
+            "extra": "2521 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/postgres/v1",
+            "value": 1823060,
+            "unit": "ns/op\t  307863 B/op\t    4659 allocs/op",
+            "extra": "4088 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/postgres/v1 - ns/op",
+            "value": 1823060,
+            "unit": "ns/op",
+            "extra": "4088 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/postgres/v1 - B/op",
+            "value": 307863,
+            "unit": "B/op",
+            "extra": "4088 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/postgres/v1 - allocs/op",
+            "value": 4659,
+            "unit": "allocs/op",
+            "extra": "4088 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/memory/v1",
+            "value": 811127,
+            "unit": "ns/op\t  236537 B/op\t    3679 allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/memory/v1 - ns/op",
+            "value": 811127,
+            "unit": "ns/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/memory/v1 - B/op",
+            "value": 236537,
+            "unit": "B/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_lookup_of_view_for_a_user/memory/v1 - allocs/op",
+            "value": 3679,
+            "unit": "allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/cockroachdb/v1",
+            "value": 7331717,
+            "unit": "ns/op\t  546248 B/op\t    7637 allocs/op",
+            "extra": "700 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/cockroachdb/v1 - ns/op",
+            "value": 7331717,
+            "unit": "ns/op",
+            "extra": "700 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/cockroachdb/v1 - B/op",
+            "value": 546248,
+            "unit": "B/op",
+            "extra": "700 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/cockroachdb/v1 - allocs/op",
+            "value": 7637,
+            "unit": "allocs/op",
+            "extra": "700 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/postgres/v1",
+            "value": 4156824,
+            "unit": "ns/op\t  588996 B/op\t    8325 allocs/op",
+            "extra": "1678 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/postgres/v1 - ns/op",
+            "value": 4156824,
+            "unit": "ns/op",
+            "extra": "1678 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/postgres/v1 - B/op",
+            "value": 588996,
+            "unit": "B/op",
+            "extra": "1678 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/postgres/v1 - allocs/op",
+            "value": 8325,
+            "unit": "allocs/op",
+            "extra": "1678 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/memory/v1",
+            "value": 1146411,
+            "unit": "ns/op\t  331019 B/op\t    4684 allocs/op",
+            "extra": "9049 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/memory/v1 - ns/op",
+            "value": 1146411,
+            "unit": "ns/op",
+            "extra": "9049 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/memory/v1 - B/op",
+            "value": 331019,
+            "unit": "B/op",
+            "extra": "9049 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_groups/memory/v1 - allocs/op",
+            "value": 4684,
+            "unit": "allocs/op",
+            "extra": "9049 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/cockroachdb/v1",
+            "value": 16477055,
+            "unit": "ns/op\t 1893417 B/op\t   24290 allocs/op",
+            "extra": "440 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/cockroachdb/v1 - ns/op",
+            "value": 16477055,
+            "unit": "ns/op",
+            "extra": "440 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/cockroachdb/v1 - B/op",
+            "value": 1893417,
+            "unit": "B/op",
+            "extra": "440 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/cockroachdb/v1 - allocs/op",
+            "value": 24290,
+            "unit": "allocs/op",
+            "extra": "440 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/postgres/v1",
+            "value": 10392442,
+            "unit": "ns/op\t 1987821 B/op\t   25519 allocs/op",
+            "extra": "777 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/postgres/v1 - ns/op",
+            "value": 10392442,
+            "unit": "ns/op",
+            "extra": "777 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/postgres/v1 - B/op",
+            "value": 1987821,
+            "unit": "B/op",
+            "extra": "777 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/postgres/v1 - allocs/op",
+            "value": 25519,
+            "unit": "allocs/op",
+            "extra": "777 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/memory/v1",
+            "value": 5260248,
+            "unit": "ns/op\t 1279521 B/op\t   14034 allocs/op",
+            "extra": "1917 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/memory/v1 - ns/op",
+            "value": 5260248,
+            "unit": "ns/op",
+            "extra": "1917 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/memory/v1 - B/op",
+            "value": 1279521,
+            "unit": "B/op",
+            "extra": "1917 times"
+          },
+          {
+            "name": "BenchmarkServices/recursively_through_wide_groups/memory/v1 - allocs/op",
+            "value": 14034,
+            "unit": "allocs/op",
+            "extra": "1917 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/cockroachdb/v1",
+            "value": 35530511,
+            "unit": "ns/op\t 9374233 B/op\t  127333 allocs/op",
+            "extra": "261 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/cockroachdb/v1 - ns/op",
+            "value": 35530511,
+            "unit": "ns/op",
+            "extra": "261 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/cockroachdb/v1 - B/op",
+            "value": 9374233,
+            "unit": "B/op",
+            "extra": "261 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/cockroachdb/v1 - allocs/op",
+            "value": 127333,
+            "unit": "allocs/op",
+            "extra": "261 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/postgres/v1",
+            "value": 31764836,
+            "unit": "ns/op\t 9400976 B/op\t  129881 allocs/op",
+            "extra": "186 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/postgres/v1 - ns/op",
+            "value": 31764836,
+            "unit": "ns/op",
+            "extra": "186 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/postgres/v1 - B/op",
+            "value": 9400976,
+            "unit": "B/op",
+            "extra": "186 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/postgres/v1 - allocs/op",
+            "value": 129881,
+            "unit": "allocs/op",
+            "extra": "186 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/memory/v1",
+            "value": 27921529,
+            "unit": "ns/op\t 9286464 B/op\t  126133 allocs/op",
+            "extra": "216 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/memory/v1 - ns/op",
+            "value": 27921529,
+            "unit": "ns/op",
+            "extra": "216 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/memory/v1 - B/op",
+            "value": 9286464,
+            "unit": "B/op",
+            "extra": "216 times"
+          },
+          {
+            "name": "BenchmarkServices/lookup_with_intersection/memory/v1 - allocs/op",
+            "value": 126133,
+            "unit": "allocs/op",
+            "extra": "216 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/cockroachdb/v1",
+            "value": 4183301,
+            "unit": "ns/op\t  265425 B/op\t    4051 allocs/op",
+            "extra": "1920 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/cockroachdb/v1 - ns/op",
+            "value": 4183301,
+            "unit": "ns/op",
+            "extra": "1920 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/cockroachdb/v1 - B/op",
+            "value": 265425,
+            "unit": "B/op",
+            "extra": "1920 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/cockroachdb/v1 - allocs/op",
+            "value": 4051,
+            "unit": "allocs/op",
+            "extra": "1920 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/postgres/v1",
+            "value": 1746485,
+            "unit": "ns/op\t  280621 B/op\t    4316 allocs/op",
+            "extra": "3924 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/postgres/v1 - ns/op",
+            "value": 1746485,
+            "unit": "ns/op",
+            "extra": "3924 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/postgres/v1 - B/op",
+            "value": 280621,
+            "unit": "B/op",
+            "extra": "3924 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/postgres/v1 - allocs/op",
+            "value": 4316,
+            "unit": "allocs/op",
+            "extra": "3924 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/memory/v1",
+            "value": 514114,
+            "unit": "ns/op\t  201907 B/op\t    3367 allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/memory/v1 - ns/op",
+            "value": 514114,
+            "unit": "ns/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/memory/v1 - B/op",
+            "value": 201907,
+            "unit": "B/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkServices/basic_check_for_a_user/memory/v1 - allocs/op",
+            "value": 3367,
+            "unit": "allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/cockroachdb/v1",
+            "value": 8874815,
+            "unit": "ns/op\t  855820 B/op\t   13371 allocs/op",
+            "extra": "655 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/cockroachdb/v1 - ns/op",
+            "value": 8874815,
+            "unit": "ns/op",
+            "extra": "655 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/cockroachdb/v1 - B/op",
+            "value": 855820,
+            "unit": "B/op",
+            "extra": "655 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/cockroachdb/v1 - allocs/op",
+            "value": 13371,
+            "unit": "allocs/op",
+            "extra": "655 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/postgres/v1",
+            "value": 4029160,
+            "unit": "ns/op\t  915905 B/op\t   14464 allocs/op",
+            "extra": "1440 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/postgres/v1 - ns/op",
+            "value": 4029160,
+            "unit": "ns/op",
+            "extra": "1440 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/postgres/v1 - B/op",
+            "value": 915905,
+            "unit": "B/op",
+            "extra": "1440 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/postgres/v1 - allocs/op",
+            "value": 14464,
+            "unit": "allocs/op",
+            "extra": "1440 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/memory/v1",
+            "value": 1260274,
+            "unit": "ns/op\t  657773 B/op\t   11777 allocs/op",
+            "extra": "4687 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/memory/v1 - ns/op",
+            "value": 1260274,
+            "unit": "ns/op",
+            "extra": "4687 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/memory/v1 - B/op",
+            "value": 657773,
+            "unit": "B/op",
+            "extra": "4687 times"
+          },
+          {
+            "name": "BenchmarkServices/recursive_check_for_a_user/memory/v1 - allocs/op",
+            "value": 11777,
+            "unit": "allocs/op",
+            "extra": "4687 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/cockroachdb/v1",
+            "value": 10241281,
+            "unit": "ns/op\t  582616 B/op\t    7913 allocs/op",
+            "extra": "573 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/cockroachdb/v1 - ns/op",
+            "value": 10241281,
+            "unit": "ns/op",
+            "extra": "573 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/cockroachdb/v1 - B/op",
+            "value": 582616,
+            "unit": "B/op",
+            "extra": "573 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/cockroachdb/v1 - allocs/op",
+            "value": 7913,
+            "unit": "allocs/op",
+            "extra": "573 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/postgres/v1",
+            "value": 3730100,
+            "unit": "ns/op\t  633318 B/op\t    8516 allocs/op",
+            "extra": "1542 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/postgres/v1 - ns/op",
+            "value": 3730100,
+            "unit": "ns/op",
+            "extra": "1542 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/postgres/v1 - B/op",
+            "value": 633318,
+            "unit": "B/op",
+            "extra": "1542 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/postgres/v1 - allocs/op",
+            "value": 8516,
+            "unit": "allocs/op",
+            "extra": "1542 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/memory/v1",
+            "value": 727496,
+            "unit": "ns/op\t  344251 B/op\t    4317 allocs/op",
+            "extra": "7701 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/memory/v1 - ns/op",
+            "value": 727496,
+            "unit": "ns/op",
+            "extra": "7701 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/memory/v1 - B/op",
+            "value": 344251,
+            "unit": "B/op",
+            "extra": "7701 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_groups_check_for_a_user/memory/v1 - allocs/op",
+            "value": 4317,
+            "unit": "allocs/op",
+            "extra": "7701 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/cockroachdb/v1",
+            "value": 2927918,
+            "unit": "ns/op\t  130543 B/op\t    2006 allocs/op",
+            "extra": "2997 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/cockroachdb/v1 - ns/op",
+            "value": 2927918,
+            "unit": "ns/op",
+            "extra": "2997 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/cockroachdb/v1 - B/op",
+            "value": 130543,
+            "unit": "B/op",
+            "extra": "2997 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/cockroachdb/v1 - allocs/op",
+            "value": 2006,
+            "unit": "allocs/op",
+            "extra": "2997 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/postgres/v1",
+            "value": 2404283,
+            "unit": "ns/op\t  137117 B/op\t    2105 allocs/op",
+            "extra": "2436 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/postgres/v1 - ns/op",
+            "value": 2404283,
+            "unit": "ns/op",
+            "extra": "2436 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/postgres/v1 - B/op",
+            "value": 137117,
+            "unit": "B/op",
+            "extra": "2436 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/postgres/v1 - allocs/op",
+            "value": 2105,
+            "unit": "allocs/op",
+            "extra": "2436 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/memory/v1",
+            "value": 212385,
+            "unit": "ns/op\t   85814 B/op\t    1386 allocs/op",
+            "extra": "28195 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/memory/v1 - ns/op",
+            "value": 212385,
+            "unit": "ns/op",
+            "extra": "28195 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/memory/v1 - B/op",
+            "value": 85814,
+            "unit": "B/op",
+            "extra": "28195 times"
+          },
+          {
+            "name": "BenchmarkServices/wide_direct_relation_check/memory/v1 - allocs/op",
+            "value": 1386,
+            "unit": "allocs/op",
+            "extra": "28195 times"
+          },
+          {
+            "name": "BenchmarkRecursiveShallowGraph",
+            "value": 7879,
+            "unit": "ns/op\t    6824 B/op\t      98 allocs/op",
+            "extra": "768895 times"
+          },
+          {
+            "name": "BenchmarkRecursiveShallowGraph - ns/op",
+            "value": 7879,
+            "unit": "ns/op",
+            "extra": "768895 times"
+          },
+          {
+            "name": "BenchmarkRecursiveShallowGraph - B/op",
+            "value": 6824,
+            "unit": "B/op",
+            "extra": "768895 times"
+          },
+          {
+            "name": "BenchmarkRecursiveShallowGraph - allocs/op",
+            "value": 98,
+            "unit": "allocs/op",
+            "extra": "768895 times"
+          },
+          {
+            "name": "BenchmarkRecursiveWideGraph",
+            "value": 26711,
+            "unit": "ns/op\t   26536 B/op\t     241 allocs/op",
+            "extra": "225022 times"
+          },
+          {
+            "name": "BenchmarkRecursiveWideGraph - ns/op",
+            "value": 26711,
+            "unit": "ns/op",
+            "extra": "225022 times"
+          },
+          {
+            "name": "BenchmarkRecursiveWideGraph - B/op",
+            "value": 26536,
+            "unit": "B/op",
+            "extra": "225022 times"
+          },
+          {
+            "name": "BenchmarkRecursiveWideGraph - allocs/op",
+            "value": 241,
+            "unit": "allocs/op",
+            "extra": "225022 times"
+          },
+          {
+            "name": "BenchmarkRecursiveDeepGraph",
+            "value": 25706,
+            "unit": "ns/op\t   22952 B/op\t     281 allocs/op",
+            "extra": "232750 times"
+          },
+          {
+            "name": "BenchmarkRecursiveDeepGraph - ns/op",
+            "value": 25706,
+            "unit": "ns/op",
+            "extra": "232750 times"
+          },
+          {
+            "name": "BenchmarkRecursiveDeepGraph - B/op",
+            "value": 22952,
+            "unit": "B/op",
+            "extra": "232750 times"
+          },
+          {
+            "name": "BenchmarkRecursiveDeepGraph - allocs/op",
+            "value": 281,
+            "unit": "allocs/op",
+            "extra": "232750 times"
+          },
+          {
+            "name": "BenchmarkRecursiveEmptyGraph",
+            "value": 2025,
+            "unit": "ns/op\t    1368 B/op\t      32 allocs/op",
+            "extra": "2964913 times"
+          },
+          {
+            "name": "BenchmarkRecursiveEmptyGraph - ns/op",
+            "value": 2025,
+            "unit": "ns/op",
+            "extra": "2964913 times"
+          },
+          {
+            "name": "BenchmarkRecursiveEmptyGraph - B/op",
+            "value": 1368,
+            "unit": "B/op",
+            "extra": "2964913 times"
+          },
+          {
+            "name": "BenchmarkRecursiveEmptyGraph - allocs/op",
+            "value": 32,
+            "unit": "allocs/op",
+            "extra": "2964913 times"
+          },
+          {
+            "name": "BenchmarkRecursiveSparseGraph",
+            "value": 32946,
+            "unit": "ns/op\t   39505 B/op\t     228 allocs/op",
+            "extra": "182380 times"
+          },
+          {
+            "name": "BenchmarkRecursiveSparseGraph - ns/op",
+            "value": 32946,
+            "unit": "ns/op",
+            "extra": "182380 times"
+          },
+          {
+            "name": "BenchmarkRecursiveSparseGraph - B/op",
+            "value": 39505,
+            "unit": "B/op",
+            "extra": "182380 times"
+          },
+          {
+            "name": "BenchmarkRecursiveSparseGraph - allocs/op",
+            "value": 228,
+            "unit": "allocs/op",
+            "extra": "182380 times"
+          },
+          {
+            "name": "BenchmarkRecursiveCyclicGraph",
+            "value": 7865,
+            "unit": "ns/op\t    6800 B/op\t      99 allocs/op",
+            "extra": "759308 times"
+          },
+          {
+            "name": "BenchmarkRecursiveCyclicGraph - ns/op",
+            "value": 7865,
+            "unit": "ns/op",
+            "extra": "759308 times"
+          },
+          {
+            "name": "BenchmarkRecursiveCyclicGraph - B/op",
+            "value": 6800,
+            "unit": "B/op",
+            "extra": "759308 times"
+          },
+          {
+            "name": "BenchmarkRecursiveCyclicGraph - allocs/op",
+            "value": 99,
+            "unit": "allocs/op",
+            "extra": "759308 times"
+          },
+          {
+            "name": "BenchmarkRecursiveIterResources",
+            "value": 4896,
+            "unit": "ns/op\t    3992 B/op\t      67 allocs/op",
+            "extra": "1226676 times"
+          },
+          {
+            "name": "BenchmarkRecursiveIterResources - ns/op",
+            "value": 4896,
+            "unit": "ns/op",
+            "extra": "1226676 times"
+          },
+          {
+            "name": "BenchmarkRecursiveIterResources - B/op",
+            "value": 3992,
+            "unit": "B/op",
+            "extra": "1226676 times"
+          },
+          {
+            "name": "BenchmarkRecursiveIterResources - allocs/op",
+            "value": 67,
+            "unit": "allocs/op",
+            "extra": "1226676 times"
+          },
+          {
+            "name": "BenchmarkRelationsReferencing",
+            "value": 18.42,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "00000324888992 times"
+          },
+          {
+            "name": "BenchmarkRelationsReferencing - ns/op",
+            "value": 18.42,
+            "unit": "ns/op",
+            "extra": "00000324888992 times"
+          },
+          {
+            "name": "BenchmarkRelationsReferencing - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "00000324888992 times"
+          },
+          {
+            "name": "BenchmarkRelationsReferencing - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "00000324888992 times"
           }
         ]
       }
