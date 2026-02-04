@@ -18,6 +18,7 @@ schema: |-
 
   	permission service1 = arbiter->service & granted->service
   	permission service2 = granted->service & arbiter->service
+  	permission service = service1 + service2
   }
 
   definition service {
