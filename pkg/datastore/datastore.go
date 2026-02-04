@@ -753,23 +753,22 @@ func BuildAndValidateWatchOptions(
 		MaximumBufferedChangesByteSize: watchChangeBufferMaximumSize,
 	}
 
-	// Apply datastore defaults for any zero values in server config
-	if options.CheckpointInterval == 0 {
+	if datastoreDefaults.CheckpointInterval > 0 {
 		options.CheckpointInterval = datastoreDefaults.CheckpointInterval
 	}
 	if options.CheckpointInterval < 0 {
 		return WatchOptions{}, errors.New("invalid checkpoint interval given")
 	}
-	if options.WatchBufferLength == 0 {
+	if datastoreDefaults.WatchBufferLength > 0 {
 		options.WatchBufferLength = datastoreDefaults.WatchBufferLength
 	}
-	if options.WatchBufferWriteTimeout <= 0 {
+	if datastoreDefaults.WatchBufferWriteTimeout > 0 {
 		options.WatchBufferWriteTimeout = datastoreDefaults.WatchBufferWriteTimeout
 	}
-	if options.WatchConnectTimeout <= 0 {
+	if datastoreDefaults.WatchConnectTimeout > 0 {
 		options.WatchConnectTimeout = datastoreDefaults.WatchConnectTimeout
 	}
-	if options.MaximumBufferedChangesByteSize == 0 {
+	if datastoreDefaults.MaximumBufferedChangesByteSize > 0 {
 		options.MaximumBufferedChangesByteSize = datastoreDefaults.MaximumBufferedChangesByteSize
 	}
 
