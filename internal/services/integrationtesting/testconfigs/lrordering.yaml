@@ -41,5 +41,11 @@ relationships: |-
   project:p1#granted@granted_service:gs1
   widget:w1#project@project:p1
 assertions:
-  assertTrue: []
-  assertFalse: []
+  assertTrue:
+    - "granted_service:gs1#service1@user:u1"
+    - "granted_service:gs1#service2@user:u1"
+    - "organization:o1#service@user:u2"
+  assertFalse:
+    - "granted_service:gs1#service1@user:u2"
+    - "granted_service:gs1#service2@user:u2"
+    - "service:just_u1#service@user:u2"
