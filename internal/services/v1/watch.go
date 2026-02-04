@@ -101,7 +101,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	clientRequest := datastore.ClientWatchOptions{
 		Content: convertWatchKindToContent(req.OptionalUpdateKinds),
 	}
-	dsConfig := datastore.ServerWatchConfig{
+	dsConfig := datastore.ServerWatchOptions{
 		CheckpointInterval:             ws.serverConfig.CheckpointInterval,
 		WatchBufferLength:              ws.serverConfig.WatchBufferLength,
 		WatchBufferWriteTimeout:        ws.serverConfig.WatchBufferWriteTimeout,

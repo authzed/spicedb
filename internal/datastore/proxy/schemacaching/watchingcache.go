@@ -158,7 +158,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	}
 
 	watchOptions, err := datastore.BuildAndValidateWatchOptions(
-		datastore.ServerWatchConfig{
+		datastore.ServerWatchOptions{
 			CheckpointInterval: p.watchHeartbeat,
 		},
 		datastore.ClientWatchOptions{
