@@ -70,15 +70,15 @@ type changeDetails struct {
 
 func (cds *crdbDatastore) DefaultsWatchOptions() datastore.WatchOptions {
 	return datastore.WatchOptions{
-		CheckpointInterval:             1 * time.Second,
-		WatchBufferLength:              defaultWatchBufferLength,
-		WatchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
-		WatchConnectTimeout:            defaultWatchConnectTimeout,
-		MaximumBufferedChangesByteSize: 0, // 0 means no limit
+		CheckpointInterval:      1 * time.Second,
+		WatchBufferLength:       defaultWatchBufferLength,
+		WatchBufferWriteTimeout: defaultWatchBufferWriteTimeout,
+		WatchConnectTimeout:     defaultWatchConnectTimeout,
 	}
 }
 
 func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	fmt.Printf("%+v\n", options)
 	updates := make(chan datastore.RevisionChanges, options.WatchBufferLength)
 	errs := make(chan error, 1)
 

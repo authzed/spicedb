@@ -3,6 +3,7 @@ package datastore
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -11,6 +12,37 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func TestBuildAndValidateWatchOptions(t *testing.T) {
+	t.Run("WatchBufferWriteTimeout", func(t *testing.T) {
+		c, err := BuildAndValidateWatchOptions(ServerWatchConfig{WatchBufferWriteTimeout: 1 * time.Second}, ClientWatchOptions{}, WatchOptions{WatchBufferWriteTimeout: 2 * time.Second})
+		require.NoError(t, err)
+		require.NotNil(t, c)
+		require.Equal(t, 2*time.Second, c.WatchBufferWriteTimeout)
+	})
+	t.Run("WatchConnectTimeout", func(t *testing.T) {
+		c, err := BuildAndValidateWatchOptions(ServerWatchConfig{WatchConnectTimeout: 1 * time.Second}, ClientWatchOptions{}, WatchOptions{WatchConnectTimeout: 2 * time.Second})
+		require.NoError(t, err)
+		require.NotNil(t, c)
+		require.Equal(t, 2*time.Second, c.WatchConnectTimeout)
+	})
+	t.Run("WatchBufferLength", func(t *testing.T) {
+		c, err := BuildAndValidateWatchOptions(ServerWatchConfig{WatchBufferLength: 100}, ClientWatchOptions{}, WatchOptions{WatchBufferLength: 200})
+		require.NoError(t, err)
+		require.NotNil(t, c)
+		require.Equal(t, uint16(200), c.WatchBufferLength)
+	})
+	t.Run("CheckpointInterval", func(t *testing.T) {
+		c, err := BuildAndValidateWatchOptions(ServerWatchConfig{CheckpointInterval: 1}, ClientWatchOptions{}, WatchOptions{CheckpointInterval: 2})
+		require.NoError(t, err)
+		require.NotNil(t, c)
+		require.Equal(t, time.Duration(2), c.CheckpointInterval)
+	})
+	t.Run("Invalid CheckpointInterval", func(t *testing.T) {
+		_, err := BuildAndValidateWatchOptions(ServerWatchConfig{CheckpointInterval: -1}, ClientWatchOptions{}, WatchOptions{CheckpointInterval: -1})
+		require.Error(t, err)
+	})
+}
 
 func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 	tests := []struct {
