@@ -602,9 +602,9 @@ const (
 	WatchCheckpoints   WatchContent = 1 << 2
 )
 
-// ServerWatchConfig contains server-level configuration for Watch operations.
+// ServerWatchOptions contains server-level configuration for Watch operations.
 // These values do NOT change during the lifetime of a server.
-type ServerWatchConfig struct {
+type ServerWatchOptions struct {
 	// CheckpointInterval is the interval to use for checkpointing in the watch.
 	CheckpointInterval time.Duration
 
@@ -635,22 +635,21 @@ type ClientWatchOptions struct {
 }
 
 // WatchOptions are ALL options for a Watch call.
-// This struct combines server configuration, client requests, and datastore defaults
-// into a single set of options passed to the datastore Watch implementation.
+// Some datastore implementations may ignore one or more of these.
 type WatchOptions struct {
 	// See ClientWatchOptions.Content
 	Content WatchContent
 	// See ClientWatchOptions.EmissionStrategy
 	EmissionStrategy EmissionStrategy
-	// See ServerWatchConfig.CheckpointInterval
+	// See ServerWatchOptions.CheckpointInterval
 	CheckpointInterval time.Duration
-	// See ServerWatchConfig.WatchBufferLength
+	// See ServerWatchOptions.WatchBufferLength
 	WatchBufferLength uint16
-	// See ServerWatchConfig.WatchBufferWriteTimeout
+	// See ServerWatchOptions.WatchBufferWriteTimeout
 	WatchBufferWriteTimeout time.Duration
-	// See ServerWatchConfig.WatchConnectTimeout
+	// See ServerWatchOptions.WatchConnectTimeout
 	WatchConnectTimeout time.Duration
-	// See ServerWatchConfig.MaximumBufferedChangesByteSize
+	// See ServerWatchOptions.MaximumBufferedChangesByteSize
 	MaximumBufferedChangesByteSize uint64
 }
 
@@ -672,7 +671,7 @@ const (
 // WatchJustRelationships returns watch options for just relationships.
 func WatchJustRelationships(ds Datastore) WatchOptions {
 	v, _ := BuildAndValidateWatchOptions(
-		ServerWatchConfig{},
+		ServerWatchOptions{},
 		ClientWatchOptions{Content: WatchRelationships},
 		ds.DefaultsWatchOptions(),
 	)
@@ -682,7 +681,7 @@ func WatchJustRelationships(ds Datastore) WatchOptions {
 // WatchJustSchema returns watch options for just schema.
 func WatchJustSchema(ds ReadOnlyDatastore) WatchOptions {
 	v, _ := BuildAndValidateWatchOptions(
-		ServerWatchConfig{},
+		ServerWatchOptions{},
 		ClientWatchOptions{Content: WatchSchema},
 		ds.DefaultsWatchOptions(),
 	)
@@ -731,25 +730,27 @@ func watchBufferSize(sizeString string) (size uint64, err error) {
 	return size, nil
 }
 
-// BuildAndValidateWatchOptions constructs complete WatchOptions by merging server configuration,
-// client requests, and datastore defaults.
+// BuildAndValidateWatchOptions constructs complete WatchOptions by merging server options,
+// client options, and datastore defaults.
+// Datastore defaults take precedence over server options.
+// Client options cannot be overridden.
 func BuildAndValidateWatchOptions(
-	serverConfig ServerWatchConfig,
-	clientRequest ClientWatchOptions,
+	serverOptions ServerWatchOptions,
+	clientOptions ClientWatchOptions,
 	datastoreDefaults WatchOptions,
 ) (WatchOptions, error) {
-	watchChangeBufferMaximumSize, err := watchBufferSize(serverConfig.MaximumBufferedChangesByteSize)
+	watchChangeBufferMaximumSize, err := watchBufferSize(serverOptions.MaximumBufferedChangesByteSize)
 	if err != nil {
 		return WatchOptions{}, err
 	}
 
 	options := WatchOptions{
-		Content:                        clientRequest.Content,
-		EmissionStrategy:               clientRequest.EmissionStrategy,
-		CheckpointInterval:             serverConfig.CheckpointInterval,
-		WatchBufferLength:              serverConfig.WatchBufferLength,
-		WatchBufferWriteTimeout:        serverConfig.WatchBufferWriteTimeout,
-		WatchConnectTimeout:            serverConfig.WatchConnectTimeout,
+		Content:                        clientOptions.Content,
+		EmissionStrategy:               clientOptions.EmissionStrategy,
+		CheckpointInterval:             serverOptions.CheckpointInterval,
+		WatchBufferLength:              serverOptions.WatchBufferLength,
+		WatchBufferWriteTimeout:        serverOptions.WatchBufferWriteTimeout,
+		WatchConnectTimeout:            serverOptions.WatchConnectTimeout,
 		MaximumBufferedChangesByteSize: watchChangeBufferMaximumSize,
 	}
 
@@ -825,7 +826,7 @@ type ReadOnlyDatastore interface {
 	Watch(ctx context.Context, afterRevision Revision, options WatchOptions) (<-chan RevisionChanges, <-chan error)
 
 	// DefaultsWatchOptions returns the default watch options for this datastore.
-	// These defaults are used when building WatchOptions from ServerWatchConfig and ClientWatchOptions.
+	// These defaults are used when building WatchOptions from ServerWatchOptions and ClientWatchOptions.
 	// Each datastore should return appropriate defaults based on its capabilities and constraints.
 	DefaultsWatchOptions() WatchOptions
 

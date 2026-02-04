@@ -121,7 +121,7 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 
 	t.Run("Watch", func(t *testing.T) {
 		watchOptions, err := datastore.BuildAndValidateWatchOptions(
-			datastore.ServerWatchConfig{},
+			datastore.ServerWatchOptions{},
 			datastore.ClientWatchOptions{},
 			proxy.DefaultsWatchOptions(),
 		)

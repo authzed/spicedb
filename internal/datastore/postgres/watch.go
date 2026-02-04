@@ -26,10 +26,9 @@ const (
 
 func (pgd *pgDatastore) DefaultsWatchOptions() datastore.WatchOptions {
 	return datastore.WatchOptions{
-		CheckpointInterval:             minimumWatchSleep,
-		WatchBufferLength:              defaultWatchBufferLength,
-		WatchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
-		MaximumBufferedChangesByteSize: 0, // 0 means no limit
+		CheckpointInterval:      minimumWatchSleep,
+		WatchBufferLength:       defaultWatchBufferLength,
+		WatchBufferWriteTimeout: defaultWatchBufferWriteTimeout,
 		// Postgres does not use WatchConnectTimeout
 		// Postgres does not support EmitImmediatelyStrategy
 	}

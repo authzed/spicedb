@@ -55,10 +55,9 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 
 func (sd *spannerDatastore) DefaultsWatchOptions() datastore.WatchOptions {
 	return datastore.WatchOptions{
-		CheckpointInterval:             100 * time.Millisecond,
-		WatchBufferLength:              defaultWatchBufferLength,
-		WatchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
-		MaximumBufferedChangesByteSize: 0, // 0 means no limit
+		CheckpointInterval:      100 * time.Millisecond,
+		WatchBufferLength:       defaultWatchBufferLength,
+		WatchBufferWriteTimeout: defaultWatchBufferWriteTimeout,
 		// Spanner does not use WatchConnectTimeout
 		// Spanner does not support EmitImmediatelyStrategy
 	}

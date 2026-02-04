@@ -19,9 +19,8 @@ const (
 
 func (mds *mysqlDatastore) DefaultsWatchOptions() datastore.WatchOptions {
 	return datastore.WatchOptions{
-		WatchBufferLength:              defaultWatchBufferLength,
-		WatchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
-		MaximumBufferedChangesByteSize: 0, // 0 means no limit
+		WatchBufferLength:       defaultWatchBufferLength,
+		WatchBufferWriteTimeout: defaultWatchBufferWriteTimeout,
 		// MySQL does not use CheckpointInterval or WatchConnectTimeout
 		// MySQL does not support EmitImmediatelyStrategy or WatchSchema
 	}
