@@ -960,3 +960,34 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 	require.NotNil(t, poolReadMetric)
 	require.Equal(t, float64(readMaxConns), poolReadMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
 }
+
+func TestCRDBDatastoreUnifiedSchemaAllModes(t *testing.T) {
+	t.Parallel()
+	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+
+	test.UnifiedSchemaAllModesTest(t, func(schemaMode options.SchemaMode) test.DatastoreTester {
+		return test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+			ctx := context.Background()
+			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				ds, err := NewCRDBDatastore(
+					ctx,
+					uri,
+					GCWindow(gcWindow),
+					RevisionQuantization(revisionQuantization),
+					WatchBufferLength(watchBufferLength),
+					OverlapStrategy(overlapStrategyPrefix),
+					DebugAnalyzeBeforeStatistics(),
+					WithAcquireTimeout(5*time.Second),
+					WithSchemaMode(schemaMode),
+				)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_ = ds.Close()
+				})
+				return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
+			})
+
+			return ds, nil
+		})
+	})
+}

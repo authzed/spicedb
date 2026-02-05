@@ -218,6 +218,18 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
 	t.Run("TestRegisterRelationshipCountersInParallel", runner(tester, RegisterRelationshipCountersInParallelTest))
 	t.Run("TestRelationshipCountersWithOddFilter", runner(tester, RelationshipCountersWithOddFilterTest))
+
+	t.Run("TestUnifiedSchema", runner(tester, UnifiedSchemaTest))
+	t.Run("TestUnifiedSchemaUpdate", runner(tester, UnifiedSchemaUpdateTest))
+	t.Run("TestUnifiedSchemaRevision", runner(tester, UnifiedSchemaRevisionTest))
+	t.Run("TestUnifiedSchemaWithCaveats", runner(tester, UnifiedSchemaWithCaveatsTest))
+	t.Run("TestUnifiedSchemaEmpty", runner(tester, UnifiedSchemaEmptyTest))
+	t.Run("TestUnifiedSchemaLookup", runner(tester, UnifiedSchemaLookupTest))
+	t.Run("TestUnifiedSchemaLookupByNames", runner(tester, UnifiedSchemaLookupByNamesTest))
+	t.Run("TestUnifiedSchemaValidation", runner(tester, UnifiedSchemaValidationTest))
+	t.Run("TestUnifiedSchemaMultipleIterations", runner(tester, UnifiedSchemaMultipleIterationsTest))
+	t.Run("TestUnifiedSchemaHash", runner(tester, UnifiedSchemaHashTest))
+	t.Run("TestUnifiedSchemaHashWatch", runner(tester, UnifiedSchemaHashWatchTest))
 }
 
 func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {

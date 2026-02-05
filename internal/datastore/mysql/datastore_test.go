@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -145,6 +146,8 @@ func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 	t.Run("ChunkedGarbageCollection", createDatastoreTest(b, ChunkedGarbageCollectionTest, defaultOptions...))
 	t.Run("EmptyGarbageCollection", createDatastoreTest(b, EmptyGarbageCollectionTest, defaultOptions...))
 	t.Run("NoRelationshipsGarbageCollection", createDatastoreTest(b, NoRelationshipsGarbageCollectionTest, defaultOptions...))
+	schemaGCOptions := append([]Option{WithSchemaMode(options.SchemaModeReadNewWriteNew)}, defaultOptions...)
+	t.Run("SchemaGarbageCollection", createDatastoreTest(b, SchemaGarbageCollectionTest, schemaGCOptions...))
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
 	})
@@ -368,6 +371,128 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Ensure the relationship is still present.
 	tRequire.RelationshipExists(ctx, crel3, relLastWriteAt)
+}
+
+func SchemaGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
+	req := require.New(t)
+
+	ctx := context.Background()
+	r, err := ds.ReadyState(ctx)
+	req.NoError(err)
+	req.True(r.IsReady)
+
+	mds := ds.(*mysqlDatastore)
+
+	mgg, err := mds.BuildGarbageCollector(ctx)
+	req.NoError(err)
+	defer mgg.Close()
+
+	// Helper to count rows in schema tables
+	countSchemaRows := func() (schemaRows, schemaRevisionRows int64) {
+		sql := fmt.Sprintf("SELECT COUNT(*) FROM %s", mds.driver.Schema())
+		err := mds.db.QueryRowContext(ctx, sql).Scan(&schemaRows)
+		req.NoError(err)
+
+		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s", mds.driver.SchemaRevision())
+		err = mds.db.QueryRowContext(ctx, sql).Scan(&schemaRevisionRows)
+		req.NoError(err)
+
+		return schemaRows, schemaRevisionRows
+	}
+
+	// Write schema version 1
+	schemaText1 := `definition resource {
+		relation reader: user
+	}
+	definition user {}`
+	rev1, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		schemaWriter, err := rwt.SchemaWriter()
+		if err != nil {
+			return err
+		}
+		return schemaWriter.WriteSchema(ctx, []datastore.SchemaDefinition{}, schemaText1, nil)
+	})
+	req.NoError(err)
+
+	schemaRows, schemaRevisionRows := countSchemaRows()
+	req.Positive(schemaRows, "Should have schema rows after first write")
+	req.Positive(schemaRevisionRows, "Should have schema_revision rows after first write")
+
+	// Write schema version 2
+	schemaText2 := `definition resource {
+		relation reader: user
+		relation writer: user
+	}
+	definition user {}`
+	rev2, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		schemaWriter, err := rwt.SchemaWriter()
+		if err != nil {
+			return err
+		}
+		return schemaWriter.WriteSchema(ctx, []datastore.SchemaDefinition{}, schemaText2, nil)
+	})
+	req.NoError(err)
+
+	schemaRows2, schemaRevisionRows2 := countSchemaRows()
+	req.Greater(schemaRows2, schemaRows, "Should have more schema rows after second write")
+	req.Greater(schemaRevisionRows2, schemaRevisionRows, "Should have more schema_revision rows after second write")
+
+	// Write schema version 3
+	schemaText3 := `definition resource {
+		relation reader: user
+		relation writer: user
+		relation admin: user
+	}
+	definition user {}`
+	rev3, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		schemaWriter, err := rwt.SchemaWriter()
+		if err != nil {
+			return err
+		}
+		return schemaWriter.WriteSchema(ctx, []datastore.SchemaDefinition{}, schemaText3, nil)
+	})
+	req.NoError(err)
+
+	schemaRows3, schemaRevisionRows3 := countSchemaRows()
+	req.Greater(schemaRows3, schemaRows2, "Should have more schema rows after third write")
+	req.Greater(schemaRevisionRows3, schemaRevisionRows2, "Should have more schema_revision rows after third write")
+
+	// Run GC at rev1 - should not remove any schema rows since they're all still in use
+	removed, err := mgg.DeleteBeforeTx(ctx, rev1)
+	req.NoError(err)
+	req.Zero(removed.Relationships)
+
+	schemaRowsAfterGC1, schemaRevisionRowsAfterGC1 := countSchemaRows()
+	req.Equal(schemaRows3, schemaRowsAfterGC1, "No schema rows should be removed at rev1")
+	req.Equal(schemaRevisionRows3, schemaRevisionRowsAfterGC1, "No schema_revision rows should be removed at rev1")
+
+	// Run GC at rev2 - should remove schema rows from rev1
+	removed, err = mgg.DeleteBeforeTx(ctx, rev2)
+	req.NoError(err)
+
+	schemaRowsAfterGC2, schemaRevisionRowsAfterGC2 := countSchemaRows()
+	req.Less(schemaRowsAfterGC2, schemaRows3, "Schema rows from rev1 should be removed")
+	req.Less(schemaRevisionRowsAfterGC2, schemaRevisionRows3, "Schema_revision rows from rev1 should be removed")
+
+	// Run GC at rev3 - should remove schema rows from rev2
+	removed, err = mgg.DeleteBeforeTx(ctx, rev3)
+	req.NoError(err)
+
+	schemaRowsAfterGC3, schemaRevisionRowsAfterGC3 := countSchemaRows()
+	req.Less(schemaRowsAfterGC3, schemaRowsAfterGC2, "Schema rows from rev2 should be removed")
+	req.Less(schemaRevisionRowsAfterGC3, schemaRevisionRowsAfterGC2, "Schema_revision rows from rev2 should be removed")
+
+	// Verify we can still read the latest schema
+	headRev, err := ds.HeadRevision(ctx)
+	req.NoError(err)
+
+	reader := ds.SnapshotReader(headRev)
+	schemaReader, err := reader.SchemaReader()
+	req.NoError(err)
+	schemaText, err := schemaReader.SchemaText()
+	req.NoError(err)
+	req.NotEmpty(schemaText, "Schema text should not be empty")
+	req.Contains(schemaText, "relation admin", "Schema should contain the admin relation")
 }
 
 func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
@@ -842,6 +967,34 @@ func TestMySQLWithAWSIAMCredentialsProvider(t *testing.T) {
 	// we expect the connection attempt to fail
 	// which means that the credentials provider was wired and called successfully before making the connection attempt
 	require.ErrorContains(t, err, ":1234: connect: connection refused")
+}
+
+func TestMySQLDatastoreUnifiedSchemaAllModes(t *testing.T) {
+	t.Parallel()
+	b := testdatastore.RunMySQLForTesting(t, "")
+
+	test.UnifiedSchemaAllModesTest(t, func(schemaMode options.SchemaMode) test.DatastoreTester {
+		return test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+			ctx := context.Background()
+			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				ds, err := NewMySQLDatastore(
+					ctx,
+					uri,
+					GCWindow(gcWindow),
+					RevisionQuantization(revisionQuantization),
+					WatchBufferLength(watchBufferLength),
+					WithSchemaMode(schemaMode),
+				)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_ = ds.Close()
+				})
+				return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
+			})
+
+			return ds, nil
+		})
+	})
 }
 
 func datastoreDB(t *testing.T, migrate bool) *sql.DB {
