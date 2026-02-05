@@ -8,6 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 // DatastoreMetricsOption is an option for configuring the metrics that are emitted
@@ -58,6 +59,8 @@ type spannerOptions struct {
 	columnOptimizationOption     common.ColumnOptimizationOption
 	watchDisabled                bool
 	datastoreMetricsOption       DatastoreMetricsOption
+	schemaMode                   dsoptions.SchemaMode
+	schemaCacheOptions           dsoptions.SchemaCacheOptions
 }
 
 type migrationPhase uint8
@@ -290,5 +293,19 @@ func WithColumnOptimization(isEnabled bool) Option {
 func WithWatchDisabled(isDisabled bool) Option {
 	return func(po *spannerOptions) {
 		po.watchDisabled = isDisabled
+	}
+}
+
+// WithSchemaMode sets the experimental schema mode for the datastore.
+func WithSchemaMode(mode dsoptions.SchemaMode) Option {
+	return func(po *spannerOptions) {
+		po.schemaMode = mode
+	}
+}
+
+// WithSchemaCacheOptions sets the schema cache options for the datastore.
+func WithSchemaCacheOptions(cacheOptions dsoptions.SchemaCacheOptions) Option {
+	return func(po *spannerOptions) {
+		po.schemaCacheOptions = cacheOptions
 	}
 }

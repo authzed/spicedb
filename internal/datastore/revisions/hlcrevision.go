@@ -134,6 +134,10 @@ func (hlc HLCRevision) String() string {
 	return strconv.FormatInt(hlc.time, 10) + "." + strings.Repeat("0", logicalClockLength-len(logicalClockString)) + logicalClockString
 }
 
+func (hlc HLCRevision) Key() string {
+	return hlc.String()
+}
+
 func (hlc HLCRevision) TimestampNanoSec() int64 {
 	return hlc.time
 }

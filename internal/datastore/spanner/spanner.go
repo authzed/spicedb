@@ -32,7 +32,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -90,11 +90,13 @@ type spannerDatastore struct {
 	watchBufferWriteTimeout      time.Duration
 	watchEnabled                 bool
 
-	client   *spanner.Client
-	config   spannerOptions
-	database string
-	schema   common.SchemaInformation
+	client     *spanner.Client
+	config     spannerOptions
+	database   string
+	schema     common.SchemaInformation
+	schemaMode dsoptions.SchemaMode
 
+	schemaReaderWriter                  *common.SQLSchemaReaderWriter[any, revisions.TimestampRevision]
 	cachedEstimatedBytesPerRelationship atomic.Uint64
 
 	tableSizesStatsTable string
@@ -241,10 +243,12 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		watchChangeBufferMaximumSize:        config.watchChangeBufferMaximumSize,
 		watchBufferLength:                   config.watchBufferLength,
 		watchEnabled:                        !config.watchDisabled,
+		schemaReaderWriter:                  common.NewSQLSchemaReaderWriter[any, revisions.TimestampRevision](BaseSchemaChunkerConfig, config.schemaCacheOptions),
 		cachedEstimatedBytesPerRelationship: atomic.Uint64{},
 		tableSizesStatsTable:                tableSizesStatsTable,
 		filterMaximumIDCount:                config.filterMaximumIDCount,
 		schema:                              *schema,
+		schemaMode:                          config.schemaMode,
 	}
 	// Optimized revision and revision checking use a stale read for the
 	// current timestamp.
@@ -293,7 +297,7 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(r.Time()))}
 	}
 	executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
-	return &spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
+	return &spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema, sd.schemaMode, revisionRaw, sd.schemaReaderWriter}
 }
 
 func (sd *spannerDatastore) MetricsID() (string, error) {
@@ -326,8 +330,8 @@ func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transac
 	return metadata, nil
 }
 
-func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
-	config := options.NewRWTOptionsWithOptions(opts...)
+func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...dsoptions.RWTOptionsOption) (datastore.Revision, error) {
+	config := dsoptions.NewRWTOptionsWithOptions(opts...)
 
 	ctx, span := tracer.Start(ctx, "ReadWriteTx")
 	defer span.End()
@@ -358,7 +362,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 
 		executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
 		rwt := &spannerReadWriteTXN{
-			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
+			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema, sd.schemaMode, datastore.NoRevision, sd.schemaReaderWriter},
 			spannerRWT,
 		}
 		err := func() error {
@@ -425,6 +429,27 @@ func (sd *spannerDatastore) OfflineFeatures() (*datastore.Features, error) {
 func (sd *spannerDatastore) Close() error {
 	sd.client.Close()
 	return nil
+}
+
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash directly from schema_revision table.
+func (sd *spannerDatastore) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	return &spannerSchemaHashReaderForTesting{client: sd.client}
+}
+
+// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
+func (sd *spannerDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
+	return newSpannerSchemaHashWatcher(sd.client)
+}
+
+type spannerSchemaHashReaderForTesting struct {
+	client *spanner.Client
+}
+
+func (r *spannerSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
+	watcher := &spannerSchemaHashWatcher{client: r.client}
+	return watcher.readSchemaHash(ctx)
 }
 
 func statementFromSQL(sql string, args []any) spanner.Statement {

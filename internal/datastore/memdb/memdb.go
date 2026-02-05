@@ -2,6 +2,7 @@ package memdb
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -17,6 +18,8 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -96,6 +99,9 @@ type memdbDatastore struct {
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	uniqueID                string
+
+	// Unified schema storage
+	storedSchema *corev1.StoredSchema // GUARDED_BY(RWMutex)
 }
 
 type snapshot struct {
@@ -116,15 +122,15 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 	defer mdb.RUnlock()
 
 	if err := mdb.checkNotClosed(); err != nil {
-		return &memdbReader{nil, nil, err, time.Now()}
+		return &memdbReader{nil, nil, err, time.Now(), mdb}
 	}
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now()}
+		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now(), mdb}
 	}
 
 	if err := mdb.checkRevisionLocalCallerMustLock(dr); err != nil {
-		return &memdbReader{nil, nil, err, time.Now()}
+		return &memdbReader{nil, nil, err, time.Now(), mdb}
 	}
 
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
@@ -138,7 +144,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now()}
+		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now(), mdb}
 	}
 
 	roTxn := rev.db.Txn(false)
@@ -146,7 +152,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 		return roTxn, nil
 	}
 
-	return &memdbReader{noopTryLocker{}, txSrc, nil, time.Now()}
+	return &memdbReader{noopTryLocker{}, txSrc, nil, time.Now(), mdb}
 }
 
 func (mdb *memdbDatastore) SupportsIntegrity() bool {
@@ -191,7 +197,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		newRevision := mdb.newRevisionID()
-		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now()}, newRevision}
+		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now(), mdb}, newRevision}
 		if err := f(ctx, rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
@@ -381,11 +387,199 @@ func (mdb *memdbDatastore) Close() error {
 	return nil
 }
 
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash directly from schema_revision table.
+func (mdb *memdbDatastore) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	return &memdbSchemaHashReaderForTesting{db: mdb}
+}
+
+// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
+func (mdb *memdbDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
+	return newMemdbSchemaHashWatcher(mdb)
+}
+
+type memdbSchemaHashReaderForTesting struct {
+	db *memdbDatastore
+}
+
+func (r *memdbSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
+	watcher := &memdbSchemaHashWatcher{db: r.db}
+	return watcher.readSchemaHash()
+}
+
 // This code assumes that the RWMutex has been acquired.
 func (mdb *memdbDatastore) checkNotClosed() error {
 	if mdb.db == nil {
 		return ErrMemDBIsClosed
 	}
+	return nil
+}
+
+// readStoredSchemaInternal is an internal method for readers/transactions to access the stored schema.
+// This should NOT be called directly - use readers/transactions instead.
+func (mdb *memdbDatastore) readStoredSchemaInternal() (*corev1.StoredSchema, error) {
+	mdb.RLock()
+	defer mdb.RUnlock()
+
+	if err := mdb.checkNotClosed(); err != nil {
+		return nil, err
+	}
+
+	if mdb.storedSchema == nil {
+		return nil, datastore.ErrSchemaNotFound
+	}
+
+	// Return a copy to prevent external mutations
+	return mdb.storedSchema.CloneVT(), nil
+}
+
+// writeStoredSchemaInternal is an internal method for transactions to write the stored schema.
+// This should NOT be called directly - use transactions instead.
+func (mdb *memdbDatastore) writeStoredSchemaInternal(schema *corev1.StoredSchema) error {
+	if schema == nil {
+		return errors.New("stored schema cannot be nil")
+	}
+
+	if schema.Version == 0 {
+		return errors.New("stored schema version cannot be 0")
+	}
+
+	mdb.Lock()
+	defer mdb.Unlock()
+
+	if err := mdb.checkNotClosed(); err != nil {
+		return err
+	}
+
+	// Store a copy to prevent external mutations
+	mdb.storedSchema = schema.CloneVT()
+
+	// Write the schema hash to the schema revision table for fast lookups
+	if err := mdb.writeSchemaHashInternal(schema); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
+}
+
+// writeSchemaHashInternal writes the schema hash to the in-memory schema revision table
+func (mdb *memdbDatastore) writeSchemaHashInternal(schema *corev1.StoredSchema) error {
+	v1 := schema.GetV1()
+	if v1 == nil {
+		return fmt.Errorf("unsupported schema version: %d", schema.Version)
+	}
+
+	tx := mdb.db.Txn(true)
+	defer tx.Abort()
+
+	// Delete existing hash (if any)
+	if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {
+		if err := tx.Delete(tableSchemaRevision, existing); err != nil {
+			return fmt.Errorf("failed to delete old hash: %w", err)
+		}
+	}
+
+	// Insert new hash
+	revisionData := &schemaRevisionData{
+		name: "current",
+		hash: []byte(v1.SchemaHash),
+	}
+
+	if err := tx.Insert(tableSchemaRevision, revisionData); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	tx.Commit()
+	return nil
+}
+
+// writeLegacySchemaHashInternalWithTx writes the schema hash to the schema_revision table by generating
+// the schema from current legacy namespaces and caveats using the provided transaction
+func (mdb *memdbDatastore) writeLegacySchemaHashInternalWithTx(tx *memdb.Txn) error {
+	var schemaText string
+
+	// Check if we have stored schema (unified schema mode)
+	if mdb.storedSchema != nil {
+		v1 := mdb.storedSchema.GetV1()
+		if v1 != nil && v1.SchemaText != "" {
+			// Use the schema text from stored schema
+			schemaText = v1.SchemaText
+		}
+	}
+
+	// If no stored schema, generate from legacy definitions with canonical ordering
+	if schemaText == "" {
+		// Read all namespaces
+		iter, err := tx.Get(tableNamespace, indexID)
+		if err != nil {
+			return fmt.Errorf("failed to list namespaces: %w", err)
+		}
+
+		var definitions []compiler.SchemaDefinition
+		for row := iter.Next(); row != nil; row = iter.Next() {
+			ns := row.(*namespace)
+			definition := &corev1.NamespaceDefinition{}
+			if err := definition.UnmarshalVT(ns.configBytes); err != nil {
+				// If we can't unmarshal a definition, skip hash generation
+				// This can happen if definitions are in an intermediate/invalid state
+				return nil
+			}
+			definitions = append(definitions, definition)
+		}
+
+		// Read all caveats
+		caveatIter, err2 := tx.Get(tableCaveats, indexID)
+		if err2 != nil {
+			return fmt.Errorf("failed to list caveats: %w", err2)
+		}
+
+		for row := caveatIter.Next(); row != nil; row = caveatIter.Next() {
+			caveat := row.(*caveat)
+			definition := &corev1.CaveatDefinition{}
+			if err := definition.UnmarshalVT(caveat.definition); err != nil {
+				// If we can't unmarshal a definition, skip hash generation
+				// This can happen if definitions are in an intermediate/invalid state
+				return nil
+			}
+			definitions = append(definitions, definition)
+		}
+
+		// Sort definitions by name for consistent ordering
+		sort.Slice(definitions, func(i, j int) bool {
+			return definitions[i].GetName() < definitions[j].GetName()
+		})
+
+		// Generate schema text from definitions
+		var genErr error
+		schemaText, _, genErr = generator.GenerateSchema(definitions)
+		if genErr != nil {
+			// If we can't generate schema, skip hash generation
+			// This can happen if definitions are incomplete or invalid
+			return nil
+		}
+	}
+
+	// Compute schema hash
+	schemaHash := hex.EncodeToString([]byte(schemaText))
+
+	// Delete existing hash (if any)
+	if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {
+		if err := tx.Delete(tableSchemaRevision, existing); err != nil {
+			return fmt.Errorf("failed to delete old hash: %w", err)
+		}
+	}
+
+	// Insert new hash
+	revisionData := &schemaRevisionData{
+		name: "current",
+		hash: []byte(schemaHash),
+	}
+
+	if err := tx.Insert(tableSchemaRevision, revisionData); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
 	return nil
 }
 

@@ -11,9 +11,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -23,6 +23,9 @@ type pgReader struct {
 	aliveFilter          queryFilterer
 	filterMaximumIDCount uint16
 	schema               common.SchemaInformation
+	schemaMode           dsoptions.SchemaMode
+	snapshotRevision     datastore.Revision
+	schemaReaderWriter   *common.SQLSchemaReaderWriter[uint64, postgresRevision]
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -149,7 +152,7 @@ func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]d
 func (r *pgReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
-	opts ...options.QueryOptionsOption,
+	opts ...dsoptions.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount).
 		WithAdditionalFilter(r.aliveFilter).
@@ -158,7 +161,7 @@ func (r *pgReader) QueryRelationships(
 		return nil, err
 	}
 
-	builtOpts := options.NewQueryOptionsWithOptions(opts...)
+	builtOpts := dsoptions.NewQueryOptionsWithOptions(opts...)
 	indexingHint := schema.IndexingHintForQueryShape(r.schema, builtOpts.QueryShape)
 	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
@@ -168,7 +171,7 @@ func (r *pgReader) QueryRelationships(
 func (r *pgReader) ReverseQueryRelationships(
 	ctx context.Context,
 	subjectsFilter datastore.SubjectsFilter,
-	opts ...options.ReverseQueryOptionsOption,
+	opts ...dsoptions.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount).
 		WithAdditionalFilter(r.aliveFilter).
@@ -177,7 +180,7 @@ func (r *pgReader) ReverseQueryRelationships(
 		return nil, err
 	}
 
-	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+	queryOpts := dsoptions.NewReverseQueryOptionsWithOptions(opts...)
 
 	if queryOpts.ResRelation != nil {
 		qBuilder = qBuilder.
@@ -190,13 +193,13 @@ func (r *pgReader) ReverseQueryRelationships(
 
 	return r.executor.ExecuteQuery(ctx,
 		qBuilder,
-		options.WithLimit(queryOpts.LimitForReverse),
-		options.WithAfter(queryOpts.AfterForReverse),
-		options.WithSort(queryOpts.SortForReverse),
-		options.WithSkipCaveats(queryOpts.SkipCaveatsForReverse),
-		options.WithSkipExpiration(queryOpts.SkipExpirationForReverse),
-		options.WithQueryShape(queryOpts.QueryShapeForReverse),
-		options.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
+		dsoptions.WithLimit(queryOpts.LimitForReverse),
+		dsoptions.WithAfter(queryOpts.AfterForReverse),
+		dsoptions.WithSort(queryOpts.SortForReverse),
+		dsoptions.WithSkipCaveats(queryOpts.SkipCaveatsForReverse),
+		dsoptions.WithSkipExpiration(queryOpts.SkipExpirationForReverse),
+		dsoptions.WithQueryShape(queryOpts.QueryShapeForReverse),
+		dsoptions.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
 	)
 }
 
@@ -307,7 +310,68 @@ func revisionForVersion(version xid8) postgresRevision {
 
 // SchemaReader returns a SchemaReader for reading schema information.
 func (r *pgReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
+	// Wrap the reader with an unexported schema reader
+	reader := &pgSchemaReader{r: r}
+	return schemaadapter.NewSchemaReader(reader, r.schemaMode, r.snapshotRevision), nil
 }
 
-var _ datastore.Reader = &pgReader{}
+// pgSchemaReader wraps a pgReader and implements DualSchemaReader.
+// This prevents direct access to schema read methods from the reader.
+type pgSchemaReader struct {
+	r *pgReader
+}
+
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader with revision-aware reading
+func (sr *pgSchemaReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create a revision-aware executor that applies alive filter for schema table
+	// The schema table uses XID8 columns (created_xid, deleted_xid) just like relationship tables,
+	// so we use the exact same pg_visible_in_snapshot() logic
+	executor := &pgRevisionAwareExecutor{
+		query:       sr.r.query,
+		aliveFilter: sr.r.aliveFilter,
+	}
+
+	// Use the shared schema reader/writer to read the schema
+	// Cast snapshotRevision to postgresRevision for cache lookup
+	var revPtr *postgresRevision
+	if pgRev, ok := sr.r.snapshotRevision.(postgresRevision); ok {
+		revPtr = &pgRev
+	}
+	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, revPtr)
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying reader
+func (sr *pgSchemaReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return sr.r.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// LegacyReadCaveatByName delegates to the underlying reader
+func (sr *pgSchemaReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return sr.r.LegacyReadCaveatByName(ctx, name)
+}
+
+// LegacyListAllCaveats delegates to the underlying reader
+func (sr *pgSchemaReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return sr.r.LegacyListAllCaveats(ctx)
+}
+
+// LegacyLookupCaveatsWithNames delegates to the underlying reader
+func (sr *pgSchemaReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return sr.r.LegacyLookupCaveatsWithNames(ctx, names)
+}
+
+// LegacyReadNamespaceByName delegates to the underlying reader
+func (sr *pgSchemaReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return sr.r.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+// LegacyListAllNamespaces delegates to the underlying reader
+func (sr *pgSchemaReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return sr.r.LegacyListAllNamespaces(ctx)
+}
+
+var (
+	_ datastore.Reader             = &pgReader{}
+	_ datastore.LegacySchemaReader = &pgReader{}
+	_ datastore.DualSchemaReader   = &pgSchemaReader{}
+)

@@ -27,7 +27,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 const (
@@ -72,6 +72,12 @@ const (
 
 	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_dup_entry
 	errMysqlDuplicateEntry = 1062
+)
+
+type contextKey string
+
+const (
+	ctxKeyTransactionID contextKey = "mysql_transaction_id"
 )
 
 var (
@@ -278,12 +284,15 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		maxRetries:                   config.maxRetries,
 		analyzeBeforeStats:           config.analyzeBeforeStats,
 		schema:                       *schema,
+		schemaMode:                   config.schemaMode,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.TransactionID,
 		},
+		schemaReaderWriter:   common.NewSQLSchemaReaderWriter[uint64, revisions.TransactionIDRevision](BaseSchemaChunkerConfig.WithTableName(driver.Schema()), config.schemaCacheOptions),
+		schemaTableName:      driver.Schema(),
 		filterMaximumIDCount: config.filterMaximumIDCount,
 	}
 
@@ -294,6 +303,50 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	err = store.seedDatabase(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// Start watching for schema changes if cache is enabled
+	if store.schemaReaderWriter != nil {
+		watcher := newMySQLSchemaHashWatcher(store.db, store.driver.SchemaRevision())
+
+		// Create revision function that gets the current head revision
+		revisionFunc := func(ctx context.Context) (revisions.TransactionIDRevision, error) {
+			rev, err := store.HeadRevision(ctx)
+			if err != nil {
+				return revisions.TransactionIDRevision(0), err
+			}
+			txRev, ok := rev.(revisions.TransactionIDRevision)
+			if !ok {
+				return revisions.TransactionIDRevision(0), fmt.Errorf("unexpected revision type: %T", rev)
+			}
+			return txRev, nil
+		}
+
+		// Create executor function that returns a revision-aware executor
+		// For loading current schema, we don't need alive filtering (load latest)
+		executorFunc := func() common.ChunkedBytesExecutor {
+			createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
+				tx, err := store.db.BeginTx(ctx, store.readTxOptions)
+				if err != nil {
+					return nil, nil, err
+				}
+				return tx, tx.Rollback, nil
+			}
+
+			return &mysqlRevisionAwareExecutor{
+				txSource: createTxFunc,
+				aliveFilter: func(original sq.SelectBuilder) sq.SelectBuilder {
+					return original // No filtering - get latest
+				},
+			}
+		}
+
+		store.schemaReaderWriter.StartWatching(watcher, revisionFunc, executorFunc)
+
+		// Warm the cache with the current schema
+		if err := store.schemaReaderWriter.WarmCache(ctx); err != nil {
+			log.Warn().Err(err).Msg("failed to warm schema cache")
+		}
 	}
 
 	// Start a goroutine for garbage collection.
@@ -336,12 +389,16 @@ func (mds *mysqlDatastore) SnapshotReader(rev datastore.Revision) datastore.Read
 	}
 
 	return &mysqlReader{
-		mds.QueryBuilder,
-		createTxFunc,
-		executor,
-		buildLivingObjectFilterForRevision(rev),
-		mds.filterMaximumIDCount,
-		mds.schema,
+		QueryBuilder:         mds.QueryBuilder,
+		txSource:             createTxFunc,
+		executor:             executor,
+		aliveFilter:          buildLivingObjectFilterForRevision(rev),
+		filterMaximumIDCount: mds.filterMaximumIDCount,
+		schema:               mds.schema,
+		schemaMode:           mds.schemaMode,
+		snapshotRevision:     rev,
+		schemaTableName:      mds.driver.Schema(),
+		schemaReaderWriter:   mds.schemaReaderWriter,
 	}
 }
 
@@ -352,9 +409,9 @@ func noCleanup() error { return nil }
 func (mds *mysqlDatastore) ReadWriteTx(
 	ctx context.Context,
 	fn datastore.TxUserFunc,
-	opts ...options.RWTOptionsOption,
+	opts ...dsoptions.RWTOptionsOption,
 ) (datastore.Revision, error) {
-	config := options.NewRWTOptionsWithOptions(opts...)
+	config := dsoptions.NewRWTOptionsWithOptions(opts...)
 
 	var err error
 	for i := uint8(0); i <= mds.maxRetries; i++ {
@@ -379,20 +436,28 @@ func (mds *mysqlDatastore) ReadWriteTx(
 			}
 
 			rwt := &mysqlReadWriteTXN{
-				&mysqlReader{
-					mds.QueryBuilder,
-					longLivedTx,
-					executor,
-					currentlyLivingObjects,
-					mds.filterMaximumIDCount,
-					mds.schema,
+				mysqlReader: &mysqlReader{
+					QueryBuilder:         mds.QueryBuilder,
+					txSource:             longLivedTx,
+					executor:             executor,
+					aliveFilter:          currentlyLivingObjects,
+					filterMaximumIDCount: mds.filterMaximumIDCount,
+					schema:               mds.schema,
+					schemaMode:           mds.schemaMode,
+					snapshotRevision:     datastore.NoRevision, // snapshotRevision (not yet known in RWT)
+					schemaTableName:      mds.driver.Schema(),
+					schemaReaderWriter:   mds.schemaReaderWriter,
 				},
-				mds.driver.RelationTuple(),
-				tx,
-				newTxnID,
+				tupleTableName:          mds.driver.RelationTuple(),
+				schemaTableName:         mds.driver.Schema(),
+				schemaRevisionTableName: mds.driver.SchemaRevision(),
+				tx:                      tx,
+				newTxnID:                newTxnID,
 			}
 
-			return fn(ctx, rwt)
+			// Add transaction ID to context for schema operations
+			ctxWithTxn := context.WithValue(ctx, ctxKeyTransactionID, newTxnID)
+			return fn(ctxWithTxn, rwt)
 		}); err != nil {
 			if !config.DisableRetries && isErrorRetryable(err) {
 				continue
@@ -495,6 +560,7 @@ type mysqlDatastore struct {
 	maxRetries                   uint8
 	filterMaximumIDCount         uint16
 	schema                       common.SchemaInformation
+	schemaMode                   dsoptions.SchemaMode
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string
@@ -506,6 +572,10 @@ type mysqlDatastore struct {
 
 	createTxn     sq.InsertBuilder
 	createBaseTxn string
+
+	// SQLSchemaReaderWriter for schema operations
+	schemaReaderWriter *common.SQLSchemaReaderWriter[uint64, revisions.TransactionIDRevision]
+	schemaTableName    string
 
 	uniqueID atomic.Pointer[string]
 
@@ -526,6 +596,34 @@ func (mds *mysqlDatastore) Close() error {
 		_ = prometheus.Unregister(collector)
 	}
 	return mds.db.Close()
+}
+
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash directly from schema_revision table.
+func (mds *mysqlDatastore) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	return &mysqlSchemaHashReaderForTesting{
+		db:                      mds.db,
+		schemaRevisionTableName: mds.driver.SchemaRevision(),
+	}
+}
+
+// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
+func (mds *mysqlDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
+	return newMySQLSchemaHashWatcher(mds.db, mds.driver.SchemaRevision())
+}
+
+type mysqlSchemaHashReaderForTesting struct {
+	db                      *sql.DB
+	schemaRevisionTableName string
+}
+
+func (r *mysqlSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
+	watcher := &mysqlSchemaHashWatcher{
+		db:                      r.db,
+		schemaRevisionTableName: r.schemaRevisionTableName,
+	}
+	return watcher.readSchemaHash(ctx)
 }
 
 // ReadyState returns whether the datastore is ready to accept data. Datastores that require

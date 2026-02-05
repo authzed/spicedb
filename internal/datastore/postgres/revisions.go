@@ -337,6 +337,10 @@ func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {
 	return ok && pr.snapshot.Equal(rhs.snapshot)
 }
 
+func (pr postgresRevision) Key() string {
+	return pr.String()
+}
+
 func (pr postgresRevision) GreaterThan(rhsRaw datastore.Revision) bool {
 	if rhsRaw == datastore.NoRevision {
 		return true

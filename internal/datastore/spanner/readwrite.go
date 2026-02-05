@@ -3,7 +3,9 @@ package spanner
 import (
 	"cmp"
 	"context"
+	"encoding/hex"
 	"fmt"
+	"sort"
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
@@ -13,12 +15,14 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -30,7 +34,7 @@ type spannerReadWriteTXN struct {
 
 const inLimit = 10_000 // https://cloud.google.com/spanner/quotas#query-limits
 
-func (rwt spannerReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+func (rwt *spannerReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
 	// Ensure the counter doesn't already exist.
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
@@ -60,7 +64,7 @@ func (rwt spannerReadWriteTXN) RegisterCounter(ctx context.Context, name string,
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
+func (rwt *spannerReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
 	// Ensure the counter exists.
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
@@ -82,7 +86,7 @@ func (rwt spannerReadWriteTXN) UnregisterCounter(ctx context.Context, name strin
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+func (rwt *spannerReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	// Ensure the counter exists.
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
@@ -108,7 +112,7 @@ func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, name strin
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
+func (rwt *spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
 	var rowCountChange int64
 	for _, mutation := range mutations {
 		txnMut, countChange, err := spannerMutation(ctx, mutation.Operation, mutation.Relationship)
@@ -149,7 +153,7 @@ func spannerMutation(
 	return txnMut, countChange, err
 }
 
-func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (rwt *spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...dsoptions.DeleteOptionsOption) (uint64, bool, error) {
 	numDeleted, limitReached, err := deleteWithFilter(ctx, rwt.spannerRWT, filter, opts...)
 	if err != nil {
 		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
@@ -158,8 +162,8 @@ func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *
 	return numDeleted, limitReached, nil
 }
 
-func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
-	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, opts ...dsoptions.DeleteOptionsOption) (uint64, bool, error) {
+	delOpts := dsoptions.NewDeleteOptionsWithOptionsAndDefaults(opts...)
 	var delLimit uint64
 	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
 		delLimit = *delOpts.DeleteLimit
@@ -356,7 +360,7 @@ func caveatVals(r tuple.Relationship) []any {
 	return vals
 }
 
-func (rwt spannerReadWriteTXN) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *spannerReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	mutations := make([]*spanner.Mutation, 0, len(newConfigs))
 	for _, newConfig := range newConfigs {
 		serialized, err := newConfig.MarshalVT()
@@ -371,10 +375,19 @@ func (rwt spannerReadWriteTXN) LegacyWriteNamespaces(_ context.Context, newConfi
 		))
 	}
 
-	return rwt.spannerRWT.BufferWrite(mutations)
+	if err := rwt.spannerRWT.BufferWrite(mutations); err != nil {
+		return err
+	}
+
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
 }
 
-func (rwt spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
@@ -409,14 +422,180 @@ func (rwt spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNam
 		}
 	}
 
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
-	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
+func (rwt *spannerReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
+	// Wrap the transaction with an unexported schema writer
+	writer := &spannerSchemaWriter{rwt: rwt}
+	return schemaadapter.NewSchemaWriter(writer, writer, rwt.schemaMode), nil
 }
 
-func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+// spannerSchemaWriter wraps a spannerReadWriteTXN and implements DualSchemaWriter.
+// This prevents direct access to schema write methods from the transaction.
+type spannerSchemaWriter struct {
+	rwt *spannerReadWriteTXN
+}
+
+// WriteStoredSchema implements datastore.SingleStoreSchemaWriter
+func (w *spannerSchemaWriter) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	// Create an executor that uses the current transaction
+	executor := newSpannerChunkedBytesExecutor(w.rwt.spannerRWT)
+
+	// Use the shared schema reader/writer to write the schema
+	// Spanner uses delete-and-insert mode so no transaction ID provider is needed
+	noTxID := func(ctx context.Context) any { return common.NoTransactionID[any](ctx) }
+	if err := w.rwt.schemaReaderWriter.WriteSchema(ctx, schema, executor, noTxID); err != nil {
+		return err
+	}
+
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := w.writeSchemaHash(ctx, schema); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
+}
+
+// writeSchemaHash writes the schema hash to the schema_revision table
+func (w *spannerSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.StoredSchema) error {
+	v1 := schema.GetV1()
+	if v1 == nil {
+		return fmt.Errorf("unsupported schema version: %d", schema.Version)
+	}
+
+	// Use InsertOrUpdate mutation to upsert the schema hash
+	mutation := spanner.InsertOrUpdate(
+		tableSchemaRevision,
+		[]string{"name", "schema_hash", "timestamp"},
+		[]any{"current", []byte(v1.SchemaHash), spanner.CommitTimestamp},
+	)
+
+	if err := w.rwt.spannerRWT.BufferWrite([]*spanner.Mutation{mutation}); err != nil {
+		return fmt.Errorf("failed to buffer schema hash write: %w", err)
+	}
+
+	return nil
+}
+
+// writeLegacySchemaHash writes the schema hash to the schema_revision table by generating
+// the schema from current legacy namespaces and caveats
+func (rwt *spannerReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
+	// Read all namespaces and caveats
+	namespaces, err := rwt.LegacyListAllNamespaces(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	caveats, err := rwt.LegacyListAllCaveats(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list caveats: %w", err)
+	}
+
+	// Build schema definitions list
+	var definitions []compiler.SchemaDefinition
+	for _, ns := range namespaces {
+		definitions = append(definitions, ns.Definition)
+	}
+	for _, caveat := range caveats {
+		definitions = append(definitions, caveat.Definition)
+	}
+
+	// Sort definitions by name for consistent ordering
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].GetName() < definitions[j].GetName()
+	})
+
+	// Generate schema text from definitions
+	schemaText, _, err := generator.GenerateSchema(definitions)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	// Compute schema hash
+	schemaHash := hex.EncodeToString([]byte(schemaText))
+
+	// Use InsertOrUpdate mutation to upsert the schema hash
+	mutation := spanner.InsertOrUpdate(
+		tableSchemaRevision,
+		[]string{"name", "schema_hash", "timestamp"},
+		[]any{"current", []byte(schemaHash), spanner.CommitTimestamp},
+	)
+
+	if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{mutation}); err != nil {
+		return fmt.Errorf("failed to buffer schema hash write: %w", err)
+	}
+
+	return nil
+}
+
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader to satisfy DualSchemaReader interface requirements
+func (w *spannerSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create an executor that uses the current write transaction for reads
+	// This ensures we read within the same transaction, avoiding "transaction already committed" errors
+	executor := newSpannerChunkedBytesExecutor(w.rwt.spannerRWT)
+
+	// Use the shared schema reader/writer to read the schema
+	// Spanner doesn't support revisioned schema reads, so pass nil
+	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil)
+}
+
+// LegacyWriteNamespaces delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	return w.rwt.LegacyWriteNamespaces(ctx, newConfigs...)
+}
+
+// LegacyDeleteNamespaces delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	return w.rwt.LegacyDeleteNamespaces(ctx, nsNames, delOption)
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return w.rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// LegacyWriteCaveats delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	return w.rwt.LegacyWriteCaveats(ctx, caveats)
+}
+
+// LegacyDeleteCaveats delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyDeleteCaveats(ctx context.Context, names []string) error {
+	return w.rwt.LegacyDeleteCaveats(ctx, names)
+}
+
+// LegacyReadCaveatByName delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return w.rwt.LegacyReadCaveatByName(ctx, name)
+}
+
+// LegacyListAllCaveats delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return w.rwt.LegacyListAllCaveats(ctx)
+}
+
+// LegacyLookupCaveatsWithNames delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return w.rwt.LegacyLookupCaveatsWithNames(ctx, names)
+}
+
+// LegacyReadNamespaceByName delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return w.rwt.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+// LegacyListAllNamespaces delegates to the underlying transaction
+func (w *spannerSchemaWriter) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return w.rwt.LegacyListAllNamespaces(ctx)
+}
+
+func (rwt *spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var numLoaded uint64
 	var rel *tuple.Relationship
 	var err error
@@ -439,4 +618,9 @@ func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.Bulk
 	return numLoaded, nil
 }
 
-var _ datastore.ReadWriteTransaction = (*spannerReadWriteTXN)(nil)
+var (
+	_ datastore.ReadWriteTransaction = (*spannerReadWriteTXN)(nil)
+	_ datastore.LegacySchemaWriter   = (*spannerReadWriteTXN)(nil)
+	_ datastore.DualSchemaWriter     = (*spannerSchemaWriter)(nil)
+	_ datastore.DualSchemaReader     = (*spannerSchemaWriter)(nil)
+)

@@ -281,7 +281,7 @@ func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, name string,
 	return tx.Insert(tableCounters, counter)
 }
 
-func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
@@ -304,10 +304,15 @@ func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(_ context.Context, newConfigs
 		}
 	}
 
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := rwt.datastore.writeLegacySchemaHashInternalWithTx(tx); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
@@ -344,11 +349,21 @@ func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(_ context.Context, nsNames [
 		}
 	}
 
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := rwt.datastore.writeLegacySchemaHashInternalWithTx(tx); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
 	return nil
 }
 
 func (rwt *memdbReadWriteTx) SchemaWriter() (datastore.SchemaWriter, error) {
 	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
+}
+
+// WriteStoredSchema implements datastore.SingleStoreSchemaWriter
+func (rwt *memdbReadWriteTx) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	return rwt.datastore.writeStoredSchemaInternal(schema)
 }
 
 func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
@@ -404,4 +419,9 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(any) bool 
 	}
 }
 
-var _ datastore.ReadWriteTransaction = &memdbReadWriteTx{}
+var (
+	_ datastore.ReadWriteTransaction    = &memdbReadWriteTx{}
+	_ datastore.LegacySchemaWriter      = &memdbReadWriteTx{}
+	_ datastore.SingleStoreSchemaWriter = &memdbReadWriteTx{}
+	_ datastore.DualSchemaWriter        = &memdbReadWriteTx{}
+)

@@ -12,6 +12,8 @@ const (
 	TableTuple               = "relation_tuple"
 	TableCaveat              = "caveat"
 	TableRelationshipCounter = "relationship_counter"
+	TableSchema              = "schema"
+	TableSchemaRevision      = "schema_revision"
 
 	ColXID               = "xid"
 	ColTimestamp         = "timestamp"

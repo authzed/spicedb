@@ -6,6 +6,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 const (
@@ -56,6 +57,8 @@ type mysqlOptions struct {
 	allowedMigrations            []string
 	columnOptimizationOption     common.ColumnOptimizationOption
 	watchDisabled                bool
+	schemaMode                   dsoptions.SchemaMode
+	schemaCacheOptions           dsoptions.SchemaCacheOptions
 }
 
 // Option provides the facility to configure how clients within the
@@ -311,5 +314,19 @@ func WithColumnOptimization(isEnabled bool) Option {
 func WithWatchDisabled(isDisabled bool) Option {
 	return func(mo *mysqlOptions) {
 		mo.watchDisabled = isDisabled
+	}
+}
+
+// WithSchemaMode sets the experimental schema mode for the datastore.
+func WithSchemaMode(mode dsoptions.SchemaMode) Option {
+	return func(mo *mysqlOptions) {
+		mo.schemaMode = mode
+	}
+}
+
+// WithSchemaCacheOptions sets the schema cache options for the datastore.
+func WithSchemaCacheOptions(cacheOptions dsoptions.SchemaCacheOptions) Option {
+	return func(mo *mysqlOptions) {
+		mo.schemaCacheOptions = cacheOptions
 	}
 }

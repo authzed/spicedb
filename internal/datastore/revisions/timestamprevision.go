@@ -69,6 +69,10 @@ func (ir TimestampRevision) String() string {
 	return strconv.FormatInt(int64(ir), 10)
 }
 
+func (ir TimestampRevision) Key() string {
+	return ir.String()
+}
+
 func (ir TimestampRevision) Time() time.Time {
 	return time.Unix(0, int64(ir))
 }

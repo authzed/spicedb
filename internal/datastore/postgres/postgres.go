@@ -34,7 +34,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -71,6 +71,12 @@ const (
 )
 
 var livingTupleConstraints = []string{"uq_relation_tuple_living_xid", "pk_relation_tuple"}
+
+type contextKey string
+
+const (
+	ctxKeyTransactionID contextKey = "postgres_transaction_id"
+)
 
 func init() {
 	dbsql.Register(tracingDriverName, sqlmw.Driver(stdlib.GetDefaultDriver(), new(traceInterceptor)))
@@ -306,33 +312,36 @@ func newPostgresDatastore(
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
-		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
-		dburl:                        pgURL,
-		readPool:                     pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
-		writePool:                    nil, /* disabled by default */
-		collectors:                   collectors,
-		watchBufferLength:            config.watchBufferLength,
-		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
-		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
-		optimizedRevisionQuery:       revisionQuery,
-		validTransactionQuery:        validTransactionQuery,
-		revisionHeartbeatQuery:       revisionHeartbeatQuery,
-		gcWindow:                     config.gcWindow,
-		gcInterval:                   config.gcInterval,
-		gcTimeout:                    config.gcMaxOperationTime,
-		analyzeBeforeStatistics:      config.analyzeBeforeStatistics,
-		watchEnabled:                 watchEnabled,
-		workerCtx:                    gcCtx,
-		cancelGc:                     cancelGc,
-		readTxOptions:                pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
-		maxRetries:                   config.maxRetries,
-		credentialsProvider:          credentialsProvider,
-		isPrimary:                    isPrimary,
-		inStrictReadMode:             config.readStrictMode,
-		filterMaximumIDCount:         config.filterMaximumIDCount,
-		schema:                       *schema.Schema(config.columnOptimizationOption, false),
-		quantizationPeriodNanos:      quantizationPeriodNanos,
-		isolationLevel:               isolationLevel,
+		MigrationValidator:             common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		dburl:                          pgURL,
+		readPool:                       pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
+		writePool:                      nil, /* disabled by default */
+		collectors:                     collectors,
+		watchBufferLength:              config.watchBufferLength,
+		watchChangeBufferMaximumSize:   config.watchChangeBufferMaximumSize,
+		watchBufferWriteTimeout:        config.watchBufferWriteTimeout,
+		optimizedRevisionQuery:         revisionQuery,
+		validTransactionQuery:          validTransactionQuery,
+		revisionHeartbeatQuery:         revisionHeartbeatQuery,
+		gcWindow:                       config.gcWindow,
+		gcInterval:                     config.gcInterval,
+		gcTimeout:                      config.gcMaxOperationTime,
+		analyzeBeforeStatistics:        config.analyzeBeforeStatistics,
+		watchEnabled:                   watchEnabled,
+		workerCtx:                      gcCtx,
+		cancelGc:                       cancelGc,
+		readTxOptions:                  pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		maxRetries:                     config.maxRetries,
+		credentialsProvider:            credentialsProvider,
+		isPrimary:                      isPrimary,
+		inStrictReadMode:               config.readStrictMode,
+		filterMaximumIDCount:           config.filterMaximumIDCount,
+		schema:                         *schema.Schema(config.columnOptimizationOption, false),
+		includeQueryParametersInTraces: config.includeQueryParametersInTraces,
+		schemaMode:                     config.schemaMode,
+		quantizationPeriodNanos:        quantizationPeriodNanos,
+		schemaReaderWriter:             common.NewSQLSchemaReaderWriter[uint64, postgresRevision](BaseSchemaChunkerConfig, config.schemaCacheOptions),
+		isolationLevel:                 isolationLevel,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -344,6 +353,43 @@ func newPostgresDatastore(
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
+
+	// Start watching for schema changes if cache is enabled
+	if datastore.schemaReaderWriter != nil {
+		queryFuncs := pgxcommon.QuerierFuncsFor(datastore.readPool)
+		watcher := newPGSchemaHashWatcher(queryFuncs)
+
+		// Create revision function that gets the current head revision
+		revisionFunc := func(ctx context.Context) (postgresRevision, error) {
+			rev, err := datastore.HeadRevision(ctx)
+			if err != nil {
+				return postgresRevision{}, err
+			}
+			pgRev, ok := rev.(postgresRevision)
+			if !ok {
+				return postgresRevision{}, fmt.Errorf("unexpected revision type: %T", rev)
+			}
+			return pgRev, nil
+		}
+
+		// Create executor function that returns a revision-aware executor
+		// For loading current schema, we don't need alive filtering (load latest)
+		executorFunc := func() common.ChunkedBytesExecutor {
+			return &pgRevisionAwareExecutor{
+				query: queryFuncs,
+				aliveFilter: func(original sq.SelectBuilder) sq.SelectBuilder {
+					return original // No filtering - get latest
+				},
+			}
+		}
+
+		datastore.schemaReaderWriter.StartWatching(watcher, revisionFunc, executorFunc)
+
+		// Warm the cache with the current schema
+		if err := datastore.schemaReaderWriter.WarmCache(ctx); err != nil {
+			log.Warn().Err(err).Msg("failed to warm schema cache")
+		}
+	}
 
 	// Start a goroutine for garbage collection and the revision heartbeat.
 	if isPrimary {
@@ -396,13 +442,17 @@ type pgDatastore struct {
 	inStrictReadMode               bool
 	schema                         common.SchemaInformation
 	includeQueryParametersInTraces bool
+	schemaMode                     dsoptions.SchemaMode
 
 	credentialsProvider datastore.CredentialsProvider
 	uniqueID            atomic.Pointer[string]
 
-	workerGroup             *errgroup.Group
-	workerCtx               context.Context
-	cancelGc                context.CancelFunc
+	workerGroup *errgroup.Group
+	workerCtx   context.Context
+	cancelGc    context.CancelFunc
+
+	// SQLSchemaReaderWriter for schema operations
+	schemaReaderWriter      *common.SQLSchemaReaderWriter[uint64, postgresRevision]
 	gcHasRun                atomic.Bool
 	filterMaximumIDCount    uint16
 	quantizationPeriodNanos int64
@@ -430,11 +480,14 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 	}
 
 	return &pgReader{
-		queryFuncs,
-		executor,
-		buildLivingObjectFilterForRevision(rev),
-		pgd.filterMaximumIDCount,
-		pgd.schema,
+		query:                queryFuncs,
+		executor:             executor,
+		aliveFilter:          buildLivingObjectFilterForRevision(rev),
+		filterMaximumIDCount: pgd.filterMaximumIDCount,
+		schema:               pgd.schema,
+		schemaMode:           pgd.schemaMode,
+		snapshotRevision:     rev,
+		schemaReaderWriter:   pgd.schemaReaderWriter,
 	}
 }
 
@@ -443,13 +496,13 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 func (pgd *pgDatastore) ReadWriteTx(
 	ctx context.Context,
 	fn datastore.TxUserFunc,
-	opts ...options.RWTOptionsOption,
+	opts ...dsoptions.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	if !pgd.isPrimary {
 		return datastore.NoRevision, spiceerrors.MustBugf("read-write transaction not supported on read-only datastore")
 	}
 
-	config := options.NewRWTOptionsWithOptions(opts...)
+	config := dsoptions.NewRWTOptionsWithOptions(opts...)
 
 	var err error
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
@@ -474,18 +527,23 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			rwt := &pgReadWriteTXN{
-				&pgReader{
-					queryFuncs,
-					executor,
-					currentlyLivingObjects,
-					pgd.filterMaximumIDCount,
-					pgd.schema,
+				pgReader: &pgReader{
+					query:                queryFuncs,
+					executor:             executor,
+					aliveFilter:          currentlyLivingObjects,
+					filterMaximumIDCount: pgd.filterMaximumIDCount,
+					schema:               pgd.schema,
+					schemaMode:           pgd.schemaMode,
+					snapshotRevision:     datastore.NoRevision, // snapshotRevision (not yet known in RWT)
+					schemaReaderWriter:   pgd.schemaReaderWriter,
 				},
-				tx,
-				newXID,
+				tx:     tx,
+				newXID: newXID,
 			}
 
-			return fn(ctx, rwt)
+			// Add transaction ID to context for schema operations
+			ctxWithTxn := context.WithValue(ctx, ctxKeyTransactionID, newXID.Uint64)
+			return fn(ctxWithTxn, rwt)
 		}))
 		if err != nil {
 			if !config.DisableRetries && errorRetryable(err) {
@@ -655,6 +713,29 @@ func (pgd *pgDatastore) Close() error {
 		prometheus.Unregister(collector)
 	}
 	return nil
+}
+
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash directly from schema_revision table.
+func (pgd *pgDatastore) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
+	return &pgSchemaHashReaderForTesting{query: queryFuncs}
+}
+
+// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
+func (pgd *pgDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
+	queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
+	return newPGSchemaHashWatcher(queryFuncs)
+}
+
+type pgSchemaHashReaderForTesting struct {
+	query pgxcommon.DBFuncQuerier
+}
+
+func (r *pgSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
+	watcher := &pgSchemaHashWatcher{query: r.query}
+	return watcher.readSchemaHash(ctx)
 }
 
 func errorRetryable(err error) bool {

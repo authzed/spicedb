@@ -197,6 +197,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		supportsIntegrity:            config.withIntegrity,
 		gcWindow:                     config.gcWindow,
 		watchEnabled:                 !config.watchDisabled,
+		schemaMode:                   config.schemaMode,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
@@ -213,6 +214,9 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
+
+	// Initialize schema reader/writer
+	ds.schemaReaderWriter = common.NewSQLSchemaReaderWriter[any, revisions.HLCRevision](BaseSchemaChunkerConfig, config.schemaCacheOptions)
 
 	err = ds.registerPrometheusCollectors(config.enablePrometheusStats)
 	if err != nil {
@@ -290,6 +294,10 @@ type crdbDatastore struct {
 	supportsIntegrity    bool
 	watchEnabled         bool
 
+	// SQLSchemaReaderWriter for schema operations
+	schemaReaderWriter *common.SQLSchemaReaderWriter[any, revisions.HLCRevision]
+	schemaMode         options.SchemaMode
+
 	uniqueID atomic.Pointer[string]
 }
 
@@ -306,6 +314,9 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 		filterMaximumIDCount: cds.filterMaximumIDCount,
 		withIntegrity:        cds.supportsIntegrity,
 		atSpecificRevision:   rev.String(),
+		schemaMode:           cds.schemaMode,
+		snapshotRevision:     rev,
+		schemaReaderWriter:   cds.schemaReaderWriter,
 	}
 }
 
@@ -340,13 +351,16 @@ func (cds *crdbDatastore) ReadWriteTx(
 			filterMaximumIDCount: cds.filterMaximumIDCount,
 			withIntegrity:        cds.supportsIntegrity,
 			atSpecificRevision:   "", // No AS OF SYSTEM TIME for writes
+			schemaMode:           cds.schemaMode,
+			snapshotRevision:     datastore.NoRevision, // Revision not known until commit
+			schemaReaderWriter:   cds.schemaReaderWriter,
 		}
 
 		rwt := &crdbReadWriteTXN{
-			reader,
-			tx,
-			0,
-			false,
+			crdbReader:                  reader,
+			tx:                          tx,
+			relCountChange:              0,
+			hasNonExpiredDeletionChange: false,
 		}
 
 		if err := f(ctx, rwt); err != nil {
@@ -489,6 +503,35 @@ func (cds *crdbDatastore) Close() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash directly from schema_revision table.
+func (cds *crdbDatastore) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	return &crdbSchemaHashReaderForTesting{query: cds.readPool}
+}
+
+// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
+func (cds *crdbDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
+	// Determine the schema changefeed query format based on the relationship changefeed query
+	schemaChangefeedFormat := querySchemaChangefeed
+	switch cds.beginChangefeedQuery {
+	case queryChangefeedPreV22:
+		schemaChangefeedFormat = querySchemaChangefeedPreV22
+	case queryChangefeedPreV25:
+		schemaChangefeedFormat = querySchemaChangefeedPreV25
+	}
+	return newCRDBSchemaHashWatcher(cds.readPool, schemaChangefeedFormat)
+}
+
+type crdbSchemaHashReaderForTesting struct {
+	query *pool.RetryPool
+}
+
+func (r *crdbSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
+	watcher := &crdbSchemaHashWatcher{query: r.query}
+	return watcher.readSchemaHash(ctx)
 }
 
 func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {

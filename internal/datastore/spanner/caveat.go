@@ -89,7 +89,7 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 	return caveats, nil
 }
 
-func (rwt spannerReadWriteTXN) LegacyWriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt spannerReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	names := map[string]struct{}{}
 	mutations := make([]*spanner.Mutation, 0, len(caveats))
 	for _, caveat := range caveats {
@@ -109,10 +109,19 @@ func (rwt spannerReadWriteTXN) LegacyWriteCaveats(_ context.Context, caveats []*
 		))
 	}
 
-	return rwt.spannerRWT.BufferWrite(mutations)
+	if err := rwt.spannerRWT.BufferWrite(mutations); err != nil {
+		return err
+	}
+
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
 }
 
-func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(_ context.Context, names []string) error {
+func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	keys := make([]spanner.Key, 0, len(names))
 	for _, n := range names {
 		keys = append(keys, spanner.Key{n})
@@ -124,7 +133,12 @@ func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(_ context.Context, names []st
 		return fmt.Errorf(errUnableToDeleteCaveat, err)
 	}
 
-	return err
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
 }
 
 func ContextualizedCaveatFrom(name spanner.NullString, context spanner.NullJSON) (*core.ContextualizedCaveat, error) {

@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 type crdbOptions struct {
@@ -36,6 +37,8 @@ type crdbOptions struct {
 	includeQueryParametersInTraces bool
 	watchDisabled                  bool
 	acquireTimeout                 time.Duration
+	schemaMode                     options.SchemaMode
+	schemaCacheOptions             options.SchemaCacheOptions
 }
 
 const (
@@ -403,4 +406,14 @@ func WithWatchDisabled(isDisabled bool) Option {
 // from the pool with Try* methods before applying backpressure.
 func WithAcquireTimeout(timeout time.Duration) Option {
 	return func(po *crdbOptions) { po.acquireTimeout = timeout }
+}
+
+// WithSchemaMode sets the experimental schema mode for the datastore.
+func WithSchemaMode(mode options.SchemaMode) Option {
+	return func(po *crdbOptions) { po.schemaMode = mode }
+}
+
+// WithSchemaCacheOptions sets the schema cache options for the datastore.
+func WithSchemaCacheOptions(cacheOptions options.SchemaCacheOptions) Option {
+	return func(po *crdbOptions) { po.schemaCacheOptions = cacheOptions }
 }
