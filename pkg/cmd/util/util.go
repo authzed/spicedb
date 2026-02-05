@@ -110,6 +110,9 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "").
 		Msg("grpc server started serving")
 
+	// Create a lifecycle context that will be used to cancel all RPCs when the server stops
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+
 	srv := grpc.NewServer(opts...)
 	svcRegistrationFn(srv)
 	return &completedGRPCServer{
@@ -128,9 +131,11 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 				Str("service", c.flagPrefix).
 				Msg("grpc server stopped serving")
 		},
-		stopFunc:    srv.GracefulStop,
-		creds:       clientCreds,
-		certWatcher: certWatcher,
+		stopFunc:        srv.GracefulStop,
+		creds:           clientCreds,
+		certWatcher:     certWatcher,
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
 	}, nil
 }
 
@@ -217,10 +222,33 @@ type completedGRPCServer struct {
 	netDial           func(ctx context.Context, s string) (net.Conn, error)
 	creds             credentials.TransportCredentials
 	certWatcher       *certwatcher.CertWatcher
+	lifecycleCtx      context.Context
+	lifecycleCancel   context.CancelFunc
 }
 
 // WithOpts adds to the options for running the server
 func (c *completedGRPCServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer {
+	// Add stream interceptor to inject lifecycle context into all streams
+	lifecycleStreamInterceptor := func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		// Create a merged context that will be cancelled if either the stream context
+		// or the lifecycle context is cancelled
+		mergedCtx, cancel := context.WithCancel(ss.Context())
+		go func() {
+			select {
+			case <-c.lifecycleCtx.Done():
+				cancel()
+			case <-mergedCtx.Done():
+			}
+		}()
+
+		wrapped := &wrappedServerStream{
+			ServerStream: ss,
+			ctx:          mergedCtx,
+		}
+		return handler(srv, wrapped)
+	}
+
+	c.opts = append(c.opts, grpc.ChainStreamInterceptor(lifecycleStreamInterceptor))
 	c.opts = append(c.opts, opts...)
 	srv := grpc.NewServer(c.opts...)
 	c.svcRegistrationFn(srv)
@@ -229,6 +257,15 @@ func (c *completedGRPCServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCSe
 	}
 	c.stopFunc = srv.GracefulStop
 	return c
+}
+
+type wrappedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *wrappedServerStream) Context() context.Context {
+	return w.ctx
 }
 
 // Listen runs a configured server
@@ -240,6 +277,15 @@ func (c *completedGRPCServer) Listen(ctx context.Context) func() error {
 			}
 		}()
 	}
+
+	// Start a goroutine to cancel the lifecycle context when the server context is cancelled
+	// This will propagate cancellation to all active RPCs/streams
+	go func() {
+		<-ctx.Done()
+		log.Ctx(ctx).Debug().Msg("server context cancelled, cancelling lifecycle context")
+		c.lifecycleCancel()
+	}()
+
 	return c.listenFunc
 }
 

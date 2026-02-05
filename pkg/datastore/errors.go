@@ -47,7 +47,7 @@ func (err NamespaceNotFoundError) DetailsMetadata() map[string]string {
 // as a result.
 type WatchDisconnectedError struct{ error }
 
-// WatchCanceledError occurs when a watch was canceled by the caller.
+// WatchCanceledError occurs when a watch was canceled.
 type WatchCanceledError struct{ error }
 
 // WatchDisabledError occurs when watch is disabled by being unsupported by the datastore.
@@ -149,7 +149,7 @@ func NewWatchDisconnectedErr() error {
 // NewWatchCanceledErr constructs a new watch was canceled error.
 func NewWatchCanceledErr() error {
 	return WatchCanceledError{
-		error: errors.New("watch was canceled by the caller"),
+		error: errors.New("watch was canceled"),
 	}
 }
 

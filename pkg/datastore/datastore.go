@@ -703,7 +703,7 @@ type ReadOnlyDatastore interface {
 	//
 	// Errors returned will fall into a few classes:
 	// - WatchDisconnectedError - the watch has fallen too far behind and has been disconnected.
-	// - WatchCanceledError     - the watch was canceled by the caller.
+	// - WatchCanceledError     - the watch was canceled.
 	// - WatchDisabledError     - the watch is disabled by being unsupported by the datastore.
 	// - WatchRetryableError    - the watch is retryable, and the caller may retry after some backoff time.
 	// - InvalidRevisionError   - the revision specified has passed the datastore's watch history window and

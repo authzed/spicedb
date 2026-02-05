@@ -109,7 +109,7 @@ func TestRewriteError(t *testing.T) {
 			inputError:       datastore.NewWatchCanceledErr(),
 			config:           nil,
 			expectedCode:     codes.Canceled,
-			expectedContains: "watch canceled by user: watch was canceled by the caller",
+			expectedContains: "watch canceled: watch was canceled",
 		},
 		{
 			name:             "watch disabled",
