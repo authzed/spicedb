@@ -2,12 +2,24 @@ package query
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// sortObjectTypes sorts a slice of ObjectType for deterministic ordering.
+// This prevents test flakiness from nondeterministic map iteration.
+func sortObjectTypes(types []ObjectType) {
+	sort.Slice(types, func(i, j int) bool {
+		if types[i].Type != types[j].Type {
+			return types[i].Type < types[j].Type
+		}
+		return types[i].Subrelation < types[j].Subrelation
+	})
+}
 
 // FixedIterator represents a fixed set of pre-computed paths.
 // This is often useful for testing, but can also be used in rare situations
@@ -53,6 +65,9 @@ func NewFixedIterator(paths ...Path) *FixedIterator {
 	for _, st := range subjectTypeMap {
 		subjectTypes = append(subjectTypes, st)
 	}
+
+	// Sort to ensure deterministic order (prevent test flakiness from map iteration)
+	sortObjectTypes(subjectTypes)
 
 	return &FixedIterator{
 		id:           uuid.NewString(),
