@@ -81,6 +81,18 @@ type SQLByteChunkerConfig[T any] struct {
 	AliveValue T
 }
 
+// WithExecutor returns a copy of the config with the specified executor.
+func (c SQLByteChunkerConfig[T]) WithExecutor(executor ChunkedBytesExecutor) SQLByteChunkerConfig[T] {
+	c.Executor = executor
+	return c
+}
+
+// WithTableName returns a copy of the config with the specified table name.
+func (c SQLByteChunkerConfig[T]) WithTableName(tableName string) SQLByteChunkerConfig[T] {
+	c.TableName = tableName
+	return c
+}
+
 // SQLByteChunker provides methods for reading and writing byte data
 // that is chunked across multiple rows in a SQL table.
 type SQLByteChunker[T any] struct {
