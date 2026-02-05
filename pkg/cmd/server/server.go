@@ -8,9 +8,11 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/dustin/go-humanize"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
@@ -45,6 +47,7 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -114,6 +117,7 @@ type Config struct {
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
 	LR3ResourceChunkCacheConfig CacheConfig `debugmap:"visible"`
+	SchemaCacheConfig           CacheConfig `debugmap:"visible"`
 
 	// API Behavior
 	DisableV1SchemaAPI                 bool          `debugmap:"visible"`
@@ -201,6 +205,20 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
 
+	// Parse maximum cache memory for schema cache options
+	var maxCacheMemory uint64
+	if c.SchemaCacheConfig.MaxCost != "" && c.SchemaCacheConfig.MaxCost != "0%" {
+		var parseErr error
+		if strings.HasSuffix(c.SchemaCacheConfig.MaxCost, "%") {
+			maxCacheMemory, parseErr = parsePercent(c.SchemaCacheConfig.MaxCost, freeMemory)
+		} else {
+			maxCacheMemory, parseErr = humanize.ParseBytes(c.SchemaCacheConfig.MaxCost)
+		}
+		if parseErr != nil {
+			return nil, fmt.Errorf("error parsing schema cache max memory: `%s`: %w", c.SchemaCacheConfig.MaxCost, parseErr)
+		}
+	}
+
 	ds := c.Datastore
 	if ds == nil {
 		var err error
@@ -210,6 +228,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
 			datastorecfg.WithEnableRevisionHeartbeat(c.EnableRevisionHeartbeat),
+			datastorecfg.WithSchemaCacheOptions(dsoptions.SchemaCacheOptions{
+				MaximumCacheMemoryBytes: maxCacheMemory,
+				QuantizationWindow:      c.DatastoreConfig.RevisionQuantization,
+			}),
 		)
 		if err != nil {
 			return nil, spiceerrors.NewTerminationErrorBuilder(fmt.Errorf("failed to create datastore: %w", err)).
