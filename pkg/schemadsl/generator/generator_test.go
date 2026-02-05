@@ -244,6 +244,7 @@ definition foos/document {
 	}
 }
 
+// TestFormatting asserts that the input schema gets turned into the output schema
 func TestFormatting(t *testing.T) {
 	type formattingTest struct {
 		name     string
@@ -413,6 +414,34 @@ definition document {
 		}`,
 			`definition document {
 	relation viewer: user
+}`,
+		},
+		{
+			"use self happy path",
+			`use self
+
+			definition user {
+				relation viewer: user
+				permission view = viewer + self
+			}`,
+			`use self
+
+definition user {
+	relation viewer: user
+	permission view = viewer + self
+}`,
+		},
+		{
+			"use self unused",
+			`use self
+
+			definition user {
+				relation viewer: user
+				permission view = viewer
+			}`,
+			`definition user {
+	relation viewer: user
+	permission view = viewer
 }`,
 		},
 	}
