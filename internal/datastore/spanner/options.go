@@ -73,6 +73,8 @@ const (
 	defaultRevisionQuantization        = 5 * time.Second
 	defaultFollowerReadDelay           = 0 * time.Second
 	defaultMaxRevisionStalenessPercent = 0.1
+	minimumCheckpointInterval          = 100 * time.Millisecond
+	maximumCheckpointInterval          = 300000 * time.Millisecond
 	defaultWatchBufferLength           = 128
 	defaultWatchBufferWriteTimeout     = 1 * time.Second
 	defaultDisableStats                = false

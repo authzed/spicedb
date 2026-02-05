@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -26,7 +27,6 @@ const (
 
 func (pgd *pgDatastore) DefaultsWatchOptions() datastore.WatchOptions {
 	return datastore.WatchOptions{
-		CheckpointInterval:      minimumWatchSleep,
 		WatchBufferLength:       defaultWatchBufferLength,
 		WatchBufferWriteTimeout: defaultWatchBufferWriteTimeout,
 		// Postgres does not use WatchConnectTimeout
@@ -93,6 +93,11 @@ func (pgd *pgDatastore) Watch(
 	}
 
 	afterRevision := afterRevisionRaw.(postgresRevision)
+
+	if options.CheckpointInterval < minimumWatchSleep {
+		log.Warn().Msgf("--watch-api-heartbeat set too small, using %d", minimumWatchSleep)
+		options.CheckpointInterval = minimumWatchSleep
+	}
 
 	sendChange := func(change datastore.RevisionChanges) bool {
 		select {
