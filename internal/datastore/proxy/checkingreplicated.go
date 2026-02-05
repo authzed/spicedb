@@ -222,6 +222,18 @@ func (rr *checkingStableReader) SchemaReader() (datastore.SchemaReader, error) {
 	return rr.chosenReader.SchemaReader()
 }
 
+func (rr *checkingStableReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	if err := rr.determineSource(ctx); err != nil {
+		return nil, err
+	}
+
+	singleStoreReader, ok := rr.chosenReader.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("chosen reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 // determineSource will choose the replica or primary to read from based on the revision, by checking
 // if the replica contains the revision. If the replica does not contain the revision, the primary
 // will be used instead.
@@ -259,3 +271,11 @@ func (rr *checkingStableReader) determineSource(ctx context.Context) error {
 
 	return finalError
 }
+
+var (
+	_ datastore.Datastore               = (*checkingReplicatedDatastore)(nil)
+	_ datastore.Reader                  = (*checkingStableReader)(nil)
+	_ datastore.LegacySchemaReader      = (*checkingStableReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*checkingStableReader)(nil)
+	_ datastore.DualSchemaReader        = (*checkingStableReader)(nil)
+)

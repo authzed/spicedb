@@ -635,3 +635,19 @@ func (w *watchingCachingReader) LegacyLookupCaveatsWithNames(
 func (w *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
 	return schemautil.NewLegacySchemaReaderAdapter(w), nil
 }
+
+func (r *watchingCachingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.Reader.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
+var (
+	_ datastore.Datastore               = (*watchingCachingProxy)(nil)
+	_ datastore.Reader                  = (*watchingCachingReader)(nil)
+	_ datastore.LegacySchemaReader      = (*watchingCachingReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*watchingCachingReader)(nil)
+	_ datastore.DualSchemaReader        = (*watchingCachingReader)(nil)
+)

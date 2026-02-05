@@ -391,10 +391,26 @@ func (r relationshipIntegrityReader) SchemaReader() (datastore.SchemaReader, err
 	return r.wrapped.SchemaReader()
 }
 
+func (r relationshipIntegrityReader) ReadStoredSchema(ctx context.Context) (*corev1.StoredSchema, error) {
+	singleStoreReader, ok := r.wrapped.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("wrapped reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 type relationshipIntegrityTx struct {
 	datastore.ReadWriteTransaction
 
 	parent *relationshipIntegrityProxy
+}
+
+func (r *relationshipIntegrityTx) WriteStoredSchema(ctx context.Context, schema *corev1.StoredSchema) error {
+	singleStoreWriter, ok := r.ReadWriteTransaction.(datastore.SingleStoreSchemaWriter)
+	if !ok {
+		return errors.New("wrapped transaction does not implement SingleStoreSchemaWriter")
+	}
+	return singleStoreWriter.WriteStoredSchema(ctx, schema)
 }
 
 func (r *relationshipIntegrityTx) WriteRelationships(
@@ -471,3 +487,15 @@ func (w integrityAddingBulkLoadInterator) Next(ctx context.Context) (*tuple.Rela
 
 	return rel, nil
 }
+
+var (
+	_ datastore.Datastore               = (*relationshipIntegrityProxy)(nil)
+	_ datastore.Reader                  = (*relationshipIntegrityReader)(nil)
+	_ datastore.LegacySchemaReader      = (*relationshipIntegrityReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*relationshipIntegrityReader)(nil)
+	_ datastore.DualSchemaReader        = (*relationshipIntegrityReader)(nil)
+	_ datastore.ReadWriteTransaction    = (*relationshipIntegrityTx)(nil)
+	_ datastore.LegacySchemaWriter      = (*relationshipIntegrityTx)(nil)
+	_ datastore.SingleStoreSchemaWriter = (*relationshipIntegrityTx)(nil)
+	_ datastore.DualSchemaWriter        = (*relationshipIntegrityTx)(nil)
+)

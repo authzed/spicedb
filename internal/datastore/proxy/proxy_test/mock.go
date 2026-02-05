@@ -210,6 +210,15 @@ func (dm *MockReader) SchemaReader() (datastore.SchemaReader, error) {
 	return sr, args.Error(1)
 }
 
+func (dm *MockReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	args := dm.Called()
+	var schema *core.StoredSchema
+	if args.Get(0) != nil {
+		schema = args.Get(0).(*core.StoredSchema)
+	}
+	return schema, args.Error(1)
+}
+
 type MockReadWriteTransaction struct {
 	mock.Mock
 }
@@ -388,7 +397,8 @@ func (dm *MockReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, erro
 }
 
 var (
-	_ datastore.Datastore            = &MockDatastore{}
-	_ datastore.Reader               = &MockReader{}
-	_ datastore.ReadWriteTransaction = &MockReadWriteTransaction{}
+	_ datastore.Datastore               = &MockDatastore{}
+	_ datastore.Reader                  = &MockReader{}
+	_ datastore.SingleStoreSchemaReader = &MockReader{}
+	_ datastore.ReadWriteTransaction    = &MockReadWriteTransaction{}
 )

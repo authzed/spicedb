@@ -2,6 +2,7 @@ package indexcheck
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -98,6 +99,36 @@ func (p *indexcheckingProxy) ReadyState(ctx context.Context) (datastore.ReadySta
 
 func (p *indexcheckingProxy) Close() error { return p.delegate.Close() }
 
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash.
+// This delegates to the underlying datastore if it supports the test interface.
+func (p *indexcheckingProxy) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	type schemaHashReaderProvider interface {
+		SchemaHashReaderForTesting() interface {
+			ReadSchemaHash(ctx context.Context) (string, error)
+		}
+	}
+
+	if provider, ok := p.delegate.(schemaHashReaderProvider); ok {
+		return provider.SchemaHashReaderForTesting()
+	}
+	return nil
+}
+
+// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
+// This delegates to the underlying datastore if it supports the test interface.
+func (p *indexcheckingProxy) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
+	type schemaHashWatcherProvider interface {
+		SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher
+	}
+
+	if provider, ok := p.delegate.(schemaHashWatcherProvider); ok {
+		return provider.SchemaHashWatcherForTesting()
+	}
+	return nil
+}
+
 type indexcheckingReader struct {
 	parent   datastore.SQLDatastore
 	delegate datastore.Reader
@@ -187,6 +218,14 @@ func (r *indexcheckingReader) SchemaReader() (datastore.SchemaReader, error) {
 	return r.delegate.SchemaReader()
 }
 
+func (r *indexcheckingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.delegate.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 type indexcheckingRWT struct {
 	*indexcheckingReader
 	delegate datastore.ReadWriteTransaction
@@ -228,6 +267,14 @@ func (rwt *indexcheckingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
 	return rwt.delegate.SchemaWriter()
 }
 
+func (rwt *indexcheckingRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	singleStoreWriter, ok := rwt.delegate.(datastore.SingleStoreSchemaWriter)
+	if !ok {
+		return errors.New("delegate transaction does not implement SingleStoreSchemaWriter")
+	}
+	return singleStoreWriter.WriteStoredSchema(ctx, schema)
+}
+
 func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	return rwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
@@ -237,7 +284,13 @@ func (rwt *indexcheckingRWT) BulkLoad(ctx context.Context, iter datastore.BulkWr
 }
 
 var (
-	_ datastore.Datastore            = (*indexcheckingProxy)(nil)
-	_ datastore.Reader               = (*indexcheckingReader)(nil)
-	_ datastore.ReadWriteTransaction = (*indexcheckingRWT)(nil)
+	_ datastore.Datastore               = (*indexcheckingProxy)(nil)
+	_ datastore.Reader                  = (*indexcheckingReader)(nil)
+	_ datastore.LegacySchemaReader      = (*indexcheckingReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*indexcheckingReader)(nil)
+	_ datastore.DualSchemaReader        = (*indexcheckingReader)(nil)
+	_ datastore.ReadWriteTransaction    = (*indexcheckingRWT)(nil)
+	_ datastore.LegacySchemaWriter      = (*indexcheckingRWT)(nil)
+	_ datastore.SingleStoreSchemaWriter = (*indexcheckingRWT)(nil)
+	_ datastore.DualSchemaWriter        = (*indexcheckingRWT)(nil)
 )

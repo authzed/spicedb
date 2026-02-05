@@ -107,6 +107,14 @@ func (r *definitionCachingReader) SchemaReader() (datastore.SchemaReader, error)
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
+func (r *definitionCachingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.Reader.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 func listAndCache[T schemaDefinition](
 	ctx context.Context,
 	r *definitionCachingReader,
@@ -321,8 +329,12 @@ func (c *cacheEntry) Size() int64 {
 }
 
 var (
-	_ datastore.Datastore = &definitionCachingProxy{}
-	_ datastore.Reader    = &definitionCachingReader{}
+	_ datastore.Datastore               = &definitionCachingProxy{}
+	_ datastore.Reader                  = &definitionCachingReader{}
+	_ datastore.LegacySchemaReader      = &definitionCachingReader{}
+	_ datastore.SingleStoreSchemaReader = &definitionCachingReader{}
+	_ datastore.DualSchemaReader        = &definitionCachingReader{}
+	_ datastore.ReadWriteTransaction    = &definitionCachingRWT{}
 )
 
 func estimatedNamespaceDefinitionSize(sizevt int) int64 {

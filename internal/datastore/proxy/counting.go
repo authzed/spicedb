@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -269,9 +270,20 @@ func (r *countingReader) SchemaReader() (datastore.SchemaReader, error) {
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
+func (r *countingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.delegate.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 // Type assertions
 var (
-	_ datastore.ReadOnlyDatastore = (*countingProxy)(nil)
-	_ datastore.Datastore         = (*countingDatastoreProxy)(nil)
-	_ datastore.Reader            = (*countingReader)(nil)
+	_ datastore.ReadOnlyDatastore       = (*countingProxy)(nil)
+	_ datastore.Datastore               = (*countingDatastoreProxy)(nil)
+	_ datastore.Reader                  = (*countingReader)(nil)
+	_ datastore.LegacySchemaReader      = (*countingReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*countingReader)(nil)
+	_ datastore.DualSchemaReader        = (*countingReader)(nil)
 )

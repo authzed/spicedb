@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -156,6 +157,34 @@ func (p *observableProxy) ReadyState(ctx context.Context) (datastore.ReadyState,
 
 func (p *observableProxy) Close() error { return p.delegate.Close() }
 
+// SchemaHashReaderForTesting delegates to the underlying datastore if it implements the test interface
+func (p *observableProxy) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	type schemaHashReaderProvider interface {
+		SchemaHashReaderForTesting() interface {
+			ReadSchemaHash(ctx context.Context) (string, error)
+		}
+	}
+
+	if hashReader, ok := p.delegate.(schemaHashReaderProvider); ok {
+		return hashReader.SchemaHashReaderForTesting()
+	}
+	return nil
+}
+
+// SchemaHashWatcherForTesting delegates to the underlying datastore if it implements the test interface
+func (p *observableProxy) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
+	type schemaHashWatcherProvider interface {
+		SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher
+	}
+
+	if hashWatcher, ok := p.delegate.(schemaHashWatcherProvider); ok {
+		return hashWatcher.SchemaHashWatcherForTesting()
+	}
+	return nil
+}
+
 type observableReader struct{ delegate datastore.Reader }
 
 func (r *observableReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -284,6 +313,14 @@ func (r *observableReader) SchemaReader() (datastore.SchemaReader, error) {
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
+func (r *observableReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.delegate.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 type observableRWT struct {
 	*observableReader
 	delegate datastore.ReadWriteTransaction
@@ -377,6 +414,14 @@ func (rwt *observableRWT) SchemaWriter() (datastore.SchemaWriter, error) {
 	return rwt.delegate.SchemaWriter()
 }
 
+func (rwt *observableRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	singleStoreWriter, ok := rwt.delegate.(datastore.SingleStoreSchemaWriter)
+	if !ok {
+		return errors.New("delegate transaction does not implement SingleStoreSchemaWriter")
+	}
+	return singleStoreWriter.WriteStoredSchema(ctx, schema)
+}
+
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	ctx, closer := observe(ctx, "DeleteRelationships", "", trace.WithAttributes(
 		filterToAttributes(filter)...,
@@ -415,7 +460,13 @@ func observe(ctx context.Context, name string, queryShape string, opts ...trace.
 }
 
 var (
-	_ datastore.Datastore            = (*observableProxy)(nil)
-	_ datastore.Reader               = (*observableReader)(nil)
-	_ datastore.ReadWriteTransaction = (*observableRWT)(nil)
+	_ datastore.Datastore               = (*observableProxy)(nil)
+	_ datastore.Reader                  = (*observableReader)(nil)
+	_ datastore.LegacySchemaReader      = (*observableReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*observableReader)(nil)
+	_ datastore.DualSchemaReader        = (*observableReader)(nil)
+	_ datastore.ReadWriteTransaction    = (*observableRWT)(nil)
+	_ datastore.LegacySchemaWriter      = (*observableRWT)(nil)
+	_ datastore.SingleStoreSchemaWriter = (*observableRWT)(nil)
+	_ datastore.DualSchemaWriter        = (*observableRWT)(nil)
 )

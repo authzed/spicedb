@@ -266,3 +266,30 @@ func (rr *strictReadReplicatedReader) LookupCounters(ctx context.Context) ([]dat
 func (rr *strictReadReplicatedReader) SchemaReader() (datastore.SchemaReader, error) {
 	return rr.replica.SnapshotReader(rr.rev).SchemaReader()
 }
+
+func (rr *strictReadReplicatedReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	sr := rr.replica.SnapshotReader(rr.rev)
+	singleStoreReader, ok := sr.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("replica reader does not implement SingleStoreSchemaReader")
+	}
+
+	schema, err := singleStoreReader.ReadStoredSchema(ctx)
+	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
+		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
+		pr := rr.primary.SnapshotReader(rr.rev)
+		primarySingleStore, ok := pr.(datastore.SingleStoreSchemaReader)
+		if !ok {
+			return nil, errors.New("primary reader does not implement SingleStoreSchemaReader")
+		}
+		return primarySingleStore.ReadStoredSchema(ctx)
+	}
+	return schema, err
+}
+
+var (
+	_ datastore.Reader                  = (*strictReadReplicatedReader)(nil)
+	_ datastore.LegacySchemaReader      = (*strictReadReplicatedReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*strictReadReplicatedReader)(nil)
+	_ datastore.DualSchemaReader        = (*strictReadReplicatedReader)(nil)
+)
