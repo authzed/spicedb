@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // NewSeparatingContextDatastoreProxy severs any timeouts in the context being
@@ -148,7 +149,18 @@ func (r *ctxReader) SchemaReader() (datastore.SchemaReader, error) {
 	return r.delegate.SchemaReader()
 }
 
+func (r *ctxReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.delegate.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, spiceerrors.MustBugf("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(context.WithoutCancel(ctx))
+}
+
 var (
-	_ datastore.Datastore = (*ctxProxy)(nil)
-	_ datastore.Reader    = (*ctxReader)(nil)
+	_ datastore.Datastore               = (*ctxProxy)(nil)
+	_ datastore.Reader                  = (*ctxReader)(nil)
+	_ datastore.LegacySchemaReader      = (*ctxReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*ctxReader)(nil)
+	_ datastore.DualSchemaReader        = (*ctxReader)(nil)
 )

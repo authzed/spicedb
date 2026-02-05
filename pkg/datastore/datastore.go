@@ -956,6 +956,10 @@ type Revision interface {
 
 	// ByteSortable returns true if the string representation of the Revision is byte sortable, false otherwise.
 	ByteSortable() bool
+
+	// Key returns a unique string key for this revision suitable for use in maps and caches.
+	// The key should be deterministic and consistent for equal revisions.
+	Key() string
 }
 
 type nilRevision struct{}
@@ -977,6 +981,10 @@ func (nilRevision) LessThan(_ Revision) bool {
 }
 
 func (nilRevision) String() string {
+	return "nil"
+}
+
+func (nilRevision) Key() string {
 	return "nil"
 }
 

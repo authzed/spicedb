@@ -2352,6 +2352,20 @@ func (mr *MockRevisionMockRecorder) GreaterThan(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GreaterThan", reflect.TypeOf((*MockRevision)(nil).GreaterThan), arg0)
 }
 
+// Key mocks base method.
+func (m *MockRevision) Key() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Key")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Key indicates an expected call of Key.
+func (mr *MockRevisionMockRecorder) Key() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Key", reflect.TypeOf((*MockRevision)(nil).Key))
+}
+
 // LessThan mocks base method.
 func (m *MockRevision) LessThan(arg0 datastore.Revision) bool {
 	m.ctrl.T.Helper()

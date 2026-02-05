@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -373,3 +374,95 @@ func (l *LegacySchemaWriterAdapter) AddDefinitionsForTesting(ctx context.Context
 }
 
 var _ datastore.SchemaWriter = (*LegacySchemaWriterAdapter)(nil)
+
+// NewSchemaReader creates a new schema reader based on the experimental schema mode.
+// The reader parameter must implement DualSchemaReader, which provides both legacy and single-store methods.
+// The snapshotRevision is the revision at which the reader is reading.
+// Based on the schema mode, this function returns the appropriate reader implementation.
+func NewSchemaReader(reader datastore.DualSchemaReader, schemaMode dsoptions.SchemaMode, snapshotRevision datastore.Revision) datastore.SchemaReader {
+	switch schemaMode {
+	case dsoptions.SchemaModeReadNewWriteBoth, dsoptions.SchemaModeReadNewWriteNew:
+		// Use unified schema storage for reading
+		return newSingleStoreSchemaReader(reader, snapshotRevision)
+
+	case dsoptions.SchemaModeReadLegacyWriteLegacy, dsoptions.SchemaModeReadLegacyWriteBoth:
+		// Use legacy schema storage for reading
+		return NewLegacySchemaReaderAdapter(reader)
+
+	default:
+		panic(fmt.Sprintf("unsupported schema mode: %v", schemaMode))
+	}
+}
+
+// NewSchemaWriter creates a new schema writer based on the experimental schema mode.
+// The writer parameter must implement DualSchemaWriter, which provides both legacy and single-store methods.
+// Based on the schema mode, this function returns the appropriate writer implementation:
+// - SchemaModeReadLegacyWriteLegacy: writes only to legacy storage
+// - SchemaModeReadLegacyWriteBoth or SchemaModeReadNewWriteBoth: writes to both legacy and unified storage
+// - SchemaModeReadNewWriteNew: writes only to unified storage
+func NewSchemaWriter(writer datastore.DualSchemaWriter, reader datastore.DualSchemaReader, schemaMode dsoptions.SchemaMode) datastore.SchemaWriter {
+	switch schemaMode {
+	case dsoptions.SchemaModeReadNewWriteNew:
+		// Use unified schema storage only
+		return newSingleStoreSchemaWriter(writer, reader)
+
+	case dsoptions.SchemaModeReadLegacyWriteBoth, dsoptions.SchemaModeReadNewWriteBoth:
+		// Write to both legacy and unified storage
+		return newDualSchemaWriter(writer, reader)
+
+	case dsoptions.SchemaModeReadLegacyWriteLegacy:
+		// Use legacy schema storage only
+		return NewLegacySchemaWriterAdapter(writer, reader)
+
+	default:
+		panic(fmt.Sprintf("unsupported schema mode: %v", schemaMode))
+	}
+}
+
+// dualSchemaWriter writes to both legacy and unified schema storage.
+type dualSchemaWriter struct {
+	legacyWriter  *LegacySchemaWriterAdapter
+	unifiedWriter *singleStoreSchemaWriter
+}
+
+// newDualSchemaWriter creates a new writer that writes to both legacy and unified storage.
+func newDualSchemaWriter(writer datastore.DualSchemaWriter, reader datastore.DualSchemaReader) *dualSchemaWriter {
+	return &dualSchemaWriter{
+		legacyWriter:  NewLegacySchemaWriterAdapter(writer, reader),
+		unifiedWriter: newSingleStoreSchemaWriter(writer, reader),
+	}
+}
+
+// WriteSchema writes the schema to both legacy and unified storage.
+func (d *dualSchemaWriter) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *types.TypeSet) error {
+	// Write to legacy storage first
+	if err := d.legacyWriter.WriteSchema(ctx, definitions, schemaString, caveatTypeSet); err != nil {
+		return fmt.Errorf("failed to write to legacy storage: %w", err)
+	}
+
+	// Write to unified storage
+	if err := d.unifiedWriter.WriteSchema(ctx, definitions, schemaString, caveatTypeSet); err != nil {
+		return fmt.Errorf("failed to write to unified storage: %w", err)
+	}
+
+	return nil
+}
+
+// AddDefinitionsForTesting adds or overwrites schema definitions in both storages.
+func (d *dualSchemaWriter) AddDefinitionsForTesting(ctx context.Context, tb testing.TB, definitions ...datastore.SchemaDefinition) error {
+	tb.Helper()
+
+	// Add to legacy storage first
+	if err := d.legacyWriter.AddDefinitionsForTesting(ctx, tb, definitions...); err != nil {
+		return fmt.Errorf("failed to add to legacy storage: %w", err)
+	}
+
+	// Add to unified storage
+	if err := d.unifiedWriter.AddDefinitionsForTesting(ctx, tb, definitions...); err != nil {
+		return fmt.Errorf("failed to add to unified storage: %w", err)
+	}
+
+	return nil
+}
+
+var _ datastore.SchemaWriter = (*dualSchemaWriter)(nil)
