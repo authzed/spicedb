@@ -65,7 +65,7 @@ func GetWarnings(ctx context.Context, devCtx *DevContext) ([]*devinterface.Devel
 	ts := schema.NewTypeSystem(res)
 
 	for _, def := range devCtx.CompiledSchema.ObjectDefinitions {
-		found, err := addDefinitionWarnings(ctx, def, ts)
+		found, err := AddDefinitionWarnings(ctx, def, ts)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ type contextKey string
 
 var relationKey = contextKey("relation")
 
-func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinition, ts *schema.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
+func AddDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinition, ts *schema.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
 	def, err := schema.NewDefinition(ts, nsDef)
 	if err != nil {
 		return nil, err
@@ -194,6 +194,9 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 	for _, op := range ops {
 		switch t := op.ChildType.(type) {
 		case *corev1.SetOperation_Child_XThis:
+			continue
+
+		case *corev1.SetOperation_Child_XSelf:
 			continue
 
 		case *corev1.SetOperation_Child_ComputedUserset:
