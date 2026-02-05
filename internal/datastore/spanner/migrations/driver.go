@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"cloud.google.com/go/spanner"
@@ -100,11 +101,29 @@ func (smd *SpannerMigrationDriver) RunTx(ctx context.Context, f migrate.TxMigrat
 	return err
 }
 
-func (smd *SpannerMigrationDriver) WriteVersion(_ context.Context, rwt *spanner.ReadWriteTransaction, version, replaced string) error {
-	return rwt.BufferWrite([]*spanner.Mutation{
-		spanner.Delete(tableSchemaVersion, spanner.KeySetFromKeys(spanner.Key{replaced})),
-		spanner.Insert(tableSchemaVersion, []string{colVersionNum}, []any{version}),
-	})
+func (smd *SpannerMigrationDriver) WriteVersion(ctx context.Context, rwt *spanner.ReadWriteTransaction, version, replaced string) error {
+	// Use DML instead of mutations to be compatible with upTx functions that use DML
+	// First delete the old version (if it exists)
+	if replaced != "" {
+		stmt := spanner.Statement{
+			SQL:    "DELETE FROM " + tableSchemaVersion + " WHERE " + colVersionNum + " = @replaced",
+			Params: map[string]any{"replaced": replaced},
+		}
+		if _, err := rwt.Update(ctx, stmt); err != nil {
+			return fmt.Errorf("unable to delete old version: %w", err)
+		}
+	}
+
+	// Then insert the new version
+	stmt := spanner.Statement{
+		SQL:    "INSERT INTO " + tableSchemaVersion + " (" + colVersionNum + ") VALUES (@version)",
+		Params: map[string]any{"version": version},
+	}
+	if _, err := rwt.Update(ctx, stmt); err != nil {
+		return fmt.Errorf("unable to insert new version: %w", err)
+	}
+
+	return nil
 }
 
 func (smd *SpannerMigrationDriver) Close(_ context.Context) error {

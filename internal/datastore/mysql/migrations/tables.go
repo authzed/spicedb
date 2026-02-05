@@ -1,13 +1,15 @@
 package migrations
 
 const (
-	tableNamespaceDefault     = "namespace_config"
-	tableTransactionDefault   = "relation_tuple_transaction"
-	tableTupleDefault         = "relation_tuple"
-	tableMigrationVersion     = "mysql_migration_version"
-	tableMetadataDefault      = "mysql_metadata"
-	tableCaveatDefault        = "caveat"
-	tableRelationshipCounters = "relationship_counters"
+	tableNamespaceDefault      = "namespace_config"
+	tableTransactionDefault    = "relation_tuple_transaction"
+	tableTupleDefault          = "relation_tuple"
+	tableMigrationVersion      = "mysql_migration_version"
+	tableMetadataDefault       = "mysql_metadata"
+	tableCaveatDefault         = "caveat"
+	tableRelationshipCounters  = "relationship_counters"
+	tableSchemaDefault         = "schema_data"
+	tableSchemaRevisionDefault = "schema_revision"
 )
 
 type tables struct {
@@ -18,6 +20,8 @@ type tables struct {
 	tableMetadata             string
 	tableCaveat               string
 	tableRelationshipCounters string
+	tableSchema               string
+	tableSchemaRevision       string
 }
 
 func newTables(prefix string) *tables {
@@ -29,6 +33,8 @@ func newTables(prefix string) *tables {
 		tableMetadata:             prefix + tableMetadataDefault,
 		tableCaveat:               prefix + tableCaveatDefault,
 		tableRelationshipCounters: prefix + tableRelationshipCounters,
+		tableSchema:               prefix + tableSchemaDefault,
+		tableSchemaRevision:       prefix + tableSchemaRevisionDefault,
 	}
 }
 
@@ -61,4 +67,12 @@ func (tn *tables) Caveat() string {
 
 func (tn *tables) RelationshipCounters() string {
 	return tn.tableRelationshipCounters
+}
+
+func (tn *tables) Schema() string {
+	return tn.tableSchema
+}
+
+func (tn *tables) SchemaRevision() string {
+	return tn.tableSchemaRevision
 }
