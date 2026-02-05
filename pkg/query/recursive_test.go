@@ -390,3 +390,16 @@ func TestRecursiveIterator_Types(t *testing.T) {
 		require.Equal("folder", subjectTypes[0].Type)
 	})
 }
+
+// TestRecursiveSentinel_ReplaceSubiterators tests that RecursiveSentinel panics
+func TestRecursiveSentinel_ReplaceSubiterators(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	sentinel := NewRecursiveSentinel("folder", "view", false)
+
+	// Should panic - leaf node
+	require.Panics(func() {
+		_, _ = sentinel.ReplaceSubiterators([]Iterator{})
+	}, "Should panic when trying to replace subiterators on leaf")
+}
