@@ -80,7 +80,7 @@ type contextKey string
 var relationKey = contextKey("relation")
 
 func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinition, ts *schema.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
-	def, err := schema.NewDefinition(ts, nsDef)
+	def, err := schema.NewDefinition(nsDef)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinitio
 				continue
 			}
 
-			checkerWarning, err := check.fn(ctx, rel, def)
+			checkerWarning, err := check.fn(ctx, rel, def, ts)
 			if err != nil {
 				return nil, err
 			}
@@ -105,7 +105,7 @@ func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinitio
 		}
 
 		if def.IsPermission(rel.Name) {
-			found, err := walkUsersetRewrite(ctx, rel.UsersetRewrite, rel, allChecks, def)
+			found, err := walkUsersetRewrite(ctx, rel.UsersetRewrite, rel, allChecks, def, ts)
 			if err != nil {
 				return nil, err
 			}
@@ -143,9 +143,9 @@ type ttu interface {
 }
 
 type (
-	relationChecker        func(ctx context.Context, relation *corev1.Relation, def *schema.Definition) (*devinterface.DeveloperWarning, error)
-	computedUsersetChecker func(ctx context.Context, computedUserset *corev1.ComputedUserset, sourcePosition *corev1.SourcePosition, def *schema.Definition) (*devinterface.DeveloperWarning, error)
-	ttuChecker             func(ctx context.Context, ttu ttu, sourcePosition *corev1.SourcePosition, def *schema.Definition) (*devinterface.DeveloperWarning, error)
+	relationChecker        func(ctx context.Context, relation *corev1.Relation, def *schema.Definition, ts *schema.TypeSystem) (*devinterface.DeveloperWarning, error)
+	computedUsersetChecker func(ctx context.Context, computedUserset *corev1.ComputedUserset, sourcePosition *corev1.SourcePosition, def *schema.Definition, ts *schema.TypeSystem) (*devinterface.DeveloperWarning, error)
+	ttuChecker             func(ctx context.Context, ttu ttu, sourcePosition *corev1.SourcePosition, def *schema.Definition, ts *schema.TypeSystem) (*devinterface.DeveloperWarning, error)
 )
 
 type relationCheck struct {
@@ -169,27 +169,27 @@ type checks struct {
 	ttuChecks             []ttuCheck
 }
 
-func walkUsersetRewrite(ctx context.Context, rewrite *corev1.UsersetRewrite, relation *corev1.Relation, checks checks, def *schema.Definition) ([]*devinterface.DeveloperWarning, error) {
+func walkUsersetRewrite(ctx context.Context, rewrite *corev1.UsersetRewrite, relation *corev1.Relation, checks checks, def *schema.Definition, ts *schema.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
 	if rewrite == nil {
 		return nil, nil
 	}
 
 	switch t := (rewrite.RewriteOperation).(type) {
 	case *corev1.UsersetRewrite_Union:
-		return walkUsersetOperations(ctx, t.Union.Child, relation, checks, def)
+		return walkUsersetOperations(ctx, t.Union.Child, relation, checks, def, ts)
 
 	case *corev1.UsersetRewrite_Intersection:
-		return walkUsersetOperations(ctx, t.Intersection.Child, relation, checks, def)
+		return walkUsersetOperations(ctx, t.Intersection.Child, relation, checks, def, ts)
 
 	case *corev1.UsersetRewrite_Exclusion:
-		return walkUsersetOperations(ctx, t.Exclusion.Child, relation, checks, def)
+		return walkUsersetOperations(ctx, t.Exclusion.Child, relation, checks, def, ts)
 
 	default:
 		return nil, spiceerrors.MustBugf("unexpected rewrite operation type %T", t)
 	}
 }
 
-func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child, relation *corev1.Relation, checks checks, def *schema.Definition) ([]*devinterface.DeveloperWarning, error) {
+func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child, relation *corev1.Relation, checks checks, def *schema.Definition, ts *schema.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
 	warnings := []*devinterface.DeveloperWarning{}
 	for _, op := range ops {
 		switch t := op.ChildType.(type) {
@@ -202,7 +202,7 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 					continue
 				}
 
-				checkerWarning, err := check.fn(ctx, t.ComputedUserset, op.SourcePosition, def)
+				checkerWarning, err := check.fn(ctx, t.ComputedUserset, op.SourcePosition, def, ts)
 				if err != nil {
 					return nil, err
 				}
@@ -213,7 +213,7 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 			}
 
 		case *corev1.SetOperation_Child_UsersetRewrite:
-			found, err := walkUsersetRewrite(ctx, t.UsersetRewrite, relation, checks, def)
+			found, err := walkUsersetRewrite(ctx, t.UsersetRewrite, relation, checks, def, ts)
 			if err != nil {
 				return nil, err
 			}
@@ -226,7 +226,7 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 					continue
 				}
 
-				checkerWarning, err := check.fn(ctx, wrappedFunctionedTTU{t.FunctionedTupleToUserset}, op.SourcePosition, def)
+				checkerWarning, err := check.fn(ctx, wrappedFunctionedTTU{t.FunctionedTupleToUserset}, op.SourcePosition, def, ts)
 				if err != nil {
 					return nil, err
 				}
@@ -242,7 +242,7 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 					continue
 				}
 
-				checkerWarning, err := check.fn(ctx, wrappedTTU{t.TupleToUserset}, op.SourcePosition, def)
+				checkerWarning, err := check.fn(ctx, wrappedTTU{t.TupleToUserset}, op.SourcePosition, def, ts)
 				if err != nil {
 					return nil, err
 				}
