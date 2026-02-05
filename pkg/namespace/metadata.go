@@ -193,3 +193,94 @@ func SetTypeAnnotations(relation *core.Relation, typeAnnotations []string) error
 	relation.Metadata.MetadataMessage = append(relation.Metadata.MetadataMessage, metadataAny)
 	return nil
 }
+
+// HasMixedOperatorsWithoutParens returns whether the permission expression contains mixed operators
+// (union, intersection, exclusion) at the same scope level without explicit parentheses.
+func HasMixedOperatorsWithoutParens(relation *core.Relation) bool {
+	if relation.Metadata == nil {
+		return false
+	}
+
+	for _, metadataAny := range relation.Metadata.MetadataMessage {
+		var relationMetadata iv1.RelationMetadata
+		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
+			continue
+		}
+
+		if relationMetadata.Kind == iv1.RelationMetadata_PERMISSION {
+			return relationMetadata.HasMixedOperatorsWithoutParentheses
+		}
+	}
+
+	return false
+}
+
+// GetMixedOperatorsPosition returns the source position of the first mixed operator found,
+// or nil if none.
+func GetMixedOperatorsPosition(relation *core.Relation) *core.SourcePosition {
+	if relation.Metadata == nil {
+		return nil
+	}
+
+	for _, metadataAny := range relation.Metadata.MetadataMessage {
+		var relationMetadata iv1.RelationMetadata
+		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
+			continue
+		}
+
+		if relationMetadata.Kind == iv1.RelationMetadata_PERMISSION {
+			return relationMetadata.MixedOperatorsPosition
+		}
+	}
+
+	return nil
+}
+
+// SetMixedOperatorsWithoutParens sets the mixed operators flag and position for a permission relation.
+func SetMixedOperatorsWithoutParens(relation *core.Relation, hasMixed bool, position *core.SourcePosition) error {
+	if relation.Metadata == nil {
+		if !hasMixed {
+			return nil // Nothing to set
+		}
+		relation.Metadata = &core.Metadata{}
+	}
+
+	// Find existing PERMISSION RelationMetadata and update it
+	for i, metadataAny := range relation.Metadata.MetadataMessage {
+		var relationMetadata iv1.RelationMetadata
+		if err := metadataAny.UnmarshalTo(&relationMetadata); err != nil {
+			continue
+		}
+
+		if relationMetadata.Kind == iv1.RelationMetadata_PERMISSION {
+			relationMetadata.HasMixedOperatorsWithoutParentheses = hasMixed
+			relationMetadata.MixedOperatorsPosition = position
+
+			updatedAny, err := anypb.New(&relationMetadata)
+			if err != nil {
+				return err
+			}
+
+			relation.Metadata.MetadataMessage[i] = updatedAny
+			return nil
+		}
+	}
+
+	// If no existing PERMISSION RelationMetadata found and we need to set the flag
+	if hasMixed {
+		relationMetadata := &iv1.RelationMetadata{
+			Kind:                                iv1.RelationMetadata_PERMISSION,
+			HasMixedOperatorsWithoutParentheses: hasMixed,
+			MixedOperatorsPosition:              position,
+		}
+
+		metadataAny, err := anypb.New(relationMetadata)
+		if err != nil {
+			return err
+		}
+
+		relation.Metadata.MetadataMessage = append(relation.Metadata.MetadataMessage, metadataAny)
+	}
+
+	return nil
+}

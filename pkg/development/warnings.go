@@ -3,6 +3,7 @@ package development
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ccoveille/go-safecast/v2"
 
@@ -17,6 +18,7 @@ import (
 var allChecks = checks{
 	relationChecks: []relationCheck{
 		lintRelationReferencesParentType,
+		lintMixedOperatorsWithoutParentheses,
 	},
 	computedUsersetChecks: []computedUsersetCheck{
 		lintPermissionReferencingItself,
@@ -64,8 +66,11 @@ func GetWarnings(ctx context.Context, devCtx *DevContext) ([]*devinterface.Devel
 	res := schema.ResolverForCompiledSchema(devCtx.CompiledSchema)
 	ts := schema.NewTypeSystem(res)
 
+	// Pre-split schema string once for performance when checking multiple permissions
+	schemaLines := strings.Split(devCtx.SchemaString, "\n")
+
 	for _, def := range devCtx.CompiledSchema.ObjectDefinitions {
-		found, err := addDefinitionWarnings(ctx, def, ts)
+		found, err := addDefinitionWarnings(ctx, def, ts, schemaLines)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +84,7 @@ type contextKey string
 
 var relationKey = contextKey("relation")
 
-func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinition, ts *schema.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
+func addDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinition, ts *schema.TypeSystem, schemaLines []string) ([]*devinterface.DeveloperWarning, error) {
 	def, err := schema.NewDefinition(ts, nsDef)
 	if err != nil {
 		return nil, err

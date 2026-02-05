@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/schema"
@@ -225,6 +226,36 @@ var lintArrowReferencingRelation = ttuCheck{
 					sourcePosition,
 				), nil
 			}
+		}
+
+		return nil, nil
+	},
+}
+
+var lintMixedOperatorsWithoutParentheses = relationCheck{
+	"mixed-operators-without-parentheses",
+	func(
+		ctx context.Context,
+		relation *corev1.Relation,
+		def *schema.Definition,
+	) (*devinterface.DeveloperWarning, error) {
+		// Only check permissions, not relations.
+		if !def.IsPermission(relation.Name) {
+			return nil, nil
+		}
+
+		// Check if the permission has mixed operators without parentheses.
+		if namespace.HasMixedOperatorsWithoutParens(relation) {
+			position := namespace.GetMixedOperatorsPosition(relation)
+			return warningForPosition(
+				"mixed-operators-without-parentheses",
+				fmt.Sprintf(
+					"Permission %q mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence",
+					relation.Name,
+				),
+				relation.Name,
+				position,
+			), nil
 		}
 
 		return nil, nil

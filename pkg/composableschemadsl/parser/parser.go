@@ -652,18 +652,23 @@ func (p *sourceParser) tryConsumeArrowExpression() (AstNode, bool) {
 // ```nil```
 func (p *sourceParser) tryConsumeBaseExpression() (AstNode, bool) {
 	switch {
-	// Nested expression.
+	// Nested expression - wrap in NodeTypeParenthesizedExpression to preserve parentheses info.
 	case p.isToken(lexer.TokenTypeLeftParen):
 		comments := p.currentToken.comments
 
+		wrapperNode := p.startNode(dslshape.NodeTypeParenthesizedExpression)
+
 		p.consume(lexer.TokenTypeLeftParen)
-		exprNode := p.consumeComputeExpression()
+		innerExprNode := p.consumeComputeExpression()
 		p.consume(lexer.TokenTypeRightParen)
 
-		// Attach any comments found to the consumed expression.
-		p.decorateComments(exprNode, comments)
+		wrapperNode.Connect(dslshape.NodeParenthesizedExpressionPredicateInnerExpr, innerExprNode)
+		p.mustFinishNode()
 
-		return exprNode, true
+		// Attach any comments found to the wrapper node.
+		p.decorateComments(wrapperNode, comments)
+
+		return wrapperNode, true
 
 	// Self expression.
 	case p.isKeyword("self"):
