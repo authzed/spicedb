@@ -78,7 +78,6 @@ func (cds *crdbDatastore) DefaultsWatchOptions() datastore.WatchOptions {
 }
 
 func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
-	fmt.Printf("%+v\n", options)
 	updates := make(chan datastore.RevisionChanges, options.WatchBufferLength)
 	errs := make(chan error, 1)
 

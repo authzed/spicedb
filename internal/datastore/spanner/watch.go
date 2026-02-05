@@ -18,6 +18,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -55,7 +56,6 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 
 func (sd *spannerDatastore) DefaultsWatchOptions() datastore.WatchOptions {
 	return datastore.WatchOptions{
-		CheckpointInterval:      100 * time.Millisecond,
 		WatchBufferLength:       defaultWatchBufferLength,
 		WatchBufferWriteTimeout: defaultWatchBufferWriteTimeout,
 		// Spanner does not use WatchConnectTimeout
@@ -87,6 +87,15 @@ func (sd *spannerDatastore) watch(
 ) {
 	defer close(updates)
 	defer close(errs)
+
+	if opts.CheckpointInterval < minimumCheckpointInterval {
+		log.Warn().Msgf("--watch-api-heartbeat set too small, using %d", minimumCheckpointInterval)
+		opts.CheckpointInterval = minimumCheckpointInterval
+	}
+	if opts.CheckpointInterval > maximumCheckpointInterval {
+		log.Warn().Msgf("--watch-api-heartbeat set too high, using %d", maximumCheckpointInterval)
+		opts.CheckpointInterval = maximumCheckpointInterval
+	}
 
 	sendError := func(err error) {
 		if errors.Is(ctx.Err(), context.Canceled) || common.IsCancellationError(err) {
