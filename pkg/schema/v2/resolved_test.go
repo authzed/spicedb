@@ -29,6 +29,35 @@ func TestResolveSchema_Empty(t *testing.T) {
 	require.Empty(t, resolved.Schema().definitions)
 }
 
+func TestResolveSchema_SelfReference(t *testing.T) {
+	schema := &Schema{
+		definitions: map[string]*Definition{
+			"user": {
+				name: "user",
+				permissions: map[string]*Permission{
+					"view": {
+						name:      "view",
+						operation: &SelfReference{},
+					},
+				},
+			},
+		},
+	}
+
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+
+	// Check that the original schema is unchanged
+	originalPerm := schema.definitions["user"].permissions["view"]
+	require.IsType(t, &SelfReference{}, originalPerm.operation)
+
+	// Check that the resolved schema has ResolvedRelationReference
+	resolvedDef := resolved.Schema().definitions["user"]
+	resolvedPerm := resolvedDef.permissions["view"]
+	require.IsType(t, &SelfReference{}, resolvedPerm.operation)
+}
+
 func TestResolveSchema_SimpleRelationReference(t *testing.T) {
 	rel := &Relation{
 		name:          "viewer",

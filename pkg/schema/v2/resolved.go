@@ -151,6 +151,10 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 		// NilReference is not replaced during resolution
 		return o, nil
 
+	case *SelfReference:
+		// SelfReference is not replaced during resolution
+		return o, nil
+
 	default:
 		return nil, fmt.Errorf("unknown operation type: %T", op)
 	}

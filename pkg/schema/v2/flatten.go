@@ -185,6 +185,10 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 		// Nil reference is a leaf node, no flattening needed
 		return o, nil, nil
 
+	case *SelfReference:
+		// Self reference is a leaf node, no flattening needed
+		return o, nil, nil
+
 	case *UnionOperation:
 		// Flatten children first
 		flattenedChildren := make([]Operation, len(o.children))

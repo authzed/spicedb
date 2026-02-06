@@ -220,6 +220,9 @@ func setOperationReferencesRelation(ctx context.Context, so *core.SetOperation, 
 		case *core.SetOperation_Child_XNil:
 			// Nothing to do
 
+		case *core.SetOperation_Child_XSelf:
+			// Nothing to do
+
 		default:
 			return false, fmt.Errorf("unknown set operation child `%T` in setOperationReferencesRelation", child)
 		}
