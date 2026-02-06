@@ -5,7 +5,8 @@ import (
 	"slices"
 	"time"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"buf.build/go/protovalidate"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -31,9 +32,17 @@ type watchServer struct {
 
 // NewWatchServer creates an instance of the watch server.
 func NewWatchServer(heartbeatDuration time.Duration) v1.WatchServiceServer {
+	validator, err := protovalidate.New()
+	if err != nil {
+		// This error will only be encountered if protovalidate can't initialize
+		// its CEL environment, which can only happen on startup and shouldn't happen
+		// if the binary is packaged correctly.
+		panic(err)
+	}
+
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
-			Stream: grpcvalidate.StreamServerInterceptor(),
+			Stream: grpcvalidate.StreamServerInterceptor(validator),
 		},
 		heartbeatDuration: heartbeatDuration,
 	}

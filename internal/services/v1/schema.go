@@ -5,7 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"buf.build/go/protovalidate"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -45,15 +46,24 @@ type SchemaServerConfig struct {
 // NewSchemaServer creates a SchemaServiceServer instance.
 func NewSchemaServer(config SchemaServerConfig) v1.SchemaServiceServer {
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
+
+	validator, err := protovalidate.New()
+	if err != nil {
+		// This error will only be encountered if protovalidate can't initialize
+		// its CEL environment, which can only happen on startup and shouldn't happen
+		// if the binary is packaged correctly.
+		panic(err)
+	}
+
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(),
+				grpcvalidate.UnaryServerInterceptor(validator),
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(),
+				grpcvalidate.StreamServerInterceptor(validator),
 				usagemetrics.StreamServerInterceptor(),
 				perfinsights.StreamServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),
