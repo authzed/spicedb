@@ -181,6 +181,10 @@ func (p *countingProxy) RevisionFromString(serialized string) (datastore.Revisio
 	return p.delegate.RevisionFromString(serialized)
 }
 
+func (p *countingProxy) DefaultsWatchOptions() datastore.WatchOptions {
+	return p.delegate.DefaultsWatchOptions()
+}
+
 func (p *countingProxy) Watch(ctx context.Context, afterRevision datastore.Revision, watchOptions datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	return p.delegate.Watch(ctx, afterRevision, watchOptions)
 }
