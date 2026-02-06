@@ -74,7 +74,7 @@ func (r *RecursiveSentinel) Clone() Iterator {
 func (r *RecursiveSentinel) Explain() Explain {
 	return Explain{
 		Name: "RecursiveSentinel",
-		Info: fmt.Sprintf("%s#%s (withSubRelations=%v)", r.definitionName, r.relationName, r.withSubRelations),
+		Info: fmt.Sprintf("RecursiveSentinel(%s#%s withSubRelations=%v)", r.definitionName, r.relationName, r.withSubRelations),
 	}
 }
 
