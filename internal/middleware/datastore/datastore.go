@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"context"
-	"fmt"
 
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"google.golang.org/grpc"
@@ -42,17 +41,6 @@ func MustFromContext(ctx context.Context) datastore.Datastore {
 	}
 
 	return datastore
-}
-
-// FromContextOrErr reads the selected datastore out of a context.Context and returns
-// an error if it does not exist.
-func FromContextOrErr(ctx context.Context) (datastore.Datastore, error) {
-	datastore := FromContext(ctx)
-	if datastore == nil {
-		return nil, fmt.Errorf("datastore middleware did not inject datastore")
-	}
-
-	return datastore, nil
 }
 
 // SetInContext adds a datastore to the given context

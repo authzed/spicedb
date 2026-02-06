@@ -135,13 +135,22 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 	namespaceCacheFlags.DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 1*time.Second, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
-	server.MustRegisterCacheFlags(namespaceCacheFlags, "ns-cache", "schema", &config.NamespaceCacheConfig, namespaceCacheDefaults)
+	err := server.RegisterCacheFlags(namespaceCacheFlags, "ns-cache", "schema", &config.NamespaceCacheConfig, namespaceCacheDefaults)
+	if err != nil {
+		return fmt.Errorf("could not register namespace cache flags: %w", err)
+	}
 
 	dispatchFlags := nfs.FlagSet(BoldBlue("Dispatch"))
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(dispatchFlags, &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
-	server.MustRegisterCacheFlags(dispatchFlags, "dispatch-cache", "dispatch calls this server makes to other servers", &config.DispatchCacheConfig, dispatchCacheDefaults)
-	server.MustRegisterCacheFlags(dispatchFlags, "dispatch-cluster-cache", "dispatch calls this server receives from other servers", &config.ClusterDispatchCacheConfig, dispatchClusterCacheDefaults)
+	err = server.RegisterCacheFlags(dispatchFlags, "dispatch-cache", "dispatch calls this server makes to other servers", &config.DispatchCacheConfig, dispatchCacheDefaults)
+	if err != nil {
+		return fmt.Errorf("could not register dispatch cache flags: %w", err)
+	}
+	err = server.RegisterCacheFlags(dispatchFlags, "dispatch-cluster-cache", "dispatch calls this server receives from other servers", &config.ClusterDispatchCacheConfig, dispatchClusterCacheDefaults)
+	if err != nil {
+		return fmt.Errorf("could not register dispatch cluster cache flags: %w", err)
+	}
 
 	// Flags for configuring dispatch requests
 	dispatchFlags.Uint16Var(&config.DispatchChunkSize, "dispatch-chunk-size", 100, "maximum number of object IDs in a dispatched request")
@@ -188,7 +197,10 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
 
-	server.MustRegisterCacheFlags(experimentalFlags, "lookup-resources-chunk-cache", "LookupResources3 chunks", &config.LR3ResourceChunkCacheConfig, lr3ChunkCacheDefaults)
+	err = server.RegisterCacheFlags(experimentalFlags, "lookup-resources-chunk-cache", "LookupResources3 chunks", &config.LR3ResourceChunkCacheConfig, lr3ChunkCacheDefaults)
+	if err != nil {
+		return fmt.Errorf("could not register lookup resources chunk cache flags: %w", err)
+	}
 
 	tracingFlags := nfs.FlagSet(BoldBlue("Tracing"))
 	// Flags for tracing

@@ -69,3 +69,38 @@ func MustConvert(value string) int {
 	}
 	return 42
 }
+
+// Example 9: Must method called in a method that has a function parameter but doesn't return error (OK)
+// This simulates the ForEachType pattern where a method accepts a handler function
+func ProcessEachItem(items []string, handler func(item string)) {
+	for _, item := range items {
+		// This MustParse call should be OK because ProcessEachItem doesn't return an error
+		parsed := MustParse(item)
+		handler(parsed.Value)
+	}
+}
+
+// Example 10: Similar pattern with a handler that returns error, but the outer method doesn't (OK)
+func ForEachType(handler func(name string) error) {
+	items := []string{"a", "b", "c"}
+	for _, item := range items {
+		// This MustParse should be OK because ForEachType itself doesn't return error
+		_ = MustParse(item)
+		_ = handler(item)
+	}
+}
+
+// Example 11: Method with SubjectSet parameter type (mimics real ForEachType from datasets)
+type SubjectSet interface{}
+
+func (s *DataSet) ForEachTypeMethod(handler func(name string, subjects SubjectSet)) {
+	items := map[string]string{"a": "x", "b": "y"}
+	for key := range items {
+		// This MustParse should be OK because ForEachTypeMethod doesn't return error
+		result := MustParse(key)
+		handler(result.Value, nil)
+	}
+}
+
+type DataSet struct{}
+

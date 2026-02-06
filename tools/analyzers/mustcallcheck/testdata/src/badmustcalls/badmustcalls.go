@@ -71,3 +71,17 @@ func AnotherPattern() (error, string) {
 	_ = regexp.MustCompile("test") // want "found call to MustCompile in error-returning function"
 	return nil, "ok"
 }
+
+// Example 7: Must* call in a handler function that returns error should be caught
+// This tests that the analyzer correctly identifies the error-returning closure
+func OuterMethodNoError() {
+	items := []string{"a", "b", "c"}
+	for _, item := range items {
+		// Define a handler that returns error
+		handler := func(input string) error {
+			_ = MustParse(input) // want "found call to MustParse in error-returning function"
+			return nil
+		}
+		_ = handler(item)
+	}
+}

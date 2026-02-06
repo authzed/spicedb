@@ -27,10 +27,11 @@ func mustInit() {
 	}
 }
 
+var indexColumnRegex = regexp.MustCompile(`\(([^)]+)\)`)
+
 func parseIndexColumns(columnsSQL string) ([]string, error) {
 	// Match columns within parentheses, handling both PRIMARY KEY and table_name formats
-	re := regexp.MustCompile(`\(([^)]+)\)`)
-	matches := re.FindStringSubmatch(columnsSQL)
+	matches := indexColumnRegex.FindStringSubmatch(columnsSQL)
 	if len(matches) < 2 {
 		return nil, fmt.Errorf("no columns found in parentheses in SQL: %s", columnsSQL)
 	}

@@ -26,6 +26,11 @@ var (
 		// MustValue is used to pull ctxkey values out of context. If the value isn't
 		// present, it means there's probably a bug and a panic is appropriate.
 		"MustValue",
+		// MustNewInterceptorPooler comes from pgx and doesn't have an alternative
+		"MustNewInterceptorPooler",
+		// MustRequirePresharedKey is intended to be a guardrail if the preshared key isn't
+		// present at the callsite.
+		"MustRequirePresharedKey",
 	}
 	packageAllowList = []string{
 		// cobrautil has many Must* functions but doesn't have non-Must variants

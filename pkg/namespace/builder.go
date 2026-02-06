@@ -304,7 +304,6 @@ func TupleToUserset(tuplesetRelation, usersetRelation string) *core.SetOperation
 	}
 }
 
-
 // MustFunctionedTupleToUserset creates a child which first loads all tuples with the specific relation,
 // and then applies the function to all children on the usersets found by following a relation on those loaded
 // tuples.
@@ -356,4 +355,3 @@ func Rewrite(rewrite *core.UsersetRewrite) *core.SetOperation_Child {
 		},
 	}
 }
-
