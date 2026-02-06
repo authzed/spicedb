@@ -20,6 +20,12 @@ var (
 		"MustBugf",
 		// MustPanicf is explicitly for violating the linter when necessary
 		"MustPanicf",
+		// MustFromContext is used to grab a datastore handle out of context;
+		// if the datastore reference isn't available we should probably panic.
+		"MustFromContext",
+		// MustValue is used to pull ctxkey values out of context. If the value isn't
+		// present, it means there's probably a bug and a panic is appropriate.
+		"MustValue",
 	}
 	packageAllowList = []string{
 		// cobrautil has many Must* functions but doesn't have non-Must variants
