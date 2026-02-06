@@ -379,7 +379,6 @@ spicedb postgres-fdw [flags]
       --postgres-access-token-secret string   (required) The password that Postgres will use to authenticate to the FDW proxy (configured in the Postgres FDW extension's OPTIONS)
       --postgres-endpoint string              The endpoint at which to serve the Postgres protocol (default ":5432")
       --postgres-username string              The username that Postgres will use to connect to the FDW proxy (default "postgres")
-      --shutdown-grace-period duration        The duration to wait for the server to shutdown gracefully
       --spicedb-access-token-secret string    (required) Access token for calling the SpiceDB API
       --spicedb-api-endpoint string           SpiceDB API endpoint (default "localhost:50051")
       --spicedb-insecure                      Use insecure connection to SpiceDB API
@@ -526,7 +525,7 @@ spicedb serve [flags]
       --grpc-max-workers uint32                                                         set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                                             network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --grpc-preshared-key strings                                                      (required) preshared key(s) that must be provided by clients to authenticate requests
-      --grpc-shutdown-grace-period duration                                             time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit
+      --grpc-shutdown-grace-period duration                                             time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit (default 5s)
       --grpc-tls-cert-path string                                                       local path to the TLS certificate used to serve gRPC
       --grpc-tls-key-path string                                                        local path to the TLS key used to serve gRPC
       --http-addr string                                                                address to listen on to serve proxy (default ":8443")
@@ -599,6 +598,7 @@ spicedb serve-testing [flags]
       --grpc-max-conn-age duration                               how long a connection serving gRPC should be able to live (default 30s)
       --grpc-max-workers uint32                                  set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                      network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
+      --grpc-shutdown-grace-period duration                      time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit (default 5s)
       --grpc-tls-cert-path string                                local path to the TLS certificate used to serve gRPC
       --grpc-tls-key-path string                                 local path to the TLS key used to serve gRPC
       --http-addr string                                         address to listen on to serve http (default ":8443")

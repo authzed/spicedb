@@ -113,24 +113,14 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 	srv := grpc.NewServer(opts...)
 	svcRegistrationFn(srv)
 	return &completedGRPCServer{
+		srv:               srv,
 		opts:              opts,
 		listener:          l,
 		svcRegistrationFn: svcRegistrationFn,
-		listenFunc: func() error {
-			return srv.Serve(l)
-		},
-		dial:    dial,
-		netDial: netDial,
-		prestopFunc: func() {
-			log.WithLevel(level).
-				Str("addr", c.Address).
-				Str("network", c.Network).
-				Str("service", c.flagPrefix).
-				Msg("grpc server stopped serving")
-		},
-		stopFunc:    srv.GracefulStop,
-		creds:       clientCreds,
-		certWatcher: certWatcher,
+		dial:              dial,
+		netDial:           netDial,
+		creds:             clientCreds,
+		certWatcher:       certWatcher,
 	}, nil
 }
 
@@ -198,41 +188,27 @@ func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, erro
 }
 
 type RunnableGRPCServer interface {
-	WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer
-	Listen(ctx context.Context) func() error
+	Listen(ctx context.Context) error
 	DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	NetDialContext(ctx context.Context, s string) (net.Conn, error)
 	Insecure() bool
 	GracefulStop()
+	ForceStop()
 }
 
 type completedGRPCServer struct {
 	opts              []grpc.ServerOption
 	listener          net.Listener
 	svcRegistrationFn func(*grpc.Server)
-	listenFunc        func() error
-	prestopFunc       func()
-	stopFunc          func()
 	dial              func(context.Context, ...grpc.DialOption) (*grpc.ClientConn, error)
 	netDial           func(ctx context.Context, s string) (net.Conn, error)
 	creds             credentials.TransportCredentials
 	certWatcher       *certwatcher.CertWatcher
-}
-
-// WithOpts adds to the options for running the server
-func (c *completedGRPCServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer {
-	c.opts = append(c.opts, opts...)
-	srv := grpc.NewServer(c.opts...)
-	c.svcRegistrationFn(srv)
-	c.listenFunc = func() error {
-		return srv.Serve(c.listener)
-	}
-	c.stopFunc = srv.GracefulStop
-	return c
+	srv               *grpc.Server
 }
 
 // Listen runs a configured server
-func (c *completedGRPCServer) Listen(ctx context.Context) func() error {
+func (c *completedGRPCServer) Listen(ctx context.Context) error {
 	if c.certWatcher != nil {
 		go func() {
 			if err := c.certWatcher.Start(ctx); err != nil {
@@ -240,7 +216,7 @@ func (c *completedGRPCServer) Listen(ctx context.Context) func() error {
 			}
 		}()
 	}
-	return c.listenFunc
+	return c.srv.Serve(c.listener)
 }
 
 // DialContext starts a connection to grpc server
@@ -261,22 +237,18 @@ func (c *completedGRPCServer) Insecure() bool {
 
 // GracefulStop stops a running server
 func (c *completedGRPCServer) GracefulStop() {
-	c.prestopFunc()
-	c.stopFunc()
+	c.srv.GracefulStop()
+}
+
+func (c *completedGRPCServer) ForceStop() {
+	c.srv.Stop()
 }
 
 type disabledGrpcServer struct{}
 
-// WithOpts adds to the options for running the server
-func (d *disabledGrpcServer) WithOpts(_ ...grpc.ServerOption) RunnableGRPCServer {
-	return d
-}
-
 // Listen runs a configured server
-func (d *disabledGrpcServer) Listen(_ context.Context) func() error {
-	return func() error {
-		return nil
-	}
+func (d *disabledGrpcServer) Listen(_ context.Context) error {
+	return nil
 }
 
 // Insecure returns true if the server is configured without TLS enabled
@@ -296,6 +268,9 @@ func (d *disabledGrpcServer) NetDialContext(_ context.Context, _ string) (net.Co
 
 // GracefulStop stops a running server
 func (d *disabledGrpcServer) GracefulStop() {}
+
+func (d *disabledGrpcServer) ForceStop() {
+}
 
 type HTTPServerConfig struct {
 	HTTPAddress     string `debugmap:"visible"`
@@ -319,11 +294,6 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 	switch {
 	case c.HTTPTLSCertPath == "" && c.HTTPTLSKeyPath == "":
 		serveFunc = func() error {
-			log.WithLevel(level).
-				Str("addr", srv.Addr).
-				Str("service", c.flagPrefix).
-				Bool("insecure", c.HTTPTLSCertPath == "" && c.HTTPTLSKeyPath == "").
-				Msg("http server started serving")
 			return srv.ListenAndServe()
 		}
 
@@ -341,11 +311,6 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 			return nil, err
 		}
 		serveFunc = func() error {
-			log.WithLevel(level).
-				Str("addr", srv.Addr).
-				Str("prefix", c.flagPrefix).
-				Bool("insecure", c.HTTPTLSCertPath == "" && c.HTTPTLSKeyPath == "").
-				Msg("http server started serving")
 			return srv.Serve(listener)
 		}
 	default:
@@ -357,6 +322,11 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 
 	return &completedHTTPServer{
 		srvFunc: func() error {
+			log.WithLevel(level).
+				Str("addr", srv.Addr).
+				Str("service", c.flagPrefix).
+				Bool("insecure", c.HTTPTLSCertPath == "" && c.HTTPTLSKeyPath == "").
+				Msg("http server started serving")
 			if err := serveFunc(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				return fmt.Errorf("failed while serving http: %w", err)
 			}

@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -74,7 +76,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(grpcFlagSet, &config.GRPCServer, "grpc", "gRPC", ":50051", true)
 	grpcFlagSet.StringSliceVar(&config.PresharedSecureKey, PresharedKeyFlag, []string{}, "(required) preshared key(s) that must be provided by clients to authenticate requests")
-	grpcFlagSet.DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 0*time.Second, "time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit")
+	grpcFlagSet.DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 5*time.Second, "time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit")
 	if err := cobra.MarkFlagRequired(grpcFlagSet, PresharedKeyFlag); err != nil {
 		return fmt.Errorf("failed to mark flag as required: %w", err)
 	}
@@ -252,10 +254,9 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			signalctx := SignalContextWithGracePeriod(
-				context.Background(),
-				config.ShutdownGracePeriod,
-			)
+			signalctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+
 			return server.Run(signalctx)
 		}),
 		Example: server.ServeExample(programName),

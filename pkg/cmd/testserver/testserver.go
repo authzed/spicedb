@@ -48,6 +48,7 @@ type Config struct {
 	MaxLookupResourcesLimit         uint32                `debugmap:"visible"`
 	MaxBulkExportRelationshipsLimit uint32                `debugmap:"visible"`
 	CaveatTypeSet                   *caveattypes.TypeSet  `debugmap:"hidden"`
+	ShutdownGracePeriod             time.Duration         `debugmap:"visible"`
 }
 
 type RunnableTestServer interface {
@@ -62,8 +63,16 @@ func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, er
 	return datastore.ReadyState{IsReady: true}, nil
 }
 
-func (c *Config) Complete() (RunnableTestServer, error) {
-	log.Ctx(context.Background()).Info().Fields(c.FlatDebugMap()).Msg("configuration")
+func (c *Config) Complete(ctx context.Context) (RunnableTestServer, error) {
+	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
+	closeables := util.CloseableStack{}
+	var err error
+	defer func() {
+		// if an error happens during the execution of Complete, all resources are cleaned up
+		if closeableErr := closeables.CloseIfError(err); closeableErr != nil {
+			log.Ctx(ctx).Err(closeableErr).Msg("failed to clean up resources on Config.Complete")
+		}
+	}()
 
 	cts := caveattypes.TypeSetOrDefault(c.CaveatTypeSet)
 
@@ -78,6 +87,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 	}
+	closeables.AddWithError(dispatcher.Close)
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs, cts)
 	healthManager := health.NewHealthManager(dispatcher, &datastoreReady{})
 
@@ -138,6 +148,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	if err != nil {
 		return nil, err
 	}
+	closeables.AddCloserWithGracePeriod("grpc", c.ShutdownGracePeriod, gRPCSrv.GracefulStop, gRPCSrv.ForceStop)
 
 	readOnlyGRPCSrv, err := c.ReadOnlyGRPCServer.Complete(zerolog.InfoLevel, registerServices,
 		grpc.ChainUnaryInterceptor(
@@ -151,11 +162,13 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	if err != nil {
 		return nil, err
 	}
+	closeables.AddCloserWithGracePeriod("readonly-grpc", c.ShutdownGracePeriod, readOnlyGRPCSrv.GracefulStop, readOnlyGRPCSrv.ForceStop)
 
-	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
+	gatewayHandler, err := gateway.NewHandler(ctx, c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
+		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
+	closeables.AddWithError(gatewayHandler.Close)
 
 	if c.HTTPGateway.HTTPEnabled {
 		log.Info().Msg("starting REST gateway")
@@ -165,11 +178,13 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
+	closeables.AddWithoutError(gatewayServer.Close)
 
-	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
+	readOnlyGatewayHandler, err := gateway.NewHandler(ctx, c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
+		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
+	closeables.AddWithError(readOnlyGatewayHandler.Close)
 
 	if c.ReadOnlyHTTPGateway.HTTPEnabled {
 		log.Info().Msg("starting REST gateway")
@@ -179,6 +194,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
+	closeables.AddWithoutError(readOnlyGatewayServer.Close)
 
 	return &completedTestServer{
 		gRPCServer:            gRPCSrv,
@@ -186,6 +202,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		gatewayServer:         gatewayServer,
 		readOnlyGatewayServer: readOnlyGatewayServer,
 		healthManager:         healthManager,
+		closeFunc:             closeables.Close,
 	}, nil
 }
 
@@ -197,32 +214,34 @@ type completedTestServer struct {
 	readOnlyGatewayServer util.RunnableHTTPServer
 
 	healthManager health.Manager
+	closeFunc     func() error
 }
 
 func (c *completedTestServer) Run(ctx context.Context) error {
-	g, ctx := errgroup.WithContext(ctx)
+	g := errgroup.Group{}
 
-	stopOnCancel := func(stopFn func()) func() error {
+	stopOnCancelWithErr := func(stopFn func() error) func() error {
 		return func() error {
 			<-ctx.Done()
-			stopFn()
-			return nil
+			return stopFn()
 		}
 	}
 
-	g.Go(c.healthManager.Checker(ctx))
+	g.Go(func() error {
+		return c.healthManager.Checker(ctx)
+	})
 
-	g.Go(c.gRPCServer.Listen(ctx))
-	g.Go(stopOnCancel(c.gRPCServer.GracefulStop))
+	g.Go(func() error {
+		return c.gRPCServer.Listen(ctx)
+	})
 
-	g.Go(c.readOnlyGRPCServer.Listen(ctx))
-	g.Go(stopOnCancel(c.readOnlyGRPCServer.GracefulStop))
+	g.Go(func() error {
+		return c.readOnlyGRPCServer.Listen(ctx)
+	})
 
 	g.Go(c.gatewayServer.ListenAndServe)
-	g.Go(stopOnCancel(c.gatewayServer.Close))
-
 	g.Go(c.readOnlyGatewayServer.ListenAndServe)
-	g.Go(stopOnCancel(c.readOnlyGatewayServer.Close))
+	g.Go(stopOnCancelWithErr(c.closeFunc))
 
 	if err := g.Wait(); err != nil {
 		log.Ctx(ctx).Warn().Err(err).Msg("error shutting down servers")
