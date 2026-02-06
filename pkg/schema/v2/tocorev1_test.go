@@ -119,6 +119,21 @@ func TestAsCompiledSchema(t *testing.T) {
 			expectedDefinitionNames: []string{"user", "organization", "resource"},
 			expectedCaveatNames:     []string{},
 		},
+		{
+			name: "schema with self",
+			schemaText: `
+			use self
+
+			definition user {
+				relation viewer: user
+				permission view = viewer + self
+			}
+		`,
+			expectedNumDefinitions:  1,
+			expectedNumCaveats:      0,
+			expectedDefinitionNames: []string{"user"},
+			expectedCaveatNames:     []string{},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -172,11 +187,16 @@ func TestAsCompiledSchemaRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	schemaText := `
+		use self
+
 		caveat ip_check(ip string) {
 			ip == "192.168.1.1"
 		}
 
-		definition user {}
+		definition user {
+			relation viewer: user
+			permission view = viewer + self
+		}
 
 		definition organization {
 			relation member: user

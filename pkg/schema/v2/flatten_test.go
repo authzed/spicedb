@@ -33,6 +33,17 @@ definition user {}`,
 definition user {}`,
 		},
 		{
+			name: "self permission",
+			schemaString: `use self
+definition user {
+	permission view = self
+			}`,
+			expectedString: `use self
+definition user {
+	permission view = self
+			}`,
+		},
+		{
 			name: "nested union in permission",
 			schemaString: `definition document {
 	relation viewer: user

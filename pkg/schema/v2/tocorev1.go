@@ -344,6 +344,19 @@ func operationToUsersetRewrite(op Operation) (*core.UsersetRewrite, error) {
 			},
 		}, nil
 
+	case *SelfReference:
+		return &core.UsersetRewrite{
+			RewriteOperation: &core.UsersetRewrite_Union{
+				Union: &core.SetOperation{
+					Child: []*core.SetOperation_Child{
+						{
+							ChildType: &core.SetOperation_Child_XSelf{},
+						},
+					},
+				},
+			},
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unknown operation type: %T", op)
 	}
@@ -460,6 +473,11 @@ func operationToChild(op Operation) (*core.SetOperation_Child, error) {
 	case *NilReference:
 		return &core.SetOperation_Child{
 			ChildType: &core.SetOperation_Child_XNil{},
+		}, nil
+
+	case *SelfReference:
+		return &core.SetOperation_Child{
+			ChildType: &core.SetOperation_Child_XSelf{},
 		}, nil
 
 	default:
