@@ -24,6 +24,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	dispatchmocks "github.com/authzed/spicedb/internal/dispatch/mocks"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
@@ -627,17 +628,17 @@ func TestBuildDispatchServer(t *testing.T) {
 			mockDatastore := dsmocks.NewMockDatastore(ctrl)
 			mockDispatcher := dispatchmocks.NewMockDispatcher(ctrl)
 
-			closeables := closeableStack{}
+			closeables := grpchelpers.NewCloseableStack(1 * time.Second)
 			t.Cleanup(func() {
 				_ = closeables.Close()
 			})
 
 			sampler := memoryprotection.NewNoopMemoryUsageProvider()
 
-			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, &closeables, nil)
+			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, closeables, nil)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
-			require.Len(t, closeables.closers, 1)
+			require.Len(t, closeables.Closers, 1)
 			require.Len(t, tc.config.DispatchUnaryMiddleware, tc.expectedDispatchUnnaryMiddleware)
 			require.Len(t, tc.config.DispatchStreamingMiddleware, tc.expectedDispatchStreamingMiddleware)
 		})

@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"context"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -39,14 +40,13 @@ func NewTestingCommand(programName string, config *testserver.Config) *cobra.Com
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
-			signalctx := SignalContextWithGracePeriod(
-				context.Background(),
-				0,
-			)
 			srv, err := config.Complete()
 			if err != nil {
 				return err
 			}
+			signalctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+
 			return srv.Run(signalctx)
 		}),
 	}
