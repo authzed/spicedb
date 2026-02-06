@@ -2,7 +2,8 @@ package cmd
 
 import (
 	"context"
-	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-logr/zerologr"
 	"github.com/jzelinskie/cobrautil/v2"
@@ -54,10 +55,8 @@ func NewLSPCommand(programName string, config *LSPConfig) *cobra.Command {
 				return err
 			}
 
-			signalctx := SignalContextWithGracePeriod(
-				context.Background(),
-				time.Second*0, // No grace period
-			)
+			signalctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
 
 			return srv.Run(signalctx, config.Addr, config.Stdio)
 		}),

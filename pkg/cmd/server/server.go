@@ -21,7 +21,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
-	"google.golang.org/grpc/stats"
 
 	"github.com/authzed/consistent"
 	"github.com/authzed/grpcutil"
@@ -35,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/gateway"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/services"
@@ -164,50 +164,11 @@ type Config struct {
 	DisableGRPCLatencyHistogram bool `debugmap:"visible"`
 }
 
-type closeableStack struct {
-	closers []func() error
-}
-
-func (c *closeableStack) AddWithError(closer func() error) {
-	c.closers = append(c.closers, closer)
-}
-
-func (c *closeableStack) AddCloser(closer io.Closer) {
-	if closer != nil {
-		c.closers = append(c.closers, closer.Close)
-	}
-}
-
-func (c *closeableStack) AddWithoutError(closer func()) {
-	c.closers = append(c.closers, func() error {
-		closer()
-		return nil
-	})
-}
-
-func (c *closeableStack) Close() error {
-	var err error
-	// closer in reverse order how it's expected in deferred funcs
-	for i := len(c.closers) - 1; i >= 0; i-- {
-		if closerErr := c.closers[i](); closerErr != nil {
-			err = errors.Join(err, closerErr)
-		}
-	}
-	return err
-}
-
-func (c *closeableStack) CloseIfError(err error) error {
-	if err != nil {
-		return c.Close()
-	}
-	return nil
-}
-
 // Complete validates the config and fills out defaults.
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
-	closeables := closeableStack{}
+	closeables := grpchelpers.NewCloseableStack(c.ShutdownGracePeriod)
 	var err error
 	defer func() {
 		// if an error happens during the execution of Complete, all resources are cleaned up
@@ -432,7 +393,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
 	}
 
-	dispatchGrpcServer, err := c.buildDispatchServer(memoryUsageProvider, ds, cachingClusterDispatch, &closeables, statsHandlerOpts)
+	dispatchGrpcServer, err := c.buildDispatchServer(memoryUsageProvider, ds, cachingClusterDispatch, closeables, statsHandlerOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -505,11 +466,14 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				c.WatchHeartbeat,
 			)
 		},
+		grpc.ChainUnaryInterceptor(unaryMiddleware...),
+		grpc.ChainStreamInterceptor(streamingMiddleware...),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
-	closeables.AddWithoutError(grpcServer.GracefulStop)
+	closeables.AddCloserWithGracePeriod(grpcServer.GracefulStop, grpcServer.ForceStop)
 
 	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx)
 	if err != nil {
@@ -572,7 +536,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		presharedKeys:       c.PresharedSecureKey,
 		telemetryReporter:   reporter,
 		healthManager:       healthManager,
-		statsHandler:        otelgrpc.NewServerHandler(statsHandlerOpts...),
 		closeFunc:           closeables.Close,
 	}, nil
 }
@@ -589,7 +552,7 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 	return &memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 }
 
-func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, closeables *closeableStack, otelOpts []otelgrpc.Option) (util.RunnableGRPCServer, error) {
+func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, closeables *grpchelpers.CloseableStack, otelOpts []otelgrpc.Option) (util.RunnableGRPCServer, error) {
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
 			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider)
@@ -609,7 +572,7 @@ func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.Memory
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
 	}
-	closeables.AddWithoutError(dispatchGrpcServer.GracefulStop)
+	closeables.AddCloserWithGracePeriod(dispatchGrpcServer.GracefulStop, dispatchGrpcServer.ForceStop)
 	return dispatchGrpcServer, nil
 }
 
@@ -755,7 +718,6 @@ type completedServerConfig struct {
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
 	presharedKeys       []string
-	statsHandler        stats.Handler
 	closeFunc           func() error
 }
 
@@ -785,7 +747,7 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		}
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	g := errgroup.Group{}
 
 	stopOnCancelWithErr := func(stopFn func() error) func() error {
 		return func() error {
@@ -794,17 +756,20 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		}
 	}
 
-	grpcServer := c.gRPCServer.WithOpts(
-		grpc.ChainUnaryInterceptor(c.unaryMiddleware...),
-		grpc.ChainStreamInterceptor(c.streamingMiddleware...),
-		grpc.StatsHandler(c.statsHandler))
-
-	g.Go(c.healthManager.Checker(ctx))
-	g.Go(grpcServer.Listen(ctx))
-	g.Go(c.dispatchGRPCServer.Listen(ctx))
+	g.Go(func() error {
+		return c.healthManager.Checker(ctx)
+	})
+	g.Go(func() error {
+		return c.gRPCServer.Listen(ctx)
+	})
+	g.Go(func() error {
+		return c.dispatchGRPCServer.Listen(ctx)
+	})
 	g.Go(c.gatewayServer.ListenAndServe)
 	g.Go(c.metricsServer.ListenAndServe)
-	g.Go(func() error { return c.telemetryReporter(ctx) })
+	g.Go(func() error {
+		return c.telemetryReporter(ctx)
+	})
 
 	g.Go(stopOnCancelWithErr(c.closeFunc))
 

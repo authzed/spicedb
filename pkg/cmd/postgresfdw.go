@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-logr/zerologr"
@@ -131,7 +133,7 @@ func RegisterPostgresFDWFlags(cmd *cobra.Command, config *PostgresFDWConfig) err
 	}
 
 	serviceFlags := nfs.FlagSet(BoldBlue("service"))
-	serviceFlags.DurationVar(&config.ShutdownGracePeriod, "shutdown-grace-period", 0, "The duration to wait for the server to shutdown gracefully")
+	serviceFlags.DurationVar(&config.ShutdownGracePeriod, "shutdown-grace-period", 5*time.Second, "The duration to wait for the server to shutdown gracefully")
 	serviceFlags.StringVar(&config.PostgresEndpoint, "postgres-endpoint", ":5432", "The endpoint at which to serve the Postgres protocol")
 	serviceFlags.StringVar(&config.PostgresUsername, "postgres-username", "postgres", "The username that Postgres will use to connect to the FDW proxy")
 	serviceFlags.StringVar(&config.SecureAccessToken, "postgres-access-token-secret", "", "(required) The password that Postgres will use to authenticate to the FDW proxy (configured in the Postgres FDW extension's OPTIONS)")
@@ -166,10 +168,8 @@ func NewPostgresFDWCommand(programName string, config *PostgresFDWConfig) *cobra
 				return err
 			}
 
-			signalctx := SignalContextWithGracePeriod(
-				context.Background(),
-				config.ShutdownGracePeriod,
-			)
+			signalctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
 
 			return srv.Run(signalctx)
 		}),

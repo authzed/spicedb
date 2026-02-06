@@ -210,12 +210,18 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 		}
 	}
 
-	g.Go(c.healthManager.Checker(ctx))
+	g.Go(func() error {
+		return c.healthManager.Checker(ctx)
+	})
 
-	g.Go(c.gRPCServer.Listen(ctx))
+	g.Go(func() error {
+		return c.gRPCServer.Listen(ctx)
+	})
 	g.Go(stopOnCancel(c.gRPCServer.GracefulStop))
 
-	g.Go(c.readOnlyGRPCServer.Listen(ctx))
+	g.Go(func() error {
+		return c.readOnlyGRPCServer.Listen(ctx)
+	})
 	g.Go(stopOnCancel(c.readOnlyGRPCServer.GracefulStop))
 
 	g.Go(c.gatewayServer.ListenAndServe)
