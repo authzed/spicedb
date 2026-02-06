@@ -5,12 +5,26 @@ import (
 	"fmt"
 	"go/ast"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
+)
+
+var (
+	nameAllowList = []string{
+		// MustBugf returns an error in production, only panics in tests
+		"MustBugf",
+		// MustPanicf is explicitly for violating the linter when necessary
+		"MustPanicf",
+	}
+	packageAllowList = []string{
+		// cobrautil has many Must* functions but doesn't have non-Must variants
+		"cobrautil",
+	}
 )
 
 func Analyzer() *analysis.Analyzer {
@@ -81,11 +95,18 @@ func Analyzer() *analysis.Analyzer {
 						return false
 					}
 
-					// Skip special Must* methods that are designed to return errors (not panic)
-					// MustBugf returns an error in production, only panics in tests
-					// MustPanicf is explicitly for violating the linter when necessary
-					if methodName == "MustBugf" || methodName == "MustPanicf" {
+					// Skip function names on allow list
+					if slices.Contains(nameAllowList, methodName) {
 						return false
+					}
+
+					// Skip packages on the allow list
+					if sel, ok := s.Fun.(*ast.SelectorExpr); ok {
+						if pkgIdent, ok := sel.X.(*ast.Ident); ok {
+							if slices.Contains(packageAllowList, pkgIdent.Name) {
+								return false
+							}
+						}
 					}
 
 					// Find the parent function declaration or function literal

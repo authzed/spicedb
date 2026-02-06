@@ -12,4 +12,5 @@ func TestAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, analyzer, "badmustcalls")
 	analysistest.Run(t, testdata, analyzer, "goodmustcalls")
+	analysistest.Run(t, testdata, analyzer, "cobrautiltest")
 }
