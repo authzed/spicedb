@@ -148,12 +148,17 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		RelationshipChunkCache: nil, // Disable caching for devcontext
 	}
 
+	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return &DevContext{
 		Ctx:            ctx,
 		Datastore:      ds,
 		CompiledSchema: compiled,
 		Revision:       currentRevision,
-		Dispatcher:     graph.MustNewLocalOnlyDispatcher(params),
+		Dispatcher:     dispatcher,
 	}, nil, nil
 }
 

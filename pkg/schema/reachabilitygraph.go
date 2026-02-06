@@ -44,7 +44,10 @@ func (rg *DefinitionReachability) RelationsEncounteredForResource(
 
 	relationRefs := make([]*core.RelationReference, 0, len(relationNames))
 	for _, relationName := range relationNames {
-		namespace, relation := tuple.MustSplitRelRef(relationName)
+		namespace, relation, err := tuple.SplitRelRef(relationName)
+		if err != nil {
+			return nil, err
+		}
 		relationRefs = append(relationRefs, &core.RelationReference{
 			Namespace: namespace,
 			Relation:  relation,
@@ -113,7 +116,10 @@ func (rg *DefinitionReachability) RelationsEncounteredForSubject(
 
 	relationRefs := make([]*core.RelationReference, 0, allRelationNames.Len())
 	for _, relationName := range allRelationNames.AsSlice() {
-		namespace, relation := tuple.MustSplitRelRef(relationName)
+		namespace, relation, err := tuple.SplitRelRef(relationName)
+		if err != nil {
+			return nil, err
+		}
 		relationRefs = append(relationRefs, &core.RelationReference{
 			Namespace: namespace,
 			Relation:  relation,

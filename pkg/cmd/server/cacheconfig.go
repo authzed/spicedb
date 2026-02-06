@@ -137,9 +137,8 @@ func parsePercent(str string, freeMem uint64) (uint64, error) {
 	return freeMem / 100 * parsedPercent, nil
 }
 
-// MustRegisterCacheFlags registers flags used to configure SpiceDB's various
-// caches.
-func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription string, config, defaults *CacheConfig) {
+// RegisterCacheFlags registers flags used to configure SpiceDB's various caches.
+func RegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription string, config, defaults *CacheConfig) error {
 	config.Name = defaults.Name
 	flagPrefix = cmp.Or(flagPrefix, "cache")
 	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound (in bytes or as a percent of available memory) of the cache for "+flagDescription)
@@ -150,6 +149,7 @@ func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription st
 	// Hidden flags.
 	flags.StringVar(&config.CacheKindForTesting, flagPrefix+"-kind-for-testing", defaults.CacheKindForTesting, "choose a different kind of cache, for testing")
 	if err := flags.MarkHidden(flagPrefix + "-kind-for-testing"); err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }

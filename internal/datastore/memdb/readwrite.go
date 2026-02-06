@@ -103,7 +103,15 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...tuple.Relationshi
 				if err != nil {
 					return err
 				}
-				if tuple.MustString(rt) == tuple.MustString(mutation.Relationship) {
+				existingRelationshipString, err := tuple.String(rt)
+				if err != nil {
+					return err
+				}
+				mutationRelationshipString, err := tuple.String(mutation.Relationship)
+				if err != nil {
+					return err
+				}
+				if existingRelationshipString == mutationRelationshipString {
 					continue
 				}
 			}

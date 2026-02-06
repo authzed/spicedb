@@ -600,7 +600,7 @@ func translateExpressionOperationDirect(tctx *translationContext, expressionOpNo
 				return nil, err
 			}
 
-			return namespace.MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation), nil
+			return namespace.FunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation)
 		}
 
 		return namespace.TupleToUserset(tuplesetRelation, usersetRelation), nil
