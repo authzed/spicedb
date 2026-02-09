@@ -144,6 +144,11 @@ func TestParser(t *testing.T) {
 		{"permission type annotation double colon test", "permission_type_annotation_double_colon"},
 		{"permission type annotation newline after colon test", "permission_type_annotation_newline_after_colon"},
 		{"permission type annotation just pipe test", "permission_type_annotation_just_pipe"},
+		{"top-level block with unrecognized keyword", "nonsense_top_level_block"},
+		{"partials happy path", "partials"},
+		{"partials with malformed partial reference", "partials_with_malformed_partial_reference"},
+		{"partials with malformed reference splat", "partials_with_malformed_reference_splat"},
+		{"partials with malformed partial block", "partials_with_malformed_partial_block"},
 	}
 
 	for _, test := range parserTests {

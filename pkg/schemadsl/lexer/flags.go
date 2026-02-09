@@ -17,6 +17,9 @@ const (
 	// FlagSelf indicates that `self` is supported as a first-class
 	// feature in the schema.
 	FlagSelf = "self"
+
+	// FlagPartials indicates that partials are supported in the schema.
+	FlagPartials = "partial"
 )
 
 var AllUseFlags []string
@@ -57,6 +60,15 @@ var Flags = map[string]transformer{
 	FlagSelf: func(lexeme Lexeme) (Lexeme, bool) {
 		// `self` becomes a keyword.
 		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "self" {
+			lexeme.Kind = TokenTypeKeyword
+			return lexeme, true
+		}
+
+		return lexeme, false
+	},
+	FlagPartials: func(lexeme Lexeme) (Lexeme, bool) {
+		// `partial` becomes a keyword.
+		if lexeme.Kind == TokenTypeIdentifier && lexeme.Value == "partial" {
 			lexeme.Kind = TokenTypeKeyword
 			return lexeme, true
 		}
