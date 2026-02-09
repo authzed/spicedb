@@ -28,6 +28,7 @@ import (
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
 var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -37,11 +38,14 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Help:      "A histogram of the duration spent processing requests to the SpiceDB REST Gateway.",
 }, []string{"method"})
 
-// NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream
-// configuration.
-func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (*CloserHandler, error) {
+// NewHandler creates an REST gateway HTTP that connects to the schema, permissions, watch and experimental services.
+// When the ctx is cancelled, the services are disconnected automatically.
+func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string, closeables *util.CloseableStack) (http.HandlerFunc, error) {
 	if upstreamAddr == "" {
 		return nil, errors.New("upstreamAddr must not be empty")
+	}
+	if closeables == nil {
+		return nil, errors.New("closeables must not be nil")
 	}
 
 	// Always disable health check tracing to reduce trace volume
@@ -66,6 +70,7 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	if err != nil {
 		return nil, err
 	}
+	closeables.AddWithError(healthConn.Close)
 
 	gwMux := runtime.NewServeMux(
 		runtime.WithMetadata(OtelAnnotator),
@@ -73,22 +78,22 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 		runtime.WithForwardResponseOption(forwardRequestIDTrailer),
 		runtime.WithHealthzEndpoint(healthpb.NewHealthClient(healthConn)),
 	)
-	schemaConn, err := registerHandler(ctx, gwMux, upstreamAddr, opts, v1.RegisterSchemaServiceHandler)
+	err = v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	permissionsConn, err := registerHandler(ctx, gwMux, upstreamAddr, opts, v1.RegisterPermissionsServiceHandler)
+	err = v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	watchConn, err := registerHandler(ctx, gwMux, upstreamAddr, opts, v1.RegisterWatchServiceHandler)
+	err = v1.RegisterWatchServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	experimentalConn, err := registerHandler(ctx, gwMux, upstreamAddr, opts, v1.RegisterExperimentalServiceHandler)
+	err = v1.RegisterExperimentalServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -105,61 +110,7 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	}
 
 	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway", otelHandlerOpts...))
-	return newCloserHandler(finalHandler, schemaConn, permissionsConn, watchConn, healthConn, experimentalConn), nil
-}
-
-// CloserHandler is a http.Handler and a io.Closer. Meant to keep track of resources to closer
-// for a handler.
-type CloserHandler struct {
-	closers  []io.Closer
-	delegate http.Handler
-}
-
-func (cdh CloserHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	cdh.delegate.ServeHTTP(writer, request)
-}
-
-// newCloserHandler creates a new delegated http.Handler that will keep track of io.Closer to closer
-func newCloserHandler(delegate http.Handler, closers ...io.Closer) *CloserHandler {
-	return &CloserHandler{
-		closers:  closers,
-		delegate: delegate,
-	}
-}
-
-func (cdh CloserHandler) Close() error {
-	for _, closer := range cdh.closers {
-		if err := closer.Close(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// HandlerRegisterer is a function that registers a Gateway Handler in a ServeMux
-type HandlerRegisterer func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error
-
-// registerHandler will open a connection with the provided grpc.DialOptions against the endpoint, and
-// will use it to invoke an HTTP Gateway handler factory method HandlerRegisterer. It returns the gRPC
-// connection.
-//
-// gRPC generated code does not expose a means to close the opened connections other than implicitly via
-// context cancellation. This factory method makes closing them explicit.
-func registerHandler(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption,
-	registerer HandlerRegisterer,
-) (*grpc.ClientConn, error) {
-	conn, err := grpchelpers.Dial(ctx, endpoint, opts...)
-	if err != nil {
-		return nil, err
-	}
-	if err := registerer(ctx, mux, conn); err != nil {
-		if connerr := conn.Close(); connerr != nil {
-			return nil, err
-		}
-		return nil, err
-	}
-
-	return conn, nil
+	return finalHandler, nil
 }
 
 var defaultOtelOpts = []otelgrpc.Option{

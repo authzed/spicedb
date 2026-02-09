@@ -250,12 +250,13 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 		Long:    "start a SpiceDB server",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
-			server, err := config.Complete(cmd.Context())
+			signalctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+
+			server, err := config.Complete(signalctx)
 			if err != nil {
 				return err
 			}
-			signalctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-			defer stop()
 
 			return server.Run(signalctx)
 		}),

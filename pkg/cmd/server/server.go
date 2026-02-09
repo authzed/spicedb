@@ -665,7 +665,8 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	var gatewayHandler http.Handler
-	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	closeables := &util.CloseableStack{}
+	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, closeables)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
@@ -689,7 +690,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
-	return gatewayServer, closeableGatewayHandler, nil
+	return gatewayServer, closeables, nil
 }
 
 // RunnableServer is a spicedb service set ready to run

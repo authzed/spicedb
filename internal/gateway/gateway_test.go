@@ -13,7 +13,7 @@ import (
 	"go.uber.org/goleak"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/authzed/spicedb/pkg/testutil"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
 func TestOtelForwarding(t *testing.T) {
@@ -48,15 +48,20 @@ func TestOtelForwarding(t *testing.T) {
 }
 
 func TestCloseConnections(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t)
+	})
 
-	gatewayHandler, err := NewHandler(t.Context(), "192.0.2.0:4321", "")
+	// use a context that gets cancelled
+	ctx := t.Context()
+	closeable := &util.CloseableStack{}
+	_, err := NewHandler(ctx, "192.0.2.0:4321", "", closeable)
 	require.NoError(t, err)
-	// 4 conns for permission+schema+watch+experimental services, 1 for health check
-	require.Len(t, gatewayHandler.closers, 5)
+	// 1 for health check
+	require.Len(t, closeable.Closers, 1)
 
 	// if connections are not closed, goleak would detect it
-	require.NoError(t, gatewayHandler.Close())
+	require.NoError(t, closeable.Close())
 }
 
 func TestCustomIncomingHeaderMatcher(t *testing.T) {

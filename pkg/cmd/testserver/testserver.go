@@ -164,11 +164,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableTestServer, error) {
 	}
 	closeables.AddCloserWithGracePeriod("readonly-grpc", c.ShutdownGracePeriod, readOnlyGRPCSrv.GracefulStop, readOnlyGRPCSrv.ForceStop)
 
-	gatewayHandler, err := gateway.NewHandler(ctx, c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
+	gatewayHandler, err := gateway.NewHandler(ctx, c.GRPCServer.Address, c.GRPCServer.TLSCertPath, &closeables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
-	closeables.AddWithError(gatewayHandler.Close)
 
 	if c.HTTPGateway.HTTPEnabled {
 		log.Info().Msg("starting REST gateway")
@@ -180,11 +179,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableTestServer, error) {
 	}
 	closeables.AddWithoutError(gatewayServer.Close)
 
-	readOnlyGatewayHandler, err := gateway.NewHandler(ctx, c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
+	readOnlyGatewayHandler, err := gateway.NewHandler(ctx, c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath, &closeables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
-	closeables.AddWithError(readOnlyGatewayHandler.Close)
 
 	if c.ReadOnlyHTTPGateway.HTTPEnabled {
 		log.Info().Msg("starting REST gateway")
