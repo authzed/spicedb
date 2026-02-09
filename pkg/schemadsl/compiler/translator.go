@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
@@ -23,9 +23,17 @@ type translationContext struct {
 	mapper           input.PositionMapper
 	schemaString     string
 	skipValidate     bool
-	allowedFlags     []string
-	enabledFlags     []string
+	allowedFlags     *mapz.Set[string]
+	enabledFlags     *mapz.Set[string]
+	existingNames    *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
+
+	// The mapping of partial name -> relations represented by the partial
+	compiledPartials map[string][]*core.Relation
+
+	// A mapping of partial name -> partial DSL nodes whose resolution depends on
+	// the resolution of the named partial
+	unresolvedPartials *mapz.MultiMap[string, *dslNode]
 }
 
 func (tctx *translationContext) prefixedPath(definitionName string) (string, error) {
@@ -52,49 +60,69 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
 
-	nodes := make(map[string]*dslNode)
+	// Copy the name set so that we're not mutating the parent's context
+	// as we do our walk
+	names := tctx.existingNames.Copy()
 
-	for _, definitionNode := range root.GetChildren() {
-		var definition SchemaDefinition
+	// Do an initial pass to translate partials and add them to the
+	// translation context. This ensures that they're available for
+	// subsequent reference in definition compilation.
+	err := collectPartials(tctx, root)
+	if err != nil {
+		return nil, err
+	}
 
-		switch definitionNode.GetType() {
+	for _, topLevelNode := range root.GetChildren() {
+		switch topLevelNode.GetType() {
 		case dslshape.NodeTypeUseFlag:
-			err := translateUseFlag(tctx, definitionNode)
+			err := translateUseFlag(tctx, topLevelNode)
 			if err != nil {
 				return nil, err
 			}
 			continue
 
 		case dslshape.NodeTypeCaveatDefinition:
-			def, err := translateCaveatDefinition(tctx, definitionNode)
+			def, err := translateCaveatDefinition(tctx, topLevelNode)
 			if err != nil {
 				return nil, err
 			}
 
-			definition = def
 			caveatDefinitions = append(caveatDefinitions, def)
 
+			name := def.GetName()
+			if !names.Add(name) {
+				return nil, topLevelNode.WithSourceErrorf(name, "found name reused between multiple definitions and/or caveats: %s", name)
+			}
+
+			if _, found := tctx.compiledPartials[name]; found {
+				return nil, topLevelNode.WithSourceErrorf(name, "found caveat with same name as existing partial: %s", name)
+			}
+
+			orderedDefinitions = append(orderedDefinitions, def)
+
 		case dslshape.NodeTypeDefinition:
-			def, err := translateObjectDefinition(tctx, definitionNode)
+			def, err := translateObjectDefinition(tctx, topLevelNode)
 			if err != nil {
 				return nil, err
 			}
 
-			definition = def
 			objectDefinitions = append(objectDefinitions, def)
+
+			name := def.GetName()
+			if !names.Add(name) {
+				return nil, topLevelNode.WithSourceErrorf(name, "found name reused between multiple definitions and/or caveats: %s", name)
+			}
+
+			if _, found := tctx.compiledPartials[name]; found {
+				return nil, topLevelNode.WithSourceErrorf(name, "found definition with same name as existing partial: %s", name)
+			}
+
+			orderedDefinitions = append(orderedDefinitions, def)
 		}
-
-		if _, ok := nodes[definition.GetName()]; ok {
-			return nil, definitionNode.WithSourceErrorf(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
-		}
-
-		nodes[definition.GetName()] = definitionNode
-
-		orderedDefinitions = append(orderedDefinitions, definition)
 	}
 
 	// Strip the type annotation metadata if typechecking isn't enabled.
-	if !slices.Contains(tctx.enabledFlags, "typechecking") {
+	if !tctx.enabledFlags.Has("typechecking") {
 		for _, def := range objectDefinitions {
 			for _, rel := range def.GetRelation() {
 				err := namespace.SetTypeAnnotations(rel, nil)
@@ -226,18 +254,10 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		return nil, defNode.WithSourceErrorf(definitionName, "invalid definition name: %w", err)
 	}
 
-	relationsAndPermissions := []*core.Relation{}
-	for _, relationOrPermissionNode := range defNode.GetChildren() {
-		if relationOrPermissionNode.GetType() == dslshape.NodeTypeComment {
-			continue
-		}
-
-		relationOrPermission, err := translateRelationOrPermission(tctx, relationOrPermissionNode)
-		if err != nil {
-			return nil, err
-		}
-
-		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
+	errorOnMissingReference := true
+	relationsAndPermissions, _, err := translateRelationsAndPermissions(tctx, defNode, errorOnMissingReference)
+	if err != nil {
+		return nil, err
 	}
 
 	nspath, err := tctx.prefixedPath(definitionName)
@@ -270,6 +290,39 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 	}
 
 	return ns, nil
+}
+
+// NOTE: This function behaves differently based on an errorOnMissingReference flag.
+// A value of true treats that as an error state, since all partials should be resolved when translating definitions,
+// where the false value returns the name of the partial for collection for future processing
+// when translating partials.
+func translateRelationsAndPermissions(tctx *translationContext, astNode *dslNode, errorOnMissingReference bool) ([]*core.Relation, string, error) {
+	relationsAndPermissions := []*core.Relation{}
+	for _, definitionChildNode := range astNode.GetChildren() {
+		if definitionChildNode.GetType() == dslshape.NodeTypeComment {
+			continue
+		}
+
+		if definitionChildNode.GetType() == dslshape.NodeTypePartialReference {
+			partialContents, unresolvedPartial, err := translatePartialReference(tctx, definitionChildNode, errorOnMissingReference)
+			if err != nil {
+				return nil, "", err
+			}
+			if unresolvedPartial != "" {
+				return nil, unresolvedPartial, nil
+			}
+			relationsAndPermissions = append(relationsAndPermissions, partialContents...)
+			continue
+		}
+
+		relationOrPermission, err := translateRelationOrPermission(tctx, definitionChildNode)
+		if err != nil {
+			return nil, "", err
+		}
+
+		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
+	}
+	return relationsAndPermissions, "", nil
 }
 
 func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.SourcePosition {
@@ -713,7 +766,7 @@ func addWithExpiration(tctx *translationContext, typeRefNode *dslNode, ref *core
 			return fmt.Errorf("invalid trait: %s", traitName)
 		}
 
-		if !slices.Contains(tctx.allowedFlags, "expiration") {
+		if !tctx.allowedFlags.Has("expiration") {
 			return errors.New("expiration trait is not allowed")
 		}
 
@@ -748,15 +801,97 @@ func addWithCaveats(tctx *translationContext, typeRefNode *dslNode, ref *core.Al
 	return nil
 }
 
+func collectPartials(tctx *translationContext, rootNode *dslNode) error {
+	for _, topLevelNode := range rootNode.GetChildren() {
+		if topLevelNode.GetType() == dslshape.NodeTypePartial {
+			err := translatePartial(tctx, topLevelNode)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if tctx.unresolvedPartials.Len() != 0 {
+		return fmt.Errorf("could not resolve partials: [%s]. this may indicate a circular reference", strings.Join(tctx.unresolvedPartials.Keys(), ", "))
+	}
+	return nil
+}
+
+// This function modifies the translation context, so we don't need to return anything from it.
+func translatePartial(tctx *translationContext, partialNode *dslNode) error {
+	partialName, err := partialNode.GetString(dslshape.NodePartialPredicateName)
+	if err != nil {
+		return err
+	}
+	// Use the prefixed path to align with namespace and definition compilation
+	partialPath, err := tctx.prefixedPath(partialName)
+	if err != nil {
+		return err
+	}
+	// This needs to return the unresolved name.
+	errorOnMissingReference := false
+	relationsAndPermissions, unresolvedPartial, err := translateRelationsAndPermissions(tctx, partialNode, errorOnMissingReference)
+	if err != nil {
+		return err
+	}
+	if unresolvedPartial != "" {
+		tctx.unresolvedPartials.Add(unresolvedPartial, partialNode)
+		return nil
+	}
+
+	tctx.compiledPartials[partialPath] = relationsAndPermissions
+
+	// Since we've successfully compiled a partial, check the unresolved partials to see if any other partial was
+	// waiting on this partial
+	// NOTE: we're making an assumption here that a partial can't end up back in the same
+	// list of unresolved partials - if it hangs again in a different spot, it will end up in a different
+	// list of unresolved partials.
+	waitingPartials, _ := tctx.unresolvedPartials.Get(partialPath)
+	for _, waitingPartialNode := range waitingPartials {
+		err := translatePartial(tctx, waitingPartialNode)
+		if err != nil {
+			return err
+		}
+	}
+	// Clear out this partial's key from the unresolved partials if it's not already empty.
+	tctx.unresolvedPartials.RemoveKey(partialPath)
+	return nil
+}
+
+// NOTE: we treat partial references in definitions and partials differently because a missing partial
+// reference in definition compilation is an error state, where a missing partial reference in a
+// partial definition is an indeterminate state.
+func translatePartialReference(tctx *translationContext, partialReferenceNode *dslNode, errorOnMissingReference bool) ([]*core.Relation, string, error) {
+	name, err := partialReferenceNode.GetString(dslshape.NodePartialReferencePredicateName)
+	if err != nil {
+		return nil, "", err
+	}
+	path, err := tctx.prefixedPath(name)
+	if err != nil {
+		return nil, "", err
+	}
+	relationsAndPermissions, ok := tctx.compiledPartials[path]
+	if !ok {
+		if errorOnMissingReference {
+			return nil, "", partialReferenceNode.Errorf("could not find partial reference with name %s", path)
+		}
+		// If the partial isn't present and we're not throwing an error, we return the name of the missing partial
+		// This behavior supports partial collection
+		return nil, path, nil
+	}
+	return relationsAndPermissions, "", nil
+}
+
 // Translate use node and add flag to list of enabled flags
 func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
 	flagName, err := useFlagNode.GetString(dslshape.NodeUseFlagPredicateName)
 	if err != nil {
 		return err
 	}
-	if slices.Contains(tctx.enabledFlags, flagName) {
+	if tctx.enabledFlags.Has(flagName) {
 		return useFlagNode.Errorf("found duplicate use flag: %s", flagName)
 	}
-	tctx.enabledFlags = append(tctx.enabledFlags, flagName)
+	// TODO: make this check the list of allowed flags. this will be required for
+	// `use import` support.
+	tctx.enabledFlags.Insert(flagName)
 	return nil
 }

@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -54,7 +54,7 @@ func (cs CompiledSchema) SourcePositionToRunePosition(source input.Source, posit
 type config struct {
 	skipValidation   bool
 	objectTypePrefix *string
-	allowedFlags     []string
+	allowedFlags     *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
 }
 
@@ -77,15 +77,17 @@ func CaveatTypeSet(cts *caveattypes.TypeSet) Option {
 }
 
 const (
-	expirationFlag = "expiration"
-	selfFlag       = "self"
+	expirationFlag   = "expiration"
+	selfFlag         = "self"
+	typeCheckingFlag = "typechecking"
+	partialFlag      = "partial"
 )
+
+var allowedFlags = mapz.NewSet(expirationFlag, selfFlag, typeCheckingFlag, partialFlag)
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
-		cfg.allowedFlags = slicez.Filter(cfg.allowedFlags, func(s string) bool {
-			return s != expirationFlag
-		})
+		cfg.allowedFlags.Delete(expirationFlag)
 	}
 }
 
@@ -96,7 +98,7 @@ type ObjectPrefixOption func(*config)
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
 	cfg := &config{
-		allowedFlags: []string{expirationFlag, selfFlag},
+		allowedFlags: allowedFlags,
 	}
 
 	prefix(cfg) // required option
@@ -113,14 +115,19 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		return nil, err
 	}
 
-	cts := caveattypes.TypeSetOrDefault(cfg.caveatTypeSet)
+	initialCompiledPartials := make(map[string][]*core.Relation)
+	caveatTypeSet := caveattypes.TypeSetOrDefault(cfg.caveatTypeSet)
 	compiled, err := translate(&translationContext{
-		objectTypePrefix: cfg.objectTypePrefix,
-		mapper:           mapper,
-		schemaString:     schema.SchemaString,
-		skipValidate:     cfg.skipValidation,
-		allowedFlags:     cfg.allowedFlags,
-		caveatTypeSet:    cts,
+		objectTypePrefix:   cfg.objectTypePrefix,
+		mapper:             mapper,
+		schemaString:       schema.SchemaString,
+		skipValidate:       cfg.skipValidation,
+		allowedFlags:       cfg.allowedFlags,
+		enabledFlags:       mapz.NewSet[string](),
+		existingNames:      mapz.NewSet[string](),
+		compiledPartials:   initialCompiledPartials,
+		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
+		caveatTypeSet:      caveatTypeSet,
 	}, root)
 	if err != nil {
 		var withNodeError withNodeError

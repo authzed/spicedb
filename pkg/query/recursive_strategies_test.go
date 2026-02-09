@@ -178,7 +178,7 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 	}
 	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
 
-	allResults := make([][]Path, 0)
+	allResults := make([][]Path, 0, len(strategies))
 
 	for _, strategy := range strategies {
 		recursive := NewRecursiveIterator(union, "folder", "view")
