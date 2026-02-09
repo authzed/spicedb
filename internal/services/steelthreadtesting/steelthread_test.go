@@ -23,6 +23,7 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -42,22 +43,35 @@ func TestNonMemdbSteelThreads(t *testing.T) {
 		t.Skip("Skipping non-memdb steelthread tests in regenerate mode")
 	}
 
+	schemaModes := []struct {
+		name string
+		mode options.SchemaMode
+	}{
+		{"LegacySchema", options.SchemaModeReadLegacyWriteLegacy},
+		{"NewSchema", options.SchemaModeReadNewWriteNew},
+	}
+
 	for _, engineID := range datastore.SortedEngineIDs() {
 		t.Run(engineID, func(t *testing.T) {
 			rde := testdatastore.RunDatastoreEngine(t, engineID)
 
-			for _, tc := range steelThreadTestCases {
-				t.Run(tc.name, func(t *testing.T) {
-					ds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
-						dsconfig.WithWatchBufferLength(0),
-						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-						dsconfig.WithRevisionQuantization(10),
-						dsconfig.WithMaxRetries(50),
-						dsconfig.WithExperimentalColumnOptimization(true),
-						dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
+			for _, sm := range schemaModes {
+				t.Run(sm.name, func(t *testing.T) {
+					for _, tc := range steelThreadTestCases {
+						t.Run(tc.name, func(t *testing.T) {
+							ds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
+								dsconfig.WithWatchBufferLength(0),
+								dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
+								dsconfig.WithRevisionQuantization(10),
+								dsconfig.WithMaxRetries(50),
+								dsconfig.WithExperimentalColumnOptimization(true),
+								dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
+								dsconfig.WithExperimentalSchemaMode(sm.mode)))
 
-					ds = indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
-					runSteelThreadTest(t, tc, ds)
+							ds = indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
+							runSteelThreadTest(t, tc, ds)
+						})
+					}
 				})
 			}
 		})
@@ -116,6 +130,77 @@ func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datas
 
 			// Compare the actual and expected results.
 			require.Equal(t, string(expected), "---\n"+string(actual))
+		})
+	}
+}
+
+// Benchmarks to compare legacy vs new schema mode performance
+// These benchmarks use PostgreSQL as the target datastore
+
+func BenchmarkSteelThreadSchemaMode(b *testing.B) {
+	// Skip if not in steelthread mode
+	if os.Getenv("RUN_STEELTHREAD_BENCHMARKS") != "true" {
+		b.Skip("Set RUN_STEELTHREAD_BENCHMARKS=true to run schema mode benchmarks")
+	}
+
+	schemaModes := []struct {
+		name string
+		mode options.SchemaMode
+	}{
+		{"LegacySchema", options.SchemaModeReadLegacyWriteLegacy},
+		{"NewSchema", options.SchemaModeReadNewWriteNew},
+	}
+
+	for _, sm := range schemaModes {
+		b.Run(sm.name, func(b *testing.B) {
+			// Use PostgreSQL for benchmarking
+			rde := testdatastore.RunDatastoreEngine(b, "postgres")
+
+			for _, tc := range steelThreadTestCases {
+				b.Run(tc.name, func(b *testing.B) {
+					ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
+						dsconfig.WithWatchBufferLength(0),
+						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
+						dsconfig.WithRevisionQuantization(10),
+						dsconfig.WithMaxRetries(50),
+						dsconfig.WithExperimentalColumnOptimization(true),
+						dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
+						dsconfig.WithExperimentalSchemaMode(sm.mode)))
+
+					ctx := context.Background()
+					clientConn, cleanup, _, _ := testserver.NewTestServerWithConfigAndDatastore(require.New(b), 0, 0, false,
+						testserver.DefaultTestServerConfig,
+						ds,
+						func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+							// Load in the data once
+							_, rev, err := validationfile.PopulateFromFiles(ctx, ds, caveattypes.Default.TypeSet, []string{"testdata/" + tc.datafile})
+							require.NoError(err)
+							return ds, rev
+						})
+					b.Cleanup(cleanup)
+
+					clients := stClients{
+						PermissionsClient: v1.NewPermissionsServiceClient(clientConn),
+						SchemaClient:      v1.NewSchemaServiceClient(clientConn),
+					}
+
+					// Benchmark each operation
+					for _, operationInfo := range tc.operations {
+						b.Run(operationInfo.name, func(b *testing.B) {
+							handler, ok := operations[operationInfo.operationName]
+							require.True(b, ok, "operation not found: %s", operationInfo.name)
+
+							b.ResetTimer()
+							for i := 0; i < b.N; i++ {
+								_, err := handler(operationInfo.arguments, clients)
+								if err != nil {
+									b.Fatal(err)
+								}
+							}
+						})
+					}
+				})
+			}
 		})
 	}
 }
