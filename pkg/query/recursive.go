@@ -8,6 +8,18 @@ import (
 
 const defaultMaxRecursionDepth = 50
 
+// recursiveCheckStrategy specifies which strategy to use for Check operations
+type recursiveCheckStrategy int
+
+const (
+	// recursiveCheckIterSubjects calls IterSubjects for each resource, filters by subject
+	recursiveCheckIterSubjects recursiveCheckStrategy = iota
+	// recursiveCheckIterResources calls IterResources with subject, filters by resources
+	recursiveCheckIterResources
+	// recursiveCheckDeepening uses iterative deepening (current implementation)
+	recursiveCheckDeepening
+)
+
 var _ Iterator = &RecursiveIterator{}
 
 // RecursiveIterator is the root controller that manages iterative deepening for recursive schemas.
@@ -18,6 +30,7 @@ type RecursiveIterator struct {
 	templateTree   Iterator
 	definitionName string // The schema definition this iterator is recursing on
 	relationName   string // The relation name this iterator is recursing on
+	checkStrategy  recursiveCheckStrategy // strategy for Check operations
 }
 
 // NewRecursiveIterator creates a new recursive iterator controller
@@ -27,12 +40,22 @@ func NewRecursiveIterator(templateTree Iterator, definitionName, relationName st
 		templateTree:   templateTree,
 		definitionName: definitionName,
 		relationName:   relationName,
+		checkStrategy:  recursiveCheckDeepening, // default strategy (for now, until IterSubjects strategy is fixed)
 	}
 }
 
-// CheckImpl implements traversal for Check operations
+// CheckImpl implements traversal for Check operations with strategy selection
 func (r *RecursiveIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return r.deepeningCheck(ctx, resources, subject)
+	switch r.checkStrategy {
+	case recursiveCheckIterSubjects:
+		return r.recursiveCheckIterSubjects(ctx, resources, subject)
+	case recursiveCheckIterResources:
+		return r.recursiveCheckIterResources(ctx, resources, subject)
+	case recursiveCheckDeepening:
+		return r.deepeningCheck(ctx, resources, subject)
+	default:
+		return nil, fmt.Errorf("unknown recursive check strategy: %d", r.checkStrategy)
+	}
 }
 
 // IterSubjectsImpl implements BFS traversal for IterSubjects operations
@@ -123,6 +146,7 @@ func (r *RecursiveIterator) Clone() Iterator {
 		templateTree:   r.templateTree.Clone(),
 		definitionName: r.definitionName,
 		relationName:   r.relationName,
+		checkStrategy:  r.checkStrategy, // preserve strategy
 	}
 }
 
@@ -147,6 +171,7 @@ func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, e
 		templateTree:   newSubs[0],
 		definitionName: r.definitionName,
 		relationName:   r.relationName,
+		checkStrategy:  r.checkStrategy, // preserve strategy
 	}, nil
 }
 
@@ -363,6 +388,103 @@ func (r *RecursiveIterator) deepeningCheck(ctx *Context, resources []Object, sub
 		}
 
 		ctx.TraceStep(r, "BFS Check: Reached max depth %d", maxDepth)
+	}, nil
+}
+
+// recursiveCheckIterSubjects implements Check by calling IterSubjects for each resource
+// and filtering paths to match the input subject.
+func (r *RecursiveIterator) recursiveCheckIterSubjects(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	return func(yield func(Path, error) bool) {
+		// Get subject type for filtering (type only, not relation - ellipsis is not a real relation)
+		filterSubjectType := ObjectType{Type: subject.ObjectType}
+
+		pathCount := 0
+
+		// For each input resource, iterate its subjects
+		for _, resource := range resources {
+			ctx.TraceStep(r, "Check via IterSubjects: processing resource %s:%s",
+				resource.ObjectType, resource.ObjectID)
+
+			// Call IterSubjects through the context on the RecursiveIterator itself
+			// This will trigger the recursive BFS traversal
+			pathSeq, err := ctx.IterSubjects(r, resource, filterSubjectType)
+			if err != nil {
+				yield(Path{}, fmt.Errorf("IterSubjects failed for resource %s:%s: %w",
+					resource.ObjectType, resource.ObjectID, err))
+				return
+			}
+
+			// Filter paths where subject matches input subject (compare only type and ID, not relation)
+			for path, err := range pathSeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+
+				ctx.TraceStep(r, "Check via IterSubjects: examining path from %s to %s:%s#%s",
+					path.Resource.Key(), path.Subject.ObjectType, path.Subject.ObjectID, path.Subject.Relation)
+
+				// Check if path's subject matches the input subject (type and ID only)
+				if GetObject(path.Subject).Equals(GetObject(subject)) {
+					ctx.TraceStep(r, "Check via IterSubjects: found matching path")
+					pathCount++
+					if !yield(path, nil) {
+						return
+					}
+				}
+			}
+		}
+
+		ctx.TraceStep(r, "Check via IterSubjects: completed with %d paths", pathCount)
+	}, nil
+}
+
+// recursiveCheckIterResources implements Check by calling IterResources with the subject
+// and filtering paths to match the input resources.
+func (r *RecursiveIterator) recursiveCheckIterResources(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	return func(yield func(Path, error) bool) {
+		// Determine filter type from first resource (all should be same type)
+		var filterResourceType ObjectType
+		if len(resources) > 0 {
+			filterResourceType = ObjectType{Type: resources[0].ObjectType}
+		}
+
+		pathCount := 0
+
+		ctx.TraceStep(r, "Check via IterResources: processing subject %s:%s#%s",
+			subject.ObjectType, subject.ObjectID, subject.Relation)
+
+		// Call IterResources through the context on the RecursiveIterator itself
+		// This will trigger the recursive BFS traversal
+		pathSeq, err := ctx.IterResources(r, subject, filterResourceType)
+		if err != nil {
+			yield(Path{}, fmt.Errorf("IterResources failed for subject %s: %w",
+				subject.String(), err))
+			return
+		}
+
+		// Filter paths where resource matches one of input resources
+		for path, err := range pathSeq {
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// Check if path's resource matches any of the input resources
+			for _, resource := range resources {
+				if path.Resource.Equals(resource) {
+					ctx.TraceStep(r, "Check via IterResources: found matching path from %s to %s",
+						path.Resource.Key(), path.Subject.String())
+					pathCount++
+					if !yield(path, nil) {
+						return
+					}
+					break // Found matching resource, move to next path
+				}
+			}
+		}
+
+		ctx.TraceStep(r, "Check via IterResources: completed with %d paths", pathCount)
 	}, nil
 }
 
