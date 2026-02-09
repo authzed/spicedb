@@ -95,7 +95,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 			// Sleep to give the datastore time to stabilize after all the writes
 			time.Sleep(1 * time.Second)
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRev, _, err := ds.HeadRevision(ctx)
 			require.NoError(b, err)
 
 			b.StartTimer()
@@ -104,7 +104,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				b.Run("SnapshotRead", func(b *testing.B) {
 					for n := 0; n < b.N; n++ {
 						randDocNum := rand.Intn(numDocuments) //nolint:gosec
-						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+						iter, err := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 							OptionalResourceType:     testfixtures.DocumentNS.Name,
 							OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},
 							OptionalResourceRelation: "viewer",
@@ -120,7 +120,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				})
 				b.Run("SnapshotReadOnlyNamespace", func(b *testing.B) {
 					for n := 0; n < b.N; n++ {
-						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+						iter, err := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 							OptionalResourceType: testfixtures.DocumentNS.Name,
 						}, options.WithQueryShape(queryshape.FindResourceOfType))
 						require.NoError(b, err)
@@ -136,7 +136,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 						order := order
 						b.Run(orderName, func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
-								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+								iter, err := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 									OptionalResourceType: testfixtures.DocumentNS.Name,
 								}, options.WithSort(order), options.WithQueryShape(queryshape.FindResourceOfType))
 								require.NoError(b, err)
@@ -154,7 +154,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 						order := order
 						b.Run(orderName, func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
-								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+								iter, err := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 									OptionalResourceType:     testfixtures.DocumentNS.Name,
 									OptionalResourceRelation: "viewer",
 								}, options.WithSort(order), options.WithQueryShape(queryshape.Varying))
@@ -174,7 +174,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 						b.Run(orderName, func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
 								randDocNum := rand.Intn(numDocuments) //nolint:gosec
-								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+								iter, err := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 									OptionalResourceType:     testfixtures.DocumentNS.Name,
 									OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},
 									OptionalResourceRelation: "viewer",
@@ -191,7 +191,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				})
 				b.Run("SnapshotReverseRead", func(b *testing.B) {
 					for n := 0; n < b.N; n++ {
-						iter, err := ds.SnapshotReader(headRev).ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
+						iter, err := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting).ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 							SubjectType: testfixtures.UserNS.Name,
 						}, options.WithSortForReverse(options.ByResource), options.WithQueryShapeForReverse(queryshape.Varying))
 						require.NoError(b, err)

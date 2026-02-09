@@ -45,6 +45,7 @@ type CheckParameters struct {
 	Subject       tuple.ObjectAndRelation
 	CaveatContext map[string]any
 	AtRevision    datastore.Revision
+	SchemaHash    datastore.SchemaHash
 	MaximumDepth  uint32
 	DebugOption   DebugOption
 	CheckHints    []*v1.CheckHint
@@ -178,7 +179,7 @@ func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner,
 	}
 
 	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(params.AtRevision)
+	reader := ds.SnapshotReader(params.AtRevision, params.SchemaHash)
 
 	caveatResult, err := runner.RunCaveatExpression(ctx, result.Expression, params.CaveatContext, reader, cexpr.RunCaveatExpressionNoDebugging)
 	if err != nil {

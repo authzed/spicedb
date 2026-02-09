@@ -147,7 +147,7 @@ var StandardCaveatedRelationships = []string{
 
 // EmptyDatastore returns an empty datastore for testing.
 func EmptyDatastore(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-	rev, err := ds.HeadRevision(context.Background())
+	rev, _, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 	return ds, rev
 }
@@ -299,7 +299,7 @@ func (tc RelationshipChecker) ExactRelationshipIterator(ctx context.Context, rel
 	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
 	tc.Require.NoError(err)
 
-	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, dsFilter, options.WithQueryShape(queryshape.Varying))
+	iter, err := tc.DS.SnapshotReader(rev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, dsFilter, options.WithQueryShape(queryshape.Varying))
 	tc.Require.NoError(err)
 	return iter
 }

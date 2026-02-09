@@ -29,8 +29,8 @@ func (p *definitionCachingProxy) Close() error {
 	return p.Datastore.Close()
 }
 
-func (p *definitionCachingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.Datastore.SnapshotReader(rev)
+func (p *definitionCachingProxy) SnapshotReader(rev datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.Datastore.SnapshotReader(rev, hash)
 	return &definitionCachingReader{delegateReader, rev, p}
 }
 

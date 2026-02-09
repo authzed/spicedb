@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	// Checkpoint frequency for schema hash watcher (few 100ms for responsive updates)
-	schemaCheckpointFrequency = "200ms"
+	// Checkpoint frequency for schema hash watcher (as fast as CRDB will allow)
+	schemaCheckpointFrequency = "0s"
 
 	// Schema changefeed queries for different CRDB versions
 	querySchemaChangefeed       = "CREATE CHANGEFEED FOR schema_revision WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '" + schemaCheckpointFrequency + "'"
@@ -56,7 +56,7 @@ func (w *crdbSchemaHashWatcher) WatchSchemaHash(ctx context.Context, refreshInte
 	}
 
 	// Get initial cursor (current time)
-	cursor, err := readCRDBNow(ctx, w.query)
+	cursor, _, err := readCRDBNow(ctx, w.query)
 	if err != nil {
 		return fmt.Errorf("failed to get initial cursor: %w", err)
 	}
@@ -88,7 +88,7 @@ func (w *crdbSchemaHashWatcher) WatchSchemaHash(ctx context.Context, refreshInte
 				// If this is a resolved timestamp (checkpoint), invoke callback with same hash
 				// to indicate the world has moved forward
 				if change.Resolved != "" {
-					currentRevision, err := readCRDBNow(ctx, w.query)
+					currentRevision, _, err := readCRDBNow(ctx, w.query)
 					if err != nil {
 						return fmt.Errorf("failed to get current revision for checkpoint: %w", err)
 					}
@@ -107,7 +107,7 @@ func (w *crdbSchemaHashWatcher) WatchSchemaHash(ctx context.Context, refreshInte
 					newHash := string(change.After.Hash)
 					if newHash != lastHash {
 						// Get current revision
-						currentRevision, err := readCRDBNow(ctx, w.query)
+						currentRevision, _, err := readCRDBNow(ctx, w.query)
 						if err != nil {
 							return fmt.Errorf("failed to get current revision: %w", err)
 						}
@@ -131,7 +131,7 @@ func (w *crdbSchemaHashWatcher) WatchSchemaHash(ctx context.Context, refreshInte
 				return ctx.Err()
 			case <-time.After(refreshInterval):
 				// Get new cursor and retry
-				cursor, err = readCRDBNow(ctx, w.query)
+				cursor, _, err = readCRDBNow(ctx, w.query)
 				if err != nil {
 					return fmt.Errorf("failed to get cursor for retry: %w", err)
 				}

@@ -30,6 +30,7 @@ type mysqlReader struct {
 	schema               common.SchemaInformation
 	schemaMode           dsoptions.SchemaMode
 	snapshotRevision     datastore.Revision
+	schemaHash           string
 	schemaTableName      string
 	schemaReaderWriter   *common.SQLSchemaReaderWriter[uint64, revisions.TransactionIDRevision]
 }
@@ -360,13 +361,8 @@ func (sr *mysqlSchemaReader) ReadStoredSchema(ctx context.Context) (*core.Stored
 		aliveFilter: sr.r.aliveFilter,
 	}
 
-	// Use the shared schema reader/writer to read the schema
-	// Cast snapshotRevision to TransactionIDRevision for cache lookup
-	var revPtr *revisions.TransactionIDRevision
-	if txRev, ok := sr.r.snapshotRevision.(revisions.TransactionIDRevision); ok {
-		revPtr = &txRev
-	}
-	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, revPtr)
+	// Use the shared schema reader/writer to read the schema with the hash
+	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, sr.r.snapshotRevision, datastore.SchemaHash(sr.r.schemaHash))
 }
 
 // LegacyReadCaveatByName delegates to the underlying reader

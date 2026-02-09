@@ -109,7 +109,7 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 			require.NoError(t, err)
 
 			queryCtx := NewLocalContext(context.Background(),
-				WithReader(ds.SnapshotReader(rev)),
+				WithReader(ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)),
 				WithCaveatContext(tc.caveatContext),
 				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 
@@ -201,7 +201,7 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			require.NoError(t, err)
 
 			queryCtx := NewLocalContext(context.Background(),
-				WithReader(ds.SnapshotReader(rev)),
+				WithReader(ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)),
 				WithCaveatContext(tc.caveatContext),
 				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 

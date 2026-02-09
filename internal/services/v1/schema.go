@@ -82,12 +82,12 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	// Schema is always read from the head revision.
 	ds := datastoremw.MustFromContext(ctx)
-	headRevision, err := ds.HeadRevision(ctx)
+	headRevision, schemaHash, err := ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := ds.SnapshotReader(headRevision, schemaHash)
 
 	schemaReader, err := reader.SchemaReader()
 	if err != nil {
@@ -233,7 +233,7 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 func (ss *schemaServer) DiffSchema(ctx context.Context, req *v1.DiffSchemaRequest) (*v1.DiffSchemaResponse, error) {
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, _, _, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -260,12 +260,12 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
@@ -347,12 +347,12 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {

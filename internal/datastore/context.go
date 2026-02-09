@@ -51,7 +51,7 @@ func (p *ctxProxy) IsStrictReadModeEnabled() bool {
 	return false
 }
 
-func (p *ctxProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *ctxProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.OptimizedRevision(context.WithoutCancel(ctx))
 }
 
@@ -59,7 +59,7 @@ func (p *ctxProxy) CheckRevision(ctx context.Context, revision datastore.Revisio
 	return p.delegate.CheckRevision(context.WithoutCancel(ctx), revision)
 }
 
-func (p *ctxProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *ctxProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.HeadRevision(context.WithoutCancel(ctx))
 }
 
@@ -89,8 +89,8 @@ func (p *ctxProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error)
 
 func (p *ctxProxy) Close() error { return p.delegate.Close() }
 
-func (p *ctxProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.delegate.SnapshotReader(rev)
+func (p *ctxProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.delegate.SnapshotReader(rev, schemaHash)
 	return &ctxReader{delegateReader}
 }
 

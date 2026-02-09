@@ -34,8 +34,8 @@ func WrapWithIndexCheckingDatastoreProxyIfApplicable(ds datastore.Datastore) dat
 
 type indexcheckingProxy struct{ delegate datastore.SQLDatastore }
 
-func (p *indexcheckingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.delegate.SnapshotReader(rev)
+func (p *indexcheckingProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.delegate.SnapshotReader(rev, schemaHash)
 	return &indexcheckingReader{p.delegate, delegateReader}
 }
 
@@ -57,7 +57,7 @@ func (p *indexcheckingProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 
@@ -65,7 +65,7 @@ func (p *indexcheckingProxy) CheckRevision(ctx context.Context, revision datasto
 	return p.delegate.CheckRevision(ctx, revision)
 }
 
-func (p *indexcheckingProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *indexcheckingProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.HeadRevision(ctx)
 }
 

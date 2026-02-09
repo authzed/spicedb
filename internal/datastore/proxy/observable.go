@@ -80,8 +80,8 @@ func (p *observableProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *observableProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.delegate.SnapshotReader(rev)
+func (p *observableProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.delegate.SnapshotReader(rev, schemaHash)
 	return &observableReader{delegateReader}
 }
 
@@ -95,7 +95,7 @@ func (p *observableProxy) ReadWriteTx(
 	}, opts...)
 }
 
-func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	ctx, closer := observe(ctx, "OptimizedRevision", "")
 	defer closer()
 
@@ -111,7 +111,7 @@ func (p *observableProxy) CheckRevision(ctx context.Context, revision datastore.
 	return p.delegate.CheckRevision(ctx, revision)
 }
 
-func (p *observableProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *observableProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	ctx, closer := observe(ctx, "HeadRevision", "")
 	defer closer()
 

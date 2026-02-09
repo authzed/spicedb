@@ -3,7 +3,6 @@ package options
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -14,15 +13,9 @@ import (
 
 // SchemaCacheOptions configures the schema cache behavior.
 type SchemaCacheOptions struct {
-	// MaximumCacheMemoryBytes is the maximum amount of memory (in bytes) that the schema cache can use.
-	// If 0, the cache size is unlimited.
-	MaximumCacheMemoryBytes uint64
-
-	// QuantizationWindow is the time window for which schema ranges are kept.
-	// Ranges whose end revision is older than this window (for time-supporting revisions)
-	// are eligible for immediate deletion. The cache refresh time will be QuantizationWindow / 2.
-	// If 0, no time-based cleanup is performed.
-	QuantizationWindow time.Duration
+	// MaximumCacheEntries is the maximum number of schema entries to cache.
+	// If 0, defaults to 100.
+	MaximumCacheEntries uint32
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.query_options.go . QueryOptions ReverseQueryOptions RWTOptions

@@ -121,7 +121,7 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
-	lowestRevision, err := ds.HeadRevision(t.Context())
+	lowestRevision, _, err := ds.HeadRevision(t.Context())
 	require.NoError(err)
 
 	err = ds.Close()
@@ -142,10 +142,10 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	err = ds.CheckRevision(t.Context(), lowestRevision)
 	require.ErrorIs(err, ErrMemDBIsClosed)
 
-	_, err = ds.OptimizedRevision(t.Context())
+	_, _, err = ds.OptimizedRevision(t.Context())
 	require.ErrorIs(err, ErrMemDBIsClosed)
 
-	reader := ds.SnapshotReader(datastore.NoRevision)
+	reader := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 	_, err = reader.CountRelationships(t.Context(), "blah")
 	require.ErrorIs(err, ErrMemDBIsClosed)
 }
@@ -168,7 +168,7 @@ func BenchmarkQueryRelationships(b *testing.B) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(rev)
+	reader := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

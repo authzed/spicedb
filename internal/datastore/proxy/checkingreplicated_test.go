@@ -25,7 +25,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 	require.NoError(t, err)
 
 	// Try at revision 1, which should use the replica.
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"), datastore.NoSchemaHashForTesting)
 	ns, err := reader.LegacyListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, ns)
@@ -33,7 +33,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 	require.False(t, reader.(*checkingStableReader).chosePrimaryForTest)
 
 	// Try at revision 2, which should use the primary.
-	reader = replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("2"))
+	reader = replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("2"), datastore.NoSchemaHashForTesting)
 	ns, err = reader.LegacyListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, ns)
@@ -48,7 +48,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t
 	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
 
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"), datastore.NoSchemaHashForTesting)
 	ns, err := reader.LegacyLookupNamespacesWithNames(t.Context(), []string{"ns1"})
 	require.NoError(t, err)
 	require.Len(t, ns, 1)
@@ -72,7 +72,7 @@ func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 			}
 
 			// Try at revision 1, which should use the replica.
-			reader := ds.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+			reader := ds.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"), datastore.NoSchemaHashForTesting)
 			_, _, err := reader.LegacyReadNamespaceByName(t.Context(), "expecterror")
 			require.Error(t, err)
 			require.ErrorContains(t, err, "raising an expected error")
@@ -90,7 +90,7 @@ func (f fakeDatastore) MetricsID() (string, error) {
 	return "fake", nil
 }
 
-func (f fakeDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+func (f fakeDatastore) SnapshotReader(revision datastore.Revision, _ datastore.SchemaHash) datastore.Reader {
 	return fakeSnapshotReader{
 		revision:    revision,
 		state:       f.state,
@@ -102,12 +102,12 @@ func (f fakeDatastore) ReadWriteTx(_ context.Context, _ datastore.TxUserFunc, _ 
 	return nil, nil
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
-	return nil, nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, datastore.SchemaHash, error) {
+	return nil, datastore.NoSchemaHashForTesting, nil
 }
 
-func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
-	return nil, nil
+func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.Revision, datastore.SchemaHash, error) {
+	return nil, datastore.NoSchemaHashForTesting, nil
 }
 
 func (f fakeDatastore) CheckRevision(_ context.Context, rev datastore.Revision) error {

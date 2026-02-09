@@ -56,7 +56,7 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 
 	dsCtx := datastoremw.ContextWithHandle(t.Context())
 	require.NoError(datastoremw.SetInContext(dsCtx, ds))
-	res := schema.ResolverForDatastoreReader(ds.SnapshotReader(revision))
+	res := schema.ResolverForDatastoreReader(ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting))
 	ts := schema.NewTypeSystem(res)
 
 	// Validate the type system for each namespace.

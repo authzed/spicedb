@@ -34,7 +34,7 @@ func TestUnaryCountingInterceptor(t *testing.T) {
 		ds := MustFromContext(ctx)
 
 		// Make some calls to trigger counting
-		reader := ds.SnapshotReader(datastore.NoRevision)
+		reader := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 		_, _ = reader.QueryRelationships(ctx, datastore.RelationshipsFilter{})
 		_, _ = reader.QueryRelationships(ctx, datastore.RelationshipsFilter{})
 
@@ -82,7 +82,7 @@ func TestStreamCountingInterceptor(t *testing.T) {
 		ds := MustFromContext(ss.Context())
 
 		// Make some calls to trigger counting
-		reader := ds.SnapshotReader(datastore.NoRevision)
+		reader := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 		_, _ = reader.ReverseQueryRelationships(ss.Context(), datastore.SubjectsFilter{SubjectType: "user"})
 
 		return nil
@@ -117,7 +117,7 @@ func TestUnaryCountingInterceptor_HandlerError(t *testing.T) {
 	handler := func(ctx context.Context, req any) (any, error) {
 		// Make a call before erroring
 		ds := MustFromContext(ctx)
-		reader := ds.SnapshotReader(datastore.NoRevision)
+		reader := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 		_, _, _ = reader.LegacyReadNamespaceByName(ctx, "test")
 
 		return nil, &testError{}
@@ -156,7 +156,7 @@ func TestStreamCountingInterceptor_HandlerError(t *testing.T) {
 	handler := func(srv any, ss grpc.ServerStream) error {
 		// Make a call before erroring
 		ds := MustFromContext(ss.Context())
-		reader := ds.SnapshotReader(datastore.NoRevision)
+		reader := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 		_, _ = reader.LegacyListAllNamespaces(ss.Context())
 
 		return &testError{}

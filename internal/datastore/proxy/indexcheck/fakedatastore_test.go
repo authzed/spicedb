@@ -26,7 +26,7 @@ func (f fakeDatastore) UniqueID(_ context.Context) (string, error) {
 	return "fake", nil
 }
 
-func (f fakeDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+func (f fakeDatastore) SnapshotReader(revision datastore.Revision, _ datastore.SchemaHash) datastore.Reader {
 	return fakeSnapshotReader{
 		revision:    revision,
 		indexesUsed: f.indexesUsed,
@@ -39,12 +39,12 @@ func (f fakeDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc,
 	})
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
-	return nil, nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, datastore.SchemaHash, error) {
+	return nil, datastore.NoSchemaHashForTesting, nil
 }
 
-func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
-	return nil, nil
+func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.Revision, datastore.SchemaHash, error) {
+	return nil, datastore.NoSchemaHashForTesting, nil
 }
 
 func (f fakeDatastore) CheckRevision(_ context.Context, rev datastore.Revision) error {

@@ -34,6 +34,15 @@ type SingleStoreSchemaWriter interface {
 	WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error
 }
 
+// LegacySchemaHashWriter defines an optional method for writing just the schema hash.
+// This is used by datastores to write the schema hash during legacy schema writes
+// without reading back buffered writes.
+type LegacySchemaHashWriter interface {
+	// WriteLegacySchemaHashFromDefinitions writes the schema hash computed from the given definitions.
+	// This is called by the legacy schema adapter after buffering writes but before commit.
+	WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []RevisionedNamespace, caveats []RevisionedCaveat) error
+}
+
 // DualSchemaReader combines both legacy and single-store schema reading interfaces.
 // Datastores should implement this interface to support both schema storage modes.
 type DualSchemaReader interface {

@@ -61,7 +61,14 @@ var revisionKey ctxKeyType = struct{}{}
 var errInvalidZedToken = status.Error(codes.InvalidArgument, "invalid revision requested")
 
 type revisionHandle struct {
-	revision datastore.Revision
+	revision   datastore.Revision
+	schemaHash datastore.SchemaHash
+}
+
+// setRevisionAndHash sets both revision and schema hash for this handle.
+func (h *revisionHandle) setRevisionAndHash(rev datastore.Revision, hash datastore.SchemaHash) {
+	h.revision = rev
+	h.schemaHash = hash
 }
 
 // ContextWithHandle adds a placeholder to a context that will later be
@@ -94,6 +101,30 @@ func RevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken,
 	return nil, nil, status.Error(codes.Internal, "consistency middleware did not inject revision")
 }
 
+// RevisionAndSchemaHashFromContext returns the revision and schema hash from the context.
+func RevisionAndSchemaHashFromContext(ctx context.Context) (datastore.Revision, datastore.SchemaHash, *v1.ZedToken, error) {
+	if c := ctx.Value(revisionKey); c != nil {
+		handle := c.(*revisionHandle)
+		rev := handle.revision
+		schemaHash := handle.schemaHash
+		if rev != nil {
+			ds := datastoremw.FromContext(ctx)
+			if ds == nil {
+				return nil, "", nil, spiceerrors.MustBugf("consistency middleware did not inject datastore")
+			}
+
+			zedToken, err := zedtoken.NewFromRevision(ctx, rev, ds)
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			return rev, schemaHash, zedToken, nil
+		}
+	}
+
+	return nil, "", nil, status.Error(codes.Internal, "consistency middleware did not inject revision")
+}
+
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found
 // in the given request (if applicable).
 func AddRevisionToContext(ctx context.Context, req any, ds datastore.Datastore, serviceLabel string, option MismatchingTokenOption) error {
@@ -108,12 +139,14 @@ func AddRevisionToContext(ctx context.Context, req any, ds datastore.Datastore, 
 // addRevisionToContextFromConsistency adds a revision to the given context, based on the consistency block found
 // in the given request (if applicable).
 func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency, ds datastore.Datastore, serviceLabel string, option MismatchingTokenOption) error {
-	handle := ctx.Value(revisionKey)
-	if handle == nil {
+	handleValue := ctx.Value(revisionKey)
+	if handleValue == nil {
 		return nil
 	}
 
+	handle := handleValue.(*revisionHandle)
 	var revision datastore.Revision
+	var schemaHash datastore.SchemaHash
 	consistency := req.GetConsistency()
 
 	withOptionalCursor, hasOptionalCursor := req.(hasOptionalCursor)
@@ -148,11 +181,12 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 			ConsistencyCounter.WithLabelValues("minlatency", source, serviceLabel).Inc()
 		}
 
-		databaseRev, err := ds.OptimizedRevision(ctx)
+		databaseRev, hash, err := ds.OptimizedRevision(ctx)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
 		revision = databaseRev
+		schemaHash = hash
 
 	case consistency.GetFullyConsistent():
 		// Fully Consistent: Use the datastore's synchronized revision.
@@ -160,11 +194,12 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 			ConsistencyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
 		}
 
-		databaseRev, err := ds.HeadRevision(ctx)
+		databaseRev, hash, err := ds.HeadRevision(ctx)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
 		revision = databaseRev
+		schemaHash = hash
 
 	case consistency.GetAtLeastAsFresh() != nil:
 		// At least as fresh as: Pick one of the datastore's revision and that specified, which
@@ -211,7 +246,10 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		return status.Errorf(codes.Internal, "missing handling of consistency case in %v", consistency)
 	}
 
-	handle.(*revisionHandle).revision = revision
+	// Note: For some consistency modes (AtLeastAsFresh, AtExactSnapshot), schema hash may be empty.
+	// This will cause cache lookups to fail, which is expected until schema hash is properly threaded
+	// through these code paths.
+	handle.setRevisionAndHash(revision, schemaHash)
 	return nil
 }
 
@@ -276,7 +314,7 @@ func (s *recvWrapper) RecvMsg(m any) error {
 // recent one. The boolean return value will be true if the provided ZedToken is the most recent, false otherwise.
 func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore, option MismatchingTokenOption) (datastore.Revision, bool, error) {
 	// Calculate a revision as we see fit
-	databaseRev, err := ds.OptimizedRevision(ctx)
+	databaseRev, _, err := ds.OptimizedRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, false, err
 	}
@@ -291,7 +329,7 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 			switch option {
 			case TreatMismatchingTokensAsFullConsistency:
 				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to treat this as a full consistency request")
-				headRev, err := ds.HeadRevision(ctx)
+				headRev, _, err := ds.HeadRevision(ctx)
 				if err != nil {
 					return datastore.NoRevision, false, err
 				}

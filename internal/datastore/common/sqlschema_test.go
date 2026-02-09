@@ -369,16 +369,16 @@ func TestSQLSchemaReaderWriter_Singleflight(t *testing.T) {
 			WriteMode:         WriteModeDeleteAndInsert,
 		}
 
-		schemaRW := NewSQLSchemaReaderWriter[uint64, testRevision](
+		schemaRW, err := NewSQLSchemaReaderWriter[uint64, testRevision](
 			config,
 			options.SchemaCacheOptions{
-				MaximumCacheMemoryBytes: 0, // Disable cache to test pure singleflight
+				MaximumCacheEntries: 10,
 			},
 		)
+		require.NoError(t, err)
 
-		// Make 10 concurrent reads for the same revision
+		// Make 10 concurrent reads for the same hash
 		const numReads = 10
-		rev := testRevision{id: 123}
 
 		type result struct {
 			schema *core.StoredSchema
@@ -396,7 +396,7 @@ func TestSQLSchemaReaderWriter_Singleflight(t *testing.T) {
 			go func() {
 				ready.Done()
 				start.Wait() // Wait for all goroutines to be ready
-				schema, err := schemaRW.ReadSchema(context.Background(), executor, &rev)
+				schema, err := schemaRW.ReadSchema(context.Background(), executor, testRevision{id: 1}, datastore.SchemaHash("test-hash"))
 				results <- result{schema: schema, err: err}
 			}()
 		}
@@ -453,12 +453,13 @@ func TestSQLSchemaReaderWriter_Singleflight(t *testing.T) {
 			WriteMode:         WriteModeDeleteAndInsert,
 		}
 
-		schemaRW := NewSQLSchemaReaderWriter[uint64, testRevision](
+		schemaRW, err := NewSQLSchemaReaderWriter[uint64, testRevision](
 			config,
 			options.SchemaCacheOptions{
-				MaximumCacheMemoryBytes: 0,
+				MaximumCacheEntries: 0,
 			},
 		)
+		require.NoError(t, err)
 
 		// Make 5 concurrent reads with nil revision (transactional reads)
 		const numReads = 5
@@ -471,7 +472,7 @@ func TestSQLSchemaReaderWriter_Singleflight(t *testing.T) {
 
 		for i := 0; i < numReads; i++ {
 			go func() {
-				schema, err := schemaRW.ReadSchema(context.Background(), executor, nil)
+				schema, err := schemaRW.ReadSchema(context.Background(), executor, testRevision{id: 0}, datastore.NoSchemaHashInTransaction)
 				results <- result{schema: schema, err: err}
 			}()
 		}

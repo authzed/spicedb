@@ -25,8 +25,8 @@ func NewValidatingDatastore(delegate datastore.Datastore) datastore.Datastore {
 	return validatingDatastore{Datastore: delegate}
 }
 
-func (vd validatingDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
-	return validatingSnapshotReader{vd.Datastore.SnapshotReader(revision)}
+func (vd validatingDatastore) SnapshotReader(revision datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	return validatingSnapshotReader{vd.Datastore.SnapshotReader(revision, schemaHash)}
 }
 
 func (vd validatingDatastore) ReadWriteTx(

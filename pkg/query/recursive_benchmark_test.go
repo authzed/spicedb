@@ -43,7 +43,7 @@ func BenchmarkRecursiveShallowGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -96,7 +96,7 @@ func BenchmarkRecursiveWideGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -144,7 +144,7 @@ func BenchmarkRecursiveDeepGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -174,7 +174,7 @@ func BenchmarkRecursiveEmptyGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -233,7 +233,7 @@ func BenchmarkRecursiveSparseGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -281,7 +281,7 @@ func BenchmarkRecursiveCyclicGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -329,7 +329,7 @@ func BenchmarkRecursiveIterResources(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()

@@ -158,19 +158,19 @@ func (p *countingProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *countingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.delegate.SnapshotReader(rev)
+func (p *countingProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.delegate.SnapshotReader(rev, schemaHash)
 	return &countingReader{
 		delegate: delegateReader,
 		counts:   p.counts,
 	}
 }
 
-func (p *countingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *countingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 
-func (p *countingProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *countingProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.HeadRevision(ctx)
 }
 

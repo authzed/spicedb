@@ -8,6 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema"
@@ -527,10 +528,10 @@ func TestCanonicalization(t *testing.T) {
 
 			ctx := t.Context()
 
-			lastRevision, err := ds.HeadRevision(t.Context())
+			lastRevision, _, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
-			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision, datastore.NoSchemaHashForTesting)))
 
 			def, err := schema.NewDefinition(ts, tc.toCheck)
 			require.NoError(err)
@@ -663,10 +664,10 @@ func TestCanonicalizationComparison(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(t.Context())
+			lastRevision, _, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
-			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision, datastore.NoSchemaHashForTesting)))
 			def, err := schema.NewDefinition(ts, compiled.ObjectDefinitions[0])
 			require.NoError(err)
 

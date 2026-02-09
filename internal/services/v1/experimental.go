@@ -327,34 +327,39 @@ func (es *experimentalServer) BulkExportRelationships(
 	ctx := resp.Context()
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, _, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	return BulkExport(ctx, datastoremw.MustFromContext(ctx), es.maxBatchSize, req, atRevision, resp.Send)
+	return BulkExport(ctx, datastoremw.MustFromContext(ctx), es.maxBatchSize, req, atRevision, schemaHash, resp.Send)
 }
 
 // BulkExport implements the BulkExportRelationships API functionality. Given a datastore.Datastore, it will
 // export stream via the sender all relationships matched by the incoming request.
-// If no cursor is provided, it will fallback to the provided revision.
-func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
+// If no cursor is provided, it will fallback to the provided revision and schema hash.
+func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, fallbackSchemaHash datastore.SchemaHash, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
 	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
 		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
 	}
 
 	atRevision := fallbackRevision
+	schemaHash := fallbackSchemaHash
 	var curNamespace string
 	var cur dsoptions.Cursor
 	if req.OptionalCursor != nil {
 		var err error
-		atRevision, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
+		atRevision, schemaHash, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
 		if err != nil {
 			return shared.RewriteErrorWithoutConfig(ctx, err)
 		}
+		// If cursor has empty schema hash (legacy cursor), skip cache
+		if schemaHash == "" {
+			schemaHash = datastore.NoSchemaHashForLegacyCursor
+		}
 	}
 
-	reader := ds.SnapshotReader(atRevision)
+	reader := ds.SnapshotReader(atRevision, schemaHash)
 
 	namespaces, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
@@ -569,7 +574,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v1.ExperimentalDiffSchemaRequest) (*v1.ExperimentalDiffSchemaResponse, error) {
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, _, _, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -596,12 +601,12 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
@@ -679,12 +684,12 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
@@ -804,12 +809,12 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 	}
 
 	ds := datastoremw.MustFromContext(ctx)
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, schemaHash, err := ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	snapshotReader := ds.SnapshotReader(headRev)
+	snapshotReader := ds.SnapshotReader(headRev, schemaHash)
 	count, err := snapshotReader.CountRelationships(ctx, req.Name)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -859,30 +864,33 @@ func queryForEach(
 	return cursor, nil
 }
 
-func decodeCursor(ds datastore.ReadOnlyDatastore, encoded *v1.Cursor) (datastore.Revision, string, dsoptions.Cursor, error) {
+func decodeCursor(ds datastore.ReadOnlyDatastore, encoded *v1.Cursor) (datastore.Revision, datastore.SchemaHash, string, dsoptions.Cursor, error) {
 	decoded, err := cursor.Decode(encoded)
 	if err != nil {
-		return datastore.NoRevision, "", nil, err
+		return datastore.NoRevision, "", "", nil, err
 	}
 
 	if decoded.GetV1() == nil {
-		return datastore.NoRevision, "", nil, errors.New("malformed cursor: no V1 in OneOf")
+		return datastore.NoRevision, "", "", nil, errors.New("malformed cursor: no V1 in OneOf")
 	}
 
 	if len(decoded.GetV1().Sections) != 2 {
-		return datastore.NoRevision, "", nil, errors.New("malformed cursor: wrong number of components")
+		return datastore.NoRevision, "", "", nil, errors.New("malformed cursor: wrong number of components")
 	}
 
 	atRevision, err := ds.RevisionFromString(decoded.GetV1().Revision)
 	if err != nil {
-		return datastore.NoRevision, "", nil, err
+		return datastore.NoRevision, "", "", nil, err
 	}
 
 	cur, err := tuple.Parse(decoded.GetV1().GetSections()[1])
 	if err != nil {
-		return datastore.NoRevision, "", nil, fmt.Errorf("malformed cursor: invalid encoded relation tuple: %w", err)
+		return datastore.NoRevision, "", "", nil, fmt.Errorf("malformed cursor: invalid encoded relation tuple: %w", err)
 	}
 
-	// Returns the current namespace and the cursor.
-	return atRevision, decoded.GetV1().GetSections()[0], dsoptions.ToCursor(cur), nil
+	// Extract schema hash from cursor (could be empty for legacy cursors)
+	schemaHash := datastore.SchemaHash(decoded.GetV1().SchemaHash)
+
+	// Returns the current namespace, schema hash, and cursor.
+	return atRevision, schemaHash, decoded.GetV1().GetSections()[0], dsoptions.ToCursor(cur), nil
 }

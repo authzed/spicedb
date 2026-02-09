@@ -43,7 +43,7 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	// Check the count using the filter.
-	reader := ds.SnapshotReader(updatedRev)
+	reader := ds.SnapshotReader(updatedRev, datastore.NoSchemaHashForTesting)
 
 	expectedCount := 0
 	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
@@ -114,7 +114,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 
 	// Try calling count without the filter being registered.
-	reader := ds.SnapshotReader(rev)
+	reader := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)
 
 	_, err = reader.CountRelationships(t.Context(), "somefilter")
 	require.Error(t, err)
@@ -149,7 +149,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	// Check the count using the filter.
-	reader = ds.SnapshotReader(updatedRev)
+	reader = ds.SnapshotReader(updatedRev, datastore.NoSchemaHashForTesting)
 
 	expectedCount := 0
 	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
@@ -204,7 +204,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	require.Equal(t, expectedCount, count)
 
 	// Call the filter at the unregistered revision.
-	reader = ds.SnapshotReader(unregisterRev)
+	reader = ds.SnapshotReader(unregisterRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.CountRelationships(t.Context(), "document")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "counter with name `document` not found")
@@ -229,7 +229,7 @@ func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester)
 	require.NoError(t, err)
 
 	// Check the count using the filter.
-	reader := ds.SnapshotReader(updatedRev)
+	reader := ds.SnapshotReader(updatedRev, datastore.NoSchemaHashForTesting)
 
 	expectedCount := 0
 	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
@@ -258,7 +258,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 
-	reader := ds.SnapshotReader(rev)
+	reader := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)
 	filters, err := reader.LookupCounters(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, filters)
@@ -283,7 +283,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	// Read the filters.
-	reader = ds.SnapshotReader(updatedRev)
+	reader = ds.SnapshotReader(updatedRev, datastore.NoSchemaHashForTesting)
 
 	filters, err = reader.LookupCounters(t.Context())
 	require.NoError(t, err)
@@ -301,7 +301,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	// Read the filters.
-	reader = ds.SnapshotReader(currentRev)
+	reader = ds.SnapshotReader(currentRev, datastore.NoSchemaHashForTesting)
 
 	filters, err = reader.LookupCounters(t.Context())
 	require.NoError(t, err)
@@ -324,7 +324,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	// Read the filters.
-	reader = ds.SnapshotReader(newFilterRev)
+	reader = ds.SnapshotReader(newFilterRev, datastore.NoSchemaHashForTesting)
 
 	filters, err = reader.LookupCounters(t.Context())
 	require.NoError(t, err)

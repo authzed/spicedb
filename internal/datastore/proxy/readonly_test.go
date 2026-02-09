@@ -20,7 +20,7 @@ func newReadOnlyMock() (*proxy_test.MockDatastore, *proxy_test.MockReader) {
 	readerMock := &proxy_test.MockReader{}
 
 	dsMock.On("ReadWriteTx").Panic("read-only proxy should never open a read-write transaction").Maybe()
-	dsMock.On("SnapshotReader", mock.Anything).Return(readerMock).Maybe()
+	dsMock.On("SnapshotReader", mock.Anything, mock.Anything).Return(readerMock).Maybe()
 
 	return dsMock, readerMock
 }
@@ -74,9 +74,9 @@ func TestOptimizedRevisionPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := t.Context()
 
-	delegate.On("OptimizedRevision").Return(expectedRevision, nil).Times(1)
+	delegate.On("OptimizedRevision").Return(expectedRevision, datastore.NoSchemaHashForTesting, nil).Times(1)
 
-	revision, err := ds.OptimizedRevision(ctx)
+	revision, _, err := ds.OptimizedRevision(ctx)
 	require.NoError(err)
 	require.Equal(expectedRevision, revision)
 	delegate.AssertExpectations(t)
@@ -89,9 +89,9 @@ func TestHeadRevisionPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := t.Context()
 
-	delegate.On("HeadRevision").Return(expectedRevision, nil).Times(1)
+	delegate.On("HeadRevision").Return(expectedRevision, datastore.NoSchemaHashForTesting, nil).Times(1)
 
-	revision, err := ds.HeadRevision(ctx)
+	revision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 	require.Equal(expectedRevision, revision)
 	delegate.AssertExpectations(t)
@@ -134,7 +134,7 @@ func TestSnapshotReaderPassthrough(t *testing.T) {
 
 	reader.On("LegacyReadNamespaceByName", "fake").Return(nil, expectedRevision, nil).Times(1)
 
-	_, rev, err := ds.SnapshotReader(expectedRevision).LegacyReadNamespaceByName(ctx, "fake")
+	_, rev, err := ds.SnapshotReader(expectedRevision, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, "fake")
 	require.NoError(err)
 	require.True(expectedRevision.Equal(rev))
 	delegate.AssertExpectations(t)

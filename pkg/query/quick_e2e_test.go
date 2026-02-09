@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
@@ -40,7 +41,7 @@ func TestCheck(t *testing.T) {
 	it.addSubIterator(edit)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -68,7 +69,7 @@ func TestBaseIterSubjects(t *testing.T) {
 	vande := NewRelationIterator(vandeRel.BaseRelations()[0])
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.IterSubjects(vande, NewObject("document", "specialplan"), NoObjectFilter())
 	require.NoError(err)
@@ -101,7 +102,7 @@ func TestCheckArrow(t *testing.T) {
 	it := NewArrow(folders, view)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
 	require.NoError(err)

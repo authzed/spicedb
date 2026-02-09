@@ -190,7 +190,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
 
 	// cursor is at `optimized`
-	cursor, err := cursor.EncodeFromDispatchCursor(&dispatch.Cursor{}, "somehash", optimized, nil)
+	cursor, err := cursor.EncodeFromDispatchCursor(&dispatch.Cursor{}, "somehash", optimized, datastore.NoSchemaHashForTesting, nil)
 	require.NoError(err)
 
 	// revision in context is at `exact`

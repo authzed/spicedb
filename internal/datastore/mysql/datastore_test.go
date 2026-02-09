@@ -467,7 +467,7 @@ func SchemaGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Equal(schemaRevisionRows3, schemaRevisionRowsAfterGC1, "No schema_revision rows should be removed at rev1")
 
 	// Run GC at rev2 - should remove schema rows from rev1
-	removed, err = mgg.DeleteBeforeTx(ctx, rev2)
+	_, err = mgg.DeleteBeforeTx(ctx, rev2)
 	req.NoError(err)
 
 	schemaRowsAfterGC2, schemaRevisionRowsAfterGC2 := countSchemaRows()
@@ -475,7 +475,7 @@ func SchemaGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Less(schemaRevisionRowsAfterGC2, schemaRevisionRows3, "Schema_revision rows from rev1 should be removed")
 
 	// Run GC at rev3 - should remove schema rows from rev2
-	removed, err = mgg.DeleteBeforeTx(ctx, rev3)
+	_, err = mgg.DeleteBeforeTx(ctx, rev3)
 	req.NoError(err)
 
 	schemaRowsAfterGC3, schemaRevisionRowsAfterGC3 := countSchemaRows()
@@ -483,10 +483,10 @@ func SchemaGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Less(schemaRevisionRowsAfterGC3, schemaRevisionRowsAfterGC2, "Schema_revision rows from rev2 should be removed")
 
 	// Verify we can still read the latest schema
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	req.NoError(err)
 	schemaText, err := schemaReader.SchemaText()
@@ -891,7 +891,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	// Let's make sure both Now() and transactionCreated() have timezones aligned
 	req.Less(ts.Sub(startTimeUTC), 5*time.Minute)
 
-	revision, err := ds.OptimizedRevision(ctx)
+	revision, _, err := ds.OptimizedRevision(ctx)
 	req.NoError(err)
 	req.Equal(revisions.NewForTransactionID(txID), revision)
 }

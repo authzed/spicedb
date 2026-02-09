@@ -61,6 +61,16 @@ const (
 	queryTransactionNow       = "SHOW COMMIT TIMESTAMP"
 	queryShowZoneConfig       = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 
+	// Query to get the current HLC timestamp along with the latest schema_hash
+	querySelectNowWithHash = `
+	WITH current_ts AS (
+		SELECT cluster_logical_timestamp() as ts
+	)
+	SELECT
+		current_ts.ts,
+		COALESCE((SELECT hash FROM schema_revision WHERE name = 'current' ORDER BY timestamp DESC LIMIT 1), ''::bytea)
+	FROM current_ts;`
+
 	spicedbTransactionKey = "$spicedb_transaction_key"
 )
 
@@ -200,7 +210,11 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		schemaMode:                   config.schemaMode,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
-	ds.SetNowFunc(ds.headRevisionInternal)
+	// Wrap headRevisionInternal to match RemoteNowFunction signature
+	ds.SetNowFunc(func(ctx context.Context) (datastore.Revision, error) {
+		rev, _, err := ds.headRevisionInternal(ctx)
+		return rev, err
+	})
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
@@ -216,7 +230,11 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	}
 
 	// Initialize schema reader/writer
-	ds.schemaReaderWriter = common.NewSQLSchemaReaderWriter[any, revisions.HLCRevision](BaseSchemaChunkerConfig, config.schemaCacheOptions)
+	ds.schemaReaderWriter, err = common.NewSQLSchemaReaderWriter[any, revisions.HLCRevision](BaseSchemaChunkerConfig, config.schemaCacheOptions)
+	if err != nil {
+		ds.cancel()
+		return nil, err
+	}
 
 	err = ds.registerPrometheusCollectors(config.enablePrometheusStats)
 	if err != nil {
@@ -245,6 +263,11 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 			healthChecker.Poll(ds.ctx, 5*time.Second)
 			return nil
 		})
+	}
+
+	// Warm the schema cache on startup
+	if err := warmSchemaCache(initCtx, ds); err != nil {
+		log.Warn().Err(err).Msg("failed to warm schema cache on startup")
 	}
 
 	return ds, nil
@@ -301,7 +324,7 @@ type crdbDatastore struct {
 	uniqueID atomic.Pointer[string]
 }
 
-func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
 	executor := common.QueryRelationshipsExecutor{
 		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(cds.readPool, cds),
 	}
@@ -316,6 +339,7 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 		atSpecificRevision:   rev.String(),
 		schemaMode:           cds.schemaMode,
 		snapshotRevision:     rev,
+		schemaHash:           string(hash),
 		schemaReaderWriter:   cds.schemaReaderWriter,
 	}
 }
@@ -352,7 +376,8 @@ func (cds *crdbDatastore) ReadWriteTx(
 			withIntegrity:        cds.supportsIntegrity,
 			atSpecificRevision:   "", // No AS OF SYSTEM TIME for writes
 			schemaMode:           cds.schemaMode,
-			snapshotRevision:     datastore.NoRevision, // Revision not known until commit
+			snapshotRevision:     datastore.NoRevision,                        // Revision not known until commit
+			schemaHash:           string(datastore.NoSchemaHashInTransaction), // Bypass cache for transaction reads
 			schemaReaderWriter:   cds.schemaReaderWriter,
 		}
 
@@ -534,20 +559,17 @@ func (r *crdbSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (st
 	return watcher.readSchemaHash(ctx)
 }
 
-func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return cds.headRevisionInternal(ctx)
 }
 
-func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, error) {
-	var hlcNow datastore.Revision
-
-	var fnErr error
-	hlcNow, fnErr = readCRDBNow(ctx, cds.readPool)
+func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
+	hlcNow, schemaHash, fnErr := readCRDBNow(ctx, cds.readPool)
 	if fnErr != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, fnErr)
+		return datastore.NoRevision, "", fmt.Errorf(errRevision, fnErr)
 	}
 
-	return hlcNow, fnErr
+	return hlcNow, schemaHash, fnErr
 }
 
 func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
@@ -614,7 +636,7 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 		features.IntegrityData.Status = datastore.FeatureSupported
 	}
 
-	head, err := cds.HeadRevision(ctx)
+	head, _, err := cds.HeadRevision(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -661,18 +683,24 @@ func (cds *crdbDatastore) readTransactionCommitRev(ctx context.Context, reader p
 	return revisions.NewForHLC(hlcNow)
 }
 
-func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (datastore.Revision, error) {
+func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (datastore.Revision, datastore.SchemaHash, error) {
 	ctx, span := tracer.Start(ctx, "readCRDBNow")
 	defer span.End()
 
 	var hlcNow decimal.Decimal
+	var schemaHash []byte
 	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
-		return row.Scan(&hlcNow)
-	}, querySelectNow); err != nil {
-		return datastore.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
+		return row.Scan(&hlcNow, &schemaHash)
+	}, querySelectNowWithHash); err != nil {
+		return datastore.NoRevision, "", fmt.Errorf("unable to read timestamp and schema hash: %w", err)
 	}
 
-	return revisions.NewForHLC(hlcNow)
+	rev, err := revisions.NewForHLC(hlcNow)
+	if err != nil {
+		return datastore.NoRevision, "", err
+	}
+
+	return rev, datastore.SchemaHash(schemaHash), nil
 }
 
 func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {
@@ -695,6 +723,39 @@ func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int
 	}
 
 	return gcSeconds * 1_000_000_000, nil
+}
+
+// warmSchemaCache attempts to warm the schema cache by loading the current schema.
+// This is called during datastore initialization to avoid cold-start latency on first requests.
+func warmSchemaCache(ctx context.Context, ds *crdbDatastore) error {
+	// Get the current revision and schema hash
+	rev, schemaHash, err := ds.HeadRevision(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get head revision: %w", err)
+	}
+
+	// If there's no schema hash, there's no schema to warm
+	if schemaHash == "" {
+		log.Ctx(ctx).Debug().Msg("no schema hash found, skipping cache warming")
+		return nil
+	}
+
+	// Create a simple executor for schema reading (no transaction, no revision filtering needed for warmup)
+	executor := newCRDBChunkedBytesExecutor(ds.readPool)
+
+	// Load the schema to populate the cache
+	_, err = ds.schemaReaderWriter.ReadSchema(ctx, executor, rev, schemaHash)
+	if err != nil {
+		if errors.Is(err, datastore.ErrSchemaNotFound) {
+			// Schema not found is not an error during warming - just means no schema yet
+			log.Ctx(ctx).Debug().Msg("no schema found, skipping cache warming")
+			return nil
+		}
+		return fmt.Errorf("failed to read schema: %w", err)
+	}
+
+	log.Ctx(ctx).Info().Str("schema_hash", string(schemaHash)).Msg("schema cache warmed successfully")
+	return nil
 }
 
 func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats bool) error {

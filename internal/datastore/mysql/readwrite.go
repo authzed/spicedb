@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/hex"
@@ -639,8 +640,9 @@ func (rwt *mysqlReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
 		return nil
 	}
 
-	// Compute schema hash
-	schemaHash := hex.EncodeToString([]byte(schemaText))
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
 
 	// Mark existing hash rows as deleted
 	sql, args, err := sb.Update(rwt.schemaRevisionTableName).
@@ -684,8 +686,8 @@ func (w *mysqlSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredS
 	}
 
 	// Use the shared schema reader/writer to read the schema
-	// Pass nil for transaction reads to bypass cache
-	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil)
+	// Pass empty string for transaction reads to bypass cache
+	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil, datastore.NoSchemaHashInTransaction)
 }
 
 // LegacyWriteNamespaces delegates to the underlying transaction

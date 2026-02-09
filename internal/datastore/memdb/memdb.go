@@ -2,6 +2,7 @@ package memdb
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -28,6 +29,11 @@ const (
 	Engine                   = "memory"
 	defaultWatchBufferLength = 128
 	numAttempts              = 10
+
+	// noHashSupported is a sentinel value indicating that schema hashing is not supported
+	// by the memdb datastore. memdb uses in-memory schema storage and doesn't use SQL-based
+	// schema hashing like other datastores.
+	noHashSupported datastore.SchemaHash = "__memdb_no_hash_support__"
 )
 
 var (
@@ -72,8 +78,9 @@ func NewMemdbDatastore(
 		db: db,
 		revisions: []snapshot{
 			{
-				revision: nowRevision(),
-				db:       db,
+				revision:   nowRevision(),
+				schemaHash: noHashSupported,
+				db:         db,
 			},
 		},
 
@@ -105,8 +112,9 @@ type memdbDatastore struct {
 }
 
 type snapshot struct {
-	revision revisions.TimestampRevision
-	db       *memdb.MemDB
+	revision   revisions.TimestampRevision
+	schemaHash datastore.SchemaHash
+	db         *memdb.MemDB
 }
 
 func (mdb *memdbDatastore) MetricsID() (string, error) {
@@ -117,20 +125,34 @@ func (mdb *memdbDatastore) UniqueID(_ context.Context) (string, error) {
 	return mdb.uniqueID, nil
 }
 
-func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
+func (mdb *memdbDatastore) getCurrentSchemaHashNoLock() datastore.SchemaHash {
+	// Read the current schema hash from the schemarevision table
+	txn := mdb.db.Txn(false)
+	defer txn.Abort()
+
+	raw, err := txn.First(tableSchemaRevision, indexID, "current")
+	if err != nil || raw == nil {
+		return noHashSupported
+	}
+
+	schemaRev := raw.(*schemaRevisionData)
+	return datastore.SchemaHash(schemaRev.hash)
+}
+
+func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
 	if err := mdb.checkNotClosed(); err != nil {
-		return &memdbReader{nil, nil, err, time.Now(), mdb}
+		return &memdbReader{nil, nil, err, time.Now(), "", mdb}
 	}
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now(), mdb}
+		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now(), "", mdb}
 	}
 
 	if err := mdb.checkRevisionLocalCallerMustLock(dr); err != nil {
-		return &memdbReader{nil, nil, err, time.Now(), mdb}
+		return &memdbReader{nil, nil, err, time.Now(), "", mdb}
 	}
 
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
@@ -144,7 +166,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now(), mdb}
+		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now(), "", mdb}
 	}
 
 	roTxn := rev.db.Txn(false)
@@ -152,7 +174,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 		return roTxn, nil
 	}
 
-	return &memdbReader{noopTryLocker{}, txSrc, nil, time.Now(), mdb}
+	return &memdbReader{noopTryLocker{}, txSrc, nil, time.Now(), string(hash), mdb}
 }
 
 func (mdb *memdbDatastore) SupportsIntegrity() bool {
@@ -197,7 +219,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		newRevision := mdb.newRevisionID()
-		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now(), mdb}, newRevision}
+		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now(), string(datastore.NoSchemaHashInTransaction), mdb}, newRevision}
 		if err := f(ctx, rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
@@ -329,7 +351,11 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		// Create a snapshot and add it to the revisions slice
 		snap := mdb.db.Snapshot()
-		mdb.revisions = append(mdb.revisions, snapshot{newRevision, snap})
+
+		// Get the current schema hash
+		schemaHash := mdb.getCurrentSchemaHashNoLock()
+
+		mdb.revisions = append(mdb.revisions, snapshot{newRevision, schemaHash, snap})
 		return newRevision, nil
 	}
 
@@ -374,8 +400,9 @@ func (mdb *memdbDatastore) Close() error {
 	if db := mdb.db; db != nil {
 		mdb.revisions = []snapshot{
 			{
-				revision: nowRevision(),
-				db:       db,
+				revision:   nowRevision(),
+				schemaHash: noHashSupported,
+				db:         db,
 			},
 		}
 	} else {
@@ -560,8 +587,9 @@ func (mdb *memdbDatastore) writeLegacySchemaHashInternalWithTx(tx *memdb.Txn) er
 		}
 	}
 
-	// Compute schema hash
-	schemaHash := hex.EncodeToString([]byte(schemaText))
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
 
 	// Delete existing hash (if any)
 	if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {

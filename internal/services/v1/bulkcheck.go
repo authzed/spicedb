@@ -48,7 +48,7 @@ const maxBulkCheckCount = 10000
 func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
 	telemetry.LogicalChecks.Add(float64(len(req.Items)))
 
-	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, checkedAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +77,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 	// the dispatching system already internally supports this kind of batching for performance.
 	groupedItems, err := groupItems(ctx, groupingParameters{
 		atRevision:           atRevision,
+		schemaHash:           schemaHash,
 		maxCaveatContextSize: bc.maxCaveatContextSize,
 		maximumAPIDepth:      bc.maxAPIDepth,
 		withTracing:          req.WithTracing,
@@ -163,7 +164,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 		bulkResponseMutex.Lock()
 		defer bulkResponseMutex.Unlock()
 
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 
 		schemaText := ""
 		if len(debugInfos) > 0 {
@@ -248,7 +249,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 			tr.Add(func(ctx context.Context) error {
 				startTime := time.Now()
 
-				ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+				ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 
 				// Ensure the check namespaces and relations are valid.
 				err := namespace.CheckNamespaceAndRelations(ctx,

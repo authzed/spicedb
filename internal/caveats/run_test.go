@@ -467,10 +467,10 @@ func TestRunCaveatExpressions(t *testing.T) {
 					third
 				}
 				`, nil, req)
-			headRevision, err := ds.HeadRevision(t.Context())
+			headRevision, _, err := ds.HeadRevision(t.Context())
 			req.NoError(err)
 
-			reader := ds.SnapshotReader(headRevision)
+			reader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 
 			for _, debugOption := range []RunCaveatExpressionDebugOption{
 				RunCaveatExpressionNoDebugging,
@@ -519,10 +519,10 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevision, _, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 
 	result, err := RunSingleCaveatExpression(
 		t.Context(),
@@ -549,10 +549,10 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevision, _, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 
 	_, err = RunSingleCaveatExpression(
 		t.Context(),
@@ -585,10 +585,10 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevision, _, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Run the first caveat.
@@ -646,10 +646,10 @@ func TestRunCaveatWithMissingDefinition(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevision, _, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 
 	// Try to run a caveat that doesn't exist
 	_, err = RunSingleCaveatExpression(
@@ -679,10 +679,10 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevision, _, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Test populating definitions for complex expression
@@ -721,10 +721,10 @@ func TestCaveatRunnerEmptyExpression(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevision, _, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Test with an expression that has no caveats (empty operation)
@@ -799,10 +799,10 @@ func TestUnknownCaveatOperation(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevision, _, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Create an expression with an unknown operation

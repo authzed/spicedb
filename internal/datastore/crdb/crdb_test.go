@@ -173,10 +173,10 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 
 			// Revisions should be at least the follower read delay amount in the past
 			for start := time.Now(); time.Since(start) < 50*time.Millisecond; {
-				testRevision, err := ds.OptimizedRevision(ctx)
+				testRevision, _, err := ds.OptimizedRevision(ctx)
 				require.NoError(t, err)
 
-				nowRevision, err := ds.HeadRevision(ctx)
+				nowRevision, _, err := ds.HeadRevision(ctx)
 				require.NoError(t, err)
 
 				diff := nowRevision.(revisions.HLCRevision).TimestampNanoSec() - testRevision.(revisions.HLCRevision).TimestampNanoSec()
@@ -314,6 +314,10 @@ func TestWatchFeatureDetection(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, crdbmigrations.CRDBMigrations.Run(ctx, migrationDriver, migrate.Head, migrate.LiveRun))
 
+			// Grant SELECT on schema_revision to unprivileged user (needed for HeadRevision)
+			_, err = adminConn.Exec(ctx, `GRANT SELECT ON TABLE testspicedb.schema_revision TO unprivileged;`)
+			require.NoError(t, err)
+
 			tt.postInit(ctx, adminConn)
 
 			ds, err := NewCRDBDatastore(ctx, connStrings[unprivileged], WithAcquireTimeout(5*time.Second))
@@ -328,7 +332,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 			require.Contains(t, features.Watch.Reason, tt.expectMessage)
 
 			if features.Watch.Status != datastore.FeatureSupported {
-				headRevision, err := ds.HeadRevision(ctx)
+				headRevision, _, err := ds.HeadRevision(ctx)
 				require.NoError(t, err)
 
 				_, errChan := ds.Watch(ctx, headRevision, datastore.WatchJustRelationships())
@@ -528,10 +532,10 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require.NoError(err)
 
 	// Read the relationship back and ensure the integrity information is present.
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"foo"},
@@ -591,10 +595,10 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 	require.NoError(err)
 
 	// Read the relationship back and ensure the integrity information is present.
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"foo"},

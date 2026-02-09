@@ -16,13 +16,13 @@ import (
 // checkPermissionWithQueryPlan executes a permission check using the query plan API.
 // This builds an iterator tree from the schema and executes it against the datastore.
 func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
-	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, checkedAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(atRevision)
+	reader := ds.SnapshotReader(atRevision, schemaHash)
 
 	// Load all namespace and caveat definitions to build the schema
 	// TODO: Better schema caching

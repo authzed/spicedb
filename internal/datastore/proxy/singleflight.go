@@ -16,7 +16,6 @@ func NewSingleflightDatastoreProxy(d datastore.Datastore) datastore.Datastore {
 }
 
 type singleflightProxy struct {
-	headRevGroup  singleflight.Group[string, datastore.Revision]
 	checkRevGroup singleflight.Group[string, string]
 	statsGroup    singleflight.Group[string, datastore.Stats]
 	delegate      datastore.Datastore
@@ -32,15 +31,15 @@ func (p *singleflightProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *singleflightProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	return p.delegate.SnapshotReader(rev)
+func (p *singleflightProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	return p.delegate.SnapshotReader(rev, schemaHash)
 }
 
 func (p *singleflightProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
 	return p.delegate.ReadWriteTx(ctx, f, opts...)
 }
 
-func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	// NOTE: Optimized revisions are singleflighted by the underlying datastore via the
 	// CachedOptimizedRevisions struct.
 	return p.delegate.OptimizedRevision(ctx)
@@ -53,11 +52,9 @@ func (p *singleflightProxy) CheckRevision(ctx context.Context, revision datastor
 	return err
 }
 
-func (p *singleflightProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	rev, _, err := p.headRevGroup.Do(ctx, "", func(ctx context.Context) (datastore.Revision, error) {
-		return p.delegate.HeadRevision(ctx)
-	})
-	return rev, err
+func (p *singleflightProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
+	// Singleflight doesn't support tuple returns, so just delegate directly
+	return p.delegate.HeadRevision(ctx)
 }
 
 func (p *singleflightProxy) RevisionFromString(serialized string) (datastore.Revision, error) {

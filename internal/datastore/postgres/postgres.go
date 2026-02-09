@@ -340,9 +340,15 @@ func newPostgresDatastore(
 		includeQueryParametersInTraces: config.includeQueryParametersInTraces,
 		schemaMode:                     config.schemaMode,
 		quantizationPeriodNanos:        quantizationPeriodNanos,
-		schemaReaderWriter:             common.NewSQLSchemaReaderWriter[uint64, postgresRevision](BaseSchemaChunkerConfig, config.schemaCacheOptions),
 		isolationLevel:                 isolationLevel,
 	}
+
+	// Create schema reader/writer
+	schemaReaderWriter, err := common.NewSQLSchemaReaderWriter[uint64, postgresRevision](BaseSchemaChunkerConfig, config.schemaCacheOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create schema reader/writer: %w", err)
+	}
+	datastore.schemaReaderWriter = schemaReaderWriter
 
 	if isPrimary && config.readStrictMode {
 		return nil, spiceerrors.MustBugf("strict read mode is not supported on primary instances")
@@ -353,43 +359,6 @@ func newPostgresDatastore(
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
-
-	// Start watching for schema changes if cache is enabled
-	if datastore.schemaReaderWriter != nil {
-		queryFuncs := pgxcommon.QuerierFuncsFor(datastore.readPool)
-		watcher := newPGSchemaHashWatcher(queryFuncs)
-
-		// Create revision function that gets the current head revision
-		revisionFunc := func(ctx context.Context) (postgresRevision, error) {
-			rev, err := datastore.HeadRevision(ctx)
-			if err != nil {
-				return postgresRevision{}, err
-			}
-			pgRev, ok := rev.(postgresRevision)
-			if !ok {
-				return postgresRevision{}, fmt.Errorf("unexpected revision type: %T", rev)
-			}
-			return pgRev, nil
-		}
-
-		// Create executor function that returns a revision-aware executor
-		// For loading current schema, we don't need alive filtering (load latest)
-		executorFunc := func() common.ChunkedBytesExecutor {
-			return &pgRevisionAwareExecutor{
-				query: queryFuncs,
-				aliveFilter: func(original sq.SelectBuilder) sq.SelectBuilder {
-					return original // No filtering - get latest
-				},
-			}
-		}
-
-		datastore.schemaReaderWriter.StartWatching(watcher, revisionFunc, executorFunc)
-
-		// Warm the cache with the current schema
-		if err := datastore.schemaReaderWriter.WarmCache(ctx); err != nil {
-			log.Warn().Err(err).Msg("failed to warm schema cache")
-		}
-	}
 
 	// Start a goroutine for garbage collection and the revision heartbeat.
 	if isPrimary {
@@ -413,6 +382,11 @@ func newPostgresDatastore(
 		} else {
 			log.Warn().Msg("datastore background garbage collection disabled")
 		}
+	}
+
+	// Warm the schema cache on startup
+	if err := warmSchemaCache(initializationContext, datastore); err != nil {
+		log.Warn().Err(err).Msg("failed to warm schema cache on startup")
 	}
 
 	return datastore, nil
@@ -467,7 +441,7 @@ func (pgd *pgDatastore) IsStrictReadModeEnabled() bool {
 	return pgd.inStrictReadMode
 }
 
-func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {
+func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
 	rev := revRaw.(postgresRevision)
 
 	queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
@@ -488,6 +462,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		schemaMode:           pgd.schemaMode,
 		snapshotRevision:     rev,
 		schemaReaderWriter:   pgd.schemaReaderWriter,
+		schemaHash:           string(schemaHash),
 	}
 }
 
@@ -536,6 +511,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 					schemaMode:           pgd.schemaMode,
 					snapshotRevision:     datastore.NoRevision, // snapshotRevision (not yet known in RWT)
 					schemaReaderWriter:   pgd.schemaReaderWriter,
+					schemaHash:           string(datastore.NoSchemaHashInTransaction), // Transaction reads bypass cache
 				},
 				tx:     tx,
 				newXID: newXID,
@@ -886,6 +862,39 @@ func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 }
 
 var _ datastore.Datastore = &pgDatastore{}
+
+// warmSchemaCache attempts to warm the schema cache by loading the current schema.
+// This is called during datastore initialization to avoid cold-start latency on first requests.
+func warmSchemaCache(ctx context.Context, ds *pgDatastore) error {
+	// Get the current revision and schema hash
+	rev, schemaHash, err := ds.HeadRevision(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get head revision: %w", err)
+	}
+
+	// If there's no schema hash, there's no schema to warm
+	if schemaHash == "" {
+		log.Ctx(ctx).Debug().Msg("no schema hash found, skipping cache warming")
+		return nil
+	}
+
+	// Create a simple executor for schema reading (no transaction, no revision filtering needed for warmup)
+	executor := newPostgresChunkedBytesExecutor(ds.readPool.(*pgxpool.Pool))
+
+	// Load the schema to populate the cache
+	_, err = ds.schemaReaderWriter.ReadSchema(ctx, executor, rev, schemaHash)
+	if err != nil {
+		if errors.Is(err, datastore.ErrSchemaNotFound) {
+			// Schema not found is not an error during warming - just means no schema yet
+			log.Ctx(ctx).Debug().Msg("no schema found, skipping cache warming")
+			return nil
+		}
+		return fmt.Errorf("failed to read schema: %w", err)
+	}
+
+	log.Ctx(ctx).Info().Str("schema_hash", string(schemaHash)).Msg("schema cache warmed successfully")
+	return nil
+}
 
 func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, readPool, writePool *pgxpool.Pool, enablePrometheusStats bool) ([]prometheus.Collector, error) {
 	collectors := []prometheus.Collector{}

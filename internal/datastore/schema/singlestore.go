@@ -2,6 +2,7 @@ package schema
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -319,7 +320,9 @@ func (s *singleStoreSchemaWriter) WriteSchema(ctx context.Context, definitions [
 		return fmt.Errorf("failed to generate canonical schema: %w", err)
 	}
 
-	schemaHash := hex.EncodeToString([]byte(canonicalSchemaText))
+	// Compute SHA256 hash of the canonical schema text
+	hashBytes := sha256.Sum256([]byte(canonicalSchemaText))
+	schemaHash := hex.EncodeToString(hashBytes[:])
 
 	// Create the stored schema proto
 	storedSchema := &core.StoredSchema{

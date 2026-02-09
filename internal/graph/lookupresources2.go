@@ -127,7 +127,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(req.Revision)
+	reader := ds.SnapshotReader(req.Revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.ResourceRelation.Namespace)
 	if err != nil {
@@ -594,6 +594,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							Subject:       tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
 							CaveatContext: parentRequest.Context.AsMap(),
 							AtRevision:    parentRequest.Revision,
+							SchemaHash:    datastore.SchemaHash(parentRequest.Metadata.SchemaHash),
 							MaximumDepth:  parentRequest.Metadata.DepthRemaining - 1,
 							DebugOption:   computed.NoDebugging,
 							CheckHints:    checkHints,

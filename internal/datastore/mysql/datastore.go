@@ -232,6 +232,16 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		followerReadDelayNanos,
 	)
 
+	revisionQueryWithHash := fmt.Sprintf(
+		querySelectRevisionWithHash,
+		colID,
+		driver.RelationTupleTransaction(),
+		colTimestamp,
+		quantizationPeriodNanos,
+		followerReadDelayNanos,
+		driver.SchemaRevision(),
+	)
+
 	validTransactionQuery := fmt.Sprintf(
 		queryValidTransaction,
 		colID,
@@ -260,40 +270,46 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	)
 
 	store := &mysqlDatastore{
-		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
-		db:                           db,
-		driver:                       driver,
-		collectors:                   collectors,
-		url:                          uri,
-		revisionQuantization:         config.revisionQuantization,
-		gcWindow:                     config.gcWindow,
-		gcInterval:                   config.gcInterval,
-		gcTimeout:                    config.gcMaxOperationTime,
-		gcCtx:                        gcCtx,
-		cancelGc:                     cancelGc,
-		watchEnabled:                 !config.watchDisabled,
-		watchBufferLength:            config.watchBufferLength,
-		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
-		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
-		optimizedRevisionQuery:       revisionQuery,
-		validTransactionQuery:        validTransactionQuery,
-		createTxn:                    createTxn,
-		createBaseTxn:                createBaseTxn,
-		QueryBuilder:                 queryBuilder,
-		readTxOptions:                &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
-		maxRetries:                   config.maxRetries,
-		analyzeBeforeStats:           config.analyzeBeforeStats,
-		schema:                       *schema,
-		schemaMode:                   config.schemaMode,
+		MigrationValidator:             common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		db:                             db,
+		driver:                         driver,
+		collectors:                     collectors,
+		url:                            uri,
+		revisionQuantization:           config.revisionQuantization,
+		gcWindow:                       config.gcWindow,
+		gcInterval:                     config.gcInterval,
+		gcTimeout:                      config.gcMaxOperationTime,
+		gcCtx:                          gcCtx,
+		cancelGc:                       cancelGc,
+		watchEnabled:                   !config.watchDisabled,
+		watchBufferLength:              config.watchBufferLength,
+		watchChangeBufferMaximumSize:   config.watchChangeBufferMaximumSize,
+		watchBufferWriteTimeout:        config.watchBufferWriteTimeout,
+		optimizedRevisionQuery:         revisionQuery,
+		optimizedRevisionQueryWithHash: revisionQueryWithHash,
+		validTransactionQuery:          validTransactionQuery,
+		createTxn:                      createTxn,
+		createBaseTxn:                  createBaseTxn,
+		QueryBuilder:                   queryBuilder,
+		readTxOptions:                  &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
+		maxRetries:                     config.maxRetries,
+		analyzeBeforeStats:             config.analyzeBeforeStats,
+		schema:                         *schema,
+		schemaMode:                     config.schemaMode,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.TransactionID,
 		},
-		schemaReaderWriter:   common.NewSQLSchemaReaderWriter[uint64, revisions.TransactionIDRevision](BaseSchemaChunkerConfig.WithTableName(driver.Schema()), config.schemaCacheOptions),
 		schemaTableName:      driver.Schema(),
 		filterMaximumIDCount: config.filterMaximumIDCount,
+	}
+
+	// Initialize schema reader/writer
+	store.schemaReaderWriter, err = common.NewSQLSchemaReaderWriter[uint64, revisions.TransactionIDRevision](BaseSchemaChunkerConfig.WithTableName(driver.Schema()), config.schemaCacheOptions)
+	if err != nil {
+		return nil, err
 	}
 
 	store.SetOptimizedRevisionFunc(store.optimizedRevisionFunc)
@@ -305,49 +321,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		return nil, err
 	}
 
-	// Start watching for schema changes if cache is enabled
-	if store.schemaReaderWriter != nil {
-		watcher := newMySQLSchemaHashWatcher(store.db, store.driver.SchemaRevision())
-
-		// Create revision function that gets the current head revision
-		revisionFunc := func(ctx context.Context) (revisions.TransactionIDRevision, error) {
-			rev, err := store.HeadRevision(ctx)
-			if err != nil {
-				return revisions.TransactionIDRevision(0), err
-			}
-			txRev, ok := rev.(revisions.TransactionIDRevision)
-			if !ok {
-				return revisions.TransactionIDRevision(0), fmt.Errorf("unexpected revision type: %T", rev)
-			}
-			return txRev, nil
-		}
-
-		// Create executor function that returns a revision-aware executor
-		// For loading current schema, we don't need alive filtering (load latest)
-		executorFunc := func() common.ChunkedBytesExecutor {
-			createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
-				tx, err := store.db.BeginTx(ctx, store.readTxOptions)
-				if err != nil {
-					return nil, nil, err
-				}
-				return tx, tx.Rollback, nil
-			}
-
-			return &mysqlRevisionAwareExecutor{
-				txSource: createTxFunc,
-				aliveFilter: func(original sq.SelectBuilder) sq.SelectBuilder {
-					return original // No filtering - get latest
-				},
-			}
-		}
-
-		store.schemaReaderWriter.StartWatching(watcher, revisionFunc, executorFunc)
-
-		// Warm the cache with the current schema
-		if err := store.schemaReaderWriter.WarmCache(ctx); err != nil {
-			log.Warn().Err(err).Msg("failed to warm schema cache")
-		}
-	}
+	// Hash-based cache doesn't need watchers or warming
 
 	// Start a goroutine for garbage collection.
 	if isPrimary {
@@ -367,6 +341,13 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		}
 	}
 
+	// Warm the schema cache on startup
+	warmCtx, cancelWarm := context.WithTimeout(context.Background(), seedingTimeout)
+	defer cancelWarm()
+	if err := warmSchemaCache(warmCtx, store); err != nil {
+		log.Warn().Err(err).Msg("failed to warm schema cache on startup")
+	}
+
 	return store, nil
 }
 
@@ -374,7 +355,7 @@ func (mds *mysqlDatastore) MetricsID() (string, error) {
 	return common.MetricsIDFromURL(mds.url)
 }
 
-func (mds *mysqlDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (mds *mysqlDatastore) SnapshotReader(rev datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
 		if err != nil {
@@ -397,6 +378,7 @@ func (mds *mysqlDatastore) SnapshotReader(rev datastore.Revision) datastore.Read
 		schema:               mds.schema,
 		schemaMode:           mds.schemaMode,
 		snapshotRevision:     rev,
+		schemaHash:           string(hash),
 		schemaTableName:      mds.driver.Schema(),
 		schemaReaderWriter:   mds.schemaReaderWriter,
 	}
@@ -444,7 +426,8 @@ func (mds *mysqlDatastore) ReadWriteTx(
 					filterMaximumIDCount: mds.filterMaximumIDCount,
 					schema:               mds.schema,
 					schemaMode:           mds.schemaMode,
-					snapshotRevision:     datastore.NoRevision, // snapshotRevision (not yet known in RWT)
+					snapshotRevision:     datastore.NoRevision,                        // snapshotRevision (not yet known in RWT)
+					schemaHash:           string(datastore.NoSchemaHashInTransaction), // Bypass cache for transaction reads
 					schemaTableName:      mds.driver.Schema(),
 					schemaReaderWriter:   mds.schemaReaderWriter,
 				},
@@ -562,8 +545,9 @@ type mysqlDatastore struct {
 	schema                       common.SchemaInformation
 	schemaMode                   dsoptions.SchemaMode
 
-	optimizedRevisionQuery string
-	validTransactionQuery  string
+	optimizedRevisionQuery         string
+	optimizedRevisionQueryWithHash string
+	validTransactionQuery          string
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
@@ -690,7 +674,7 @@ func (mds *mysqlDatastore) OfflineFeatures() (*datastore.Features, error) {
 
 // isSeeded determines if the backing database has been seeded
 func (mds *mysqlDatastore) isSeeded(ctx context.Context) (bool, error) {
-	headRevision, err := mds.HeadRevision(ctx)
+	headRevision, _, err := mds.HeadRevision(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -786,6 +770,39 @@ type debugLogger struct{}
 
 func (debugLogger) Print(v ...any) {
 	log.Logger.Debug().CallerSkipFrame(1).Str("datastore", "mysql").Msg(fmt.Sprint(v...))
+}
+
+// warmSchemaCache attempts to warm the schema cache by loading the current schema.
+// This is called during datastore initialization to avoid cold-start latency on first requests.
+func warmSchemaCache(ctx context.Context, ds *mysqlDatastore) error {
+	// Get the current revision and schema hash
+	rev, schemaHash, err := ds.HeadRevision(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get head revision: %w", err)
+	}
+
+	// If there's no schema hash, there's no schema to warm
+	if schemaHash == "" {
+		log.Ctx(ctx).Debug().Msg("no schema hash found, skipping cache warming")
+		return nil
+	}
+
+	// Create a simple executor for schema reading (no transaction, no revision filtering needed for warmup)
+	executor := newMySQLChunkedBytesExecutor(ds.db)
+
+	// Load the schema to populate the cache
+	_, err = ds.schemaReaderWriter.ReadSchema(ctx, executor, rev, schemaHash)
+	if err != nil {
+		if errors.Is(err, datastore.ErrSchemaNotFound) {
+			// Schema not found is not an error during warming - just means no schema yet
+			log.Ctx(ctx).Debug().Msg("no schema found, skipping cache warming")
+			return nil
+		}
+		return fmt.Errorf("failed to read schema: %w", err)
+	}
+
+	log.Ctx(ctx).Info().Str("schema_hash", string(schemaHash)).Msg("schema cache warmed successfully")
+	return nil
 }
 
 func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, connector driver.Connector, enablePrometheusStats bool) (*sql.DB, []prometheus.Collector, error) {

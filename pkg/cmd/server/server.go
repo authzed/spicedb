@@ -8,11 +8,9 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/dustin/go-humanize"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
@@ -199,26 +197,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
 	}
 
-	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
-	}
-	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
-
-	// Parse maximum cache memory for schema cache options
-	var maxCacheMemory uint64
-	if c.SchemaCacheConfig.MaxCost != "" && c.SchemaCacheConfig.MaxCost != "0%" {
-		var parseErr error
-		if strings.HasSuffix(c.SchemaCacheConfig.MaxCost, "%") {
-			maxCacheMemory, parseErr = parsePercent(c.SchemaCacheConfig.MaxCost, freeMemory)
-		} else {
-			maxCacheMemory, parseErr = humanize.ParseBytes(c.SchemaCacheConfig.MaxCost)
-		}
-		if parseErr != nil {
-			return nil, fmt.Errorf("error parsing schema cache max memory: `%s`: %w", c.SchemaCacheConfig.MaxCost, parseErr)
-		}
-	}
-
 	ds := c.Datastore
 	if ds == nil {
 		var err error
@@ -229,8 +207,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
 			datastorecfg.WithEnableRevisionHeartbeat(c.EnableRevisionHeartbeat),
 			datastorecfg.WithSchemaCacheOptions(dsoptions.SchemaCacheOptions{
-				MaximumCacheMemoryBytes: maxCacheMemory,
-				QuantizationWindow:      c.DatastoreConfig.RevisionQuantization,
+				MaximumCacheEntries: 100, // Default cache size
 			}),
 		)
 		if err != nil {
@@ -240,6 +217,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				Error()
 		}
 	}
+
+	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
+	}
+	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
 
 	cachingMode := schemacaching.JustInTimeCaching
 	if c.EnableExperimentalWatchableSchemaCache {

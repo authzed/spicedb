@@ -113,11 +113,6 @@ func (rwt spannerReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats [
 		return err
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -131,11 +126,6 @@ func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []
 	})
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteCaveat, err)
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil

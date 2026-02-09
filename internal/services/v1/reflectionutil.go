@@ -16,12 +16,12 @@ import (
 func loadCurrentSchema(ctx context.Context) (*diff.DiffableSchema, datastore.Revision, error) {
 	ds := datastoremw.MustFromContext(ctx)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, _, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	reader := ds.SnapshotReader(atRevision)
+	reader := ds.SnapshotReader(atRevision, schemaHash)
 
 	namespacesAndRevs, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {

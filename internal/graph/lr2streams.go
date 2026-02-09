@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -137,6 +138,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 		Subject:       tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 		CaveatContext: rdc.parentRequest.Context.AsMap(),
 		AtRevision:    rdc.parentRequest.Revision,
+		SchemaHash:    datastore.SchemaHash(rdc.parentRequest.Metadata.SchemaHash),
 		MaximumDepth:  rdc.parentRequest.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,

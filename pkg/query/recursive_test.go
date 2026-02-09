@@ -24,7 +24,7 @@ func TestRecursiveSentinel(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 	// CheckImpl should return empty
 	seq, err := sentinel.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -63,7 +63,7 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 	// Execute - should terminate immediately with empty result
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -171,7 +171,7 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 	// Test CheckImpl with a faulty iterator
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -202,7 +202,7 @@ func TestRecursiveIteratorCollectionError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 	// Test CheckImpl with a faulty iterator that fails on collection
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -227,7 +227,7 @@ func TestBFSEarlyTermination(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(50)) // High max depth
 
 	// IterSubjects on a node with no children (sentinel returns empty)
@@ -275,7 +275,7 @@ func TestBFSCycleDetection(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(10))
 
 	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
@@ -308,7 +308,7 @@ func TestBFSSelfReferential(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(10))
 
 	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
@@ -350,7 +350,7 @@ func TestBFSResourcesWithEllipses(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(5))
 
 	// Query IterResources - should find folder2

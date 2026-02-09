@@ -85,10 +85,10 @@ func TestConsistency(t *testing.T) {
 		cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, "testconfigs/self.yaml.skip", testTimedelta, options...)
 
 		// Validate the type system for each namespace.
-		headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+		headRevision, _, err := cad.DataStore.HeadRevision(cad.Ctx)
 		require.NoError(t, err)
 
-		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
+		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)))
 
 		for _, nsDef := range cad.Populated.NamespaceDefinitions {
 			_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
@@ -248,10 +248,10 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta, options...)
 
 	// Validate the type system for each namespace.
-	headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+	headRevision, _, err := cad.DataStore.HeadRevision(cad.Ctx)
 	require.NoError(t, err)
 
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)))
 
 	for _, nsDef := range cad.Populated.NamespaceDefinitions {
 		_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
@@ -1096,10 +1096,10 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 // validateReachableSubjectTypes validates that the reachable subject types are those expected.
 func validateReachableSubjectTypes(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_reachable_subject_types", func(t *testing.T, resource tuple.ObjectAndRelation) {
-		headRev, err := vctx.clusterAndData.DataStore.HeadRevision(t.Context())
+		headRev, _, err := vctx.clusterAndData.DataStore.HeadRevision(t.Context())
 		require.NoError(t, err)
 
-		reader := vctx.clusterAndData.DataStore.SnapshotReader(headRev)
+		reader := vctx.clusterAndData.DataStore.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 
 		reachableSubjectTypes, err := ts.GetFullRecursiveSubjectTypesForRelation(t.Context(), resource.ObjectType, resource.Relation)

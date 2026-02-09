@@ -52,6 +52,7 @@ type crdbReader struct {
 	atSpecificRevision   string
 	schemaMode           options.SchemaMode
 	snapshotRevision     datastore.Revision
+	schemaHash           string
 	schemaReaderWriter   *common.SQLSchemaReaderWriter[any, revisions.HLCRevision]
 }
 
@@ -454,11 +455,8 @@ func (sr *crdbSchemaReader) ReadStoredSchema(ctx context.Context) (*core.StoredS
 		assertAsOfSysTime: sr.r.assertHasExpectedAsOfSystemTime,
 	}
 
-	// Cast the snapshot revision to HLCRevision
-	hlcRev := sr.r.snapshotRevision.(revisions.HLCRevision)
-
-	// Use the shared schema reader/writer to read the schema
-	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, &hlcRev)
+	// Use the shared schema reader/writer to read the schema with the hash
+	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, sr.r.snapshotRevision, datastore.SchemaHash(sr.r.schemaHash))
 }
 
 // LegacyLookupNamespacesWithNames delegates to the underlying reader

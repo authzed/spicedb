@@ -726,7 +726,7 @@ func SchemaGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Equal(schemaRevisionRows3, schemaRevisionRowsAfterGC1, "No schema_revision rows should be removed at rev1")
 
 	// Run GC at rev2 - should remove schema rows from rev1
-	removed, err = pgg.DeleteBeforeTx(ctx, rev2)
+	_, err = pgg.DeleteBeforeTx(ctx, rev2)
 	require.NoError(err)
 
 	schemaRowsAfterGC2, schemaRevisionRowsAfterGC2 := countSchemaRows()
@@ -734,7 +734,7 @@ func SchemaGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Less(schemaRevisionRowsAfterGC2, schemaRevisionRows3, "Schema_revision rows from rev1 should be removed")
 
 	// Run GC at rev3 - should remove schema rows from rev2
-	removed, err = pgg.DeleteBeforeTx(ctx, rev3)
+	_, err = pgg.DeleteBeforeTx(ctx, rev3)
 	require.NoError(err)
 
 	schemaRowsAfterGC3, schemaRevisionRowsAfterGC3 := countSchemaRows()
@@ -742,10 +742,10 @@ func SchemaGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Less(schemaRevisionRowsAfterGC3, schemaRevisionRowsAfterGC2, "Schema_revision rows from rev2 should be removed")
 
 	// Verify we can still read the latest schema
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	require.NoError(err)
 	schemaText, err := schemaReader.SchemaText()
@@ -1176,7 +1176,7 @@ func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastor
 	var snapshot pgSnapshot
 	pgDS, ok := ds.(*pgDatastore)
 	require.True(t, ok)
-	rev, _, err := pgDS.optimizedRevisionFunc(ctx)
+	rev, _, _, err := pgDS.optimizedRevisionFunc(ctx)
 	require.NoError(t, err)
 
 	pgRev, ok := rev.(postgresRevision)
@@ -1255,10 +1255,10 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	require.False(commitFirstRev.Equal(commitLastRev))
 
 	// Ensure a call to HeadRevision now reflects both sets of data applied.
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -1392,7 +1392,7 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(r.IsReady)
 
-	rev, err := ds.HeadRevision(ctx)
+	rev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	pds := ds.(*pgDatastore)
@@ -1627,7 +1627,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			iter, err := ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 				OptionalResourceType: testfixtures.DocumentNS.Name,
 			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			require.NoError(err)
@@ -1808,7 +1808,7 @@ func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngin
 
 	// Get the head revision.
 	ctx := context.Background()
-	revision, err := ds.HeadRevision(ctx)
+	revision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	casted := datastore.UnwrapAs[*pgDatastore](ds)
@@ -1937,7 +1937,7 @@ func StrictReadModeFallbackTest(t *testing.T, primaryDS datastore.Datastore, unw
 	require.NoError(err)
 
 	// Get the HEAD revision.
-	lowestRevision, err := primaryDS.HeadRevision(ctx)
+	lowestRevision, _, err := primaryDS.HeadRevision(ctx)
 	require.NoError(err)
 
 	// Wrap the replica DS.
@@ -1945,7 +1945,7 @@ func StrictReadModeFallbackTest(t *testing.T, primaryDS datastore.Datastore, unw
 	require.NoError(err)
 
 	// Perform a read at the head revision, which should succeed.
-	reader := replicaDS.SnapshotReader(lowestRevision)
+	reader := replicaDS.SnapshotReader(lowestRevision, datastore.NoSchemaHashForTesting)
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -1967,7 +1967,7 @@ func StrictReadModeFallbackTest(t *testing.T, primaryDS datastore.Datastore, unw
 	}
 
 	limit := uint64(50)
-	it, err = replicaDS.SnapshotReader(badRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	it, err = replicaDS.SnapshotReader(badRev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	}, options.WithLimit(&limit))
 	require.NoError(err)
@@ -1991,11 +1991,11 @@ func StrictReadModeTest(t *testing.T, primaryDS datastore.Datastore, replicaDS d
 	require.NoError(err)
 
 	// Get the HEAD revision.
-	lowestRevision, err := primaryDS.HeadRevision(ctx)
+	lowestRevision, _, err := primaryDS.HeadRevision(ctx)
 	require.NoError(err)
 
 	// Perform a read at the head revision, which should succeed.
-	reader := replicaDS.SnapshotReader(lowestRevision)
+	reader := replicaDS.SnapshotReader(lowestRevision, datastore.NoSchemaHashForTesting)
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -2016,7 +2016,7 @@ func StrictReadModeTest(t *testing.T, primaryDS datastore.Datastore, replicaDS d
 		},
 	}
 
-	it, err = replicaDS.SnapshotReader(badRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	it, err = replicaDS.SnapshotReader(badRev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
 	require.NoError(err)
@@ -2034,7 +2034,7 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	// Run the watch API.
@@ -2105,7 +2105,7 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	// Run the watch API.
@@ -2169,7 +2169,7 @@ func ContinuousCheckpointTest(t *testing.T, ds datastore.Datastore) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	// Run the watch API.
@@ -2227,9 +2227,9 @@ func ExceedInsertQuerySizeTest(t *testing.T, ds datastore.Datastore) {
 	require.Error(err)
 	require.ErrorContains(err, "exceeds the maximum size supported by this datastore")
 
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	iter, err := ds.SnapshotReader(headRev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
 	require.NoError(err)

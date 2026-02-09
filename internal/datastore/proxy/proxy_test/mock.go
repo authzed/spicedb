@@ -28,7 +28,7 @@ func (dm *MockDatastore) UniqueID(_ context.Context) (string, error) {
 	return dm.CurrentUniqueID, nil
 }
 
-func (dm *MockDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (dm *MockDatastore) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
 	args := dm.Called(rev)
 	return args.Get(0).(datastore.Reader)
 }
@@ -52,14 +52,14 @@ func (dm *MockDatastore) ReadWriteTx(
 	return args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
+func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	args := dm.Called()
-	return args.Get(0).(datastore.Revision), args.Error(1)
+	return args.Get(0).(datastore.Revision), args.Get(1).(datastore.SchemaHash), args.Error(2)
 }
 
-func (dm *MockDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
+func (dm *MockDatastore) HeadRevision(_ context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	args := dm.Called()
-	return args.Get(0).(datastore.Revision), args.Error(1)
+	return args.Get(0).(datastore.Revision), args.Get(1).(datastore.SchemaHash), args.Error(2)
 }
 
 func (dm *MockDatastore) CheckRevision(_ context.Context, revision datastore.Revision) error {

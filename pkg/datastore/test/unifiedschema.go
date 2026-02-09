@@ -3,8 +3,11 @@ package test
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -37,6 +40,25 @@ var (
 		),
 	}
 )
+
+// computeExpectedSchemaHash computes the expected schema hash by sorting definitions
+// by name (matching datastore behavior) and then hashing the generated schema text.
+func computeExpectedSchemaHash(t *testing.T, definitions []compiler.SchemaDefinition) string {
+	// Sort definitions by name for consistent ordering (matches datastore behavior)
+	sortedDefs := make([]compiler.SchemaDefinition, len(definitions))
+	copy(sortedDefs, definitions)
+	sort.Slice(sortedDefs, func(i, j int) bool {
+		return sortedDefs[i].GetName() < sortedDefs[j].GetName()
+	})
+
+	// Generate schema text from sorted definitions
+	schemaText, _, err := generator.GenerateSchema(sortedDefs)
+	require.NoError(t, err)
+
+	// Compute SHA256 hash
+	hashBytes := sha256.Sum256([]byte(schemaText))
+	return hex.EncodeToString(hashBytes[:])
+}
 
 // requireSchemasEqual compares two schema texts semantically using the diff engine.
 // This allows schemas to be equivalent even if definitions are in different order.
@@ -86,10 +108,10 @@ func UnifiedSchemaTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore readers and transactions support schema operations
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
@@ -102,7 +124,7 @@ func UnifiedSchemaTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(schemaWriterErr, "datastore transaction must provide SchemaWriter")
 
 	// Get starting revision
-	startRevision, err := ds.HeadRevision(ctx)
+	startRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	// Generate schema text
@@ -127,7 +149,7 @@ func UnifiedSchemaTest(t *testing.T, tester DatastoreTester) {
 	require.True(startRevision.LessThan(writtenRev))
 
 	// Read schema using SchemaReader
-	reader = ds.SnapshotReader(writtenRev)
+	reader = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting)
 	schemaReader, err = reader.SchemaReader()
 	require.NoError(err)
 
@@ -173,10 +195,10 @@ func UnifiedSchemaUpdateTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports SchemaReader
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
@@ -218,7 +240,7 @@ func UnifiedSchemaUpdateTest(t *testing.T, tester DatastoreTester) {
 	require.True(secondRev.GreaterThan(firstRev))
 
 	// Read at first revision - should see old schema
-	reader1 := ds.SnapshotReader(firstRev)
+	reader1 := ds.SnapshotReader(firstRev, datastore.NoSchemaHashForTesting)
 	schemaReader1, err := reader1.SchemaReader()
 	require.NoError(err)
 
@@ -232,7 +254,7 @@ func UnifiedSchemaUpdateTest(t *testing.T, tester DatastoreTester) {
 	require.Len(docDef1.Definition.Relation, 2, "should have 2 relations at first revision")
 
 	// Read at second revision - should see updated schema
-	reader2 := ds.SnapshotReader(secondRev)
+	reader2 := ds.SnapshotReader(secondRev, datastore.NoSchemaHashForTesting)
 	schemaReader2, err := reader2.SchemaReader()
 	require.NoError(err)
 
@@ -262,10 +284,10 @@ func UnifiedSchemaRevisionTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports SchemaReader
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
@@ -288,7 +310,7 @@ func UnifiedSchemaRevisionTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// Read schema and verify all definitions have consistent revisions
-	reader = ds.SnapshotReader(writtenRev)
+	reader = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	require.NoError(err)
 
@@ -313,10 +335,10 @@ func UnifiedSchemaWithCaveatsTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports SchemaReader
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
@@ -356,7 +378,7 @@ definition document {
 	require.NoError(err)
 
 	// Read schema
-	reader = ds.SnapshotReader(writtenRev)
+	reader = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	require.NoError(err)
 
@@ -389,17 +411,17 @@ func UnifiedSchemaEmptyTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports SchemaReader
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
-	startRevision, err := ds.HeadRevision(ctx)
+	startRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader = ds.SnapshotReader(startRevision)
+	reader = ds.SnapshotReader(startRevision, datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	require.NoError(err)
 
@@ -428,10 +450,10 @@ func UnifiedSchemaLookupTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports SchemaReader
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
@@ -453,7 +475,7 @@ func UnifiedSchemaLookupTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	reader = ds.SnapshotReader(writtenRev)
+	reader = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	require.NoError(err)
 
@@ -527,10 +549,10 @@ func UnifiedSchemaMultipleIterationsTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports SchemaReader
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
@@ -592,9 +614,9 @@ definition resource_%d {
 	}
 
 	// First, verify the latest schema can be read without AS OF SYSTEM TIME
-	latestRev, err := ds.HeadRevision(ctx)
+	latestRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	latestReader := ds.SnapshotReader(latestRev)
+	latestReader := ds.SnapshotReader(latestRev, datastore.NoSchemaHashForTesting)
 	latestSchemaReader, err := latestReader.SchemaReader()
 	require.NoError(err)
 	latestSchemaText, err := latestSchemaReader.SchemaText()
@@ -606,7 +628,7 @@ definition resource_%d {
 	for i, revData := range revisions {
 		t.Logf("Verifying iteration %d at revision %v", i, revData.revision)
 
-		reader := ds.SnapshotReader(revData.revision)
+		reader := ds.SnapshotReader(revData.revision, datastore.NoSchemaHashForTesting)
 		schemaReader, err := reader.SchemaReader()
 		require.NoError(err, "Failed to get schema reader for iteration %d", i)
 
@@ -651,10 +673,10 @@ func UnifiedSchemaLookupByNamesTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports SchemaReader
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
@@ -713,7 +735,7 @@ definition organization {
 	require.NoError(err)
 
 	// Read schema
-	reader = ds.SnapshotReader(writtenRev)
+	reader = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	require.NoError(err)
 
@@ -893,10 +915,10 @@ func UnifiedSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports SchemaReader
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
@@ -907,6 +929,10 @@ func UnifiedSchemaHashTest(t *testing.T, tester DatastoreTester) {
 		}
 	})
 	require.True(hasHashReader, "datastore must implement SchemaHashReaderForTesting")
+
+	// Get the reader implementation
+	readerImpl := hashReader.SchemaHashReaderForTesting()
+	require.NotNil(readerImpl, "SchemaHashReaderForTesting() must return non-nil reader")
 
 	// Generate schema text
 	schemaText, _, err := generator.GenerateSchema(testSchemaDefinitions)
@@ -929,18 +955,14 @@ func UnifiedSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// Read the schema hash from schema_revision table
-	hash, err := hashReader.SchemaHashReaderForTesting().ReadSchemaHash(ctx)
+	hash, err := readerImpl.ReadSchemaHash(ctx)
 	require.NoError(err)
 	require.NotEmpty(hash, "schema hash should not be empty")
 
-	// Verify the hash represents a valid schema by decoding and comparing semantically
-	// The hash is hex-encoded schema text, but order may be canonicalized
-	decodedHash := make([]byte, len(hash)/2)
-	_, err = fmt.Sscanf(hash, "%x", &decodedHash)
-	require.NoError(err, "hash should be valid hex")
-
-	hashSchemaText := string(decodedHash)
-	requireSchemasEqual(t, schemaText, hashSchemaText)
+	// Verify the hash is correct by computing the expected hash
+	// The hash is computed from sorted definitions (matching datastore behavior)
+	expectedHash := computeExpectedSchemaHash(t, testSchemaDefinitions)
+	require.Equal(expectedHash, hash, "schema hash should match computed hash of sorted schema text")
 
 	// Update the schema
 	updatedSchemaText, _, err := generator.GenerateSchema(updatedSchemaDefinitions)
@@ -966,13 +988,9 @@ func UnifiedSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	require.NotEmpty(updatedHash, "updated schema hash should not be empty")
 	require.NotEqual(hash, updatedHash, "schema hash should change after update")
 
-	// Verify the updated hash represents the updated schema semantically
-	decodedUpdatedHash := make([]byte, len(updatedHash)/2)
-	_, err = fmt.Sscanf(updatedHash, "%x", &decodedUpdatedHash)
-	require.NoError(err, "updated hash should be valid hex")
-
-	updatedHashSchemaText := string(decodedUpdatedHash)
-	requireSchemasEqual(t, updatedSchemaText, updatedHashSchemaText)
+	// Verify the updated hash is correct by computing the expected hash
+	expectedUpdatedHash := computeExpectedSchemaHash(t, updatedSchemaDefinitions)
+	require.Equal(expectedUpdatedHash, updatedHash, "updated schema hash should match computed hash of sorted updated schema text")
 }
 
 // UnifiedSchemaHashWatchTest tests the schema hash watcher functionality
@@ -986,10 +1004,10 @@ func UnifiedSchemaHashWatchTest(t *testing.T, tester DatastoreTester) {
 	defer ds.Close()
 
 	// Check if datastore supports unified schema
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	_, readerOK := reader.(datastore.SingleStoreSchemaReader)
 	if !readerOK {
 		t.Skip("datastore does not implement SingleStoreSchemaReader")
@@ -1002,7 +1020,7 @@ func UnifiedSchemaHashWatchTest(t *testing.T, tester DatastoreTester) {
 	require.True(hasWatcher, "datastore must implement SchemaHashWatcherForTesting")
 
 	watcher := hashWatcherProvider.SchemaHashWatcherForTesting()
-	require.NotNil(watcher)
+	require.NotNil(watcher, "SchemaHashWatcherForTesting() must return non-nil watcher")
 
 	// Channel to receive hash updates
 	hashUpdates := make(chan string, 10)
@@ -1045,12 +1063,9 @@ func UnifiedSchemaHashWatchTest(t *testing.T, tester DatastoreTester) {
 	select {
 	case hash := <-hashUpdates:
 		firstHash = hash
-		// Verify the hash represents the schema semantically
-		decodedHash := make([]byte, len(hash)/2)
-		_, err := fmt.Sscanf(hash, "%x", &decodedHash)
-		require.NoError(err, "hash should be valid hex")
-		hashSchemaText := string(decodedHash)
-		requireSchemasEqual(t, schemaText1, hashSchemaText)
+		// Verify the hash is correct by computing the expected hash
+		expectedHash := computeExpectedSchemaHash(t, testSchemaDefinitions)
+		require.Equal(expectedHash, hash, "schema hash should match computed hash of sorted schema text")
 	case err := <-errorsChan:
 		t.Fatalf("watcher error: %v", err)
 	case <-time.After(2 * time.Second):
@@ -1079,12 +1094,9 @@ func UnifiedSchemaHashWatchTest(t *testing.T, tester DatastoreTester) {
 	select {
 	case hash := <-hashUpdates:
 		require.NotEqual(firstHash, hash, "hash should change after schema update")
-		// Verify the hash represents the updated schema semantically
-		decodedHash := make([]byte, len(hash)/2)
-		_, err := fmt.Sscanf(hash, "%x", &decodedHash)
-		require.NoError(err, "hash should be valid hex")
-		hashSchemaText := string(decodedHash)
-		requireSchemasEqual(t, schemaText2, hashSchemaText)
+		// Verify the hash is correct by computing the expected hash
+		expectedHash := computeExpectedSchemaHash(t, updatedSchemaDefinitions)
+		require.Equal(expectedHash, hash, "updated schema hash should match computed hash of sorted updated schema text")
 	case err := <-errorsChan:
 		t.Fatalf("watcher error: %v", err)
 	case <-time.After(2 * time.Second):

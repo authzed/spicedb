@@ -44,8 +44,8 @@ type validatingDatastore struct {
 	datastore.Datastore
 }
 
-func (vds validatingDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	return validatingReader{vds.Datastore.SnapshotReader(rev)}
+func (vds validatingDatastore) SnapshotReader(rev datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
+	return validatingReader{vds.Datastore.SnapshotReader(rev, hash)}
 }
 
 // SchemaHashReaderForTesting delegates to the underlying datastore if it implements the test interface

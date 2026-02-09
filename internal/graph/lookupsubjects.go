@@ -68,7 +68,7 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 	}
 
 	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(req.Revision)
+	reader := ds.SnapshotReader(req.Revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 	_, relation, err := namespace.ReadNamespaceAndRelation(
 		ctx,
 		req.ResourceRelation.Namespace,
@@ -194,7 +194,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 	ts *schema.TypeSystem,
 	cu *core.ComputedUserset,
 ) error {
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision, datastore.SchemaHash(parentRequest.Metadata.SchemaHash))
 	if err := namespace.CheckNamespaceAndRelation(ctx, parentRequest.ResourceRelation.Namespace, cu.Relation, true, ds); err != nil {
 		if errors.As(err, &namespace.RelationNotFoundError{}) {
 			return nil
@@ -250,7 +250,7 @@ func lookupViaIntersectionTupleToUserset(
 	ts *schema.TypeSystem,
 	ttu *core.FunctionedTupleToUserset,
 ) error {
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision, datastore.SchemaHash(parentRequest.Metadata.SchemaHash))
 	opts, err := cl.queryOptionsForRelation(ctx, ts, parentRequest.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return err
@@ -425,7 +425,7 @@ func lookupViaTupleToUserset[T relation](
 	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
 	relationshipsBySubjectONR := mapz.NewMultiMap[tuple.ObjectAndRelation, tuple.Relationship]()
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision, datastore.SchemaHash(parentRequest.Metadata.SchemaHash))
 	opts, err := cl.queryOptionsForRelation(ctx, ts, parentRequest.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return err

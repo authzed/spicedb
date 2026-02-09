@@ -26,6 +26,7 @@ type pgReader struct {
 	schemaMode           dsoptions.SchemaMode
 	snapshotRevision     datastore.Revision
 	schemaReaderWriter   *common.SQLSchemaReaderWriter[uint64, postgresRevision]
+	schemaHash           string
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -331,13 +332,8 @@ func (sr *pgSchemaReader) ReadStoredSchema(ctx context.Context) (*core.StoredSch
 		aliveFilter: sr.r.aliveFilter,
 	}
 
-	// Use the shared schema reader/writer to read the schema
-	// Cast snapshotRevision to postgresRevision for cache lookup
-	var revPtr *postgresRevision
-	if pgRev, ok := sr.r.snapshotRevision.(postgresRevision); ok {
-		revPtr = &pgRev
-	}
-	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, revPtr)
+	// Use the shared schema reader/writer to read the schema with hash-based caching
+	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, sr.r.snapshotRevision, datastore.SchemaHash(sr.r.schemaHash))
 }
 
 // LegacyLookupNamespacesWithNames delegates to the underlying reader

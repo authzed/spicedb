@@ -3,6 +3,7 @@ package spanner
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"sort"
@@ -379,11 +380,6 @@ func (rwt *spannerReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newCo
 		return err
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -420,11 +416,6 @@ func (rwt *spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNa
 		if err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil
@@ -485,18 +476,9 @@ func (w *spannerSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.
 
 // writeLegacySchemaHash writes the schema hash to the schema_revision table by generating
 // the schema from current legacy namespaces and caveats
-func (rwt *spannerReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
-	// Read all namespaces and caveats
-	namespaces, err := rwt.LegacyListAllNamespaces(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list namespaces: %w", err)
-	}
 
-	caveats, err := rwt.LegacyListAllCaveats(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list caveats: %w", err)
-	}
-
+// writeSchemaHashFromDefinitions writes the schema hash computed from the given definitions
+func (rwt *spannerReadWriteTXN) writeSchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
 	// Build schema definitions list
 	var definitions []compiler.SchemaDefinition
 	for _, ns := range namespaces {
@@ -517,8 +499,9 @@ func (rwt *spannerReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error
 		return fmt.Errorf("failed to generate schema: %w", err)
 	}
 
-	// Compute schema hash
-	schemaHash := hex.EncodeToString([]byte(schemaText))
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
 
 	// Use InsertOrUpdate mutation to upsert the schema hash
 	mutation := spanner.InsertOrUpdate(
@@ -541,8 +524,8 @@ func (w *spannerSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.Store
 	executor := newSpannerChunkedBytesExecutor(w.rwt.spannerRWT)
 
 	// Use the shared schema reader/writer to read the schema
-	// Spanner doesn't support revisioned schema reads, so pass nil
-	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil)
+	// Pass empty string for transaction reads to bypass cache
+	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil, datastore.NoSchemaHashInTransaction)
 }
 
 // LegacyWriteNamespaces delegates to the underlying transaction
@@ -593,6 +576,11 @@ func (w *spannerSchemaWriter) LegacyReadNamespaceByName(ctx context.Context, nsN
 // LegacyListAllNamespaces delegates to the underlying transaction
 func (w *spannerSchemaWriter) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	return w.rwt.LegacyListAllNamespaces(ctx)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (w *spannerSchemaWriter) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	return w.rwt.writeSchemaHashFromDefinitions(ctx, namespaces, caveats)
 }
 
 func (rwt *spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {

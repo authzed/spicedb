@@ -3,6 +3,7 @@ package crdb
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -667,8 +668,9 @@ func (rwt *crdbReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
 		return fmt.Errorf("failed to generate schema: %w", err)
 	}
 
-	// Compute schema hash
-	schemaHash := hex.EncodeToString([]byte(schemaText))
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
 
 	// CRDB uses UPSERT (INSERT ON CONFLICT DO UPDATE) for schema_revision
 	sql, args, err := psql.Insert("schema_revision").
@@ -698,8 +700,8 @@ func (w *crdbSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSc
 	}
 
 	// Use the shared schema reader/writer to read the schema
-	// Pass nil for revision to bypass cache (transaction read)
-	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil)
+	// Pass empty string to bypass cache (transaction read)
+	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil, datastore.NoSchemaHashInTransaction)
 }
 
 // LegacyWriteNamespaces delegates to the underlying transaction

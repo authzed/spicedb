@@ -39,6 +39,7 @@ type spannerReader struct {
 	schema               common.SchemaInformation
 	schemaMode           dsoptions.SchemaMode
 	snapshotRevision     datastore.Revision
+	schemaHash           string
 	schemaReaderWriter   *common.SQLSchemaReaderWriter[any, revisions.TimestampRevision]
 }
 
@@ -422,9 +423,8 @@ func (ssr *spannerSchemaReader) ReadStoredSchema(ctx context.Context) (*core.Sto
 	// Create a read-only executor for reading schema chunks
 	executor := &spannerSchemaReadExecutor{txSource: ssr.r.txSource}
 
-	// Use the shared schema reader/writer to read the schema
-	// Spanner doesn't support revisioned schema reads, so pass nil
-	return ssr.r.schemaReaderWriter.ReadSchema(ctx, executor, nil)
+	// Use the shared schema reader/writer to read the schema with the hash
+	return ssr.r.schemaReaderWriter.ReadSchema(ctx, executor, ssr.r.snapshotRevision, datastore.SchemaHash(ssr.r.schemaHash))
 }
 
 // LegacyLookupNamespacesWithNames delegates to the underlying reader

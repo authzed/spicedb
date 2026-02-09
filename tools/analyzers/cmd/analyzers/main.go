@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/tools/analyzers/paniccheck"
 	"github.com/authzed/spicedb/tools/analyzers/protomarshalcheck"
 	"github.com/authzed/spicedb/tools/analyzers/telemetryconvcheck"
+	"github.com/authzed/spicedb/tools/analyzers/testsentinelcheck"
 	"github.com/authzed/spicedb/tools/analyzers/zerologmarshalcheck"
 )
 
@@ -29,5 +30,6 @@ func main() {
 		protomarshalcheck.Analyzer(),
 		zerologmarshalcheck.Analyzer(),
 		telemetryconvcheck.Analyzer(),
+		testsentinelcheck.Analyzer(),
 	)
 }

@@ -195,12 +195,12 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	ctx := resp.Context()
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, ds); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -298,7 +298,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 
 		dispatchCursor.Sections[0] = tuple.StringWithoutCaveatOrExpiration(rel)
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash, atRevision, nil)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash, atRevision, schemaHash, nil)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}

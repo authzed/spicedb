@@ -48,7 +48,7 @@ type queryPlanConsistencyHandle struct {
 
 func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 	return query.NewLocalContext(t.Context(),
-		query.WithReader(q.ds.SnapshotReader(q.revision)),
+		query.WithReader(q.ds.SnapshotReader(q.revision, datastore.NoSchemaHashForTesting)),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 		query.WithTraceLogger(query.NewTraceLogger())) // Enable tracing for debugging
 }
@@ -61,7 +61,7 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 	populated, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{filePath})
 	require.NoError(err)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevision, _, err := ds.HeadRevision(t.Context())
 	require.NoError(err)
 
 	schemaView, err := schema.BuildSchemaFromDefinitions(populated.NamespaceDefinitions, populated.CaveatDefinitions)

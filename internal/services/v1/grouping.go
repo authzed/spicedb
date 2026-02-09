@@ -17,6 +17,7 @@ type groupedCheckParameters struct {
 
 type groupingParameters struct {
 	atRevision           datastore.Revision
+	schemaHash           datastore.SchemaHash
 	maximumAPIDepth      uint32
 	maxCaveatContextSize int
 	withTracing          bool
@@ -65,6 +66,7 @@ func checkParametersFromCheckBulkPermissionsRequestItem(
 		ResourceType:  tuple.RR(bc.Resource.ObjectType, bc.Permission),
 		Subject:       tuple.ONR(bc.Subject.Object.ObjectType, bc.Subject.Object.ObjectId, normalizeSubjectRelation(bc.Subject)),
 		CaveatContext: caveatContext,
+		SchemaHash:    params.schemaHash,
 		AtRevision:    params.atRevision,
 		MaximumDepth:  params.maximumAPIDepth,
 		DebugOption:   debugOption,

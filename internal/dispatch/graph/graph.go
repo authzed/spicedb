@@ -203,8 +203,8 @@ type localDispatcher struct {
 	lookupResourcesHandler3 *graph.CursoredLookupResources3
 }
 
-func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, error) {
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
+func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision, schemaHash datastore.SchemaHash) (*core.NamespaceDefinition, error) {
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision, schemaHash)
 
 	// Load namespace and relation from the datastore
 	schemaReader, err := ds.SchemaReader()
@@ -286,7 +286,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ResourceRelation.Namespace, revision)
+	ns, err := ld.loadNamespace(ctx, req.ResourceRelation.Namespace, revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
@@ -352,7 +352,7 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ResourceAndRelation.Namespace, revision)
+	ns, err := ld.loadNamespace(ctx, req.ResourceAndRelation.Namespace, revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}

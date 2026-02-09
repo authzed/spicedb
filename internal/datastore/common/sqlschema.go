@@ -7,10 +7,7 @@ import (
 	"math"
 	"strings"
 
-	"resenje.org/singleflight"
-
 	"github.com/authzed/spicedb/internal/datastore/schema"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -168,134 +165,45 @@ func ValidateStoredSchema(storedSchema *core.StoredSchema) error {
 type SQLSchemaReaderWriter[T any, R datastore.Revision] struct {
 	chunkerConfig SQLByteChunkerConfig[T]
 	cacheOptions  options.SchemaCacheOptions
-	cache         *RevisionedSchemaCache[R]
-	sf            singleflight.Group[string, *core.StoredSchema]
+	cache         *SchemaHashCache
 }
 
 // NewSQLSchemaReaderWriter creates a new SQLSchemaReaderWriter with the given chunker configuration and cache options.
 // The configuration is cached and reused for all read/write operations.
-// Call StartWatching() after creation to enable schema change monitoring.
 func NewSQLSchemaReaderWriter[T any, R datastore.Revision](
 	chunkerConfig SQLByteChunkerConfig[T],
 	cacheOptions options.SchemaCacheOptions,
-) *SQLSchemaReaderWriter[T, R] {
-	var cache *RevisionedSchemaCache[R]
-	// Only create cache if memory limit is set
-	if cacheOptions.MaximumCacheMemoryBytes > 0 {
-		cache = NewRevisionedSchemaCache[R](cacheOptions)
+) (*SQLSchemaReaderWriter[T, R], error) {
+	cache, err := NewSchemaHashCache(cacheOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create schema cache: %w", err)
 	}
 
 	return &SQLSchemaReaderWriter[T, R]{
 		chunkerConfig: chunkerConfig,
 		cacheOptions:  cacheOptions,
 		cache:         cache,
-	}
+	}, nil
 }
 
-// StartWatching begins monitoring for schema changes using the provided watcher.
-// The revisionFunc should return the current revision from the datastore.
-// The executorFunc should return an executor for loading schemas.
-// This should be called after the datastore is fully initialized.
-// After calling StartWatching, you should call WarmCache to pre-populate the cache.
-func (s *SQLSchemaReaderWriter[T, R]) StartWatching(
-	watcher datastore.SingleStoreSchemaHashWatcher,
-	revisionFunc func(ctx context.Context) (R, error),
-	executorFunc func() ChunkedBytesExecutor,
-) {
-	if s.cache != nil {
-		// Create a schema loader that uses the provided functions
-		schemaLoader := func(ctx context.Context) (*core.StoredSchema, R, error) {
-			// Get the current revision
-			revision, err := revisionFunc(ctx)
-			if err != nil {
-				var zeroRev R
-				return nil, zeroRev, fmt.Errorf("failed to get current revision: %w", err)
-			}
-
-			// Load the schema using the executor
-			executor := executorFunc()
-			schema, err := s.readSchemaFromDatastore(ctx, executor)
-			if err != nil {
-				return nil, revision, fmt.Errorf("failed to load schema: %w", err)
-			}
-
-			return schema, revision, nil
-		}
-
-		s.cache.StartWatching(watcher, schemaLoader)
-	}
-}
-
-// WarmCache pre-loads the current schema into the cache.
-// This should be called after StartWatching to populate the cache on startup.
-// If the cache is not enabled or StartWatching has not been called, this is a no-op.
-func (s *SQLSchemaReaderWriter[T, R]) WarmCache(ctx context.Context) error {
-	if s.cache != nil {
-		return s.cache.WarmCache(ctx)
-	}
-	return nil
-}
-
-// Close cleans up resources used by the schema reader/writer, including the cache watcher.
+// Close cleans up resources used by the schema reader/writer.
+// No-op for hash-based cache.
 func (s *SQLSchemaReaderWriter[T, R]) Close() {
-	if s.cache != nil {
-		s.cache.Close()
-	}
+	// No resources to clean up for hash-based cache
 }
 
 // ReadSchema reads the stored schema using the provided executor.
 // The executor determines how the read operation is performed (e.g., with revision awareness).
-// If revision is provided and non-nil, the cache is consulted first. If revision is nil (e.g., within a transaction),
-// the cache is bypassed, but the result is still cached for that specific revision.
-// When a revision is specified, concurrent reads for the same revision are deduplicated using singleflight.
-func (s *SQLSchemaReaderWriter[T, R]) ReadSchema(ctx context.Context, executor ChunkedBytesExecutor, revision *R) (*core.StoredSchema, error) {
-	// If revision is provided and cache exists, try to get from cache
-	if revision != nil && s.cache != nil {
-		if cached := s.cache.Get(*revision); cached != nil {
-			return cached, nil
-		}
+// The revision and schemaHash parameters are used for cache lookup. If hash is a bypass sentinel
+// (NoSchemaHashInTransaction, NoSchemaHashForTesting, or NoSchemaHashForWatch), the cache is bypassed
+// for reads (but the result is still loaded).
+func (s *SQLSchemaReaderWriter[T, R]) ReadSchema(ctx context.Context, executor ChunkedBytesExecutor, rev datastore.Revision, schemaHash datastore.SchemaHash) (*core.StoredSchema, error) {
+	// Use GetOrLoad pattern - it handles both cache lookup and loading
+	loader := func(ctx context.Context) (*core.StoredSchema, error) {
+		return s.readSchemaFromDatastore(ctx, executor)
 	}
 
-	// Cache miss or no cache - read from datastore
-	storedSchema, err := s.readSchemaWithRevisionedSingleflight(ctx, executor, revision)
-	if err != nil {
-		return nil, err
-	}
-
-	// If we have a cache and storedSchema, update the cache
-	if s.cache != nil && storedSchema != nil {
-		schemaHash := ""
-		if v1 := storedSchema.GetV1(); v1 != nil {
-			schemaHash = v1.SchemaHash
-		}
-
-		// Normal read with revision - let cache handle the logic
-		// Transaction reads (revision == nil) skip caching since we don't have a revision to key on
-		if revision != nil {
-			if err := s.cache.Set(*revision, storedSchema, schemaHash); err != nil {
-				// Log but don't fail the read
-				log.Warn().Err(err).Msg("failed to cache schema")
-			}
-		}
-	}
-
-	return storedSchema, nil
-}
-
-// readSchemaWithRevisionedSingleflight reads the schema from the datastore, using singleflight when a revision is provided.
-// If revision is nil, reads directly without singleflight (e.g., for transaction reads).
-func (s *SQLSchemaReaderWriter[T, R]) readSchemaWithRevisionedSingleflight(ctx context.Context, executor ChunkedBytesExecutor, revision *R) (*core.StoredSchema, error) {
-	if revision != nil {
-		// Use revision.Key() as the singleflight key to deduplicate concurrent reads for the same revision
-		key := (*revision).Key()
-		result, _, err := s.sf.Do(ctx, key, func(ctx context.Context) (*core.StoredSchema, error) {
-			return s.readSchemaFromDatastore(ctx, executor)
-		})
-		return result, err
-	}
-
-	// No revision (e.g., transaction read) - don't use singleflight
-	return s.readSchemaFromDatastore(ctx, executor)
+	return s.cache.GetOrLoad(ctx, rev, schemaHash, loader)
 }
 
 // readSchemaFromDatastore reads the schema directly from the datastore without cache.

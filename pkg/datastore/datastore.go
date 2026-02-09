@@ -677,15 +677,15 @@ type ReadOnlyDatastore interface {
 
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 	// Any errors establishing the reader will be returned by subsequent calls.
-	SnapshotReader(Revision) Reader
+	SnapshotReader(Revision, SchemaHash) Reader
 
 	// OptimizedRevision gets a revision that will likely already be replicated
 	// and will likely be shared amongst many queries.
-	OptimizedRevision(ctx context.Context) (Revision, error)
+	OptimizedRevision(ctx context.Context) (Revision, SchemaHash, error)
 
 	// HeadRevision gets a revision that is guaranteed to be at least as fresh as
 	// right now.
-	HeadRevision(ctx context.Context) (Revision, error)
+	HeadRevision(ctx context.Context) (Revision, SchemaHash, error)
 
 	// CheckRevision checks the specified revision to make sure it's valid and
 	// hasn't been garbage collected.
@@ -992,3 +992,25 @@ func (nilRevision) Key() string {
 // revision type in the future a bit easier if necessary. Implementations
 // should use any time they want to signal an empty/error revision.
 var NoRevision Revision = nilRevision{}
+
+// SchemaHash represents a unique identifier for a schema version.
+type SchemaHash string
+
+// NoSchemaHashInTransaction is a sentinel value indicating no schema hash should be used
+// for cache lookups within a transaction. This prevents caching schemas at unstable revisions.
+// This is a non-empty sentinel value to help catch bugs where empty strings are incorrectly used.
+const NoSchemaHashInTransaction SchemaHash = "__transaction_bypass__"
+
+// NoSchemaHashForTesting is a sentinel value used in test code to bypass schema hash requirements.
+// This is a non-empty sentinel value to help catch bugs where empty strings are incorrectly used.
+const NoSchemaHashForTesting SchemaHash = "__testing_bypass__"
+
+// NoSchemaHashForWatch is a sentinel value used in watch operations where the schema hash is not
+// immediately available (e.g., when resuming from a cursor). The schema will be loaded when needed.
+// This is a non-empty sentinel value to help catch bugs where empty strings are incorrectly used.
+const NoSchemaHashForWatch SchemaHash = "__watch_load_on_demand__"
+
+// NoSchemaHashForLegacyCursor is a sentinel value used when decoding legacy cursors that don't
+// contain a schema hash field. The schema will be loaded on demand from the fallback value.
+// This is a non-empty sentinel value to help catch bugs where empty strings are incorrectly used.
+const NoSchemaHashForLegacyCursor SchemaHash = "__legacy_cursor_load_on_demand__"

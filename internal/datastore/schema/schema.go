@@ -332,6 +332,35 @@ func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions
 		}
 	}
 
+	// If the writer supports writing legacy schema hashes, compute and write the hash
+	// from the final set of definitions (after all writes are buffered).
+	// This avoids the problem of reading back buffered writes that aren't yet visible.
+	if hashWriter, ok := l.legacyWriter.(datastore.LegacySchemaHashWriter); ok {
+		// Build the final list of namespaces (new ones, replacing existing)
+		finalNamespaces := make([]datastore.RevisionedNamespace, 0, len(namespaces))
+		for _, ns := range namespaces {
+			finalNamespaces = append(finalNamespaces, datastore.RevisionedNamespace{
+				Definition: ns,
+				// Revision doesn't matter for hash computation
+				LastWrittenRevision: datastore.NoRevision,
+			})
+		}
+
+		// Build the final list of caveats (new ones, replacing existing)
+		finalCaveats := make([]datastore.RevisionedCaveat, 0, len(caveats))
+		for _, caveat := range caveats {
+			finalCaveats = append(finalCaveats, datastore.RevisionedCaveat{
+				Definition: caveat,
+				// Revision doesn't matter for hash computation
+				LastWrittenRevision: datastore.NoRevision,
+			})
+		}
+
+		if err := hashWriter.WriteLegacySchemaHashFromDefinitions(ctx, finalNamespaces, finalCaveats); err != nil {
+			return fmt.Errorf("failed to write schema hash: %w", err)
+		}
+	}
+
 	return nil
 }
 

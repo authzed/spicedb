@@ -23,10 +23,11 @@ type txFactory func() (*memdb.Txn, error)
 
 type memdbReader struct {
 	TryLocker
-	txSource  txFactory
-	initErr   error
-	now       time.Time
-	datastore *memdbDatastore
+	txSource   txFactory
+	initErr    error
+	now        time.Time
+	schemaHash string
+	datastore  *memdbDatastore
 }
 
 func (r *memdbReader) CountRelationships(ctx context.Context, name string) (int, error) {

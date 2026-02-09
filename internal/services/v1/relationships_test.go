@@ -1365,7 +1365,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 			for i := 0; i < 10; i++ {
 				iterations++
 
-				headRev, err := ds.HeadRevision(t.Context())
+				headRev, _, err := ds.HeadRevision(t.Context())
 				require.NoError(err)
 
 				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
@@ -1379,7 +1379,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				})
 				require.NoError(err)
 
-				headRev, err = ds.HeadRevision(context.Background())
+				headRev, _, err = ds.HeadRevision(context.Background())
 				require.NoError(err)
 
 				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
