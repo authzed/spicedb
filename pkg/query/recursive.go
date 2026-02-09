@@ -30,11 +30,9 @@ func NewRecursiveIterator(templateTree Iterator, definitionName, relationName st
 	}
 }
 
-// CheckImpl implements iterative deepening for Check operations
+// CheckImpl implements traversal for Check operations
 func (r *RecursiveIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return r.iterativeDeepening(ctx, func(ctx *Context, tree Iterator) (PathSeq, error) {
-		return ctx.Check(tree, resources, subject)
-	})
+	return r.deepeningCheck(ctx, resources, subject)
 }
 
 // IterSubjectsImpl implements BFS traversal for IterSubjects operations
@@ -47,65 +45,8 @@ func (r *RecursiveIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 	return r.breadthFirstIterResources(ctx, subject, filterResourceType)
 }
 
-// iterativeDeepening executes the core iterative deepening algorithm
-// It yields results directly, always running to maxDepth to find all valid paths
-func (r *RecursiveIterator) iterativeDeepening(ctx *Context, execute func(*Context, Iterator) (PathSeq, error)) (PathSeq, error) {
-	maxDepth := ctx.MaxRecursionDepth
-	if maxDepth == 0 {
-		maxDepth = defaultMaxRecursionDepth
-	}
-
-	return func(yield func(Path, error) bool) {
-		seen := make(map[string]bool)
-
-		for depth := range maxDepth {
-			ctx.TraceStep(r, "Depth %d: starting iteration", depth)
-
-			// Build tree for this depth by deepening the template
-			deepenedTree, err := r.buildTreeAtDepth(depth)
-			if err != nil {
-				return
-			}
-
-			// Execute the tree
-			pathSeq, err := execute(ctx, deepenedTree)
-			if err != nil {
-				yield(Path{}, fmt.Errorf("execution failed at depth %d: %w", depth, err))
-				return
-			}
-
-			newPathCount := 0
-			totalPathCount := 0
-
-			// Yield each new path we find
-			for path, err := range pathSeq {
-				if err != nil {
-					yield(Path{}, err)
-					return
-				}
-
-				totalPathCount++
-
-				// Deduplicate paths by key
-				key := path.Key()
-				if !seen[key] {
-					seen[key] = true
-					newPathCount++
-					if !yield(path, nil) {
-						return
-					}
-				}
-			}
-
-			ctx.TraceStep(r, "Depth %d: collected %d paths (%d new)", depth, totalPathCount, newPathCount)
-		}
-
-		ctx.TraceStep(r, "Completed at max depth %d", maxDepth)
-	}, nil
-}
-
 // buildTreeAtDepth creates a tree for the given depth by replacing placeholders
-// with deeper copies of the template tree
+// with deeper copies of the template tree. Used by breadthFirstIter for IterSubjects.
 func (r *RecursiveIterator) buildTreeAtDepth(depth int) (Iterator, error) {
 	var err error
 	// Clone and unwrap any nested RecursiveIterators at this depth
@@ -141,7 +82,8 @@ func (r *RecursiveIterator) buildTreeAtDepth(depth int) (Iterator, error) {
 }
 
 // unwrapRecursiveIterators recursively unwraps nested RecursiveIterators,
-// replacing them with their template trees at the specified depth
+// replacing them with their template trees at the specified depth.
+// Used by buildTreeAtDepth for IterSubjects.
 func unwrapRecursiveIterators(tree Iterator, depth int) (Iterator, error) {
 	return Walk(tree, func(it Iterator) (Iterator, error) {
 		if recIt, isRecursive := it.(*RecursiveIterator); isRecursive {
@@ -348,6 +290,79 @@ func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject Obje
 		}
 
 		ctx.TraceStep(r, "BFS terminated at max depth %d", maxDepth)
+	}, nil
+}
+
+// deepeningCheck implements a deepening traversal for Check operations.
+// Unlike IterResources which builds a frontier of paths, deepeningCheck uses iterative deepening
+// with early termination: at each ply, we allow one more level of recursion through the
+// sentinel by replacing it with progressively deeper trees.
+func (r *RecursiveIterator) deepeningCheck(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	maxDepth := ctx.MaxRecursionDepth
+	if maxDepth == 0 {
+		maxDepth = defaultMaxRecursionDepth
+	}
+
+	return func(yield func(Path, error) bool) {
+		// Track all paths yielded globally (for deduplication)
+		yieldedPaths := make(map[string]bool)
+		foundPathsAtPreviousPly := false
+
+		for ply := 0; ply < maxDepth; ply++ {
+			ctx.TraceStep(r, "BFS Check: Ply %d starting", ply)
+
+			// Build tree for this ply by replacing sentinel with ply-depth tree
+			// At ply 0: sentinel returns empty (no recursion)
+			// At ply 1: sentinel replaced with depth-0 tree (1 level of recursion)
+			// At ply 2: sentinel replaced with depth-1 tree (2 levels of recursion)
+			// Etc.
+			plyTree, err := r.buildTreeAtDepth(ply)
+			if err != nil {
+				yield(Path{}, fmt.Errorf("failed to build tree at ply %d: %w", ply, err))
+				return
+			}
+
+			// Execute Check with the ply tree
+			plySeq, err := ctx.Check(plyTree, resources, subject)
+			if err != nil {
+				yield(Path{}, fmt.Errorf("check failed at ply %d: %w", ply, err))
+				return
+			}
+
+			// Collect and deduplicate paths from this ply
+			newPathCount := 0
+			for path, err := range plySeq {
+				if err != nil {
+					yield(Path{}, err)
+					return
+				}
+
+				// Deduplicate by full path key
+				key := path.Key()
+				if !yieldedPaths[key] {
+					yieldedPaths[key] = true
+					newPathCount++
+					if !yield(path, nil) {
+						return
+					}
+				}
+			}
+
+			ctx.TraceStep(r, "BFS Check: Ply %d found %d new paths", ply, newPathCount)
+
+			// Early termination: if we previously found paths but now found no new paths,
+			// we've reached a fixed point (all reachable paths have been discovered)
+			if newPathCount == 0 && foundPathsAtPreviousPly {
+				ctx.TraceStep(r, "BFS Check: Terminated at ply %d (no new paths, fixed point reached)", ply)
+				return
+			}
+
+			if newPathCount > 0 {
+				foundPathsAtPreviousPly = true
+			}
+		}
+
+		ctx.TraceStep(r, "BFS Check: Reached max depth %d", maxDepth)
 	}, nil
 }
 

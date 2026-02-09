@@ -161,7 +161,6 @@ func TestRecursiveIteratorSubiteratorsAndReplace(t *testing.T) {
 }
 
 func TestRecursiveIteratorExecutionError(t *testing.T) {
-	// Test error path: execute() returns an error (line 67-70 in iterativeDeepening)
 	// This tests when CheckImpl/IterSubjects/IterResources fails during execution
 
 	faultyIter := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{}) // Fails on Check
@@ -180,7 +179,7 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	// Error should occur during sequence iteration
 	paths, err := CollectAll(seq)
 	require.Error(t, err, "Should get error from faulty iterator during execution")
-	require.Contains(t, err.Error(), "execution failed at depth", "Error should be wrapped with depth info")
+	require.Contains(t, err.Error(), "check failed at ply", "Error should be wrapped with ply info")
 	require.Empty(t, paths)
 }
 
