@@ -100,10 +100,24 @@ func (r *definitionCachingReader) LegacyLookupCaveatsWithNames(
 		estimatedCaveatDefinitionSize)
 }
 
-// SchemaReader returns a reference to this reader, but wrapped in such a way
-// that the legacy methods are used to drive the new methods, which ensures
-// that caching logic stays in place.
+// SchemaReader returns a schema reader that respects the underlying datastore's
+// schema mode configuration. For new unified schema mode, it passes through directly
+// to leverage the hash-based cache. For legacy mode, it wraps the proxy to use
+// the per-definition caching methods.
 func (r *definitionCachingReader) SchemaReader() (datastore.SchemaReader, error) {
+	// Get the underlying reader's schema reader to determine its configured mode
+	underlyingSchemaReader, err := r.Reader.SchemaReader()
+	if err != nil {
+		return nil, err
+	}
+
+	// If using new unified schema mode, pass through directly
+	// The hash-based schema cache handles caching efficiently for unified schemas
+	if _, isLegacy := underlyingSchemaReader.(*schemautil.LegacySchemaReaderAdapter); !isLegacy {
+		return underlyingSchemaReader, nil
+	}
+
+	// For legacy mode, wrap the proxy to ensure per-definition caching is used
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
@@ -310,10 +324,20 @@ func (rwt *definitionCachingRWT) SchemaWriter() (datastore.SchemaWriter, error) 
 	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt.ReadWriteTransaction), nil
 }
 
-// SchemaReader returns a wrapper around the definitionCachingRWT that ensures
-// that the caching logic in this proxy is exercised when a handle on the
-// SchemaReader is requested.
+// SchemaReader returns a schema reader for the transaction. For new unified schema mode,
+// it passes through directly. For legacy mode, it wraps the transaction to use caching.
 func (rwt *definitionCachingRWT) SchemaReader() (datastore.SchemaReader, error) {
+	underlyingSchemaReader, err := rwt.ReadWriteTransaction.SchemaReader()
+	if err != nil {
+		return nil, err
+	}
+
+	// If using new unified schema mode, pass through directly
+	if _, isLegacy := underlyingSchemaReader.(*schemautil.LegacySchemaReaderAdapter); !isLegacy {
+		return underlyingSchemaReader, nil
+	}
+
+	// For legacy mode, wrap to use transaction-local caching
 	return schemautil.NewLegacySchemaReaderAdapter(rwt), nil
 }
 

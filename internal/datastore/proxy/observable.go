@@ -307,9 +307,21 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 	}, nil
 }
 
-// SchemaReader returns a wrapped version of the proxy that exercises the
-// legacy methods to implement the new methods.
+// SchemaReader returns a schema reader that respects the underlying schema mode.
+// For new unified schema mode, it passes through directly. For legacy mode,
+// it wraps the proxy to ensure observability is maintained.
 func (r *observableReader) SchemaReader() (datastore.SchemaReader, error) {
+	underlyingSchemaReader, err := r.delegate.SchemaReader()
+	if err != nil {
+		return nil, err
+	}
+
+	// If using new unified schema mode, pass through directly
+	if _, isLegacy := underlyingSchemaReader.(*schemautil.LegacySchemaReaderAdapter); !isLegacy {
+		return underlyingSchemaReader, nil
+	}
+
+	// For legacy mode, wrap to maintain observability
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 

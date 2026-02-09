@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -42,6 +43,16 @@ const (
 	caveatA = "caveat_a"
 	caveatB = "caveat_b"
 )
+
+// setupSchemaReaderMock configures a MockReader to return a legacy schema reader adapter
+func setupSchemaReaderMock(reader *proxy_test.MockReader) {
+	reader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(reader), nil)
+}
+
+// setupSchemaReaderMockForRWT configures a MockReadWriteTransaction to return a legacy schema reader adapter
+func setupSchemaReaderMockForRWT(rwt *proxy_test.MockReadWriteTransaction) {
+	rwt.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(rwt), nil)
+}
 
 // TestNilUnmarshal asserts that if we get a nil NamespaceDefinition from a
 // datastore implementation, the process of inserting it into the cache and
@@ -217,6 +228,7 @@ func TestSnapshotCaching(t *testing.T) {
 
 	oneReader := &proxy_test.MockReader{}
 	dsMock.On("SnapshotReader", one).Return(oneReader)
+	oneReader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(oneReader), nil)
 	oneReader.On("LegacyReadNamespaceByName", nsA).Return(nil, old, nil).Once()
 	oneReader.On("LegacyReadNamespaceByName", nsB).Return(nil, zero, nil).Once()
 	oneReader.On("LegacyReadCaveatByName", caveatA).Return(nil, old, nil).Once()
@@ -224,6 +236,7 @@ func TestSnapshotCaching(t *testing.T) {
 
 	twoReader := &proxy_test.MockReader{}
 	dsMock.On("SnapshotReader", two).Return(twoReader)
+	twoReader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(twoReader), nil)
 	twoReader.On("LegacyReadNamespaceByName", nsA).Return(nil, zero, nil).Once()
 	twoReader.On("LegacyReadNamespaceByName", nsB).Return(nil, one, nil).Once()
 	twoReader.On("LegacyReadCaveatByName", caveatA).Return(nil, zero, nil).Once()
@@ -410,6 +423,7 @@ func TestRWTCaching(t *testing.T) {
 	require := require.New(t)
 
 	dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
+	rwtMock.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(rwtMock), nil)
 	rwtMock.On("LegacyReadNamespaceByName", nsA).Return(nil, zero, nil).Once()
 	rwtMock.On("LegacyReadCaveatByName", caveatA).Return(nil, zero, nil).Once()
 
@@ -548,6 +562,7 @@ func TestSingleFlight(t *testing.T) {
 
 		oneReader := &proxy_test.MockReader{}
 		dsMock.On("SnapshotReader", one).Return(oneReader)
+		oneReader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(oneReader), nil)
 		oneReader.
 			On("LegacyReadNamespaceByName", nsA).
 			WaitUntil(time.After(50*time.Millisecond)).
@@ -771,6 +786,10 @@ type singleflightReader struct {
 	proxy_test.MockReader
 }
 
+func (r *singleflightReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemaadapter.NewLegacySchemaReaderAdapter(r), nil
+}
+
 func (r *singleflightReader) LegacyReadNamespaceByName(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	// NOTE: the sleep is here to ensure that the context can be cancelled before this executes.
 	time.Sleep(10 * time.Millisecond)
@@ -975,6 +994,7 @@ func TestMixedCaching(t *testing.T) {
 
 	reader := &proxy_test.MockReader{}
 	reader.Test(t)
+	setupSchemaReaderMock(reader)
 	reader.On("LegacyReadNamespaceByName", nsA).Return(nsDefA, old, nil).Once()
 	reader.On("LegacyReadCaveatByName", caveatA).Return(caveatDefA, old, nil).Once()
 	// NOTE: the mocks here only expect the Bs because the caching layer is going to

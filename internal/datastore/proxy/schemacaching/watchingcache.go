@@ -638,6 +638,17 @@ func (w *watchingCachingReader) LegacyLookupCaveatsWithNames(
 }
 
 func (w *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
+	underlyingSchemaReader, err := w.Reader.SchemaReader()
+	if err != nil {
+		return nil, err
+	}
+
+	// If using new unified schema mode, pass through directly
+	if _, isLegacy := underlyingSchemaReader.(*schemautil.LegacySchemaReaderAdapter); !isLegacy {
+		return underlyingSchemaReader, nil
+	}
+
+	// For legacy mode, wrap to use the watching cache
 	return schemautil.NewLegacySchemaReaderAdapter(w), nil
 }
 

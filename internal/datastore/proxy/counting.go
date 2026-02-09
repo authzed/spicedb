@@ -264,9 +264,21 @@ func (r *countingReader) LookupCounters(ctx context.Context) ([]datastore.Relati
 	return r.delegate.LookupCounters(ctx)
 }
 
-// SchemaReader returns a wrapped version of the countingReader that exercises
-// the legacy methods when the new methods are invoked.
+// SchemaReader returns a schema reader that respects the underlying schema mode.
+// For new unified schema mode, it passes through directly. For legacy mode,
+// it wraps the proxy to ensure counting is maintained.
 func (r *countingReader) SchemaReader() (datastore.SchemaReader, error) {
+	underlyingSchemaReader, err := r.delegate.SchemaReader()
+	if err != nil {
+		return nil, err
+	}
+
+	// If using new unified schema mode, pass through directly
+	if _, isLegacy := underlyingSchemaReader.(*schemautil.LegacySchemaReaderAdapter); !isLegacy {
+		return underlyingSchemaReader, nil
+	}
+
+	// For legacy mode, wrap to maintain counting
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
