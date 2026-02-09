@@ -45,13 +45,45 @@ func (r *RecursiveSentinel) WithSubRelations() bool {
 	return r.withSubRelations
 }
 
-// CheckImpl returns an empty PathSeq since sentinels don't execute during construction
+// CheckImpl returns an empty PathSeq. If collection mode is enabled, it collects
+// the queried resources to the frontier collection instead of returning paths.
 func (r *RecursiveSentinel) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	// Check if collection mode is enabled for this sentinel
+	if ctx.IsCollectingFrontier(r.id) {
+		// Collection mode: append resources to frontier, return empty
+		return func(yield func(Path, error) bool) {
+			for _, resource := range resources {
+				// Only collect if it matches our recursion type
+				if resource.ObjectType == r.definitionName {
+					ctx.CollectFrontierObject(r.id, resource)
+					ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
+				}
+			}
+			// Return empty (collection doesn't yield paths)
+		}, nil
+	}
+
+	// Normal mode: return empty (standard sentinel behavior)
 	return EmptyPathSeq(), nil
 }
 
-// IterSubjectsImpl returns an empty PathSeq since sentinels don't execute during construction
+// IterSubjectsImpl returns an empty PathSeq. If collection mode is enabled, it collects
+// the queried resource to the frontier collection instead of returning paths.
 func (r *RecursiveSentinel) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+	// Check if collection mode is enabled for this sentinel
+	if ctx.IsCollectingFrontier(r.id) {
+		// Collection mode: append resource to frontier, return empty
+		return func(yield func(Path, error) bool) {
+			// Only collect if it matches our recursion type
+			if resource.ObjectType == r.definitionName {
+				ctx.CollectFrontierObject(r.id, resource)
+				ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
+			}
+			// Return empty (collection doesn't yield paths)
+		}, nil
+	}
+
+	// Normal mode: return empty (standard sentinel behavior)
 	return EmptyPathSeq(), nil
 }
 

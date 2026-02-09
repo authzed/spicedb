@@ -181,11 +181,13 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	paths, err := CollectAll(seq)
 	require.Error(t, err, "Should get error from faulty iterator during execution")
 	// The error message depends on which strategy is used:
-	// - IterSubjects strategy: "execution failed at ply" (from BFS)
+	// - IterSubjects strategy: "IterSubjects failed... at depth" or "execution failed at ply" (from BFS)
 	// - Deepening strategy: "check failed at ply"
 	require.True(t,
-		strings.Contains(err.Error(), "execution failed at ply") || strings.Contains(err.Error(), "check failed at ply"),
-		"Error should be wrapped with ply info, got: %s", err.Error())
+		strings.Contains(err.Error(), "execution failed at ply") ||
+		strings.Contains(err.Error(), "check failed at ply") ||
+		strings.Contains(err.Error(), "at depth"),
+		"Error should be wrapped with ply/depth info, got: %s", err.Error())
 	require.Empty(t, paths)
 }
 

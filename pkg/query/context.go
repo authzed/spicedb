@@ -286,6 +286,12 @@ type Context struct {
 	PaginationCursors map[string]*tuple.Relationship // Cursors for pagination, keyed by iterator ID
 	PaginationLimit   *uint64                        // Limit for pagination (max number of results to return)
 	PaginationSort    options.SortOrder              // Sort order for pagination
+
+	// recursiveFrontierCollectors holds frontier collections for BFS IterSubjects.
+	// Key: RecursiveIterator.ID()
+	// Value: collected Objects for the next frontier
+	// A non-nil entry for an ID enables collection mode for that RecursiveIterator.
+	recursiveFrontierCollectors map[string][]Object
 }
 
 // NewLocalContext creates a new query execution context with a LocalExecutor.
@@ -536,4 +542,43 @@ type Executor interface {
 	// The filterResourceType parameter filters results to only include resources matching the
 	// specified ObjectType. If filterResourceType.Type is empty, no filtering is applied.
 	IterResources(ctx *Context, it Iterator, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error)
+}
+
+// EnableFrontierCollection enables frontier collection for a RecursiveIterator.
+// Creates a non-nil entry in the map, which signals collection mode.
+func (ctx *Context) EnableFrontierCollection(iteratorID string) {
+	if ctx.recursiveFrontierCollectors == nil {
+		ctx.recursiveFrontierCollectors = make(map[string][]Object)
+	}
+	ctx.recursiveFrontierCollectors[iteratorID] = []Object{}
+}
+
+// CollectFrontierObject appends an object to the frontier collection.
+// Only appends if collection mode is enabled (non-nil entry exists).
+func (ctx *Context) CollectFrontierObject(iteratorID string, obj Object) {
+	if ctx.recursiveFrontierCollectors == nil {
+		return
+	}
+	if collection, exists := ctx.recursiveFrontierCollectors[iteratorID]; exists {
+		ctx.recursiveFrontierCollectors[iteratorID] = append(collection, obj)
+	}
+}
+
+// ExtractFrontierCollection retrieves and removes the collected frontier.
+func (ctx *Context) ExtractFrontierCollection(iteratorID string) []Object {
+	if ctx.recursiveFrontierCollectors == nil {
+		return nil
+	}
+	collection := ctx.recursiveFrontierCollectors[iteratorID]
+	delete(ctx.recursiveFrontierCollectors, iteratorID)
+	return collection
+}
+
+// IsCollectingFrontier checks if collection mode is enabled (non-nil entry exists).
+func (ctx *Context) IsCollectingFrontier(iteratorID string) bool {
+	if ctx.recursiveFrontierCollectors == nil {
+		return false
+	}
+	_, exists := ctx.recursiveFrontierCollectors[iteratorID]
+	return exists
 }
