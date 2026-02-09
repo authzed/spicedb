@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-logr/zerologr"
 	"github.com/jzelinskie/cobrautil/v2"
@@ -31,10 +32,9 @@ type PostgresFDWConfig struct {
 	SpiceDBInsecure          bool
 
 	// Postgres FDW server config
-	PostgresEndpoint    string
-	PostgresUsername    string // Username that Postgres will use to connect to the FDW proxy
-	SecureAccessToken   string // Password that Postgres will use to authenticate to the FDW proxy
-	ShutdownGracePeriod time.Duration
+	PostgresEndpoint  string
+	PostgresUsername  string // Username that Postgres will use to connect to the FDW proxy
+	SecureAccessToken string // Password that Postgres will use to authenticate to the FDW proxy
 }
 
 // Complete adapts the PostgresFDWConfig into a runnable Postgres FDW server.
@@ -115,6 +115,7 @@ func (s *postgresFDWServer) Close() error {
 
 // RunnablePostgresFDWServer is a Postgres FDW server ready to run
 type RunnablePostgresFDWServer interface {
+	// Run runs the server until the context is cancelled or until the server returns an error.
 	Run(ctx context.Context) error
 	Close() error
 }
@@ -131,7 +132,6 @@ func RegisterPostgresFDWFlags(cmd *cobra.Command, config *PostgresFDWConfig) err
 	}
 
 	serviceFlags := nfs.FlagSet(BoldBlue("service"))
-	serviceFlags.DurationVar(&config.ShutdownGracePeriod, "shutdown-grace-period", 0, "The duration to wait for the server to shutdown gracefully")
 	serviceFlags.StringVar(&config.PostgresEndpoint, "postgres-endpoint", ":5432", "The endpoint at which to serve the Postgres protocol")
 	serviceFlags.StringVar(&config.PostgresUsername, "postgres-username", "postgres", "The username that Postgres will use to connect to the FDW proxy")
 	serviceFlags.StringVar(&config.SecureAccessToken, "postgres-access-token-secret", "", "(required) The password that Postgres will use to authenticate to the FDW proxy (configured in the Postgres FDW extension's OPTIONS)")
@@ -166,10 +166,8 @@ func NewPostgresFDWCommand(programName string, config *PostgresFDWConfig) *cobra
 				return err
 			}
 
-			signalctx := SignalContextWithGracePeriod(
-				context.Background(),
-				config.ShutdownGracePeriod,
-			)
+			signalctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
 
 			return srv.Run(signalctx)
 		}),

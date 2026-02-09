@@ -40,8 +40,8 @@ type Manager interface {
 	// HealthSvc is the health service this manager is managing.
 	HealthSvc() *grpcutil.AuthlessHealthServer
 
-	// Checker returns a function that can be run via an errgroup to perform the health checks.
-	Checker(ctx context.Context) func() error
+	// Checker blocks until the status is SERVING.
+	Checker(ctx context.Context) error
 }
 
 type healthManager struct {
@@ -60,41 +60,39 @@ func (hm *healthManager) RegisterReportedService(serviceName string) {
 	hm.healthSvc.SetServingStatus(serviceName, healthpb.HealthCheckResponse_NOT_SERVING)
 }
 
-func (hm *healthManager) Checker(ctx context.Context) func() error {
-	return func() error {
-		// Run immediately for the initial check
-		backoffInterval := backoff.NewExponentialBackOff()
+func (hm *healthManager) Checker(ctx context.Context) error {
+	// Run immediately for the initial check
+	backoffInterval := backoff.NewExponentialBackOff()
 
-		ticker := time.After(0)
+	ticker := time.After(0)
 
-		for {
-			select {
-			case _, ok := <-ticker:
-				if !ok {
-					log.Ctx(ctx).Warn().Msg("backoff error while waiting for dispatcher or datastore health")
-					return nil
-				}
-
-			case <-ctx.Done():
-				log.Ctx(ctx).Info().Msg("datastore health check canceled")
+	for {
+		select {
+		case _, ok := <-ticker:
+			if !ok {
+				log.Ctx(ctx).Warn().Msg("backoff error while waiting for dispatcher or datastore health")
 				return nil
 			}
 
-			isReady := hm.checkIsReady(ctx)
-			if isReady {
-				for serviceName := range hm.serviceNames {
-					hm.healthSvc.SetServingStatus(serviceName, healthpb.HealthCheckResponse_SERVING)
-				}
-				return nil
-			}
-
-			nextPush := backoffInterval.NextBackOff()
-			if nextPush == backoff.Stop {
-				log.Ctx(ctx).Warn().Msg("exceed max attempts to check for dispatch or datastore ready")
-				return nil
-			}
-			ticker = time.After(nextPush)
+		case <-ctx.Done():
+			log.Ctx(ctx).Info().Msg("datastore health check canceled")
+			return nil
 		}
+
+		isReady := hm.checkIsReady(ctx)
+		if isReady {
+			for serviceName := range hm.serviceNames {
+				hm.healthSvc.SetServingStatus(serviceName, healthpb.HealthCheckResponse_SERVING)
+			}
+			return nil
+		}
+
+		nextPush := backoffInterval.NextBackOff()
+		if nextPush == backoff.Stop {
+			log.Ctx(ctx).Warn().Msg("exceed max attempts to check for dispatch or datastore ready")
+			return nil
+		}
+		ticker = time.After(nextPush)
 	}
 }
 
