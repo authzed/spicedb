@@ -23,6 +23,18 @@ import (
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
+// MigrateConfig holds configuration for running database migrations.
+type MigrateConfig struct {
+	DatastoreEngine         string
+	DatastoreURI            string
+	CredentialsProviderName string
+	SpannerCredentialsFile  string
+	SpannerEmulatorHost     string
+	MySQLTablePrefix        string
+	Timeout                 time.Duration
+	BatchSize               uint64
+}
+
 func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	cmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
@@ -47,90 +59,93 @@ func NewMigrateCommand(programName string) *cobra.Command {
 }
 
 func migrateRun(cmd *cobra.Command, args []string) error {
-	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
-	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
-	timeout := cobrautil.MustGetDuration(cmd, "migration-timeout")
-	migrationBatachSize := cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size")
-
 	if len(args) != 1 {
 		return errors.New("missing required argument: 'revision'")
 	}
 
-	switch datastoreEngine {
-	case "cockroachdb":
-		log.Ctx(cmd.Context()).Info().Msg("migrating cockroachdb datastore")
+	cfg := &MigrateConfig{
+		DatastoreEngine:         cobrautil.MustGetStringExpanded(cmd, "datastore-engine"),
+		DatastoreURI:            cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri"),
+		CredentialsProviderName: cobrautil.MustGetString(cmd, "datastore-credentials-provider-name"),
+		SpannerCredentialsFile:  cobrautil.MustGetStringExpanded(cmd, "datastore-spanner-credentials"),
+		SpannerEmulatorHost:     cobrautil.MustGetString(cmd, "datastore-spanner-emulator-host"),
+		MySQLTablePrefix:        cobrautil.MustGetString(cmd, "datastore-mysql-table-prefix"),
+		Timeout:                 cobrautil.MustGetDuration(cmd, "migration-timeout"),
+		BatchSize:               cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size"),
+	}
 
-		var err error
-		migrationDriver, err := crdbmigrations.NewCRDBDriver(dbURL)
+	return executeMigrate(cmd.Context(), cfg, args[0])
+}
+
+// executeMigrate runs the migration with the given configuration.
+// This function is extracted to enable testing without cobra command dependencies.
+func executeMigrate(ctx context.Context, cfg *MigrateConfig, revision string) error {
+	if revision == "" {
+		return errors.New("missing required revision")
+	}
+
+	switch cfg.DatastoreEngine {
+	case "cockroachdb":
+		log.Ctx(ctx).Info().Msg("migrating cockroachdb datastore")
+
+		migrationDriver, err := crdbmigrations.NewCRDBDriver(cfg.DatastoreURI)
 		if err != nil {
-			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
+			return fmt.Errorf("unable to create migration driver for %s: %w", cfg.DatastoreEngine, err)
 		}
-		return runMigration(cmd.Context(), migrationDriver, crdbmigrations.CRDBMigrations, args[0], timeout, migrationBatachSize)
+		return runMigration(ctx, migrationDriver, crdbmigrations.CRDBMigrations, revision, cfg.Timeout, cfg.BatchSize)
+
 	case "postgres":
-		log.Ctx(cmd.Context()).Info().Msg("migrating postgres datastore")
+		log.Ctx(ctx).Info().Msg("migrating postgres datastore")
 
 		var credentialsProvider datastore.CredentialsProvider
-		credentialsProviderName := cobrautil.MustGetString(cmd, "datastore-credentials-provider-name")
-		if credentialsProviderName != "" {
+		if cfg.CredentialsProviderName != "" {
 			var err error
-			credentialsProvider, err = datastore.NewCredentialsProvider(cmd.Context(), credentialsProviderName)
+			credentialsProvider, err = datastore.NewCredentialsProvider(ctx, cfg.CredentialsProviderName)
 			if err != nil {
 				return err
 			}
 		}
 
-		migrationDriver, err := migrations.NewAlembicPostgresDriver(cmd.Context(), dbURL, credentialsProvider, false)
+		migrationDriver, err := migrations.NewAlembicPostgresDriver(ctx, cfg.DatastoreURI, credentialsProvider, false)
 		if err != nil {
-			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
+			return fmt.Errorf("unable to create migration driver for %s: %w", cfg.DatastoreEngine, err)
 		}
-		return runMigration(cmd.Context(), migrationDriver, migrations.DatabaseMigrations, args[0], timeout, migrationBatachSize)
+		return runMigration(ctx, migrationDriver, migrations.DatabaseMigrations, revision, cfg.Timeout, cfg.BatchSize)
+
 	case "spanner":
-		log.Ctx(cmd.Context()).Info().Msg("migrating spanner datastore")
+		log.Ctx(ctx).Info().Msg("migrating spanner datastore")
 
-		credFile := cobrautil.MustGetStringExpanded(cmd, "datastore-spanner-credentials")
-		var err error
-		emulatorHost, err := cmd.Flags().GetString("datastore-spanner-emulator-host")
+		migrationDriver, err := spannermigrations.NewSpannerDriver(ctx, cfg.DatastoreURI, cfg.SpannerCredentialsFile, cfg.SpannerEmulatorHost)
 		if err != nil {
-			log.Ctx(cmd.Context()).Fatal().Err(err).Msg("unable to get spanner emulator host")
+			return fmt.Errorf("unable to create migration driver for %s: %w", cfg.DatastoreEngine, err)
 		}
-		migrationDriver, err := spannermigrations.NewSpannerDriver(cmd.Context(), dbURL, credFile, emulatorHost)
-		if err != nil {
-			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
-		}
-		return runMigration(cmd.Context(), migrationDriver, spannermigrations.SpannerMigrations, args[0], timeout, migrationBatachSize)
+		return runMigration(ctx, migrationDriver, spannermigrations.SpannerMigrations, revision, cfg.Timeout, cfg.BatchSize)
+
 	case "mysql":
-		log.Ctx(cmd.Context()).Info().Msg("migrating mysql datastore")
-
-		var err error
-		tablePrefix, err := cmd.Flags().GetString("datastore-mysql-table-prefix")
-		if err != nil {
-			log.Ctx(cmd.Context()).Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
-		}
+		log.Ctx(ctx).Info().Msg("migrating mysql datastore")
 
 		var credentialsProvider datastore.CredentialsProvider
-		credentialsProviderName := cobrautil.MustGetString(cmd, "datastore-credentials-provider-name")
-		if credentialsProviderName != "" {
+		if cfg.CredentialsProviderName != "" {
 			var err error
-			credentialsProvider, err = datastore.NewCredentialsProvider(cmd.Context(), credentialsProviderName)
+			credentialsProvider, err = datastore.NewCredentialsProvider(ctx, cfg.CredentialsProviderName)
 			if err != nil {
 				return err
 			}
 		}
 
 		// Do this outside NewMySQLDriverFromDSN to avoid races on MySQL datastore tests
-		err = sqlDriver.SetLogger(&log.Logger)
-		if err != nil {
+		if err := sqlDriver.SetLogger(&log.Logger); err != nil {
 			return fmt.Errorf("unable to set logging to mysql driver: %w", err)
 		}
 
-		migrationDriver, err := mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix, credentialsProvider)
+		migrationDriver, err := mysqlmigrations.NewMySQLDriverFromDSN(cfg.DatastoreURI, cfg.MySQLTablePrefix, credentialsProvider)
 		if err != nil {
-			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
+			return fmt.Errorf("unable to create migration driver for %s: %w", cfg.DatastoreEngine, err)
 		}
-		return runMigration(cmd.Context(), migrationDriver, mysqlmigrations.Manager, args[0], timeout, migrationBatachSize)
+		return runMigration(ctx, migrationDriver, mysqlmigrations.Manager, revision, cfg.Timeout, cfg.BatchSize)
 	}
 
-	return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
+	return fmt.Errorf("cannot migrate datastore engine type: %s", cfg.DatastoreEngine)
 }
 
 func runMigration[D migrate.Driver[C, T], C any, T any](
