@@ -461,44 +461,26 @@ func (mdb *memdbDatastore) readStoredSchemaInternal() (*corev1.StoredSchema, err
 	return mdb.storedSchema.CloneVT(), nil
 }
 
-// writeStoredSchemaInternal is an internal method for transactions to write the stored schema.
-// This should NOT be called directly - use transactions instead.
-func (mdb *memdbDatastore) writeStoredSchemaInternal(schema *corev1.StoredSchema) error {
-	if schema == nil {
-		return errors.New("stored schema cannot be nil")
-	}
-
-	if schema.Version == 0 {
-		return errors.New("stored schema version cannot be 0")
-	}
-
-	mdb.Lock()
-	defer mdb.Unlock()
-
-	if err := mdb.checkNotClosed(); err != nil {
-		return err
-	}
-
+// writeStoredSchemaNoLock writes the stored schema using the provided transaction.
+// This is called from within an existing transaction, so it doesn't acquire locks or commit.
+func (mdb *memdbDatastore) writeStoredSchemaNoLock(tx *memdb.Txn, schema *corev1.StoredSchema) error {
 	// Store a copy to prevent external mutations
 	mdb.storedSchema = schema.CloneVT()
 
 	// Write the schema hash to the schema revision table for fast lookups
-	if err := mdb.writeSchemaHashInternal(schema); err != nil {
+	if err := mdb.writeSchemaHashNoLock(tx, schema); err != nil {
 		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil
 }
 
-// writeSchemaHashInternal writes the schema hash to the in-memory schema revision table
-func (mdb *memdbDatastore) writeSchemaHashInternal(schema *corev1.StoredSchema) error {
+// writeSchemaHashNoLock writes the schema hash to the in-memory schema revision table using the provided transaction.
+func (mdb *memdbDatastore) writeSchemaHashNoLock(tx *memdb.Txn, schema *corev1.StoredSchema) error {
 	v1 := schema.GetV1()
 	if v1 == nil {
 		return fmt.Errorf("unsupported schema version: %d", schema.Version)
 	}
-
-	tx := mdb.db.Txn(true)
-	defer tx.Abort()
 
 	// Delete existing hash (if any)
 	if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {
@@ -517,12 +499,14 @@ func (mdb *memdbDatastore) writeSchemaHashInternal(schema *corev1.StoredSchema) 
 		return fmt.Errorf("failed to insert hash: %w", err)
 	}
 
-	tx.Commit()
+	// Note: Don't commit here - the caller will commit the transaction
 	return nil
 }
 
 // writeLegacySchemaHashFromDefinitionsInternal writes the schema hash computed from the given definitions
-func (mdb *memdbDatastore) writeLegacySchemaHashFromDefinitionsInternal(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+// writeLegacySchemaHashFromDefinitionsNoLock writes the schema hash using the provided transaction.
+// This is called from within an existing transaction, so it doesn't acquire locks.
+func (mdb *memdbDatastore) writeLegacySchemaHashFromDefinitionsNoLock(ctx context.Context, tx *memdb.Txn, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
 	// Build schema definitions list
 	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
 	for _, ns := range namespaces {
@@ -547,16 +531,6 @@ func (mdb *memdbDatastore) writeLegacySchemaHashFromDefinitionsInternal(ctx cont
 	hash := sha256.Sum256([]byte(schemaText))
 	schemaHash := hex.EncodeToString(hash[:])
 
-	mdb.Lock()
-	defer mdb.Unlock()
-
-	if err := mdb.checkNotClosed(); err != nil {
-		return err
-	}
-
-	tx := mdb.db.Txn(true)
-	defer tx.Abort()
-
 	// Delete existing hash (if any)
 	if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {
 		if err := tx.Delete(tableSchemaRevision, existing); err != nil {
@@ -574,7 +548,7 @@ func (mdb *memdbDatastore) writeLegacySchemaHashFromDefinitionsInternal(ctx cont
 		return fmt.Errorf("failed to insert hash: %w", err)
 	}
 
-	tx.Commit()
+	// Note: Don't commit here - the caller will commit the transaction
 	return nil
 }
 
