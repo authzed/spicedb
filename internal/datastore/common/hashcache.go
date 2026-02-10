@@ -3,7 +3,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync/atomic"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -19,16 +18,17 @@ const defaultMaxCacheEntries = 10
 
 // bypassSentinels contains all schema hash values that intentionally bypass the cache.
 // These are special sentinel values used in specific contexts where caching is not appropriate.
-var bypassSentinels = []datastore.SchemaHash{
-	datastore.NoSchemaHashInTransaction,
-	datastore.NoSchemaHashForTesting,
-	datastore.NoSchemaHashForWatch,
-	datastore.NoSchemaHashForLegacyCursor,
+// Using a map for O(1) lookup instead of slice iteration.
+var bypassSentinels = map[datastore.SchemaHash]bool{
+	datastore.NoSchemaHashInTransaction:    true,
+	datastore.NoSchemaHashForTesting:       true,
+	datastore.NoSchemaHashForWatch:         true,
+	datastore.NoSchemaHashForLegacyCursor:  true,
 }
 
 // isBypassSentinel returns true if the given schema hash is a bypass sentinel value.
 func isBypassSentinel(schemaHash datastore.SchemaHash) bool {
-	return slices.Contains(bypassSentinels, schemaHash)
+	return bypassSentinels[schemaHash]
 }
 
 // latestSchemaEntry holds the most recent schema entry for fast-path lookups.

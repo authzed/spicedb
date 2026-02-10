@@ -322,14 +322,14 @@ func TestBypassSentinels_CacheBehavior(t *testing.T) {
 	schema := makeTestSchema("definition user {}")
 
 	// Test that each sentinel bypasses the cache in Get()
-	for _, sentinel := range bypassSentinels {
+	for sentinel := range bypassSentinels {
 		result, err := cache.Get(datastore.NoRevision, sentinel)
 		require.NoError(t, err)
 		require.Nil(t, result, "Get with sentinel %q should return nil", sentinel)
 	}
 
 	// Test that each sentinel bypasses the cache in Set()
-	for _, sentinel := range bypassSentinels {
+	for sentinel := range bypassSentinels {
 		err := cache.Set(datastore.NoRevision, sentinel, schema)
 		require.NoError(t, err, "Set with sentinel %q should not error", sentinel)
 
@@ -340,7 +340,7 @@ func TestBypassSentinels_CacheBehavior(t *testing.T) {
 	}
 
 	// Test that each sentinel bypasses the cache in GetOrLoad()
-	for _, sentinel := range bypassSentinels {
+	for sentinel := range bypassSentinels {
 		loadCalled := false
 		result, err := cache.GetOrLoad(context.Background(), datastore.NoRevision, sentinel,
 			func(ctx context.Context) (*core.StoredSchema, error) {
