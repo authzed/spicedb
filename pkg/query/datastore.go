@@ -215,7 +215,7 @@ func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object)
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := fmt.Sprintf("%s:iter_subjects", r.ID())
+		iteratorID := r.ID() + ":iter_subjects"
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -376,7 +376,7 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := fmt.Sprintf("%s:iter_subjects_wildcard", r.ID())
+		iteratorID := r.ID() + ":iter_subjects_wildcard"
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -498,7 +498,7 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := fmt.Sprintf("%s:iter_resources", r.ID())
+		iteratorID := r.ID() + ":iter_resources"
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -603,7 +603,7 @@ func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject Objec
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := fmt.Sprintf("%s:iter_resources_wildcard", r.ID())
+		iteratorID := r.ID() + ":iter_resources_wildcard"
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)

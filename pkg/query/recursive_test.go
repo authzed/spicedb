@@ -185,8 +185,8 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	// - Deepening strategy: "check failed at ply"
 	require.True(t,
 		strings.Contains(err.Error(), "execution failed at ply") ||
-		strings.Contains(err.Error(), "check failed at ply") ||
-		strings.Contains(err.Error(), "at depth"),
+			strings.Contains(err.Error(), "check failed at ply") ||
+			strings.Contains(err.Error(), "at depth"),
 		"Error should be wrapped with ply/depth info, got: %s", err.Error())
 	require.Empty(t, paths)
 }

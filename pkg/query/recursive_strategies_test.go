@@ -58,6 +58,7 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 
 	for _, tc := range strategies {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// Create recursive iterator with the specific strategy
 			recursive := NewRecursiveIterator(union, "folder", "view")
 			recursive.checkStrategy = tc.strategy
@@ -88,7 +89,7 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 	}
 
 	// Verify IterSubjects strategy works (primary implementation)
-	require.Greater(t, len(allResults[0]), 0, "IterSubjects should find at least one path")
+	require.NotEmpty(t, allResults[0], "IterSubjects should find at least one path")
 
 	// TODO: IterResources and Deepening strategies need updates to work with
 	// the new BFS IterSubjects implementation and Fixed iterator test setup
@@ -189,7 +190,7 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 	}
 	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
 
-	var allResults [][]Path
+	allResults := make([][]Path, 0)
 
 	for _, strategy := range strategies {
 		recursive := NewRecursiveIterator(union, "folder", "view")
