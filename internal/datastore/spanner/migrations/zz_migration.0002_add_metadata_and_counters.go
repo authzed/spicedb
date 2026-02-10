@@ -34,9 +34,13 @@ func init() {
 
 		return updateOp.Wait(ctx)
 	}, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
-		return rwt.BufferWrite([]*spanner.Mutation{
-			spanner.Insert("metadata", []string{"unique_id"}, []any{uuid.NewString()}),
-		})
+		// Use DML instead of mutations to be compatible with WriteVersion which uses DML
+		stmt := spanner.Statement{
+			SQL:    "INSERT INTO metadata (unique_id) VALUES (@unique_id)",
+			Params: map[string]any{"unique_id": uuid.NewString()},
+		}
+		_, err := rwt.Update(ctx, stmt)
+		return err
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

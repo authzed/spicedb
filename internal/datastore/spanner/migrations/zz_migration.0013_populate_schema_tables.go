@@ -137,8 +137,7 @@ func init() {
 				return fmt.Errorf("failed to marshal schema: %w", err)
 			}
 
-			// Insert schema chunks
-			var mutations []*spanner.Mutation
+			// Insert schema chunks using DML (to be compatible with WriteVersion which uses DML)
 			for chunkIndex := 0; chunkIndex*schemaChunkSize < len(schemaData); chunkIndex++ {
 				start := chunkIndex * schemaChunkSize
 				end := start + schemaChunkSize
@@ -147,22 +146,34 @@ func init() {
 				}
 				chunk := schemaData[start:end]
 
-				mutations = append(mutations, spanner.Insert(
-					"schema",
-					[]string{"name", "chunk_index", "chunk_data", "timestamp"},
-					[]any{unifiedSchemaName, chunkIndex, chunk, spanner.CommitTimestamp},
-				))
+				stmt := spanner.Statement{
+					SQL: `INSERT INTO schema (name, chunk_index, chunk_data, timestamp)
+					      VALUES (@name, @chunk_index, @chunk_data, PENDING_COMMIT_TIMESTAMP())`,
+					Params: map[string]any{
+						"name":        unifiedSchemaName,
+						"chunk_index": chunkIndex,
+						"chunk_data":  chunk,
+					},
+				}
+				if _, err := rwt.Update(ctx, stmt); err != nil {
+					return fmt.Errorf("failed to insert schema chunk %d: %w", chunkIndex, err)
+				}
 			}
 
-			// Insert schema hash
-			mutations = append(mutations, spanner.Insert(
-				"schema_revision",
-				[]string{"name", "schema_hash", "timestamp"},
-				[]any{schemaRevisionName, schemaHash, spanner.CommitTimestamp},
-			))
+			// Insert schema hash using DML
+			stmt = spanner.Statement{
+				SQL: `INSERT INTO schema_revision (name, schema_hash, timestamp)
+				      VALUES (@name, @schema_hash, PENDING_COMMIT_TIMESTAMP())`,
+				Params: map[string]any{
+					"name":        schemaRevisionName,
+					"schema_hash": schemaHash,
+				},
+			}
+			if _, err := rwt.Update(ctx, stmt); err != nil {
+				return fmt.Errorf("failed to insert schema hash: %w", err)
+			}
 
-			// Apply mutations
-			return rwt.BufferWrite(mutations)
+			return nil
 		}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}
