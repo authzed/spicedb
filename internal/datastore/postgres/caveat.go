@@ -145,11 +145,6 @@ func (rwt *pgReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*co
 		return fmt.Errorf(errWriteCaveats, err)
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -157,11 +152,6 @@ func (rwt *pgReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []stri
 	// mark current caveats as deleted
 	if err := rwt.deleteCaveatsFromNames(ctx, names); err != nil {
 		return err
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil

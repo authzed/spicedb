@@ -511,11 +511,6 @@ func (rwt *crdbReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfi
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -569,11 +564,6 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames
 
 		numRowsDeleted := modified.RowsAffected()
 		rwt.relCountChange -= numRowsDeleted
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil
@@ -634,20 +624,53 @@ func (w *crdbSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.Sto
 	return nil
 }
 
-// writeLegacySchemaHash writes the schema hash to the schema_revision table by generating
-// the schema from current legacy namespaces and caveats
-func (rwt *crdbReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
-	// Read all namespaces and caveats
-	namespaces, err := rwt.LegacyListAllNamespaces(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list namespaces: %w", err)
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader to satisfy DualSchemaReader interface requirements
+func (w *crdbSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create a revision-aware executor that applies AS OF SYSTEM TIME
+	// Within a transaction, we don't use AS OF SYSTEM TIME, so pass empty atSpecificRevision
+	executor := &revisionAwareExecutor{
+		query:             w.rwt.query,
+		addFromToQuery:    w.rwt.addFromToQuery,
+		assertAsOfSysTime: w.rwt.assertHasExpectedAsOfSystemTime,
 	}
 
-	caveats, err := rwt.LegacyListAllCaveats(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list caveats: %w", err)
-	}
+	// Use the shared schema reader/writer to read the schema
+	// Pass empty string to bypass cache (transaction read)
+	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil, datastore.NoSchemaHashInTransaction)
+}
 
+// LegacyWriteNamespaces delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	return w.rwt.LegacyWriteNamespaces(ctx, newConfigs...)
+}
+
+// LegacyDeleteNamespaces delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	return w.rwt.LegacyDeleteNamespaces(ctx, nsNames, delOption)
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return w.rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// LegacyWriteCaveats delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	return w.rwt.LegacyWriteCaveats(ctx, caveats)
+}
+
+// LegacyDeleteCaveats delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyDeleteCaveats(ctx context.Context, names []string) error {
+	return w.rwt.LegacyDeleteCaveats(ctx, names)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (w *crdbSchemaWriter) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	return w.rwt.writeLegacySchemaHashFromDefinitions(ctx, namespaces, caveats)
+}
+
+// writeLegacySchemaHashFromDefinitions writes the schema hash computed from the given definitions
+func (rwt *crdbReadWriteTXN) writeLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
 	// Build schema definitions list
 	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
 	for _, ns := range namespaces {
@@ -687,46 +710,6 @@ func (rwt *crdbReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// ReadStoredSchema implements datastore.SingleStoreSchemaReader to satisfy DualSchemaReader interface requirements
-func (w *crdbSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
-	// Create a revision-aware executor that applies AS OF SYSTEM TIME
-	// Within a transaction, we don't use AS OF SYSTEM TIME, so pass empty atSpecificRevision
-	executor := &revisionAwareExecutor{
-		query:             w.rwt.query,
-		addFromToQuery:    w.rwt.addFromToQuery,
-		assertAsOfSysTime: w.rwt.assertHasExpectedAsOfSystemTime,
-	}
-
-	// Use the shared schema reader/writer to read the schema
-	// Pass empty string to bypass cache (transaction read)
-	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil, datastore.NoSchemaHashInTransaction)
-}
-
-// LegacyWriteNamespaces delegates to the underlying transaction
-func (w *crdbSchemaWriter) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
-	return w.rwt.LegacyWriteNamespaces(ctx, newConfigs...)
-}
-
-// LegacyDeleteNamespaces delegates to the underlying transaction
-func (w *crdbSchemaWriter) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
-	return w.rwt.LegacyDeleteNamespaces(ctx, nsNames, delOption)
-}
-
-// LegacyLookupNamespacesWithNames delegates to the underlying transaction
-func (w *crdbSchemaWriter) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
-	return w.rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
-}
-
-// LegacyWriteCaveats delegates to the underlying transaction
-func (w *crdbSchemaWriter) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	return w.rwt.LegacyWriteCaveats(ctx, caveats)
-}
-
-// LegacyDeleteCaveats delegates to the underlying transaction
-func (w *crdbSchemaWriter) LegacyDeleteCaveats(ctx context.Context, names []string) error {
-	return w.rwt.LegacyDeleteCaveats(ctx, names)
 }
 
 // LegacyReadCaveatByName delegates to the underlying transaction

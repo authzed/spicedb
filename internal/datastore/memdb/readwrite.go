@@ -304,11 +304,6 @@ func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(ctx context.Context, newConfi
 		}
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.datastore.writeLegacySchemaHashInternalWithTx(tx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -349,11 +344,6 @@ func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(ctx context.Context, nsNames
 		}
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.datastore.writeLegacySchemaHashInternalWithTx(tx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -364,6 +354,11 @@ func (rwt *memdbReadWriteTx) SchemaWriter() (datastore.SchemaWriter, error) {
 // WriteStoredSchema implements datastore.SingleStoreSchemaWriter
 func (rwt *memdbReadWriteTx) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
 	return rwt.datastore.writeStoredSchemaInternal(schema)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (rwt *memdbReadWriteTx) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	return rwt.datastore.writeLegacySchemaHashFromDefinitionsInternal(ctx, namespaces, caveats)
 }
 
 func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {

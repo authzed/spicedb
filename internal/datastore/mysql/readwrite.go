@@ -462,11 +462,6 @@ func (rwt *mysqlReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newName
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -521,11 +516,6 @@ func (rwt *mysqlReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsName
 		if err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil
@@ -603,80 +593,6 @@ func (w *mysqlSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.St
 	return nil
 }
 
-// writeLegacySchemaHash writes the schema hash to the schema_revision table by generating
-// the schema from current legacy namespaces and caveats
-func (rwt *mysqlReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
-	// Read all namespaces and caveats
-	namespaces, err := rwt.LegacyListAllNamespaces(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list namespaces: %w", err)
-	}
-
-	caveats, err := rwt.LegacyListAllCaveats(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list caveats: %w", err)
-	}
-
-	// Build schema definitions list
-	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
-	for _, ns := range namespaces {
-		definitions = append(definitions, ns.Definition)
-	}
-	for _, caveat := range caveats {
-		definitions = append(definitions, caveat.Definition)
-	}
-
-	// Sort definitions by name for consistent ordering
-	sort.Slice(definitions, func(i, j int) bool {
-		return definitions[i].GetName() < definitions[j].GetName()
-	})
-
-	// Generate schema text from definitions
-	schemaText, _, err := generator.GenerateSchema(definitions)
-	if err != nil {
-		// Log warning but don't fail - this can happen with intentionally corrupted data in tests
-		// or if somehow invalid data gets written. The hash is an optimization for change detection.
-		log.Ctx(ctx).Warn().Err(err).Msg("failed to generate schema for hash, skipping hash write")
-		return nil
-	}
-
-	// Compute schema hash (SHA256)
-	hash := sha256.Sum256([]byte(schemaText))
-	schemaHash := hex.EncodeToString(hash[:])
-
-	// Mark existing hash rows as deleted
-	sql, args, err := sb.Update(rwt.schemaRevisionTableName).
-		Set("deleted_transaction", rwt.newTxnID).
-		Where(sq.Eq{
-			"name":                "current",
-			"deleted_transaction": liveDeletedTxnID,
-		}).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("failed to build delete query: %w", err)
-	}
-
-	if _, err := rwt.tx.ExecContext(ctx, sql, args...); err != nil {
-		return fmt.Errorf("failed to delete old hash: %w", err)
-	}
-
-	// Insert new hash row (INSERT IGNORE handles WriteBoth mode duplicates)
-	sql, args, err = sb.Insert(rwt.schemaRevisionTableName).
-		Options("IGNORE").
-		Columns("name", "hash", "created_transaction", "deleted_transaction").
-		Values("current", []byte(schemaHash), rwt.newTxnID, liveDeletedTxnID).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("failed to build insert query: %w", err)
-	}
-
-	if _, err := rwt.tx.ExecContext(ctx, sql, args...); err != nil {
-		return fmt.Errorf("failed to insert hash: %w", err)
-	}
-
-	return nil
-}
-
 // ReadStoredSchema implements datastore.SingleStoreSchemaReader to satisfy DualSchemaReader interface requirements
 func (w *mysqlSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
 	// Create a revision-aware executor that applies alive filter
@@ -738,6 +654,70 @@ func (w *mysqlSchemaWriter) LegacyListAllNamespaces(ctx context.Context) ([]data
 // LegacyLookupNamespacesWithNames delegates to the underlying transaction
 func (w *mysqlSchemaWriter) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
 	return w.rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (w *mysqlSchemaWriter) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	return w.rwt.writeLegacySchemaHashFromDefinitions(ctx, namespaces, caveats)
+}
+
+// writeLegacySchemaHashFromDefinitions writes the schema hash computed from the given definitions
+func (rwt *mysqlReadWriteTXN) writeLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	// Build schema definitions list
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		definitions = append(definitions, ns.Definition)
+	}
+	for _, caveat := range caveats {
+		definitions = append(definitions, caveat.Definition)
+	}
+
+	// Sort definitions by name for consistent ordering
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].GetName() < definitions[j].GetName()
+	})
+
+	// Generate schema text from definitions
+	schemaText, _, err := generator.GenerateSchema(definitions)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
+
+	// Mark existing hash rows as deleted
+	sql, args, err := sb.Update(rwt.schemaRevisionTableName).
+		Set("deleted_transaction", rwt.newTxnID).
+		Where(sq.Eq{
+			"name":                "current",
+			"deleted_transaction": liveDeletedTxnID,
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build delete query: %w", err)
+	}
+
+	if _, err := rwt.tx.ExecContext(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to delete old hash: %w", err)
+	}
+
+	// Insert new hash row (INSERT IGNORE handles WriteBoth mode duplicates)
+	sql, args, err = sb.Insert(rwt.schemaRevisionTableName).
+		Options("IGNORE").
+		Columns("name", "hash", "created_transaction", "deleted_transaction").
+		Values("current", []byte(schemaHash), rwt.newTxnID, liveDeletedTxnID).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build insert query: %w", err)
+	}
+
+	if _, err := rwt.tx.ExecContext(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	return nil
 }
 
 func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {

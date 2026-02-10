@@ -474,9 +474,6 @@ func (w *spannerSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.
 	return nil
 }
 
-// writeLegacySchemaHash writes the schema hash to the schema_revision table by generating
-// the schema from current legacy namespaces and caveats
-
 // writeSchemaHashFromDefinitions writes the schema hash computed from the given definitions
 func (rwt *spannerReadWriteTXN) writeSchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
 	// Build schema definitions list

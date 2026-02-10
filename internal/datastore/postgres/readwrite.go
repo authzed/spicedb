@@ -19,14 +19,13 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	typedschema "github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
+	typedschema "github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -610,11 +609,6 @@ func (rwt *pgReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfigs
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -671,11 +665,6 @@ func (rwt *pgReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames [
 		if err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil
@@ -753,80 +742,6 @@ func (w *pgSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.Store
 	return nil
 }
 
-// writeLegacySchemaHash writes the schema hash to the schema_revision table by generating
-// the schema from current legacy namespaces and caveats
-func (rwt *pgReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
-	// Read all namespaces and caveats
-	namespaces, err := rwt.LegacyListAllNamespaces(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list namespaces: %w", err)
-	}
-
-	caveats, err := rwt.LegacyListAllCaveats(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list caveats: %w", err)
-	}
-
-	// Build schema definitions list
-	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
-	for _, ns := range namespaces {
-		definitions = append(definitions, ns.Definition)
-	}
-	for _, caveat := range caveats {
-		definitions = append(definitions, caveat.Definition)
-	}
-
-	// Sort definitions by name for consistent ordering
-	sort.Slice(definitions, func(i, j int) bool {
-		return definitions[i].GetName() < definitions[j].GetName()
-	})
-
-	// Generate schema text from definitions
-	schemaText, _, err := generator.GenerateSchema(definitions)
-	if err != nil {
-		// Log warning but don't fail - this can happen with intentionally corrupted data in tests
-		// or if somehow invalid data gets written. The hash is an optimization for change detection.
-		log.Ctx(ctx).Warn().Err(err).Msg("failed to generate schema for hash, skipping hash write")
-		return nil
-	}
-
-	// Compute schema hash (SHA256)
-	hash := sha256.Sum256([]byte(schemaText))
-	schemaHash := hex.EncodeToString(hash[:])
-
-	// Mark existing hash rows as deleted
-	sql, args, err := psql.Update("schema_revision").
-		Set("deleted_xid", rwt.newXID.Uint64).
-		Where(sq.Eq{
-			"name":        "current",
-			"deleted_xid": liveDeletedTxnID,
-		}).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("failed to build delete query: %w", err)
-	}
-
-	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-		return fmt.Errorf("failed to delete old hash: %w", err)
-	}
-
-	// Insert new hash row (ON CONFLICT DO NOTHING handles WriteBoth mode)
-	sql, args, err = psql.Insert("schema_revision").
-		Columns("name", "hash", "created_xid", "deleted_xid").
-		Values("current", []byte(schemaHash), rwt.newXID.Uint64, liveDeletedTxnID).
-		Suffix("ON CONFLICT (name, created_xid) DO NOTHING").
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("failed to build insert query: %w", err)
-	}
-
-	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-		return fmt.Errorf("failed to insert hash: %w", err)
-	}
-
-	return nil
-}
-
 // ReadStoredSchema implements datastore.SingleStoreSchemaReader to satisfy DualSchemaReader interface requirements
 func (w *pgSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
 	// Create a revision-aware executor that applies alive filter for schema table
@@ -888,6 +803,70 @@ func (w *pgSchemaWriter) LegacyReadNamespaceByName(ctx context.Context, nsName s
 // LegacyListAllNamespaces delegates to the underlying transaction
 func (w *pgSchemaWriter) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	return w.rwt.LegacyListAllNamespaces(ctx)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (w *pgSchemaWriter) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	return w.rwt.writeLegacySchemaHashFromDefinitions(ctx, namespaces, caveats)
+}
+
+// writeLegacySchemaHashFromDefinitions writes the schema hash computed from the given definitions
+func (rwt *pgReadWriteTXN) writeLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	// Build schema definitions list
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		definitions = append(definitions, ns.Definition)
+	}
+	for _, caveat := range caveats {
+		definitions = append(definitions, caveat.Definition)
+	}
+
+	// Sort definitions by name for consistent ordering
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].GetName() < definitions[j].GetName()
+	})
+
+	// Generate schema text from definitions
+	schemaText, _, err := generator.GenerateSchema(definitions)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
+
+	// Mark existing hash rows as deleted
+	sql, args, err := psql.Update("schema_revision").
+		Set("deleted_xid", rwt.newXID.Uint64).
+		Where(sq.Eq{
+			"name":        "current",
+			"deleted_xid": liveDeletedTxnID,
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build delete query: %w", err)
+	}
+
+	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to delete old hash: %w", err)
+	}
+
+	// Insert new hash row (ON CONFLICT DO NOTHING handles WriteBoth mode)
+	sql, args, err = psql.Insert("schema_revision").
+		Columns("name", "hash", "created_xid", "deleted_xid").
+		Values("current", []byte(schemaHash), rwt.newXID.Uint64, liveDeletedTxnID).
+		Suffix("ON CONFLICT (name, created_xid) DO NOTHING").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build insert query: %w", err)
+	}
+
+	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	return nil
 }
 
 func (rwt *pgReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {

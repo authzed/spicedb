@@ -521,75 +521,41 @@ func (mdb *memdbDatastore) writeSchemaHashInternal(schema *corev1.StoredSchema) 
 	return nil
 }
 
-// writeLegacySchemaHashInternalWithTx writes the schema hash to the schema_revision table by generating
-// the schema from current legacy namespaces and caveats using the provided transaction
-func (mdb *memdbDatastore) writeLegacySchemaHashInternalWithTx(tx *memdb.Txn) error {
-	var schemaText string
-
-	// Check if we have stored schema (unified schema mode)
-	if mdb.storedSchema != nil {
-		v1 := mdb.storedSchema.GetV1()
-		if v1 != nil && v1.SchemaText != "" {
-			// Use the schema text from stored schema
-			schemaText = v1.SchemaText
-		}
+// writeLegacySchemaHashFromDefinitionsInternal writes the schema hash computed from the given definitions
+func (mdb *memdbDatastore) writeLegacySchemaHashFromDefinitionsInternal(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	// Build schema definitions list
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		definitions = append(definitions, ns.Definition)
+	}
+	for _, caveat := range caveats {
+		definitions = append(definitions, caveat.Definition)
 	}
 
-	// If no stored schema, generate from legacy definitions with canonical ordering
-	if schemaText == "" {
-		// Read all namespaces
-		iter, err := tx.Get(tableNamespace, indexID)
-		if err != nil {
-			return fmt.Errorf("failed to list namespaces: %w", err)
-		}
+	// Sort definitions by name for consistent ordering
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].GetName() < definitions[j].GetName()
+	})
 
-		var definitions []compiler.SchemaDefinition
-		for row := iter.Next(); row != nil; row = iter.Next() {
-			ns := row.(*namespace)
-			definition := &corev1.NamespaceDefinition{}
-			if err := definition.UnmarshalVT(ns.configBytes); err != nil {
-				// If we can't unmarshal a definition, skip hash generation
-				// This can happen if definitions are in an intermediate/invalid state
-				return nil
-			}
-			definitions = append(definitions, definition)
-		}
-
-		// Read all caveats
-		caveatIter, err2 := tx.Get(tableCaveats, indexID)
-		if err2 != nil {
-			return fmt.Errorf("failed to list caveats: %w", err2)
-		}
-
-		for row := caveatIter.Next(); row != nil; row = caveatIter.Next() {
-			caveat := row.(*caveat)
-			definition := &corev1.CaveatDefinition{}
-			if err := definition.UnmarshalVT(caveat.definition); err != nil {
-				// If we can't unmarshal a definition, skip hash generation
-				// This can happen if definitions are in an intermediate/invalid state
-				return nil
-			}
-			definitions = append(definitions, definition)
-		}
-
-		// Sort definitions by name for consistent ordering
-		sort.Slice(definitions, func(i, j int) bool {
-			return definitions[i].GetName() < definitions[j].GetName()
-		})
-
-		// Generate schema text from definitions
-		var genErr error
-		schemaText, _, genErr = generator.GenerateSchema(definitions)
-		if genErr != nil {
-			// If we can't generate schema, skip hash generation
-			// This can happen if definitions are incomplete or invalid
-			return nil
-		}
+	// Generate schema text from definitions
+	schemaText, _, err := generator.GenerateSchema(definitions)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
 	}
 
 	// Compute schema hash (SHA256)
 	hash := sha256.Sum256([]byte(schemaText))
 	schemaHash := hex.EncodeToString(hash[:])
+
+	mdb.Lock()
+	defer mdb.Unlock()
+
+	if err := mdb.checkNotClosed(); err != nil {
+		return err
+	}
+
+	tx := mdb.db.Txn(true)
+	defer tx.Abort()
 
 	// Delete existing hash (if any)
 	if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {
@@ -608,6 +574,7 @@ func (mdb *memdbDatastore) writeLegacySchemaHashInternalWithTx(tx *memdb.Txn) er
 		return fmt.Errorf("failed to insert hash: %w", err)
 	}
 
+	tx.Commit()
 	return nil
 }
 

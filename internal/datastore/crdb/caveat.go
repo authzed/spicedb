@@ -156,11 +156,6 @@ func (rwt *crdbReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*
 		return fmt.Errorf(errWriteCaveat, err)
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -175,11 +170,6 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []st
 	}
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf(errDeleteCaveats, err)
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil

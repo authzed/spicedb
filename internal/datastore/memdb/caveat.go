@@ -119,11 +119,6 @@ func (rwt *memdbReadWriteTx) LegacyWriteCaveats(ctx context.Context, caveats []*
 		return err
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.datastore.writeLegacySchemaHashInternalWithTx(tx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
@@ -160,11 +155,6 @@ func (rwt *memdbReadWriteTx) LegacyDeleteCaveats(ctx context.Context, names []st
 		if err := tx.Delete(tableCaveats, caveat{name: name}); err != nil {
 			return err
 		}
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.datastore.writeLegacySchemaHashInternalWithTx(tx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil

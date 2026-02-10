@@ -332,35 +332,6 @@ func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions
 		}
 	}
 
-	// If the writer supports writing legacy schema hashes, compute and write the hash
-	// from the final set of definitions (after all writes are buffered).
-	// This avoids the problem of reading back buffered writes that aren't yet visible.
-	if hashWriter, ok := l.legacyWriter.(datastore.LegacySchemaHashWriter); ok {
-		// Build the final list of namespaces (new ones, replacing existing)
-		finalNamespaces := make([]datastore.RevisionedNamespace, 0, len(namespaces))
-		for _, ns := range namespaces {
-			finalNamespaces = append(finalNamespaces, datastore.RevisionedNamespace{
-				Definition: ns,
-				// Revision doesn't matter for hash computation
-				LastWrittenRevision: datastore.NoRevision,
-			})
-		}
-
-		// Build the final list of caveats (new ones, replacing existing)
-		finalCaveats := make([]datastore.RevisionedCaveat, 0, len(caveats))
-		for _, caveat := range caveats {
-			finalCaveats = append(finalCaveats, datastore.RevisionedCaveat{
-				Definition: caveat,
-				// Revision doesn't matter for hash computation
-				LastWrittenRevision: datastore.NoRevision,
-			})
-		}
-
-		if err := hashWriter.WriteLegacySchemaHashFromDefinitions(ctx, finalNamespaces, finalCaveats); err != nil {
-			return fmt.Errorf("failed to write schema hash: %w", err)
-		}
-	}
-
 	return nil
 }
 
@@ -467,6 +438,48 @@ func (d *dualSchemaWriter) WriteSchema(ctx context.Context, definitions []datast
 	// Write to legacy storage first
 	if err := d.legacyWriter.WriteSchema(ctx, definitions, schemaString, caveatTypeSet); err != nil {
 		return fmt.Errorf("failed to write to legacy storage: %w", err)
+	}
+
+	// Write the legacy schema hash since we're in "write to both" mode.
+	// This is done after the legacy write completes, using the final set of definitions.
+	// This avoids the problem of reading back buffered writes that aren't yet visible.
+	if hashWriter, ok := d.legacyWriter.legacyWriter.(datastore.LegacySchemaHashWriter); ok {
+		// Separate namespaces and caveats from definitions
+		var namespaces []*core.NamespaceDefinition
+		var caveats []*core.CaveatDefinition
+
+		for _, def := range definitions {
+			switch typedDef := def.(type) {
+			case *core.NamespaceDefinition:
+				namespaces = append(namespaces, typedDef)
+			case *core.CaveatDefinition:
+				caveats = append(caveats, typedDef)
+			}
+		}
+
+		// Build the final list of namespaces
+		finalNamespaces := make([]datastore.RevisionedNamespace, 0, len(namespaces))
+		for _, ns := range namespaces {
+			finalNamespaces = append(finalNamespaces, datastore.RevisionedNamespace{
+				Definition: ns,
+				// Revision doesn't matter for hash computation
+				LastWrittenRevision: datastore.NoRevision,
+			})
+		}
+
+		// Build the final list of caveats
+		finalCaveats := make([]datastore.RevisionedCaveat, 0, len(caveats))
+		for _, caveat := range caveats {
+			finalCaveats = append(finalCaveats, datastore.RevisionedCaveat{
+				Definition: caveat,
+				// Revision doesn't matter for hash computation
+				LastWrittenRevision: datastore.NoRevision,
+			})
+		}
+
+		if err := hashWriter.WriteLegacySchemaHashFromDefinitions(ctx, finalNamespaces, finalCaveats); err != nil {
+			return fmt.Errorf("failed to write legacy schema hash: %w", err)
+		}
 	}
 
 	// Write to unified storage

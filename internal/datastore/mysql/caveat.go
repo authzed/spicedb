@@ -144,22 +144,12 @@ func (rwt *mysqlReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []
 		return fmt.Errorf(errWriteCaveats, err)
 	}
 
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
-	}
-
 	return nil
 }
 
 func (rwt *mysqlReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	if err := rwt.deleteCaveatsFromNames(ctx, names); err != nil {
 		return err
-	}
-
-	// Write the schema hash to the schema_revision table for fast lookups
-	if err := rwt.writeLegacySchemaHash(ctx); err != nil {
-		return fmt.Errorf("failed to write schema hash: %w", err)
 	}
 
 	return nil
