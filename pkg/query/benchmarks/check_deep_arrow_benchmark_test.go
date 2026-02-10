@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -13,7 +15,6 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/stretchr/testify/require"
 )
 
 // BenchmarkCheckDeepArrow benchmarks permission checking through a deep recursive chain.
@@ -111,6 +112,6 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 
 		// Verify we found the expected result
 		require.Len(b, paths, 1)
-		require.Equal(b, paths[0].Subject.ObjectID, "slow")
+		require.Equal(b, "slow", paths[0].Subject.ObjectID)
 	}
 }

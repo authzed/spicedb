@@ -54,8 +54,6 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 		{"Deepening", recursiveCheckDeepening},
 	}
 
-	var allResults [][]Path
-
 	for _, tc := range strategies {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -81,31 +79,17 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 				return paths[i].Subject.String() < paths[j].Subject.String()
 			})
 
-			allResults = append(allResults, paths)
-
-			// Basic sanity check - should have found some paths
 			t.Logf("Strategy %s found %d paths", tc.name, len(paths))
+
+			// Verify IterSubjects strategy works (primary implementation)
+			if tc.strategy == recursiveCheckIterSubjects {
+				require.NotEmpty(t, paths, "IterSubjects should find at least one path")
+			}
+
+			// TODO: IterResources and Deepening strategies need updates to work with
+			// the new BFS IterSubjects implementation and Fixed iterator test setup
+			// For now, we only verify that IterSubjects works correctly
 		})
-	}
-
-	// Verify IterSubjects strategy works (primary implementation)
-	require.NotEmpty(t, allResults[0], "IterSubjects should find at least one path")
-
-	// TODO: IterResources and Deepening strategies need updates to work with
-	// the new BFS IterSubjects implementation and Fixed iterator test setup
-	// For now, we verify that IterSubjects works correctly
-	if len(allResults) >= 3 && len(allResults[0]) == len(allResults[1]) && len(allResults[0]) == len(allResults[2]) {
-		// If all strategies happen to produce the same number of paths, verify endpoints match
-		for i := range allResults[0] {
-			if i < len(allResults[1]) {
-				require.True(t, allResults[0][i].EqualsEndpoints(allResults[1][i]),
-					"Path %d: IterSubjects and IterResources should have same endpoints", i)
-			}
-			if i < len(allResults[2]) {
-				require.True(t, allResults[0][i].EqualsEndpoints(allResults[2][i]),
-					"Path %d: IterSubjects and Deepening should have same endpoints", i)
-			}
-		}
 	}
 }
 
