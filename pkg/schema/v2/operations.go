@@ -25,6 +25,12 @@ type ArrowOperation interface {
 	Function() FunctionType
 }
 
+// operationCloner is an interface for operations that support cloning with a new parent.
+// Not all operations implement this method, so it's checked at runtime via type assertion.
+type operationCloner interface {
+	cloneWithParent(Operation) Operation
+}
+
 // RelationReference is an Operation that is a simple relation, such as `permission foo = bar`.
 type RelationReference struct {
 	// parent is the parent operation in the operation tree, or the Permission for root operations.
@@ -238,7 +244,7 @@ func (u *UnionOperation) cloneWithParent(parent Operation) Operation {
 		children: make([]Operation, len(u.children)),
 	}
 	for i, child := range u.children {
-		if childCloner, ok := child.(interface{ cloneWithParent(Operation) Operation }); ok {
+		if childCloner, ok := child.(operationCloner); ok {
 			cloned.children[i] = childCloner.cloneWithParent(cloned)
 		} else {
 			cloned.children[i] = child.clone()
@@ -295,7 +301,7 @@ func (i *IntersectionOperation) cloneWithParent(parent Operation) Operation {
 		children: make([]Operation, len(i.children)),
 	}
 	for idx, child := range i.children {
-		if childCloner, ok := child.(interface{ cloneWithParent(Operation) Operation }); ok {
+		if childCloner, ok := child.(operationCloner); ok {
 			cloned.children[idx] = childCloner.cloneWithParent(cloned)
 		} else {
 			cloned.children[idx] = child.clone()
@@ -385,12 +391,12 @@ func (e *ExclusionOperation) cloneWithParent(parent Operation) Operation {
 	cloned := &ExclusionOperation{
 		parent: parent,
 	}
-	if leftCloner, ok := e.left.(interface{ cloneWithParent(Operation) Operation }); ok {
+	if leftCloner, ok := e.left.(operationCloner); ok {
 		cloned.left = leftCloner.cloneWithParent(cloned)
 	} else {
 		cloned.left = e.left.clone()
 	}
-	if rightCloner, ok := e.right.(interface{ cloneWithParent(Operation) Operation }); ok {
+	if rightCloner, ok := e.right.(operationCloner); ok {
 		cloned.right = rightCloner.cloneWithParent(cloned)
 	} else {
 		cloned.right = e.right.clone()

@@ -163,7 +163,7 @@ func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Ite
 }
 
 func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
-	parentDef := p.Parent().(*schema.Definition)
+	parentDef := p.TypedParent()
 
 	switch perm := op.(type) {
 	case *schema.ArrowReference:
