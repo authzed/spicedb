@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	schemaChunkSize       = 1024 * 1024 // 1MB chunks
-	currentSchemaVersion  = 1
-	unifiedSchemaName     = "unified_schema"
-	schemaRevisionName    = "current"
+	schemaChunkSize      = 1024 * 1024 // 1MB chunks
+	currentSchemaVersion = 1
+	unifiedSchemaName    = "unified_schema"
+	schemaRevisionName   = "current"
 )
 
 func init() {

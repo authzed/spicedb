@@ -87,7 +87,7 @@ func TestSchemaHashCache_EmptyHash(t *testing.T) {
 	}, "empty hash should panic")
 
 	require.Panics(t, func() {
-		cache.Get(datastore.NoRevision, datastore.SchemaHash(""))
+		_, _ = cache.Get(datastore.NoRevision, datastore.SchemaHash(""))
 	}, "empty hash should panic")
 }
 
@@ -193,7 +193,7 @@ func TestSchemaHashCache_GetOrLoadEmptyHash(t *testing.T) {
 
 	// Empty hash should panic (via MustBugf) in tests
 	require.Panics(t, func() {
-		cache.GetOrLoad(context.Background(), datastore.NoRevision, datastore.SchemaHash(""), loader)
+		_, _ = cache.GetOrLoad(context.Background(), datastore.NoRevision, datastore.SchemaHash(""), loader)
 	}, "empty hash should panic")
 }
 
@@ -220,13 +220,24 @@ func TestSchemaHashCache_Singleflight(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
 
+	results := make(chan error, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
 			defer wg.Done()
 			schema, err := cache.GetOrLoad(context.Background(), datastore.NoRevision, datastore.SchemaHash("hash1"), loader)
-			require.NoError(t, err)
-			require.NotNil(t, schema)
-			require.Equal(t, "loaded definition", schema.GetV1().SchemaText)
+			if err != nil {
+				results <- err
+				return
+			}
+			if schema == nil {
+				results <- fmt.Errorf("schema is nil")
+				return
+			}
+			if schema.GetV1().SchemaText != "loaded definition" {
+				results <- fmt.Errorf("unexpected schema text: %s", schema.GetV1().SchemaText)
+				return
+			}
+			results <- nil
 		}()
 	}
 
@@ -238,6 +249,12 @@ func TestSchemaHashCache_Singleflight(t *testing.T) {
 
 	// Wait for all goroutines to finish
 	wg.Wait()
+	close(results)
+
+	// Check all results
+	for err := range results {
+		require.NoError(t, err)
+	}
 
 	// Should only have called loader once due to singleflight
 	require.Equal(t, 1, loadCalls)

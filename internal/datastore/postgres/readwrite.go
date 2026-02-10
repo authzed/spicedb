@@ -768,7 +768,7 @@ func (rwt *pgReadWriteTXN) writeLegacySchemaHash(ctx context.Context) error {
 	}
 
 	// Build schema definitions list
-	var definitions []compiler.SchemaDefinition
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
 	for _, ns := range namespaces {
 		definitions = append(definitions, ns.Definition)
 	}

@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	schemaChunkSize       = 1024 * 1024 // 1MB chunks
-	currentSchemaVersion  = 1
-	unifiedSchemaName     = "unified_schema"
-	schemaRevisionName    = "current"
+	schemaChunkSize      = 1024 * 1024 // 1MB chunks
+	currentSchemaVersion = 1
+	unifiedSchemaName    = "unified_schema"
+	schemaRevisionName   = "current"
 )
 
 func init() {
@@ -150,7 +150,7 @@ func init() {
 				mutations = append(mutations, spanner.Insert(
 					"schema",
 					[]string{"name", "chunk_index", "chunk_data", "timestamp"},
-					[]interface{}{unifiedSchemaName, chunkIndex, chunk, spanner.CommitTimestamp},
+					[]any{unifiedSchemaName, chunkIndex, chunk, spanner.CommitTimestamp},
 				))
 			}
 
@@ -158,7 +158,7 @@ func init() {
 			mutations = append(mutations, spanner.Insert(
 				"schema_revision",
 				[]string{"name", "schema_hash", "timestamp"},
-				[]interface{}{schemaRevisionName, schemaHash, spanner.CommitTimestamp},
+				[]any{schemaRevisionName, schemaHash, spanner.CommitTimestamp},
 			))
 
 			// Apply mutations

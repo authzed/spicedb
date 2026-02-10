@@ -131,7 +131,7 @@ func (w *crdbSchemaHashWatcher) WatchSchemaHash(ctx context.Context, refreshInte
 				return ctx.Err()
 			case <-time.After(refreshInterval):
 				// Get new cursor and retry
-				cursor, _, err = readCRDBNow(ctx, w.query)
+				_, _, err = readCRDBNow(ctx, w.query)
 				if err != nil {
 					return fmt.Errorf("failed to get cursor for retry: %w", err)
 				}

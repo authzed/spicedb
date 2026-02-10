@@ -133,7 +133,7 @@ func BenchmarkHashCache_Get_Mutex(b *testing.B) {
 	// Pre-populate cache
 	for i := 0; i < 10; i++ {
 		hash := fmt.Sprintf("hash%d", i)
-		cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
+		_ = cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
 	}
 
 	b.ResetTimer()
@@ -205,7 +205,7 @@ func BenchmarkHashCache_Mixed_Mutex(b *testing.B) {
 	// Pre-populate cache
 	for i := 0; i < 50; i++ {
 		hash := fmt.Sprintf("hash%d", i)
-		cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
+		_ = cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
 	}
 
 	b.ResetTimer()

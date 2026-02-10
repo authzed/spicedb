@@ -112,7 +112,7 @@ func UnifiedSchemaTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
-	schemaReader, err := reader.SchemaReader()
+	_, err = reader.SchemaReader()
 	require.NoError(err, "datastore reader must provide SchemaReader")
 
 	// Check if transaction supports schema writer
@@ -150,7 +150,7 @@ func UnifiedSchemaTest(t *testing.T, tester DatastoreTester) {
 
 	// Read schema using SchemaReader
 	reader = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting)
-	schemaReader, err = reader.SchemaReader()
+	schemaReader, err := reader.SchemaReader()
 	require.NoError(err)
 
 	// Verify schema text (using semantic comparison to allow for different definition order)

@@ -389,6 +389,7 @@ func SchemaGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Helper to count rows in schema tables
 	countSchemaRows := func() (schemaRows, schemaRevisionRows int64) {
+		//nolint:gosec // Table name comes from driver method, not user input
 		sql := fmt.Sprintf("SELECT COUNT(*) FROM %s", mds.driver.Schema())
 		err := mds.db.QueryRowContext(ctx, sql).Scan(&schemaRows)
 		req.NoError(err)

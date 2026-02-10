@@ -49,11 +49,6 @@ func setupSchemaReaderMock(reader *proxy_test.MockReader) {
 	reader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(reader), nil)
 }
 
-// setupSchemaReaderMockForRWT configures a MockReadWriteTransaction to return a legacy schema reader adapter
-func setupSchemaReaderMockForRWT(rwt *proxy_test.MockReadWriteTransaction) {
-	rwt.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(rwt), nil)
-}
-
 // TestNilUnmarshal asserts that if we get a nil NamespaceDefinition from a
 // datastore implementation, the process of inserting it into the cache and
 // back does not break anything.

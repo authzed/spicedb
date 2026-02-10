@@ -652,8 +652,8 @@ func (w *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
 	return schemautil.NewLegacySchemaReaderAdapter(w), nil
 }
 
-func (r *watchingCachingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
-	singleStoreReader, ok := r.Reader.(datastore.SingleStoreSchemaReader)
+func (w *watchingCachingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := w.Reader.(datastore.SingleStoreSchemaReader)
 	if !ok {
 		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
 	}

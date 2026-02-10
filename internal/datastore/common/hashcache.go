@@ -20,10 +20,10 @@ const defaultMaxCacheEntries = 10
 // These are special sentinel values used in specific contexts where caching is not appropriate.
 // Using a map for O(1) lookup instead of slice iteration.
 var bypassSentinels = map[datastore.SchemaHash]bool{
-	datastore.NoSchemaHashInTransaction:    true,
-	datastore.NoSchemaHashForTesting:       true,
-	datastore.NoSchemaHashForWatch:         true,
-	datastore.NoSchemaHashForLegacyCursor:  true,
+	datastore.NoSchemaHashInTransaction:   true,
+	datastore.NoSchemaHashForTesting:      true,
+	datastore.NoSchemaHashForWatch:        true,
+	datastore.NoSchemaHashForLegacyCursor: true,
 }
 
 // isBypassSentinel returns true if the given schema hash is a bypass sentinel value.
