@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -23,6 +24,15 @@ import (
 const (
 	minimumWatchSleep = 100 * time.Millisecond
 )
+
+func (pgd *pgDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	return datastore.WatchOptions{
+		WatchBufferLength:       defaultWatchBufferLength,
+		WatchBufferWriteTimeout: defaultWatchBufferWriteTimeout,
+		// Postgres does not use WatchConnectTimeout
+		// Postgres does not support EmitImmediatelyStrategy
+	}
+}
 
 var (
 	// This query must cast an xid8 to xid, which is a safe operation as long as the
@@ -67,12 +77,7 @@ func (pgd *pgDatastore) Watch(
 	afterRevisionRaw datastore.Revision,
 	options datastore.WatchOptions,
 ) (<-chan datastore.RevisionChanges, <-chan error) {
-	watchBufferLength := options.WatchBufferLength
-	if watchBufferLength == 0 {
-		watchBufferLength = pgd.watchBufferLength
-	}
-
-	updates := make(chan datastore.RevisionChanges, watchBufferLength)
+	updates := make(chan datastore.RevisionChanges, options.WatchBufferLength)
 	errs := make(chan error, 1)
 
 	if !pgd.watchEnabled {
@@ -88,14 +93,10 @@ func (pgd *pgDatastore) Watch(
 	}
 
 	afterRevision := afterRevisionRaw.(postgresRevision)
-	watchSleep := options.CheckpointInterval
-	if watchSleep < minimumWatchSleep {
-		watchSleep = minimumWatchSleep
-	}
 
-	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
-	if watchBufferWriteTimeout <= 0 {
-		watchBufferWriteTimeout = pgd.watchBufferWriteTimeout
+	if options.CheckpointInterval < minimumWatchSleep {
+		log.Warn().Msgf("--watch-api-heartbeat set too small, using %d", minimumWatchSleep)
+		options.CheckpointInterval = minimumWatchSleep
 	}
 
 	sendChange := func(change datastore.RevisionChanges) bool {
@@ -107,7 +108,7 @@ func (pgd *pgDatastore) Watch(
 			// If we cannot immediately write, setup the timer and try again.
 		}
 
-		timer := time.NewTimer(watchBufferWriteTimeout)
+		timer := time.NewTimer(options.WatchBufferWriteTimeout)
 		defer timer.Stop()
 
 		select {
@@ -192,7 +193,7 @@ func (pgd *pgDatastore) Watch(
 				}
 			} else {
 				select {
-				case <-time.NewTimer(watchSleep).C:
+				case <-time.NewTimer(options.CheckpointInterval).C:
 					break
 				case <-ctx.Done():
 					errs <- datastore.NewWatchCanceledErr()
@@ -252,12 +253,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 	filter := make(map[uint64]int, len(revisions))
 	txidToRevision := make(map[uint64]postgresRevision, len(revisions))
 
-	watchBufferSize := options.MaximumBufferedChangesByteSize
-	if watchBufferSize == 0 {
-		watchBufferSize = pgd.watchChangeBufferMaximumSize
-	}
-
-	tracked := common.NewChanges(revisionKeyFunc, options.Content, watchBufferSize)
+	tracked := common.NewChanges(revisionKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
 
 	for i, rev := range revisions {
 		if rev.optionalTxID.Uint64 < xmin {

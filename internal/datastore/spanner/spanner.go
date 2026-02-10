@@ -85,10 +85,7 @@ type spannerDatastore struct {
 	revisions.CommonDecoder
 	*common.MigrationValidator
 
-	watchBufferLength            uint16
-	watchChangeBufferMaximumSize uint64
-	watchBufferWriteTimeout      time.Duration
-	watchEnabled                 bool
+	watchEnabled bool
 
 	client   *spanner.Client
 	config   spannerOptions
@@ -237,9 +234,6 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		client:                              client,
 		config:                              config,
 		database:                            database,
-		watchBufferWriteTimeout:             config.watchBufferWriteTimeout,
-		watchChangeBufferMaximumSize:        config.watchChangeBufferMaximumSize,
-		watchBufferLength:                   config.watchBufferLength,
 		watchEnabled:                        !config.watchDisabled,
 		cachedEstimatedBytesPerRelationship: atomic.Uint64{},
 		tableSizesStatsTable:                tableSizesStatsTable,

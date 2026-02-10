@@ -3,7 +3,6 @@ package testserver
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -111,7 +110,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableTestServer, error) {
 				ExpiringRelationshipsEnabled:    true,
 				CaveatTypeSet:                   cts,
 			},
-			1*time.Second,
+			v1svc.ServerWatchConfig{},
 		)
 	}
 
