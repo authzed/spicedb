@@ -913,9 +913,14 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, rea
 		"pool_usage": "read",
 	})
 	if err := prometheus.Register(readCollector); err != nil {
-		return collectors, err
+		// Ignore AlreadyRegisteredError which can happen in tests
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return collectors, err
+		}
+	} else {
+		collectors = append(collectors, readCollector)
 	}
-	collectors = append(collectors, readCollector)
 
 	if isPrimary {
 		writeCollector := pgxpoolprometheus.NewCollector(writePool, map[string]string{
@@ -924,9 +929,14 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, rea
 		})
 
 		if err := prometheus.Register(writeCollector); err != nil {
-			return collectors, nil
+			// Ignore AlreadyRegisteredError which can happen in tests
+			var alreadyRegistered prometheus.AlreadyRegisteredError
+			if !errors.As(err, &alreadyRegistered) {
+				return collectors, err
+			}
+		} else {
+			collectors = append(collectors, writeCollector)
 		}
-		collectors = append(collectors, writeCollector)
 
 		gcCollectors, err := common.RegisterGCMetrics()
 		if err != nil {

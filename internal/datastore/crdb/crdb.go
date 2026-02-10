@@ -769,9 +769,14 @@ func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats boo
 	})
 
 	if err := prometheus.Register(readCollector); err != nil {
-		return fmt.Errorf("failed to register prometheus read collector: %w", err)
+		// Ignore AlreadyRegisteredError which can happen in tests
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return fmt.Errorf("failed to register prometheus read collector: %w", err)
+		}
+	} else {
+		cds.collectors = append(cds.collectors, readCollector)
 	}
-	cds.collectors = append(cds.collectors, readCollector)
 
 	writeCollector := pgxpoolprometheus.NewCollector(cds.writePool, map[string]string{
 		"db_name":    "spicedb",
@@ -779,9 +784,14 @@ func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats boo
 	})
 
 	if err := prometheus.Register(writeCollector); err != nil {
-		return fmt.Errorf("failed to register prometheus write collector: %w", err)
+		// Ignore AlreadyRegisteredError which can happen in tests
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return fmt.Errorf("failed to register prometheus write collector: %w", err)
+		}
+	} else {
+		cds.collectors = append(cds.collectors, writeCollector)
 	}
-	cds.collectors = append(cds.collectors, writeCollector)
 
 	return nil
 }

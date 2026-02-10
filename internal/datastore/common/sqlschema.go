@@ -209,7 +209,10 @@ func (s *SQLSchemaReaderWriter[T, R]) ReadSchema(ctx context.Context, executor C
 // readSchemaFromDatastore reads the schema directly from the datastore without cache.
 func (s *SQLSchemaReaderWriter[T, R]) readSchemaFromDatastore(ctx context.Context, executor ChunkedBytesExecutor) (*core.StoredSchema, error) {
 	// Create a temporary chunker with the provided executor
-	chunker := MustNewSQLByteChunker(s.chunkerConfig.WithExecutor(executor))
+	chunker, err := NewSQLByteChunker(s.chunkerConfig.WithExecutor(executor))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SQL byte chunker: %w", err)
+	}
 
 	// Read and reassemble the schema chunks
 	data, err := chunker.ReadChunkedBytes(ctx, UnifiedSchemaName)
@@ -242,7 +245,10 @@ func (s *SQLSchemaReaderWriter[T, R]) WriteSchema(ctx context.Context, schema *c
 	}
 
 	// Create a temporary chunker with the provided executor
-	chunker := MustNewSQLByteChunker(s.chunkerConfig.WithExecutor(executor))
+	chunker, err := NewSQLByteChunker(s.chunkerConfig.WithExecutor(executor))
+	if err != nil {
+		return fmt.Errorf("failed to create SQL byte chunker: %w", err)
+	}
 
 	// Marshal the schema
 	data, err := schema.MarshalVT()

@@ -83,7 +83,7 @@ func TestSchemaHashCache_EmptyHash(t *testing.T) {
 
 	// Empty hash should panic (via MustBugf) in tests
 	require.Panics(t, func() {
-		cache.Set(datastore.NoRevision, datastore.SchemaHash(""), makeTestSchema("definition user {}"))
+		_ = cache.Set(datastore.NoRevision, datastore.SchemaHash(""), makeTestSchema("definition user {}"))
 	}, "empty hash should panic")
 
 	require.Panics(t, func() {
@@ -100,7 +100,7 @@ func TestSchemaHashCache_NilRevision(t *testing.T) {
 
 	// Nil revision should panic (via MustBugf) in tests
 	require.Panics(t, func() {
-		cache.Set(nil, datastore.SchemaHash("hash1"), makeTestSchema("definition user {}"))
+		_ = cache.Set(nil, datastore.SchemaHash("hash1"), makeTestSchema("definition user {}"))
 	}, "nil revision should panic")
 }
 

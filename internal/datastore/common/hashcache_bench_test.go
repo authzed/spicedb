@@ -179,7 +179,7 @@ func BenchmarkHashCache_Set_Mutex(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		hash := fmt.Sprintf("hash%d", i%100)
-		cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
+		_ = cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
 	}
 }
 
@@ -215,7 +215,7 @@ func BenchmarkHashCache_Mixed_Mutex(b *testing.B) {
 			hash := fmt.Sprintf("hash%d", i%100)
 			if i%10 == 0 {
 				// 10% writes
-				cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
+				_ = cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
 			} else {
 				// 90% reads
 				_, _ = cache.Get(datastore.NoRevision, datastore.SchemaHash(hash))
@@ -305,7 +305,7 @@ func BenchmarkHashCache_HighContention_Mutex(b *testing.B) {
 	})
 
 	// Pre-populate with single entry
-	cache.Set(datastore.NoRevision, datastore.SchemaHash("shared"), createTestSchema("shared"))
+	_ = cache.Set(datastore.NoRevision, datastore.SchemaHash("shared"), createTestSchema("shared"))
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -343,7 +343,7 @@ func BenchmarkHashCache_LowContention_Mutex(b *testing.B) {
 	// Pre-populate with many entries
 	for i := 0; i < 100; i++ {
 		hash := fmt.Sprintf("hash%d", i)
-		cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
+		_ = cache.Set(datastore.NoRevision, datastore.SchemaHash(hash), createTestSchema(hash))
 	}
 
 	b.ResetTimer()

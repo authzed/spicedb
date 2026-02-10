@@ -31,7 +31,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("OptimizedRevision").Return(optimized, datastore.NoSchemaHashForTesting, nil).Once()
 
 	updated := ContextWithHandle(t.Context())
 	updated = datastoremw.ContextWithDatastore(updated, ds)
@@ -50,7 +50,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("OptimizedRevision").Return(optimized, datastore.NoSchemaHashForTesting, nil).Once()
 
 	updated := ContextWithHandle(t.Context())
 	updated = datastoremw.ContextWithDatastore(updated, ds)
@@ -75,7 +75,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("HeadRevision").Return(head, nil).Once()
+	ds.On("HeadRevision").Return(head, datastore.NoSchemaHashForTesting, nil).Once()
 
 	updated := ContextWithHandle(t.Context())
 	updated = datastoremw.ContextWithDatastore(updated, ds)
@@ -100,7 +100,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("OptimizedRevision").Return(optimized, datastore.NoSchemaHashForTesting, nil).Once()
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
 	updated := ContextWithHandle(t.Context())
@@ -229,7 +229,7 @@ func TestAddRevisionToContextAtMalformedExactSnapshot(t *testing.T) {
 
 func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("OptimizedRevision").Return(optimized, datastore.NoSchemaHashForTesting, nil).Once()
 
 	err := AddRevisionToContext(ContextWithHandle(t.Context()), &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
@@ -327,7 +327,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("OptimizedRevision").Return(optimized, datastore.NoSchemaHashForTesting, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
 
 	// revision in context is at `exact`
@@ -355,7 +355,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("OptimizedRevision").Return(optimized, datastore.NoSchemaHashForTesting, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
 
 	// revision in context is at `exact`
@@ -388,8 +388,8 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("HeadRevision").Return(head, nil).Once()
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("HeadRevision").Return(head, datastore.NoSchemaHashForTesting, nil).Once()
+	ds.On("OptimizedRevision").Return(optimized, datastore.NoSchemaHashForTesting, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
 
 	// revision in context is at `exact`
@@ -422,7 +422,7 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("OptimizedRevision").Return(optimized, datastore.NoSchemaHashForTesting, nil).Once()
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
 	ds.CurrentUniqueID = "foo"

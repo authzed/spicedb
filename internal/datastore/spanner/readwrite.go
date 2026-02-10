@@ -480,7 +480,7 @@ func (w *spannerSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.
 // writeSchemaHashFromDefinitions writes the schema hash computed from the given definitions
 func (rwt *spannerReadWriteTXN) writeSchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
 	// Build schema definitions list
-	var definitions []compiler.SchemaDefinition
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
 	for _, ns := range namespaces {
 		definitions = append(definitions, ns.Definition)
 	}

@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	schemaChunkSize       = 1024 * 1024 // 1MB chunks
-	currentSchemaVersion  = 1
-	unifiedSchemaName     = "unified_schema"
-	schemaRevisionName    = "current"
+	schemaChunkSize      = 1024 * 1024 // 1MB chunks
+	currentSchemaVersion = 1
+	unifiedSchemaName    = "unified_schema"
+	schemaRevisionName   = "current"
 )
 
 func init() {
@@ -27,6 +27,7 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 	tx := wrapper.tx
 
 	// Read all existing namespaces (not deleted ones)
+	//nolint:gosec // Table name is from internal schema configuration, not user input
 	query := fmt.Sprintf(`
 		SELECT nc1.namespace, nc1.serialized_config
 		FROM %[1]s nc1
