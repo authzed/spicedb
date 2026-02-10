@@ -1,5 +1,7 @@
 package schema
 
+import "errors"
+
 // WalkStrategy determines the order in which nodes are visited during traversal.
 type WalkStrategy int
 
@@ -13,10 +15,62 @@ const (
 )
 
 // WalkOptions configures how the walk traversal is performed.
+// Use NewWalkOptions() to create an instance and chain With* methods to configure.
 type WalkOptions struct {
-	// Strategy determines the traversal order (pre-order or post-order).
-	// If not specified, WalkPreOrder is used.
-	Strategy WalkStrategy
+	// strategy determines the traversal order (pre-order or post-order).
+	strategy WalkStrategy
+
+	// traverseArrowTargets enables automatic traversal of arrow reference targets
+	// during PostOrder traversal.
+	traverseArrowTargets bool
+
+	// schema is the root schema, used for resolving arrow targets when traverseArrowTargets is enabled.
+	schema *Schema
+
+	// visitedArrowTargets tracks which permissions have been visited during arrow traversal
+	// to prevent infinite recursion in cyclic schemas. Internal use only.
+	visitedArrowTargets map[string]bool
+}
+
+// NewWalkOptions creates a new WalkOptions with default settings (PreOrder strategy).
+func NewWalkOptions() WalkOptions {
+	return WalkOptions{
+		strategy: WalkPreOrder,
+	}
+}
+
+// WithStrategy sets the traversal strategy (PreOrder or PostOrder).
+func (opts WalkOptions) WithStrategy(strategy WalkStrategy) WalkOptions {
+	opts.strategy = strategy
+	return opts
+}
+
+// WithTraverseArrowTargets enables automatic traversal of arrow reference targets.
+//
+// Requirements:
+//   - PostOrder strategy (set via WithStrategy)
+//   - Resolved schema (call ResolveSchema() before walking)
+//   - Schema parameter for target lookup
+//
+// The schema parameter is the root schema used to resolve arrow targets.
+// It MUST be a resolved schema (from ResolveSchema()) - if the schema contains
+// unresolved ArrowReference nodes, the walk will fail with a clear error message.
+//
+// When enabled, arrow references (e.g., "parent->view") will automatically
+// traverse into their target permissions before visiting the arrow reference itself.
+// This enables single-pass validation of cross-definition references.
+//
+// Example:
+//
+//	schema, _ := BuildSchemaFromCompiledSchema(compiled)
+//	resolved, _ := ResolveSchema(schema)  // Required!
+//	opts := NewWalkOptions().
+//	    WithStrategy(WalkPostOrder).
+//	    WithTraverseArrowTargets(resolved.Schema())
+func (opts WalkOptions) WithTraverseArrowTargets(schema *Schema) WalkOptions {
+	opts.traverseArrowTargets = true
+	opts.schema = schema
+	return opts
 }
 
 // Visitor is the base interface that all specific visitor interfaces embed.
@@ -127,41 +181,41 @@ type ArrowOperationVisitor[T any] interface {
 // WalkSchema walks the entire schema tree, calling appropriate visitor methods
 // on the provided Visitor for each node encountered. Returns the final value and error if any visitor returns an error.
 func WalkSchema[T any](s *Schema, v Visitor[T], value T) (T, error) {
-	return walkSchemaWithOptions(s, v, value, WalkOptions{Strategy: WalkPreOrder})
+	return walkSchemaWithOptions(s, v, value, NewWalkOptions())
 }
 
 // WalkDefinition walks a definition and its relations and permissions.
 // Returns the final value and error if any visitor returns an error.
 func WalkDefinition[T any](d *Definition, v Visitor[T], value T) (T, error) {
-	return walkDefinitionWithOptions(d, v, value, WalkOptions{Strategy: WalkPreOrder})
+	return walkDefinitionWithOptions(d, v, value, NewWalkOptions())
 }
 
 // WalkCaveat walks a caveat. Returns the final value and error if any visitor returns an error.
 func WalkCaveat[T any](c *Caveat, v Visitor[T], value T) (T, error) {
-	return walkCaveatWithOptions(c, v, value, WalkOptions{Strategy: WalkPreOrder})
+	return walkCaveatWithOptions(c, v, value, NewWalkOptions())
 }
 
 // WalkRelation walks a relation and its base relations.
 // Returns the final value and error if any visitor returns an error.
 func WalkRelation[T any](r *Relation, v Visitor[T], value T) (T, error) {
-	return walkRelationWithOptions(r, v, value, WalkOptions{Strategy: WalkPreOrder})
+	return walkRelationWithOptions(r, v, value, NewWalkOptions())
 }
 
 // WalkBaseRelation walks a base relation. Returns the final value and error if any visitor returns an error.
 func WalkBaseRelation[T any](br *BaseRelation, v Visitor[T], value T) (T, error) {
-	return walkBaseRelationWithOptions(br, v, value, WalkOptions{Strategy: WalkPreOrder})
+	return walkBaseRelationWithOptions(br, v, value, NewWalkOptions())
 }
 
 // WalkPermission walks a permission and its operation tree.
 // Returns the final value and error if any visitor returns an error.
 func WalkPermission[T any](p *Permission, v Visitor[T], value T) (T, error) {
-	return walkPermissionWithOptions(p, v, value, WalkOptions{Strategy: WalkPreOrder})
+	return walkPermissionWithOptions(p, v, value, NewWalkOptions())
 }
 
 // WalkOperation walks an operation tree recursively.
 // Returns the final value and error if any visitor returns an error.
 func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
-	return walkOperationWithOptions(op, v, value, WalkOptions{Strategy: WalkPreOrder})
+	return walkOperationWithOptions(op, v, value, NewWalkOptions())
 }
 
 // walkSchemaWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
@@ -170,9 +224,14 @@ func walkSchemaWithOptions[T any](s *Schema, v Visitor[T], value T, options Walk
 		return value, nil
 	}
 
+	// Validate: arrow traversal requires PostOrder strategy
+	if options.traverseArrowTargets && options.strategy != WalkPostOrder {
+		return value, errors.New("TraverseArrowTargets requires PostOrder strategy")
+	}
+
 	currentValue := value
 
-	if options.Strategy == WalkPostOrder {
+	if options.strategy == WalkPostOrder {
 		// PostOrder: Visit children first, then parent
 		for _, def := range s.definitions {
 			newValue, err := walkDefinitionWithOptions(def, v, currentValue, options)
@@ -242,7 +301,7 @@ func walkDefinitionWithOptions[T any](d *Definition, v Visitor[T], value T, opti
 
 	currentValue := value
 
-	if options.Strategy == WalkPostOrder {
+	if options.strategy == WalkPostOrder {
 		// PostOrder: Visit children first, then parent
 		for _, rel := range d.relations {
 			newValue, err := walkRelationWithOptions(rel, v, currentValue, options)
@@ -330,7 +389,7 @@ func walkRelationWithOptions[T any](r *Relation, v Visitor[T], value T, options 
 
 	currentValue := value
 
-	if options.Strategy == WalkPostOrder {
+	if options.strategy == WalkPostOrder {
 		// PostOrder: Visit children first, then parent
 		for _, br := range r.baseRelations {
 			newValue, err := walkBaseRelationWithOptions(br, v, currentValue, options)
@@ -402,7 +461,7 @@ func walkPermissionWithOptions[T any](p *Permission, v Visitor[T], value T, opti
 
 	currentValue := value
 
-	if options.Strategy == WalkPostOrder {
+	if options.strategy == WalkPostOrder {
 		// PostOrder: Visit children (operation tree) first, then parent
 		newValue, err := walkOperationWithOptions(p.operation, v, currentValue, options)
 		if err != nil {
@@ -446,7 +505,20 @@ func walkOperationWithOptions[T any](op Operation, v Visitor[T], value T, option
 		return value, nil
 	}
 
-	if options.Strategy == WalkPostOrder {
+	// Validate: arrow traversal requires PostOrder strategy
+	if options.traverseArrowTargets && options.strategy != WalkPostOrder {
+		return value, errors.New("TraverseArrowTargets requires PostOrder strategy")
+	}
+
+	// If arrow traversal is enabled, ensure visited set is available.
+	// This is the central initialization point for all operation walks to avoid duplication.
+	if options.traverseArrowTargets {
+		if options.visitedArrowTargets == nil {
+			options.visitedArrowTargets = make(map[string]bool)
+		}
+	}
+
+	if options.strategy == WalkPostOrder {
 		return walkOperationPostOrder(op, v, value, options)
 	}
 	return walkOperationPreOrder(op, v, value, options)
@@ -479,6 +551,14 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 		}
 
 	case *ArrowReference:
+		// If arrow traversal is enabled but schema is not resolved, provide helpful error
+		if options.traverseArrowTargets {
+			return currentValue, errors.New(
+				"TraverseArrowTargets requires a resolved schema. " +
+					"Call ResolveSchema() on your schema before walking with arrow traversal enabled. " +
+					"Unresolved ArrowReference found: " + o.Left() + "->" + o.Right())
+		}
+
 		// Terminal node - call visitors
 		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
 			newValue, err := aov.VisitArrowOperation(o, currentValue)
@@ -532,7 +612,52 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 		}
 
 	case *ResolvedArrowReference:
-		// Terminal node - call visitors
+		// If arrow traversal is enabled, walk target permissions first (PostOrder)
+		if options.traverseArrowTargets {
+			// Schema is required for arrow traversal
+			if options.schema == nil {
+				return currentValue, errors.New(
+					"TraverseArrowTargets requires a schema for target resolution. " +
+						"Arrow reference: " + o.Left() + "->" + o.Right())
+			}
+
+			// Get the resolved left relation to find allowed subject types
+			resolvedLeft := o.ResolvedLeft()
+			if resolvedLeft != nil {
+				// For each base relation (allowed subject type), walk the target permission
+				for _, br := range resolvedLeft.BaseRelations() {
+					targetDefName := br.Type()
+					targetPermName := o.Right()
+					targetKey := targetDefName + "#" + targetPermName
+
+					// Skip if already visited to prevent infinite recursion
+					if options.visitedArrowTargets[targetKey] {
+						continue
+					}
+					options.visitedArrowTargets[targetKey] = true
+
+					// Find the target definition in the schema
+					if targetDef, ok := options.schema.GetTypeDefinition(targetDefName); ok {
+						// Find the target relation/permission and walk it
+						if targetRel, ok := targetDef.GetRelation(targetPermName); ok {
+							newValue, err := walkRelationWithOptions(targetRel, v, currentValue, options)
+							if err != nil {
+								return currentValue, err
+							}
+							currentValue = newValue
+						} else if targetPerm, ok := targetDef.GetPermission(targetPermName); ok {
+							newValue, err := walkPermissionWithOptions(targetPerm, v, currentValue, options)
+							if err != nil {
+								return currentValue, err
+							}
+							currentValue = newValue
+						}
+					}
+				}
+			}
+		}
+
+		// Call visitors after traversing targets (in PostOrder)
 		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
 			newValue, err := aov.VisitArrowOperation(o, currentValue)
 			if err != nil {
@@ -550,7 +675,52 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 		}
 
 	case *ResolvedFunctionedArrowReference:
-		// Terminal node - call visitors
+		// If arrow traversal is enabled, walk target permissions first (PostOrder)
+		if options.traverseArrowTargets {
+			// Schema is required for arrow traversal
+			if options.schema == nil {
+				return currentValue, errors.New(
+					"TraverseArrowTargets requires a schema for target resolution. " +
+						"Functioned arrow reference: " + o.Left() + "->" + o.Right())
+			}
+
+			// Get the resolved left relation to find allowed subject types
+			resolvedLeft := o.ResolvedLeft()
+			if resolvedLeft != nil {
+				// For each base relation (allowed subject type), walk the target permission
+				for _, br := range resolvedLeft.BaseRelations() {
+					targetDefName := br.Type()
+					targetPermName := o.Right()
+					targetKey := targetDefName + "#" + targetPermName
+
+					// Skip if already visited to prevent infinite recursion
+					if options.visitedArrowTargets[targetKey] {
+						continue
+					}
+					options.visitedArrowTargets[targetKey] = true
+
+					// Find the target definition in the schema
+					if targetDef, ok := options.schema.GetTypeDefinition(targetDefName); ok {
+						// Find the target relation/permission and walk it
+						if targetRel, ok := targetDef.GetRelation(targetPermName); ok {
+							newValue, err := walkRelationWithOptions(targetRel, v, currentValue, options)
+							if err != nil {
+								return currentValue, err
+							}
+							currentValue = newValue
+						} else if targetPerm, ok := targetDef.GetPermission(targetPermName); ok {
+							newValue, err := walkPermissionWithOptions(targetPerm, v, currentValue, options)
+							if err != nil {
+								return currentValue, err
+							}
+							currentValue = newValue
+						}
+					}
+				}
+			}
+		}
+
+		// Call visitors after traversing targets (in PostOrder)
 		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
 			newValue, err := aov.VisitArrowOperation(o, currentValue)
 			if err != nil {

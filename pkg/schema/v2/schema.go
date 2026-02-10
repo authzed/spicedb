@@ -321,7 +321,7 @@ func (p *Permission) cloneWithParent(parentDefinition *Definition) *Permission {
 
 	var clonedOp Operation
 	if p.operation != nil {
-		if opCloner, ok := p.operation.(interface{ cloneWithParent(Operation) Operation }); ok {
+		if opCloner, ok := p.operation.(operationCloner); ok {
 			clonedOp = opCloner.cloneWithParent(nil) // nil parent since this is the root operation
 		} else {
 			clonedOp = p.operation.clone()
