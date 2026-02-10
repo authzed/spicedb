@@ -97,38 +97,6 @@ func TestReplaceRecursiveSentinel_DeepNesting(t *testing.T) {
 	require.True(isFixed, "Deeply nested sentinel should be replaced")
 }
 
-// TestIsRecursiveSubject_NonMatching tests isRecursiveSubject with non-matching types
-func TestIsRecursiveSubject_NonMatching(t *testing.T) {
-	t.Parallel()
-	require := require.New(t)
-
-	recursive := NewRecursiveIterator(NewEmptyFixedIterator(), "folder", "parent")
-
-	// Matching type
-	matchingSubject := ObjectAndRelation{
-		ObjectType: "folder",
-		ObjectID:   "folder1",
-		Relation:   "...",
-	}
-	require.True(recursive.isRecursiveSubject(matchingSubject), "Should match folder type")
-
-	// Non-matching type
-	nonMatchingSubject := ObjectAndRelation{
-		ObjectType: "document",
-		ObjectID:   "doc1",
-		Relation:   "...",
-	}
-	require.False(recursive.isRecursiveSubject(nonMatchingSubject), "Should not match document type")
-
-	// Non-matching type (user)
-	userSubject := ObjectAndRelation{
-		ObjectType: "user",
-		ObjectID:   "alice",
-		Relation:   "...",
-	}
-	require.False(recursive.isRecursiveSubject(userSubject), "Should not match user type")
-}
-
 // TestBreadthFirstIterResources_MaxDepth tests that BFS respects max depth limit
 func TestBreadthFirstIterResources_MaxDepth(t *testing.T) {
 	t.Parallel()

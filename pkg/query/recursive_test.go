@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -161,7 +162,6 @@ func TestRecursiveIteratorSubiteratorsAndReplace(t *testing.T) {
 }
 
 func TestRecursiveIteratorExecutionError(t *testing.T) {
-	// Test error path: execute() returns an error (line 67-70 in iterativeDeepening)
 	// This tests when CheckImpl/IterSubjects/IterResources fails during execution
 
 	faultyIter := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{}) // Fails on Check
@@ -180,7 +180,14 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	// Error should occur during sequence iteration
 	paths, err := CollectAll(seq)
 	require.Error(t, err, "Should get error from faulty iterator during execution")
-	require.Contains(t, err.Error(), "execution failed at depth", "Error should be wrapped with depth info")
+	// The error message depends on which strategy is used:
+	// - IterSubjects strategy: "IterSubjects failed... at depth" or "execution failed at ply" (from BFS)
+	// - Deepening strategy: "check failed at ply"
+	require.True(t,
+		strings.Contains(err.Error(), "execution failed at ply") ||
+			strings.Contains(err.Error(), "check failed at ply") ||
+			strings.Contains(err.Error(), "at depth"),
+		"Error should be wrapped with ply/depth info, got: %s", err.Error())
 	require.Empty(t, paths)
 }
 

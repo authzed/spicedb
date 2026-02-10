@@ -327,6 +327,17 @@ func CollectAll(seq PathSeq) ([]Path, error) {
 	return out, nil
 }
 
+// PathSeqFromSlice creates a PathSeq that yields all paths from the given slice.
+func PathSeqFromSlice(paths []Path) PathSeq {
+	return func(yield func(Path, error) bool) {
+		for _, path := range paths {
+			if !yield(path, nil) {
+				return
+			}
+		}
+	}
+}
+
 // DeduplicatePathSeq returns a new PathSeq that deduplicates paths based on their
 // endpoints (resource and subject, excluding relation). Paths with the same endpoints
 // are merged using OR semantics (caveats are OR'd, no caveat wins over caveat).
