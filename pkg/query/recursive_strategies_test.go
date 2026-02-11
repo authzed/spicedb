@@ -41,9 +41,6 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	queryCtx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
-
 	// Test all three strategies
 	strategies := []struct {
 		name     string
@@ -57,6 +54,13 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 	for _, tc := range strategies {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Create a separate Context for each parallel subtest to avoid races.
+			// Contexts contain mutable state (e.g., recursiveFrontierCollectors)
+			// that must not be shared across concurrent goroutines.
+			queryCtx := NewLocalContext(context.Background(),
+				WithReader(ds.SnapshotReader(datastore.NoRevision)))
+
 			// Create recursive iterator with the specific strategy
 			recursive := NewRecursiveIterator(union, "folder", "view")
 			recursive.checkStrategy = tc.strategy
