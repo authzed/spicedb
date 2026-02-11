@@ -58,7 +58,7 @@ func TestFormatAnalysisNestedTree(t *testing.T) {
 		},
 	)
 
-	union := NewUnion(fixed1, fixed2)
+	union := NewUnionIterator(fixed1, fixed2)
 
 	// Create analyze map with stats for all iterators
 	analyze := map[string]AnalyzeStats{
@@ -289,7 +289,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		)
 		empty1 := NewEmptyFixedIterator()
 		empty2 := NewEmptyFixedIterator()
-		unoptimized := NewUnion(fixed, empty1, empty2)
+		unoptimized := NewUnionIterator(fixed, empty1, empty2)
 
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()
@@ -358,9 +358,9 @@ func TestOptimizationImprovements(t *testing.T) {
 				Subject:  ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
 			},
 		)
-		innerUnion := NewUnion(fixed)
-		middleUnion := NewUnion(innerUnion)
-		unoptimized := NewUnion(middleUnion)
+		innerUnion := NewUnionIterator(fixed)
+		middleUnion := NewUnionIterator(innerUnion)
+		unoptimized := NewUnionIterator(middleUnion)
 
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()
@@ -451,11 +451,11 @@ func TestOptimizationImprovements(t *testing.T) {
 			},
 		)
 
-		emptyIntersection := NewIntersection(fixed1, NewEmptyFixedIterator())
-		singletonUnion := NewUnion(fixed2)
+		emptyIntersection := NewIntersectionIterator(fixed1, NewEmptyFixedIterator())
+		singletonUnion := NewUnionIterator(fixed2)
 		emptyFixed := NewEmptyFixedIterator()
 
-		unoptimized := NewUnion(emptyIntersection, singletonUnion, emptyFixed, fixed3)
+		unoptimized := NewUnionIterator(emptyIntersection, singletonUnion, emptyFixed, fixed3)
 
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()

@@ -34,33 +34,33 @@ func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) Pa
 	}
 }
 
-// RelationIterator is a common leaf iterator. It represents the set of all
+// DatastoreIterator is a common leaf iterator. It represents the set of all
 // relationships of the given schema.BaseRelation, ie, relations that have a
 // known resource and subject type and may contain caveats or expiration.
 //
-// The RelationIterator, being the leaf, generates this set by calling the datastore.
-type RelationIterator struct {
+// The DatastoreIterator, being the leaf, generates this set by calling the datastore.
+type DatastoreIterator struct {
 	id   string
 	base *schema.BaseRelation
 }
 
-var _ Iterator = &RelationIterator{}
+var _ Iterator = &DatastoreIterator{}
 
-func NewRelationIterator(base *schema.BaseRelation) *RelationIterator {
-	return &RelationIterator{
+func NewDatastoreIterator(base *schema.BaseRelation) *DatastoreIterator {
+	return &DatastoreIterator{
 		id:   uuid.NewString(),
 		base: base,
 	}
 }
 
-func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelationFilter {
+func (r *DatastoreIterator) buildSubjectRelationFilter() datastore.SubjectRelationFilter {
 	if r.base.Subrelation() == tuple.Ellipsis {
 		return datastore.SubjectRelationFilter{}.WithEllipsisRelation()
 	}
 	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation())
 }
 
-func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// For subrelations, we need to allow type mismatches because the subrelation might bridge different types
 	// For example, group:member -> group:member should find group:everyone#member@group:engineering#member
 	// and then that relationship should be used by the Arrow to check group:engineering#member for user subjects
@@ -83,7 +83,7 @@ func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject O
 	return r.checkNormalImpl(ctx, resources, subject)
 }
 
-func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	resourceIDs := make([]string, len(resources))
 	for i, res := range resources {
 		resourceIDs[i] = res.ObjectID
@@ -126,7 +126,7 @@ func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, sub
 	return PathSeqFromSlice(paths), nil
 }
 
-func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Query the datastore for wildcard relationships (subject ObjectID = "*")
 	resourceIDs := make([]string, len(resources))
 	for i, res := range resources {
@@ -168,14 +168,14 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 	return PathSeqFromSlice(paths), nil
 }
 
-func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (r *DatastoreIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	if r.base.Wildcard() {
 		return r.iterSubjectsWildcardImpl(ctx, resource)
 	}
 	return r.iterSubjectsNormalImpl(ctx, resource)
 }
 
-func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      []string{resource.ObjectID},
@@ -280,7 +280,7 @@ func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object)
 	}, nil
 }
 
-func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
 	// When a relation contains a wildcard (e.g., user:*), it means "all subjects of that type"
 	// that have ANY relationship with this resource. We enumerate concrete subjects by:
 	// 1. First checking if a wildcard relationship actually exists for this resource
@@ -441,7 +441,7 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 	}, nil
 }
 
-func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// If the types don't match, we don't even have to go to the datastore.
 	if subject.ObjectType != r.base.Type() {
 		return EmptyPathSeq(), nil
@@ -563,7 +563,7 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 	}, nil
 }
 
-func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceRelation: r.base.RelationName(),
@@ -668,14 +668,14 @@ func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject Objec
 	}, nil
 }
 
-func (r *RelationIterator) Clone() Iterator {
-	return &RelationIterator{
+func (r *DatastoreIterator) Clone() Iterator {
+	return &DatastoreIterator{
 		id:   uuid.NewString(),
 		base: r.base,
 	}
 }
 
-func (r *RelationIterator) Explain() Explain {
+func (r *DatastoreIterator) Explain() Explain {
 	relationName := r.base.Subrelation()
 	if r.base.Wildcard() {
 		relationName = "*"
@@ -687,26 +687,26 @@ func (r *RelationIterator) Explain() Explain {
 	}
 }
 
-func (r *RelationIterator) Subiterators() []Iterator {
+func (r *DatastoreIterator) Subiterators() []Iterator {
 	return nil
 }
 
-func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+func (r *DatastoreIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf RelationIterator's subiterators")
 }
 
-func (r *RelationIterator) ID() string {
+func (r *DatastoreIterator) ID() string {
 	return r.id
 }
 
-func (r *RelationIterator) ResourceType() ([]ObjectType, error) {
+func (r *DatastoreIterator) ResourceType() ([]ObjectType, error) {
 	return []ObjectType{{
 		Type:        r.base.DefinitionName(),
 		Subrelation: tuple.Ellipsis,
 	}}, nil
 }
 
-func (r *RelationIterator) SubjectTypes() ([]ObjectType, error) {
+func (r *DatastoreIterator) SubjectTypes() ([]ObjectType, error) {
 	// For wildcards, return the base type with no subrelation
 	if r.base.Wildcard() {
 		return []ObjectType{{

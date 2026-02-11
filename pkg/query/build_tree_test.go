@@ -248,9 +248,9 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(it)
 	// Should be wrapped in an Alias
-	require.IsType(&Alias{}, it, "Expected Alias wrapper")
-	alias := it.(*Alias)
-	require.IsType(&Exclusion{}, alias.subIt)
+	require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+	alias := it.(*AliasIterator)
+	require.IsType(&ExclusionIterator{}, alias.subIt)
 
 	// Verify the explain shows alias structure with exclusion underneath
 	explain := it.Explain()
@@ -300,9 +300,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		require.IsType(&Alias{}, it, "Expected Alias wrapper")
-		alias := it.(*Alias)
-		require.IsType(&Exclusion{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+		alias := it.(*AliasIterator)
+		require.IsType(&ExclusionIterator{}, alias.subIt)
 
 		// Test execution doesn't crash
 		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
@@ -339,9 +339,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		require.IsType(&Alias{}, it, "Expected Alias wrapper")
-		alias := it.(*Alias)
-		require.IsType(&Exclusion{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+		alias := it.(*AliasIterator)
+		require.IsType(&ExclusionIterator{}, alias.subIt)
 
 		// Verify the structure includes union in main set
 		explain := it.Explain()
@@ -380,9 +380,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		require.IsType(&Alias{}, it, "Expected Alias wrapper")
-		alias := it.(*Alias)
-		require.IsType(&Exclusion{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+		alias := it.(*AliasIterator)
+		require.IsType(&ExclusionIterator{}, alias.subIt)
 
 		// Verify the structure includes intersection in main set
 		explain := it.Explain()
@@ -422,9 +422,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		require.IsType(&Alias{}, it, "Expected Alias wrapper")
-		alias := it.(*Alias)
-		require.IsType(&Exclusion{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+		alias := it.(*AliasIterator)
+		require.IsType(&ExclusionIterator{}, alias.subIt)
 
 		// Verify nested structure
 		explain := it.Explain()
@@ -776,9 +776,9 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		require.NotNil(it)
 
 		// Verify it's an Alias wrapping a RelationIterator with wildcard support
-		require.IsType(&Alias{}, it)
-		alias := it.(*Alias)
-		require.IsType(&RelationIterator{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it)
+		alias := it.(*AliasIterator)
+		require.IsType(&DatastoreIterator{}, alias.subIt)
 
 		// Check the explain output contains wildcard information
 		explain := it.Explain()
@@ -807,9 +807,9 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		require.NotNil(it)
 
 		// Should create an alias with a union containing both regular and wildcard iterators
-		require.IsType(&Alias{}, it)
-		alias := it.(*Alias)
-		require.IsType(&Union{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it)
+		alias := it.(*AliasIterator)
+		require.IsType(&UnionIterator{}, alias.subIt)
 
 		// Check explain contains both relation types (regular and wildcard)
 		explain := it.Explain()
@@ -912,9 +912,9 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 			require.NotEmpty(recursiveIterator.definitionName)
 			require.NotEmpty(recursiveIterator.relationName)
 
-			var recursiveSentinels []*RecursiveSentinel
+			var recursiveSentinels []*RecursiveSentinelIterator
 			_, _ = Walk(recursiveIterator.templateTree, func(it Iterator) (Iterator, error) {
-				if sentinel, ok := it.(*RecursiveSentinel); ok {
+				if sentinel, ok := it.(*RecursiveSentinelIterator); ok {
 					recursiveSentinels = append(recursiveSentinels, sentinel)
 				}
 				return it, nil

@@ -85,7 +85,7 @@ func TestIteratorTracing(t *testing.T) {
 		ctx.TraceLogger = traceLogger
 
 		// Test Union iterator tracing
-		union := NewUnion()
+		union := NewUnionIterator()
 		union.addSubIterator(NewFixedIterator(testPath1))
 		union.addSubIterator(NewFixedIterator(testPath2))
 

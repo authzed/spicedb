@@ -7,10 +7,10 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// Self is an iterator that produces a synthetic relation for every
+// SelfIterator is an iterator that produces a synthetic relation for every
 // Resource in the subiterator that connects it to
 // streamed from the sub-iterator to a specified alias relation.
-type Self struct {
+type SelfIterator struct {
 	id       string
 	relation string
 	// typeName is the name of the type associated with the self definition.
@@ -18,17 +18,17 @@ type Self struct {
 	typeName string
 }
 
-var _ Iterator = &Self{}
+var _ Iterator = &SelfIterator{}
 
-func NewSelf(relation string, typeName string) *Self {
-	return &Self{
+func NewSelfIterator(relation string, typeName string) *SelfIterator {
+	return &SelfIterator{
 		id:       uuid.NewString(),
 		relation: relation,
 		typeName: typeName,
 	}
 }
 
-func (s *Self) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (s *SelfIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// for Self, the check returns the reflexive relation if it's in the set of resources
 	// or else returns an empty set.
 	for _, resource := range resources {
@@ -50,7 +50,7 @@ func (s *Self) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRela
 	return EmptyPathSeq(), nil
 }
 
-func (s *Self) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (s *SelfIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		yield(Path{
 			Resource: resource,
@@ -61,7 +61,7 @@ func (s *Self) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType
 	}, nil
 }
 
-func (s *Self) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (s *SelfIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// Only return a self-edge if the subject type matches the iterator's resource type
 	if s.typeName != subject.ObjectType {
 		return EmptyPathSeq(), nil
@@ -76,41 +76,41 @@ func (s *Self) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filter
 	}, nil
 }
 
-func (s *Self) Clone() Iterator {
-	return &Self{
+func (s *SelfIterator) Clone() Iterator {
+	return &SelfIterator{
 		id:       uuid.NewString(),
 		relation: s.relation,
 		typeName: s.typeName,
 	}
 }
 
-func (s *Self) Explain() Explain {
+func (s *SelfIterator) Explain() Explain {
 	return Explain{
 		Name: "Self",
 		Info: "Self(" + s.relation + ")",
 	}
 }
 
-func (s *Self) Subiterators() []Iterator {
+func (s *SelfIterator) Subiterators() []Iterator {
 	return nil
 }
 
-func (s *Self) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+func (s *SelfIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return nil, spiceerrors.MustBugf("Trying to replace a Self's subiterators")
 }
 
-func (s *Self) ID() string {
+func (s *SelfIterator) ID() string {
 	return s.id
 }
 
-func (s *Self) ResourceType() ([]ObjectType, error) {
+func (s *SelfIterator) ResourceType() ([]ObjectType, error) {
 	return []ObjectType{{
 		Type:        s.typeName,
 		Subrelation: tuple.Ellipsis,
 	}}, nil
 }
 
-func (s *Self) SubjectTypes() ([]ObjectType, error) {
+func (s *SelfIterator) SubjectTypes() ([]ObjectType, error) {
 	// Self is self-referential - subjects are the same type as resources
 	return []ObjectType{{
 		Type:        s.typeName,

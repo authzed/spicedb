@@ -6,11 +6,11 @@ import "slices"
 // that contain only a single subiterator.
 func CollapseSingletonUnionAndIntersection(it Iterator) (Iterator, bool, error) {
 	switch v := it.(type) {
-	case *Union:
+	case *UnionIterator:
 		if len(v.subIts) == 1 {
 			return v.subIts[0], true, nil
 		}
-	case *Intersection:
+	case *IntersectionIterator:
 		if len(v.subIts) == 1 {
 			return v.subIts[0], true, nil
 		}
@@ -22,7 +22,7 @@ func CollapseSingletonUnionAndIntersection(it Iterator) (Iterator, bool, error) 
 // Unions, removes the empty set (A | 0 = A), Intersection, returns a null itself (A & 0 = 0)
 func RemoveNullIterators(it Iterator) (Iterator, bool, error) {
 	switch v := it.(type) {
-	case *Union:
+	case *UnionIterator:
 		subs := v.Subiterators()
 		hasEmpty := false
 		newSubs := make([]Iterator, 0)
@@ -41,7 +41,7 @@ func RemoveNullIterators(it Iterator) (Iterator, bool, error) {
 			newit, err := it.ReplaceSubiterators(newSubs)
 			return newit, true, err
 		}
-	case *Intersection:
+	case *IntersectionIterator:
 		if slices.ContainsFunc(v.Subiterators(), isEmptyFixed) {
 			return NewEmptyFixedIterator(), true, nil
 		}

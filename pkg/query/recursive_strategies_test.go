@@ -35,8 +35,8 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 	fixed := NewFixedIterator(paths...)
 
 	// Create the recursive iterator with a sentinel
-	sentinel := NewRecursiveSentinel("folder", "view", false)
-	union := NewUnion(fixed, sentinel)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
+	union := NewUnionIterator(fixed, sentinel)
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -152,8 +152,8 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 	}
 
 	fixed := NewFixedIterator(paths...)
-	sentinel := NewRecursiveSentinel("folder", "view", false)
-	union := NewUnion(fixed, sentinel)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
+	union := NewUnionIterator(fixed, sentinel)
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)

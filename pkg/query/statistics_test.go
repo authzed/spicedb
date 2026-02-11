@@ -48,7 +48,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		t.Parallel()
 
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-		it := NewRelationIterator(baseRel)
+		it := NewDatastoreIterator(baseRel)
 		est, err := stats.Cost(it)
 		require.NoError(t, err)
 		require.Equal(t, stats.NumberOfTuplesInRelation, est.Cardinality)
@@ -69,7 +69,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			right := NewFixedIterator(
 				MustPathFromString("folder:folder1#viewer@user:alice"),
 			)
-			arrow := NewArrow(left, right)
+			arrow := NewArrowIterator(left, right)
 			est, err := stats.Cost(arrow)
 			require.NoError(t, err)
 
@@ -96,7 +96,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			right := NewFixedIterator(
 				MustPathFromString("folder:folder1#viewer@user:alice"),
 			)
-			arrow := NewArrow(left, right)
+			arrow := NewArrowIterator(left, right)
 
 			// Set arrow direction to the other way
 			arrow.direction = rightToLeft
@@ -121,11 +121,11 @@ func TestStaticStatistics_Cost(t *testing.T) {
 
 		t.Run("with relation iterator", func(t *testing.T) {
 			baseRel := schema.NewTestBaseRelation("document", "parent", "folder", tuple.Ellipsis)
-			left := NewRelationIterator(baseRel)
+			left := NewDatastoreIterator(baseRel)
 			right := NewFixedIterator(
 				MustPathFromString("folder:folder1#viewer@user:alice"),
 			)
-			arrow := NewArrow(left, right)
+			arrow := NewArrowIterator(left, right)
 			est, err := stats.Cost(arrow)
 			require.NoError(t, err)
 
@@ -149,7 +149,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		right := NewFixedIterator(
 			MustPathFromString("team:eng#member@user:alice"),
 		)
-		intersectionArrow := NewIntersectionArrow(left, right)
+		intersectionArrow := NewIntersectionArrowIterator(left, right)
 		est, err := stats.Cost(intersectionArrow)
 		require.NoError(t, err)
 
@@ -176,7 +176,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		t.Parallel()
 
 		t.Run("empty", func(t *testing.T) {
-			union := NewUnion()
+			union := NewUnionIterator()
 			_, err := stats.Cost(union)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "union with no subiterators")
@@ -186,7 +186,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			sub := NewFixedIterator(
 				MustPathFromString("document:doc1#viewer@user:alice"),
 			)
-			union := NewUnion(sub)
+			union := NewUnionIterator(sub)
 			est, err := stats.Cost(union)
 			require.NoError(t, err)
 			require.Equal(t, 1, est.Cardinality)
@@ -204,7 +204,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			sub3 := NewFixedIterator(
 				MustPathFromString("document:doc4#owner@user:alice"),
 			)
-			union := NewUnion(sub1, sub2, sub3)
+			union := NewUnionIterator(sub1, sub2, sub3)
 			est, err := stats.Cost(union)
 			require.NoError(t, err)
 
@@ -225,11 +225,11 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		t.Run("mixed costs", func(t *testing.T) {
 			// One expensive relation iterator and one cheap fixed iterator
 			baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-			sub1 := NewRelationIterator(baseRel)
+			sub1 := NewDatastoreIterator(baseRel)
 			sub2 := NewFixedIterator(
 				MustPathFromString("document:doc1#viewer@user:alice"),
 			)
-			union := NewUnion(sub1, sub2)
+			union := NewUnionIterator(sub1, sub2)
 			est, err := stats.Cost(union)
 			require.NoError(t, err)
 
@@ -248,7 +248,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		t.Parallel()
 
 		t.Run("empty", func(t *testing.T) {
-			intersection := NewIntersection()
+			intersection := NewIntersectionIterator()
 			_, err := stats.Cost(intersection)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "intersection with no subiterators")
@@ -259,7 +259,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 				MustPathFromString("document:doc1#viewer@user:alice"),
 				MustPathFromString("document:doc2#viewer@user:alice"),
 			)
-			intersection := NewIntersection(sub)
+			intersection := NewIntersectionIterator(sub)
 			est, err := stats.Cost(intersection)
 			require.NoError(t, err)
 
@@ -279,7 +279,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 				MustPathFromString("document:doc1#editor@user:alice"),
 				MustPathFromString("document:doc2#editor@user:alice"),
 			)
-			intersection := NewIntersection(sub1, sub2)
+			intersection := NewIntersectionIterator(sub1, sub2)
 			est, err := stats.Cost(intersection)
 			require.NoError(t, err)
 
@@ -313,7 +313,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			sub3 := NewFixedIterator(
 				MustPathFromString("document:doc1#owner@user:alice"),
 			)
-			intersection := NewIntersection(sub1, sub2, sub3)
+			intersection := NewIntersectionIterator(sub1, sub2, sub3)
 			est, err := stats.Cost(intersection)
 			require.NoError(t, err)
 
@@ -332,11 +332,11 @@ func TestStaticStatistics_Cost(t *testing.T) {
 
 		t.Run("with expensive iterator first", func(t *testing.T) {
 			baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-			sub1 := NewRelationIterator(baseRel)
+			sub1 := NewDatastoreIterator(baseRel)
 			sub2 := NewFixedIterator(
 				MustPathFromString("document:doc1#editor@user:alice"),
 			)
-			intersection := NewIntersection(sub1, sub2)
+			intersection := NewIntersectionIterator(sub1, sub2)
 			est, err := stats.Cost(intersection)
 			require.NoError(t, err)
 
@@ -355,15 +355,15 @@ func TestStaticStatistics_Cost(t *testing.T) {
 
 		t.Run("union of arrows", func(t *testing.T) {
 			// Create two arrows and union them
-			arrow1 := NewArrow(
+			arrow1 := NewArrowIterator(
 				NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1")),
 				NewFixedIterator(MustPathFromString("folder:folder1#viewer@user:alice")),
 			)
-			arrow2 := NewArrow(
+			arrow2 := NewArrowIterator(
 				NewFixedIterator(MustPathFromString("document:doc2#parent@folder:folder2")),
 				NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice")),
 			)
-			union := NewUnion(arrow1, arrow2)
+			union := NewUnionIterator(arrow1, arrow2)
 			est, err := stats.Cost(union)
 			require.NoError(t, err)
 
@@ -375,18 +375,18 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		})
 
 		t.Run("intersection of arrows", func(t *testing.T) {
-			arrow1 := NewArrow(
+			arrow1 := NewArrowIterator(
 				NewFixedIterator(
 					MustPathFromString("document:doc1#parent@folder:folder1"),
 					MustPathFromString("document:doc2#parent@folder:folder2"),
 				),
 				NewFixedIterator(MustPathFromString("folder:folder1#viewer@user:alice")),
 			)
-			arrow2 := NewArrow(
+			arrow2 := NewArrowIterator(
 				NewFixedIterator(MustPathFromString("document:doc1#editor@user:alice")),
 				NewFixedIterator(MustPathFromString("user:alice#viewer@user:alice")),
 			)
-			intersection := NewIntersection(arrow1, arrow2)
+			intersection := NewIntersectionIterator(arrow1, arrow2)
 			est, err := stats.Cost(intersection)
 			require.NoError(t, err)
 
@@ -400,15 +400,15 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		})
 
 		t.Run("arrow of unions", func(t *testing.T) {
-			leftUnion := NewUnion(
+			leftUnion := NewUnionIterator(
 				NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1")),
 				NewFixedIterator(MustPathFromString("document:doc2#parent@folder:folder2")),
 			)
-			rightUnion := NewUnion(
+			rightUnion := NewUnionIterator(
 				NewFixedIterator(MustPathFromString("folder:folder1#viewer@user:alice")),
 				NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:bob")),
 			)
-			arrow := NewArrow(leftUnion, rightUnion)
+			arrow := NewArrowIterator(leftUnion, rightUnion)
 			est, err := stats.Cost(arrow)
 			require.NoError(t, err)
 
@@ -432,7 +432,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 				MustPathFromString("document:doc2#viewer@user:bob"),
 			)
 
-			exclusion := NewExclusion(mainSet, excluded)
+			exclusion := NewExclusionIterator(mainSet, excluded)
 			est, err := stats.Cost(exclusion)
 			require.NoError(t, err)
 
@@ -453,13 +453,13 @@ func TestStaticStatistics_Cost(t *testing.T) {
 
 		t.Run("exclusion with relation iterator", func(t *testing.T) {
 			baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-			mainSet := NewRelationIterator(baseRel)
+			mainSet := NewDatastoreIterator(baseRel)
 			excluded := NewFixedIterator(
 				MustPathFromString("document:doc1#viewer@user:alice"),
 				MustPathFromString("document:doc2#viewer@user:bob"),
 			)
 
-			exclusion := NewExclusion(mainSet, excluded)
+			exclusion := NewExclusionIterator(mainSet, excluded)
 			est, err := stats.Cost(exclusion)
 			require.NoError(t, err)
 
@@ -484,7 +484,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 			MustPathFromString("document:doc1#viewer@user:alice"),
 		)
 		// Alias wraps another iterator and should pass through
-		alias := NewAlias("test_alias", fixed)
+		alias := NewAliasIterator("test_alias", fixed)
 		est, err := stats.Cost(alias)
 		require.NoError(t, err)
 
@@ -506,7 +506,7 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 		}
 
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-		it := NewRelationIterator(baseRel)
+		it := NewDatastoreIterator(baseRel)
 		est, err := stats.Cost(it)
 		require.NoError(t, err)
 		require.Equal(t, 1000, est.Cardinality)
@@ -543,7 +543,7 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 		right := NewFixedIterator(
 			MustPathFromString("team:eng#member@user:alice"),
 		)
-		intersectionArrow := NewIntersectionArrow(left, right)
+		intersectionArrow := NewIntersectionArrowIterator(left, right)
 		est, err := stats.Cost(intersectionArrow)
 		require.NoError(t, err)
 
