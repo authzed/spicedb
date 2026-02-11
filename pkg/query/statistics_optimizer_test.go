@@ -18,7 +18,7 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 	t.Run("no reordering needed", func(t *testing.T) {
 		t.Parallel()
 		// Already in optimal order (higher selectivity first)
-		// RelationIterator has 0.9, FixedIterator has 0.9
+		// DatastoreIterator has 0.9, FixedIterator has 0.9
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
 		sub1 := NewDatastoreIterator(baseRel)
 		sub2 := NewFixedIterator(

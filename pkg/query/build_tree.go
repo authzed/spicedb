@@ -136,7 +136,7 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 
 func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubRelations bool) (Iterator, error) {
 	if len(r.BaseRelations()) == 1 {
-		baseIt, err := b.buildBaseRelationIterator(r.BaseRelations()[0], withSubRelations)
+		baseIt, err := b.buildBaseDatastoreIterator(r.BaseRelations()[0], withSubRelations)
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +144,7 @@ func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubR
 	}
 	union := NewUnionIterator()
 	for _, br := range r.BaseRelations() {
-		it, err := b.buildBaseRelationIterator(br, withSubRelations)
+		it, err := b.buildBaseDatastoreIterator(br, withSubRelations)
 		if err != nil {
 			return nil, err
 		}
@@ -237,7 +237,7 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 	return nil, fmt.Errorf("uncovered schema permission operation: %T", op)
 }
 
-func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
+func (b *iteratorBuilder) buildBaseDatastoreIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
 	base := NewDatastoreIterator(br)
 
 	// Collect caveat to apply at top level instead of wrapping immediately
@@ -295,7 +295,7 @@ func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide st
 	var lastNotFoundError error
 
 	for _, br := range rel.BaseRelations() {
-		left, err := b.buildBaseRelationIterator(br, false)
+		left, err := b.buildBaseDatastoreIterator(br, false)
 		if err != nil {
 			return nil, err
 		}
@@ -343,7 +343,7 @@ func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, 
 	var lastNotFoundError error
 
 	for _, br := range rel.BaseRelations() {
-		left, err := b.buildBaseRelationIterator(br, false)
+		left, err := b.buildBaseDatastoreIterator(br, false)
 		if err != nil {
 			return nil, err
 		}

@@ -681,7 +681,7 @@ func (r *DatastoreIterator) Explain() Explain {
 		relationName = "*"
 	}
 	return Explain{
-		Info: fmt.Sprintf("Relation(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
+		Info: fmt.Sprintf("Datastore(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
 			r.base.DefinitionName(), r.base.RelationName(), r.base.Type(), relationName,
 			r.base.Caveat() != "", r.base.Expiration()),
 	}
@@ -692,7 +692,7 @@ func (r *DatastoreIterator) Subiterators() []Iterator {
 }
 
 func (r *DatastoreIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return nil, spiceerrors.MustBugf("Trying to replace a leaf RelationIterator's subiterators")
+	return nil, spiceerrors.MustBugf("Trying to replace a leaf DatastoreIterator's subiterators")
 }
 
 func (r *DatastoreIterator) ID() string {

@@ -531,7 +531,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	// Should create a simple relation iterator without extra union wrappers
 	explain := it.Explain()
 	require.NotEmpty(explain.String())
-	require.Contains(explain.String(), "Relation", "should create relation iterator")
+	require.Contains(explain.String(), "Datastore", "should create datastore iterator")
 
 	ctx := NewLocalContext(t.Context(),
 		WithReader(ds.SnapshotReader(revision)))
@@ -635,7 +635,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	t.Run("Base Relation Without Subrelations Disabled", func(t *testing.T) {
 		t.Parallel()
 		// Test base relation iterator with withSubRelations = false
-		// This hits the buildBaseRelationIterator path where subrelations are disabled
+		// This hits the buildBaseDatastoreIterator path where subrelations are disabled
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("parent", nil, namespace.AllowedRelation("document", "...")),
 			namespace.MustRelation("viewer",
@@ -775,7 +775,7 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 
-		// Verify it's an Alias wrapping a RelationIterator with wildcard support
+		// Verify it's an Alias wrapping a DatastoreIterator with wildcard support
 		require.IsType(&AliasIterator{}, it)
 		alias := it.(*AliasIterator)
 		require.IsType(&DatastoreIterator{}, alias.subIt)
@@ -783,7 +783,7 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		// Check the explain output contains wildcard information
 		explain := it.Explain()
 		explainStr := explain.String()
-		require.Contains(explainStr, "Relation")
+		require.Contains(explainStr, "Datastore")
 		require.Contains(explainStr, "user:*")
 	})
 

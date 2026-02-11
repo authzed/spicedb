@@ -44,7 +44,7 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		})
 	})
 
-	t.Run("RelationIterator", func(t *testing.T) {
+	t.Run("DatastoreIterator", func(t *testing.T) {
 		t.Parallel()
 
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
