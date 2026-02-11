@@ -161,7 +161,7 @@ func TestBuildTreeRecursion(t *testing.T) {
 
 	// Verify the explain output
 	explain := it.Explain()
-	require.Equal("RecursiveIterator", explain.Name)
+	require.Equal("Recursive", explain.Name)
 }
 
 func TestBuildTreeArrowOperation(t *testing.T) {
@@ -867,7 +867,7 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 		// The tree should contain RecursiveIterator(s) due to mutual recursion
 		explain := it.Explain()
 		explainStr := explain.String()
-		require.Contains(explainStr, "RecursiveIterator", "should contain RecursiveIterator for mutual recursion")
+		require.Contains(explainStr, "Recursive", "should contain Recursive for mutual recursion")
 	})
 
 	t.Run("otherdocument viewer builds successfully with mutual recursion", func(t *testing.T) {
@@ -880,7 +880,7 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 		// The tree should contain RecursiveIterator(s)
 		explain := it.Explain()
 		explainStr := explain.String()
-		require.Contains(explainStr, "RecursiveIterator", "should contain RecursiveIterator for mutual recursion")
+		require.Contains(explainStr, "Recursive", "should contain Recursive for mutual recursion")
 	})
 
 	t.Run("sentinels are filtered by definition/relation", func(t *testing.T) {

@@ -246,7 +246,7 @@ func (f *FaultyIterator) Clone() Iterator {
 }
 
 func (f *FaultyIterator) Explain() Explain {
-	return Explain{Info: "FaultyIterator"}
+	return Explain{Info: "Faulty"}
 }
 
 func (f *FaultyIterator) Subiterators() []Iterator {

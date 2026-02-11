@@ -178,8 +178,8 @@ func (r *RecursiveIterator) Clone() Iterator {
 // Explain returns a description of this recursive iterator
 func (r *RecursiveIterator) Explain() Explain {
 	return Explain{
-		Name: "RecursiveIterator",
-		Info: "RecursiveIterator",
+		Name: "Recursive",
+		Info: "Recursive",
 		SubExplain: []Explain{
 			r.templateTree.Explain(),
 		},
