@@ -35,7 +35,8 @@ type WalkOptions struct {
 // NewWalkOptions creates a new WalkOptions with default settings (PreOrder strategy).
 func NewWalkOptions() WalkOptions {
 	return WalkOptions{
-		strategy: WalkPreOrder,
+		strategy:            WalkPreOrder,
+		visitedArrowTargets: make(map[string]bool),
 	}
 }
 
@@ -510,14 +511,6 @@ func walkOperationWithOptions[T any](op Operation, v Visitor[T], value T, option
 	// Validate: arrow traversal requires PostOrder strategy
 	if options.traverseArrowTargets && options.strategy != WalkPostOrder {
 		return value, errors.New("TraverseArrowTargets requires PostOrder strategy")
-	}
-
-	// If arrow traversal is enabled, ensure visited set is available.
-	// This is the central initialization point for all operation walks to avoid duplication.
-	if options.traverseArrowTargets {
-		if options.visitedArrowTargets == nil {
-			options.visitedArrowTargets = make(map[string]bool)
-		}
 	}
 
 	if options.strategy == WalkPostOrder {

@@ -335,7 +335,7 @@ func TestNewWalkOptions_Defaults(t *testing.T) {
 	require.Equal(t, WalkPreOrder, opts.strategy)
 	require.False(t, opts.traverseArrowTargets)
 	require.Nil(t, opts.schema)
-	require.Nil(t, opts.visitedArrowTargets)
+	require.NotNil(t, t, opts.visitedArrowTargets)
 }
 
 func TestWalkOptions_FluentAPI(t *testing.T) {
