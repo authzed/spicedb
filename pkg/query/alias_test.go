@@ -20,7 +20,7 @@ func TestAliasIterator(t *testing.T) {
 		subIt := NewDocumentAccessFixedIterator()
 
 		// Create an alias iterator that rewrites all relations to "read"
-		aliasIt := NewAlias("read", subIt)
+		aliasIt := NewAliasIterator("read", subIt)
 
 		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -51,7 +51,7 @@ func TestAliasIterator(t *testing.T) {
 		subIt := NewEmptyFixedIterator()
 
 		// Create an alias iterator that rewrites to "admin"
-		aliasIt := NewAlias("admin", subIt)
+		aliasIt := NewAliasIterator("admin", subIt)
 
 		// Check for a self-edge: user:alice#admin@user:alice#admin
 		subject := NewObjectAndRelation("alice", "user", "admin")
@@ -83,7 +83,7 @@ func TestAliasIterator(t *testing.T) {
 		subIt := NewSingleUserFixedIterator("bob")
 
 		// Create an alias iterator
-		aliasIt := NewAlias("admin", subIt)
+		aliasIt := NewAliasIterator("admin", subIt)
 
 		// Check with a subject that doesn't match any resource
 		subject := NewObjectAndRelation("alice", "user", "viewer")
@@ -104,7 +104,7 @@ func TestAliasIterator(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("access", subIt)
+		aliasIt := NewAliasIterator("access", subIt)
 
 		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -131,7 +131,7 @@ func TestAliasIterator(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("permission", subIt)
+		aliasIt := NewAliasIterator("permission", subIt)
 
 		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -152,7 +152,7 @@ func TestAliasIterator(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("can_view", subIt)
+		aliasIt := NewAliasIterator("can_view", subIt)
 
 		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
@@ -174,7 +174,7 @@ func TestAliasIterator(t *testing.T) {
 		subIt := NewEmptyFixedIterator()
 
 		// Create an alias iterator that rewrites to "admin"
-		aliasIt := NewAlias("admin", subIt)
+		aliasIt := NewAliasIterator("admin", subIt)
 
 		// Check for a self-edge: user:alice#admin@user:alice#admin
 		subject := NewObjectAndRelation("alice", "user", "admin")
@@ -203,7 +203,7 @@ func TestAliasIterator(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
-		aliasIt := NewAlias("empty_alias", subIt)
+		aliasIt := NewAliasIterator("empty_alias", subIt)
 
 		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -219,7 +219,7 @@ func TestAliasIterator(t *testing.T) {
 
 		// Create empty sub-iterator
 		subIt := NewEmptyFixedIterator()
-		aliasIt := NewAlias("self", subIt)
+		aliasIt := NewAliasIterator("self", subIt)
 
 		// Create a self-edge scenario: document:doc1#self@user:alice#self
 		subject := NewObjectAndRelation("alice", "user", "self")
@@ -239,7 +239,7 @@ func TestAliasIterator(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
-		aliasIt := NewAlias("owner", subIt)
+		aliasIt := NewAliasIterator("owner", subIt)
 
 		// Create a perfect self-edge: user:alice#owner@user:alice#owner
 		subject := NewObjectAndRelation("alice", "user", "owner")
@@ -269,7 +269,7 @@ func TestAliasIteratorClone(t *testing.T) {
 	require := require.New(t)
 
 	subIt := NewDocumentAccessFixedIterator()
-	original := NewAlias("original_relation", subIt)
+	original := NewAliasIterator("original_relation", subIt)
 
 	cloned := original.Clone()
 	require.NotSame(original, cloned, "cloned iterator should be a different object")
@@ -293,7 +293,7 @@ func TestAliasIteratorExplain(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("test_relation", subIt)
+		aliasIt := NewAliasIterator("test_relation", subIt)
 
 		explain := aliasIt.Explain()
 		require.Equal("Alias(test_relation)", explain.Info)
@@ -309,7 +309,7 @@ func TestAliasIteratorExplain(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
-		aliasIt := NewAlias("empty_test", subIt)
+		aliasIt := NewAliasIterator("empty_test", subIt)
 
 		explain := aliasIt.Explain()
 		require.Equal("Alias(empty_test)", explain.Info)
@@ -329,7 +329,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 
 		// Create a faulty sub-iterator
 		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
-		aliasIt := NewAlias("error_test", faultyIt)
+		aliasIt := NewAliasIterator("error_test", faultyIt)
 
 		_, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err, "should propagate error from sub-iterator")
@@ -341,7 +341,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 
 		// Create a faulty sub-iterator that fails during collection
 		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
-		aliasIt := NewAlias("collection_error_test", faultyIt)
+		aliasIt := NewAliasIterator("collection_error_test", faultyIt)
 
 		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err, "initial check should succeed")
@@ -357,7 +357,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 
 		// Create a faulty sub-iterator that fails on IterSubjectsImpl
 		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
-		aliasIt := NewAlias("error_test", faultyIt)
+		aliasIt := NewAliasIterator("error_test", faultyIt)
 
 		_, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.Error(err, "should propagate error from sub-iterator")
@@ -370,7 +370,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 
 		// Create a faulty sub-iterator that fails during collection
 		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
-		aliasIt := NewAlias("collection_error_test", faultyIt)
+		aliasIt := NewAliasIterator("collection_error_test", faultyIt)
 
 		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err, "initial IterSubjects should succeed")
@@ -387,7 +387,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 
 		// Create a faulty sub-iterator that fails on IterResourcesImpl
 		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
-		aliasIt := NewAlias("error_test", faultyIt)
+		aliasIt := NewAliasIterator("error_test", faultyIt)
 
 		_, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.Error(err, "should propagate error from sub-iterator")
@@ -400,7 +400,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 
 		// Create a faulty sub-iterator that fails during collection
 		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
-		aliasIt := NewAlias("collection_error_test", faultyIt)
+		aliasIt := NewAliasIterator("collection_error_test", faultyIt)
 
 		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err, "initial IterResources should succeed")
@@ -417,7 +417,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 
 		// Create a faulty sub-iterator that errors on CheckImpl
 		faultyIt := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
-		aliasIt := NewAlias("self", faultyIt)
+		aliasIt := NewAliasIterator("self", faultyIt)
 
 		// Create a self-edge scenario
 		subject := NewObjectAndRelation("alice", "user", "self")
@@ -433,7 +433,7 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 
 		// Create a faulty sub-iterator that fails during collection
 		faultyIt := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
-		aliasIt := NewAlias("self", faultyIt)
+		aliasIt := NewAliasIterator("self", faultyIt)
 
 		// Create a self-edge scenario
 		subject := NewObjectAndRelation("alice", "user", "self")
@@ -459,7 +459,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 
 		// Create sub-iterator with real data
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("admin", subIt)
+		aliasIt := NewAliasIterator("admin", subIt)
 
 		// Check multiple resources where one matches the subject for self-edge
 		subject := NewObjectAndRelation("doc1", "document", "admin")
@@ -499,7 +499,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 
 		// Create empty sub-iterator to isolate self-edge logic
 		subIt := NewEmptyFixedIterator()
-		aliasIt := NewAlias("owner", subIt)
+		aliasIt := NewAliasIterator("owner", subIt)
 
 		// Check multiple resources where multiple match the subject
 		subject := NewObjectAndRelation("user1", "user", "owner")
@@ -526,7 +526,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
-		aliasIt := NewAlias("empty_relation", subIt)
+		aliasIt := NewAliasIterator("empty_relation", subIt)
 
 		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -541,7 +541,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
-		aliasIt := NewAlias("empty_relation", subIt)
+		aliasIt := NewAliasIterator("empty_relation", subIt)
 
 		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
@@ -557,7 +557,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 
 		// Use iterator with many results
 		subIt := NewLargeFixedIterator()
-		aliasIt := NewAlias("massive", subIt)
+		aliasIt := NewAliasIterator("massive", subIt)
 
 		// NewLargeFixedIterator creates relations for user0, user1, etc. on doc0, doc1, etc.
 		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc0"), NewObject("user", "user0").WithEllipses())
@@ -580,10 +580,10 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		original := NewAlias("original", subIt)
+		original := NewAliasIterator("original", subIt)
 
 		// Clone the iterator
-		cloned := original.Clone().(*Alias)
+		cloned := original.Clone().(*AliasIterator)
 		require.NotSame(original, cloned, "clone should be different instance")
 		require.NotSame(original.subIt, cloned.subIt, "sub-iterator should also be cloned")
 
@@ -616,7 +616,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("early_test", subIt)
+		aliasIt := NewAliasIterator("early_test", subIt)
 
 		pathSeq, err := ctx.Check(aliasIt, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -639,7 +639,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("admin", subIt)
+		aliasIt := NewAliasIterator("admin", subIt)
 
 		// Create scenario with self-edge and sub-results
 		subject := NewObjectAndRelation("doc1", "document", "admin")
@@ -664,7 +664,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("early_subjects", subIt)
+		aliasIt := NewAliasIterator("early_subjects", subIt)
 
 		pathSeq, err := ctx.IterSubjects(aliasIt, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -687,7 +687,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("early_resources", subIt)
+		aliasIt := NewAliasIterator("early_resources", subIt)
 
 		pathSeq, err := ctx.IterResources(aliasIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
@@ -711,7 +711,7 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 
 		// Use sub-iterator that will return paths that need rewriting
 		subIt := NewDocumentAccessFixedIterator()
-		aliasIt := NewAlias("admin", subIt)
+		aliasIt := NewAliasIterator("admin", subIt)
 
 		// Create a self-edge scenario where sub-iterator also returns paths
 		subject := NewObjectAndRelation("doc1", "document", "admin")
@@ -756,7 +756,7 @@ func TestAlias_Types(t *testing.T) {
 		// Create an alias iterator
 		path := MustPathFromString("document:doc1#viewer@user:alice")
 		subIter := NewFixedIterator(path)
-		alias := NewAlias("admin", subIter)
+		alias := NewAliasIterator("admin", subIter)
 
 		resourceType, err := alias.ResourceType()
 		require.NoError(err)
@@ -771,7 +771,7 @@ func TestAlias_Types(t *testing.T) {
 		// Create an alias iterator
 		path := MustPathFromString("document:doc1#viewer@user:alice")
 		subIter := NewFixedIterator(path)
-		alias := NewAlias("admin", subIter)
+		alias := NewAliasIterator("admin", subIter)
 
 		subjectTypes, err := alias.SubjectTypes()
 		require.NoError(err)

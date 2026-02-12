@@ -18,14 +18,14 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 	t.Run("no reordering needed", func(t *testing.T) {
 		t.Parallel()
 		// Already in optimal order (higher selectivity first)
-		// RelationIterator has 0.9, FixedIterator has 0.9
+		// DatastoreIterator has 0.9, FixedIterator has 0.9
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-		sub1 := NewRelationIterator(baseRel)
+		sub1 := NewDatastoreIterator(baseRel)
 		sub2 := NewFixedIterator(
 			MustPathFromString("document:doc1#viewer@user:alice"),
 		)
 
-		union := NewUnion(sub1, sub2)
+		union := NewUnionIterator(sub1, sub2)
 		result, changed, err := optimizer.Optimize(union)
 		require.NoError(t, err)
 		require.False(t, changed)
@@ -47,7 +47,7 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 			MustPathFromString("document:doc6#viewer@user:frank"),
 		)
 
-		union := NewUnion(sub1, sub2, sub3)
+		union := NewUnionIterator(sub1, sub2, sub3)
 		result, changed, err := optimizer.Optimize(union)
 		require.NoError(t, err)
 
@@ -70,7 +70,7 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 		base3 := NewFixedIterator(MustPathFromString("document:doc3#viewer@user:charlie"))
 
 		// Lower selectivity: intersection of 2 items (0.9 * 0.9 = 0.81)
-		lowSelect := NewIntersection(base1, base2)
+		lowSelect := NewIntersectionIterator(base1, base2)
 
 		// Higher selectivity: single item (0.9)
 		highSelect := base3
@@ -84,7 +84,7 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 			"Low selectivity item should have lower selectivity than high selectivity item")
 
 		// Create union with low selectivity first (should be reordered)
-		union := NewUnion(lowSelect, highSelect)
+		union := NewUnionIterator(lowSelect, highSelect)
 		result, changed, err := optimizer.Optimize(union)
 		require.NoError(t, err)
 
@@ -92,8 +92,8 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 		require.True(t, changed, "Should reorder union to put higher selectivity first")
 
 		// Verify the order changed
-		require.IsType(t, &Union{}, result)
-		resultUnion := result.(*Union)
+		require.IsType(t, &UnionIterator{}, result)
+		resultUnion := result.(*UnionIterator)
 		require.Len(t, resultUnion.subIts, 2)
 
 		// First should be the higher selectivity item
@@ -114,7 +114,7 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 		sub := NewFixedIterator(
 			MustPathFromString("document:doc1#viewer@user:alice"),
 		)
-		union := NewUnion(sub)
+		union := NewUnionIterator(sub)
 
 		result, changed, err := optimizer.Optimize(union)
 		require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestStatisticsOptimizer_ReorderIntersection(t *testing.T) {
 			MustPathFromString("document:doc2#viewer@user:bob"),
 		)
 
-		intersection := NewIntersection(sub1, sub2)
+		intersection := NewIntersectionIterator(sub1, sub2)
 		result, changed, err := optimizer.Optimize(intersection)
 		require.NoError(t, err)
 		require.False(t, changed)
@@ -151,7 +151,7 @@ func TestStatisticsOptimizer_ReorderIntersection(t *testing.T) {
 		sub := NewFixedIterator(
 			MustPathFromString("document:doc1#viewer@user:alice"),
 		)
-		intersection := NewIntersection(sub)
+		intersection := NewIntersectionIterator(sub)
 
 		result, changed, err := optimizer.Optimize(intersection)
 		require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 		right := NewFixedIterator(
 			MustPathFromString("folder:folder1#viewer@user:alice"),
 		)
-		arrow := NewArrow(left, right)
+		arrow := NewArrowIterator(left, right)
 
 		result, changed, err := optimizer.Optimize(arrow)
 		require.NoError(t, err)
@@ -190,8 +190,8 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
 		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
 
-		leftArrow := NewArrow(a, b)
-		originalArrow := NewArrow(leftArrow, c)
+		leftArrow := NewArrowIterator(a, b)
+		originalArrow := NewArrowIterator(leftArrow, c)
 
 		result, changed, err := optimizer.Optimize(originalArrow)
 		require.NoError(t, err)
@@ -208,9 +208,9 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 		c := NewFixedIterator(MustPathFromString("folder:folder2#parent@folder:folder3"))
 		d := NewFixedIterator(MustPathFromString("folder:folder3#viewer@user:alice"))
 
-		ab := NewArrow(a, b)
-		abc := NewArrow(ab, c)
-		originalArrow := NewArrow(abc, d)
+		ab := NewArrowIterator(a, b)
+		abc := NewArrowIterator(ab, c)
+		originalArrow := NewArrowIterator(abc, d)
 
 		// Calculate original cost
 		originalCost, err := stats.Cost(originalArrow)
@@ -236,8 +236,8 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 		b := NewFixedIterator(MustPathFromString("folder:folder1#parent@folder:folder2"))
 		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
 
-		rightArrow := NewArrow(b, c)
-		originalArrow := NewArrow(a, rightArrow)
+		rightArrow := NewArrowIterator(b, c)
+		originalArrow := NewArrowIterator(a, rightArrow)
 
 		result, changed, err := optimizer.Optimize(originalArrow)
 		require.NoError(t, err)
@@ -257,8 +257,8 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 		c := NewFixedIterator(MustPathFromString("folder:folder2#viewer@user:alice"))
 
 		// Try (A->B)->C structure
-		leftArrow := NewArrow(a, b)
-		arrow := NewArrow(leftArrow, c)
+		leftArrow := NewArrowIterator(a, b)
+		arrow := NewArrowIterator(leftArrow, c)
 
 		result, changed, err := optimizer.Optimize(arrow)
 		require.NoError(t, err)
@@ -292,7 +292,7 @@ func TestStatisticsOptimizer_IntersectionArrowNotRebalanced(t *testing.T) {
 		right := NewFixedIterator(
 			MustPathFromString("team:eng#member@user:alice"),
 		)
-		intersectionArrow := NewIntersectionArrow(left, right)
+		intersectionArrow := NewIntersectionArrowIterator(left, right)
 
 		result, changed, err := optimizer.Optimize(intersectionArrow)
 		require.NoError(t, err)
@@ -314,19 +314,19 @@ func TestStatisticsOptimizer_ComplexTree(t *testing.T) {
 		sub2 := NewFixedIterator(MustPathFromString("document:doc2#viewer@user:bob"))
 		sub3 := NewFixedIterator(MustPathFromString("document:doc3#viewer@user:charlie"))
 
-		union := NewUnion(sub1, sub2, sub3)
+		union := NewUnionIterator(sub1, sub2, sub3)
 
-		arrow1 := NewArrow(
+		arrow1 := NewArrowIterator(
 			NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1")),
 			NewFixedIterator(MustPathFromString("folder:folder1#viewer@user:alice")),
 		)
 
-		arrow2 := NewArrow(
+		arrow2 := NewArrowIterator(
 			NewFixedIterator(MustPathFromString("document:doc1#editor@user:alice")),
 			NewFixedIterator(MustPathFromString("user:alice#viewer@user:alice")),
 		)
 
-		intersection := NewIntersection(union, arrow1, arrow2)
+		intersection := NewIntersectionIterator(union, arrow1, arrow2)
 
 		result, changed, err := optimizer.Optimize(intersection)
 		require.NoError(t, err)
@@ -345,17 +345,17 @@ func TestStatisticsOptimizer_ComplexTree(t *testing.T) {
 	t.Run("nested unions and intersections", func(t *testing.T) {
 		t.Parallel()
 		// Create deeply nested structure
-		innerUnion := NewUnion(
+		innerUnion := NewUnionIterator(
 			NewFixedIterator(MustPathFromString("document:doc1#viewer@user:alice")),
 			NewFixedIterator(MustPathFromString("document:doc2#viewer@user:bob")),
 		)
 
-		innerIntersection := NewIntersection(
+		innerIntersection := NewIntersectionIterator(
 			NewFixedIterator(MustPathFromString("document:doc1#editor@user:alice")),
 			NewFixedIterator(MustPathFromString("document:doc1#owner@user:alice")),
 		)
 
-		outerUnion := NewUnion(innerUnion, innerIntersection)
+		outerUnion := NewUnionIterator(innerUnion, innerIntersection)
 
 		result, changed, err := optimizer.Optimize(outerUnion)
 		require.NoError(t, err)
@@ -395,7 +395,7 @@ func TestStatisticsOptimizer_EdgeCases(t *testing.T) {
 	t.Run("relation iterator", func(t *testing.T) {
 		t.Parallel()
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-		rel := NewRelationIterator(baseRel)
+		rel := NewDatastoreIterator(baseRel)
 		result, changed, err := optimizer.Optimize(rel)
 		require.NoError(t, err)
 		require.False(t, changed)
@@ -416,7 +416,7 @@ func TestStatisticsOptimizer_Idempotence(t *testing.T) {
 		sub2 := NewFixedIterator(MustPathFromString("document:doc2#viewer@user:bob"))
 		sub3 := NewFixedIterator(MustPathFromString("document:doc3#viewer@user:charlie"))
 
-		union := NewUnion(sub1, sub2, sub3)
+		union := NewUnionIterator(sub1, sub2, sub3)
 
 		// First optimization
 		result1, changed1, err := optimizer.Optimize(union)

@@ -15,7 +15,7 @@ func TestRecursiveIterator_ID(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	sentinel := NewRecursiveSentinel("folder", "view", false)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 	recursive := NewRecursiveIterator(sentinel, "folder", "view")
 
 	id := recursive.ID()
@@ -32,12 +32,12 @@ func TestReplaceRecursiveSentinel_NonMatchingSentinel(t *testing.T) {
 	require := require.New(t)
 
 	// Create sentinels with different definitions/relations
-	matchingSentinel := NewRecursiveSentinel("folder", "view", false)
-	nonMatchingSentinel1 := NewRecursiveSentinel("document", "view", false) // Different definition
-	nonMatchingSentinel2 := NewRecursiveSentinel("folder", "read", false)   // Different relation
+	matchingSentinel := NewRecursiveSentinelIterator("folder", "view", false)
+	nonMatchingSentinel1 := NewRecursiveSentinelIterator("document", "view", false) // Different definition
+	nonMatchingSentinel2 := NewRecursiveSentinelIterator("folder", "read", false)   // Different relation
 
 	// Create a tree with both matching and non-matching sentinels
-	union := NewUnion()
+	union := NewUnionIterator()
 	union.addSubIterator(matchingSentinel)
 	union.addSubIterator(nonMatchingSentinel1)
 	union.addSubIterator(nonMatchingSentinel2)
@@ -49,7 +49,7 @@ func TestReplaceRecursiveSentinel_NonMatchingSentinel(t *testing.T) {
 	result, err := recursive.replaceRecursiveSentinel(union, replacement)
 	require.NoError(err)
 
-	resultUnion := result.(*Union)
+	resultUnion := result.(*UnionIterator)
 	require.Len(resultUnion.subIts, 3)
 
 	// First should be replaced (matching sentinel)
@@ -57,12 +57,12 @@ func TestReplaceRecursiveSentinel_NonMatchingSentinel(t *testing.T) {
 	require.True(isFixed, "Matching sentinel should be replaced")
 
 	// Second should NOT be replaced (different definition)
-	sentinel1, isSentinel := resultUnion.subIts[1].(*RecursiveSentinel)
+	sentinel1, isSentinel := resultUnion.subIts[1].(*RecursiveSentinelIterator)
 	require.True(isSentinel, "Non-matching sentinel (different definition) should not be replaced")
 	require.Equal("document", sentinel1.DefinitionName())
 
 	// Third should NOT be replaced (different relation)
-	sentinel2, isSentinel := resultUnion.subIts[2].(*RecursiveSentinel)
+	sentinel2, isSentinel := resultUnion.subIts[2].(*RecursiveSentinelIterator)
 	require.True(isSentinel, "Non-matching sentinel (different relation) should not be replaced")
 	require.Equal("read", sentinel2.RelationName())
 }
@@ -72,15 +72,15 @@ func TestReplaceRecursiveSentinel_DeepNesting(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	sentinel := NewRecursiveSentinel("folder", "view", false)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 
 	// Create deeply nested tree: Union -> Arrow -> Union -> Sentinel
-	innerUnion := NewUnion()
+	innerUnion := NewUnionIterator()
 	innerUnion.addSubIterator(sentinel)
 
-	arrow := NewArrow(NewEmptyFixedIterator(), innerUnion)
+	arrow := NewArrowIterator(NewEmptyFixedIterator(), innerUnion)
 
-	outerUnion := NewUnion()
+	outerUnion := NewUnionIterator()
 	outerUnion.addSubIterator(arrow)
 
 	recursive := NewRecursiveIterator(outerUnion, "folder", "view")
@@ -90,9 +90,9 @@ func TestReplaceRecursiveSentinel_DeepNesting(t *testing.T) {
 	require.NoError(err)
 
 	// Verify deep replacement occurred
-	resultOuterUnion := result.(*Union)
-	resultArrow := resultOuterUnion.subIts[0].(*Arrow)
-	resultInnerUnion := resultArrow.right.(*Union)
+	resultOuterUnion := result.(*UnionIterator)
+	resultArrow := resultOuterUnion.subIts[0].(*ArrowIterator)
+	resultInnerUnion := resultArrow.right.(*UnionIterator)
 	_, isFixed := resultInnerUnion.subIts[0].(*FixedIterator)
 	require.True(isFixed, "Deeply nested sentinel should be replaced")
 }
@@ -108,8 +108,8 @@ func TestBreadthFirstIterResources_MaxDepth(t *testing.T) {
 		counter:      0,
 	}
 
-	sentinel := NewRecursiveSentinel("folder", "parent", false)
-	union := NewUnion(infiniteIter, sentinel)
+	sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
+	union := NewUnionIterator(infiniteIter, sentinel)
 	recursive := NewRecursiveIterator(union, "folder", "parent")
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -141,8 +141,8 @@ func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
 
 		// Create a faulty iterator that fails during query
 		faultyIter := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
-		sentinel := NewRecursiveSentinel("folder", "parent", false)
-		union := NewUnion(faultyIter, sentinel)
+		sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
+		union := NewUnionIterator(faultyIter, sentinel)
 		recursive := NewRecursiveIterator(union, "folder", "parent")
 
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -166,8 +166,8 @@ func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
 
 		// Create a faulty iterator that fails during collection
 		faultyIter := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
-		sentinel := NewRecursiveSentinel("folder", "parent", false)
-		union := NewUnion(faultyIter, sentinel)
+		sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
+		union := NewUnionIterator(faultyIter, sentinel)
 		recursive := NewRecursiveIterator(union, "folder", "parent")
 
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -200,8 +200,8 @@ func TestBreadthFirstIterResources_MergeOrSemantics(t *testing.T) {
 	}
 
 	iter := NewFixedIterator(path1)
-	sentinel := NewRecursiveSentinel("folder", "parent", false)
-	union := NewUnion(iter, sentinel)
+	sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
+	union := NewUnionIterator(iter, sentinel)
 	recursive := NewRecursiveIterator(union, "folder", "parent")
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -255,11 +255,11 @@ func TestUnwrapRecursiveIterators_NestedRecursion(t *testing.T) {
 	require := require.New(t)
 
 	// Create nested recursive iterators
-	innerSentinel := NewRecursiveSentinel("document", "parent", false)
+	innerSentinel := NewRecursiveSentinelIterator("document", "parent", false)
 	innerRecursive := NewRecursiveIterator(innerSentinel, "document", "parent")
 
-	outerSentinel := NewRecursiveSentinel("folder", "parent", false)
-	union := NewUnion(outerSentinel, innerRecursive)
+	outerSentinel := NewRecursiveSentinelIterator("folder", "parent", false)
+	union := NewUnionIterator(outerSentinel, innerRecursive)
 	outerRecursive := NewRecursiveIterator(union, "folder", "parent")
 
 	// Unwrap at depth 0
@@ -268,7 +268,7 @@ func TestUnwrapRecursiveIterators_NestedRecursion(t *testing.T) {
 	require.NotNil(unwrapped)
 
 	// The outer RecursiveIterator should be unwrapped to a Union
-	_, isUnion := unwrapped.(*Union)
+	_, isUnion := unwrapped.(*UnionIterator)
 	require.True(isUnion, "Outer recursive should unwrap to union")
 }
 

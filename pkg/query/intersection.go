@@ -6,32 +6,32 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
 
-// Intersection the set of paths that are in all of underlying subiterators.
+// IntersectionIterator the set of paths that are in all of underlying subiterators.
 // This is equivalent to `permission foo = bar & baz`
-type Intersection struct {
+type IntersectionIterator struct {
 	id     string
 	subIts []Iterator
 }
 
-var _ Iterator = &Intersection{}
+var _ Iterator = &IntersectionIterator{}
 
-func NewIntersection(subiterators ...Iterator) *Intersection {
+func NewIntersectionIterator(subiterators ...Iterator) *IntersectionIterator {
 	if len(subiterators) == 0 {
-		return &Intersection{
+		return &IntersectionIterator{
 			id: uuid.NewString(),
 		}
 	}
-	return &Intersection{
+	return &IntersectionIterator{
 		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
 }
 
-func (i *Intersection) addSubIterator(subIt Iterator) {
+func (i *IntersectionIterator) addSubIterator(subIt Iterator) {
 	i.subIts = append(i.subIts, subIt)
 }
 
-func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (i *IntersectionIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	validResources := resources
 
 	// Track paths by resource key for combining with AND logic
@@ -131,7 +131,7 @@ func (i *Intersection) CheckImpl(ctx *Context, resources []Object, subject Objec
 	}, nil
 }
 
-func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (i *IntersectionIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(i, "iterating subjects for resource %s:%s from %d sub-iterators", resource.ObjectType, resource.ObjectID, len(i.subIts))
 
 	// Track paths by subject key for combining with AND logic
@@ -220,7 +220,7 @@ func (i *Intersection) IterSubjectsImpl(ctx *Context, resource Object, filterSub
 	}, nil
 }
 
-func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (i *IntersectionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(i, "iterating resources for subject %s:%s from %d sub-iterators", subject.ObjectType, subject.ObjectID, len(i.subIts))
 
 	// Track paths by resource key for combining with AND logic
@@ -328,8 +328,8 @@ func (i *Intersection) IterResourcesImpl(ctx *Context, subject ObjectAndRelation
 	}, nil
 }
 
-func (i *Intersection) Clone() Iterator {
-	cloned := &Intersection{
+func (i *IntersectionIterator) Clone() Iterator {
+	cloned := &IntersectionIterator{
 		id:     uuid.NewString(),
 		subIts: make([]Iterator, len(i.subIts)),
 	}
@@ -339,7 +339,7 @@ func (i *Intersection) Clone() Iterator {
 	return cloned
 }
 
-func (i *Intersection) Explain() Explain {
+func (i *IntersectionIterator) Explain() Explain {
 	subs := make([]Explain, len(i.subIts))
 	for i, it := range i.subIts {
 		subs[i] = it.Explain()
@@ -351,19 +351,19 @@ func (i *Intersection) Explain() Explain {
 	}
 }
 
-func (i *Intersection) Subiterators() []Iterator {
+func (i *IntersectionIterator) Subiterators() []Iterator {
 	return i.subIts
 }
 
-func (i *Intersection) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Intersection{id: uuid.NewString(), subIts: newSubs}, nil
+func (i *IntersectionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &IntersectionIterator{id: uuid.NewString(), subIts: newSubs}, nil
 }
 
-func (i *Intersection) ID() string {
+func (i *IntersectionIterator) ID() string {
 	return i.id
 }
 
-func (i *Intersection) ResourceType() ([]ObjectType, error) {
+func (i *IntersectionIterator) ResourceType() ([]ObjectType, error) {
 	if len(i.subIts) == 0 {
 		return []ObjectType{}, nil
 	}
@@ -396,6 +396,6 @@ func (i *Intersection) ResourceType() ([]ObjectType, error) {
 	return result.AsSlice(), nil
 }
 
-func (i *Intersection) SubjectTypes() ([]ObjectType, error) {
+func (i *IntersectionIterator) SubjectTypes() ([]ObjectType, error) {
 	return collectAndDeduplicateSubjectTypes(i.subIts)
 }

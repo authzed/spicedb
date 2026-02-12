@@ -32,10 +32,10 @@ func TestCheck(t *testing.T) {
 	// In this case, it's a little contrived.
 	docDef, _ := dsSchema.GetTypeDefinition("document")
 	vandeRel, _ := docDef.GetRelation("viewer_and_editor")
-	vande := NewRelationIterator(vandeRel.BaseRelations()[0])
+	vande := NewDatastoreIterator(vandeRel.BaseRelations()[0])
 	editRel, _ := docDef.GetRelation("editor")
-	edit := NewRelationIterator(editRel.BaseRelations()[0])
-	it := NewIntersection()
+	edit := NewDatastoreIterator(editRel.BaseRelations()[0])
+	it := NewIntersectionIterator()
 	it.addSubIterator(vande)
 	it.addSubIterator(edit)
 
@@ -65,7 +65,7 @@ func TestBaseIterSubjects(t *testing.T) {
 
 	docDef, _ := dsSchema.GetTypeDefinition("document")
 	vandeRel, _ := docDef.GetRelation("viewer_and_editor")
-	vande := NewRelationIterator(vandeRel.BaseRelations()[0])
+	vande := NewDatastoreIterator(vandeRel.BaseRelations()[0])
 
 	ctx := NewLocalContext(t.Context(),
 		WithReader(ds.SnapshotReader(revision)))
@@ -94,11 +94,11 @@ func TestCheckArrow(t *testing.T) {
 	// This is effectively `permission foo = parent_folder->viewer`
 	docDef, _ := dsSchema.GetTypeDefinition("document")
 	parentRel, _ := docDef.GetRelation("parent")
-	folders := NewRelationIterator(parentRel.BaseRelations()[0])
+	folders := NewDatastoreIterator(parentRel.BaseRelations()[0])
 	folderDef, _ := dsSchema.GetTypeDefinition("folder")
 	viewRel, _ := folderDef.GetRelation("viewer")
-	view := NewRelationIterator(viewRel.BaseRelations()[0])
-	it := NewArrow(folders, view)
+	view := NewDatastoreIterator(viewRel.BaseRelations()[0])
+	it := NewArrowIterator(folders, view)
 
 	ctx := NewLocalContext(t.Context(),
 		WithReader(ds.SnapshotReader(revision)))

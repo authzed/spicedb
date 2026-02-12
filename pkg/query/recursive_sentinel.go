@@ -9,20 +9,20 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var _ Iterator = &RecursiveSentinel{}
+var _ Iterator = &RecursiveSentinelIterator{}
 
-// RecursiveSentinel is a sentinel iterator that marks recursion points during iterator tree construction.
+// RecursiveSentinelIterator is a sentinel iterator that marks recursion points during iterator tree construction.
 // It acts as a placeholder that will be replaced during execution by RecursiveIterator.
-type RecursiveSentinel struct {
+type RecursiveSentinelIterator struct {
 	id               string
 	definitionName   string
 	relationName     string
 	withSubRelations bool
 }
 
-// NewRecursiveSentinel creates a new sentinel marking a recursion point
-func NewRecursiveSentinel(definitionName, relationName string, withSubRelations bool) *RecursiveSentinel {
-	return &RecursiveSentinel{
+// NewRecursiveSentinelIterator creates a new sentinel marking a recursion point
+func NewRecursiveSentinelIterator(definitionName, relationName string, withSubRelations bool) *RecursiveSentinelIterator {
+	return &RecursiveSentinelIterator{
 		id:               uuid.NewString(),
 		definitionName:   definitionName,
 		relationName:     relationName,
@@ -31,23 +31,23 @@ func NewRecursiveSentinel(definitionName, relationName string, withSubRelations 
 }
 
 // DefinitionName returns the definition name this sentinel represents
-func (r *RecursiveSentinel) DefinitionName() string {
+func (r *RecursiveSentinelIterator) DefinitionName() string {
 	return r.definitionName
 }
 
 // RelationName returns the relation name this sentinel represents
-func (r *RecursiveSentinel) RelationName() string {
+func (r *RecursiveSentinelIterator) RelationName() string {
 	return r.relationName
 }
 
 // WithSubRelations returns whether subrelations should be included
-func (r *RecursiveSentinel) WithSubRelations() bool {
+func (r *RecursiveSentinelIterator) WithSubRelations() bool {
 	return r.withSubRelations
 }
 
 // CheckImpl returns an empty PathSeq. If collection mode is enabled, it collects
 // the queried resources to the frontier collection instead of returning paths.
-func (r *RecursiveSentinel) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Check if collection mode is enabled for this sentinel
 	if ctx.IsCollectingFrontier(r.id) {
 		// Collection mode: append resources to frontier, return empty
@@ -69,7 +69,7 @@ func (r *RecursiveSentinel) CheckImpl(ctx *Context, resources []Object, subject 
 
 // IterSubjectsImpl returns an empty PathSeq. If collection mode is enabled, it collects
 // the queried resource to the frontier collection instead of returning paths.
-func (r *RecursiveSentinel) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (r *RecursiveSentinelIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// Check if collection mode is enabled for this sentinel
 	if ctx.IsCollectingFrontier(r.id) {
 		// Collection mode: append resource to frontier, return empty
@@ -88,13 +88,13 @@ func (r *RecursiveSentinel) IterSubjectsImpl(ctx *Context, resource Object, filt
 }
 
 // IterResourcesImpl returns an empty PathSeq since sentinels don't execute during construction
-func (r *RecursiveSentinel) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (r *RecursiveSentinelIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	return EmptyPathSeq(), nil
 }
 
 // Clone returns a shallow copy of the sentinel
-func (r *RecursiveSentinel) Clone() Iterator {
-	return &RecursiveSentinel{
+func (r *RecursiveSentinelIterator) Clone() Iterator {
+	return &RecursiveSentinelIterator{
 		id:               uuid.NewString(),
 		definitionName:   r.definitionName,
 		relationName:     r.relationName,
@@ -103,33 +103,33 @@ func (r *RecursiveSentinel) Clone() Iterator {
 }
 
 // Explain returns a description of this sentinel for debugging
-func (r *RecursiveSentinel) Explain() Explain {
+func (r *RecursiveSentinelIterator) Explain() Explain {
 	return Explain{
 		Name: "RecursiveSentinel",
 		Info: fmt.Sprintf("RecursiveSentinel(%s#%s withSubRelations=%v)", r.definitionName, r.relationName, r.withSubRelations),
 	}
 }
 
-func (r *RecursiveSentinel) Subiterators() []Iterator {
+func (r *RecursiveSentinelIterator) Subiterators() []Iterator {
 	return nil
 }
 
-func (r *RecursiveSentinel) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+func (r *RecursiveSentinelIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf RecursiveSentinel's subiterators")
 }
 
-func (r *RecursiveSentinel) ID() string {
+func (r *RecursiveSentinelIterator) ID() string {
 	return r.id
 }
 
-func (r *RecursiveSentinel) ResourceType() ([]ObjectType, error) {
+func (r *RecursiveSentinelIterator) ResourceType() ([]ObjectType, error) {
 	return []ObjectType{{
 		Type:        r.definitionName,
 		Subrelation: tuple.Ellipsis,
 	}}, nil
 }
 
-func (r *RecursiveSentinel) SubjectTypes() ([]ObjectType, error) {
+func (r *RecursiveSentinelIterator) SubjectTypes() ([]ObjectType, error) {
 	// Sentinels don't know their subject types until expanded
 	// Return the recursive type as a placeholder
 	subrel := r.relationName

@@ -6,18 +6,18 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 )
 
-// Exclusion represents the set of relations that are in the mainSet but not in the excluded set.
+// ExclusionIterator represents the set of relations that are in the mainSet but not in the excluded set.
 // This is equivalent to `permission foo = bar - baz`
-type Exclusion struct {
+type ExclusionIterator struct {
 	id       string
 	mainSet  Iterator
 	excluded Iterator
 }
 
-var _ Iterator = &Exclusion{}
+var _ Iterator = &ExclusionIterator{}
 
-func NewExclusion(mainSet, excluded Iterator) *Exclusion {
-	return &Exclusion{
+func NewExclusionIterator(mainSet, excluded Iterator) *ExclusionIterator {
+	return &ExclusionIterator{
 		id:       uuid.NewString(),
 		mainSet:  mainSet,
 		excluded: excluded,
@@ -67,7 +67,7 @@ func combineExclusionCaveats(mainPath, excludedPath Path) (Path, bool) {
 	return mainPath, true
 }
 
-func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (e *ExclusionIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Get all paths from the excluded set first and build a lookup map
 	ctx.TraceStep(e, "getting paths from excluded set")
 	excludedSeq, err := ctx.Check(e.excluded, resources, subject)
@@ -135,7 +135,7 @@ func (e *Exclusion) CheckImpl(ctx *Context, resources []Object, subject ObjectAn
 	}, nil
 }
 
-func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// Get all subjects from the excluded set first and build a lookup map
 	ctx.TraceStep(e, "getting subjects from excluded set for resource %s:%s", resource.ObjectType, resource.ObjectID)
 	excludedSeq, err := ctx.IterSubjects(e.excluded, resource, filterSubjectType)
@@ -203,7 +203,7 @@ func (e *Exclusion) IterSubjectsImpl(ctx *Context, resource Object, filterSubjec
 	}, nil
 }
 
-func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// Get all resources from the excluded set first and build a lookup map
 	ctx.TraceStep(e, "getting resources from excluded set for subject %s:%s", subject.ObjectType, subject.ObjectID)
 	excludedSeq, err := ctx.IterResources(e.excluded, subject, filterResourceType)
@@ -271,15 +271,15 @@ func (e *Exclusion) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, f
 	}, nil
 }
 
-func (e *Exclusion) Clone() Iterator {
-	return &Exclusion{
+func (e *ExclusionIterator) Clone() Iterator {
+	return &ExclusionIterator{
 		id:       uuid.NewString(),
 		mainSet:  e.mainSet.Clone(),
 		excluded: e.excluded.Clone(),
 	}
 }
 
-func (e *Exclusion) Explain() Explain {
+func (e *ExclusionIterator) Explain() Explain {
 	return Explain{
 		Name: "Exclusion",
 		Info: "Exclusion",
@@ -290,24 +290,24 @@ func (e *Exclusion) Explain() Explain {
 	}
 }
 
-func (e *Exclusion) Subiterators() []Iterator {
+func (e *ExclusionIterator) Subiterators() []Iterator {
 	return []Iterator{e.mainSet, e.excluded}
 }
 
-func (e *Exclusion) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Exclusion{id: uuid.NewString(), mainSet: newSubs[0], excluded: newSubs[1]}, nil
+func (e *ExclusionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &ExclusionIterator{id: uuid.NewString(), mainSet: newSubs[0], excluded: newSubs[1]}, nil
 }
 
-func (e *Exclusion) ID() string {
+func (e *ExclusionIterator) ID() string {
 	return e.id
 }
 
-func (e *Exclusion) ResourceType() ([]ObjectType, error) {
+func (e *ExclusionIterator) ResourceType() ([]ObjectType, error) {
 	// Exclusion's resources come from the main set
 	return e.mainSet.ResourceType()
 }
 
-func (e *Exclusion) SubjectTypes() ([]ObjectType, error) {
+func (e *ExclusionIterator) SubjectTypes() ([]ObjectType, error) {
 	// Exclusion's subjects come from the main set only
 	// (excluded set is subtracted, doesn't add new types)
 	return e.mainSet.SubjectTypes()

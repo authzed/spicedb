@@ -17,7 +17,7 @@ import (
 // semantics that require caveat evaluation to happen after the intersection.
 func PushdownCaveatEvaluation(c *CaveatIterator) (Iterator, bool, error) {
 	// Don't push through IntersectionArrow
-	if _, ok := c.subiterator.(*IntersectionArrow); ok {
+	if _, ok := c.subiterator.(*IntersectionArrowIterator); ok {
 		return c, false, nil
 	}
 
@@ -62,12 +62,12 @@ func PushdownCaveatEvaluation(c *CaveatIterator) (Iterator, bool, error) {
 	return newChild, true, nil
 }
 
-// containsCaveat checks if an iterator tree contains a RelationIterator
+// containsCaveat checks if an iterator tree contains a DatastoreIterator
 // that references the given caveat.
 func containsCaveat(it Iterator, caveat *core.ContextualizedCaveat) bool {
 	found := false
 	_, err := Walk(it, func(node Iterator) (Iterator, error) {
-		if rel, ok := node.(*RelationIterator); ok {
+		if rel, ok := node.(*DatastoreIterator); ok {
 			if relationContainsCaveat(rel, caveat) {
 				found = true
 			}
@@ -81,9 +81,9 @@ func containsCaveat(it Iterator, caveat *core.ContextualizedCaveat) bool {
 	return found
 }
 
-// relationContainsCaveat checks if a RelationIterator's base relation
+// relationContainsCaveat checks if a DatastoreIterator's base relation
 // has a caveat that matches the given caveat name.
-func relationContainsCaveat(rel *RelationIterator, caveat *core.ContextualizedCaveat) bool {
+func relationContainsCaveat(rel *DatastoreIterator, caveat *core.ContextualizedCaveat) bool {
 	if rel.base == nil || caveat == nil {
 		return false
 	}

@@ -21,7 +21,7 @@ func TestIntersectionIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create an intersection where both iterators have matching data
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		// Both iterators should have alice with access to doc1
 		documentAccess := NewDocumentAccessFixedIterator()
@@ -51,7 +51,7 @@ func TestIntersectionIterator(t *testing.T) {
 		t.Parallel()
 
 		// Create an intersection with contradictory requirements
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		// Use iterators that don't have overlapping data
 		documentAccess := NewDocumentAccessFixedIterator()
@@ -74,7 +74,7 @@ func TestIntersectionIterator(t *testing.T) {
 	t.Run("Check_NoSubIterators", func(t *testing.T) {
 		t.Parallel()
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		// Empty intersection should return empty results
 		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
@@ -91,7 +91,7 @@ func TestIntersectionIterator(t *testing.T) {
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
 		t.Parallel()
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect.addSubIterator(documentAccess)
@@ -107,7 +107,7 @@ func TestIntersectionIterator(t *testing.T) {
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
 		t.Parallel()
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect.addSubIterator(documentAccess)
@@ -127,7 +127,7 @@ func TestIntersectionIterator(t *testing.T) {
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
 		t.Parallel()
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
@@ -148,7 +148,7 @@ func TestIntersectionIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
@@ -170,7 +170,7 @@ func TestIntersectionIterator(t *testing.T) {
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
@@ -198,7 +198,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Create test context
 	ctx := NewLocalContext(t.Context())
 
-	original := NewIntersection()
+	original := NewIntersectionIterator()
 
 	documentAccess := NewDocumentAccessFixedIterator()
 	multiRole := NewMultiRoleFixedIterator()
@@ -259,7 +259,7 @@ func TestIntersectionIteratorExplain(t *testing.T) {
 	t.Run("EmptyIntersection", func(t *testing.T) {
 		t.Parallel()
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		explain := intersect.Explain()
 		require.Equal("Intersection", explain.Info)
 		require.Empty(explain.SubExplain, "empty intersection should have no sub-explains")
@@ -271,7 +271,7 @@ func TestIntersectionIteratorExplain(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(documentAccess)
 		intersect.addSubIterator(multiRole)
 
@@ -295,7 +295,7 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 
 	// Create an intersection where the first iterator returns no results
 	// This should cause early termination
-	intersect := NewIntersection()
+	intersect := NewIntersectionIterator()
 
 	// First, add an iterator that will return no results for the given subject
 	emptyIterator := NewEmptyFixedIterator()
@@ -351,7 +351,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		iter1 := NewFixedIterator(pathWithCaveat1)
 		iter2 := NewFixedIterator(pathWithCaveat2)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
@@ -387,7 +387,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		iter1 := NewFixedIterator(pathWithCaveat)
 		iter2 := NewFixedIterator(pathNoCaveat)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
@@ -428,7 +428,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		iter1 := NewFixedIterator(pathViewer, pathEditor)
 		iter2 := NewFixedIterator(pathViewer, pathEditor)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
@@ -476,7 +476,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		iter1 := NewFixedIterator(pathDoc1Alice)
 		iter2 := NewFixedIterator(pathDoc2Bob)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
@@ -517,7 +517,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		iter2 := NewFixedIterator(pathNoCaveat)
 		iter3 := NewFixedIterator(pathCaveat2)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 		intersect.addSubIterator(iter3)
@@ -557,7 +557,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		intersect := NewIntersection(iter1, iter2)
+		intersect := NewIntersectionIterator(iter1, iter2)
 
 		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -579,7 +579,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		intersect := NewIntersection(iter1, iter2)
+		intersect := NewIntersectionIterator(iter1, iter2)
 
 		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -598,7 +598,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator()
 
-		intersect := NewIntersection(iter1, iter2)
+		intersect := NewIntersectionIterator(iter1, iter2)
 
 		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -621,7 +621,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		iter2 := NewFixedIterator(path2)
 		iter3 := NewFixedIterator(path3)
 
-		intersect := NewIntersection(iter1, iter2, iter3)
+		intersect := NewIntersectionIterator(iter1, iter2, iter3)
 
 		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -658,7 +658,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		intersect := NewIntersection(iter1, iter2)
+		intersect := NewIntersectionIterator(iter1, iter2)
 
 		pathSeq, err := ctx.IterSubjects(intersect, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -686,7 +686,7 @@ func TestIntersection_Types(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
@@ -700,7 +700,7 @@ func TestIntersection_Types(t *testing.T) {
 		t.Parallel()
 		require := require.New(t)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		resourceType, err := intersect.ResourceType()
 		require.NoError(err)
@@ -717,7 +717,7 @@ func TestIntersection_Types(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
@@ -738,7 +738,7 @@ func TestIntersection_Types(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 
@@ -752,7 +752,7 @@ func TestIntersection_Types(t *testing.T) {
 		t.Parallel()
 		require := require.New(t)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 
 		subjectTypes, err := intersect.SubjectTypes()
 		require.NoError(err)
@@ -769,7 +769,7 @@ func TestIntersection_Types(t *testing.T) {
 		iter1 := NewFixedIterator(path1)
 		iter2 := NewFixedIterator(path2)
 
-		intersect := NewIntersection()
+		intersect := NewIntersectionIterator()
 		intersect.addSubIterator(iter1)
 		intersect.addSubIterator(iter2)
 

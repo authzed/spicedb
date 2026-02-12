@@ -31,7 +31,7 @@ func TestArrowIterator(t *testing.T) {
 	// Right side: folder viewer relationships (same as left for folder access)
 	rightRels := NewFolderHierarchyFixedIterator()
 
-	arrow := NewArrow(leftRels, rightRels)
+	arrow := NewArrowIterator(leftRels, rightRels)
 
 	t.Run("Check", func(t *testing.T) {
 		t.Parallel()
@@ -171,7 +171,7 @@ func TestArrowIteratorClone(t *testing.T) {
 	// Create test iterators using fixed helpers
 	leftRels := NewFolderHierarchyFixedIterator()
 	rightRels := NewDocumentAccessFixedIterator()
-	original := NewArrow(leftRels, rightRels)
+	original := NewArrowIterator(leftRels, rightRels)
 
 	cloned := original.Clone()
 	require.NotSame(original, cloned, "cloned iterator should be a different object")
@@ -211,7 +211,7 @@ func TestArrowIteratorExplain(t *testing.T) {
 	require := require.New(t)
 	leftRels := NewFolderHierarchyFixedIterator()
 	rightRels := NewDocumentAccessFixedIterator()
-	arrow := NewArrow(leftRels, rightRels)
+	arrow := NewArrowIterator(leftRels, rightRels)
 
 	explain := arrow.Explain()
 	require.Equal("Arrow(LTR)", explain.Info)
@@ -230,7 +230,7 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	leftRels := NewFolderHierarchyFixedIterator()  // Documents -> Folders
 	rightRels := NewFolderHierarchyFixedIterator() // Folders -> Users (alice has access to project1)
 
-	arrow := NewArrow(leftRels, rightRels)
+	arrow := NewArrowIterator(leftRels, rightRels)
 
 	// Create context with LocalExecutor
 	ctx := NewLocalContext(t.Context())
@@ -290,7 +290,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -325,7 +325,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -357,7 +357,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -382,7 +382,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -431,7 +431,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1, leftPath2)
 		rightIter := NewFixedIterator(rightPath1, rightPath2)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -474,7 +474,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -507,7 +507,7 @@ func TestArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -532,7 +532,7 @@ func TestArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath1, rightPath2)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -558,7 +558,7 @@ func TestArrowIterSubjects(t *testing.T) {
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -577,7 +577,7 @@ func TestArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator()
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -614,7 +614,7 @@ func TestArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(arrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -643,7 +643,7 @@ func TestArrowIteratorBidirectional(t *testing.T) {
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 		arrow.direction = direction // Set the direction explicitly
 
 		// Create context
@@ -676,7 +676,7 @@ func TestArrowIteratorBidirectional(t *testing.T) {
 		rightPath := MustPathFromString("folder:folder2#viewer@user:alice")
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 		arrow.direction = direction
 
 		ctx := &Context{
@@ -709,7 +709,7 @@ func TestArrow_Types(t *testing.T) {
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		resourceType, err := arrow.ResourceType()
 		require.NoError(err)
@@ -728,7 +728,7 @@ func TestArrow_Types(t *testing.T) {
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightIter := NewFixedIterator(rightPath)
 
-		arrow := NewArrow(leftIter, rightIter)
+		arrow := NewArrowIterator(leftIter, rightIter)
 
 		subjectTypes, err := arrow.SubjectTypes()
 		require.NoError(err)

@@ -17,17 +17,17 @@ func createTestCaveatForPushdown(name string) *core.ContextualizedCaveat {
 	}
 }
 
-// createTestRelationIterator creates a RelationIterator with a caveat
-func createTestRelationIterator(caveatName string) *RelationIterator {
+// createTestDatastoreIterator creates a DatastoreIterator with a caveat
+func createTestDatastoreIterator(caveatName string) *DatastoreIterator {
 	// Create a BaseRelation with the caveat
 	baseRelation := schema.NewTestBaseRelationWithFeatures("document", "viewer", "user", "", caveatName, false)
-	return NewRelationIterator(baseRelation)
+	return NewDatastoreIterator(baseRelation)
 }
 
-// createTestRelationIteratorNoCaveat creates a RelationIterator without a caveat
-func createTestRelationIteratorNoCaveat() *RelationIterator {
+// createTestDatastoreIteratorNoCaveat creates a DatastoreIterator without a caveat
+func createTestDatastoreIteratorNoCaveat() *DatastoreIterator {
 	baseRelation := schema.NewTestBaseRelationWithFeatures("document", "viewer", "user", "", "", false)
-	return NewRelationIterator(baseRelation)
+	return NewDatastoreIterator(baseRelation)
 }
 
 func TestPushdownCaveatEvaluation(t *testing.T) {
@@ -39,9 +39,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(with caveat), Relation(with caveat)]
-		rel1 := createTestRelationIterator("test_caveat")
-		rel2 := createTestRelationIterator("test_caveat")
-		union := NewUnion(rel1, rel2)
+		rel1 := createTestDatastoreIterator("test_caveat")
+		rel2 := createTestDatastoreIterator("test_caveat")
+		union := NewUnionIterator(rel1, rel2)
 
 		// Wrap in caveat: Caveat(Union[Rel1, Rel2])
 		caveatIterator := NewCaveatIterator(union, caveat)
@@ -54,8 +54,8 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.True(t, changed)
 
 		// Should become Union[Caveat(Rel1), Caveat(Rel2)]
-		require.IsType(t, &Union{}, result, "Expected result to be a Union")
-		resultUnion := result.(*Union)
+		require.IsType(t, &UnionIterator{}, result, "Expected result to be a Union")
+		resultUnion := result.(*UnionIterator)
 		require.Len(t, resultUnion.subIts, 2)
 
 		// Both should be wrapped in caveats
@@ -69,9 +69,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(with caveat), Relation(no caveat)]
-		rel1 := createTestRelationIterator("test_caveat")
-		rel2 := createTestRelationIteratorNoCaveat()
-		union := NewUnion(rel1, rel2)
+		rel1 := createTestDatastoreIterator("test_caveat")
+		rel2 := createTestDatastoreIteratorNoCaveat()
+		union := NewUnionIterator(rel1, rel2)
 
 		// Wrap in caveat: Caveat(Union[Rel1, Rel2])
 		caveatIterator := NewCaveatIterator(union, caveat)
@@ -84,19 +84,19 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.True(t, changed)
 
 		// Should become Union[Caveat(Rel1), Rel2]
-		require.IsType(t, &Union{}, result, "Expected result to be a Union")
-		resultUnion := result.(*Union)
+		require.IsType(t, &UnionIterator{}, result, "Expected result to be a Union")
+		resultUnion := result.(*UnionIterator)
 		require.Len(t, resultUnion.subIts, 2)
 
 		// First should be wrapped, second should not
 		require.IsType(t, &CaveatIterator{}, resultUnion.subIts[0], "First subiterator should be a CaveatIterator")
-		require.IsType(t, &RelationIterator{}, resultUnion.subIts[1], "Second subiterator should be a RelationIterator (not wrapped)")
+		require.IsType(t, &DatastoreIterator{}, resultUnion.subIts[1], "Second subiterator should be a DatastoreIterator (not wrapped)")
 
 		// Verify the caveat wraps the correct relation
 		caveat1 := resultUnion.subIts[0].(*CaveatIterator)
-		rel2Result := resultUnion.subIts[1].(*RelationIterator)
-		require.IsType(t, &RelationIterator{}, caveat1.subiterator)
-		caveat1Sub := caveat1.subiterator.(*RelationIterator)
+		rel2Result := resultUnion.subIts[1].(*DatastoreIterator)
+		require.IsType(t, &DatastoreIterator{}, caveat1.subiterator)
+		caveat1Sub := caveat1.subiterator.(*DatastoreIterator)
 		require.Equal(t, rel1, caveat1Sub)
 		require.Equal(t, rel2, rel2Result)
 	})
@@ -107,9 +107,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create an IntersectionArrow with a relation that has the caveat
-		rel := createTestRelationIterator("test_caveat")
-		relNoCaveat := createTestRelationIteratorNoCaveat()
-		intersectionArrow := NewIntersectionArrow(rel, relNoCaveat)
+		rel := createTestDatastoreIterator("test_caveat")
+		relNoCaveat := createTestDatastoreIteratorNoCaveat()
+		intersectionArrow := NewIntersectionArrowIterator(rel, relNoCaveat)
 
 		// Wrap in caveat
 		caveatIterator := NewCaveatIterator(intersectionArrow, caveat)
@@ -124,7 +124,7 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		// Should remain as Caveat(IntersectionArrow)
 		require.IsType(t, &CaveatIterator{}, result, "Expected result to still be a CaveatIterator")
 		resultCaveat := result.(*CaveatIterator)
-		require.IsType(t, &IntersectionArrow{}, resultCaveat.subiterator, "Subiterator should still be IntersectionArrow")
+		require.IsType(t, &IntersectionArrowIterator{}, resultCaveat.subiterator, "Subiterator should still be IntersectionArrow")
 	})
 
 	t.Run("does not push when no subiterators have caveat", func(t *testing.T) {
@@ -133,9 +133,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(no caveat), Relation(no caveat)]
-		rel1 := createTestRelationIteratorNoCaveat()
-		rel2 := createTestRelationIteratorNoCaveat()
-		union := NewUnion(rel1, rel2)
+		rel1 := createTestDatastoreIteratorNoCaveat()
+		rel2 := createTestDatastoreIteratorNoCaveat()
+		union := NewUnionIterator(rel1, rel2)
 
 		// Wrap in caveat: Caveat(Union[Rel1, Rel2])
 		caveatIterator := NewCaveatIterator(union, caveat)
@@ -159,7 +159,7 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Relation) - leaf has no subiterators
-		rel := createTestRelationIterator("test_caveat")
+		rel := createTestDatastoreIterator("test_caveat")
 		caveatIterator := NewCaveatIterator(rel, caveat)
 
 		// Apply optimization
@@ -181,12 +181,12 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Union[Union[Rel1, Rel2], Rel3])
-		rel1 := createTestRelationIterator("test_caveat")
-		rel2 := createTestRelationIteratorNoCaveat()
-		innerUnion := NewUnion(rel1, rel2)
+		rel1 := createTestDatastoreIterator("test_caveat")
+		rel2 := createTestDatastoreIteratorNoCaveat()
+		innerUnion := NewUnionIterator(rel1, rel2)
 
-		rel3 := createTestRelationIterator("test_caveat")
-		outerUnion := NewUnion(innerUnion, rel3)
+		rel3 := createTestDatastoreIterator("test_caveat")
+		outerUnion := NewUnionIterator(innerUnion, rel3)
 
 		caveatIterator := NewCaveatIterator(outerUnion, caveat)
 
@@ -201,21 +201,21 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		// Union[Union[Caveat(Rel1), Rel2], Caveat(Rel3)]
 		// The outer caveat pushes down to wrap innerUnion and rel3
 		// Then the caveat on innerUnion recursively pushes down to only wrap rel1
-		require.IsType(t, &Union{}, result)
-		resultUnion := result.(*Union)
+		require.IsType(t, &UnionIterator{}, result)
+		resultUnion := result.(*UnionIterator)
 		require.Len(t, resultUnion.subIts, 2)
 
 		// First should be Union[Caveat(Rel1), Rel2] (caveat pushed down further)
-		require.IsType(t, &Union{}, resultUnion.subIts[0], "First subiterator should be a Union (caveat pushed down)")
-		innerResultUnion := resultUnion.subIts[0].(*Union)
+		require.IsType(t, &UnionIterator{}, resultUnion.subIts[0], "First subiterator should be a Union (caveat pushed down)")
+		innerResultUnion := resultUnion.subIts[0].(*UnionIterator)
 		require.Len(t, innerResultUnion.subIts, 2)
 		require.IsType(t, &CaveatIterator{}, innerResultUnion.subIts[0], "First element of inner union should be Caveat(Rel1)")
-		require.IsType(t, &RelationIterator{}, innerResultUnion.subIts[1], "Second element of inner union should be Rel2 (no caveat)")
+		require.IsType(t, &DatastoreIterator{}, innerResultUnion.subIts[1], "Second element of inner union should be Rel2 (no caveat)")
 
 		// Second should be Caveat(Rel3)
 		require.IsType(t, &CaveatIterator{}, resultUnion.subIts[1])
 		caveat2 := resultUnion.subIts[1].(*CaveatIterator)
-		require.IsType(t, &RelationIterator{}, caveat2.subiterator, "Second subiterator should be Caveat(Relation)")
+		require.IsType(t, &DatastoreIterator{}, caveat2.subiterator, "Second subiterator should be Caveat(Relation)")
 	})
 
 	t.Run("works with intersection of relations", func(t *testing.T) {
@@ -224,9 +224,9 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Intersection[Rel1(with caveat), Rel2(no caveat)])
-		rel1 := createTestRelationIterator("test_caveat")
-		rel2 := createTestRelationIteratorNoCaveat()
-		intersection := NewIntersection(rel1, rel2)
+		rel1 := createTestDatastoreIterator("test_caveat")
+		rel2 := createTestDatastoreIteratorNoCaveat()
+		intersection := NewIntersectionIterator(rel1, rel2)
 
 		caveatIterator := NewCaveatIterator(intersection, caveat)
 
@@ -238,13 +238,13 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 		require.True(t, changed)
 
 		// Should become Intersection[Caveat(Rel1), Rel2]
-		require.IsType(t, &Intersection{}, result)
-		resultIntersection := result.(*Intersection)
+		require.IsType(t, &IntersectionIterator{}, result)
+		resultIntersection := result.(*IntersectionIterator)
 		require.Len(t, resultIntersection.subIts, 2)
 
 		// First should be wrapped, second should not
 		require.IsType(t, &CaveatIterator{}, resultIntersection.subIts[0], "First subiterator should be a CaveatIterator")
-		require.IsType(t, &RelationIterator{}, resultIntersection.subIts[1], "Second subiterator should be a RelationIterator")
+		require.IsType(t, &DatastoreIterator{}, resultIntersection.subIts[1], "Second subiterator should be a DatastoreIterator")
 	})
 }
 
@@ -256,30 +256,30 @@ func TestContainsCaveat(t *testing.T) {
 	t.Run("detects caveat in relation iterator", func(t *testing.T) {
 		t.Parallel()
 
-		rel := createTestRelationIterator("test_caveat")
+		rel := createTestDatastoreIterator("test_caveat")
 		require.True(t, containsCaveat(rel, caveat))
 	})
 
 	t.Run("does not detect when caveat name differs", func(t *testing.T) {
 		t.Parallel()
 
-		rel := createTestRelationIterator("other_caveat")
+		rel := createTestDatastoreIterator("other_caveat")
 		require.False(t, containsCaveat(rel, caveat))
 	})
 
 	t.Run("does not detect when no caveat", func(t *testing.T) {
 		t.Parallel()
 
-		rel := createTestRelationIteratorNoCaveat()
+		rel := createTestDatastoreIteratorNoCaveat()
 		require.False(t, containsCaveat(rel, caveat))
 	})
 
 	t.Run("detects caveat in nested structure", func(t *testing.T) {
 		t.Parallel()
 
-		rel1 := createTestRelationIteratorNoCaveat()
-		rel2 := createTestRelationIterator("test_caveat")
-		union := NewUnion(rel1, rel2)
+		rel1 := createTestDatastoreIteratorNoCaveat()
+		rel2 := createTestDatastoreIterator("test_caveat")
+		union := NewUnionIterator(rel1, rel2)
 
 		require.True(t, containsCaveat(union, caveat))
 	})
@@ -287,9 +287,9 @@ func TestContainsCaveat(t *testing.T) {
 	t.Run("does not detect caveat in structure without it", func(t *testing.T) {
 		t.Parallel()
 
-		rel1 := createTestRelationIteratorNoCaveat()
-		rel2 := createTestRelationIteratorNoCaveat()
-		union := NewUnion(rel1, rel2)
+		rel1 := createTestDatastoreIteratorNoCaveat()
+		rel2 := createTestDatastoreIteratorNoCaveat()
+		union := NewUnionIterator(rel1, rel2)
 
 		require.False(t, containsCaveat(union, caveat))
 	})
@@ -297,7 +297,7 @@ func TestContainsCaveat(t *testing.T) {
 	t.Run("handles nil caveat in relationContainsCaveat", func(t *testing.T) {
 		t.Parallel()
 
-		rel := createTestRelationIterator("test_caveat")
+		rel := createTestDatastoreIterator("test_caveat")
 		require.False(t, relationContainsCaveat(rel, nil))
 	})
 
@@ -305,8 +305,8 @@ func TestContainsCaveat(t *testing.T) {
 		t.Parallel()
 
 		caveat := createTestCaveatForPushdown("test_caveat")
-		// Create a RelationIterator with nil base
-		rel := &RelationIterator{base: nil}
+		// Create a DatastoreIterator with nil base
+		rel := &DatastoreIterator{base: nil}
 		require.False(t, relationContainsCaveat(rel, caveat))
 	})
 }
@@ -320,7 +320,7 @@ func TestPushdownCaveatEvaluationEdgeCases(t *testing.T) {
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Caveat(Relation))
-		rel := createTestRelationIterator("test_caveat")
+		rel := createTestDatastoreIterator("test_caveat")
 		innerCaveat := NewCaveatIterator(rel, caveat)
 		outerCaveat := NewCaveatIterator(innerCaveat, caveat)
 

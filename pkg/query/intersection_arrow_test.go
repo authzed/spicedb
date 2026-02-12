@@ -30,7 +30,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1, leftPath2)
 		rightIter := NewFixedIterator(rightPath1, rightPath2)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		// Create test context
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -77,7 +77,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1, leftPath2)
 		rightIter := NewFixedIterator(rightPath1)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		// Create test context
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -117,7 +117,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1)
 		rightIter := NewFixedIterator(rightPath1)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		// Create test context
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -162,7 +162,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		rightPath1 := MustPathFromString("team:team1#member@user:alice")
 		rightIter := NewFixedIterator(rightPath1)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		// Create test context
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -205,7 +205,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
 		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		// Create test context
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -244,7 +244,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		leftIter := NewFixedIterator()
 		rightIter := NewFixedIterator()
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		// Create test context
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -313,7 +313,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -361,7 +361,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -448,7 +448,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
 		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -491,7 +491,7 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 
 	leftIter := NewFixedIterator(leftPath)
 	rightIter := NewFixedIterator(rightPath)
-	original := NewIntersectionArrow(leftIter, rightIter)
+	original := NewIntersectionArrowIterator(leftIter, rightIter)
 
 	cloned := original.Clone()
 	require.NotSame(original, cloned, "cloned iterator should be a different object")
@@ -543,7 +543,7 @@ func TestIntersectionArrowIteratorExplain(t *testing.T) {
 
 	leftIter := NewFixedIterator(leftPath)
 	rightIter := NewFixedIterator(rightPath)
-	intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+	intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 	explain := intersectionArrow.Explain()
 	require.Equal("IntersectionArrow", explain.Info)
@@ -561,7 +561,7 @@ func TestIntersectionArrowIteratorIterSubjects(t *testing.T) {
 
 	leftIter := NewFixedIterator()
 	rightIter := NewFixedIterator()
-	intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+	intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 	ctx := NewLocalContext(context.Background())
 
@@ -582,7 +582,7 @@ func TestIntersectionArrowIteratorIterResources(t *testing.T) {
 
 	leftIter := NewFixedIterator()
 	rightIter := NewFixedIterator()
-	intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+	intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 	ctx := NewLocalContext(context.Background())
 
@@ -619,7 +619,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1, leftPath2)
 		rightIter := NewFixedIterator(rightPath1, rightPath2)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -647,7 +647,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1, leftPath2)
 		rightIter := NewFixedIterator(rightPath1)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -667,7 +667,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightIter := NewFixedIterator(rightPath)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -692,7 +692,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath1, rightPath2)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -736,7 +736,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath)
 		rightIter := NewFixedIterator(rightPath)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -768,7 +768,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
 		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -797,7 +797,7 @@ func TestIntersectionArrow_Types(t *testing.T) {
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightIter := NewFixedIterator(rightPath)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		resourceType, err := intersectionArrow.ResourceType()
 		require.NoError(err)
@@ -816,7 +816,7 @@ func TestIntersectionArrow_Types(t *testing.T) {
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightIter := NewFixedIterator(rightPath)
 
-		intersectionArrow := NewIntersectionArrow(leftIter, rightIter)
+		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 		subjectTypes, err := intersectionArrow.SubjectTypes()
 		require.NoError(err)

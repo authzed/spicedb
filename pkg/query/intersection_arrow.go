@@ -8,28 +8,28 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-// IntersectionArrow is an iterator that represents the set of relations that
+// IntersectionArrowIterator is an iterator that represents the set of relations that
 // follow from a walk in the graph where ALL subjects on the left must satisfy
 // the right side condition.
 //
 // Ex: `group.all(member)` - user must be member of ALL groups
-type IntersectionArrow struct {
+type IntersectionArrowIterator struct {
 	id    string
 	left  Iterator
 	right Iterator
 }
 
-var _ Iterator = &IntersectionArrow{}
+var _ Iterator = &IntersectionArrowIterator{}
 
-func NewIntersectionArrow(left, right Iterator) *IntersectionArrow {
-	return &IntersectionArrow{
+func NewIntersectionArrowIterator(left, right Iterator) *IntersectionArrowIterator {
+	return &IntersectionArrowIterator{
 		id:    uuid.NewString(),
 		left:  left,
 		right: right,
 	}
 }
 
-func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		for _, resource := range resources {
 			ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
@@ -149,7 +149,7 @@ func (ia *IntersectionArrow) CheckImpl(ctx *Context, resources []Object, subject
 	}, nil
 }
 
-func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// IntersectionArrow: ALL left subjects must satisfy the right side
 	ctx.TraceStep(ia, "iterating subjects for resource %s:%s", resource.ObjectType, resource.ObjectID)
 
@@ -232,7 +232,7 @@ func (ia *IntersectionArrow) IterSubjectsImpl(ctx *Context, resource Object, fil
 	}, nil
 }
 
-func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (ia *IntersectionArrowIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// IntersectionArrow: ALL left subjects must satisfy the right side
 	ctx.TraceStep(ia, "iterating resources for subject %s:%s", subject.ObjectType, subject.ObjectID)
 
@@ -313,15 +313,15 @@ func (ia *IntersectionArrow) IterResourcesImpl(ctx *Context, subject ObjectAndRe
 	}, nil
 }
 
-func (ia *IntersectionArrow) Clone() Iterator {
-	return &IntersectionArrow{
+func (ia *IntersectionArrowIterator) Clone() Iterator {
+	return &IntersectionArrowIterator{
 		id:    uuid.NewString(),
 		left:  ia.left.Clone(),
 		right: ia.right.Clone(),
 	}
 }
 
-func (ia *IntersectionArrow) Explain() Explain {
+func (ia *IntersectionArrowIterator) Explain() Explain {
 	return Explain{
 		Name:       "IntersectionArrow",
 		Info:       "IntersectionArrow",
@@ -329,24 +329,24 @@ func (ia *IntersectionArrow) Explain() Explain {
 	}
 }
 
-func (ia *IntersectionArrow) Subiterators() []Iterator {
+func (ia *IntersectionArrowIterator) Subiterators() []Iterator {
 	return []Iterator{ia.left, ia.right}
 }
 
-func (ia *IntersectionArrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &IntersectionArrow{id: uuid.NewString(), left: newSubs[0], right: newSubs[1]}, nil
+func (ia *IntersectionArrowIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &IntersectionArrowIterator{id: uuid.NewString(), left: newSubs[0], right: newSubs[1]}, nil
 }
 
-func (ia *IntersectionArrow) ID() string {
+func (ia *IntersectionArrowIterator) ID() string {
 	return ia.id
 }
 
-func (ia *IntersectionArrow) ResourceType() ([]ObjectType, error) {
+func (ia *IntersectionArrowIterator) ResourceType() ([]ObjectType, error) {
 	// IntersectionArrow's resources come from the left side
 	return ia.left.ResourceType()
 }
 
-func (ia *IntersectionArrow) SubjectTypes() ([]ObjectType, error) {
+func (ia *IntersectionArrowIterator) SubjectTypes() ([]ObjectType, error) {
 	// IntersectionArrow's subjects come from the right side
 	return ia.right.SubjectTypes()
 }

@@ -69,7 +69,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 	t.Run("NonWildcardBranch", func(t *testing.T) {
 		t.Parallel()
 		// The non-wildcard branch should only return concrete subjects, filtering out wildcards
-		nonWildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
+		nonWildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
 		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "first"), NoObjectFilter())
@@ -88,7 +88,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 	t.Run("WildcardBranch", func(t *testing.T) {
 		t.Parallel()
 		// The wildcard branch should enumerate concrete subjects when a wildcard exists
-		wildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
+		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "first"), NoObjectFilter())
@@ -107,9 +107,9 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 	t.Run("UnionDeduplication", func(t *testing.T) {
 		t.Parallel()
 		// The Union of both branches should deduplicate the concrete user
-		union := NewUnion()
-		union.addSubIterator(NewRelationIterator(viewerRel.BaseRelations()[0])) // user
-		union.addSubIterator(NewRelationIterator(viewerRel.BaseRelations()[1])) // user:*
+		union := NewUnionIterator()
+		union.addSubIterator(NewDatastoreIterator(viewerRel.BaseRelations()[0])) // user
+		union.addSubIterator(NewDatastoreIterator(viewerRel.BaseRelations()[1])) // user:*
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
 		subjects, err := queryCtx.IterSubjects(union, NewObject("resource", "first"), NoObjectFilter())
@@ -176,7 +176,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 	t.Run("WildcardBranchWithoutWildcard", func(t *testing.T) {
 		t.Parallel()
 		// The wildcard branch should return empty because there's no wildcard relationship
-		wildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
+		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "second"), NoObjectFilter())
@@ -192,7 +192,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 	// Test the non-wildcard branch still works
 	t.Run("NonWildcardBranchWorksNormally", func(t *testing.T) {
 		t.Parallel()
-		nonWildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
+		nonWildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
 		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "second"), NoObjectFilter())

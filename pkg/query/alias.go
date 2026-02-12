@@ -7,20 +7,20 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
-// Alias is an iterator that rewrites the Resource's Relation field of all paths
+// AliasIterator is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
-type Alias struct {
+type AliasIterator struct {
 	id       string
 	relation string
 	subIt    Iterator
 }
 
-var _ Iterator = &Alias{}
+var _ Iterator = &AliasIterator{}
 
-// NewAlias creates a new Alias iterator that rewrites paths from the sub-iterator
+// NewAliasIterator creates a new Alias iterator that rewrites paths from the sub-iterator
 // to use the specified relation name.
-func NewAlias(relation string, subIt Iterator) *Alias {
-	return &Alias{
+func NewAliasIterator(relation string, subIt Iterator) *AliasIterator {
+	return &AliasIterator{
 		id:       uuid.NewString(),
 		relation: relation,
 		subIt:    subIt,
@@ -29,7 +29,7 @@ func NewAlias(relation string, subIt Iterator) *Alias {
 
 // maybePrependSelfEdge checks if a self-edge should be added and combines it with the given sequence.
 // A self-edge is added when the resource with the alias relation matches the subject.
-func (a *Alias) maybePrependSelfEdge(resource Object, subSeq PathSeq, shouldAddSelfEdge bool) PathSeq {
+func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, shouldAddSelfEdge bool) PathSeq {
 	if !shouldAddSelfEdge {
 		// No self-edge, just rewrite paths from sub-iterator
 		return func(yield func(Path, error) bool) {
@@ -84,7 +84,7 @@ func (a *Alias) maybePrependSelfEdge(resource Object, subSeq PathSeq, shouldAddS
 	return DeduplicatePathSeq(combined)
 }
 
-func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (a *AliasIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Get relations from sub-iterator
 	subSeq, err := ctx.Check(a.subIt, resources, subject)
 	if err != nil {
@@ -105,7 +105,7 @@ func (a *Alias) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	return DeduplicatePathSeq(a.maybePrependSelfEdge(Object{}, subSeq, false)), nil
 }
 
-func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (a *AliasIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	subSeq, err := ctx.IterSubjects(a.subIt, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (a *Alias) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectTyp
 // This matches the dispatcher's identity check behavior: if resource#relation appears as
 // a subject anywhere in the datastore (expired or not), and the filter allows it, we
 // include a self-edge in the results.
-func (a *Alias) shouldIncludeSelfEdge(ctx *Context, resource Object, filterSubjectType ObjectType) bool {
+func (a *AliasIterator) shouldIncludeSelfEdge(ctx *Context, resource Object, filterSubjectType ObjectType) bool {
 	// First check: does the filter allow this resource type as a subject?
 	typeMatches := filterSubjectType.Type == "" || filterSubjectType.Type == resource.ObjectType
 	relationMatches := filterSubjectType.Subrelation == "" || filterSubjectType.Subrelation == a.relation
@@ -146,7 +146,7 @@ func (a *Alias) shouldIncludeSelfEdge(ctx *Context, resource Object, filterSubje
 
 // resourceExistsAsSubject queries the datastore to check if the given resource appears
 // as a subject in any relationship, including expired relationships.
-func (a *Alias) resourceExistsAsSubject(ctx *Context, resource Object) (bool, error) {
+func (a *AliasIterator) resourceExistsAsSubject(ctx *Context, resource Object) (bool, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
 			OptionalSubjectType: resource.ObjectType,
@@ -174,7 +174,7 @@ func (a *Alias) resourceExistsAsSubject(ctx *Context, resource Object) (bool, er
 	return false, nil
 }
 
-func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	subSeq, err := ctx.IterResources(a.subIt, subject, filterResourceType)
 	if err != nil {
 		return nil, err
@@ -210,15 +210,15 @@ func (a *Alias) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 	return a.maybePrependSelfEdge(GetObject(subject), subSeq, shouldAddSelfEdge), nil
 }
 
-func (a *Alias) Clone() Iterator {
-	return &Alias{
+func (a *AliasIterator) Clone() Iterator {
+	return &AliasIterator{
 		id:       uuid.NewString(),
 		relation: a.relation,
 		subIt:    a.subIt.Clone(),
 	}
 }
 
-func (a *Alias) Explain() Explain {
+func (a *AliasIterator) Explain() Explain {
 	return Explain{
 		Name:       "Alias",
 		Info:       "Alias(" + a.relation + ")",
@@ -226,22 +226,22 @@ func (a *Alias) Explain() Explain {
 	}
 }
 
-func (a *Alias) Subiterators() []Iterator {
+func (a *AliasIterator) Subiterators() []Iterator {
 	return []Iterator{a.subIt}
 }
 
-func (a *Alias) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Alias{id: uuid.NewString(), relation: a.relation, subIt: newSubs[0]}, nil
+func (a *AliasIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &AliasIterator{id: uuid.NewString(), relation: a.relation, subIt: newSubs[0]}, nil
 }
 
-func (a *Alias) ID() string {
+func (a *AliasIterator) ID() string {
 	return a.id
 }
 
-func (a *Alias) ResourceType() ([]ObjectType, error) {
+func (a *AliasIterator) ResourceType() ([]ObjectType, error) {
 	return a.subIt.ResourceType()
 }
 
-func (a *Alias) SubjectTypes() ([]ObjectType, error) {
+func (a *AliasIterator) SubjectTypes() ([]ObjectType, error) {
 	return a.subIt.SubjectTypes()
 }

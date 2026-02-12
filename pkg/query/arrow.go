@@ -21,11 +21,11 @@ const (
 	rightToLeft
 )
 
-// Arrow is an iterator that represents the set of paths that
+// ArrowIterator is an iterator that represents the set of paths that
 // follow from a walk in the graph.
 //
 // Ex: `folder->owner` and `left->right`
-type Arrow struct {
+type ArrowIterator struct {
 	id            string
 	left          Iterator
 	right         Iterator
@@ -33,10 +33,10 @@ type Arrow struct {
 	isSchemaArrow bool           // true for schema arrows (relation->permission), false for subrelation arrows
 }
 
-var _ Iterator = &Arrow{}
+var _ Iterator = &ArrowIterator{}
 
-func NewArrow(left, right Iterator) *Arrow {
-	return &Arrow{
+func NewArrowIterator(left, right Iterator) *ArrowIterator {
+	return &ArrowIterator{
 		id:            uuid.NewString(),
 		left:          left,
 		right:         right,
@@ -45,8 +45,8 @@ func NewArrow(left, right Iterator) *Arrow {
 	}
 }
 
-func NewSchemaArrow(left, right Iterator) *Arrow {
-	return &Arrow{
+func NewSchemaArrow(left, right Iterator) *ArrowIterator {
+	return &ArrowIterator{
 		id:            uuid.NewString(),
 		left:          left,
 		right:         right,
@@ -55,7 +55,7 @@ func NewSchemaArrow(left, right Iterator) *Arrow {
 	}
 }
 
-func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (a *ArrowIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// There are three major strategies:
 	// - IterSubjects on the left, Check on the right
 	// - IterResources on the right, Check on the left
@@ -74,7 +74,7 @@ func (a *Arrow) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 
 // checkLeftToRight implements the left-to-right strategy:
 // For each resource, IterSubjects on left, then Check on right
-func (a *Arrow) checkLeftToRight(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (a *ArrowIterator) checkLeftToRight(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		ctx.TraceStep(a, "processing %d resources", len(resources))
 
@@ -124,7 +124,7 @@ func (a *Arrow) checkLeftToRight(ctx *Context, resources []Object, subject Objec
 
 // checkRightToLeft implements the right-to-left strategy:
 // IterResources on right to get candidate resources, then Check on left
-func (a *Arrow) checkRightToLeft(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (a *ArrowIterator) checkRightToLeft(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		ctx.TraceStep(a, "arrow check (right-to-left) with %d resources for subject %s:%s",
 			len(resources), subject.ObjectType, subject.ObjectID)
@@ -261,7 +261,7 @@ func combineArrowPaths(leftPath, rightPath Path) Path {
 	}
 }
 
-func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (a *ArrowIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// Arrow: resource -> left subjects -> right subjects
 	// Get subjects from left side, then for each, get subjects from right side
 	return func(yield func(Path, error) bool) {
@@ -307,7 +307,7 @@ func (a *Arrow) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectTyp
 	}, nil
 }
 
-func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (a *ArrowIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// Arrow: resource -> left subjects -> right subjects
 	// Get resources from right side, then for each, get resources from left side
 	return func(yield func(Path, error) bool) {
@@ -426,8 +426,8 @@ func (a *Arrow) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 	}, nil
 }
 
-func (a *Arrow) Clone() Iterator {
-	return &Arrow{
+func (a *ArrowIterator) Clone() Iterator {
+	return &ArrowIterator{
 		id:            uuid.NewString(),
 		left:          a.left.Clone(),
 		right:         a.right.Clone(),
@@ -436,7 +436,7 @@ func (a *Arrow) Clone() Iterator {
 	}
 }
 
-func (a *Arrow) Explain() Explain {
+func (a *ArrowIterator) Explain() Explain {
 	var kind string
 	switch a.direction {
 	case rightToLeft:
@@ -451,12 +451,12 @@ func (a *Arrow) Explain() Explain {
 	}
 }
 
-func (a *Arrow) Subiterators() []Iterator {
+func (a *ArrowIterator) Subiterators() []Iterator {
 	return []Iterator{a.left, a.right}
 }
 
-func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Arrow{
+func (a *ArrowIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &ArrowIterator{
 		id:            uuid.NewString(),
 		left:          newSubs[0],
 		right:         newSubs[1],
@@ -465,16 +465,16 @@ func (a *Arrow) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	}, nil
 }
 
-func (a *Arrow) ID() string {
+func (a *ArrowIterator) ID() string {
 	return a.id
 }
 
-func (a *Arrow) ResourceType() ([]ObjectType, error) {
+func (a *ArrowIterator) ResourceType() ([]ObjectType, error) {
 	// Arrow's resources come from the left side
 	return a.left.ResourceType()
 }
 
-func (a *Arrow) SubjectTypes() ([]ObjectType, error) {
+func (a *ArrowIterator) SubjectTypes() ([]ObjectType, error) {
 	// Arrow's subjects come from the right side
 	return a.right.SubjectTypes()
 }

@@ -78,7 +78,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		// defined in the datastore, not just those with a relationship to this specific resource.
 		// This is the intended behavior: when a wildcard (e.g., user:*) exists on a relation,
 		// it grants access to "all subjects of that type", so we enumerate all defined subjects.
-		wildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
+		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx,
 			WithReader(rawDS.SnapshotReader(revision)),
@@ -107,9 +107,9 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 	t.Run("UnionDeduplicatesSubjects", func(t *testing.T) {
 		t.Parallel()
 		// The Union of both branches should return all subjects with deduplication
-		union := NewUnion()
-		union.addSubIterator(NewRelationIterator(viewerRel.BaseRelations()[0])) // user (non-wildcard)
-		union.addSubIterator(NewRelationIterator(viewerRel.BaseRelations()[1])) // user:* (wildcard)
+		union := NewUnionIterator()
+		union.addSubIterator(NewDatastoreIterator(viewerRel.BaseRelations()[0])) // user (non-wildcard)
+		union.addSubIterator(NewDatastoreIterator(viewerRel.BaseRelations()[1])) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx,
 			WithReader(rawDS.SnapshotReader(revision)),

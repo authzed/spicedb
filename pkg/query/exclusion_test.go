@@ -37,7 +37,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(path1, path2, path3)
 		excludedSet := NewFixedIterator(path2)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -56,7 +56,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator()
 		excludedSet := NewFixedIterator(path1)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -74,7 +74,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(path1, path2)
 		excludedSet := NewFixedIterator()
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -99,7 +99,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(mainPath1, mainPath2)
 		excludedSet := NewFixedIterator(excludePath1, excludePath2)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -118,7 +118,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(path1, path2)
 		excludedSet := NewFixedIterator(path1, path2, path3)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -146,7 +146,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(pathA, pathB, pathC, pathD)
 		excludedSet := NewFixedIterator(excludePathB, excludePathD)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2", "doc3", "doc4"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -177,7 +177,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewFixedIterator()
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		// mainSet has alice for doc1, excludedSet is empty
 		// Result should be alice (nothing excluded)
@@ -196,7 +196,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewFixedIterator()
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		// mainSet has alice for doc1, excludedSet is empty
 		// Result should be alice (nothing excluded)
@@ -215,11 +215,11 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(path1, path2)
 		excludedSet := NewFixedIterator(path2)
 
-		original := NewExclusion(mainSet, excludedSet)
+		original := NewExclusionIterator(mainSet, excludedSet)
 		cloned := original.Clone()
 
 		require.NotNil(cloned)
-		require.IsType(&Exclusion{}, cloned)
+		require.IsType(&ExclusionIterator{}, cloned)
 
 		// Test that cloned exclusion works the same as original
 		pathSeq, err := ctx.Check(cloned, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
@@ -236,7 +236,7 @@ func TestExclusionIterator(t *testing.T) {
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewFixedIterator(path2)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		explain := exclusion.Explain()
 		require.Equal("Exclusion", explain.Info)
@@ -267,7 +267,7 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 		mainSet := NewEmptyFixedIterator()
 		excludedSet := NewFixedIterator(path1)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -282,7 +282,7 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewEmptyFixedIterator()
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -314,7 +314,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 		mainSet := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		excludedSet := NewFixedIterator(path1)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
@@ -328,7 +328,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
@@ -342,7 +342,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 		mainSet := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		excludedSet := NewFixedIterator(path1)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err, "CheckImpl should succeed, error comes during iteration")
@@ -366,7 +366,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.Error(err)
@@ -396,13 +396,13 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 	t.Run("Exclusion with Union as Main Set", func(t *testing.T) {
 		t.Parallel()
 		// Create union iterator as main set
-		union := NewUnion()
+		union := NewUnionIterator()
 		union.addSubIterator(NewFixedIterator(path1, path2))
 		union.addSubIterator(NewFixedIterator(path3))
 
 		excludedSet := NewFixedIterator(path2) // Exclude path2
 
-		exclusion := NewExclusion(union, excludedSet)
+		exclusion := NewExclusionIterator(union, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -430,11 +430,11 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 		mainSet := NewFixedIterator(path1, path2, path3, path4)
 
 		// Create union iterator as excluded set
-		union := NewUnion()
+		union := NewUnionIterator()
 		union.addSubIterator(NewFixedIterator(path2))
 		union.addSubIterator(NewFixedIterator(path4))
 
-		exclusion := NewExclusion(mainSet, union)
+		exclusion := NewExclusionIterator(mainSet, union)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2", "doc3", "doc4"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -462,10 +462,10 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 		// Create a nested exclusion: (path1 + path2 + path3) - path2 - path3
 		innerMainSet := NewFixedIterator(path1, path2, path3)
 		innerExcludedSet := NewFixedIterator(path2)
-		innerExclusion := NewExclusion(innerMainSet, innerExcludedSet)
+		innerExclusion := NewExclusionIterator(innerMainSet, innerExcludedSet)
 
 		outerExcludedSet := NewFixedIterator(path3)
-		outerExclusion := NewExclusion(innerExclusion, outerExcludedSet)
+		outerExclusion := NewExclusionIterator(innerExclusion, outerExcludedSet)
 
 		pathSeq, err := ctx.Check(outerExclusion, NewObjects("document", "doc1", "doc2", "doc3"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -597,7 +597,7 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 		excludedPath1 := createPathWithCaveat("document:doc1#view@user:alice", "caveat2")
 		excludedSet := NewFixedIterator(excludedPath1)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -652,7 +652,7 @@ func TestExclusion_EdgeCases(t *testing.T) {
 		mainSet := NewFixedIterator() // Empty
 		excludedSet := NewFixedIterator(MustPathFromString("document:doc1#view@user:alice"))
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -668,7 +668,7 @@ func TestExclusion_EdgeCases(t *testing.T) {
 		mainSet := NewFixedIterator(mainPath)
 		excludedSet := NewFixedIterator() // Empty
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -688,7 +688,7 @@ func TestExclusion_EdgeCases(t *testing.T) {
 		excludedPath := MustPathFromString("document:doc2#view@user:bob")
 		excludedSet := NewFixedIterator(excludedPath)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.Check(exclusion, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -721,7 +721,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 		mainSet := NewFixedIterator(pathAlice, pathBob)
 		excludedSet := NewFixedIterator(pathBob)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -742,7 +742,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 		mainSet := NewFixedIterator(pathAlice)
 		excludedSet := NewFixedIterator(pathAlice)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -762,7 +762,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 		mainSet := NewFixedIterator(pathAlice)
 		excludedSet := NewFixedIterator()
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -783,7 +783,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 		mainSet := NewFixedIterator()
 		excludedSet := NewFixedIterator(pathBob)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -805,7 +805,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 		mainSet := NewFixedIterator(pathAlice, pathBob, pathCarol)
 		excludedSet := NewFixedIterator(pathBob)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -842,7 +842,7 @@ func TestExclusionIterSubjects(t *testing.T) {
 		mainSet := NewFixedIterator(pathMainAlice)
 		excludedSet := NewFixedIterator(pathExcludedAlice)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		pathSeq, err := ctx.IterSubjects(exclusion, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -869,7 +869,7 @@ func TestExclusion_Types(t *testing.T) {
 		mainSet := NewFixedIterator(mainPath)
 		excludedSet := NewFixedIterator(excludePath)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		resourceType, err := exclusion.ResourceType()
 		require.NoError(err)
@@ -888,7 +888,7 @@ func TestExclusion_Types(t *testing.T) {
 		mainSet := NewFixedIterator(mainPath1, mainPath2)
 		excludedSet := NewFixedIterator(excludePath)
 
-		exclusion := NewExclusion(mainSet, excludedSet)
+		exclusion := NewExclusionIterator(mainSet, excludedSet)
 
 		subjectTypes, err := exclusion.SubjectTypes()
 		require.NoError(err)
