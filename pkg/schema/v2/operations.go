@@ -648,7 +648,8 @@ func (f *FunctionedArrowReference) cloneWithParent(parent Operation) Operation {
 
 // setParent sets the parent pointer for a Parented element.
 // The parent parameter can be either an Operation (for child nodes) or a *Permission (for the root node).
-// This is a simple setter that delegates to the element's setParent method.
+// This helper function provides nil-safety and a unified interface for setting parents across different types,
+// avoiding the need for explicit nil checks at every call site.
 func setParent(elem Parented, parent Parented) {
 	if elem == nil {
 		return
