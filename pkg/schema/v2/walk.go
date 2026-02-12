@@ -49,7 +49,9 @@ func (opts WalkOptions) WithStrategy(strategy WalkStrategy) WalkOptions {
 //
 // Requirements:
 //   - PostOrder strategy (set via WithStrategy)
-//   - Resolved schema (call ResolveSchema() before walking)
+//   - Resolved schema (call ResolveSchema() before walking) - a resolved schema has all
+//     ArrowReference nodes replaced with ResolvedArrowReference nodes that contain
+//     direct pointers to the actual target relations and permissions
 //   - Schema parameter for target lookup
 //
 // The schema parameter is the root schema used to resolve arrow targets.
