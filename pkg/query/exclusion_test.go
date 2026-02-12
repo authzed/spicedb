@@ -396,9 +396,10 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 	t.Run("Exclusion with Union as Main Set", func(t *testing.T) {
 		t.Parallel()
 		// Create union iterator as main set
-		union := NewUnionIterator()
-		union.addSubIterator(NewFixedIterator(path1, path2))
-		union.addSubIterator(NewFixedIterator(path3))
+		union := NewUnionIterator(
+			NewFixedIterator(path1, path2),
+			NewFixedIterator(path3),
+		)
 
 		excludedSet := NewFixedIterator(path2) // Exclude path2
 
@@ -430,9 +431,10 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 		mainSet := NewFixedIterator(path1, path2, path3, path4)
 
 		// Create union iterator as excluded set
-		union := NewUnionIterator()
-		union.addSubIterator(NewFixedIterator(path2))
-		union.addSubIterator(NewFixedIterator(path4))
+		union := NewUnionIterator(
+			NewFixedIterator(path2),
+			NewFixedIterator(path4),
+		)
 
 		exclusion := NewExclusionIterator(mainSet, union)
 

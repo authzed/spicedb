@@ -37,10 +37,7 @@ func TestReplaceRecursiveSentinel_NonMatchingSentinel(t *testing.T) {
 	nonMatchingSentinel2 := NewRecursiveSentinelIterator("folder", "read", false)   // Different relation
 
 	// Create a tree with both matching and non-matching sentinels
-	union := NewUnionIterator()
-	union.addSubIterator(matchingSentinel)
-	union.addSubIterator(nonMatchingSentinel1)
-	union.addSubIterator(nonMatchingSentinel2)
+	union := NewUnionIterator(matchingSentinel, nonMatchingSentinel1, nonMatchingSentinel2)
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 	replacement := NewEmptyFixedIterator()
@@ -75,13 +72,9 @@ func TestReplaceRecursiveSentinel_DeepNesting(t *testing.T) {
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 
 	// Create deeply nested tree: Union -> Arrow -> Union -> Sentinel
-	innerUnion := NewUnionIterator()
-	innerUnion.addSubIterator(sentinel)
-
+	innerUnion := NewUnionIterator(sentinel)
 	arrow := NewArrowIterator(NewEmptyFixedIterator(), innerUnion)
-
-	outerUnion := NewUnionIterator()
-	outerUnion.addSubIterator(arrow)
+	outerUnion := NewUnionIterator(arrow)
 
 	recursive := NewRecursiveIterator(outerUnion, "folder", "view")
 	replacement := NewEmptyFixedIterator()

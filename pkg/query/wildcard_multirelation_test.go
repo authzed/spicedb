@@ -107,9 +107,10 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 	t.Run("UnionDeduplicatesSubjects", func(t *testing.T) {
 		t.Parallel()
 		// The Union of both branches should return all subjects with deduplication
-		union := NewUnionIterator()
-		union.addSubIterator(NewDatastoreIterator(viewerRel.BaseRelations()[0])) // user (non-wildcard)
-		union.addSubIterator(NewDatastoreIterator(viewerRel.BaseRelations()[1])) // user:* (wildcard)
+		union := NewUnionIterator(
+			NewDatastoreIterator(viewerRel.BaseRelations()[0]), // user (non-wildcard)
+			NewDatastoreIterator(viewerRel.BaseRelations()[1]), // user:* (wildcard)
+		)
 
 		queryCtx := NewLocalContext(ctx,
 			WithReader(rawDS.SnapshotReader(revision)),

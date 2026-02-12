@@ -107,9 +107,10 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 	t.Run("UnionDeduplication", func(t *testing.T) {
 		t.Parallel()
 		// The Union of both branches should deduplicate the concrete user
-		union := NewUnionIterator()
-		union.addSubIterator(NewDatastoreIterator(viewerRel.BaseRelations()[0])) // user
-		union.addSubIterator(NewDatastoreIterator(viewerRel.BaseRelations()[1])) // user:*
+		union := NewUnionIterator(
+			NewDatastoreIterator(viewerRel.BaseRelations()[0]), // user
+			NewDatastoreIterator(viewerRel.BaseRelations()[1]), // user:*
+		)
 
 		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
 		subjects, err := queryCtx.IterSubjects(union, NewObject("resource", "first"), NoObjectFilter())
