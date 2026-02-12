@@ -107,6 +107,12 @@ func (rwt spannerReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats [
 			[]string{colName, colCaveatDefinition, colCaveatTS},
 			[]any{caveat.Name, serialized, spanner.CommitTimestamp},
 		))
+
+		// Track the buffered caveat write so we can return it from List methods
+		// without attempting to read from Spanner (which doesn't see buffered writes)
+		rwt.bufferedCaveats[caveat.Name] = caveat
+		// Remove from deleted set in case it was previously deleted in this transaction
+		delete(rwt.deletedCaveats, caveat.Name)
 	}
 
 	if err := rwt.spannerRWT.BufferWrite(mutations); err != nil {
@@ -120,6 +126,9 @@ func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []
 	keys := make([]spanner.Key, 0, len(names))
 	for _, n := range names {
 		keys = append(keys, spanner.Key{n})
+		// Remove from buffered caveats and mark as deleted so List methods won't return it
+		delete(rwt.bufferedCaveats, n)
+		rwt.deletedCaveats[n] = struct{}{}
 	}
 	err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{
 		spanner.Delete(tableCaveat, spanner.KeySetFromKeys(keys...)),

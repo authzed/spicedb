@@ -31,9 +31,103 @@ import (
 type spannerReadWriteTXN struct {
 	spannerReader
 	spannerRWT *spanner.ReadWriteTransaction
+
+	// IMPORTANT: Spanner Read-Write Transaction Limitation
+	// =====================================================
+	// In Cloud Spanner, reads within a read-write transaction do NOT see the effects of
+	// buffered writes (mutations) performed earlier in that same transaction. This is because
+	// writes are buffered locally at the client and are not sent to the server until commit.
+	// This is a fundamental Spanner design, not an emulator limitation.
+	//
+	// To work around this, we track all schema writes and deletes in memory maps below.
+	// When List methods are called, we merge buffered writes with committed data read from
+	// Spanner, ensuring the legacy schema writer can correctly compute diffs without attempting
+	// to read buffered writes from Spanner.
+
+	// bufferedNamespaces tracks namespaces written in this transaction
+	bufferedNamespaces map[string]*core.NamespaceDefinition
+
+	// deletedNamespaces tracks namespaces deleted in this transaction
+	deletedNamespaces map[string]struct{}
+
+	// bufferedCaveats tracks caveats written in this transaction
+	bufferedCaveats map[string]*core.CaveatDefinition
+
+	// deletedCaveats tracks caveats deleted in this transaction
+	deletedCaveats map[string]struct{}
 }
 
 const inLimit = 10_000 // https://cloud.google.com/spanner/quotas#query-limits
+
+// LegacyListAllNamespaces reads namespaces from Spanner and merges them with any buffered writes.
+// This is necessary because in Spanner, buffered writes in a read-write transaction are not visible
+// to reads in the same transaction. The buffered map contains namespaces written in this transaction,
+// and the deleted map tracks namespaces deleted in this transaction.
+func (rwt *spannerReadWriteTXN) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	// First, read from Spanner (this will get committed data, not buffered writes)
+	existing, err := rwt.spannerReader.LegacyListAllNamespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a map of existing namespaces by name, excluding deleted ones
+	merged := make(map[string]datastore.RevisionedNamespace)
+	for _, ns := range existing {
+		if _, deleted := rwt.deletedNamespaces[ns.Definition.Name]; !deleted {
+			merged[ns.Definition.Name] = ns
+		}
+	}
+
+	// Overlay buffered writes (these override anything read from Spanner)
+	for name, def := range rwt.bufferedNamespaces {
+		merged[name] = datastore.RevisionedNamespace{
+			Definition:          def,
+			LastWrittenRevision: datastore.NoRevision, // Will be set on commit
+		}
+	}
+
+	// Convert map back to slice
+	result := make([]datastore.RevisionedNamespace, 0, len(merged))
+	for _, ns := range merged {
+		result = append(result, ns)
+	}
+
+	return result, nil
+}
+
+// LegacyListAllCaveats reads caveats from Spanner and merges them with any buffered writes.
+// See LegacyListAllNamespaces for the rationale.
+func (rwt *spannerReadWriteTXN) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	// First, read from Spanner (this will get committed data, not buffered writes)
+	existing, err := rwt.spannerReader.LegacyListAllCaveats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a map of existing caveats by name, excluding deleted ones
+	merged := make(map[string]datastore.RevisionedCaveat)
+	for _, caveat := range existing {
+		if _, deleted := rwt.deletedCaveats[caveat.Definition.Name]; !deleted {
+			merged[caveat.Definition.Name] = caveat
+		}
+	}
+
+	// Overlay buffered writes (these override anything read from Spanner)
+	for name, def := range rwt.bufferedCaveats {
+		merged[name] = datastore.RevisionedCaveat{
+			Definition:          def,
+			LastWrittenRevision: datastore.NoRevision, // Will be set on commit
+		}
+	}
+
+	// Convert map back to slice
+	result := make([]datastore.RevisionedCaveat, 0, len(merged))
+	for _, caveat := range merged {
+		result = append(result, caveat)
+	}
+
+	return result, nil
+}
 
 func (rwt *spannerReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
 	// Ensure the counter doesn't already exist.
@@ -374,6 +468,12 @@ func (rwt *spannerReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newCo
 			[]string{colNamespaceName, colNamespaceConfig, colTimestamp},
 			[]any{newConfig.Name, serialized, spanner.CommitTimestamp},
 		))
+
+		// Track the buffered namespace write so we can return it from List methods
+		// without attempting to read from Spanner (which doesn't see buffered writes)
+		rwt.bufferedNamespaces[newConfig.Name] = newConfig
+		// Remove from deleted set in case it was previously deleted in this transaction
+		delete(rwt.deletedNamespaces, newConfig.Name)
 	}
 
 	if err := rwt.spannerRWT.BufferWrite(mutations); err != nil {
@@ -416,6 +516,10 @@ func (rwt *spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNa
 		if err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
+
+		// Remove from buffered namespaces and mark as deleted so List methods won't return it
+		delete(rwt.bufferedNamespaces, nsName)
+		rwt.deletedNamespaces[nsName] = struct{}{}
 	}
 
 	return nil

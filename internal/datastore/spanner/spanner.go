@@ -35,6 +35,7 @@ import (
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -411,8 +412,12 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 
 		executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
 		rwt := &spannerReadWriteTXN{
-			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema, sd.schemaMode, datastore.NoRevision, string(datastore.NoSchemaHashInTransaction), sd.schemaReaderWriter},
-			spannerRWT,
+			spannerReader:      spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema, sd.schemaMode, datastore.NoRevision, string(datastore.NoSchemaHashInTransaction), sd.schemaReaderWriter},
+			spannerRWT:         spannerRWT,
+			bufferedNamespaces: make(map[string]*core.NamespaceDefinition),
+			deletedNamespaces:  make(map[string]struct{}),
+			bufferedCaveats:    make(map[string]*core.CaveatDefinition),
+			deletedCaveats:     make(map[string]struct{}),
 		}
 		err := func() error {
 			innerCtx, innerSpan := tracer.Start(ctx, "TxUserFunc")
