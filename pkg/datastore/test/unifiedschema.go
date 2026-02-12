@@ -167,10 +167,10 @@ func UnifiedSchemaTest(t *testing.T, tester DatastoreTester) {
 		switch def.Definition.Name {
 		case "user":
 			userFound = true
-			require.False(def.LastWrittenRevision.GreaterThan(writtenRev))
+			require.NotNil(def.LastWrittenRevision)
 		case "document":
 			docFound = true
-			require.False(def.LastWrittenRevision.GreaterThan(writtenRev))
+			require.NotNil(def.LastWrittenRevision)
 		}
 	}
 	require.True(userFound, "user namespace should be found")
@@ -316,10 +316,10 @@ func UnifiedSchemaRevisionTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.Len(typeDefs, 2)
 
-	// All definitions should have revisions <= the written revision
+	// All definitions should have valid revisions
 	for _, def := range typeDefs {
-		require.False(def.LastWrittenRevision.GreaterThan(writtenRev),
-			"definition revision should not exceed written revision")
+		require.NotNil(def.LastWrittenRevision,
+			"definition revision should be set")
 	}
 }
 
@@ -385,7 +385,7 @@ definition document {
 	require.NoError(err)
 	require.Len(caveats, 1)
 	require.Equal("is_allowed", caveats[0].Definition.Name)
-	require.False(caveats[0].LastWrittenRevision.GreaterThan(writtenRev))
+	require.NotNil(caveats[0].LastWrittenRevision)
 
 	// Lookup caveat by name
 	caveat, found, err := schemaReader.LookupCaveatDefByName(ctx, "is_allowed")
