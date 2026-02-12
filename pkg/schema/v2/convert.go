@@ -29,11 +29,7 @@ func convertDefinition(def *corev1.NamespaceDefinition) (*Definition, error) {
 			}
 			perm.parent = out
 			perm.name = r.GetName()
-			out.permissions[r.GetName()] = &perm
-			// Set the root operation's parent to the permission
-			if perm.operation != nil {
-				setParent(perm.operation, &perm)
-			}
+			out.permissions[r.GetName()] = perm
 		} else if typeinfo := r.GetTypeInformation(); typeinfo != nil {
 			rel, err := convertTypeInformation(typeinfo)
 			if err != nil {
@@ -79,9 +75,9 @@ func convertCaveat(def *corev1.CaveatDefinition) (*Caveat, error) {
 	return out, nil
 }
 
-func convertUserset(userset *corev1.UsersetRewrite) (Permission, error) {
+func convertUserset(userset *corev1.UsersetRewrite) (*Permission, error) {
 	if userset == nil {
-		return Permission{}, errors.New("userset rewrite is nil")
+		return nil, errors.New("userset rewrite is nil")
 	}
 
 	var operation Operation
@@ -91,25 +87,27 @@ func convertUserset(userset *corev1.UsersetRewrite) (Permission, error) {
 	case *corev1.UsersetRewrite_Union:
 		operation, err = convertSetOperation(rewrite.Union)
 		if err != nil {
-			return Permission{}, err
+			return nil, err
 		}
 	case *corev1.UsersetRewrite_Intersection:
 		operation, err = convertSetOperationAsIntersection(rewrite.Intersection)
 		if err != nil {
-			return Permission{}, err
+			return nil, err
 		}
 	case *corev1.UsersetRewrite_Exclusion:
 		operation, err = convertSetOperationAsExclusion(rewrite.Exclusion)
 		if err != nil {
-			return Permission{}, err
+			return nil, err
 		}
 	default:
-		return Permission{}, errors.New("unknown userset rewrite operation type")
+		return nil, errors.New("unknown userset rewrite operation type")
 	}
 
-	return Permission{
+	perm := &Permission{
 		operation: operation,
-	}, nil
+	}
+	setParent(perm.operation, perm)
+	return perm, nil
 }
 
 func convertTypeInformation(typeinfo *corev1.TypeInformation) (*Relation, error) {
