@@ -142,14 +142,15 @@ func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubR
 		}
 		return NewAliasIterator(r.Name(), baseIt), nil
 	}
-	union := NewUnionIterator()
+	subIts := make([]Iterator, 0, len(r.BaseRelations()))
 	for _, br := range r.BaseRelations() {
 		it, err := b.buildBaseDatastoreIterator(br, withSubRelations)
 		if err != nil {
 			return nil, err
 		}
-		union.addSubIterator(it)
+		subIts = append(subIts, it)
 	}
+	union := NewUnionIterator(subIts...)
 	return NewAliasIterator(r.Name(), union), nil
 }
 
@@ -180,26 +181,26 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return b.buildIteratorFromSchemaInternal(p.Parent().Name(), perm.RelationName(), true)
 
 	case *schema.UnionOperation:
-		union := NewUnionIterator()
+		subIts := make([]Iterator, 0, len(perm.Children()))
 		for _, op := range perm.Children() {
 			it, err := b.buildIteratorFromOperation(p, op)
 			if err != nil {
 				return nil, err
 			}
-			union.addSubIterator(it)
+			subIts = append(subIts, it)
 		}
-		return union, nil
+		return NewUnionIterator(subIts...), nil
 
 	case *schema.IntersectionOperation:
-		inter := NewIntersectionIterator()
+		subIts := make([]Iterator, 0, len(perm.Children()))
 		for _, op := range perm.Children() {
 			it, err := b.buildIteratorFromOperation(p, op)
 			if err != nil {
 				return nil, err
 			}
-			inter.addSubIterator(it)
+			subIts = append(subIts, it)
 		}
-		return inter, nil
+		return NewIntersectionIterator(subIts...), nil
 
 	case *schema.ExclusionOperation:
 		mainIt, err := b.buildIteratorFromOperation(p, perm.Left())
@@ -290,7 +291,7 @@ func (b *iteratorBuilder) buildBaseDatastoreIterator(br *schema.BaseRelation, wi
 
 // buildArrowIterators creates a union of arrow iterators for the given relation and right-hand side
 func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
-	union := NewUnionIterator()
+	subIts := make([]Iterator, 0, len(rel.BaseRelations()))
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
@@ -306,7 +307,7 @@ func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide st
 			// applies to some of them. If there's only one base relation, we should error.
 			if errors.As(err, &RelationNotFoundError{}) {
 				if hasMultipleBaseRelations {
-					union.addSubIterator(NewEmptyFixedIterator())
+					subIts = append(subIts, NewFixedIterator())
 					continue
 				}
 				lastNotFoundError = err
@@ -317,7 +318,7 @@ func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide st
 		// Use NewSchemaArrow only for BaseRelations without subrelations.
 		// BaseRelations with subrelations (like folder#parent) should use regular arrows
 		// because they need strict subrelation matching.
-		var arrow *ArrowIterator
+		var arrow Iterator
 		if br.Subrelation() != "" && br.Subrelation() != tuple.Ellipsis {
 			// Has a specific subrelation: use regular arrow (no ellipsis queries)
 			arrow = NewArrowIterator(left, right)
@@ -325,20 +326,20 @@ func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide st
 			// No subrelation or ellipsis: use schema arrow (with ellipsis queries)
 			arrow = NewSchemaArrow(left, right)
 		}
-		union.addSubIterator(arrow)
+		subIts = append(subIts, arrow)
 	}
 
 	// If we have no sub-iterators and only have a not-found error, return that error
-	if len(union.Subiterators()) == 0 && lastNotFoundError != nil {
+	if len(subIts) == 0 && lastNotFoundError != nil {
 		return nil, lastNotFoundError
 	}
 
-	return union, nil
+	return NewUnionIterator(subIts...), nil
 }
 
 // buildIntersectionArrowIterators creates a union of intersection arrow iterators for the given relation and right-hand side
 func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
-	union := NewUnionIterator()
+	subIts := make([]Iterator, 0, len(rel.BaseRelations()))
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
@@ -354,7 +355,7 @@ func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, 
 			// applies to some of them. If there's only one base relation, we should error.
 			if errors.As(err, &RelationNotFoundError{}) {
 				if hasMultipleBaseRelations {
-					union.addSubIterator(NewEmptyFixedIterator())
+					subIts = append(subIts, NewFixedIterator())
 					continue
 				}
 				lastNotFoundError = err
@@ -363,15 +364,15 @@ func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, 
 			return nil, err
 		}
 		intersectionArrow := NewIntersectionArrowIterator(left, right)
-		union.addSubIterator(intersectionArrow)
+		subIts = append(subIts, intersectionArrow)
 	}
 
 	// If we have no sub-iterators and only have a not-found error, return that error
-	if len(union.Subiterators()) == 0 && lastNotFoundError != nil {
+	if len(subIts) == 0 && lastNotFoundError != nil {
 		return nil, lastNotFoundError
 	}
 
-	return union, nil
+	return NewUnionIterator(subIts...), nil
 }
 
 func functionTypeString(ft schema.FunctionType) string {

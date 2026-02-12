@@ -15,20 +15,14 @@ type UnionIterator struct {
 
 var _ Iterator = &UnionIterator{}
 
-func NewUnionIterator(subiterators ...Iterator) *UnionIterator {
+func NewUnionIterator(subiterators ...Iterator) Iterator {
 	if len(subiterators) == 0 {
-		return &UnionIterator{
-			id: uuid.NewString(),
-		}
+		return NewFixedIterator() // Return empty FixedIterator instead of empty Union
 	}
 	return &UnionIterator{
 		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
-}
-
-func (u *UnionIterator) addSubIterator(subIt Iterator) {
-	u.subIts = append(u.subIts, subIt)
 }
 
 func (u *UnionIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {

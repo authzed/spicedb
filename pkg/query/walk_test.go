@@ -13,9 +13,7 @@ func TestWalkBasic(t *testing.T) {
 	fixedIter1 := NewFixedIterator(path1)
 	fixedIter2 := NewEmptyFixedIterator()
 
-	union := NewUnionIterator()
-	union.addSubIterator(fixedIter1)
-	union.addSubIterator(fixedIter2)
+	union := NewUnionIterator(fixedIter1, fixedIter2)
 
 	// Walk the tree and count the nodes
 	nodeCount := 0
@@ -45,9 +43,7 @@ func TestWalkWithTransformation(t *testing.T) {
 	sentinel1 := NewRecursiveSentinelIterator("folder", "view", false)
 	sentinel2 := NewRecursiveSentinelIterator("document", "edit", false)
 
-	union := NewUnionIterator()
-	union.addSubIterator(sentinel1)
-	union.addSubIterator(sentinel2)
+	union := NewUnionIterator(sentinel1, sentinel2)
 
 	// Walk and replace all sentinels with empty fixed iterators
 	result, err := Walk(union, func(it Iterator) (Iterator, error) {
@@ -72,8 +68,7 @@ func TestWalkWithTransformation(t *testing.T) {
 func TestWalkCallbackError(t *testing.T) {
 	// Create a simple tree
 	fixedIter := NewEmptyFixedIterator()
-	union := NewUnionIterator()
-	union.addSubIterator(fixedIter)
+	union := NewUnionIterator(fixedIter)
 
 	// Walk with a callback that returns an error
 	expectedErr := fmt.Errorf("callback error")
@@ -94,12 +89,9 @@ func TestWalkRecursiveCallbackError(t *testing.T) {
 	fixedIter1 := NewEmptyFixedIterator()
 	fixedIter2 := NewEmptyFixedIterator()
 
-	innerUnion := NewUnionIterator()
-	innerUnion.addSubIterator(fixedIter1)
+	innerUnion := NewUnionIterator(fixedIter1)
 
-	outerUnion := NewUnionIterator()
-	outerUnion.addSubIterator(innerUnion)
-	outerUnion.addSubIterator(fixedIter2)
+	outerUnion := NewUnionIterator(innerUnion, fixedIter2)
 
 	// Walk with a callback that errors on the inner fixed iterator
 	expectedErr := fmt.Errorf("recursive callback error")
@@ -128,9 +120,7 @@ func TestWalkDeepTree(t *testing.T) {
 	fixedIter2 := NewFixedIterator(path2)
 	fixedIter3 := NewEmptyFixedIterator()
 
-	union := NewUnionIterator()
-	union.addSubIterator(fixedIter1)
-	union.addSubIterator(fixedIter2)
+	union := NewUnionIterator(fixedIter1, fixedIter2)
 
 	arrow := NewArrowIterator(union, fixedIter3)
 

@@ -15,20 +15,14 @@ type IntersectionIterator struct {
 
 var _ Iterator = &IntersectionIterator{}
 
-func NewIntersectionIterator(subiterators ...Iterator) *IntersectionIterator {
+func NewIntersectionIterator(subiterators ...Iterator) Iterator {
 	if len(subiterators) == 0 {
-		return &IntersectionIterator{
-			id: uuid.NewString(),
-		}
+		return NewFixedIterator() // Return empty FixedIterator instead of empty Intersection
 	}
 	return &IntersectionIterator{
 		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
-}
-
-func (i *IntersectionIterator) addSubIterator(subIt Iterator) {
-	i.subIts = append(i.subIts, subIt)
 }
 
 func (i *IntersectionIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {

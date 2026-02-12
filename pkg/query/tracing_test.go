@@ -85,9 +85,7 @@ func TestIteratorTracing(t *testing.T) {
 		ctx.TraceLogger = traceLogger
 
 		// Test Union iterator tracing
-		union := NewUnionIterator()
-		union.addSubIterator(NewFixedIterator(testPath1))
-		union.addSubIterator(NewFixedIterator(testPath2))
+		union := NewUnionIterator(NewFixedIterator(testPath1), NewFixedIterator(testPath2))
 
 		seq, err := ctx.Check(union, resources, subject)
 		require.NoError(t, err)

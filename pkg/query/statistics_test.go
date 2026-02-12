@@ -176,10 +176,15 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		t.Parallel()
 
 		t.Run("empty", func(t *testing.T) {
+			// NewUnionIterator() with no args returns empty FixedIterator (canonical form)
 			union := NewUnionIterator()
-			_, err := stats.Cost(union)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "union with no subiterators")
+			_, isFixed := union.(*FixedIterator)
+			require.True(t, isFixed, "empty union should be a FixedIterator")
+
+			// Cost should work on the empty FixedIterator
+			est, err := stats.Cost(union)
+			require.NoError(t, err)
+			require.NotNil(t, est)
 		})
 
 		t.Run("single subiterator", func(t *testing.T) {
@@ -248,10 +253,15 @@ func TestStaticStatistics_Cost(t *testing.T) {
 		t.Parallel()
 
 		t.Run("empty", func(t *testing.T) {
+			// NewIntersectionIterator() with no args returns empty FixedIterator (canonical form)
 			intersection := NewIntersectionIterator()
-			_, err := stats.Cost(intersection)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "intersection with no subiterators")
+			_, isFixed := intersection.(*FixedIterator)
+			require.True(t, isFixed, "empty intersection should be a FixedIterator")
+
+			// Cost should work on the empty FixedIterator
+			est, err := stats.Cost(intersection)
+			require.NoError(t, err)
+			require.NotNil(t, est)
 		})
 
 		t.Run("single subiterator", func(t *testing.T) {

@@ -35,9 +35,7 @@ func TestCheck(t *testing.T) {
 	vande := NewDatastoreIterator(vandeRel.BaseRelations()[0])
 	editRel, _ := docDef.GetRelation("editor")
 	edit := NewDatastoreIterator(editRel.BaseRelations()[0])
-	it := NewIntersectionIterator()
-	it.addSubIterator(vande)
-	it.addSubIterator(edit)
+	it := NewIntersectionIterator(vande, edit)
 
 	ctx := NewLocalContext(t.Context(),
 		WithReader(ds.SnapshotReader(revision)))

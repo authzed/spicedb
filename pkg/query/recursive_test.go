@@ -53,9 +53,7 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 	emptyIterator := NewEmptyFixedIterator()
 
-	union := NewUnionIterator()
-	union.addSubIterator(emptyIterator)
-	union.addSubIterator(sentinel)
+	union := NewUnionIterator(emptyIterator, sentinel)
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 
@@ -78,12 +76,12 @@ func TestReplaceSentinels(t *testing.T) {
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 
 	// Create a tree with sentinel in various positions
-	union := NewUnionIterator()
-	union.addSubIterator(NewEmptyFixedIterator())
-	union.addSubIterator(sentinel)
-
 	arrow := NewArrowIterator(NewEmptyFixedIterator(), sentinel)
-	union.addSubIterator(arrow)
+	union := NewUnionIterator(
+		NewEmptyFixedIterator(),
+		sentinel,
+		arrow,
+	)
 
 	// Create a replacement tree
 	replacementTree := NewEmptyFixedIterator()
@@ -111,9 +109,7 @@ func TestReplaceSentinels(t *testing.T) {
 func TestRecursiveIteratorClone(t *testing.T) {
 	// Create a recursive iterator with a non-trivial tree
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
-	union := NewUnionIterator()
-	union.addSubIterator(NewEmptyFixedIterator())
-	union.addSubIterator(sentinel)
+	union := NewUnionIterator(NewEmptyFixedIterator(), sentinel)
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 
@@ -137,9 +133,7 @@ func TestRecursiveIteratorClone(t *testing.T) {
 func TestRecursiveIteratorSubiteratorsAndReplace(t *testing.T) {
 	// Create a recursive iterator
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
-	union := NewUnionIterator()
-	union.addSubIterator(NewEmptyFixedIterator())
-	union.addSubIterator(sentinel)
+	union := NewUnionIterator(NewEmptyFixedIterator(), sentinel)
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 
