@@ -134,6 +134,8 @@ func (d *Definition) setParent(p Parented) {
 	if s, ok := p.(*Schema); ok {
 		d.parent = s
 	}
+	// Note: We silently ignore non-Schema parents since this is an internal method
+	// and should only be called with correct types from within this package.
 }
 
 // Name returns the name of the definition.
@@ -321,11 +323,7 @@ func (p *Permission) cloneWithParent(parentDefinition *Definition) *Permission {
 
 	var clonedOp Operation
 	if p.operation != nil {
-		if opCloner, ok := p.operation.(operationCloner); ok {
-			clonedOp = opCloner.cloneWithParent(nil) // nil parent since this is the root operation
-		} else {
-			clonedOp = p.operation.clone()
-		}
+		clonedOp = p.operation.clone()
 	}
 
 	newPerm := &Permission{

@@ -25,12 +25,6 @@ type ArrowOperation interface {
 	Function() FunctionType
 }
 
-// operationCloner is an interface for operations that support cloning with a new parent.
-// Not all operations implement this method, so it's checked at runtime via type assertion.
-type operationCloner interface {
-	cloneWithParent(Operation) Operation
-}
-
 // RelationReference is an Operation that is a simple relation, such as `permission foo = bar`.
 type RelationReference struct {
 	// parent is the parent operation in the operation tree, or the Permission for root operations.
@@ -60,17 +54,6 @@ func (r *RelationReference) clone() Operation {
 		return nil
 	}
 	return &RelationReference{
-		relationName: r.relationName,
-	}
-}
-
-// cloneWithParent creates a deep copy of the RelationReference with the specified parent.
-func (r *RelationReference) cloneWithParent(parent Operation) Operation {
-	if r == nil {
-		return nil
-	}
-	return &RelationReference{
-		parent:       parent,
 		relationName: r.relationName,
 	}
 }
@@ -124,16 +107,6 @@ func (n *NilReference) clone() Operation {
 	return &NilReference{}
 }
 
-// cloneWithParent creates a copy of the NilReference with the specified parent.
-func (n *NilReference) cloneWithParent(parent Operation) Operation {
-	if n == nil {
-		return nil
-	}
-	return &NilReference{
-		parent: parent,
-	}
-}
-
 var _ schemaUnit[Operation] = &NilReference{}
 
 // ArrowReference is an Operation that represents `permission foo = Left->Right`.
@@ -183,18 +156,6 @@ func (a *ArrowReference) clone() Operation {
 	}
 }
 
-// cloneWithParent creates a deep copy of the ArrowReference with the specified parent.
-func (a *ArrowReference) cloneWithParent(parent Operation) Operation {
-	if a == nil {
-		return nil
-	}
-	return &ArrowReference{
-		parent: parent,
-		left:   a.left,
-		right:  a.right,
-	}
-}
-
 var _ schemaUnit[Operation] = &ArrowReference{}
 
 // UnionOperation is an Operation that represents `permission foo = a | b | c`.
@@ -234,25 +195,6 @@ func (u *UnionOperation) clone() Operation {
 	}
 }
 
-// cloneWithParent creates a deep copy of the UnionOperation with the specified parent.
-func (u *UnionOperation) cloneWithParent(parent Operation) Operation {
-	if u == nil {
-		return nil
-	}
-	cloned := &UnionOperation{
-		parent:   parent,
-		children: make([]Operation, len(u.children)),
-	}
-	for i, child := range u.children {
-		if childCloner, ok := child.(operationCloner); ok {
-			cloned.children[i] = childCloner.cloneWithParent(cloned)
-		} else {
-			cloned.children[i] = child.clone()
-		}
-	}
-	return cloned
-}
-
 var _ schemaUnit[Operation] = &UnionOperation{}
 
 // IntersectionOperation is an Operation that represents `permission foo = a & b & c`.
@@ -289,25 +231,6 @@ func (i *IntersectionOperation) clone() Operation {
 	return &IntersectionOperation{
 		children: children,
 	}
-}
-
-// cloneWithParent creates a deep copy of the IntersectionOperation with the specified parent.
-func (i *IntersectionOperation) cloneWithParent(parent Operation) Operation {
-	if i == nil {
-		return nil
-	}
-	cloned := &IntersectionOperation{
-		parent:   parent,
-		children: make([]Operation, len(i.children)),
-	}
-	for idx, child := range i.children {
-		if childCloner, ok := child.(operationCloner); ok {
-			cloned.children[idx] = childCloner.cloneWithParent(cloned)
-		} else {
-			cloned.children[idx] = child.clone()
-		}
-	}
-	return cloned
 }
 
 var _ schemaUnit[Operation] = &IntersectionOperation{}
@@ -383,27 +306,6 @@ func (e *ExclusionOperation) clone() Operation {
 	}
 }
 
-// cloneWithParent creates a deep copy of the ExclusionOperation with the specified parent.
-func (e *ExclusionOperation) cloneWithParent(parent Operation) Operation {
-	if e == nil {
-		return nil
-	}
-	cloned := &ExclusionOperation{
-		parent: parent,
-	}
-	if leftCloner, ok := e.left.(operationCloner); ok {
-		cloned.left = leftCloner.cloneWithParent(cloned)
-	} else {
-		cloned.left = e.left.clone()
-	}
-	if rightCloner, ok := e.right.(operationCloner); ok {
-		cloned.right = rightCloner.cloneWithParent(cloned)
-	} else {
-		cloned.right = e.right.clone()
-	}
-	return cloned
-}
-
 // RelationName returns the name of the relation or permission being referenced.
 func (r *ResolvedRelationReference) RelationName() string {
 	return r.relationName
@@ -429,18 +331,6 @@ func (r *ResolvedRelationReference) clone() Operation {
 		return nil
 	}
 	return &ResolvedRelationReference{
-		relationName: r.relationName,
-		resolved:     r.resolved,
-	}
-}
-
-// cloneWithParent creates a deep copy of the ResolvedRelationReference with the specified parent.
-func (r *ResolvedRelationReference) cloneWithParent(parent Operation) Operation {
-	if r == nil {
-		return nil
-	}
-	return &ResolvedRelationReference{
-		parent:       parent,
 		relationName: r.relationName,
 		resolved:     r.resolved,
 	}
@@ -481,19 +371,6 @@ func (a *ResolvedArrowReference) clone() Operation {
 		return nil
 	}
 	return &ResolvedArrowReference{
-		left:         a.left,
-		resolvedLeft: a.resolvedLeft,
-		right:        a.right,
-	}
-}
-
-// cloneWithParent creates a deep copy of the ResolvedArrowReference with the specified parent.
-func (a *ResolvedArrowReference) cloneWithParent(parent Operation) Operation {
-	if a == nil {
-		return nil
-	}
-	return &ResolvedArrowReference{
-		parent:       parent,
 		left:         a.left,
 		resolvedLeft: a.resolvedLeft,
 		right:        a.right,
@@ -561,20 +438,6 @@ func (a *ResolvedFunctionedArrowReference) clone() Operation {
 	}
 }
 
-// cloneWithParent creates a deep copy of the ResolvedFunctionedArrowReference with the specified parent.
-func (a *ResolvedFunctionedArrowReference) cloneWithParent(parent Operation) Operation {
-	if a == nil {
-		return nil
-	}
-	return &ResolvedFunctionedArrowReference{
-		parent:       parent,
-		left:         a.left,
-		resolvedLeft: a.resolvedLeft,
-		right:        a.right,
-		function:     a.function,
-	}
-}
-
 var (
 	_ schemaUnit[Operation] = &ExclusionOperation{}
 	_ schemaUnit[Operation] = &ResolvedRelationReference{}
@@ -627,19 +490,6 @@ func (f *FunctionedArrowReference) clone() Operation {
 		return nil
 	}
 	return &FunctionedArrowReference{
-		left:     f.left,
-		right:    f.right,
-		function: f.function,
-	}
-}
-
-// cloneWithParent creates a deep copy of the FunctionedArrowReference with the specified parent.
-func (f *FunctionedArrowReference) cloneWithParent(parent Operation) Operation {
-	if f == nil {
-		return nil
-	}
-	return &FunctionedArrowReference{
-		parent:   parent,
 		left:     f.left,
 		right:    f.right,
 		function: f.function,
