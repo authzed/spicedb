@@ -537,17 +537,9 @@ func (cds *crdbDatastore) SchemaHashReaderForTesting() interface {
 	return &crdbSchemaHashReaderForTesting{query: cds.readPool}
 }
 
-// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
-func (cds *crdbDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
-	// Determine the schema changefeed query format based on the relationship changefeed query
-	schemaChangefeedFormat := querySchemaChangefeed
-	switch cds.beginChangefeedQuery {
-	case queryChangefeedPreV22:
-		schemaChangefeedFormat = querySchemaChangefeedPreV22
-	case queryChangefeedPreV25:
-		schemaChangefeedFormat = querySchemaChangefeedPreV25
-	}
-	return newCRDBSchemaHashWatcher(cds.readPool, schemaChangefeedFormat)
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+func (cds *crdbDatastore) SchemaModeForTesting() (options.SchemaMode, error) {
+	return cds.schemaMode, nil
 }
 
 type crdbSchemaHashReaderForTesting struct {
@@ -555,8 +547,19 @@ type crdbSchemaHashReaderForTesting struct {
 }
 
 func (r *crdbSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
-	watcher := &crdbSchemaHashWatcher{query: r.query}
-	return watcher.readSchemaHash(ctx)
+	var hashBytes []byte
+
+	err := r.query.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&hashBytes)
+	}, "SELECT hash FROM schema_revision WHERE name = 'current'")
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", datastore.ErrSchemaNotFound
+		}
+		return "", fmt.Errorf("failed to query schema hash: %w", err)
+	}
+
+	return string(hashBytes), nil
 }
 
 func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {

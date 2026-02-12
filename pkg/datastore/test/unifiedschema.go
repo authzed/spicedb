@@ -5,11 +5,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -954,15 +952,34 @@ func UnifiedSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	// Read the schema hash from schema_revision table
-	hash, err := readerImpl.ReadSchemaHash(ctx)
-	require.NoError(err)
-	require.NotEmpty(hash, "schema hash should not be empty")
+	// Get the schema mode from the datastore to determine expected behavior
+	schemaModeProvider, ok := ds.(interface {
+		SchemaModeForTesting() (options.SchemaMode, error)
+	})
+	require.True(ok, "datastore must implement SchemaModeForTesting() for this test")
+	schemaMode, err := schemaModeProvider.SchemaModeForTesting()
+	require.NoError(err, "failed to get schema mode from datastore")
 
-	// Verify the hash is correct by computing the expected hash
-	// The hash is computed from sorted definitions (matching datastore behavior)
-	expectedHash := computeExpectedSchemaHash(t, testSchemaDefinitions)
-	require.Equal(expectedHash, hash, "schema hash should match computed hash of sorted schema text")
+	// Determine if this mode should write the unified schema hash
+	// The hash is written in all modes that write to the unified schema
+	shouldWriteHash := schemaMode == options.SchemaModeReadLegacyWriteBoth ||
+		schemaMode == options.SchemaModeReadNewWriteBoth ||
+		schemaMode == options.SchemaModeReadNewWriteNew
+
+	// Read the schema hash from schema_revision table
+	hash, hashErr := readerImpl.ReadSchemaHash(ctx)
+
+	if shouldWriteHash {
+		// Hash MUST be present and correct
+		require.NoError(hashErr, "schema hash should be present in mode %s", schemaMode)
+		require.NotEmpty(hash, "schema hash should not be empty")
+		expectedHash := computeExpectedSchemaHash(t, testSchemaDefinitions)
+		require.Equal(expectedHash, hash, "schema hash should match computed hash of sorted schema text")
+	} else {
+		// Hash should NOT be present in ReadLegacyWriteLegacy mode
+		require.ErrorIs(hashErr, datastore.ErrSchemaNotFound,
+			"expected ErrSchemaNotFound in mode %s, got: %v", schemaMode, hashErr)
+	}
 
 	// Update the schema
 	updatedSchemaText, _, err := generator.GenerateSchema(updatedSchemaDefinitions)
@@ -982,136 +999,21 @@ func UnifiedSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	// Read the updated schema hash
-	updatedHash, err := hashReader.SchemaHashReaderForTesting().ReadSchemaHash(ctx)
-	require.NoError(err)
-	require.NotEmpty(updatedHash, "updated schema hash should not be empty")
-	require.NotEqual(hash, updatedHash, "schema hash should change after update")
+	// Read the updated schema hash and verify based on mode
+	updatedHash, updatedHashErr := hashReader.SchemaHashReaderForTesting().ReadSchemaHash(ctx)
 
-	// Verify the updated hash is correct by computing the expected hash
-	expectedUpdatedHash := computeExpectedSchemaHash(t, updatedSchemaDefinitions)
-	require.Equal(expectedUpdatedHash, updatedHash, "updated schema hash should match computed hash of sorted updated schema text")
-}
+	if shouldWriteHash {
+		// Hash MUST be present, correct, and different from the first hash
+		require.NoError(updatedHashErr, "updated schema hash should be present in mode %s", schemaMode)
+		require.NotEmpty(updatedHash, "updated schema hash should not be empty")
+		require.NotEqual(hash, updatedHash, "schema hash should change after update")
 
-// UnifiedSchemaHashWatchTest tests the schema hash watcher functionality
-func UnifiedSchemaHashWatchTest(t *testing.T, tester DatastoreTester) {
-	require := require.New(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
-	require.NoError(err)
-	defer ds.Close()
-
-	// Check if datastore supports unified schema
-	headRev, _, err := ds.HeadRevision(ctx)
-	require.NoError(err)
-
-	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
-	_, readerOK := reader.(datastore.SingleStoreSchemaReader)
-	if !readerOK {
-		t.Skip("datastore does not implement SingleStoreSchemaReader")
-	}
-
-	// Get the hash watcher (test-only interface)
-	hashWatcherProvider, hasWatcher := ds.(interface {
-		SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher
-	})
-	require.True(hasWatcher, "datastore must implement SchemaHashWatcherForTesting")
-
-	watcher := hashWatcherProvider.SchemaHashWatcherForTesting()
-	require.NotNil(watcher, "SchemaHashWatcherForTesting() must return non-nil watcher")
-
-	// Channel to receive hash updates
-	hashUpdates := make(chan string, 10)
-	errorsChan := make(chan error, 1)
-
-	// Start watching
-	go func() {
-		err := watcher.WatchSchemaHash(ctx, 100*time.Millisecond, func(hash string, rev datastore.Revision) error {
-			hashUpdates <- hash
-			return nil
-		})
-		if err != nil && !errors.Is(err, context.Canceled) {
-			errorsChan <- err
-		}
-	}()
-
-	// Give watcher time to start
-	time.Sleep(150 * time.Millisecond)
-
-	// Generate and write first schema
-	schemaText1, _, err := generator.GenerateSchema(testSchemaDefinitions)
-	require.NoError(err)
-
-	defs1 := make([]datastore.SchemaDefinition, 0, len(testSchemaDefinitions))
-	for _, def := range testSchemaDefinitions {
-		defs1 = append(defs1, def.(datastore.SchemaDefinition))
-	}
-
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		schemaWriter, err := rwt.SchemaWriter()
-		if err != nil {
-			return err
-		}
-		return schemaWriter.WriteSchema(ctx, defs1, schemaText1, nil)
-	})
-	require.NoError(err)
-
-	// Wait for hash update
-	var firstHash string
-	select {
-	case hash := <-hashUpdates:
-		firstHash = hash
-		// Verify the hash is correct by computing the expected hash
-		expectedHash := computeExpectedSchemaHash(t, testSchemaDefinitions)
-		require.Equal(expectedHash, hash, "schema hash should match computed hash of sorted schema text")
-	case err := <-errorsChan:
-		t.Fatalf("watcher error: %v", err)
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for first hash update")
-	}
-
-	// Generate and write second schema
-	schemaText2, _, err := generator.GenerateSchema(updatedSchemaDefinitions)
-	require.NoError(err)
-
-	defs2 := make([]datastore.SchemaDefinition, 0, len(updatedSchemaDefinitions))
-	for _, def := range updatedSchemaDefinitions {
-		defs2 = append(defs2, def.(datastore.SchemaDefinition))
-	}
-
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		schemaWriter, err := rwt.SchemaWriter()
-		if err != nil {
-			return err
-		}
-		return schemaWriter.WriteSchema(ctx, defs2, schemaText2, nil)
-	})
-	require.NoError(err)
-
-	// Wait for second hash update
-	select {
-	case hash := <-hashUpdates:
-		require.NotEqual(firstHash, hash, "hash should change after schema update")
-		// Verify the hash is correct by computing the expected hash
-		expectedHash := computeExpectedSchemaHash(t, updatedSchemaDefinitions)
-		require.Equal(expectedHash, hash, "updated schema hash should match computed hash of sorted updated schema text")
-	case err := <-errorsChan:
-		t.Fatalf("watcher error: %v", err)
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for second hash update")
-	}
-
-	// Cancel and verify watcher stops
-	cancel()
-	time.Sleep(200 * time.Millisecond)
-
-	// No new updates should arrive
-	select {
-	case hash := <-hashUpdates:
-		t.Fatalf("unexpected hash update after cancel: %s", hash)
-	default:
-		// Expected - no updates
+		// Verify the updated hash is correct
+		expectedUpdatedHash := computeExpectedSchemaHash(t, updatedSchemaDefinitions)
+		require.Equal(expectedUpdatedHash, updatedHash, "updated schema hash should match computed hash of sorted updated schema text")
+	} else {
+		// Hash should still NOT be present in ReadLegacyWriteLegacy mode
+		require.ErrorIs(updatedHashErr, datastore.ErrSchemaNotFound,
+			"expected ErrSchemaNotFound after update in mode %s, got: %v", schemaMode, updatedHashErr)
 	}
 }

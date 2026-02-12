@@ -592,9 +592,9 @@ func (mds *mysqlDatastore) SchemaHashReaderForTesting() interface {
 	}
 }
 
-// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
-func (mds *mysqlDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
-	return newMySQLSchemaHashWatcher(mds.db, mds.driver.SchemaRevision())
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+func (mds *mysqlDatastore) SchemaModeForTesting() (dsoptions.SchemaMode, error) {
+	return mds.schemaMode, nil
 }
 
 type mysqlSchemaHashReaderForTesting struct {
@@ -603,11 +603,28 @@ type mysqlSchemaHashReaderForTesting struct {
 }
 
 func (r *mysqlSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
-	watcher := &mysqlSchemaHashWatcher{
-		db:                      r.db,
-		schemaRevisionTableName: r.schemaRevisionTableName,
+	query, args, err := sb.Select("hash").
+		From(r.schemaRevisionTableName).
+		Where(sq.Eq{
+			"name":                "current",
+			"deleted_transaction": liveDeletedTxnID,
+		}).
+		ToSql()
+	if err != nil {
+		return "", fmt.Errorf("failed to build query: %w", err)
 	}
-	return watcher.readSchemaHash(ctx)
+
+	var hashBytes []byte
+
+	err = r.db.QueryRowContext(ctx, query, args...).Scan(&hashBytes)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", datastore.ErrSchemaNotFound
+		}
+		return "", fmt.Errorf("failed to query schema hash: %w", err)
+	}
+
+	return string(hashBytes), nil
 }
 
 // ReadyState returns whether the datastore is ready to accept data. Datastores that require

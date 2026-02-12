@@ -421,9 +421,10 @@ func (mdb *memdbDatastore) SchemaHashReaderForTesting() interface {
 	return &memdbSchemaHashReaderForTesting{db: mdb}
 }
 
-// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
-func (mdb *memdbDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
-	return newMemdbSchemaHashWatcher(mdb)
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+// MemDB always operates in a mode equivalent to ReadNewWriteNew.
+func (mdb *memdbDatastore) SchemaModeForTesting() (options.SchemaMode, error) {
+	return options.SchemaModeReadNewWriteNew, nil
 }
 
 type memdbSchemaHashReaderForTesting struct {
@@ -431,8 +432,27 @@ type memdbSchemaHashReaderForTesting struct {
 }
 
 func (r *memdbSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
-	watcher := &memdbSchemaHashWatcher{db: r.db}
-	return watcher.readSchemaHash()
+	r.db.RLock()
+	defer r.db.RUnlock()
+
+	tx := r.db.db.Txn(false)
+	defer tx.Abort()
+
+	raw, err := tx.First(tableSchemaRevision, indexID, "current")
+	if err != nil {
+		return "", fmt.Errorf("failed to query schema hash: %w", err)
+	}
+
+	if raw == nil {
+		return "", datastore.ErrSchemaNotFound
+	}
+
+	revisionData, ok := raw.(*schemaRevisionData)
+	if !ok {
+		return "", errors.New("invalid schema revision data type")
+	}
+
+	return string(revisionData.hash), nil
 }
 
 // This code assumes that the RWMutex has been acquired.

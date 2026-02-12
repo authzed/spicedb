@@ -173,16 +173,16 @@ func (p *observableProxy) SchemaHashReaderForTesting() interface {
 	return nil
 }
 
-// SchemaHashWatcherForTesting delegates to the underlying datastore if it implements the test interface
-func (p *observableProxy) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
-	type schemaHashWatcherProvider interface {
-		SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher
+// SchemaModeForTesting delegates to the underlying datastore if it implements the test interface
+func (p *observableProxy) SchemaModeForTesting() (options.SchemaMode, error) {
+	type schemaModeProvider interface {
+		SchemaModeForTesting() (options.SchemaMode, error)
 	}
 
-	if hashWatcher, ok := p.delegate.(schemaHashWatcherProvider); ok {
-		return hashWatcher.SchemaHashWatcherForTesting()
+	if provider, ok := p.delegate.(schemaModeProvider); ok {
+		return provider.SchemaModeForTesting()
 	}
-	return nil
+	return options.SchemaModeReadLegacyWriteLegacy, errors.New("delegate datastore does not implement SchemaModeForTesting()")
 }
 
 type observableReader struct{ delegate datastore.Reader }

@@ -229,7 +229,6 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestUnifiedSchemaValidation", runner(tester, UnifiedSchemaValidationTest))
 	t.Run("TestUnifiedSchemaMultipleIterations", runner(tester, UnifiedSchemaMultipleIterationsTest))
 	t.Run("TestUnifiedSchemaHash", runner(tester, UnifiedSchemaHashTest))
-	t.Run("TestUnifiedSchemaHashWatch", runner(tester, UnifiedSchemaHashWatchTest))
 }
 
 func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {

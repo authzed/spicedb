@@ -699,10 +699,9 @@ func (pgd *pgDatastore) SchemaHashReaderForTesting() interface {
 	return &pgSchemaHashReaderForTesting{query: queryFuncs}
 }
 
-// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
-func (pgd *pgDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
-	queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
-	return newPGSchemaHashWatcher(queryFuncs)
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+func (pgd *pgDatastore) SchemaModeForTesting() (dsoptions.SchemaMode, error) {
+	return pgd.schemaMode, nil
 }
 
 type pgSchemaHashReaderForTesting struct {
@@ -710,8 +709,30 @@ type pgSchemaHashReaderForTesting struct {
 }
 
 func (r *pgSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
-	watcher := &pgSchemaHashWatcher{query: r.query}
-	return watcher.readSchemaHash(ctx)
+	sql, args, err := psql.Select("hash").
+		From("schema_revision").
+		Where(sq.Eq{
+			"name":        "current",
+			"deleted_xid": liveDeletedTxnID,
+		}).
+		ToSql()
+	if err != nil {
+		return "", fmt.Errorf("failed to build query: %w", err)
+	}
+
+	var hashBytes []byte
+
+	err = r.query.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&hashBytes)
+	}, sql, args...)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", datastore.ErrSchemaNotFound
+		}
+		return "", fmt.Errorf("failed to query schema hash: %w", err)
+	}
+
+	return string(hashBytes), nil
 }
 
 func errorRetryable(err error) bool {

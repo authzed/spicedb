@@ -328,19 +328,16 @@ func (r *relationshipIntegrityProxy) SchemaHashReaderForTesting() interface {
 	return nil
 }
 
-// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
+// SchemaModeForTesting returns the current schema mode for testing purposes.
 // This delegates to the underlying datastore if it supports the test interface.
-func (r *relationshipIntegrityProxy) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
+func (r *relationshipIntegrityProxy) SchemaModeForTesting() (options.SchemaMode, error) {
 	type provider interface {
-		SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher
+		SchemaModeForTesting() (options.SchemaMode, error)
 	}
 
 	// Check delegate directly
 	if p, ok := r.ds.(provider); ok {
-		result := p.SchemaHashWatcherForTesting()
-		if result != nil {
-			return result
-		}
+		return p.SchemaModeForTesting()
 	}
 
 	// Try unwrapping if delegate is itself a proxy
@@ -348,13 +345,12 @@ func (r *relationshipIntegrityProxy) SchemaHashWatcherForTesting() datastore.Sin
 		Unwrap() datastore.Datastore
 	}
 	if u, ok := r.ds.(unwrapper); ok {
-		unwrapped := u.Unwrap()
-		if p, ok := unwrapped.(provider); ok {
-			return p.SchemaHashWatcherForTesting()
+		if p, ok := u.Unwrap().(provider); ok {
+			return p.SchemaModeForTesting()
 		}
 	}
 
-	return nil
+	return options.SchemaModeReadLegacyWriteLegacy, errors.New("delegate datastore does not implement SchemaModeForTesting()")
 }
 
 func (r *relationshipIntegrityProxy) Unwrap() datastore.Datastore {

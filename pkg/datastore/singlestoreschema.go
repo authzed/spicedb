@@ -2,24 +2,9 @@ package datastore
 
 import (
 	"context"
-	"time"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
-
-// SchemaWatchCallback is invoked when the schema hash changes.
-// The callback receives the new schema hash and the revision at which it was observed.
-type SchemaWatchCallback func(schemaHash string, revision Revision) error
-
-// SingleStoreSchemaHashWatcher defines methods for watching schema hash changes in the unified single-store schema hash table.
-type SingleStoreSchemaHashWatcher interface {
-	// WatchSchemaHash watches for changes to the schema hash and invokes the callback when it changes.
-	// The refreshInterval specifies how often to check for changes (for polling implementations).
-	// For watch-based implementations (CRDB, Spanner), this may be used as a hint for reconnection timing.
-	// The watch continues until the context is canceled.
-	// Returns an error if the watch cannot be started.
-	WatchSchemaHash(ctx context.Context, refreshInterval time.Duration, callback SchemaWatchCallback) error
-}
 
 // SingleStoreSchemaReader defines methods for reading schema from the unified single-store schema table.
 type SingleStoreSchemaReader interface {

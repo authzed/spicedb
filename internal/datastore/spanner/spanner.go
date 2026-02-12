@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -486,9 +487,9 @@ func (sd *spannerDatastore) SchemaHashReaderForTesting() interface {
 	return &spannerSchemaHashReaderForTesting{client: sd.client}
 }
 
-// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
-func (sd *spannerDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
-	return newSpannerSchemaHashWatcher(sd.client)
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+func (sd *spannerDatastore) SchemaModeForTesting() (dsoptions.SchemaMode, error) {
+	return sd.schemaMode, nil
 }
 
 type spannerSchemaHashReaderForTesting struct {
@@ -496,8 +497,31 @@ type spannerSchemaHashReaderForTesting struct {
 }
 
 func (r *spannerSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
-	watcher := &spannerSchemaHashWatcher{client: r.client}
-	return watcher.readSchemaHash(ctx)
+	txn := r.client.Single()
+	defer txn.Close()
+
+	iter := txn.Query(ctx, spanner.Statement{
+		SQL: "SELECT schema_hash FROM schema_revision WHERE name = @name",
+		Params: map[string]any{
+			"name": "current",
+		},
+	})
+	defer iter.Stop()
+
+	row, err := iter.Next()
+	if err != nil {
+		if errors.Is(err, iterator.Done) {
+			return "", datastore.ErrSchemaNotFound
+		}
+		return "", fmt.Errorf("failed to query schema hash: %w", err)
+	}
+
+	var hashBytes []byte
+	if err := row.Columns(&hashBytes); err != nil {
+		return "", fmt.Errorf("failed to scan schema hash: %w", err)
+	}
+
+	return string(hashBytes), nil
 }
 
 func statementFromSQL(sql string, args []any) spanner.Statement {

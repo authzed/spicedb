@@ -116,17 +116,17 @@ func (p *indexcheckingProxy) SchemaHashReaderForTesting() interface {
 	return nil
 }
 
-// SchemaHashWatcherForTesting returns a test-only interface for watching schema hash changes.
+// SchemaModeForTesting returns the current schema mode for testing purposes.
 // This delegates to the underlying datastore if it supports the test interface.
-func (p *indexcheckingProxy) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
-	type schemaHashWatcherProvider interface {
-		SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher
+func (p *indexcheckingProxy) SchemaModeForTesting() (options.SchemaMode, error) {
+	type schemaModeProvider interface {
+		SchemaModeForTesting() (options.SchemaMode, error)
 	}
 
-	if provider, ok := p.delegate.(schemaHashWatcherProvider); ok {
-		return provider.SchemaHashWatcherForTesting()
+	if provider, ok := p.delegate.(schemaModeProvider); ok {
+		return provider.SchemaModeForTesting()
 	}
-	return nil
+	return options.SchemaModeReadLegacyWriteLegacy, errors.New("delegate datastore does not implement SchemaModeForTesting()")
 }
 
 type indexcheckingReader struct {

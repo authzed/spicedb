@@ -64,16 +64,16 @@ func (vds validatingDatastore) SchemaHashReaderForTesting() interface {
 	return nil
 }
 
-// SchemaHashWatcherForTesting delegates to the underlying datastore if it implements the test interface
-func (vds validatingDatastore) SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher {
-	type schemaHashWatcherProvider interface {
-		SchemaHashWatcherForTesting() datastore.SingleStoreSchemaHashWatcher
+// SchemaModeForTesting delegates to the underlying datastore if it implements the test interface
+func (vds validatingDatastore) SchemaModeForTesting() (options.SchemaMode, error) {
+	type schemaModeProvider interface {
+		SchemaModeForTesting() (options.SchemaMode, error)
 	}
 
-	if hashWatcher, ok := vds.Datastore.(schemaHashWatcherProvider); ok {
-		return hashWatcher.SchemaHashWatcherForTesting()
+	if provider, ok := vds.Datastore.(schemaModeProvider); ok {
+		return provider.SchemaModeForTesting()
 	}
-	return nil
+	return options.SchemaModeReadLegacyWriteLegacy, errors.New("delegate datastore does not implement SchemaModeForTesting()")
 }
 
 type validatingReader struct {

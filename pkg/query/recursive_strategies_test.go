@@ -42,7 +42,7 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 	require.NoError(t, err)
 
 	queryCtx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 	// Test all three strategies
 	strategies := []struct {
@@ -105,7 +105,7 @@ func TestRecursiveCheckStrategiesEmpty(t *testing.T) {
 	recursive := NewRecursiveIterator(emptyFixed, "folder", "view")
 
 	queryCtx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 	strategies := []recursiveCheckStrategy{
 		recursiveCheckIterSubjects,
@@ -159,7 +159,7 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 	require.NoError(t, err)
 
 	queryCtx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 	strategies := []recursiveCheckStrategy{
 		recursiveCheckIterSubjects,
