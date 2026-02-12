@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -70,21 +71,12 @@ func TestTraverseArrowTargets_Basic(t *testing.T) {
 	// because the arrow targets folder#view
 	t.Logf("Visit order: %v", visitor.visitOrder)
 
-	firstFolderViewIndex := -1
-	arrowRefIndex := -1
-
 	// Find the FIRST occurrence of folder#view (via arrow traversal) and the arrow itself
-	for i, visit := range visitor.visitOrder {
-		if visit == "folder#view" && firstFolderViewIndex == -1 {
-			firstFolderViewIndex = i
-		}
-		if visit == "document#parent->view" {
-			arrowRefIndex = i
-		}
-	}
+	firstFolderViewIndex := slices.Index(visitor.visitOrder, "folder#view")
+	arrowRefIndex := slices.Index(visitor.visitOrder, "document#parent->view")
 
-	require.NotEqual(t, -1, firstFolderViewIndex, "folder#view should be visited")
-	require.NotEqual(t, -1, arrowRefIndex, "document arrow should be visited, but got visits: %v", visitor.visitOrder)
+	require.Contains(t, visitor.visitOrder, "folder#view", "folder#view should be visited")
+	require.Contains(t, visitor.visitOrder, "document#parent->view", "document arrow should be visited")
 	require.Less(t, firstFolderViewIndex, arrowRefIndex, "folder#view should be visited BEFORE document arrow (PostOrder with TraverseArrowTargets)")
 }
 
@@ -169,29 +161,14 @@ func TestTraverseArrowTargets_MultipleTargets(t *testing.T) {
 	// Note: Targets may be visited multiple times (once via arrow traversal, once in normal traversal)
 	t.Logf("Visit order: %v", visitor.visitOrder)
 
-	firstFolderViewIndex := -1
-	firstDocumentViewIndex := -1
-	arrowRefIndex := -1
-
 	// Find the FIRST occurrence of each target and the arrow
-	for i, visit := range visitor.visitOrder {
-		switch visit {
-		case "folder#view":
-			if firstFolderViewIndex == -1 {
-				firstFolderViewIndex = i
-			}
-		case "document#view":
-			if firstDocumentViewIndex == -1 {
-				firstDocumentViewIndex = i
-			}
-		case "resource#parent->view":
-			arrowRefIndex = i
-		}
-	}
+	firstFolderViewIndex := slices.Index(visitor.visitOrder, "folder#view")
+	firstDocumentViewIndex := slices.Index(visitor.visitOrder, "document#view")
+	arrowRefIndex := slices.Index(visitor.visitOrder, "resource#parent->view")
 
-	require.NotEqual(t, -1, firstFolderViewIndex, "folder#view should be visited")
-	require.NotEqual(t, -1, firstDocumentViewIndex, "document#view should be visited")
-	require.NotEqual(t, -1, arrowRefIndex, "resource arrow should be visited")
+	require.Contains(t, visitor.visitOrder, "folder#view", "folder#view should be visited")
+	require.Contains(t, visitor.visitOrder, "document#view", "document#view should be visited")
+	require.Contains(t, visitor.visitOrder, "resource#parent->view", "resource arrow should be visited")
 	require.Less(t, firstFolderViewIndex, arrowRefIndex, "folder#view should be visited BEFORE resource arrow")
 	require.Less(t, firstDocumentViewIndex, arrowRefIndex, "document#view should be visited BEFORE resource arrow")
 }
@@ -284,32 +261,15 @@ func TestTraverseArrowTargets_NestedArrows(t *testing.T) {
 	// org#view should be visited before folder arrow, and folder#view before document arrow
 	t.Logf("Visit order: %v", visitor.visitOrder)
 
-	firstOrgViewIndex := -1
-	firstFolderViewIndex := -1
-	folderArrowIndex := -1
-	documentArrowIndex := -1
+	firstOrgViewIndex := slices.Index(visitor.visitOrder, "org#view")
+	firstFolderViewIndex := slices.Index(visitor.visitOrder, "folder#view")
+	folderArrowIndex := slices.Index(visitor.visitOrder, "folder#parent->view")
+	documentArrowIndex := slices.Index(visitor.visitOrder, "document#parent->view")
 
-	for i, visit := range visitor.visitOrder {
-		switch visit {
-		case "org#view":
-			if firstOrgViewIndex == -1 {
-				firstOrgViewIndex = i
-			}
-		case "folder#view":
-			if firstFolderViewIndex == -1 {
-				firstFolderViewIndex = i
-			}
-		case "folder#parent->view":
-			folderArrowIndex = i
-		case "document#parent->view":
-			documentArrowIndex = i
-		}
-	}
-
-	require.NotEqual(t, -1, firstOrgViewIndex, "org#view should be visited")
-	require.NotEqual(t, -1, firstFolderViewIndex, "folder#view should be visited")
-	require.NotEqual(t, -1, folderArrowIndex, "folder arrow should be visited")
-	require.NotEqual(t, -1, documentArrowIndex, "document arrow should be visited")
+	require.Contains(t, visitor.visitOrder, "org#view", "org#view should be visited")
+	require.Contains(t, visitor.visitOrder, "folder#view", "folder#view should be visited")
+	require.Contains(t, visitor.visitOrder, "folder#parent->view", "folder arrow should be visited")
+	require.Contains(t, visitor.visitOrder, "document#parent->view", "document arrow should be visited")
 
 	require.Less(t, firstOrgViewIndex, folderArrowIndex, "org#view should be visited before folder arrow")
 	require.Less(t, firstFolderViewIndex, documentArrowIndex, "folder#view should be visited before document arrow")
@@ -621,14 +581,7 @@ func TestTraverseArrowTargets_IndividualRelationWalk(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should have visited document#parent
-	foundParent := false
-	for _, visit := range visitor.visitOrder {
-		if visit == "document#parent" {
-			foundParent = true
-		}
-	}
-
-	require.True(t, foundParent, "document#parent should be visited")
+	require.Contains(t, visitor.visitOrder, "document#parent", "document#parent should be visited")
 }
 
 func TestTraverseArrowTargets_DirectOperationWalk(t *testing.T) {
