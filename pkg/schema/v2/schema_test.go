@@ -286,7 +286,8 @@ func TestFindParent_ImmediateParent(t *testing.T) {
 	viewPerm, _ := def.GetPermission("view")
 	op := viewPerm.Operation()
 
-	// The immediate parent of the operation should be the permission
+	// Test that FindParent works for immediate parents (no traversal needed).
+	// The operation's parent is the permission itself, so FindParent should return it directly.
 	perm := FindParent[*Permission](op)
 	require.NotNil(t, perm, "should find permission parent")
 	require.Equal(t, viewPerm, perm, "should find the immediate parent permission")
