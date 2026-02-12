@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/ccoveille/go-safecast/v2"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -93,16 +94,24 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		chunkSize = 100
 	}
 
+	validator, err := protovalidate.New()
+	if err != nil {
+		// This error will only be encountered if protovalidate can't initialize
+		// its CEL environment, which can only happen on startup and shouldn't happen
+		// if the binary is packaged correctly.
+		panic(err)
+	}
+
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(),
+				grpcvalidate.UnaryServerInterceptor(validator),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(),
+				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
