@@ -33,15 +33,25 @@ services:
     command: "datastore migrate head"
     networks:
       - "default"
+  nginx:
+    image: "nginx:latest"
+    ports:
+      - "50051:50051" # grpc
+      - "8443:8443" # http
+    volumes:
+      - "./development/nginx.conf:/etc/nginx/nginx.conf"
+    depends_on:
+      - "spicedb-1"
+      - "spicedb-2"
   spicedb-1:
     container_name: "spicedb-1"
     build: "."
     command: "serve"
     restart: "no"
     ports:
-      - "9090:9090" # prometheus metrics
-      - "50051:50051" # grpc endpoint
-      - "8443:8443" # http endpoint
+      - "9090" # prometheus metrics
+      - "50051" # grpc endpoint
+      - "8443" # http endpoint
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"
@@ -77,6 +87,7 @@ services:
     ports:
       - "9090" # prometheus metrics
       - "50051" # grpc endpoint
+      - "8443" # http endpoint
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"

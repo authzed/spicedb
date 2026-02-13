@@ -38,13 +38,13 @@
       },
       "id": 19,
       "panels": [],
-      "title": "Server Metrics",
+      "title": "Overall Metrics",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -105,6 +105,100 @@
         "x": 0,
         "y": 1
       },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by(le, grpc_method, grpc_service) (rate(grpc_server_handling_seconds_bucket{job=\"spicedb\"}[$__rate_interval])))",
+          "key": "Q-52ee0e33-980f-4a19-9821-39530de9f304-0",
+          "legendFormat": "{{grpc_service}}/{{grpc_method}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "p50 Latency by Method",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
       "id": 26,
       "options": {
         "legend": {
@@ -122,7 +216,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by(le, grpc_method, grpc_service) (rate(grpc_server_handling_seconds_bucket{job=\"spicedb\"}[$__rate_interval])))",
@@ -138,7 +232,147 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
+      },
+      "description": "Response codes (green=OK, yellow=4xx, red=5xx)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*\\(OK\\).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*\\(NotFound|InvalidArgument|AlreadyExists|PermissionDenied|OutOfRange|Unimplemented|Unauthenticated|FailedPrecondition|Canceled\\).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*\\((Unknown|Unavailable|DeadlineExceeded|ResourceExhausted|Aborted|Internal)\\).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "id": 28,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by(grpc_service, grpc_method, grpc_code) (increase(grpc_server_handled_total{grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService|.*WatchService\"}[$__rate_interval]))",
+          "legendFormat": "{{grpc_service}}/{{grpc_method}} ({{grpc_code}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Response Codes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -197,7 +431,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 1
+        "y": 11
       },
       "id": 23,
       "options": {
@@ -216,7 +450,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "sum(rate(grpc_server_started_total{job=\"spicedb\"}[$__rate_interval])) by (grpc_service, grpc_method)\n",
@@ -231,9 +465,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
-      "description": "Response codes",
+      "description": "Distribution of request rate across instances. If one instance receives significantly more traffic than others, there may be a load balancing issue in front of the instances.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -289,11 +523,11 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
-        "y": 11
+        "y": 21
       },
-      "id": 28,
+      "id": 45,
       "options": {
         "legend": {
           "calcs": [],
@@ -310,16 +544,110 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by(grpc_method, grpc_code) (increase(grpc_server_handled_total{grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService\"}[$__rate_interval]))",
-          "legendFormat": "{{grpc_method}} ({{grpc_code}})",
+          "expr": "sum by(instance) (rate(grpc_server_handled_total{job=\"spicedb\",grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService|.*WatchService\"}[$__rate_interval]))",
+          "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Response Codes",
+      "title": "RPS Distribution per Instance",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Distribution of dispatch request rate across instances. If one instance receives significantly more dispatch traffic than others, it may suggest a problem with dispatching or recursive permission check distribution.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 46,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by(instance) (rate(grpc_server_handled_total{job=\"spicedb\",grpc_service=~\"dispatch.v1.DispatchService\"}[$__rate_interval]))",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Dispatch RPS Distribution per Instance",
       "type": "timeseries"
     },
     {
@@ -328,7 +656,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 37
       },
       "id": 30,
       "panels": [],
@@ -338,7 +666,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "Datastore query latency",
       "fieldConfig": {
@@ -398,7 +726,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 38
       },
       "id": 32,
       "options": {
@@ -417,7 +745,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by(le, operation) (rate(spicedb_datastore_query_latency_bucket[$__rate_interval])))",
@@ -431,7 +759,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "Datastore queries per second",
       "fieldConfig": {
@@ -491,7 +819,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 38
       },
       "id": 31,
       "options": {
@@ -510,7 +838,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "sum by(operation) (rate(spicedb_datastore_query_latency_count[$__rate_interval]))",
@@ -524,9 +852,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
-      "description": "Time spent acquiring datastore connections",
+      "description": "p99 of the number of relationships loaded per datastore query. High values may indicate inefficient queries or broad permission checks that load many relationships.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -576,17 +904,17 @@
               }
             ]
           },
-          "unit": "ns"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 12,
+        "h": 10,
+        "w": 24,
         "x": 0,
-        "y": 30
+        "y": 48
       },
-      "id": 33,
+      "id": 47,
       "options": {
         "legend": {
           "calcs": [],
@@ -603,15 +931,16 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by(pool_usage) (rate(pgxpool_acquire_duration_ns{job=\"spicedb\",pool_usage=~\"read|write\"}[$__rate_interval]))",
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(spicedb_datastore_loaded_relationships_count_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "relationships loaded",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Max time spent acquiring connections",
+      "title": "p99 Relationships Loaded per Query",
       "type": "timeseries"
     },
     {
@@ -620,7 +949,955 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 58
+      },
+      "id": 48,
+      "panels": [],
+      "title": "Datastore Metrics (Postgres & CRDB)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Shows the distribution of connections in the pool. High acquired conns may indicate active load. Low idle conns suggest the pool is under pressure and may need tuning. Constructing conns indicate new connections being established.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": ""
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 59
+      },
+      "id": 36,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Name",
+          "sortDesc": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "pgxpool_idle_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}",
+          "legendFormat": "idle",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "pgxpool_acquired_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}",
+          "legendFormat": "acquired",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "pgxpool_constructing_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}",
+          "legendFormat": "constructing",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "pgxpool_max_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}",
+          "legendFormat": "max",
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "Connection Pool State - Read ($instance)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Shows the distribution of connections in the pool. High acquired conns may indicate active load. Low idle conns suggest the pool is under pressure and may need tuning. Constructing conns indicate new connections being established.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": ""
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 59
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Name",
+          "sortDesc": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "pgxpool_idle_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}",
+          "legendFormat": "idle",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "pgxpool_acquired_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}",
+          "legendFormat": "acquired",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "pgxpool_constructing_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}",
+          "legendFormat": "constructing",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "pgxpool_max_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}",
+          "legendFormat": "max",
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "Connection Pool State - Write ($instance)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Tracks connection acquisition patterns. High acquire count with low canceled/empty indicates healthy pool usage. High canceled acquires may indicate timeout issues or request cancellation. High empty acquires suggest the pool is frequently exhausted and requests are waiting.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 69
+      },
+      "id": 37,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Name",
+          "sortDesc": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+          "legendFormat": "acquires/sec",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_canceled_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+          "legendFormat": "canceled/sec",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_empty_acquire{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+          "legendFormat": "empty acquires/sec",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Connection Acquisition Rate - Read ($instance)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Tracks connection acquisition patterns. High acquire count with low canceled/empty indicates healthy pool usage. High canceled acquires may indicate timeout issues or request cancellation. High empty acquires suggest the pool is frequently exhausted and requests are waiting.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 69
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Name",
+          "sortDesc": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+          "legendFormat": "acquires/sec",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_canceled_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+          "legendFormat": "canceled/sec",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_empty_acquire{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+          "legendFormat": "empty acquires/sec",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Connection Acquisition Rate - Write ($instance)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Monitors connection creation and destruction. High new conn count indicates connections are being created. High destroy counts suggest connections are being cycled frequently, which may indicate configuration issues with MaxConnIdleTime or MaxConnLifetime.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 79
+      },
+      "id": 38,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Name",
+          "sortDesc": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_new_conns_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+          "legendFormat": "new conns/sec",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_max_idle_destroy_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+          "legendFormat": "idle timeout destroys/sec",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_max_lifetime_destroy_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+          "legendFormat": "lifetime destroys/sec",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Connection Lifecycle - Read ($instance)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Monitors connection creation and destruction. High new conn count indicates connections are being created. High destroy counts suggest connections are being cycled frequently, which may indicate configuration issues with MaxConnIdleTime or MaxConnLifetime.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 79
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Name",
+          "sortDesc": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_new_conns_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+          "legendFormat": "new conns/sec",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_max_idle_destroy_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+          "legendFormat": "idle timeout destroys/sec",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(pgxpool_max_lifetime_destroy_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+          "legendFormat": "lifetime destroys/sec",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Connection Lifecycle - Write ($instance)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 89
+      },
+      "id": 42,
+      "panels": [],
+      "title": "Cache Metrics",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Percentage of cache lookups that found cached entries. SpiceDB uses hotspot caching with consistent hashing to maximize hit rates. Dispatch cache typically has highest ratios (>80%) for repeated permission checks. Namespace cache should be near 100% as schemas change infrequently. Low ratios indicate cache churn, unique queries, or insufficient cache size. Hit ratios directly impact latency and datastore load.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 90
+      },
+      "id": 43,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(increase(spicedb_cache_hits_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])) by (cache)\n/\n(\n  sum(increase(spicedb_cache_hits_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])) by (cache)\n  +\n  sum(increase(spicedb_cache_misses_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])) by (cache)\n)",
+          "legendFormat": "{{ cache }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Cache Hit Ratio - $instance",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Percentage of dispatch subproblems that were served from cache. High ratios indicate effective caching of permission check subproblems, reducing redundant computation and datastore queries. Low ratios may indicate unique permission patterns or cache configuration issues.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 96
+      },
+      "id": 44,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(rate(spicedb_services_dispatches_sum{job=\"spicedb\",instance=~\"$instance\",cached=\"true\"}[$__rate_interval]))\n/\nsum(rate(spicedb_services_dispatches_sum{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "subproblem cache hit ratio",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Subproblem Cache Hit Ratio - $instance",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 102
       },
       "id": 4,
       "panels": [],
@@ -630,7 +1907,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "The number of goroutines reported by the Go runtime.",
       "fieldConfig": {
@@ -683,13 +1960,26 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Goroutine Derivative"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 24,
         "x": 0,
-        "y": 40
+        "y": 103
       },
       "id": 2,
       "options": {
@@ -704,38 +1994,40 @@
           "sort": "none"
         }
       },
+      "repeat": "instance",
+      "repeatDirection": "h",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "builder",
-          "expr": "go_goroutines{job=\"spicedb\"}",
-          "legendFormat": "Goroutines ({{instance}})",
+          "expr": "go_goroutines{job=\"spicedb\",instance=~\"$instance\"}",
+          "legendFormat": "Goroutines",
           "range": true,
           "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "builder",
-          "expr": "irate(go_goroutines{job=\"spicedb\"}[$__rate_interval])",
+          "expr": "irate(go_goroutines{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
           "hide": false,
-          "legendFormat": "Goroutine Derivative ({{instance}})",
+          "legendFormat": "Goroutine Derivative",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Goroutines",
+      "title": "Goroutines - $instance",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "",
       "fieldConfig": {
@@ -810,9 +2102,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 40
+        "w": 24,
+        "x": 0,
+        "y": 111
       },
       "id": 6,
       "options": {
@@ -827,38 +2119,40 @@
           "sort": "none"
         }
       },
+      "repeat": "instance",
+      "repeatDirection": "h",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by(le, instance) (rate(go_sched_pauses_total_gc_seconds_bucket[$__rate_interval])))",
-          "legendFormat": "p99 of duration ({{instance}})",
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(go_sched_pauses_total_gc_seconds_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p99 of duration",
           "range": true,
           "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_gc_cycles_total_gc_cycles_total",
+          "expr": "go_gc_cycles_total_gc_cycles_total{job=\"spicedb\",instance=~\"$instance\"}",
           "hide": false,
-          "legendFormat": "count ({{instance}})",
+          "legendFormat": "count",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "GC (garbage collection)",
+      "title": "GC (garbage collection) - $instance",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -936,9 +2230,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 40
+        "w": 24,
+        "x": 0,
+        "y": 119
       },
       "id": 12,
       "options": {
@@ -953,48 +2247,50 @@
           "sort": "none"
         }
       },
+      "repeat": "instance",
+      "repeatDirection": "h",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "builder",
-          "expr": "go_memstats_heap_inuse_bytes{job=\"spicedb\"}",
-          "legendFormat": "Heap In Use ({{instance}})",
+          "expr": "go_memstats_heap_inuse_bytes{job=\"spicedb\",instance=~\"$instance\"}",
+          "legendFormat": "Heap In Use",
           "range": true,
           "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "builder",
-          "expr": "go_gc_gomemlimit_bytes{job=\"spicedb\"}",
-          "legendFormat": "GOMEMLIMIT ({{instance}})",
+          "expr": "go_gc_gomemlimit_bytes{job=\"spicedb\",instance=~\"$instance\"}",
+          "legendFormat": "GOMEMLIMIT",
           "range": true,
           "refId": "B"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "builder",
-          "expr": "spicedb_memory_middleware_memory_usage_percent{job=\"spicedb\"}",
-          "legendFormat": "Usage % ({{instance}})",
+          "expr": "spicedb_memory_middleware_memory_usage_percent{job=\"spicedb\",instance=~\"$instance\"}",
+          "legendFormat": "Usage %",
           "range": true,
           "refId": "C"
         }
       ],
-      "title": "Heap Memory Usage",
+      "title": "Heap Memory Usage - $instance",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "The number of heap allocations (mallocs) as a rate (malloc/sec).",
       "fieldConfig": {
@@ -1054,7 +2350,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 48
+        "y": 127
       },
       "id": 16,
       "options": {
@@ -1073,16 +2369,110 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "builder",
-          "expr": "rate(go_memstats_mallocs_total{job=\"spicedb\"}[$__rate_interval])",
+          "expr": "rate(go_memstats_mallocs_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Memory Allocation Rate (malloc/sec)",
+      "title": "Memory Allocation Rate (malloc/sec) - $instance",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Shows the number of heap allocations (as a byte/sec rate).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "binBps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 127
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "builder",
+          "expr": "rate(go_memstats_alloc_bytes_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+          "legendFormat": "bytes/sec ({{instance}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Heap Allocation Rate - $instance",
       "type": "timeseries"
     },
     {
@@ -1146,104 +2536,10 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 8,
-        "y": 48
+        "x": 16,
+        "y": 127
       },
       "id": 35,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "builder",
-          "expr": "rate(go_sync_mutex_wait_total_seconds_total[$__rate_interval])",
-          "legendFormat": "{{instance}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Mutex wait time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Shows the number of heap allocations (as a byte/sec rate).",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "binBps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 48
-      },
-      "id": 14,
       "options": {
         "legend": {
           "calcs": [],
@@ -1260,16 +2556,16 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "editorMode": "builder",
-          "expr": "rate(go_memstats_alloc_bytes_total{job=\"spicedb\"}[$__rate_interval])",
-          "legendFormat": "bytes/sec ({{instance}}",
+          "expr": "rate(go_sync_mutex_wait_total_seconds_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+          "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Heap Allocation Rate",
+      "title": "Mutex wait time - $instance",
       "type": "timeseries"
     }
   ],
@@ -1280,24 +2576,36 @@
   "templating": {
     "list": [
       {
+        "allValue": ".*",
         "current": {
-          "selected": false,
-          "text": "Prometheus",
-          "value": "Prometheus"
+          "selected": true,
+          "text": [
+            "spicedb-1:9090"
+          ],
+          "value": [
+            "spicedb-1:9090"
+          ]
         },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(go_goroutines{job=\"spicedb\"}, instance)",
         "hide": 0,
-        "includeAll": false,
-        "label": "Prometheus",
-        "multi": false,
-        "name": "DS_PROMETHEUS",
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
         "options": [],
-        "pluginId": "prometheus",
-        "pluginName": "Prometheus",
-        "query": "prometheus",
+        "query": {
+          "query": "label_values(go_goroutines{job=\"spicedb\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
-        "type": "datasource"
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
@@ -1309,6 +2617,6 @@
   "timezone": "",
   "title": "SpiceDB Dashboard",
   "uid": "qvsJJ_6Hk",
-  "version": 7,
+  "version": 56,
   "weekStart": ""
 }
