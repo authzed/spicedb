@@ -23,7 +23,7 @@ func TestIteratorTracing(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(revision)),
+		WithReader(ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting)),
 		WithTraceLogger(traceLogger),
 	)
 

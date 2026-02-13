@@ -80,7 +80,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, testRels...)
 			require.Error(t, err)
 
-			dsReader := ds.SnapshotReader(lastRevision)
+			dsReader := ds.SnapshotReader(lastRevision, datastore.NoSchemaHashForTesting)
 			for _, relToFind := range testRels {
 				relSubject := relToFind.Subject
 
@@ -229,7 +229,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Verify that it does not show up at the new revision
 			tRequire.NoRelationshipExists(ctx, testRels[0], deletedAt)
-			alreadyDeletedIter, err := ds.SnapshotReader(deletedAt).QueryRelationships(
+			alreadyDeletedIter, err := ds.SnapshotReader(deletedAt, datastore.NoSchemaHashForTesting).QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
 					OptionalResourceType: testRels[0].Resource.ObjectType,
@@ -289,9 +289,9 @@ func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			// Read it back
-			rev, err := ds.HeadRevision(ctx)
+			rev, _, err := ds.HeadRevision(ctx)
 			require.NoError(err)
-			iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+			iter, err := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testResourceNamespace,
 				OptionalResourceIds:  []string{tc},
 			}, options.WithQueryShape(queryshape.Varying))
@@ -1108,7 +1108,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 						require.NoError(err)
 					}
 
-					writtenRev, err := ds.HeadRevision(ctx)
+					writtenRev, _, err := ds.HeadRevision(ctx)
 					require.NoError(err)
 
 					var delLimit *uint64
@@ -1125,13 +1125,13 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 					require.NoError(err)
 
 					// Read the updated relationships and ensure no matching relationships are found.
-					headRev, err := ds.HeadRevision(ctx)
+					headRev, _, err := ds.HeadRevision(ctx)
 					require.NoError(err)
 
 					filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 					require.NoError(err)
 
-					reader := ds.SnapshotReader(headRev)
+					reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 					iter, err := reader.QueryRelationships(ctx, filter, options.WithQueryShape(queryshape.Varying))
 					require.NoError(err)
 
@@ -1164,7 +1164,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 
 					// Ensure the initial relationships are still present at the previous revision.
 					allInitialRelationships := mapz.NewSet[string]()
-					olderReader := ds.SnapshotReader(writtenRev)
+					olderReader := ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting)
 					for _, resourceType := range resourceTypes.AsSlice() {
 						iter, err := olderReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 							OptionalResourceType: resourceType,
@@ -1775,10 +1775,10 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 				require.NoError(err)
 			}
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRev, _, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 
-			reader := ds.SnapshotReader(headRev)
+			reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 			iter, err := reader.QueryRelationships(ctx, tc.filter, options.WithSkipCaveats(tc.withoutCaveats), options.WithSkipExpiration(tc.withoutExpiration), options.WithQueryShape(queryshape.Varying))
 			require.NoError(err)
 
@@ -2214,7 +2214,7 @@ func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 	// Ensure the relationships were removed.
 	t.Log(time.Now(), "starting check")
-	reader := ds.SnapshotReader(deletedRev)
+	reader := ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting)
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     testResourceNamespace,
 		OptionalResourceRelation: testReaderRelation,
@@ -2243,10 +2243,10 @@ func ensureNotReverseRelationships(ctx context.Context, require *require.Asserti
 }
 
 func ensureReverseRelationshipsStatus(ctx context.Context, require *require.Assertions, ds datastore.Datastore, rels []tuple.Relationship, mustExist bool) {
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 
 	for _, rel := range rels {
 		filter := datastore.SubjectRelationFilter{
@@ -2289,10 +2289,10 @@ func ensureNotRelationships(ctx context.Context, require *require.Assertions, ds
 }
 
 func ensureRelationshipsStatus(ctx context.Context, require *require.Assertions, ds datastore.Datastore, rels []tuple.Relationship, mustExist bool) {
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 
 	for _, rel := range rels {
 		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -2325,10 +2325,10 @@ func ensureRelationshipsStatus(ctx context.Context, require *require.Assertions,
 }
 
 func ensureRelationshipWithFilter(ctx context.Context, require *require.Assertions, ds datastore.Datastore, filter datastore.RelationshipsFilter, rel tuple.Relationship) {
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 
 	iter, err := reader.QueryRelationships(ctx, filter, options.WithQueryShape(queryshape.Varying))
 	require.NoError(err)
@@ -2342,10 +2342,10 @@ func ensureRelationshipWithFilter(ctx context.Context, require *require.Assertio
 }
 
 func ensureNoRelationshipWithFilter(ctx context.Context, require *require.Assertions, ds datastore.Datastore, filter datastore.RelationshipsFilter) {
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 
 	iter, err := reader.QueryRelationships(ctx, filter, options.WithQueryShape(queryshape.Varying))
 	require.NoError(err)
@@ -2357,10 +2357,10 @@ func ensureNoRelationshipWithFilter(ctx context.Context, require *require.Assert
 }
 
 func countRels(ctx context.Context, require *require.Assertions, ds datastore.Datastore, resourceType string) int {
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(headRev)
+	reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: resourceType,

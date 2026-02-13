@@ -79,6 +79,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.LR3ResourceChunkCacheConfig = c.LR3ResourceChunkCacheConfig
+		to.SchemaCacheConfig = c.SchemaCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
 		to.V1SchemaAdditiveOnly = c.V1SchemaAdditiveOnly
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
@@ -208,6 +209,7 @@ func (c *Config) DebugMap() map[string]any {
 	debugMap["DispatchCacheConfig"] = c.DispatchCacheConfig
 	debugMap["ClusterDispatchCacheConfig"] = c.ClusterDispatchCacheConfig
 	debugMap["LR3ResourceChunkCacheConfig"] = c.LR3ResourceChunkCacheConfig
+	debugMap["SchemaCacheConfig"] = c.SchemaCacheConfig
 	debugMap["DisableV1SchemaAPI"] = c.DisableV1SchemaAPI
 	debugMap["V1SchemaAdditiveOnly"] = c.V1SchemaAdditiveOnly
 	debugMap["MaximumUpdatesPerWrite"] = c.MaximumUpdatesPerWrite
@@ -614,6 +616,13 @@ func WithClusterDispatchCacheConfig(clusterDispatchCacheConfig CacheConfig) Conf
 func WithLR3ResourceChunkCacheConfig(lR3ResourceChunkCacheConfig CacheConfig) ConfigOption {
 	return func(c *Config) {
 		c.LR3ResourceChunkCacheConfig = lR3ResourceChunkCacheConfig
+	}
+}
+
+// WithSchemaCacheConfig returns an option that can set SchemaCacheConfig on a Config
+func WithSchemaCacheConfig(schemaCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.SchemaCacheConfig = schemaCacheConfig
 	}
 }
 

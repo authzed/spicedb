@@ -166,10 +166,10 @@ func (r *relationshipIntegrityProxy) UniqueID(ctx context.Context) (string, erro
 	return r.ds.UniqueID(ctx)
 }
 
-func (r *relationshipIntegrityProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (r *relationshipIntegrityProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
 	return relationshipIntegrityReader{
 		parent:  r,
-		wrapped: r.ds.SnapshotReader(rev),
+		wrapped: r.ds.SnapshotReader(rev, schemaHash),
 	}
 }
 
@@ -198,11 +198,11 @@ func (r *relationshipIntegrityProxy) OfflineFeatures() (*datastore.Features, err
 	return r.ds.OfflineFeatures()
 }
 
-func (r *relationshipIntegrityProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (r *relationshipIntegrityProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return r.ds.HeadRevision(ctx)
 }
 
-func (r *relationshipIntegrityProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (r *relationshipIntegrityProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return r.ds.OptimizedRevision(ctx)
 }
 
@@ -292,6 +292,65 @@ func (r *relationshipIntegrityProxy) Watch(ctx context.Context, afterRevision da
 	}()
 
 	return checkedResultsChan, checkedErrChan
+}
+
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash.
+// This delegates to the underlying datastore if it supports the test interface.
+func (r *relationshipIntegrityProxy) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	// Try direct method call using reflection/interface check
+	type provider interface {
+		SchemaHashReaderForTesting() interface {
+			ReadSchemaHash(ctx context.Context) (string, error)
+		}
+	}
+
+	// Check delegate directly
+	if p, ok := r.ds.(provider); ok {
+		result := p.SchemaHashReaderForTesting()
+		if result != nil {
+			return result
+		}
+	}
+
+	// Try unwrapping if delegate is itself a proxy
+	type unwrapper interface {
+		Unwrap() datastore.Datastore
+	}
+	if u, ok := r.ds.(unwrapper); ok {
+		unwrapped := u.Unwrap()
+		if p, ok := unwrapped.(provider); ok {
+			return p.SchemaHashReaderForTesting()
+		}
+	}
+
+	return nil
+}
+
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+// This delegates to the underlying datastore if it supports the test interface.
+func (r *relationshipIntegrityProxy) SchemaModeForTesting() (options.SchemaMode, error) {
+	type provider interface {
+		SchemaModeForTesting() (options.SchemaMode, error)
+	}
+
+	// Check delegate directly
+	if p, ok := r.ds.(provider); ok {
+		return p.SchemaModeForTesting()
+	}
+
+	// Try unwrapping if delegate is itself a proxy
+	type unwrapper interface {
+		Unwrap() datastore.Datastore
+	}
+	if u, ok := r.ds.(unwrapper); ok {
+		if p, ok := u.Unwrap().(provider); ok {
+			return p.SchemaModeForTesting()
+		}
+	}
+
+	return options.SchemaModeReadLegacyWriteLegacy, errors.New("delegate datastore does not implement SchemaModeForTesting()")
 }
 
 func (r *relationshipIntegrityProxy) Unwrap() datastore.Datastore {
@@ -391,10 +450,26 @@ func (r relationshipIntegrityReader) SchemaReader() (datastore.SchemaReader, err
 	return r.wrapped.SchemaReader()
 }
 
+func (r relationshipIntegrityReader) ReadStoredSchema(ctx context.Context) (*corev1.StoredSchema, error) {
+	singleStoreReader, ok := r.wrapped.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("wrapped reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 type relationshipIntegrityTx struct {
 	datastore.ReadWriteTransaction
 
 	parent *relationshipIntegrityProxy
+}
+
+func (r *relationshipIntegrityTx) WriteStoredSchema(ctx context.Context, schema *corev1.StoredSchema) error {
+	singleStoreWriter, ok := r.ReadWriteTransaction.(datastore.SingleStoreSchemaWriter)
+	if !ok {
+		return errors.New("wrapped transaction does not implement SingleStoreSchemaWriter")
+	}
+	return singleStoreWriter.WriteStoredSchema(ctx, schema)
 }
 
 func (r *relationshipIntegrityTx) WriteRelationships(
@@ -471,3 +546,15 @@ func (w integrityAddingBulkLoadInterator) Next(ctx context.Context) (*tuple.Rela
 
 	return rel, nil
 }
+
+var (
+	_ datastore.Datastore               = (*relationshipIntegrityProxy)(nil)
+	_ datastore.Reader                  = (*relationshipIntegrityReader)(nil)
+	_ datastore.LegacySchemaReader      = (*relationshipIntegrityReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*relationshipIntegrityReader)(nil)
+	_ datastore.DualSchemaReader        = (*relationshipIntegrityReader)(nil)
+	_ datastore.ReadWriteTransaction    = (*relationshipIntegrityTx)(nil)
+	_ datastore.LegacySchemaWriter      = (*relationshipIntegrityTx)(nil)
+	_ datastore.SingleStoreSchemaWriter = (*relationshipIntegrityTx)(nil)
+	_ datastore.DualSchemaWriter        = (*relationshipIntegrityTx)(nil)
+)

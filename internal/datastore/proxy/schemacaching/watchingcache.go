@@ -96,10 +96,12 @@ func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.
 			"namespace",
 			datastore.NewNamespaceNotFoundErr,
 			func(ctx context.Context, name string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
-				return fallbackCache.SnapshotReader(revision).LegacyReadNamespaceByName(ctx, name)
+				// Fallback operation - load schema on demand
+				return fallbackCache.SnapshotReader(revision, datastore.NoSchemaHashForWatch).LegacyReadNamespaceByName(ctx, name)
 			},
 			func(ctx context.Context, names []string, revision datastore.Revision) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
-				return fallbackCache.SnapshotReader(revision).LegacyLookupNamespacesWithNames(ctx, names)
+				// Fallback operation - load schema on demand
+				return fallbackCache.SnapshotReader(revision, datastore.NoSchemaHashForWatch).LegacyLookupNamespacesWithNames(ctx, names)
 			},
 			definitionsReadCachedCounter,
 			definitionsReadTotalCounter,
@@ -109,10 +111,12 @@ func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.
 			"caveat",
 			datastore.NewCaveatNameNotFoundErr,
 			func(ctx context.Context, name string, revision datastore.Revision) (*core.CaveatDefinition, datastore.Revision, error) {
-				return fallbackCache.SnapshotReader(revision).LegacyReadCaveatByName(ctx, name)
+				// Fallback operation - load schema on demand
+				return fallbackCache.SnapshotReader(revision, datastore.NoSchemaHashForWatch).LegacyReadCaveatByName(ctx, name)
 			},
 			func(ctx context.Context, names []string, revision datastore.Revision) ([]datastore.RevisionedDefinition[*core.CaveatDefinition], error) {
-				return fallbackCache.SnapshotReader(revision).LegacyLookupCaveatsWithNames(ctx, names)
+				// Fallback operation - load schema on demand
+				return fallbackCache.SnapshotReader(revision, datastore.NoSchemaHashForWatch).LegacyLookupCaveatsWithNames(ctx, names)
 			},
 			definitionsReadCachedCounter,
 			definitionsReadTotalCounter,
@@ -122,8 +126,8 @@ func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.
 	return proxy
 }
 
-func (p *watchingCachingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.Datastore.SnapshotReader(rev)
+func (p *watchingCachingProxy) SnapshotReader(rev datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.Datastore.SnapshotReader(rev, hash)
 	return &watchingCachingReader{delegateReader, rev, p}
 }
 
@@ -149,7 +153,7 @@ func (p *watchingCachingProxy) Start(ctx context.Context) error {
 
 func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	log.Info().Msg("starting watching cache")
-	headRev, err := p.HeadRevision(context.Background())
+	headRev, _, err := p.HeadRevision(context.Background())
 	if err != nil {
 		p.namespaceCache.setFallbackMode()
 		p.caveatCache.setFallbackMode()
@@ -193,7 +197,8 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			p.caveatCache.reset()
 
 			log.Debug().Str("revision", headRev.String()).Msg("starting watching cache watch operation")
-			reader := p.Datastore.SnapshotReader(headRev)
+			// Watch cache rebuild - load schema on demand
+			reader := p.Datastore.SnapshotReader(headRev, datastore.NoSchemaHashForWatch)
 
 			// Populate the cache with all definitions at the head revision.
 			log.Info().Str("revision", headRev.String()).Msg("prepopulating namespace watching cache")
@@ -633,5 +638,32 @@ func (w *watchingCachingReader) LegacyLookupCaveatsWithNames(
 }
 
 func (w *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
+	underlyingSchemaReader, err := w.Reader.SchemaReader()
+	if err != nil {
+		return nil, err
+	}
+
+	// If using new unified schema mode, pass through directly
+	if _, isLegacy := underlyingSchemaReader.(*schemautil.LegacySchemaReaderAdapter); !isLegacy {
+		return underlyingSchemaReader, nil
+	}
+
+	// For legacy mode, wrap to use the watching cache
 	return schemautil.NewLegacySchemaReaderAdapter(w), nil
 }
+
+func (w *watchingCachingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := w.Reader.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
+var (
+	_ datastore.Datastore               = (*watchingCachingProxy)(nil)
+	_ datastore.Reader                  = (*watchingCachingReader)(nil)
+	_ datastore.LegacySchemaReader      = (*watchingCachingReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*watchingCachingReader)(nil)
+	_ datastore.DualSchemaReader        = (*watchingCachingReader)(nil)
+)

@@ -21,10 +21,10 @@ func TestIndexCheckingMissingIndex(t *testing.T) {
 	wrapped := WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	require.NotNil(t, wrapped.(*indexcheckingProxy).delegate)
 
-	headRev, err := ds.HeadRevision(t.Context())
+	headRev, _, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := wrapped.SnapshotReader(headRev)
+	reader := wrapped.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	it, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"somedoc"},
@@ -49,10 +49,10 @@ func TestIndexCheckingFoundIndex(t *testing.T) {
 	wrapped := WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	require.NotNil(t, wrapped.(*indexcheckingProxy).delegate)
 
-	headRev, err := ds.HeadRevision(t.Context())
+	headRev, _, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := wrapped.SnapshotReader(headRev)
+	reader := wrapped.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	it, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType:     "document",
 		OptionalResourceIds:      []string{"somedoc"},
@@ -97,7 +97,7 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 	})
 
 	t.Run("OptimizedRevision", func(t *testing.T) {
-		rev, err := proxy.OptimizedRevision(t.Context())
+		rev, _, err := proxy.OptimizedRevision(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, rev)
 	})
@@ -108,7 +108,7 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 	})
 
 	t.Run("HeadRevision", func(t *testing.T) {
-		rev, err := proxy.HeadRevision(t.Context())
+		rev, _, err := proxy.HeadRevision(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, rev)
 	})
@@ -163,7 +163,7 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 func TestIndexCheckingReaderMethods(t *testing.T) {
 	ds := fakeDatastore{}
 	proxy := newIndexCheckingDatastoreProxy(ds)
-	reader := proxy.SnapshotReader(nil)
+	reader := proxy.SnapshotReader(nil, datastore.NoSchemaHashForTesting)
 
 	t.Run("CountRelationships", func(t *testing.T) {
 		count, err := reader.CountRelationships(t.Context(), "test")

@@ -10,9 +10,9 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -28,6 +28,11 @@ type mysqlReader struct {
 	aliveFilter          queryFilterer
 	filterMaximumIDCount uint16
 	schema               common.SchemaInformation
+	schemaMode           dsoptions.SchemaMode
+	snapshotRevision     datastore.Revision
+	schemaHash           string
+	schemaTableName      string
+	schemaReaderWriter   *common.SQLSchemaReaderWriter[uint64, revisions.TransactionIDRevision]
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -164,7 +169,7 @@ func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) 
 func (mr *mysqlReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
-	opts ...options.QueryOptionsOption,
+	opts ...dsoptions.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(mr.schema, mr.filterMaximumIDCount).
 		WithAdditionalFilter(mr.aliveFilter).
@@ -179,7 +184,7 @@ func (mr *mysqlReader) QueryRelationships(
 func (mr *mysqlReader) ReverseQueryRelationships(
 	ctx context.Context,
 	subjectsFilter datastore.SubjectsFilter,
-	opts ...options.ReverseQueryOptionsOption,
+	opts ...dsoptions.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(mr.schema, mr.filterMaximumIDCount).
 		WithAdditionalFilter(mr.aliveFilter).
@@ -188,7 +193,7 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 		return nil, err
 	}
 
-	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+	queryOpts := dsoptions.NewReverseQueryOptionsWithOptions(opts...)
 
 	if queryOpts.ResRelation != nil {
 		qBuilder = qBuilder.
@@ -199,13 +204,13 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 	return mr.executor.ExecuteQuery(
 		ctx,
 		qBuilder,
-		options.WithLimit(queryOpts.LimitForReverse),
-		options.WithAfter(queryOpts.AfterForReverse),
-		options.WithSort(queryOpts.SortForReverse),
-		options.WithSkipCaveats(queryOpts.SkipCaveatsForReverse),
-		options.WithSkipExpiration(queryOpts.SkipExpirationForReverse),
-		options.WithQueryShape(queryOpts.QueryShapeForReverse),
-		options.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
+		dsoptions.WithLimit(queryOpts.LimitForReverse),
+		dsoptions.WithAfter(queryOpts.AfterForReverse),
+		dsoptions.WithSort(queryOpts.SortForReverse),
+		dsoptions.WithSkipCaveats(queryOpts.SkipCaveatsForReverse),
+		dsoptions.WithSkipExpiration(queryOpts.SkipExpirationForReverse),
+		dsoptions.WithQueryShape(queryOpts.QueryShapeForReverse),
+		dsoptions.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
 	)
 }
 
@@ -337,7 +342,61 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 
 // SchemaReader returns a SchemaReader for reading schema information.
 func (mr *mysqlReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(mr), nil
+	// Wrap the reader with an unexported schema reader
+	reader := &mysqlSchemaReader{r: mr}
+	return schemaadapter.NewSchemaReader(reader, mr.schemaMode, mr.snapshotRevision), nil
 }
 
-var _ datastore.Reader = &mysqlReader{}
+// mysqlSchemaReader wraps a mysqlReader and implements DualSchemaReader.
+// This prevents direct access to schema read methods from the reader.
+type mysqlSchemaReader struct {
+	r *mysqlReader
+}
+
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader with revision-aware reading
+func (sr *mysqlSchemaReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create a revision-aware executor that applies alive filter
+	executor := &mysqlRevisionAwareExecutor{
+		txSource:    sr.r.txSource,
+		aliveFilter: sr.r.aliveFilter,
+	}
+
+	// Use the shared schema reader/writer to read the schema with the hash
+	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, sr.r.snapshotRevision, datastore.SchemaHash(sr.r.schemaHash))
+}
+
+// LegacyReadCaveatByName delegates to the underlying reader
+func (sr *mysqlSchemaReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return sr.r.LegacyReadCaveatByName(ctx, name)
+}
+
+// LegacyListAllCaveats delegates to the underlying reader
+func (sr *mysqlSchemaReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return sr.r.LegacyListAllCaveats(ctx)
+}
+
+// LegacyLookupCaveatsWithNames delegates to the underlying reader
+func (sr *mysqlSchemaReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return sr.r.LegacyLookupCaveatsWithNames(ctx, names)
+}
+
+// LegacyReadNamespaceByName delegates to the underlying reader
+func (sr *mysqlSchemaReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return sr.r.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+// LegacyListAllNamespaces delegates to the underlying reader
+func (sr *mysqlSchemaReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return sr.r.LegacyListAllNamespaces(ctx)
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying reader
+func (sr *mysqlSchemaReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return sr.r.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+var (
+	_ datastore.Reader             = &mysqlReader{}
+	_ datastore.LegacySchemaReader = &mysqlReader{}
+	_ datastore.DualSchemaReader   = &mysqlSchemaReader{}
+)

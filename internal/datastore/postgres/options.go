@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 type postgresOptions struct {
@@ -39,6 +40,9 @@ type postgresOptions struct {
 
 	migrationPhase    string
 	allowedMigrations []string
+
+	schemaMode         dsoptions.SchemaMode
+	schemaCacheOptions dsoptions.SchemaCacheOptions
 
 	logger *tracingLogger
 
@@ -444,4 +448,14 @@ func WithWatchDisabled(isDisabled bool) Option {
 // guarantees.
 func WithRelaxedIsolationLevel(isEnabled bool) Option {
 	return func(po *postgresOptions) { po.relaxedIsolationLevel = isEnabled }
+}
+
+// WithSchemaMode sets the experimental schema mode for the datastore.
+func WithSchemaMode(mode dsoptions.SchemaMode) Option {
+	return func(po *postgresOptions) { po.schemaMode = mode }
+}
+
+// WithSchemaCacheOptions sets the schema cache options for the datastore.
+func WithSchemaCacheOptions(cacheOptions dsoptions.SchemaCacheOptions) Option {
+	return func(po *postgresOptions) { po.schemaCacheOptions = cacheOptions }
 }

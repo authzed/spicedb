@@ -107,6 +107,9 @@ func (Lint) Analyzers() error {
 		// Skip our dispatch codec logic that explicitly calls MarshalVT with proto.Marshal as a fallback
 		// Skip our internal telemetry reporter which uses a prometheus proto definition that we don't control
 		"-protomarshalcheck.skip-pkg=github.com/authzed/spicedb/pkg/proto/dispatch/v1,github.com/authzed/spicedb/internal/telemetry",
+		"-testsentinelcheck",
+		// Skip test utility packages, development packages, and internal datastore common (which defines bypass sentinels)
+		"-testsentinelcheck.skip-pkg=github.com/authzed/spicedb/pkg/datastore/test,github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil,github.com/authzed/spicedb/internal/testfixtures,github.com/authzed/spicedb/pkg/development,github.com/authzed/spicedb/internal/datastore/common",
 		"github.com/authzed/spicedb/...",
 	)
 }

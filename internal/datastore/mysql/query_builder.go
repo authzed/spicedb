@@ -9,8 +9,9 @@ import (
 // QueryBuilder captures all parameterizable queries used
 // by the MySQL datastore implementation
 type QueryBuilder struct {
-	GetLastRevision   sq.SelectBuilder
-	LoadRevisionRange sq.SelectBuilder
+	GetLastRevision         sq.SelectBuilder
+	GetLastRevisionWithHash sq.SelectBuilder
+	LoadRevisionRange       sq.SelectBuilder
 
 	WriteNamespaceQuery               sq.InsertBuilder
 	ReadNamespaceQuery                sq.SelectBuilder
@@ -43,6 +44,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 
 	// transaction builders
 	builder.GetLastRevision = getLastRevision(driver.RelationTupleTransaction())
+	builder.GetLastRevisionWithHash = getLastRevisionWithHash(driver.RelationTupleTransaction(), driver.SchemaRevision())
 	builder.LoadRevisionRange = loadRevisionRange(driver.RelationTupleTransaction())
 
 	// namespace builders
@@ -97,6 +99,15 @@ func readCaveat(tableCaveat string) sq.SelectBuilder {
 
 func getLastRevision(tableTransaction string) sq.SelectBuilder {
 	return sb.Select("MAX(id)").From(tableTransaction).Limit(1)
+}
+
+func getLastRevisionWithHash(tableTransaction string, tableSchemaRevision string) sq.SelectBuilder {
+	// Get the latest transaction ID and schema hash as separate subqueries
+	// to avoid MySQL's only_full_group_by restriction
+	return sb.Select(
+		"(SELECT MAX(id) FROM "+tableTransaction+")",
+		"COALESCE((SELECT hash FROM "+tableSchemaRevision+" WHERE name = 'current' ORDER BY created_transaction DESC LIMIT 1), '')").
+		Limit(1)
 }
 
 func loadRevisionRange(tableTransaction string) sq.SelectBuilder {

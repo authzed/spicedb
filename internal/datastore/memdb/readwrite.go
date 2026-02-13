@@ -281,7 +281,7 @@ func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, name string,
 	return tx.Insert(tableCounters, counter)
 }
 
-func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
@@ -307,7 +307,7 @@ func (rwt *memdbReadWriteTx) LegacyWriteNamespaces(_ context.Context, newConfigs
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(_ context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	if len(nsNames) == 0 {
 		return nil
 	}
@@ -348,7 +348,30 @@ func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(_ context.Context, nsNames [
 }
 
 func (rwt *memdbReadWriteTx) SchemaWriter() (datastore.SchemaWriter, error) {
-	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
+	// MemDB supports both legacy and unified schema storage.
+	// Use write-to-both mode to ensure both are updated.
+	return schemautil.NewSchemaWriter(rwt, rwt, options.SchemaModeReadNewWriteBoth), nil
+}
+
+// WriteStoredSchema implements datastore.SingleStoreSchemaWriter
+func (rwt *memdbReadWriteTx) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	// Called from within a transaction - use the transaction's db handle directly
+	tx, err := rwt.txSource()
+	if err != nil {
+		return err
+	}
+	return rwt.datastore.writeStoredSchemaNoLock(tx, schema)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (rwt *memdbReadWriteTx) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	// Called from within a transaction - use the transaction's db handle directly
+	// without trying to acquire additional locks
+	tx, err := rwt.txSource()
+	if err != nil {
+		return err
+	}
+	return rwt.datastore.writeLegacySchemaHashFromDefinitionsNoLock(ctx, tx, namespaces, caveats)
 }
 
 func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
@@ -404,4 +427,9 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(any) bool 
 	}
 }
 
-var _ datastore.ReadWriteTransaction = &memdbReadWriteTx{}
+var (
+	_ datastore.ReadWriteTransaction    = &memdbReadWriteTx{}
+	_ datastore.LegacySchemaWriter      = &memdbReadWriteTx{}
+	_ datastore.SingleStoreSchemaWriter = &memdbReadWriteTx{}
+	_ datastore.DualSchemaWriter        = &memdbReadWriteTx{}
+)

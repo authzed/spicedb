@@ -2,6 +2,8 @@ package memdb
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -17,6 +19,8 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -25,6 +29,11 @@ const (
 	Engine                   = "memory"
 	defaultWatchBufferLength = 128
 	numAttempts              = 10
+
+	// noHashSupported is a sentinel value indicating that schema hashing is not supported
+	// by the memdb datastore. memdb uses in-memory schema storage and doesn't use SQL-based
+	// schema hashing like other datastores.
+	noHashSupported datastore.SchemaHash = "__memdb_no_hash_support__"
 )
 
 var (
@@ -69,8 +78,9 @@ func NewMemdbDatastore(
 		db: db,
 		revisions: []snapshot{
 			{
-				revision: nowRevision(),
-				db:       db,
+				revision:   nowRevision(),
+				schemaHash: noHashSupported,
+				db:         db,
 			},
 		},
 
@@ -96,11 +106,15 @@ type memdbDatastore struct {
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	uniqueID                string
+
+	// Unified schema storage
+	storedSchema *corev1.StoredSchema // GUARDED_BY(RWMutex)
 }
 
 type snapshot struct {
-	revision revisions.TimestampRevision
-	db       *memdb.MemDB
+	revision   revisions.TimestampRevision
+	schemaHash datastore.SchemaHash
+	db         *memdb.MemDB
 }
 
 func (mdb *memdbDatastore) MetricsID() (string, error) {
@@ -111,20 +125,34 @@ func (mdb *memdbDatastore) UniqueID(_ context.Context) (string, error) {
 	return mdb.uniqueID, nil
 }
 
-func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
+func (mdb *memdbDatastore) getCurrentSchemaHashNoLock() datastore.SchemaHash {
+	// Read the current schema hash from the schemarevision table
+	txn := mdb.db.Txn(false)
+	defer txn.Abort()
+
+	raw, err := txn.First(tableSchemaRevision, indexID, "current")
+	if err != nil || raw == nil {
+		return noHashSupported
+	}
+
+	schemaRev := raw.(*schemaRevisionData)
+	return datastore.SchemaHash(schemaRev.hash)
+}
+
+func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
 	if err := mdb.checkNotClosed(); err != nil {
-		return &memdbReader{nil, nil, err, time.Now()}
+		return &memdbReader{nil, nil, err, time.Now(), "", mdb}
 	}
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now()}
+		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now(), "", mdb}
 	}
 
 	if err := mdb.checkRevisionLocalCallerMustLock(dr); err != nil {
-		return &memdbReader{nil, nil, err, time.Now()}
+		return &memdbReader{nil, nil, err, time.Now(), "", mdb}
 	}
 
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
@@ -138,7 +166,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now()}
+		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now(), "", mdb}
 	}
 
 	roTxn := rev.db.Txn(false)
@@ -146,7 +174,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 		return roTxn, nil
 	}
 
-	return &memdbReader{noopTryLocker{}, txSrc, nil, time.Now()}
+	return &memdbReader{noopTryLocker{}, txSrc, nil, time.Now(), string(hash), mdb}
 }
 
 func (mdb *memdbDatastore) SupportsIntegrity() bool {
@@ -191,7 +219,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		newRevision := mdb.newRevisionID()
-		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now()}, newRevision}
+		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now(), string(datastore.NoSchemaHashInTransaction), mdb}, newRevision}
 		if err := f(ctx, rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
@@ -323,7 +351,11 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		// Create a snapshot and add it to the revisions slice
 		snap := mdb.db.Snapshot()
-		mdb.revisions = append(mdb.revisions, snapshot{newRevision, snap})
+
+		// Get the current schema hash
+		schemaHash := mdb.getCurrentSchemaHashNoLock()
+
+		mdb.revisions = append(mdb.revisions, snapshot{newRevision, schemaHash, snap})
 		return newRevision, nil
 	}
 
@@ -368,8 +400,9 @@ func (mdb *memdbDatastore) Close() error {
 	if db := mdb.db; db != nil {
 		mdb.revisions = []snapshot{
 			{
-				revision: nowRevision(),
-				db:       db,
+				revision:   nowRevision(),
+				schemaHash: noHashSupported,
+				db:         db,
 			},
 		}
 	} else {
@@ -381,11 +414,161 @@ func (mdb *memdbDatastore) Close() error {
 	return nil
 }
 
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash directly from schema_revision table.
+func (mdb *memdbDatastore) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	return &memdbSchemaHashReaderForTesting{db: mdb}
+}
+
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+// MemDB always operates in a mode equivalent to ReadNewWriteNew.
+func (mdb *memdbDatastore) SchemaModeForTesting() (options.SchemaMode, error) {
+	return options.SchemaModeReadNewWriteNew, nil
+}
+
+type memdbSchemaHashReaderForTesting struct {
+	db *memdbDatastore
+}
+
+func (r *memdbSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
+	r.db.RLock()
+	defer r.db.RUnlock()
+
+	tx := r.db.db.Txn(false)
+	defer tx.Abort()
+
+	raw, err := tx.First(tableSchemaRevision, indexID, "current")
+	if err != nil {
+		return "", fmt.Errorf("failed to query schema hash: %w", err)
+	}
+
+	if raw == nil {
+		return "", datastore.ErrSchemaNotFound
+	}
+
+	revisionData, ok := raw.(*schemaRevisionData)
+	if !ok {
+		return "", errors.New("invalid schema revision data type")
+	}
+
+	return string(revisionData.hash), nil
+}
+
 // This code assumes that the RWMutex has been acquired.
 func (mdb *memdbDatastore) checkNotClosed() error {
 	if mdb.db == nil {
 		return ErrMemDBIsClosed
 	}
+	return nil
+}
+
+// readStoredSchemaInternal is an internal method for readers/transactions to access the stored schema.
+// This should NOT be called directly - use readers/transactions instead.
+func (mdb *memdbDatastore) readStoredSchemaInternal() (*corev1.StoredSchema, error) {
+	mdb.RLock()
+	defer mdb.RUnlock()
+
+	if err := mdb.checkNotClosed(); err != nil {
+		return nil, err
+	}
+
+	if mdb.storedSchema == nil {
+		return nil, datastore.ErrSchemaNotFound
+	}
+
+	// Return a copy to prevent external mutations
+	return mdb.storedSchema.CloneVT(), nil
+}
+
+// writeStoredSchemaNoLock writes the stored schema using the provided transaction.
+// This is called from within an existing transaction, so it doesn't acquire locks or commit.
+func (mdb *memdbDatastore) writeStoredSchemaNoLock(tx *memdb.Txn, schema *corev1.StoredSchema) error {
+	// Store a copy to prevent external mutations
+	mdb.storedSchema = schema.CloneVT()
+
+	// Write the schema hash to the schema revision table for fast lookups
+	if err := mdb.writeSchemaHashNoLock(tx, schema); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
+}
+
+// writeSchemaHashNoLock writes the schema hash to the in-memory schema revision table using the provided transaction.
+func (mdb *memdbDatastore) writeSchemaHashNoLock(tx *memdb.Txn, schema *corev1.StoredSchema) error {
+	v1 := schema.GetV1()
+	if v1 == nil {
+		return fmt.Errorf("unsupported schema version: %d", schema.Version)
+	}
+
+	// Delete existing hash (if any)
+	if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {
+		if err := tx.Delete(tableSchemaRevision, existing); err != nil {
+			return fmt.Errorf("failed to delete old hash: %w", err)
+		}
+	}
+
+	// Insert new hash
+	revisionData := &schemaRevisionData{
+		name: "current",
+		hash: []byte(v1.SchemaHash),
+	}
+
+	if err := tx.Insert(tableSchemaRevision, revisionData); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	// Note: Don't commit here - the caller will commit the transaction
+	return nil
+}
+
+// writeLegacySchemaHashFromDefinitionsInternal writes the schema hash computed from the given definitions
+// writeLegacySchemaHashFromDefinitionsNoLock writes the schema hash using the provided transaction.
+// This is called from within an existing transaction, so it doesn't acquire locks.
+func (mdb *memdbDatastore) writeLegacySchemaHashFromDefinitionsNoLock(ctx context.Context, tx *memdb.Txn, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	// Build schema definitions list
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		definitions = append(definitions, ns.Definition)
+	}
+	for _, caveat := range caveats {
+		definitions = append(definitions, caveat.Definition)
+	}
+
+	// Sort definitions by name for consistent ordering
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].GetName() < definitions[j].GetName()
+	})
+
+	// Generate schema text from definitions
+	schemaText, _, err := generator.GenerateSchema(definitions)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
+
+	// Delete existing hash (if any)
+	if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {
+		if err := tx.Delete(tableSchemaRevision, existing); err != nil {
+			return fmt.Errorf("failed to delete old hash: %w", err)
+		}
+	}
+
+	// Insert new hash
+	revisionData := &schemaRevisionData{
+		name: "current",
+		hash: []byte(schemaHash),
+	}
+
+	if err := tx.Insert(tableSchemaRevision, revisionData); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	// Note: Don't commit here - the caller will commit the transaction
 	return nil
 }
 

@@ -63,6 +63,10 @@ func (ir TransactionIDRevision) String() string {
 	return strconv.FormatUint(uint64(ir), 10)
 }
 
+func (ir TransactionIDRevision) Key() string {
+	return ir.String()
+}
+
 func (ir TransactionIDRevision) WithInexactFloat64() float64 {
 	return float64(ir)
 }

@@ -267,7 +267,7 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 	// Build refs for the lookup resources operation. The lr3refs holds references to shared
 	// interfaces used by various suboperations of the lookup resources operation.
 	ds := datastoremw.MustFromContext(stream.Context())
-	reader := ds.SnapshotReader(req.Revision)
+	reader := ds.SnapshotReader(req.Revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 	caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
 
@@ -1008,6 +1008,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 		Subject:       tuple.FromCoreObjectAndRelation(refs.req.TerminalSubject),
 		CaveatContext: refs.req.Context.AsMap(),
 		AtRevision:    refs.req.Revision,
+		SchemaHash:    datastore.SchemaHash(refs.req.Metadata.SchemaHash),
 		MaximumDepth:  refs.req.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,

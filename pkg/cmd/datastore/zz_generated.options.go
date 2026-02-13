@@ -4,6 +4,7 @@ package datastore
 import (
 	"fmt"
 	types "github.com/authzed/spicedb/pkg/caveats/types"
+	options "github.com/authzed/spicedb/pkg/datastore/options"
 	defaults "github.com/creasty/defaults"
 	"time"
 )
@@ -88,6 +89,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.AllowedMigrations = c.AllowedMigrations
 		to.ExperimentalColumnOptimization = c.ExperimentalColumnOptimization
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
+		to.ExperimentalSchemaMode = c.ExperimentalSchemaMode
 	}
 }
 
@@ -218,6 +220,7 @@ func (c *Config) DebugMap() map[string]any {
 	}
 	debugMap["ExperimentalColumnOptimization"] = c.ExperimentalColumnOptimization
 	debugMap["EnableRevisionHeartbeat"] = c.EnableRevisionHeartbeat
+	debugMap["ExperimentalSchemaMode"] = c.ExperimentalSchemaMode
 	return debugMap
 }
 
@@ -689,5 +692,12 @@ func WithExperimentalColumnOptimization(experimentalColumnOptimization bool) Con
 func WithEnableRevisionHeartbeat(enableRevisionHeartbeat bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableRevisionHeartbeat = enableRevisionHeartbeat
+	}
+}
+
+// WithExperimentalSchemaMode returns an option that can set ExperimentalSchemaMode on a Config
+func WithExperimentalSchemaMode(experimentalSchemaMode options.SchemaMode) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalSchemaMode = experimentalSchemaMode
 	}
 }

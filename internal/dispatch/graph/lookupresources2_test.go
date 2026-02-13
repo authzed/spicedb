@@ -1413,8 +1413,8 @@ type disallowedWrapper struct {
 	disallowedQueries []tuple.RelationReference
 }
 
-func (dw disallowedWrapper) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	return disallowedReader{dw.Datastore.SnapshotReader(rev), dw.disallowedQueries}
+func (dw disallowedWrapper) SnapshotReader(rev datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
+	return disallowedReader{dw.Datastore.SnapshotReader(rev, hash), dw.disallowedQueries}
 }
 
 type disallowedReader struct {

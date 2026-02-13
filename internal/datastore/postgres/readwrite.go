@@ -3,8 +3,11 @@ package postgres
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast/v2"
@@ -15,12 +18,14 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	typedschema "github.com/authzed/spicedb/pkg/schema"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -666,7 +671,202 @@ func (rwt *pgReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames [
 }
 
 func (rwt *pgReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
-	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
+	// Wrap the transaction with an unexported schema writer
+	writer := &pgSchemaWriter{rwt: rwt}
+	return schemaadapter.NewSchemaWriter(writer, writer, rwt.schemaMode), nil
+}
+
+// pgSchemaWriter wraps a pgReadWriteTXN and implements DualSchemaWriter.
+// This prevents direct access to schema write methods from the transaction.
+type pgSchemaWriter struct {
+	rwt *pgReadWriteTXN
+}
+
+// WriteStoredSchema implements datastore.SingleStoreSchemaWriter by writing within the current transaction
+func (w *pgSchemaWriter) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	// Create a transaction-aware executor that uses the current transaction
+	executor := newPGTransactionAwareExecutor(w.rwt.tx)
+
+	// Use the shared schema reader/writer to write the schema with the newXID as transaction ID
+	if err := w.rwt.schemaReaderWriter.WriteSchema(ctx, schema, executor, func(ctx context.Context) uint64 {
+		return w.rwt.newXID.Uint64
+	}); err != nil {
+		return err
+	}
+
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := w.writeSchemaHash(ctx, schema); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
+}
+
+// writeSchemaHash writes the schema hash to the schema_revision table
+func (w *pgSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.StoredSchema) error {
+	v1 := schema.GetV1()
+	if v1 == nil {
+		return fmt.Errorf("unsupported schema version: %d", schema.Version)
+	}
+
+	// Mark existing hash rows as deleted
+	sql, args, err := psql.Update("schema_revision").
+		Set("deleted_xid", w.rwt.newXID.Uint64).
+		Where(sq.Eq{
+			"name":        "current",
+			"deleted_xid": liveDeletedTxnID,
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build delete query: %w", err)
+	}
+
+	if _, err := w.rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to delete old hash: %w", err)
+	}
+
+	// Insert new hash row (ON CONFLICT DO NOTHING handles WriteBoth mode)
+	sql, args, err = psql.Insert("schema_revision").
+		Columns("name", "hash", "created_xid", "deleted_xid").
+		Values("current", []byte(v1.SchemaHash), w.rwt.newXID.Uint64, liveDeletedTxnID).
+		Suffix("ON CONFLICT (name, created_xid) DO NOTHING").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build insert query: %w", err)
+	}
+
+	if _, err := w.rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	return nil
+}
+
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader to satisfy DualSchemaReader interface requirements
+func (w *pgSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create a revision-aware executor that applies alive filter for schema table
+	executor := &pgRevisionAwareExecutor{
+		query:       w.rwt.query,
+		aliveFilter: w.rwt.aliveFilter,
+	}
+
+	// Use the shared schema reader/writer to read the schema
+	// Pass empty string for transaction reads to bypass cache reads (but still load)
+	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil, datastore.NoSchemaHashInTransaction)
+}
+
+// LegacyWriteNamespaces delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	return w.rwt.LegacyWriteNamespaces(ctx, newConfigs...)
+}
+
+// LegacyDeleteNamespaces delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	return w.rwt.LegacyDeleteNamespaces(ctx, nsNames, delOption)
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return w.rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// LegacyWriteCaveats delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	return w.rwt.LegacyWriteCaveats(ctx, caveats)
+}
+
+// LegacyDeleteCaveats delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyDeleteCaveats(ctx context.Context, names []string) error {
+	return w.rwt.LegacyDeleteCaveats(ctx, names)
+}
+
+// LegacyReadCaveatByName delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return w.rwt.LegacyReadCaveatByName(ctx, name)
+}
+
+// LegacyListAllCaveats delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return w.rwt.LegacyListAllCaveats(ctx)
+}
+
+// LegacyLookupCaveatsWithNames delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return w.rwt.LegacyLookupCaveatsWithNames(ctx, names)
+}
+
+// LegacyReadNamespaceByName delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return w.rwt.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+// LegacyListAllNamespaces delegates to the underlying transaction
+func (w *pgSchemaWriter) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return w.rwt.LegacyListAllNamespaces(ctx)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (w *pgSchemaWriter) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	return w.rwt.writeLegacySchemaHashFromDefinitions(ctx, namespaces, caveats)
+}
+
+// writeLegacySchemaHashFromDefinitions writes the schema hash computed from the given definitions
+func (rwt *pgReadWriteTXN) writeLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	// Build schema definitions list
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		definitions = append(definitions, ns.Definition)
+	}
+	for _, caveat := range caveats {
+		definitions = append(definitions, caveat.Definition)
+	}
+
+	// Sort definitions by name for consistent ordering
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].GetName() < definitions[j].GetName()
+	})
+
+	// Generate schema text from definitions
+	schemaText, _, err := generator.GenerateSchema(definitions)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
+
+	// Mark existing hash rows as deleted
+	sql, args, err := psql.Update("schema_revision").
+		Set("deleted_xid", rwt.newXID.Uint64).
+		Where(sq.Eq{
+			"name":        "current",
+			"deleted_xid": liveDeletedTxnID,
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build delete query: %w", err)
+	}
+
+	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to delete old hash: %w", err)
+	}
+
+	// Insert new hash row (ON CONFLICT DO NOTHING handles WriteBoth mode)
+	sql, args, err = psql.Insert("schema_revision").
+		Columns("name", "hash", "created_xid", "deleted_xid").
+		Values("current", []byte(schemaHash), rwt.newXID.Uint64, liveDeletedTxnID).
+		Suffix("ON CONFLICT (name, created_xid) DO NOTHING").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build insert query: %w", err)
+	}
+
+	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	return nil
 }
 
 func (rwt *pgReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
@@ -820,4 +1020,9 @@ func exactRelationshipDifferentCaveatAndExpirationClause(r tuple.Relationship) s
 	}
 }
 
-var _ datastore.ReadWriteTransaction = &pgReadWriteTXN{}
+var (
+	_ datastore.ReadWriteTransaction = &pgReadWriteTXN{}
+	_ datastore.LegacySchemaWriter   = &pgReadWriteTXN{}
+	_ datastore.DualSchemaWriter     = &pgSchemaWriter{}
+	_ datastore.DualSchemaReader     = &pgSchemaWriter{}
+)

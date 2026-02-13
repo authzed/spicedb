@@ -7,6 +7,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -32,10 +33,10 @@ func TestAnnotateNamespace(t *testing.T) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
-	lastRevision, err := ds.HeadRevision(t.Context())
+	lastRevision, _, err := ds.HeadRevision(t.Context())
 	require.NoError(err)
 
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision, datastore.NoSchemaHashForTesting)))
 
 	def, err := schema.NewDefinition(ts, compiled.ObjectDefinitions[0])
 	require.NoError(err)

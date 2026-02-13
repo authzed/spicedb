@@ -94,7 +94,7 @@ type checkingReplicatedDatastore struct {
 
 // SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 // Any errors establishing the reader will be returned by subsequent calls.
-func (rd *checkingReplicatedDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+func (rd *checkingReplicatedDatastore) SnapshotReader(revision datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
 	replica := selectReplica(rd.replicas, &rd.lastReplica)
 	replicaID, err := replica.MetricsID()
 	if err != nil {
@@ -103,9 +103,10 @@ func (rd *checkingReplicatedDatastore) SnapshotReader(revision datastore.Revisio
 	}
 	readReplicatedSelectedReplicaCount.WithLabelValues(replicaID).Inc()
 	return &checkingStableReader{
-		rev:     revision,
-		replica: replica,
-		primary: rd.Datastore,
+		rev:        revision,
+		schemaHash: schemaHash,
+		replica:    replica,
+		primary:    rd.Datastore,
 	}
 }
 
@@ -113,9 +114,10 @@ func (rd *checkingReplicatedDatastore) SnapshotReader(revision datastore.Revisio
 // reading from it. If the replica does not have the requested revision, the primary will be used
 // instead. Only supported for a stable replica within each pool.
 type checkingStableReader struct {
-	rev     datastore.Revision
-	replica datastore.ReadOnlyDatastore
-	primary datastore.Datastore
+	rev        datastore.Revision
+	schemaHash datastore.SchemaHash
+	replica    datastore.ReadOnlyDatastore
+	primary    datastore.Datastore
 
 	// chosePrimaryForTest is used for testing to determine if the primary was used for the read.
 	chosePrimaryForTest bool
@@ -222,6 +224,18 @@ func (rr *checkingStableReader) SchemaReader() (datastore.SchemaReader, error) {
 	return rr.chosenReader.SchemaReader()
 }
 
+func (rr *checkingStableReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	if err := rr.determineSource(ctx); err != nil {
+		return nil, err
+	}
+
+	singleStoreReader, ok := rr.chosenReader.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("chosen reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 // determineSource will choose the replica or primary to read from based on the revision, by checking
 // if the replica contains the revision. If the replica does not contain the revision, the primary
 // will be used instead.
@@ -236,7 +250,7 @@ func (rr *checkingStableReader) determineSource(ctx context.Context) error {
 			if errors.As(err, &irr) {
 				if irr.Reason() == datastore.CouldNotDetermineRevision {
 					log.Trace().Str("revision", rr.rev.String()).Err(err).Msg("replica does not contain the requested revision, using primary")
-					rr.chosenReader = rr.primary.SnapshotReader(rr.rev)
+					rr.chosenReader = rr.primary.SnapshotReader(rr.rev, rr.schemaHash)
 					rr.chosePrimaryForTest = true
 					return
 				}
@@ -253,9 +267,17 @@ func (rr *checkingStableReader) determineSource(ctx context.Context) error {
 		}
 
 		checkingReplicatedReplicaReaderCount.WithLabelValues(metricsID).Inc()
-		rr.chosenReader = rr.replica.SnapshotReader(rr.rev)
+		rr.chosenReader = rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 		rr.chosePrimaryForTest = false
 	})
 
 	return finalError
 }
+
+var (
+	_ datastore.Datastore               = (*checkingReplicatedDatastore)(nil)
+	_ datastore.Reader                  = (*checkingStableReader)(nil)
+	_ datastore.LegacySchemaReader      = (*checkingStableReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*checkingStableReader)(nil)
+	_ datastore.DualSchemaReader        = (*checkingStableReader)(nil)
+)

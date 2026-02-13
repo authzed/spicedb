@@ -132,6 +132,18 @@ func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
 	removed.Namespaces, err = mcc.batchDelete(ctx, mcc.mds.driver.Namespace(), sq.LtOrEq{colDeletedTxn: txID})
+	if err != nil {
+		return removed, err
+	}
+
+	// Delete any schema rows with deleted_transaction <= the transaction ID.
+	_, err = mcc.batchDelete(ctx, mcc.mds.driver.Schema(), sq.LtOrEq{colDeletedTxn: txID})
+	if err != nil {
+		return removed, err
+	}
+
+	// Delete any schema_revision rows with deleted_transaction <= the transaction ID.
+	_, err = mcc.batchDelete(ctx, mcc.mds.driver.SchemaRevision(), sq.LtOrEq{colDeletedTxn: txID})
 	return removed, err
 }
 

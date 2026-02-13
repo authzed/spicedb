@@ -58,7 +58,7 @@ func (ce *ConcurrentExpander) expandDirect(
 ) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
@@ -243,7 +243,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 	err := namespace.CheckNamespaceAndRelation(ctx, start.ObjectType, cu.Relation, true, ds)
 	if err != nil {
 		if errors.As(err, &namespace.RelationNotFoundError{}) {
@@ -277,7 +277,7 @@ func expandTupleToUserset[T relation](
 	expandFunc expandFunc,
 ) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},

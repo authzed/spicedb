@@ -2,6 +2,7 @@ package spanner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -32,7 +34,8 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -90,11 +93,13 @@ type spannerDatastore struct {
 	watchBufferWriteTimeout      time.Duration
 	watchEnabled                 bool
 
-	client   *spanner.Client
-	config   spannerOptions
-	database string
-	schema   common.SchemaInformation
+	client     *spanner.Client
+	config     spannerOptions
+	database   string
+	schema     common.SchemaInformation
+	schemaMode dsoptions.SchemaMode
 
+	schemaReaderWriter                  *common.SQLSchemaReaderWriter[any, revisions.TimestampRevision]
 	cachedEstimatedBytesPerRelationship atomic.Uint64
 
 	tableSizesStatsTable string
@@ -245,12 +250,25 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		tableSizesStatsTable:                tableSizesStatsTable,
 		filterMaximumIDCount:                config.filterMaximumIDCount,
 		schema:                              *schema,
+		schemaMode:                          config.schemaMode,
 	}
+
+	// Initialize schema reader/writer
+	ds.schemaReaderWriter, err = common.NewSQLSchemaReaderWriter[any, revisions.TimestampRevision](BaseSchemaChunkerConfig, config.schemaCacheOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	// Optimized revision and revision checking use a stale read for the
 	// current timestamp.
 	// TODO: Still investigating whether a stale read can be used for
 	//       HeadRevision for FullConsistency queries.
 	ds.SetNowFunc(ds.staleHeadRevision)
+
+	// Warm the schema cache on startup
+	if err := warmSchemaCache(ctx, ds); err != nil {
+		log.Warn().Err(err).Msg("failed to warm schema cache on startup")
+	}
 
 	return ds, nil
 }
@@ -286,14 +304,50 @@ func (t *traceableRTX) Query(ctx context.Context, statement spanner.Statement) *
 	return t.delegate.Query(ctx, statement)
 }
 
-func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
+// warmSchemaCache attempts to warm the schema cache by loading the current schema.
+// This is called during datastore initialization to avoid cold-start latency on first requests.
+func warmSchemaCache(ctx context.Context, ds *spannerDatastore) error {
+	// Get the current revision and schema hash
+	rev, schemaHash, err := ds.HeadRevision(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get head revision: %w", err)
+	}
+
+	// If there's no schema hash, there's no schema to warm
+	if schemaHash == "" {
+		log.Ctx(ctx).Debug().Msg("no schema hash found, skipping cache warming")
+		return nil
+	}
+
+	// Create a simple executor for schema reading using a single-use read transaction
+	txSource := func() readTX {
+		return &traceableRTX{delegate: ds.client.Single()}
+	}
+	executor := &spannerSchemaReadExecutor{txSource: txSource}
+
+	// Load the schema to populate the cache
+	_, err = ds.schemaReaderWriter.ReadSchema(ctx, executor, rev, schemaHash)
+	if err != nil {
+		if errors.Is(err, datastore.ErrSchemaNotFound) {
+			// Schema not found is not an error during warming - just means no schema yet
+			log.Ctx(ctx).Debug().Msg("no schema found, skipping cache warming")
+			return nil
+		}
+		return fmt.Errorf("failed to read schema: %w", err)
+	}
+
+	log.Ctx(ctx).Info().Str("schema_hash", string(schemaHash)).Msg("schema cache warmed successfully")
+	return nil
+}
+
+func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
 	r := revisionRaw.(revisions.TimestampRevision)
 
 	txSource := func() readTX {
 		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(r.Time()))}
 	}
 	executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
-	return &spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
+	return &spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema, sd.schemaMode, revisionRaw, string(hash), sd.schemaReaderWriter}
 }
 
 func (sd *spannerDatastore) MetricsID() (string, error) {
@@ -326,8 +380,8 @@ func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transac
 	return metadata, nil
 }
 
-func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
-	config := options.NewRWTOptionsWithOptions(opts...)
+func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...dsoptions.RWTOptionsOption) (datastore.Revision, error) {
+	config := dsoptions.NewRWTOptionsWithOptions(opts...)
 
 	ctx, span := tracer.Start(ctx, "ReadWriteTx")
 	defer span.End()
@@ -358,8 +412,12 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 
 		executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
 		rwt := &spannerReadWriteTXN{
-			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
-			spannerRWT,
+			spannerReader:      spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema, sd.schemaMode, datastore.NoRevision, string(datastore.NoSchemaHashInTransaction), sd.schemaReaderWriter},
+			spannerRWT:         spannerRWT,
+			bufferedNamespaces: make(map[string]*core.NamespaceDefinition),
+			deletedNamespaces:  make(map[string]struct{}),
+			bufferedCaveats:    make(map[string]*core.CaveatDefinition),
+			deletedCaveats:     make(map[string]struct{}),
 		}
 		err := func() error {
 			innerCtx, innerSpan := tracer.Start(ctx, "TxUserFunc")
@@ -425,6 +483,50 @@ func (sd *spannerDatastore) OfflineFeatures() (*datastore.Features, error) {
 func (sd *spannerDatastore) Close() error {
 	sd.client.Close()
 	return nil
+}
+
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash directly from schema_revision table.
+func (sd *spannerDatastore) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	return &spannerSchemaHashReaderForTesting{client: sd.client}
+}
+
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+func (sd *spannerDatastore) SchemaModeForTesting() (dsoptions.SchemaMode, error) {
+	return sd.schemaMode, nil
+}
+
+type spannerSchemaHashReaderForTesting struct {
+	client *spanner.Client
+}
+
+func (r *spannerSchemaHashReaderForTesting) ReadSchemaHash(ctx context.Context) (string, error) {
+	txn := r.client.Single()
+	defer txn.Close()
+
+	iter := txn.Query(ctx, spanner.Statement{
+		SQL: "SELECT schema_hash FROM schema_revision WHERE name = @name",
+		Params: map[string]any{
+			"name": "current",
+		},
+	})
+	defer iter.Stop()
+
+	row, err := iter.Next()
+	if err != nil {
+		if errors.Is(err, iterator.Done) {
+			return "", datastore.ErrSchemaNotFound
+		}
+		return "", fmt.Errorf("failed to query schema hash: %w", err)
+	}
+
+	var hashBytes []byte
+	if err := row.Columns(&hashBytes); err != nil {
+		return "", fmt.Errorf("failed to scan schema hash: %w", err)
+	}
+
+	return string(hashBytes), nil
 }
 
 func statementFromSQL(sql string, args []any) spanner.Statement {

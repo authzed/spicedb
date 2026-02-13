@@ -6,6 +6,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	v1 "github.com/authzed/spicedb/internal/services/v1"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datastore"
 	v1dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -33,6 +34,7 @@ func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject 
 			Subject:       subject,
 			CaveatContext: caveatContext,
 			AtRevision:    devContext.Revision,
+			SchemaHash:    datastore.NoSchemaHashForTesting, // DevContext uses memdb which doesn't support hashing
 			MaximumDepth:  maxDispatchDepth,
 			DebugOption:   computed.TraceDebuggingEnabled,
 		},
@@ -43,7 +45,8 @@ func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject 
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
 	}
 
-	reader := devContext.Datastore.SnapshotReader(devContext.Revision)
+	// DevContext uses memdb which doesn't support schema hashing
+	reader := devContext.Datastore.SnapshotReader(devContext.Revision, datastore.NoSchemaHashForTesting)
 	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveattypes.Default.TypeSet, caveatContext, meta.DebugInfo, reader)
 	if err != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err

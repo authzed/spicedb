@@ -20,9 +20,9 @@ type trackingRevisionFunction struct {
 	mock.Mock
 }
 
-func (m *trackingRevisionFunction) optimizedRevisionFunc(_ context.Context) (datastore.Revision, time.Duration, error) {
+func (m *trackingRevisionFunction) optimizedRevisionFunc(_ context.Context) (datastore.Revision, time.Duration, datastore.SchemaHash, error) {
 	args := m.Called()
-	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), args.Error(2)
+	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), datastore.NoSchemaHashForTesting, args.Error(2)
 }
 
 var (
@@ -128,7 +128,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				}
 
 				require.Eventually(func() bool {
-					revision, err := or.OptimizedRevision(ctx)
+					revision, _, err := or.OptimizedRevision(ctx)
 					require.NoError(err)
 					printableRevSet := slicez.Map(expectedRevSet, func(val datastore.Revision) string {
 						return val.String()
@@ -166,7 +166,7 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 	g := errgroup.Group{}
 	for i := 0; i < 10; i++ {
 		g.Go(func() error {
-			revision, err := or.OptimizedRevision(ctx)
+			revision, _, err := or.OptimizedRevision(ctx)
 			if err != nil {
 				return err
 			}
@@ -188,20 +188,20 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 	quantization := 1 * time.Millisecond
 	or := NewCachedOptimizedRevisions(quantization)
 
-	or.SetOptimizedRevisionFunc(func(ctx context.Context) (datastore.Revision, time.Duration, error) {
+	or.SetOptimizedRevisionFunc(func(ctx context.Context) (datastore.Revision, time.Duration, datastore.SchemaHash, error) {
 		nowNS := time.Now().UnixNano()
 		validForNS := nowNS % quantization.Nanoseconds()
 		roundedNS := nowNS - validForNS
 		// This should be non-negative.
 		uintRoundedNs := safecast.RequireConvert[uint64](b, roundedNS)
 		rev := NewForTransactionID(uintRoundedNs)
-		return rev, time.Duration(validForNS) * time.Nanosecond, nil
+		return rev, time.Duration(validForNS) * time.Nanosecond, datastore.NoSchemaHashForTesting, nil
 	})
 
 	ctx := b.Context()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			if _, err := or.OptimizedRevision(ctx); err != nil {
+			if _, _, err := or.OptimizedRevision(ctx); err != nil {
 				b.FailNow()
 			}
 		}
@@ -223,7 +223,7 @@ func TestSingleFlightError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
-	_, err := or.OptimizedRevision(ctx)
+	_, _, err := or.OptimizedRevision(ctx)
 	req.Error(err)
 	mock.AssertExpectations(t)
 }

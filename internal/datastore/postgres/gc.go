@@ -196,6 +196,32 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 		return removed, fmt.Errorf("failed to GC namespaces table: %w", err)
 	}
 
+	// Delete any schema rows with deleted_xid < minTxAlive.
+	_, err = pgg.batchDelete(
+		ctx,
+		conn,
+		schema.TableSchema,
+		gcPKCols,
+		sq.Lt{schema.ColDeletedXid: minTxAlive},
+		nil,
+	)
+	if err != nil {
+		return removed, fmt.Errorf("failed to GC schema table: %w", err)
+	}
+
+	// Delete any schema_revision rows with deleted_xid < minTxAlive.
+	_, err = pgg.batchDelete(
+		ctx,
+		conn,
+		schema.TableSchemaRevision,
+		gcPKCols,
+		sq.Lt{schema.ColDeletedXid: minTxAlive},
+		nil,
+	)
+	if err != nil {
+		return removed, fmt.Errorf("failed to GC schema_revision table: %w", err)
+	}
+
 	return removed, err
 }
 

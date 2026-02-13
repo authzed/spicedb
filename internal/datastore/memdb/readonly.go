@@ -23,9 +23,11 @@ type txFactory func() (*memdb.Txn, error)
 
 type memdbReader struct {
 	TryLocker
-	txSource txFactory
-	initErr  error
-	now      time.Time
+	txSource   txFactory
+	initErr    error
+	now        time.Time
+	schemaHash string
+	datastore  *memdbDatastore
 }
 
 func (r *memdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -593,7 +595,17 @@ func (r *memdbReader) SchemaReader() (datastore.SchemaReader, error) {
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
-var _ datastore.Reader = &memdbReader{}
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader
+func (r *memdbReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	return r.datastore.readStoredSchemaInternal()
+}
+
+var (
+	_ datastore.Reader                  = &memdbReader{}
+	_ datastore.LegacySchemaReader      = &memdbReader{}
+	_ datastore.SingleStoreSchemaReader = &memdbReader{}
+	_ datastore.DualSchemaReader        = &memdbReader{}
+)
 
 type TryLocker interface {
 	TryLock() bool

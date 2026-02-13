@@ -4,7 +4,6 @@ package postgres
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -13,18 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
-	"github.com/authzed/spicedb/internal/datastore/postgres/version"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 )
-
-func postgresTestVersion() string {
-	ver := os.Getenv("POSTGRES_TEST_VERSION")
-	if ver != "" {
-		return ver
-	}
-
-	return version.LatestTestedPostgresVersion
-}
 
 var postgresConfig = postgresTestConfig{"head", "", postgresTestVersion(), false}
 
@@ -80,6 +70,17 @@ func TestPostgresDatastoreGC(t *testing.T) {
 			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
 			WithRevisionHeartbeat(false),
+		))
+
+		t.Run("SchemaGarbageCollection", createDatastoreTest(
+			b,
+			SchemaGarbageCollectionTest,
+			RevisionQuantization(0),
+			GCWindow(1*time.Millisecond),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(1),
+			MigrationPhase(config.migrationPhase),
+			WithSchemaMode(options.SchemaModeReadNewWriteNew),
 		))
 	})
 }

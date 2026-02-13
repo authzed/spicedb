@@ -21,8 +21,8 @@ var tracer = otel.Tracer("spicedb/internal/datastore/common/revisions")
 
 // OptimizedRevisionFunction instructs the datastore to compute its own current
 // optimized revision given the specific quantization, and return for how long
-// it will remain valid.
-type OptimizedRevisionFunction func(context.Context) (rev datastore.Revision, validFor time.Duration, err error)
+// it will remain valid, along with the schema hash.
+type OptimizedRevisionFunction func(context.Context) (rev datastore.Revision, validFor time.Duration, schemaHash datastore.SchemaHash, err error)
 
 // NewCachedOptimizedRevisions returns a CachedOptimizedRevisions for the given configuration
 func NewCachedOptimizedRevisions(maxRevisionStaleness time.Duration) *CachedOptimizedRevisions {
@@ -38,7 +38,7 @@ func (cor *CachedOptimizedRevisions) SetOptimizedRevisionFunc(revisionFunc Optim
 	cor.optimizedFunc = revisionFunc
 }
 
-func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	span := trace.SpanFromContext(ctx)
 	localNow := cor.clockFn.Now()
 
@@ -58,15 +58,15 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 			cor.RUnlock()
 			log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", candidate.validThrough).Msg("returning cached revision")
 			span.AddEvent(otelconv.EventDatastoreRevisionsCacheReturned)
-			return candidate.revision, nil
+			return candidate.revision, candidate.schemaHash, nil
 		}
 	}
 	cor.RUnlock()
 
-	newQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (any, error) {
+	result, err, _ := cor.updateGroup.Do("", func() (any, error) {
 		log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
 
-		optimized, validFor, err := cor.optimizedFunc(ctx)
+		optimized, validFor, schemaHash, err := cor.optimizedFunc(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to compute optimized revision: %w", err)
 		}
@@ -85,17 +85,24 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		}
 
 		cor.candidates = cor.candidates[numToDrop:]
-		cor.candidates = append(cor.candidates, validRevision{optimized, rvt})
+		cor.candidates = append(cor.candidates, validRevision{optimized, rvt, schemaHash})
 		cor.Unlock()
 
 		span.AddEvent(otelconv.EventDatastoreRevisionsComputed)
 		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
-		return optimized, nil
+		return struct {
+			rev  datastore.Revision
+			hash datastore.SchemaHash
+		}{optimized, schemaHash}, nil
 	})
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.NoRevision, "", err
 	}
-	return newQuantizedRevision.(datastore.Revision), err
+	r := result.(struct {
+		rev  datastore.Revision
+		hash datastore.SchemaHash
+	})
+	return r.rev, r.hash, nil
 }
 
 // CachedOptimizedRevisions does caching and deduplication for requests for optimized revisions.
@@ -116,4 +123,5 @@ type CachedOptimizedRevisions struct {
 type validRevision struct {
 	revision     datastore.Revision
 	validThrough time.Time
+	schemaHash   datastore.SchemaHash
 }

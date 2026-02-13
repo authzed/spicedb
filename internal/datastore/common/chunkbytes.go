@@ -81,48 +81,70 @@ type SQLByteChunkerConfig[T any] struct {
 	AliveValue T
 }
 
+// WithExecutor returns a copy of the config with the specified executor.
+func (c SQLByteChunkerConfig[T]) WithExecutor(executor ChunkedBytesExecutor) SQLByteChunkerConfig[T] {
+	c.Executor = executor
+	return c
+}
+
+// WithTableName returns a copy of the config with the specified table name.
+func (c SQLByteChunkerConfig[T]) WithTableName(tableName string) SQLByteChunkerConfig[T] {
+	c.TableName = tableName
+	return c
+}
+
 // SQLByteChunker provides methods for reading and writing byte data
 // that is chunked across multiple rows in a SQL table.
 type SQLByteChunker[T any] struct {
 	config SQLByteChunkerConfig[T]
 }
 
-// MustNewSQLByteChunker creates a new SQLByteChunker with the specified configuration.
-// Panics if the configuration is invalid.
-func MustNewSQLByteChunker[T any](config SQLByteChunkerConfig[T]) *SQLByteChunker[T] {
+// NewSQLByteChunker creates a new SQLByteChunker with the specified configuration.
+// Returns an error if the configuration is invalid.
+func NewSQLByteChunker[T any](config SQLByteChunkerConfig[T]) (*SQLByteChunker[T], error) {
 	if config.MaxChunkSize <= 0 {
-		panic("maxChunkSize must be greater than 0")
+		return nil, errors.New("maxChunkSize must be greater than 0")
 	}
 	if config.TableName == "" {
-		panic("tableName cannot be empty")
+		return nil, errors.New("tableName cannot be empty")
 	}
 	if config.NameColumn == "" {
-		panic("nameColumn cannot be empty")
+		return nil, errors.New("nameColumn cannot be empty")
 	}
 	if config.ChunkIndexColumn == "" {
-		panic("chunkIndexColumn cannot be empty")
+		return nil, errors.New("chunkIndexColumn cannot be empty")
 	}
 	if config.ChunkDataColumn == "" {
-		panic("chunkDataColumn cannot be empty")
+		return nil, errors.New("chunkDataColumn cannot be empty")
 	}
 	if config.PlaceholderFormat == nil {
-		panic("placeholderFormat cannot be nil")
+		return nil, errors.New("placeholderFormat cannot be nil")
 	}
 	if config.Executor == nil {
-		panic("executor cannot be nil")
+		return nil, errors.New("executor cannot be nil")
 	}
 	if config.WriteMode == WriteModeInsertWithTombstones {
 		if config.CreatedAtColumn == "" {
-			panic("createdAtColumn is required when using WriteModeInsertWithTombstones")
+			return nil, errors.New("createdAtColumn is required when using WriteModeInsertWithTombstones")
 		}
 		if config.DeletedAtColumn == "" {
-			panic("deletedAtColumn is required when using WriteModeInsertWithTombstones")
+			return nil, errors.New("deletedAtColumn is required when using WriteModeInsertWithTombstones")
 		}
 	}
 
 	return &SQLByteChunker[T]{
 		config: config,
+	}, nil
+}
+
+// MustNewSQLByteChunker creates a new SQLByteChunker with the specified configuration.
+// Panics if the configuration is invalid.
+func MustNewSQLByteChunker[T any](config SQLByteChunkerConfig[T]) *SQLByteChunker[T] {
+	chunker, err := NewSQLByteChunker(config)
+	if err != nil {
+		panic(err)
 	}
+	return chunker
 }
 
 // WriteChunkedBytes writes chunked byte data to the database within a transaction.

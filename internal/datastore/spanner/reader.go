@@ -13,10 +13,10 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -37,9 +37,13 @@ type spannerReader struct {
 	txSource             txFactory
 	filterMaximumIDCount uint16
 	schema               common.SchemaInformation
+	schemaMode           dsoptions.SchemaMode
+	snapshotRevision     datastore.Revision
+	schemaHash           string
+	schemaReaderWriter   *common.SQLSchemaReaderWriter[any, revisions.TimestampRevision]
 }
 
-func (sr spannerReader) CountRelationships(ctx context.Context, name string) (int, error) {
+func (sr *spannerReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	// Ensure the counter exists.
 	counters, err := sr.lookupCounters(ctx, name)
 	if err != nil {
@@ -79,11 +83,11 @@ func (sr spannerReader) CountRelationships(ctx context.Context, name string) (in
 
 const noFilterOnCounterName = ""
 
-func (sr spannerReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+func (sr *spannerReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
 	return sr.lookupCounters(ctx, noFilterOnCounterName)
 }
 
-func (sr spannerReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
+func (sr *spannerReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
 	key := spanner.AllKeys()
 	if optionalFilterName != noFilterOnCounterName {
 		key = spanner.Key{optionalFilterName}
@@ -132,27 +136,27 @@ func (sr spannerReader) lookupCounters(ctx context.Context, optionalFilterName s
 	return counters, nil
 }
 
-func (sr spannerReader) QueryRelationships(
+func (sr *spannerReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
-	opts ...options.QueryOptionsOption,
+	opts ...dsoptions.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(sr.schema, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
 
-	builtOpts := options.NewQueryOptionsWithOptions(opts...)
+	builtOpts := dsoptions.NewQueryOptionsWithOptions(opts...)
 	indexingHint := IndexingHintForQueryShape(sr.schema, builtOpts.QueryShape)
 	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
 	return sr.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
-func (sr spannerReader) ReverseQueryRelationships(
+func (sr *spannerReader) ReverseQueryRelationships(
 	ctx context.Context,
 	subjectsFilter datastore.SubjectsFilter,
-	opts ...options.ReverseQueryOptionsOption,
+	opts ...dsoptions.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(sr.schema, sr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
@@ -160,7 +164,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 		return nil, err
 	}
 
-	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+	queryOpts := dsoptions.NewReverseQueryOptionsWithOptions(opts...)
 
 	if queryOpts.ResRelation != nil {
 		qBuilder = qBuilder.
@@ -173,13 +177,13 @@ func (sr spannerReader) ReverseQueryRelationships(
 
 	return sr.executor.ExecuteQuery(ctx,
 		qBuilder,
-		options.WithLimit(queryOpts.LimitForReverse),
-		options.WithAfter(queryOpts.AfterForReverse),
-		options.WithSort(queryOpts.SortForReverse),
-		options.WithSkipCaveats(queryOpts.SkipCaveatsForReverse),
-		options.WithSkipExpiration(queryOpts.SkipExpirationForReverse),
-		options.WithQueryShape(queryOpts.QueryShapeForReverse),
-		options.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
+		dsoptions.WithLimit(queryOpts.LimitForReverse),
+		dsoptions.WithAfter(queryOpts.AfterForReverse),
+		dsoptions.WithSort(queryOpts.SortForReverse),
+		dsoptions.WithSkipCaveats(queryOpts.SkipCaveatsForReverse),
+		dsoptions.WithSkipExpiration(queryOpts.SkipExpirationForReverse),
+		dsoptions.WithQueryShape(queryOpts.QueryShapeForReverse),
+		dsoptions.WithSQLExplainCallbackForTest(queryOpts.SQLExplainCallbackForTestForReverse),
 	)
 }
 
@@ -289,7 +293,7 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 	}
 }
 
-func (sr spannerReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (sr *spannerReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	nsKey := spanner.Key{nsName}
 	row, err := sr.txSource().ReadRow(
 		ctx,
@@ -318,7 +322,7 @@ func (sr spannerReader) LegacyReadNamespaceByName(ctx context.Context, nsName st
 	return ns, revisions.NewForTime(updated), nil
 }
 
-func (sr spannerReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (sr *spannerReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	iter := sr.txSource().Read(
 		ctx,
 		tableNamespace,
@@ -335,7 +339,7 @@ func (sr spannerReader) LegacyListAllNamespaces(ctx context.Context) ([]datastor
 	return allNamespaces, nil
 }
 
-func (sr spannerReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (sr *spannerReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
@@ -403,7 +407,58 @@ var queryTuplesForDelete = sql.Select(
 
 // SchemaReader returns a SchemaReader for reading schema information.
 func (sr *spannerReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(sr), nil
+	// Wrap the reader with an unexported schema reader
+	reader := &spannerSchemaReader{r: sr}
+	return schemaadapter.NewSchemaReader(reader, sr.schemaMode, sr.snapshotRevision), nil
 }
 
-var _ datastore.Reader = (*spannerReader)(nil)
+// spannerSchemaReader wraps a spannerReader and implements DualSchemaReader.
+// This prevents direct access to schema read methods from the reader.
+type spannerSchemaReader struct {
+	r *spannerReader
+}
+
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader
+func (ssr *spannerSchemaReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create a read-only executor for reading schema chunks
+	executor := &spannerSchemaReadExecutor{txSource: ssr.r.txSource}
+
+	// Use the shared schema reader/writer to read the schema with the hash
+	return ssr.r.schemaReaderWriter.ReadSchema(ctx, executor, ssr.r.snapshotRevision, datastore.SchemaHash(ssr.r.schemaHash))
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying reader
+func (ssr *spannerSchemaReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return ssr.r.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// LegacyReadCaveatByName delegates to the underlying reader
+func (ssr *spannerSchemaReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return ssr.r.LegacyReadCaveatByName(ctx, name)
+}
+
+// LegacyListAllCaveats delegates to the underlying reader
+func (ssr *spannerSchemaReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return ssr.r.LegacyListAllCaveats(ctx)
+}
+
+// LegacyLookupCaveatsWithNames delegates to the underlying reader
+func (ssr *spannerSchemaReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return ssr.r.LegacyLookupCaveatsWithNames(ctx, names)
+}
+
+// LegacyReadNamespaceByName delegates to the underlying reader
+func (ssr *spannerSchemaReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return ssr.r.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+// LegacyListAllNamespaces delegates to the underlying reader
+func (ssr *spannerSchemaReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return ssr.r.LegacyListAllNamespaces(ctx)
+}
+
+var (
+	_ datastore.Reader             = (*spannerReader)(nil)
+	_ datastore.LegacySchemaReader = (*spannerReader)(nil)
+	_ datastore.DualSchemaReader   = (*spannerSchemaReader)(nil)
+)

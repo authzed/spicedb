@@ -51,10 +51,10 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
 
-			head, err := ds.HeadRevision(ctx)
+			head, _, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 
-			iter, err := ds.SnapshotReader(head).QueryRelationships(ctx, datastore.RelationshipsFilter{
+			iter, err := ds.SnapshotReader(head, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testfixtures.DocumentNS.Name,
 			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			require.NoError(err)
@@ -149,7 +149,7 @@ func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(lastRevision, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
@@ -191,7 +191,7 @@ func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(lastRevision, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
@@ -228,7 +228,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(lastRevision, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
@@ -253,7 +253,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	iter, err = ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	iter, err = ds.SnapshotReader(lastRevision, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)

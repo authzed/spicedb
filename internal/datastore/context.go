@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // NewSeparatingContextDatastoreProxy severs any timeouts in the context being
@@ -50,7 +51,7 @@ func (p *ctxProxy) IsStrictReadModeEnabled() bool {
 	return false
 }
 
-func (p *ctxProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *ctxProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.OptimizedRevision(context.WithoutCancel(ctx))
 }
 
@@ -58,7 +59,7 @@ func (p *ctxProxy) CheckRevision(ctx context.Context, revision datastore.Revisio
 	return p.delegate.CheckRevision(context.WithoutCancel(ctx), revision)
 }
 
-func (p *ctxProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *ctxProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.HeadRevision(context.WithoutCancel(ctx))
 }
 
@@ -88,8 +89,8 @@ func (p *ctxProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error)
 
 func (p *ctxProxy) Close() error { return p.delegate.Close() }
 
-func (p *ctxProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.delegate.SnapshotReader(rev)
+func (p *ctxProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.delegate.SnapshotReader(rev, schemaHash)
 	return &ctxReader{delegateReader}
 }
 
@@ -148,7 +149,18 @@ func (r *ctxReader) SchemaReader() (datastore.SchemaReader, error) {
 	return r.delegate.SchemaReader()
 }
 
+func (r *ctxReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.delegate.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, spiceerrors.MustBugf("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(context.WithoutCancel(ctx))
+}
+
 var (
-	_ datastore.Datastore = (*ctxProxy)(nil)
-	_ datastore.Reader    = (*ctxReader)(nil)
+	_ datastore.Datastore               = (*ctxProxy)(nil)
+	_ datastore.Reader                  = (*ctxReader)(nil)
+	_ datastore.LegacySchemaReader      = (*ctxReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*ctxReader)(nil)
+	_ datastore.DualSchemaReader        = (*ctxReader)(nil)
 )

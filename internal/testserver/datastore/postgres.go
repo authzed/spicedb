@@ -3,6 +3,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,8 +39,9 @@ type postgresTester struct {
 	creds                string
 	targetMigration      string
 	pgbouncerProxy       *container
-	pool                 *dockertest.Pool
+	pool                 *dockertest.Pool // GUARDED_BY(poolMutex)
 	useContainerHostname bool
+	poolMutex            sync.Mutex // protects concurrent access to pool.Retry()
 }
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
@@ -220,6 +222,9 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pool *dockertest.P
 func (b *postgresTester) initializeHostConnection(t testing.TB) (conn *pgx.Conn) {
 	hostname, port := b.getHostHostnameAndPort()
 	uri := fmt.Sprintf("postgresql://%s@%s:%s/?sslmode=disable", b.creds, hostname, port)
+
+	// Lock to prevent concurrent access to pool.Retry() which has internal state
+	b.poolMutex.Lock()
 	err := b.pool.Retry(func() error {
 		var err error
 		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
@@ -230,6 +235,8 @@ func (b *postgresTester) initializeHostConnection(t testing.TB) (conn *pgx.Conn)
 		}
 		return nil
 	})
+	b.poolMutex.Unlock()
+
 	require.NoError(t, err)
 	return conn
 }

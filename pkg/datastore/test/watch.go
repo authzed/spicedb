@@ -66,7 +66,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			setupDatastore(ds, require)
 
-			lowestRevision, err := ds.HeadRevision(t.Context())
+			lowestRevision, _, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
 			opts := datastore.WatchOptions{
@@ -290,7 +290,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	// TOUCH a relationship and ensure watch sees it.
@@ -395,7 +395,7 @@ func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
@@ -440,7 +440,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
@@ -479,7 +479,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	// TOUCH a relationship and ensure watch sees it.
@@ -571,7 +571,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
@@ -663,7 +663,7 @@ func WatchAllTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
@@ -795,7 +795,7 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
@@ -835,7 +835,7 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 
 	expectsWatchError := (features.WatchEmitsImmediately.Status != datastore.FeatureSupported)
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{

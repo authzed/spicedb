@@ -155,6 +155,7 @@ func (rwt *crdbReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf(errWriteCaveat, err)
 	}
+
 	return nil
 }
 
@@ -170,5 +171,6 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []st
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf(errDeleteCaveats, err)
 	}
+
 	return nil
 }

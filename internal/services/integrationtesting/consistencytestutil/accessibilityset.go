@@ -107,7 +107,7 @@ func BuildAccessibilitySet(t *testing.T, ctx context.Context, populated *validat
 	// NOTE: We only conduct checks here for the *defined* subjects from the relationships,
 	// rather than every possible subject, as the latter would make the consistency test suite
 	// VERY slow, due to the combinatorial size of all possible subjects.
-	headRevision, err := ds.HeadRevision(ctx)
+	headRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
 	params, err := graph.NewDefaultDispatcherParametersForTesting()

@@ -55,6 +55,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	ds := datastoremw.MustFromContext(ctx)
 
 	var afterRevision datastore.Revision
+	var schemaHash datastore.SchemaHash
 	if req.OptionalStartCursor != nil && req.OptionalStartCursor.Token != "" {
 		decodedRevision, tokenStatus, err := zedtoken.DecodeRevision(req.OptionalStartCursor, ds)
 		if err != nil {
@@ -71,15 +72,17 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		}
 
 		afterRevision = decodedRevision
+		// Schema hash not available from decoded token - use sentinel to load on demand
+		schemaHash = datastore.NoSchemaHashForWatch
 	} else {
 		var err error
-		afterRevision, err = ds.OptimizedRevision(ctx)
+		afterRevision, schemaHash, err = ds.OptimizedRevision(ctx)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
 	}
 
-	reader := ds.SnapshotReader(afterRevision)
+	reader := ds.SnapshotReader(afterRevision, schemaHash)
 
 	filters, err := buildRelationshipFilters(req, stream, reader, ws, ctx)
 	if err != nil {

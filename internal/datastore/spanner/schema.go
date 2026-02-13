@@ -35,6 +35,13 @@ const (
 	tableTransactionMetadata = "transaction_metadata"
 	colTransactionTag        = "transaction_tag"
 	colMetadata              = "metadata"
+
+	tableSchema         = "schema"
+	tableSchemaRevision = "schema_revision"
+	colSchemaName       = "name"
+	colSchemaChunkIndex = "chunk_index"
+	colSchemaChunkData  = "chunk_data"
+	colSchemaHash       = "schema_hash"
 )
 
 var allRelationshipCols = []string{

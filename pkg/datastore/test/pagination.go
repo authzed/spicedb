@@ -48,7 +48,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 			expected := sortedStandardData(tc.resourceType, tc.ordering)
 
 			// Check the snapshot reader order
-			iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+			iter, err := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: tc.resourceType,
 			}, options.WithSort(tc.ordering), options.WithQueryShape(queryshape.FindResourceOfType))
 
@@ -284,7 +284,7 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 	// Issue a reverse query call with a limit.
 	for _, sortBy := range []options.SortOrder{options.ByResource, options.BySubject} {
 		t.Run(fmt.Sprintf("SortBy-%d", sortBy), func(t *testing.T) {
-			reader := ds.SnapshotReader(rev)
+			reader := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)
 
 			var limit uint64 = 2
 			var cursor options.Cursor
@@ -351,7 +351,7 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 	// Issue a reverse query call with a limit.
 	for _, sortBy := range []options.SortOrder{options.ByResource, options.BySubject} {
 		t.Run(fmt.Sprintf("SortBy-%d", sortBy), func(t *testing.T) {
-			reader := ds.SnapshotReader(rev)
+			reader := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)
 
 			var limit uint64 = 2
 			var cursor options.Cursor
@@ -396,7 +396,7 @@ func foreachTxType(
 	snapshotRev datastore.Revision,
 	fn func(reader datastore.Reader),
 ) {
-	reader := ds.SnapshotReader(snapshotRev)
+	reader := ds.SnapshotReader(snapshotRev, datastore.NoSchemaHashForTesting)
 	fn(reader)
 
 	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

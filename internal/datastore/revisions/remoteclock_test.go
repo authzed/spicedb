@@ -88,7 +88,7 @@ func TestRemoteClockOptimizedRevisions(t *testing.T) {
 				remoteClock.Set(time.Unix(timeAndExpected.unixTime, 0))
 
 				expected := NewForTimestamp(timeAndExpected.expected * 1_000_000_000)
-				optimized, err := rcr.OptimizedRevision(t.Context())
+				optimized, _, err := rcr.OptimizedRevision(t.Context())
 				require.NoError(err)
 				require.True(
 					expected.Equal(optimized),
@@ -165,7 +165,7 @@ func TestRemoteClockStalenessBeyondGC(t *testing.T) {
 	remoteClock.Set(time.Unix(currentTime, 0))
 
 	// Call optimized revision.
-	optimized, err := rcr.OptimizedRevision(t.Context())
+	optimized, _, err := rcr.OptimizedRevision(t.Context())
 	require.NoError(t, err)
 
 	// Ensure the optimized revision is not past the GC window.
@@ -175,7 +175,7 @@ func TestRemoteClockStalenessBeyondGC(t *testing.T) {
 	// Set the current time to 100001 to ensure the optimized revision is past the GC window.
 	remoteClock.Set(time.Unix(100001, 0))
 
-	newOptimized, err := rcr.OptimizedRevision(t.Context())
+	newOptimized, _, err := rcr.OptimizedRevision(t.Context())
 	require.NoError(t, err)
 
 	// Ensure the new optimized revision is not past the GC window.

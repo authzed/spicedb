@@ -5,6 +5,7 @@ import (
 
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datastore"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -106,7 +107,7 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 		if err != nil {
 			return emptyDispatchCacheKey, err
 		}
-		r := ds.SnapshotReader(revision)
+		r := ds.SnapshotReader(revision, datastore.SchemaHash(req.Metadata.SchemaHash))
 
 		_, relation, err := namespace.ReadNamespaceAndRelation(
 			ctx,

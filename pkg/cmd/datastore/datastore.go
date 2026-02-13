@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/sharederrors"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -182,8 +183,13 @@ type Config struct {
 	AllowedMigrations []string `debugmap:"visible"`
 
 	// Experimental
-	ExperimentalColumnOptimization bool `debugmap:"visible"`
-	EnableRevisionHeartbeat        bool `debugmap:"visible"`
+	ExperimentalColumnOptimization bool                 `debugmap:"visible"`
+	EnableRevisionHeartbeat        bool                 `debugmap:"visible"`
+	ExperimentalSchemaMode         dsoptions.SchemaMode `debugmap:"visible"`
+
+	// Internal - used for flag parsing
+	experimentalSchemaModeString string                       `debugmap:"hidden"`
+	schemaCacheOptions           dsoptions.SchemaCacheOptions `debugmap:"hidden"`
 }
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.relintegritykey.options.go . RelIntegrityKey
@@ -336,6 +342,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	}
 
 	flagSet.BoolVar(&opts.ExperimentalColumnOptimization, flagName("datastore-experimental-column-optimization"), true, "enable experimental column optimization")
+	flagSet.StringVar(&opts.experimentalSchemaModeString, flagName("datastore-experimental-schema-mode"), "read-legacy-write-legacy", `experimental schema mode ("read-legacy-write-legacy", "read-legacy-write-both", "read-new-write-both", "read-new-write-new")`)
 
 	return nil
 }
@@ -387,6 +394,14 @@ func DefaultDatastoreConfig() *Config {
 		IncludeQueryParametersInTraces:   false,
 		WriteAcquisitionTimeout:          30 * time.Millisecond,
 		CaveatTypeSet:                    caveattypes.Default.TypeSet,
+		experimentalSchemaModeString:     "read-legacy-write-legacy",
+	}
+}
+
+// WithSchemaCacheOptions sets the schema cache options for the datastore.
+func WithSchemaCacheOptions(cacheOptions dsoptions.SchemaCacheOptions) ConfigOption {
+	return func(c *Config) {
+		c.schemaCacheOptions = cacheOptions
 	}
 }
 
@@ -395,6 +410,15 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	opts := DefaultDatastoreConfig()
 	for _, o := range options {
 		o(opts)
+	}
+
+	// Parse the experimental schema mode string if provided
+	if opts.experimentalSchemaModeString != "" {
+		mode, err := dsoptions.ParseSchemaMode(opts.experimentalSchemaModeString)
+		if err != nil {
+			return nil, err
+		}
+		opts.ExperimentalSchemaMode = mode
 	}
 
 	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {
@@ -423,12 +447,12 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		ctx, cancel := context.WithTimeout(ctx, opts.BootstrapTimeout)
 		defer cancel()
 
-		revision, err := ds.HeadRevision(ctx)
+		revision, schemaHash, err := ds.HeadRevision(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 
-		nsDefs, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
+		nsDefs, err := ds.SnapshotReader(revision, schemaHash).LegacyListAllNamespaces(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
@@ -578,6 +602,8 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		crdb.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 		crdb.WithWatchDisabled(opts.DisableWatchSupport),
+		crdb.WithSchemaMode(opts.ExperimentalSchemaMode),
+		crdb.WithSchemaCacheOptions(opts.schemaCacheOptions),
 	)
 }
 
@@ -626,6 +652,8 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 		postgres.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		postgres.WatchChangeBufferMaximumSize(watchChangeBufferMaximumSize),
 		postgres.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
+		postgres.WithSchemaMode(opts.ExperimentalSchemaMode),
+		postgres.WithSchemaCacheOptions(opts.schemaCacheOptions),
 	}, nil
 }
 
@@ -726,6 +754,8 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		spanner.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		spanner.WithWatchDisabled(opts.DisableWatchSupport),
+		spanner.WithSchemaMode(opts.ExperimentalSchemaMode),
+		spanner.WithSchemaCacheOptions(opts.schemaCacheOptions),
 	)
 }
 
@@ -779,6 +809,8 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		mysql.AllowedMigrations(opts.AllowedMigrations),
 		mysql.WithColumnOptimization(opts.ExperimentalColumnOptimization),
+		mysql.WithSchemaMode(opts.ExperimentalSchemaMode),
+		mysql.WithSchemaCacheOptions(opts.schemaCacheOptions),
 	}, nil
 }
 

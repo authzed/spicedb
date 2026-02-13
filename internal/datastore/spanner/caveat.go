@@ -89,7 +89,7 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 	return caveats, nil
 }
 
-func (rwt spannerReadWriteTXN) LegacyWriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt spannerReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	names := map[string]struct{}{}
 	mutations := make([]*spanner.Mutation, 0, len(caveats))
 	for _, caveat := range caveats {
@@ -107,15 +107,28 @@ func (rwt spannerReadWriteTXN) LegacyWriteCaveats(_ context.Context, caveats []*
 			[]string{colName, colCaveatDefinition, colCaveatTS},
 			[]any{caveat.Name, serialized, spanner.CommitTimestamp},
 		))
+
+		// Track the buffered caveat write so we can return it from List methods
+		// without attempting to read from Spanner (which doesn't see buffered writes)
+		rwt.bufferedCaveats[caveat.Name] = caveat
+		// Remove from deleted set in case it was previously deleted in this transaction
+		delete(rwt.deletedCaveats, caveat.Name)
 	}
 
-	return rwt.spannerRWT.BufferWrite(mutations)
+	if err := rwt.spannerRWT.BufferWrite(mutations); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(_ context.Context, names []string) error {
+func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	keys := make([]spanner.Key, 0, len(names))
 	for _, n := range names {
 		keys = append(keys, spanner.Key{n})
+		// Remove from buffered caveats and mark as deleted so List methods won't return it
+		delete(rwt.bufferedCaveats, n)
+		rwt.deletedCaveats[n] = struct{}{}
 	}
 	err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{
 		spanner.Delete(tableCaveat, spanner.KeySetFromKeys(keys...)),
@@ -124,7 +137,7 @@ func (rwt spannerReadWriteTXN) LegacyDeleteCaveats(_ context.Context, names []st
 		return fmt.Errorf(errUnableToDeleteCaveat, err)
 	}
 
-	return err
+	return nil
 }
 
 func ContextualizedCaveatFrom(name spanner.NullString, context spanner.NullJSON) (*core.ContextualizedCaveat, error) {

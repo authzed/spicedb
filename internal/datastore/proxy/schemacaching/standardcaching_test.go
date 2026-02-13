@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -42,6 +43,11 @@ const (
 	caveatA = "caveat_a"
 	caveatB = "caveat_b"
 )
+
+// setupSchemaReaderMock configures a MockReader to return a legacy schema reader adapter
+func setupSchemaReaderMock(reader *proxy_test.MockReader) {
+	reader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(reader), nil)
+}
 
 // TestNilUnmarshal asserts that if we get a nil NamespaceDefinition from a
 // datastore implementation, the process of inserting it into the cache and
@@ -173,35 +179,35 @@ func TestOldSnapshotCaching(t *testing.T) {
 			require := require.New(t)
 			ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
-			_, updatedOneA, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsA)
+			_, updatedOneA, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one, datastore.NoSchemaHashForTesting), nsA)
 			require.NoError(err)
 			require.True(old.Equal(updatedOneA))
 
-			_, updatedOneAAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsA)
+			_, updatedOneAAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one, datastore.NoSchemaHashForTesting), nsA)
 			require.NoError(err)
 			require.True(old.Equal(updatedOneAAgain))
 
-			_, updatedOneB, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsB)
+			_, updatedOneB, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one, datastore.NoSchemaHashForTesting), nsB)
 			require.NoError(err)
 			require.True(zero.Equal(updatedOneB))
 
-			_, updatedOneBAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsB)
+			_, updatedOneBAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one, datastore.NoSchemaHashForTesting), nsB)
 			require.NoError(err)
 			require.True(zero.Equal(updatedOneBAgain))
 
-			_, updatedTwoA, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsA)
+			_, updatedTwoA, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two, datastore.NoSchemaHashForTesting), nsA)
 			require.NoError(err)
 			require.True(zero.Equal(updatedTwoA))
 
-			_, updatedTwoAAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsA)
+			_, updatedTwoAAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two, datastore.NoSchemaHashForTesting), nsA)
 			require.NoError(err)
 			require.True(zero.Equal(updatedTwoAAgain))
 
-			_, updatedTwoB, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsB)
+			_, updatedTwoB, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two, datastore.NoSchemaHashForTesting), nsB)
 			require.NoError(err)
 			require.True(one.Equal(updatedTwoB))
 
-			_, updatedTwoBAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two), nsB)
+			_, updatedTwoBAgain, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(two, datastore.NoSchemaHashForTesting), nsB)
 			require.NoError(err)
 			require.True(one.Equal(updatedTwoBAgain))
 
@@ -217,6 +223,7 @@ func TestSnapshotCaching(t *testing.T) {
 
 	oneReader := &proxy_test.MockReader{}
 	dsMock.On("SnapshotReader", one).Return(oneReader)
+	oneReader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(oneReader), nil)
 	oneReader.On("LegacyReadNamespaceByName", nsA).Return(nil, old, nil).Once()
 	oneReader.On("LegacyReadNamespaceByName", nsB).Return(nil, zero, nil).Once()
 	oneReader.On("LegacyReadCaveatByName", caveatA).Return(nil, old, nil).Once()
@@ -224,6 +231,7 @@ func TestSnapshotCaching(t *testing.T) {
 
 	twoReader := &proxy_test.MockReader{}
 	dsMock.On("SnapshotReader", two).Return(twoReader)
+	twoReader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(twoReader), nil)
 	twoReader.On("LegacyReadNamespaceByName", nsA).Return(nil, zero, nil).Once()
 	twoReader.On("LegacyReadNamespaceByName", nsB).Return(nil, one, nil).Once()
 	twoReader.On("LegacyReadCaveatByName", caveatA).Return(nil, zero, nil).Once()
@@ -238,7 +246,7 @@ func TestSnapshotCaching(t *testing.T) {
 	ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
 	// Get a handle on the reader for A
-	dsForA := ds.SnapshotReader(one)
+	dsForA := ds.SnapshotReader(one, datastore.NoSchemaHashForTesting)
 	schemaReaderForA, err := dsForA.SchemaReader()
 	require.NoError(err)
 
@@ -269,7 +277,7 @@ func TestSnapshotCaching(t *testing.T) {
 	require.True(old.Equal(revCaveatDef.LastWrittenRevision))
 
 	// Get a handle on the reader for B
-	dsForB := ds.SnapshotReader(one)
+	dsForB := ds.SnapshotReader(one, datastore.NoSchemaHashForTesting)
 	schemaReaderForB, err := dsForB.SchemaReader()
 	require.NoError(err)
 
@@ -300,7 +308,7 @@ func TestSnapshotCaching(t *testing.T) {
 	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
 
 	// Get a handle on the second reader for A
-	dsForA = ds.SnapshotReader(two)
+	dsForA = ds.SnapshotReader(two, datastore.NoSchemaHashForTesting)
 	schemaReaderForA, err = dsForA.SchemaReader()
 	require.NoError(err)
 
@@ -331,7 +339,7 @@ func TestSnapshotCaching(t *testing.T) {
 	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
 
 	// Get a handle on the second reader for B
-	dsForB = ds.SnapshotReader(two)
+	dsForB = ds.SnapshotReader(two, datastore.NoSchemaHashForTesting)
 	schemaReaderForB, err = dsForB.SchemaReader()
 	require.NoError(err)
 
@@ -410,6 +418,7 @@ func TestRWTCaching(t *testing.T) {
 	require := require.New(t)
 
 	dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
+	rwtMock.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(rwtMock), nil)
 	rwtMock.On("LegacyReadNamespaceByName", nsA).Return(nil, zero, nil).Once()
 	rwtMock.On("LegacyReadCaveatByName", caveatA).Return(nil, zero, nil).Once()
 
@@ -524,7 +533,7 @@ func TestOldSingleFlight(t *testing.T) {
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
 			readNamespace := func() error {
-				_, updatedAt, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsA)
+				_, updatedAt, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one, datastore.NoSchemaHashForTesting), nsA)
 				require.NoError(err)
 				require.True(old.Equal(updatedAt))
 				return err
@@ -548,6 +557,7 @@ func TestSingleFlight(t *testing.T) {
 
 		oneReader := &proxy_test.MockReader{}
 		dsMock.On("SnapshotReader", one).Return(oneReader)
+		oneReader.On("SchemaReader").Return(schemaadapter.NewLegacySchemaReaderAdapter(oneReader), nil)
 		oneReader.
 			On("LegacyReadNamespaceByName", nsA).
 			WaitUntil(time.After(50*time.Millisecond)).
@@ -562,7 +572,7 @@ func TestSingleFlight(t *testing.T) {
 		assert := assert.New(t)
 
 		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
-		snapshotReader := ds.SnapshotReader(one)
+		snapshotReader := ds.SnapshotReader(one, datastore.NoSchemaHashForTesting)
 		schemaReader, err := snapshotReader.SchemaReader()
 		if !assert.NoError(err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
 			return
@@ -662,10 +672,10 @@ func TestOldSnapshotCachingRealDatastore(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRev, _, err := ds.HeadRevision(ctx)
 			require.NoError(t, err)
 
-			reader := ds.SnapshotReader(headRev)
+			reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 			ns, _, _ := reader.LegacyReadNamespaceByName(ctx, tc.namespaceName)
 			testutil.RequireProtoEqual(t, tc.nsDef, ns, "found different namespaces")
 
@@ -739,10 +749,10 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRev, _, err := ds.HeadRevision(ctx)
 			require.NoError(t, err)
 
-			reader := ds.SnapshotReader(headRev)
+			reader := ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 			schemaReader, err := reader.SchemaReader()
 			require.NoError(t, err)
 
@@ -769,6 +779,10 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 // behavior.
 type singleflightReader struct {
 	proxy_test.MockReader
+}
+
+func (r *singleflightReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemaadapter.NewLegacySchemaReaderAdapter(r), nil
 }
 
 func (r *singleflightReader) LegacyReadNamespaceByName(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
@@ -829,12 +843,12 @@ func TestOldSingleFlightCancelled(t *testing.T) {
 			var d2 datastore.SchemaDefinition
 			g.Add(2)
 			go func() {
-				_, _, _ = tester.readSingleFunc(ctx1, ds.SnapshotReader(one), nsA)
+				_, _, _ = tester.readSingleFunc(ctx1, ds.SnapshotReader(one, datastore.NoSchemaHashForTesting), nsA)
 				g.Done()
 			}()
 			go func() {
 				time.Sleep(5 * time.Millisecond)
-				d2, _, _ = tester.readSingleFunc(ctx2, ds.SnapshotReader(one), nsA)
+				d2, _, _ = tester.readSingleFunc(ctx2, ds.SnapshotReader(one, datastore.NoSchemaHashForTesting), nsA)
 				g.Done()
 			}()
 			cancel1()
@@ -859,7 +873,7 @@ func TestSingleFlightCancelled(t *testing.T) {
 		dsMock.On("SnapshotReader", one).Return(&singleflightReader{MockReader: proxy_test.MockReader{}})
 
 		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
-		snapshotReader := ds.SnapshotReader(one)
+		snapshotReader := ds.SnapshotReader(one, datastore.NoSchemaHashForTesting)
 		schemaReader, err := snapshotReader.SchemaReader()
 		if !assert.NoError(t, err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
 			return
@@ -918,7 +932,7 @@ func TestOldMixedCaching(t *testing.T) {
 			require := require.New(t)
 			ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
-			dsReader := ds.SnapshotReader(one)
+			dsReader := ds.SnapshotReader(one, datastore.NoSchemaHashForTesting)
 
 			// Lookup name A
 			_, _, err := tester.readSingleFunc(t.Context(), dsReader, nsA)
@@ -975,6 +989,7 @@ func TestMixedCaching(t *testing.T) {
 
 	reader := &proxy_test.MockReader{}
 	reader.Test(t)
+	setupSchemaReaderMock(reader)
 	reader.On("LegacyReadNamespaceByName", nsA).Return(nsDefA, old, nil).Once()
 	reader.On("LegacyReadCaveatByName", caveatA).Return(caveatDefA, old, nil).Once()
 	// NOTE: the mocks here only expect the Bs because the caching layer is going to
@@ -1003,7 +1018,7 @@ func TestMixedCaching(t *testing.T) {
 	require := require.New(t)
 	ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
-	dsReader := ds.SnapshotReader(one)
+	dsReader := ds.SnapshotReader(one, datastore.NoSchemaHashForTesting)
 	schemaReader, err := dsReader.SchemaReader()
 	require.NoError(err)
 
@@ -1059,9 +1074,9 @@ func TestOldInvalidNamespaceInCache(t *testing.T) {
 		ds.Close()
 	})
 
-	headRevision, err := ds.HeadRevision(ctx)
+	headRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	dsReader := ds.SnapshotReader(headRevision)
+	dsReader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 
 	namespace, _, err := dsReader.LegacyReadNamespaceByName(ctx, invalidNamespace)
 	require.Nil(namespace)
@@ -1094,9 +1109,9 @@ func TestInvalidNamespaceInCache(t *testing.T) {
 		ds.Close()
 	})
 
-	headRevision, err := ds.HeadRevision(ctx)
+	headRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	dsReader := ds.SnapshotReader(headRevision)
+	dsReader := ds.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting)
 	schemaReader, err := dsReader.SchemaReader()
 	require.NoError(err)
 
@@ -1142,7 +1157,7 @@ func TestOldMixedInvalidNamespacesInCache(t *testing.T) {
 	})
 	require.NoError(err)
 
-	dsReader := ds.SnapshotReader(revision)
+	dsReader := ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting)
 
 	namespace, _, err := dsReader.LegacyReadNamespaceByName(ctx, invalidNamespace)
 	require.Nil(namespace)
@@ -1189,7 +1204,7 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 	})
 	require.NoError(err)
 
-	dsReader := ds.SnapshotReader(revision)
+	dsReader := ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting)
 	schemaReader, err := dsReader.SchemaReader()
 	require.NoError(err)
 

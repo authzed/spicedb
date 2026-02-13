@@ -8,7 +8,7 @@ import (
 )
 
 func (mdb *memdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	head, err := mdb.HeadRevision(ctx)
+	head, _, err := mdb.HeadRevision(ctx)
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to compute head revision: %w", err)
 	}
@@ -18,7 +18,7 @@ func (mdb *memdbDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 		return datastore.Stats{}, fmt.Errorf("unable to count relationships: %w", err)
 	}
 
-	objTypes, err := mdb.SnapshotReader(head).LegacyListAllNamespaces(ctx)
+	objTypes, err := mdb.SnapshotReader(head, noHashSupported).LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to list object types: %w", err)
 	}

@@ -2,6 +2,7 @@ package options
 
 import (
 	"context"
+	"fmt"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -9,6 +10,13 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// SchemaCacheOptions configures the schema cache behavior.
+type SchemaCacheOptions struct {
+	// MaximumCacheEntries is the maximum number of schema entries to cache.
+	// If 0, defaults to 100.
+	MaximumCacheEntries uint32
+}
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.query_options.go . QueryOptions ReverseQueryOptions RWTOptions
 //go:generate go run github.com/ecordell/optgen -output zz_generated.delete_options.go . DeleteOptions
@@ -127,3 +135,52 @@ var (
 	// LimitOne is a constant *uint64 that can be used with WithLimit requests.
 	LimitOne = &one
 )
+
+// SchemaMode represents the experimental schema mode for datastore operations.
+type SchemaMode uint8
+
+const (
+	// SchemaModeReadLegacyWriteLegacy uses legacy schema reader and writer
+	SchemaModeReadLegacyWriteLegacy SchemaMode = iota
+
+	// SchemaModeReadLegacyWriteBoth uses legacy schema reader and writes to both legacy and unified schema
+	SchemaModeReadLegacyWriteBoth
+
+	// SchemaModeReadNewWriteBoth uses unified schema reader and writes to both legacy and unified schema
+	SchemaModeReadNewWriteBoth
+
+	// SchemaModeReadNewWriteNew uses unified schema reader and writer only
+	SchemaModeReadNewWriteNew
+)
+
+var schemaModeNames = map[string]SchemaMode{
+	"read-legacy-write-legacy": SchemaModeReadLegacyWriteLegacy,
+	"read-legacy-write-both":   SchemaModeReadLegacyWriteBoth,
+	"read-new-write-both":      SchemaModeReadNewWriteBoth,
+	"read-new-write-new":       SchemaModeReadNewWriteNew,
+}
+
+var schemaModeStrings = map[SchemaMode]string{
+	SchemaModeReadLegacyWriteLegacy: "read-legacy-write-legacy",
+	SchemaModeReadLegacyWriteBoth:   "read-legacy-write-both",
+	SchemaModeReadNewWriteBoth:      "read-new-write-both",
+	SchemaModeReadNewWriteNew:       "read-new-write-new",
+}
+
+// ParseSchemaMode converts a string to a SchemaMode. Returns an error if the string is invalid.
+func ParseSchemaMode(s string) (SchemaMode, error) {
+	mode, ok := schemaModeNames[s]
+	if !ok {
+		return SchemaModeReadLegacyWriteLegacy, fmt.Errorf("invalid schema mode %q, must be one of: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new", s)
+	}
+	return mode, nil
+}
+
+// String returns the string representation of the SchemaMode.
+func (s SchemaMode) String() string {
+	str, ok := schemaModeStrings[s]
+	if !ok {
+		return "unknown"
+	}
+	return str
+}

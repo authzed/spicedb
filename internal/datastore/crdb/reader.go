@@ -15,7 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -50,6 +50,10 @@ type crdbReader struct {
 	filterMaximumIDCount uint16
 	withIntegrity        bool
 	atSpecificRevision   string
+	schemaMode           options.SchemaMode
+	snapshotRevision     datastore.Revision
+	schemaHash           string
+	schemaReaderWriter   *common.SQLSchemaReaderWriter[any, revisions.HLCRevision]
 }
 
 const (
@@ -431,7 +435,62 @@ func (cr *crdbReader) addOverlapKey(namespace string) {
 
 // SchemaReader returns a SchemaReader for reading schema information.
 func (cr *crdbReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(cr), nil
+	// Wrap the reader with an unexported schema reader
+	reader := &crdbSchemaReader{r: cr}
+	return schemaadapter.NewSchemaReader(reader, cr.schemaMode, cr.snapshotRevision), nil
 }
 
-var _ datastore.Reader = &crdbReader{}
+// crdbSchemaReader wraps a crdbReader and implements DualSchemaReader.
+// This prevents direct access to schema read methods from the reader.
+type crdbSchemaReader struct {
+	r *crdbReader
+}
+
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader with revision-aware reading
+func (sr *crdbSchemaReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create a revision-aware executor that applies AS OF SYSTEM TIME
+	executor := &revisionAwareExecutor{
+		query:             sr.r.query,
+		addFromToQuery:    sr.r.addFromToQuery,
+		assertAsOfSysTime: sr.r.assertHasExpectedAsOfSystemTime,
+	}
+
+	// Use the shared schema reader/writer to read the schema with the hash
+	return sr.r.schemaReaderWriter.ReadSchema(ctx, executor, sr.r.snapshotRevision, datastore.SchemaHash(sr.r.schemaHash))
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying reader
+func (sr *crdbSchemaReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return sr.r.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// LegacyReadCaveatByName delegates to the underlying reader
+func (sr *crdbSchemaReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return sr.r.LegacyReadCaveatByName(ctx, name)
+}
+
+// LegacyListAllCaveats delegates to the underlying reader
+func (sr *crdbSchemaReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return sr.r.LegacyListAllCaveats(ctx)
+}
+
+// LegacyLookupCaveatsWithNames delegates to the underlying reader
+func (sr *crdbSchemaReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return sr.r.LegacyLookupCaveatsWithNames(ctx, names)
+}
+
+// LegacyReadNamespaceByName delegates to the underlying reader
+func (sr *crdbSchemaReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return sr.r.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+// LegacyListAllNamespaces delegates to the underlying reader
+func (sr *crdbSchemaReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return sr.r.LegacyListAllNamespaces(ctx)
+}
+
+var (
+	_ datastore.Reader             = &crdbReader{}
+	_ datastore.LegacySchemaReader = &crdbReader{}
+	_ datastore.DualSchemaReader   = &crdbSchemaReader{}
+)

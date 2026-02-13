@@ -50,7 +50,7 @@ func TestEncodeDecode(t *testing.T) {
 			require := require.New(t)
 			encoded, err := EncodeFromDispatchCursor(&dispatch.Cursor{
 				Sections: tc.sections,
-			}, tc.hash, tc.revision, map[string]string{"some": "flag"})
+			}, tc.hash, tc.revision, datastore.NoSchemaHashForTesting, map[string]string{"some": "flag"})
 			require.NoError(err)
 			require.NotNil(encoded)
 

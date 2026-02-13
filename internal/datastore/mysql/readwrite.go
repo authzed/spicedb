@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,11 +24,13 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -48,9 +53,11 @@ var (
 type mysqlReadWriteTXN struct {
 	*mysqlReader
 
-	tupleTableName string
-	tx             *sql.Tx
-	newTxnID       uint64
+	tupleTableName          string
+	schemaTableName         string
+	schemaRevisionTableName string
+	tx                      *sql.Tx
+	newTxnID                uint64
 }
 
 // structpbWrapper is used to marshall maps into MySQLs JSON data type
@@ -515,7 +522,202 @@ func (rwt *mysqlReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsName
 }
 
 func (rwt *mysqlReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
-	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
+	// Wrap the transaction with an unexported schema writer
+	writer := &mysqlSchemaWriter{rwt: rwt}
+	return schemaadapter.NewSchemaWriter(writer, writer, rwt.schemaMode), nil
+}
+
+// mysqlSchemaWriter wraps a mysqlReadWriteTXN and implements DualSchemaWriter.
+// This prevents direct access to schema write methods from the transaction.
+type mysqlSchemaWriter struct {
+	rwt *mysqlReadWriteTXN
+}
+
+// WriteStoredSchema implements datastore.SingleStoreSchemaWriter by writing within the current transaction
+func (w *mysqlSchemaWriter) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	// Create a transaction-aware executor that uses the current transaction
+	executor := newMySQLTransactionAwareExecutor(w.rwt.tx)
+
+	// Use the shared schema reader/writer to write the schema with the newTxnID as transaction ID
+	if err := w.rwt.schemaReaderWriter.WriteSchema(ctx, schema, executor, func(ctx context.Context) uint64 {
+		return w.rwt.newTxnID
+	}); err != nil {
+		return err
+	}
+
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := w.writeSchemaHash(ctx, schema); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
+}
+
+// writeSchemaHash writes the schema hash to the schema_revision table
+func (w *mysqlSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.StoredSchema) error {
+	v1 := schema.GetV1()
+	if v1 == nil {
+		return fmt.Errorf("unsupported schema version: %d", schema.Version)
+	}
+
+	// Mark existing hash rows as deleted
+	sql, args, err := sb.Update(w.rwt.schemaRevisionTableName).
+		Set("deleted_transaction", w.rwt.newTxnID).
+		Where(sq.Eq{
+			"name":                "current",
+			"deleted_transaction": liveDeletedTxnID,
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build delete query: %w", err)
+	}
+
+	if _, err := w.rwt.tx.ExecContext(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to delete old hash: %w", err)
+	}
+
+	// Insert new hash row (INSERT IGNORE handles WriteBoth mode duplicates)
+	sql, args, err = sb.Insert(w.rwt.schemaRevisionTableName).
+		Options("IGNORE").
+		Columns("name", "hash", "created_transaction", "deleted_transaction").
+		Values("current", []byte(v1.SchemaHash), w.rwt.newTxnID, liveDeletedTxnID).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build insert query: %w", err)
+	}
+
+	if _, err := w.rwt.tx.ExecContext(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	return nil
+}
+
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader to satisfy DualSchemaReader interface requirements
+func (w *mysqlSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create a revision-aware executor that applies alive filter
+	executor := &mysqlRevisionAwareExecutor{
+		txSource:    w.rwt.txSource,
+		aliveFilter: w.rwt.aliveFilter,
+	}
+
+	// Use the shared schema reader/writer to read the schema
+	// Pass empty string for transaction reads to bypass cache
+	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil, datastore.NoSchemaHashInTransaction)
+}
+
+// LegacyWriteNamespaces delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	return w.rwt.LegacyWriteNamespaces(ctx, newConfigs...)
+}
+
+// LegacyDeleteNamespaces delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	return w.rwt.LegacyDeleteNamespaces(ctx, nsNames, delOption)
+}
+
+// LegacyWriteCaveats delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	return w.rwt.LegacyWriteCaveats(ctx, caveats)
+}
+
+// LegacyDeleteCaveats delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyDeleteCaveats(ctx context.Context, names []string) error {
+	return w.rwt.LegacyDeleteCaveats(ctx, names)
+}
+
+// LegacyReadCaveatByName delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return w.rwt.LegacyReadCaveatByName(ctx, name)
+}
+
+// LegacyListAllCaveats delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return w.rwt.LegacyListAllCaveats(ctx)
+}
+
+// LegacyLookupCaveatsWithNames delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return w.rwt.LegacyLookupCaveatsWithNames(ctx, names)
+}
+
+// LegacyReadNamespaceByName delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return w.rwt.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+// LegacyListAllNamespaces delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return w.rwt.LegacyListAllNamespaces(ctx)
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying transaction
+func (w *mysqlSchemaWriter) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return w.rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (w *mysqlSchemaWriter) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	return w.rwt.writeLegacySchemaHashFromDefinitions(ctx, namespaces, caveats)
+}
+
+// writeLegacySchemaHashFromDefinitions writes the schema hash computed from the given definitions
+func (rwt *mysqlReadWriteTXN) writeLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	// Build schema definitions list
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		definitions = append(definitions, ns.Definition)
+	}
+	for _, caveat := range caveats {
+		definitions = append(definitions, caveat.Definition)
+	}
+
+	// Sort definitions by name for consistent ordering
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].GetName() < definitions[j].GetName()
+	})
+
+	// Generate schema text from definitions
+	schemaText, _, err := generator.GenerateSchema(definitions)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
+
+	// Mark existing hash rows as deleted
+	sql, args, err := sb.Update(rwt.schemaRevisionTableName).
+		Set("deleted_transaction", rwt.newTxnID).
+		Where(sq.Eq{
+			"name":                "current",
+			"deleted_transaction": liveDeletedTxnID,
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build delete query: %w", err)
+	}
+
+	if _, err := rwt.tx.ExecContext(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to delete old hash: %w", err)
+	}
+
+	// Insert new hash row (INSERT IGNORE handles WriteBoth mode duplicates)
+	sql, args, err = sb.Insert(rwt.schemaRevisionTableName).
+		Options("IGNORE").
+		Columns("name", "hash", "created_transaction", "deleted_transaction").
+		Values("current", []byte(schemaHash), rwt.newTxnID, liveDeletedTxnID).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build insert query: %w", err)
+	}
+
+	if _, err := rwt.tx.ExecContext(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to insert hash: %w", err)
+	}
+
+	return nil
 }
 
 func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
@@ -644,4 +846,9 @@ func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	}
 }
 
-var _ datastore.ReadWriteTransaction = &mysqlReadWriteTXN{}
+var (
+	_ datastore.ReadWriteTransaction = &mysqlReadWriteTXN{}
+	_ datastore.LegacySchemaWriter   = &mysqlReadWriteTXN{}
+	_ datastore.DualSchemaWriter     = &mysqlSchemaWriter{}
+	_ datastore.DualSchemaReader     = &mysqlSchemaWriter{}
+)

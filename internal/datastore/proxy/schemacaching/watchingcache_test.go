@@ -40,12 +40,12 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 	})
 
 	// Ensure no namespaces are found.
-	_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	_, _, err := wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
 
 	// Ensure a re-read also returns not found, even before a checkpoint is received.
-	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 
 	// Send a checkpoint for revision 1.
@@ -55,7 +55,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
 
 	// Ensure that reading at rev 2 returns found.
-	nsDef, _, err := wcache.SnapshotReader(rev("2")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	nsDef, _, err := wcache.SnapshotReader(rev("2"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
@@ -63,7 +63,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.disableReads()
 
 	// Ensure that reading at rev 3 returns an error, as with reads disabled the cache should not be hit.
-	_, _, err = wcache.SnapshotReader(rev("3")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(rev("3"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "reads are disabled")
 
@@ -72,7 +72,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 
 	// Ensure that reading at rev 3 returns found, even though the cache should not yet be there. This will
 	// require a datastore fallback read because the cache is not yet checkedpointed to that revision.
-	nsDef, _, err = wcache.SnapshotReader(rev("3")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	nsDef, _, err = wcache.SnapshotReader(rev("3"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
@@ -84,12 +84,12 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.disableReads()
 
 	// Read again, which should now be via the cache.
-	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
 	// Read via a lookup.
-	nsDefs, err := wcache.SnapshotReader(rev("3.0000000005")).LegacyLookupNamespacesWithNames(t.Context(), []string{"somenamespace"})
+	nsDefs, err := wcache.SnapshotReader(rev("3.0000000005"), datastore.NoSchemaHashForTesting).LegacyLookupNamespacesWithNames(t.Context(), []string{"somenamespace"})
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDefs[0].Definition.Name)
 
@@ -97,17 +97,17 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateNamespace("somenamespace", nil, rev("5"))
 
 	// Re-read at an earlier revision.
-	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
 	// Read at revision 5.
-	_, _, err = wcache.SnapshotReader(rev("5")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(rev("5"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.Error(t, err)
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{}, "missing not found in: %v", err)
 
 	// Lookup at revision 5.
-	nsDefs, err = wcache.SnapshotReader(rev("5")).LegacyLookupNamespacesWithNames(t.Context(), []string{"somenamespace"})
+	nsDefs, err = wcache.SnapshotReader(rev("5"), datastore.NoSchemaHashForTesting).LegacyLookupNamespacesWithNames(t.Context(), []string{"somenamespace"})
 	require.NoError(t, err)
 	require.Empty(t, nsDefs)
 
@@ -115,12 +115,12 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateCaveat("somecaveat", &corev1.CaveatDefinition{Name: "somecaveat"}, rev("6"))
 
 	// Read at revision 6.
-	caveatDef, _, err := wcache.SnapshotReader(rev("6")).LegacyReadCaveatByName(t.Context(), "somecaveat")
+	caveatDef, _, err := wcache.SnapshotReader(rev("6"), datastore.NoSchemaHashForTesting).LegacyReadCaveatByName(t.Context(), "somecaveat")
 	require.NoError(t, err)
 	require.Equal(t, "somecaveat", caveatDef.Name)
 
 	// Attempt to read at revision 1, which should require a read.
-	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadCaveatByName(t.Context(), "somecaveat")
+	_, _, err = wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting).LegacyReadCaveatByName(t.Context(), "somecaveat")
 	require.ErrorContains(t, err, "reads are disabled")
 }
 
@@ -143,7 +143,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 		wcache.Close()
 	})
 
-	reader := wcache.SnapshotReader(rev("1"))
+	reader := wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting)
 	schemaReader, err := reader.SchemaReader()
 	require.NoError(t, err)
 
@@ -165,7 +165,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
 
 	// Get a handle on the schemaReader at that revision
-	reader = wcache.SnapshotReader(rev("2"))
+	reader = wcache.SnapshotReader(rev("2"), datastore.NoSchemaHashForTesting)
 	schemaReader, err = reader.SchemaReader()
 	require.NoError(t, err)
 
@@ -179,7 +179,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.disableReads()
 
 	// Get a handle on the schemaReader at that revision
-	reader = wcache.SnapshotReader(rev("3"))
+	reader = wcache.SnapshotReader(rev("3"), datastore.NoSchemaHashForTesting)
 	schemaReader, err = reader.SchemaReader()
 	require.NoError(t, err)
 
@@ -205,7 +205,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.disableReads()
 
 	// Get a handle on the schemaReader at that revision
-	reader = wcache.SnapshotReader(rev("3.0000000005"))
+	reader = wcache.SnapshotReader(rev("3.0000000005"), datastore.NoSchemaHashForTesting)
 	schemaReader, err = reader.SchemaReader()
 	require.NoError(t, err)
 
@@ -229,7 +229,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	require.Equal(t, "somenamespace", nsRevDef.Definition.Name)
 
 	// Get a handle on the schemaReader at rev 5
-	reader = wcache.SnapshotReader(rev("5"))
+	reader = wcache.SnapshotReader(rev("5"), datastore.NoSchemaHashForTesting)
 	schemaReader, err = reader.SchemaReader()
 	require.NoError(t, err)
 
@@ -247,7 +247,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateCaveat("somecaveat", &corev1.CaveatDefinition{Name: "somecaveat"}, rev("6"))
 
 	// Get a handle on the schemaReader at rev 6
-	reader = wcache.SnapshotReader(rev("6"))
+	reader = wcache.SnapshotReader(rev("6"), datastore.NoSchemaHashForTesting)
 	schemaReader, err = reader.SchemaReader()
 	require.NoError(t, err)
 
@@ -263,7 +263,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	require.Equal(t, "somecaveat", caveatDefMap["somecaveat"].GetName())
 
 	// Get a handle on the schemaReader at rev 1
-	reader = wcache.SnapshotReader(rev("1"))
+	reader = wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting)
 	schemaReader, err = reader.SchemaReader()
 	require.NoError(t, err)
 
@@ -306,7 +306,7 @@ func TestOldWatchingCacheParallelOperations(t *testing.T) {
 		defer wg.Done()
 
 		// Read somenamespace (which should not be found)
-		_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+		_, _, err := wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 		firstErrs <- err
 		firstFallbackModes <- wcache.namespaceCache.inFallbackMode
 
@@ -314,7 +314,7 @@ func TestOldWatchingCacheParallelOperations(t *testing.T) {
 		fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
 
 		// Read again (which should be found now)
-		nsDef, _, err := wcache.SnapshotReader(rev("2")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+		nsDef, _, err := wcache.SnapshotReader(rev("2"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 		firstErrs <- err
 		firstNsDefNames <- nsDef.Name
 	})()
@@ -323,12 +323,12 @@ func TestOldWatchingCacheParallelOperations(t *testing.T) {
 		defer wg.Done()
 
 		// Read anothernamespace (which should not be found)
-		_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "anothernamespace")
+		_, _, err := wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "anothernamespace")
 		secondErrs <- err
 		secondFallbackModes <- wcache.namespaceCache.inFallbackMode
 
 		// Read again (which should still not be found)
-		_, _, err = wcache.SnapshotReader(rev("3")).LegacyReadNamespaceByName(t.Context(), "anothernamespace")
+		_, _, err = wcache.SnapshotReader(rev("3"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "anothernamespace")
 		secondErrs <- err
 		secondFallbackModes <- wcache.namespaceCache.inFallbackMode
 	})()
@@ -392,7 +392,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		defer wg.Done()
 
 		// Read somenamespace (which should not be found)
-		schemaReader, err := wcache.SnapshotReader(rev("1")).SchemaReader()
+		schemaReader, err := wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting).SchemaReader()
 		assert.NoError(t, err)
 		_, found, err := schemaReader.LookupTypeDefByName(t.Context(), "somenamespace")
 		assert.NoError(t, err)
@@ -403,7 +403,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
 
 		// Read again (which should be found now)
-		schemaReader, err = wcache.SnapshotReader(rev("2")).SchemaReader()
+		schemaReader, err = wcache.SnapshotReader(rev("2"), datastore.NoSchemaHashForTesting).SchemaReader()
 		assert.NoError(t, err)
 		nsRevDef, _, err := schemaReader.LookupTypeDefByName(t.Context(), "somenamespace")
 		assert.NoError(t, err, "expected namespace read from rev 2 to succeed")
@@ -414,7 +414,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		defer wg.Done()
 
 		// Read anothernamespace (which should not be found)
-		schemaReader, err := wcache.SnapshotReader(rev("1")).SchemaReader()
+		schemaReader, err := wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting).SchemaReader()
 		if !assert.NoError(t, err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
 			return
 		}
@@ -426,7 +426,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		assert.False(t, wcache.namespaceCache.inFallbackMode)
 
 		// Read again (which should still not be found)
-		schemaReader, err = wcache.SnapshotReader(rev("3")).SchemaReader()
+		schemaReader, err = wcache.SnapshotReader(rev("3"), datastore.NoSchemaHashForTesting).SchemaReader()
 		if !assert.NoError(t, err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
 			return
 		}
@@ -480,10 +480,10 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 	go func() {
 		// Start a loop to read a namespace a bunch of times.
 		for i := 0; i < 1000; i++ {
-			headRevision, err := fakeDS.HeadRevision(t.Context())
+			headRevision, _, err := fakeDS.HeadRevision(t.Context())
 			assert.NoError(t, err)
 
-			schemaReader, err := wcache.SnapshotReader(headRevision).SchemaReader()
+			schemaReader, err := wcache.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting).SchemaReader()
 			assert.NoError(t, err)
 			nsRevDef, _, err := schemaReader.LookupTypeDefByName(t.Context(), "somenamespace")
 			assert.NoError(t, err)
@@ -539,10 +539,10 @@ func TestOldWatchingCacheParallelReaderWriter(t *testing.T) {
 	go (func() {
 		// Start a loop to read a namespace a bunch of times.
 		for i := 0; i < 1000; i++ {
-			headRevision, err := fakeDS.HeadRevision(t.Context())
+			headRevision, _, err := fakeDS.HeadRevision(t.Context())
 			headRevisionErrors <- err
 
-			nsDef, _, err := wcache.SnapshotReader(headRevision).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+			nsDef, _, err := wcache.SnapshotReader(headRevision, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 			snapshotReaderErrors <- err
 			namespaceNames <- nsDef.Name
 		}
@@ -593,7 +593,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 
 	// Ensure the namespace is not found, but is cached in the fallback caching layer.
 	r := rev("1")
-	schemaReader, err := wcache.SnapshotReader(r).SchemaReader()
+	schemaReader, err := wcache.SnapshotReader(r, datastore.NoSchemaHashForTesting).SchemaReader()
 	require.NoError(t, err)
 	_, found, err := schemaReader.LookupTypeDefByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
@@ -642,7 +642,7 @@ func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
 
 	// Ensure the namespace is not found, but is cached in the fallback caching layer.
 	r := rev("1")
-	_, _, err = wcache.SnapshotReader(r).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(r, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
 
@@ -654,7 +654,7 @@ func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
 	// Disable reading and ensure it still works, via the fallback cache.
 	fakeDS.readsDisabled = true
 
-	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	_, _, err = wcache.SnapshotReader(rev("1"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
 }
@@ -700,7 +700,7 @@ func TestOldWatchingCachePrepopulated(t *testing.T) {
 	})
 
 	// Ensure the namespace is found.
-	def, _, err := wcache.SnapshotReader(rev("4")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+	def, _, err := wcache.SnapshotReader(rev("4"), datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", def.Name)
 }
@@ -746,7 +746,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 	})
 
 	// Ensure the namespace is found.
-	schemaReader, err := wcache.SnapshotReader(rev("4")).SchemaReader()
+	schemaReader, err := wcache.SnapshotReader(rev("4"), datastore.NoSchemaHashForTesting).SchemaReader()
 	require.NoError(t, err)
 	revDef, _, err := schemaReader.LookupTypeDefByName(t.Context(), "somenamespace")
 	require.NoError(t, err)
@@ -921,15 +921,15 @@ func (fds *fakeDatastore) enableReads() {
 	fds.readsDisabled = false
 }
 
-func (fds *fakeDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (fds *fakeDatastore) SnapshotReader(rev datastore.Revision, _ datastore.SchemaHash) datastore.Reader {
 	return &fakeSnapshotReader{fds, rev}
 }
 
-func (fds *fakeDatastore) HeadRevision(context.Context) (datastore.Revision, error) {
+func (fds *fakeDatastore) HeadRevision(context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	fds.lock.RLock()
 	defer fds.lock.RUnlock()
 
-	return fds.headRevision, nil
+	return fds.headRevision, datastore.NoSchemaHashForTesting, nil
 }
 
 func (*fakeDatastore) ReadWriteTx(context.Context, datastore.TxUserFunc, ...options.RWTOptionsOption) (datastore.Revision, error) {
@@ -952,8 +952,8 @@ func (*fakeDatastore) OfflineFeatures() (*datastore.Features, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.Revision, error) {
-	return nil, fmt.Errorf("not implemented")
+func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.Revision, datastore.SchemaHash, error) {
+	return nil, "", fmt.Errorf("not implemented")
 }
 
 func (*fakeDatastore) ReadyState(context.Context) (datastore.ReadyState, error) {

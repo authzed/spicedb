@@ -2,6 +2,7 @@ package indexcheck
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -33,8 +34,8 @@ func WrapWithIndexCheckingDatastoreProxyIfApplicable(ds datastore.Datastore) dat
 
 type indexcheckingProxy struct{ delegate datastore.SQLDatastore }
 
-func (p *indexcheckingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.delegate.SnapshotReader(rev)
+func (p *indexcheckingProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.delegate.SnapshotReader(rev, schemaHash)
 	return &indexcheckingReader{p.delegate, delegateReader}
 }
 
@@ -56,7 +57,7 @@ func (p *indexcheckingProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 
@@ -64,7 +65,7 @@ func (p *indexcheckingProxy) CheckRevision(ctx context.Context, revision datasto
 	return p.delegate.CheckRevision(ctx, revision)
 }
 
-func (p *indexcheckingProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *indexcheckingProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.HeadRevision(ctx)
 }
 
@@ -97,6 +98,36 @@ func (p *indexcheckingProxy) ReadyState(ctx context.Context) (datastore.ReadySta
 }
 
 func (p *indexcheckingProxy) Close() error { return p.delegate.Close() }
+
+// SchemaHashReaderForTesting returns a test-only interface for reading the schema hash.
+// This delegates to the underlying datastore if it supports the test interface.
+func (p *indexcheckingProxy) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	type schemaHashReaderProvider interface {
+		SchemaHashReaderForTesting() interface {
+			ReadSchemaHash(ctx context.Context) (string, error)
+		}
+	}
+
+	if provider, ok := p.delegate.(schemaHashReaderProvider); ok {
+		return provider.SchemaHashReaderForTesting()
+	}
+	return nil
+}
+
+// SchemaModeForTesting returns the current schema mode for testing purposes.
+// This delegates to the underlying datastore if it supports the test interface.
+func (p *indexcheckingProxy) SchemaModeForTesting() (options.SchemaMode, error) {
+	type schemaModeProvider interface {
+		SchemaModeForTesting() (options.SchemaMode, error)
+	}
+
+	if provider, ok := p.delegate.(schemaModeProvider); ok {
+		return provider.SchemaModeForTesting()
+	}
+	return options.SchemaModeReadLegacyWriteLegacy, errors.New("delegate datastore does not implement SchemaModeForTesting()")
+}
 
 type indexcheckingReader struct {
 	parent   datastore.SQLDatastore
@@ -187,6 +218,14 @@ func (r *indexcheckingReader) SchemaReader() (datastore.SchemaReader, error) {
 	return r.delegate.SchemaReader()
 }
 
+func (r *indexcheckingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.delegate.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
+}
+
 type indexcheckingRWT struct {
 	*indexcheckingReader
 	delegate datastore.ReadWriteTransaction
@@ -228,6 +267,14 @@ func (rwt *indexcheckingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
 	return rwt.delegate.SchemaWriter()
 }
 
+func (rwt *indexcheckingRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	singleStoreWriter, ok := rwt.delegate.(datastore.SingleStoreSchemaWriter)
+	if !ok {
+		return errors.New("delegate transaction does not implement SingleStoreSchemaWriter")
+	}
+	return singleStoreWriter.WriteStoredSchema(ctx, schema)
+}
+
 func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	return rwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
@@ -237,7 +284,13 @@ func (rwt *indexcheckingRWT) BulkLoad(ctx context.Context, iter datastore.BulkWr
 }
 
 var (
-	_ datastore.Datastore            = (*indexcheckingProxy)(nil)
-	_ datastore.Reader               = (*indexcheckingReader)(nil)
-	_ datastore.ReadWriteTransaction = (*indexcheckingRWT)(nil)
+	_ datastore.Datastore               = (*indexcheckingProxy)(nil)
+	_ datastore.Reader                  = (*indexcheckingReader)(nil)
+	_ datastore.LegacySchemaReader      = (*indexcheckingReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*indexcheckingReader)(nil)
+	_ datastore.DualSchemaReader        = (*indexcheckingReader)(nil)
+	_ datastore.ReadWriteTransaction    = (*indexcheckingRWT)(nil)
+	_ datastore.LegacySchemaWriter      = (*indexcheckingRWT)(nil)
+	_ datastore.SingleStoreSchemaWriter = (*indexcheckingRWT)(nil)
+	_ datastore.DualSchemaWriter        = (*indexcheckingRWT)(nil)
 )

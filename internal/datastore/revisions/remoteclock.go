@@ -48,19 +48,19 @@ func NewRemoteClockRevisions(gcWindow, maxRevisionStaleness, followerReadDelay, 
 	return revisions
 }
 
-func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
+func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, datastore.SchemaHash, error) {
 	nowRev, err := rcr.nowFunc(ctx)
 	if err != nil {
-		return datastore.NoRevision, 0, err
+		return datastore.NoRevision, 0, "", err
 	}
 
 	if nowRev == datastore.NoRevision {
-		return datastore.NoRevision, 0, datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
+		return datastore.NoRevision, 0, "", datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
 	}
 
 	nowTS, ok := nowRev.(WithTimestampRevision)
 	if !ok {
-		return datastore.NoRevision, 0, spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
+		return datastore.NoRevision, 0, "", spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
 	}
 
 	delayedNow := nowTS.TimestampNanoSec() - rcr.followerReadDelayNanos
@@ -77,7 +77,9 @@ func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (dat
 		Int64("totalSkew", nowTS.TimestampNanoSec()-quantized).
 		Msg("revision skews")
 
-	return nowTS.ConstructForTimestamp(quantized), time.Duration(validForNanos) * time.Nanosecond, nil
+	// Remote clock systems don't have schema hash from the revision function
+	// The schema hash will be loaded separately when needed
+	return nowTS.ConstructForTimestamp(quantized), time.Duration(validForNanos) * time.Nanosecond, "", nil
 }
 
 // SetNowFunc sets the function used to determine the head revision

@@ -57,6 +57,7 @@ type fakeExecutor struct {
 	readResult  map[int][]byte
 	readErr     error
 	transaction *fakeTransaction
+	onRead      func() // Optional callback invoked on each read
 }
 
 func (m *fakeExecutor) BeginTransaction(ctx context.Context) (ChunkedBytesTransaction, error) {
@@ -64,6 +65,9 @@ func (m *fakeExecutor) BeginTransaction(ctx context.Context) (ChunkedBytesTransa
 }
 
 func (m *fakeExecutor) ExecuteRead(ctx context.Context, builder sq.SelectBuilder) (map[int][]byte, error) {
+	if m.onRead != nil {
+		m.onRead()
+	}
 	if m.readErr != nil {
 		return nil, m.readErr
 	}

@@ -81,7 +81,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx,
-			WithReader(rawDS.SnapshotReader(revision)),
+			WithReader(rawDS.SnapshotReader(revision, datastore.NoSchemaHashForTesting)),
 			WithTraceLogger(NewTraceLogger())) // Enable tracing for debugging
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("document", "publicdoc"), NoObjectFilter())
 		require.NoError(err)
@@ -113,7 +113,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		)
 
 		queryCtx := NewLocalContext(ctx,
-			WithReader(rawDS.SnapshotReader(revision)),
+			WithReader(rawDS.SnapshotReader(revision, datastore.NoSchemaHashForTesting)),
 			WithTraceLogger(NewTraceLogger())) // Enable tracing for debugging
 		subjects, err := queryCtx.IterSubjects(union, NewObject("document", "publicdoc"), NoObjectFilter())
 		require.NoError(err)

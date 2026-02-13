@@ -4,7 +4,7 @@ on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
-  # NOTE! Do NOT add any other "on", because this workflow has permission to write to the repo!
+# NOTE! Do NOT add any other "on", because this workflow has permission to write to the repo!
 
 permissions:
   # permission to update benchmark contents in gh-pages branch

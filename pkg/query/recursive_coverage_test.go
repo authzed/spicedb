@@ -110,7 +110,7 @@ func TestBreadthFirstIterResources_MaxDepth(t *testing.T) {
 
 	// Set a low max depth
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(3))
 
 	seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
@@ -142,7 +142,7 @@ func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(datastore.NoRevision)))
+			WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 		seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
 		require.NoError(err)
@@ -167,7 +167,7 @@ func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(datastore.NoRevision)))
+			WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)))
 
 		seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
 		require.NoError(err)
@@ -201,7 +201,7 @@ func TestBreadthFirstIterResources_MergeOrSemantics(t *testing.T) {
 	require.NoError(err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(5))
 
 	seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
@@ -229,7 +229,7 @@ func TestIterativeDeepening_MaxDepth(t *testing.T) {
 
 	maxDepth := 5
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)),
 		WithMaxRecursionDepth(maxDepth))
 
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})

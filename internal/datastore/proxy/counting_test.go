@@ -37,7 +37,7 @@ func TestCountingProxyBasicCounting(t *testing.T) {
 	require.Equal(uint64(0), counts.LegacyListAllNamespaces())
 	require.Equal(uint64(0), counts.LegacyLookupNamespacesWithNames())
 
-	r := ds.SnapshotReader(datastore.NoRevision)
+	r := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 
 	// Call each method once
 	_, err := r.QueryRelationships(ctx, datastore.RelationshipsFilter{})
@@ -72,7 +72,7 @@ func TestCountingProxyMultipleCalls(t *testing.T) {
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
-	r := ds.SnapshotReader(datastore.NoRevision)
+	r := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 
 	require.Equal(uint64(0), counts.QueryRelationships())
 
@@ -103,7 +103,7 @@ func TestCountingProxyCaveatMethodsNotCounted(t *testing.T) {
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
-	r := ds.SnapshotReader(datastore.NoRevision)
+	r := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 
 	// Call caveat methods
 	_, _, err := r.LegacyReadCaveatByName(ctx, "test")
@@ -135,7 +135,7 @@ func TestCountingProxyCounterMethodsNotCounted(t *testing.T) {
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
-	r := ds.SnapshotReader(datastore.NoRevision)
+	r := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 
 	// Call counter methods
 	_, err := r.CountRelationships(ctx, "counter1")
@@ -173,7 +173,7 @@ func TestCountingProxyThreadSafety(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			r := ds.SnapshotReader(datastore.NoRevision)
+			r := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 			for range callsPerGoroutine {
 				_, err := r.QueryRelationships(ctx, datastore.RelationshipsFilter{})
 				assert.NoError(t, err)
@@ -218,13 +218,13 @@ func TestCountingProxyPassthrough(t *testing.T) {
 	require.Equal("mockds", uniqueID)
 
 	// Test HeadRevision
-	delegate.On("HeadRevision", mock.Anything).Return(datastore.NoRevision, nil).Once()
-	_, err = ds.HeadRevision(ctx)
+	delegate.On("HeadRevision", mock.Anything).Return(datastore.NoRevision, datastore.NoSchemaHashForTesting, nil).Once()
+	_, _, err = ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	// Test OptimizedRevision
-	delegate.On("OptimizedRevision", mock.Anything).Return(datastore.NoRevision, nil).Once()
-	_, err = ds.OptimizedRevision(ctx)
+	delegate.On("OptimizedRevision", mock.Anything).Return(datastore.NoRevision, datastore.NoSchemaHashForTesting, nil).Once()
+	_, _, err = ds.OptimizedRevision(ctx)
 	require.NoError(err)
 
 	// Test CheckRevision
@@ -279,19 +279,19 @@ func TestCountingProxyMultipleReaders(t *testing.T) {
 	reader2 := &proxy_test.MockReader{}
 
 	// First snapshot reader
-	delegate.On("SnapshotReader", datastore.NoRevision).Return(reader1).Once()
+	delegate.On("SnapshotReader", datastore.NoRevision, datastore.NoSchemaHashForTesting).Return(reader1).Once()
 	reader1.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
 
 	// Second snapshot reader
-	delegate.On("SnapshotReader", mock.Anything).Return(reader2)
+	delegate.On("SnapshotReader", mock.Anything, mock.Anything).Return(reader2)
 	reader2.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
 
 	// Create two readers and make calls on each
-	r1 := ds.SnapshotReader(datastore.NoRevision)
-	r2 := ds.SnapshotReader(datastore.NoRevision)
+	r1 := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
+	r2 := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 
 	_, err := r1.QueryRelationships(ctx, datastore.RelationshipsFilter{})
 	require.NoError(err)
@@ -318,7 +318,7 @@ func TestWriteMethodCounts(t *testing.T) {
 
 	ds, counts := NewCountingDatastoreProxy(delegate)
 	ctx := context.Background()
-	r := ds.SnapshotReader(datastore.NoRevision)
+	r := ds.SnapshotReader(datastore.NoRevision, datastore.NoSchemaHashForTesting)
 
 	// Make some calls
 	_, err := r.QueryRelationships(ctx, datastore.RelationshipsFilter{})

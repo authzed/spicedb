@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -79,8 +80,8 @@ func (p *observableProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *observableProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.delegate.SnapshotReader(rev)
+func (p *observableProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.delegate.SnapshotReader(rev, schemaHash)
 	return &observableReader{delegateReader}
 }
 
@@ -94,7 +95,7 @@ func (p *observableProxy) ReadWriteTx(
 	}, opts...)
 }
 
-func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	ctx, closer := observe(ctx, "OptimizedRevision", "")
 	defer closer()
 
@@ -110,7 +111,7 @@ func (p *observableProxy) CheckRevision(ctx context.Context, revision datastore.
 	return p.delegate.CheckRevision(ctx, revision)
 }
 
-func (p *observableProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *observableProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	ctx, closer := observe(ctx, "HeadRevision", "")
 	defer closer()
 
@@ -155,6 +156,34 @@ func (p *observableProxy) ReadyState(ctx context.Context) (datastore.ReadyState,
 }
 
 func (p *observableProxy) Close() error { return p.delegate.Close() }
+
+// SchemaHashReaderForTesting delegates to the underlying datastore if it implements the test interface
+func (p *observableProxy) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	type schemaHashReaderProvider interface {
+		SchemaHashReaderForTesting() interface {
+			ReadSchemaHash(ctx context.Context) (string, error)
+		}
+	}
+
+	if hashReader, ok := p.delegate.(schemaHashReaderProvider); ok {
+		return hashReader.SchemaHashReaderForTesting()
+	}
+	return nil
+}
+
+// SchemaModeForTesting delegates to the underlying datastore if it implements the test interface
+func (p *observableProxy) SchemaModeForTesting() (options.SchemaMode, error) {
+	type schemaModeProvider interface {
+		SchemaModeForTesting() (options.SchemaMode, error)
+	}
+
+	if provider, ok := p.delegate.(schemaModeProvider); ok {
+		return provider.SchemaModeForTesting()
+	}
+	return options.SchemaModeReadLegacyWriteLegacy, errors.New("delegate datastore does not implement SchemaModeForTesting()")
+}
 
 type observableReader struct{ delegate datastore.Reader }
 
@@ -278,10 +307,30 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 	}, nil
 }
 
-// SchemaReader returns a wrapped version of the proxy that exercises the
-// legacy methods to implement the new methods.
+// SchemaReader returns a schema reader that respects the underlying schema mode.
+// For new unified schema mode, it passes through directly. For legacy mode,
+// it wraps the proxy to ensure observability is maintained.
 func (r *observableReader) SchemaReader() (datastore.SchemaReader, error) {
+	underlyingSchemaReader, err := r.delegate.SchemaReader()
+	if err != nil {
+		return nil, err
+	}
+
+	// If using new unified schema mode, pass through directly
+	if _, isLegacy := underlyingSchemaReader.(*schemautil.LegacySchemaReaderAdapter); !isLegacy {
+		return underlyingSchemaReader, nil
+	}
+
+	// For legacy mode, wrap to maintain observability
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
+}
+
+func (r *observableReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.delegate.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
 }
 
 type observableRWT struct {
@@ -377,6 +426,14 @@ func (rwt *observableRWT) SchemaWriter() (datastore.SchemaWriter, error) {
 	return rwt.delegate.SchemaWriter()
 }
 
+func (rwt *observableRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	singleStoreWriter, ok := rwt.delegate.(datastore.SingleStoreSchemaWriter)
+	if !ok {
+		return errors.New("delegate transaction does not implement SingleStoreSchemaWriter")
+	}
+	return singleStoreWriter.WriteStoredSchema(ctx, schema)
+}
+
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	ctx, closer := observe(ctx, "DeleteRelationships", "", trace.WithAttributes(
 		filterToAttributes(filter)...,
@@ -415,7 +472,13 @@ func observe(ctx context.Context, name string, queryShape string, opts ...trace.
 }
 
 var (
-	_ datastore.Datastore            = (*observableProxy)(nil)
-	_ datastore.Reader               = (*observableReader)(nil)
-	_ datastore.ReadWriteTransaction = (*observableRWT)(nil)
+	_ datastore.Datastore               = (*observableProxy)(nil)
+	_ datastore.Reader                  = (*observableReader)(nil)
+	_ datastore.LegacySchemaReader      = (*observableReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*observableReader)(nil)
+	_ datastore.DualSchemaReader        = (*observableReader)(nil)
+	_ datastore.ReadWriteTransaction    = (*observableRWT)(nil)
+	_ datastore.LegacySchemaWriter      = (*observableRWT)(nil)
+	_ datastore.SingleStoreSchemaWriter = (*observableRWT)(nil)
+	_ datastore.DualSchemaWriter        = (*observableRWT)(nil)
 )

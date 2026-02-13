@@ -617,7 +617,7 @@ func (f fakeDatastore) MetricsID() (string, error) {
 	return "fake", nil
 }
 
-func (f fakeDatastore) SnapshotReader(_ Revision) Reader {
+func (f fakeDatastore) SnapshotReader(_ Revision, _ SchemaHash) Reader {
 	return nil
 }
 
@@ -625,12 +625,12 @@ func (f fakeDatastore) ReadWriteTx(_ context.Context, _ TxUserFunc, _ ...options
 	return nil, nil
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (Revision, error) {
-	return nil, nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (Revision, SchemaHash, error) {
+	return nil, NoSchemaHashForTesting, nil
 }
 
-func (f fakeDatastore) HeadRevision(_ context.Context) (Revision, error) {
-	return nil, nil
+func (f fakeDatastore) HeadRevision(_ context.Context) (Revision, SchemaHash, error) {
+	return nil, NoSchemaHashForTesting, nil
 }
 
 func (f fakeDatastore) CheckRevision(_ context.Context, _ Revision) error {

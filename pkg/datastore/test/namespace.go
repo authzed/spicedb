@@ -41,10 +41,10 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 
 	ctx := t.Context()
 
-	startRevision, err := ds.HeadRevision(ctx)
+	startRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	_, _, err = ds.SnapshotReader(startRevision).LegacyReadNamespaceByName(ctx, "unknown")
+	_, _, err = ds.SnapshotReader(startRevision, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, "unknown")
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 }
 
@@ -58,10 +58,10 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	ctx := t.Context()
 
-	startRevision, err := ds.HeadRevision(ctx)
+	startRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	nsDefs, err := ds.SnapshotReader(startRevision).LegacyListAllNamespaces(ctx)
+	nsDefs, err := ds.SnapshotReader(startRevision, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Empty(nsDefs)
 
@@ -71,7 +71,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(writtenRev.GreaterThan(startRevision))
 
-	nsDefs, err = ds.SnapshotReader(writtenRev).LegacyListAllNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Len(nsDefs, 1)
 	require.Equal(testUserNS.Name, nsDefs[0].Definition.Name)
@@ -82,18 +82,18 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(secondWritten.GreaterThan(writtenRev))
 
-	nsDefs, err = ds.SnapshotReader(secondWritten).LegacyListAllNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(secondWritten, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Len(nsDefs, 2)
 
-	_, _, err = ds.SnapshotReader(writtenRev).LegacyReadNamespaceByName(ctx, testNamespace.Name)
+	_, _, err = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testNamespace.Name)
 	require.Error(err)
 
-	nsDefs, err = ds.SnapshotReader(writtenRev).LegacyListAllNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Len(nsDefs, 1)
 
-	found, createdRev, err := ds.SnapshotReader(secondWritten).LegacyReadNamespaceByName(ctx, testNamespace.Name)
+	found, createdRev, err := ds.SnapshotReader(secondWritten, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testNamespace.Name)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(secondWritten))
 	require.True(createdRev.GreaterThan(startRevision))
@@ -105,36 +105,36 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	checkUpdated, createdRev, err := ds.SnapshotReader(updatedRevision).LegacyReadNamespaceByName(ctx, testNamespace.Name)
+	checkUpdated, createdRev, err := ds.SnapshotReader(updatedRevision, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testNamespace.Name)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(updatedRevision))
 	require.True(createdRev.GreaterThan(startRevision))
 	foundUpdated := cmp.Diff(updatedNamespace, checkUpdated, protocmp.Transform())
 	require.Empty(foundUpdated)
 
-	checkOld, createdRev, err := ds.SnapshotReader(writtenRev).LegacyReadNamespaceByName(ctx, testUserNamespace)
+	checkOld, createdRev, err := ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testUserNamespace)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(writtenRev))
 	require.True(createdRev.GreaterThan(startRevision))
 	require.Empty(cmp.Diff(testUserNS, checkOld, protocmp.Transform()))
 
-	checkOldList, err := ds.SnapshotReader(writtenRev).LegacyListAllNamespaces(ctx)
+	checkOldList, err := ds.SnapshotReader(writtenRev, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Len(checkOldList, 1)
 	require.Equal(testUserNS.Name, checkOldList[0].Definition.Name)
 	require.Empty(cmp.Diff(testUserNS, checkOldList[0].Definition, protocmp.Transform()))
 
-	checkLookup, err := ds.SnapshotReader(secondWritten).LegacyLookupNamespacesWithNames(ctx, []string{testNamespace.Name})
+	checkLookup, err := ds.SnapshotReader(secondWritten, datastore.NoSchemaHashForTesting).LegacyLookupNamespacesWithNames(ctx, []string{testNamespace.Name})
 	require.NoError(err)
 	require.Len(checkLookup, 1)
 	require.Equal(testNamespace.Name, checkLookup[0].Definition.Name)
 	require.Empty(cmp.Diff(testNamespace, checkLookup[0].Definition, protocmp.Transform()))
 
-	checkLookupMultiple, err := ds.SnapshotReader(secondWritten).LegacyLookupNamespacesWithNames(ctx, []string{testNamespace.Name, testUserNS.Name})
+	checkLookupMultiple, err := ds.SnapshotReader(secondWritten, datastore.NoSchemaHashForTesting).LegacyLookupNamespacesWithNames(ctx, []string{testNamespace.Name, testUserNS.Name})
 	require.NoError(err)
 	require.Len(checkLookupMultiple, 2)
 
-	emptyLookup, err := ds.SnapshotReader(secondWritten).LegacyLookupNamespacesWithNames(ctx, []string{"anothername"})
+	emptyLookup, err := ds.SnapshotReader(secondWritten, datastore.NoSchemaHashForTesting).LegacyLookupNamespacesWithNames(ctx, []string{"anothername"})
 	require.NoError(err)
 	require.Empty(emptyLookup)
 }
@@ -167,24 +167,24 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
 
-	_, _, err = ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
+	_, _, err = ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 
-	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
+	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
 	require.NoError(err)
 	require.NotNil(found)
 	require.True(nsCreatedRev.LessThan(deletedRev))
 
-	allNamespaces, err := ds.SnapshotReader(deletedRev).LegacyListAllNamespaces(ctx)
+	allNamespaces, err := ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	for _, ns := range allNamespaces {
 		require.NotEqual(testfixtures.DocumentNS.Name, ns.Definition.Name, "deleted namespace '%s' should not be in namespace list", ns.Definition.Name)
 	}
 
-	deletedRevision, err := ds.HeadRevision(ctx)
+	deletedRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	iter, err := ds.SnapshotReader(deletedRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(deletedRevision, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(err)
@@ -214,15 +214,15 @@ func NamespaceDeleteNoRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
 
-	_, _, err = ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
+	_, _, err = ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 
-	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
+	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
 	require.NoError(err)
 	require.NotNil(found)
 	require.True(nsCreatedRev.LessThan(deletedRev))
 
-	allNamespaces, err := ds.SnapshotReader(deletedRev).LegacyListAllNamespaces(ctx)
+	allNamespaces, err := ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
 	for _, ns := range allNamespaces {
 		require.NotEqual(testfixtures.DocumentNS.Name, ns.Definition.Name, "deleted namespace '%s' should not be in namespace list", ns.Definition.Name)
@@ -236,7 +236,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 	ctx := t.Context()
 
-	namespaces, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
+	namespaces, err := ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 
 	nsNames := make([]string, 0, len(namespaces))
@@ -249,7 +249,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(t, err)
 
-	namespacesAfterDel, err := ds.SnapshotReader(deletedRev).LegacyListAllNamespaces(ctx)
+	namespacesAfterDel, err := ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting).LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Empty(t, namespacesAfterDel)
 }
@@ -270,7 +270,7 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
 
-	_, _, err = ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.UserNS.Name)
+	_, _, err = ds.SnapshotReader(deletedRev, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, testfixtures.UserNS.Name)
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 }
 
@@ -360,13 +360,13 @@ definition document {
 
 	// Read the namespace definition back from the datastore and compare.
 	nsConfig := compiled.ObjectDefinitions[0]
-	readNsDef, _, err := ds.SnapshotReader(updatedRevision).LegacyReadNamespaceByName(ctx, nsConfig.Name)
+	readNsDef, _, err := ds.SnapshotReader(updatedRevision, datastore.NoSchemaHashForTesting).LegacyReadNamespaceByName(ctx, nsConfig.Name)
 	require.NoError(err)
 	testutil.RequireProtoEqual(t, nsConfig, readNsDef, "found changed namespace definition")
 
 	// Read the caveat back from the datastore and compare.
 	caveatDef := compiled.CaveatDefinitions[0]
-	readCaveatDef, _, err := ds.SnapshotReader(updatedRevision).LegacyReadCaveatByName(ctx, caveatDef.Name)
+	readCaveatDef, _, err := ds.SnapshotReader(updatedRevision, datastore.NoSchemaHashForTesting).LegacyReadCaveatByName(ctx, caveatDef.Name)
 	require.NoError(err)
 	testutil.RequireProtoEqual(t, caveatDef, readCaveatDef, "found changed caveat definition")
 

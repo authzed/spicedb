@@ -45,6 +45,7 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -114,6 +115,7 @@ type Config struct {
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
 	LR3ResourceChunkCacheConfig CacheConfig `debugmap:"visible"`
+	SchemaCacheConfig           CacheConfig `debugmap:"visible"`
 
 	// API Behavior
 	DisableV1SchemaAPI                 bool          `debugmap:"visible"`
@@ -195,12 +197,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
 	}
 
-	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
-	}
-	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
-
 	ds := c.Datastore
 	if ds == nil {
 		var err error
@@ -210,6 +206,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
 			datastorecfg.WithEnableRevisionHeartbeat(c.EnableRevisionHeartbeat),
+			datastorecfg.WithSchemaCacheOptions(dsoptions.SchemaCacheOptions{
+				MaximumCacheEntries: 100, // Default cache size
+			}),
 		)
 		if err != nil {
 			return nil, spiceerrors.NewTerminationErrorBuilder(fmt.Errorf("failed to create datastore: %w", err)).
@@ -218,6 +217,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				Error()
 		}
 	}
+
+	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
+	}
+	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
 
 	cachingMode := schemacaching.JustInTimeCaching
 	if c.EnableExperimentalWatchableSchemaCache {

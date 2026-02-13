@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -157,19 +158,19 @@ func (p *countingProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *countingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.delegate.SnapshotReader(rev)
+func (p *countingProxy) SnapshotReader(rev datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
+	delegateReader := p.delegate.SnapshotReader(rev, schemaHash)
 	return &countingReader{
 		delegate: delegateReader,
 		counts:   p.counts,
 	}
 }
 
-func (p *countingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *countingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 
-func (p *countingProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *countingProxy) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	return p.delegate.HeadRevision(ctx)
 }
 
@@ -263,15 +264,38 @@ func (r *countingReader) LookupCounters(ctx context.Context) ([]datastore.Relati
 	return r.delegate.LookupCounters(ctx)
 }
 
-// SchemaReader returns a wrapped version of the countingReader that exercises
-// the legacy methods when the new methods are invoked.
+// SchemaReader returns a schema reader that respects the underlying schema mode.
+// For new unified schema mode, it passes through directly. For legacy mode,
+// it wraps the proxy to ensure counting is maintained.
 func (r *countingReader) SchemaReader() (datastore.SchemaReader, error) {
+	underlyingSchemaReader, err := r.delegate.SchemaReader()
+	if err != nil {
+		return nil, err
+	}
+
+	// If using new unified schema mode, pass through directly
+	if _, isLegacy := underlyingSchemaReader.(*schemautil.LegacySchemaReaderAdapter); !isLegacy {
+		return underlyingSchemaReader, nil
+	}
+
+	// For legacy mode, wrap to maintain counting
 	return schemautil.NewLegacySchemaReaderAdapter(r), nil
+}
+
+func (r *countingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := r.delegate.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("delegate reader does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
 }
 
 // Type assertions
 var (
-	_ datastore.ReadOnlyDatastore = (*countingProxy)(nil)
-	_ datastore.Datastore         = (*countingDatastoreProxy)(nil)
-	_ datastore.Reader            = (*countingReader)(nil)
+	_ datastore.ReadOnlyDatastore       = (*countingProxy)(nil)
+	_ datastore.Datastore               = (*countingDatastoreProxy)(nil)
+	_ datastore.Reader                  = (*countingReader)(nil)
+	_ datastore.LegacySchemaReader      = (*countingReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*countingReader)(nil)
+	_ datastore.DualSchemaReader        = (*countingReader)(nil)
 )

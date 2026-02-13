@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/testutil"
@@ -550,10 +551,10 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure the `user` definition was not modified.
-	rev, err := ds.HeadRevision(t.Context())
+	rev, _, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := ds.SnapshotReader(rev)
+	reader := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)
 
 	_, userRevision, err := reader.LegacyReadNamespaceByName(t.Context(), "user")
 	require.NoError(t, err)

@@ -23,7 +23,7 @@ func UseAfterCloseTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// Attempt to use and ensure an error is returned.
-	_, err = ds.HeadRevision(t.Context())
+	_, _, err = ds.HeadRevision(t.Context())
 	require.Error(err)
 }
 
@@ -35,7 +35,7 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	ctx := t.Context()
 
 	// Ensure at least a few relationships and namespaces exist.
-	reader := ds.SnapshotReader(revision)
+	reader := ds.SnapshotReader(revision, datastore.NoSchemaHashForTesting)
 	nsDefs, err := reader.LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, nsDefs, "no namespace definitions provided")
@@ -61,10 +61,10 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	// Ensure there are no relationships or namespaces.
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, _, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	reader = ds.SnapshotReader(headRev)
+	reader = ds.SnapshotReader(headRev, datastore.NoSchemaHashForTesting)
 	afterNSDefs, err := reader.LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Empty(t, afterNSDefs, "namespace definitions still exist")

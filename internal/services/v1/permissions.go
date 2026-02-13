@@ -74,12 +74,12 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return ps.checkPermissionWithQueryPlan(ctx, req)
 	}
 
-	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, checkedAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
@@ -122,6 +122,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			Subject:       tuple.ONR(req.Subject.Object.ObjectType, req.Subject.Object.ObjectId, normalizeSubjectRelation(req.Subject)),
 			CaveatContext: caveatContext,
 			AtRevision:    atRevision,
+			SchemaHash:    schemaHash,
 			MaximumDepth:  ps.config.MaximumAPIDepth,
 			DebugOption:   debugOption,
 		},
@@ -241,12 +242,12 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 
 	telemetry.LogicalChecks.Inc()
 
-	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, expandedAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 
 	err = namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
 	if err != nil {
@@ -479,12 +480,12 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 
 	ctx := resp.Context()
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 
 	if err := namespace.CheckNamespaceAndRelations(ctx,
 		[]namespace.TypeAndRelationToCheck{
@@ -554,7 +555,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 			if len(item.AfterResponseCursorSections) > 0 {
 				currentCursor = item.AfterResponseCursorSections
 
-				ec, err := cursor.EncodeFromDispatchCursorSections(currentCursor, lrRequestHash, atRevision, map[string]string{
+				ec, err := cursor.EncodeFromDispatchCursorSections(currentCursor, lrRequestHash, atRevision, schemaHash, map[string]string{
 					lrv3CursorFlag: "1",
 				})
 				if err != nil {
@@ -625,12 +626,12 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 
 	ctx := resp.Context()
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 
 	if err := namespace.CheckNamespaceAndRelations(ctx,
 		[]namespace.TypeAndRelationToCheck{
@@ -700,7 +701,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
 		}
 
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, map[string]string{
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, schemaHash, map[string]string{
 			lrv2CursorFlag: "1",
 		})
 		if err != nil {
@@ -776,12 +777,12 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		return ps.rewriteError(ctx, status.Errorf(codes.Unimplemented, "concrete limit is not yet supported"))
 	}
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
@@ -1136,34 +1137,39 @@ func (ps *permissionServer) ExportBulkRelationships(
 		return labelsForFilter(req.OptionalRelationshipFilter)
 	})
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, _, err := consistency.RevisionAndSchemaHashFromContext(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	return ExportBulk(ctx, datastoremw.MustFromContext(ctx), uint64(ps.config.MaxBulkExportRelationshipsLimit), req, atRevision, resp.Send)
+	return ExportBulk(ctx, datastoremw.MustFromContext(ctx), uint64(ps.config.MaxBulkExportRelationshipsLimit), req, atRevision, schemaHash, resp.Send)
 }
 
 // ExportBulk implements the ExportBulkRelationships API functionality. Given a datastore.Datastore, it will
 // export stream via the sender all relationships matched by the incoming request.
-// If no cursor is provided, it will fallback to the provided revision.
-func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, req *v1.ExportBulkRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.ExportBulkRelationshipsResponse) error) error {
+// If no cursor is provided, it will fallback to the provided revision and schema hash.
+func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, req *v1.ExportBulkRelationshipsRequest, fallbackRevision datastore.Revision, fallbackSchemaHash datastore.SchemaHash, sender func(response *v1.ExportBulkRelationshipsResponse) error) error {
 	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
 		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
 	}
 
 	atRevision := fallbackRevision
+	schemaHash := fallbackSchemaHash
 	var curNamespace string
 	var cur dsoptions.Cursor
 	if req.OptionalCursor != nil {
 		var err error
-		atRevision, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
+		atRevision, schemaHash, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
 		if err != nil {
 			return shared.RewriteErrorWithoutConfig(ctx, err)
 		}
+		// If cursor has empty schema hash (legacy cursor), skip cache
+		if schemaHash == "" {
+			schemaHash = datastore.NoSchemaHashForLegacyCursor
+		}
 	}
 
-	reader := ds.SnapshotReader(atRevision)
+	reader := ds.SnapshotReader(atRevision, schemaHash)
 
 	namespaces, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {

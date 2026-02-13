@@ -16,6 +16,7 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -145,4 +146,30 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 	stats, err = ds.Statistics(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), stats.EstimatedRelationshipCount)
+}
+
+func TestSpannerDatastoreUnifiedSchemaAllModes(t *testing.T) {
+	ctx := context.Background()
+	b := testdatastore.RunSpannerForTesting(t, "", "head")
+
+	test.UnifiedSchemaAllModesTest(t, func(schemaMode options.SchemaMode) test.DatastoreTester {
+		return test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				ds, err := NewSpannerDatastore(
+					ctx,
+					uri,
+					RevisionQuantization(revisionQuantization),
+					WatchBufferLength(watchBufferLength),
+					WithSchemaMode(schemaMode),
+				)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_ = ds.Close()
+				})
+				return ds
+			})
+
+			return ds, nil
+		})
+	})
 }

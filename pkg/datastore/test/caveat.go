@@ -33,10 +33,10 @@ func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
 
 	ctx := t.Context()
 
-	startRevision, err := ds.HeadRevision(ctx)
+	startRevision, _, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	_, _, err = ds.SnapshotReader(startRevision).LegacyReadCaveatByName(ctx, "unknown")
+	_, _, err = ds.SnapshotReader(startRevision, datastore.NoSchemaHashForTesting).LegacyReadCaveatByName(ctx, "unknown")
 	require.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 }
 
@@ -65,7 +65,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	// The caveat can be looked up by name
-	cr := ds.SnapshotReader(rev)
+	cr := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)
 	cv, _, err := cr.LegacyReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 
@@ -118,7 +118,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 		return tx.LegacyDeleteCaveats(ctx, []string{coreCaveat.Name})
 	})
 	req.NoError(err)
-	cr = ds.SnapshotReader(rev)
+	cr = ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting)
 	_, _, err = cr.LegacyReadCaveatByName(ctx, coreCaveat.Name)
 	req.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 
@@ -187,7 +187,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	rel.OptionalCaveat.CaveatName = "rando"
 	rev, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationDelete, rel)
 	req.NoError(err)
-	iter, err := ds.SnapshotReader(rev).QueryRelationships(t.Context(), datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting).QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: rel.Resource.ObjectType,
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	req.NoError(err)
@@ -227,7 +227,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	// filter by first caveat
-	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     rel.Resource.ObjectType,
 		OptionalCaveatNameFilter: datastore.WithCaveatName(coreCaveat.Name),
 	}, options.WithQueryShape(queryshape.Varying))
@@ -235,7 +235,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	expectRel(req, iter, rel)
 
 	// filter by second caveat
-	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	iter, err = ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     anotherTpl.Resource.ObjectType,
 		OptionalCaveatNameFilter: datastore.WithCaveatName(anotherCoreCaveat.Name),
 	}, options.WithQueryShape(queryshape.Varying))
@@ -243,7 +243,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	expectRel(req, iter, anotherTpl)
 
 	// filter by caveat required and ensure not found.
-	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	iter, err = ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     anotherTpl.Resource.ObjectType,
 		OptionalResourceIds:      []string{anotherTpl.Resource.ObjectID},
 		OptionalCaveatNameFilter: datastore.WithNoCaveat(),
@@ -273,13 +273,13 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	// check most recent revision
-	cr := ds.SnapshotReader(newRev)
+	cr := ds.SnapshotReader(newRev, datastore.NoSchemaHashForTesting)
 	cv, _, err := cr.LegacyReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(newExpression, cv.SerializedExpression)
 
 	// check previous revision
-	cr = ds.SnapshotReader(oldRev)
+	cr = ds.SnapshotReader(oldRev, datastore.NoSchemaHashForTesting)
 	cv, _, err = cr.LegacyReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(oldExpression, cv.SerializedExpression)
@@ -303,7 +303,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	// test relationship with caveat and context
 	relWithContext := createTestCaveatedRel(t, "document:a#parent@folder:company#...", coreCaveat.Name)
 
-	revBeforeWrite, err := ds.HeadRevision(ctx)
+	revBeforeWrite, _, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
 	writeRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, relWithContext)
@@ -319,7 +319,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 	tupleWithEmptyContext.OptionalCaveat.Context = strct
 
-	secondRevBeforeWrite, err := ds.HeadRevision(ctx)
+	secondRevBeforeWrite, _, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
 	secondWriteRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tupleWithEmptyContext)
@@ -332,7 +332,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	tupleWithNilContext := createTestCaveatedRel(t, "document:c#parent@folder:company#...", coreCaveat.Name)
 	tupleWithNilContext.OptionalCaveat.Context = nil
 
-	thirdRevBeforeWrite, err := ds.HeadRevision(ctx)
+	thirdRevBeforeWrite, _, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
 	thirdWriteRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tupleWithNilContext)
@@ -377,7 +377,7 @@ func expectNoRel(req *require.Assertions, iter datastore.RelationshipIterator) {
 }
 
 func assertRelCorrectlyStored(req *require.Assertions, ds datastore.Datastore, rev datastore.Revision, expected tuple.Relationship) {
-	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	iter, err := ds.SnapshotReader(rev, datastore.NoSchemaHashForTesting).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: expected.Resource.ObjectType,
 	}, options.WithQueryShape(queryshape.FindResourceOfType))
 	req.NoError(err)

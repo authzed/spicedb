@@ -74,7 +74,7 @@ type strictReplicatedDatastore struct {
 
 // SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 // Any errors establishing the reader will be returned by subsequent calls.
-func (rd *strictReplicatedDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+func (rd *strictReplicatedDatastore) SnapshotReader(revision datastore.Revision, schemaHash datastore.SchemaHash) datastore.Reader {
 	replica := selectReplica(rd.replicas, &rd.lastReplica)
 	replicaID, err := replica.MetricsID()
 	if err != nil {
@@ -83,10 +83,11 @@ func (rd *strictReplicatedDatastore) SnapshotReader(revision datastore.Revision)
 	}
 
 	return &strictReadReplicatedReader{
-		rev:       revision,
-		replica:   replica,
-		replicaID: replicaID,
-		primary:   rd.Datastore,
+		rev:        revision,
+		schemaHash: schemaHash,
+		replica:    replica,
+		replicaID:  replicaID,
+		primary:    rd.Datastore,
 	}
 }
 
@@ -98,38 +99,39 @@ func (rd *strictReplicatedDatastore) SnapshotReader(revision datastore.Revision)
 // read mode enabled, to ensure the query will fail with a RevisionUnavailableError if the revision is
 // not available.
 type strictReadReplicatedReader struct {
-	rev       datastore.Revision
-	replica   datastore.ReadOnlyDatastore
-	replicaID string
-	primary   datastore.Datastore
+	rev        datastore.Revision
+	schemaHash datastore.SchemaHash
+	replica    datastore.ReadOnlyDatastore
+	replicaID  string
+	primary    datastore.Datastore
 }
 
 func (rr *strictReadReplicatedReader) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	caveat, lastWritten, err := sr.LegacyReadCaveatByName(ctx, name)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("caveat", name).Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LegacyReadCaveatByName(ctx, name)
+		return rr.primary.SnapshotReader(rr.rev, rr.schemaHash).LegacyReadCaveatByName(ctx, name)
 	}
 	return caveat, lastWritten, err
 }
 
 func (rr *strictReadReplicatedReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	caveats, err := sr.LegacyListAllCaveats(ctx)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LegacyListAllCaveats(ctx)
+		return rr.primary.SnapshotReader(rr.rev, rr.schemaHash).LegacyListAllCaveats(ctx)
 	}
 	return caveats, err
 }
 
 func (rr *strictReadReplicatedReader) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	caveats, err := sr.LegacyLookupCaveatsWithNames(ctx, names)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LegacyLookupCaveatsWithNames(ctx, names)
+		return rr.primary.SnapshotReader(rr.rev, rr.schemaHash).LegacyLookupCaveatsWithNames(ctx, names)
 	}
 	return caveats, err
 }
@@ -149,7 +151,7 @@ func queryRelationships[F any, O any](
 ) (datastore.RelationshipIterator, error) {
 	strictReadReplicatedTotalQueryCount.Inc()
 
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	it, err := handler(sr)(ctx, filter, options...)
 	// Check for a RevisionUnavailableError, which indicates the replica does not contain the requested
 	// revision. In this case, use the primary instead. This may not be returned on this call from
@@ -158,7 +160,7 @@ func queryRelationships[F any, O any](
 		if errors.As(err, &common.RevisionUnavailableError{}) {
 			log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
 			strictReadReplicatedFallbackQueryCount.WithLabelValues(rr.replicaID).Inc()
-			return handler(rr.primary.SnapshotReader(rr.rev))(ctx, filter, options...)
+			return handler(rr.primary.SnapshotReader(rr.rev, rr.schemaHash))(ctx, filter, options...)
 		}
 		return nil, err
 	}
@@ -175,7 +177,7 @@ func queryRelationships[F any, O any](
 		if errors.As(err, &common.RevisionUnavailableError{}) {
 			log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
 			strictReadReplicatedFallbackQueryCount.WithLabelValues(rr.replicaID).Inc()
-			return handler(rr.primary.SnapshotReader(rr.rev))(ctx, filter, options...)
+			return handler(rr.primary.SnapshotReader(rr.rev, rr.schemaHash))(ctx, filter, options...)
 		}
 		return nil, err
 	}
@@ -212,51 +214,51 @@ func (rr *strictReadReplicatedReader) ReverseQueryRelationships(
 }
 
 func (rr *strictReadReplicatedReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	namespace, lastWritten, err := sr.LegacyReadNamespaceByName(ctx, nsName)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("namespace", nsName).Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LegacyReadNamespaceByName(ctx, nsName)
+		return rr.primary.SnapshotReader(rr.rev, rr.schemaHash).LegacyReadNamespaceByName(ctx, nsName)
 	}
 	return namespace, lastWritten, err
 }
 
 func (rr *strictReadReplicatedReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	namespaces, err := sr.LegacyListAllNamespaces(ctx)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LegacyListAllNamespaces(ctx)
+		return rr.primary.SnapshotReader(rr.rev, rr.schemaHash).LegacyListAllNamespaces(ctx)
 	}
 	return namespaces, err
 }
 
 func (rr *strictReadReplicatedReader) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	namespaces, err := sr.LegacyLookupNamespacesWithNames(ctx, nsNames)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LegacyLookupNamespacesWithNames(ctx, nsNames)
+		return rr.primary.SnapshotReader(rr.rev, rr.schemaHash).LegacyLookupNamespacesWithNames(ctx, nsNames)
 	}
 	return namespaces, err
 }
 
 func (rr *strictReadReplicatedReader) CountRelationships(ctx context.Context, filter string) (int, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	count, err := sr.CountRelationships(ctx, filter)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).CountRelationships(ctx, filter)
+		return rr.primary.SnapshotReader(rr.rev, rr.schemaHash).CountRelationships(ctx, filter)
 	}
 	return count, err
 }
 
 func (rr *strictReadReplicatedReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
 	counters, err := sr.LookupCounters(ctx)
 	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).LookupCounters(ctx)
+		return rr.primary.SnapshotReader(rr.rev, rr.schemaHash).LookupCounters(ctx)
 	}
 	return counters, err
 }
@@ -264,5 +266,32 @@ func (rr *strictReadReplicatedReader) LookupCounters(ctx context.Context) ([]dat
 // SchemaReader returns the SchemaReader instance of the replica's SchemaReader at the
 // associated revision.
 func (rr *strictReadReplicatedReader) SchemaReader() (datastore.SchemaReader, error) {
-	return rr.replica.SnapshotReader(rr.rev).SchemaReader()
+	return rr.replica.SnapshotReader(rr.rev, rr.schemaHash).SchemaReader()
 }
+
+func (rr *strictReadReplicatedReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	sr := rr.replica.SnapshotReader(rr.rev, rr.schemaHash)
+	singleStoreReader, ok := sr.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("replica reader does not implement SingleStoreSchemaReader")
+	}
+
+	schema, err := singleStoreReader.ReadStoredSchema(ctx)
+	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
+		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
+		pr := rr.primary.SnapshotReader(rr.rev, rr.schemaHash)
+		primarySingleStore, ok := pr.(datastore.SingleStoreSchemaReader)
+		if !ok {
+			return nil, errors.New("primary reader does not implement SingleStoreSchemaReader")
+		}
+		return primarySingleStore.ReadStoredSchema(ctx)
+	}
+	return schema, err
+}
+
+var (
+	_ datastore.Reader                  = (*strictReadReplicatedReader)(nil)
+	_ datastore.LegacySchemaReader      = (*strictReadReplicatedReader)(nil)
+	_ datastore.SingleStoreSchemaReader = (*strictReadReplicatedReader)(nil)
+	_ datastore.DualSchemaReader        = (*strictReadReplicatedReader)(nil)
+)

@@ -44,6 +44,25 @@ const (
 		)) as revision,
 		%[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos;`
 
+	// querySelectRevisionWithHash is like querySelectRevision but also loads the schema hash
+	//
+	//   %[1] Name of id column
+	//   %[2] Relationship tuple transaction table
+	//   %[3] Name of timestamp column
+	//   %[4] Quantization period (in nanoseconds)
+	//   %[5] Follower read delay (in nanoseconds)
+	//   %[6] Schema revision table
+	querySelectRevisionWithHash = `SELECT COALESCE((
+			SELECT MIN(%[1]s)
+			FROM   %[2]s
+			WHERE  %[3]s >= FROM_UNIXTIME(FLOOR((UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 - %[5]d) / %[4]d) * %[4]d / 1000000000)
+		), (
+			SELECT MAX(%[1]s)
+			FROM   %[2]s
+		)) as revision,
+		%[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos,
+		COALESCE((SELECT hash FROM %[6]s WHERE name = 'current' ORDER BY created_transaction DESC LIMIT 1), '') as schema_hash;`
+
 	// queryValidTransaction will return a single row with two values, one boolean
 	// for whether the specified transaction ID is newer than the garbage collection
 	// window, and one boolean for whether the transaction ID represents a transaction
@@ -70,26 +89,27 @@ const (
 		) as unknown;`
 )
 
-func (mds *mysqlDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
+func (mds *mysqlDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, datastore.SchemaHash, error) {
 	var rev uint64
 	var validForNanos time.Duration
-	if err := mds.db.QueryRowContext(ctx, mds.optimizedRevisionQuery).
-		Scan(&rev, &validForNanos); err != nil {
-		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
+	var schemaHash []byte
+	if err := mds.db.QueryRowContext(ctx, mds.optimizedRevisionQueryWithHash).
+		Scan(&rev, &validForNanos, &schemaHash); err != nil {
+		return datastore.NoRevision, 0, "", fmt.Errorf(errRevision, err)
 	}
-	return revisions.NewForTransactionID(rev), validForNanos, nil
+	return revisions.NewForTransactionID(rev), validForNanos, datastore.SchemaHash(schemaHash), nil
 }
 
-func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	revision, err := mds.loadRevision(ctx)
+func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision, datastore.SchemaHash, error) {
+	revision, schemaHash, err := mds.loadRevision(ctx)
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.NoRevision, "", err
 	}
 	if revision == 0 {
-		return datastore.NoRevision, nil
+		return datastore.NoRevision, "", nil
 	}
 
-	return revisions.NewForTransactionID(revision), nil
+	return revisions.NewForTransactionID(revision), schemaHash, nil
 }
 
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
@@ -118,30 +138,31 @@ func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore
 	return nil
 }
 
-func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
+func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, datastore.SchemaHash, error) {
 	// slightly changed to support no revisions at all, needed for runtime seeding of first transaction
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
-	query, args, err := mds.GetLastRevision.ToSql()
+	query, args, err := mds.GetLastRevisionWithHash.ToSql()
 	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
+		return 0, "", fmt.Errorf(errRevision, err)
 	}
 
 	var revision *uint64
-	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&revision)
+	var schemaHash []byte
+	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&revision, &schemaHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, nil
+			return 0, "", nil
 		}
-		return 0, fmt.Errorf(errRevision, err)
+		return 0, "", fmt.Errorf(errRevision, err)
 	}
 
 	if revision == nil {
-		return 0, nil
+		return 0, "", nil
 	}
 
-	return *revision, nil
+	return *revision, datastore.SchemaHash(schemaHash), nil
 }
 
 func (mds *mysqlDatastore) checkValidTransaction(ctx context.Context, revisionTx uint64) (bool, bool, error) {

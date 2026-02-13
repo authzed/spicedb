@@ -26,7 +26,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	require.NoError(t, err)
 
 	// Query the replicated, which should fallback to the primary.
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"), datastore.NoSchemaHashForTesting)
 	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -46,7 +46,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	require.Len(t, revfound, 2)
 
 	// Query the replica directly, which should error.
-	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"), datastore.NoSchemaHashForTesting)
 	iter, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -66,7 +66,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	require.ErrorContains(t, err, "revision not available")
 
 	// Query the replica for a different revision, which should work.
-	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"), datastore.NoSchemaHashForTesting)
 	iter, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -95,7 +95,7 @@ func TestStrictReplicatedQueryNonFallbackError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Query the replicated, which should return the error.
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"), datastore.NoSchemaHashForTesting)
 	_, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})

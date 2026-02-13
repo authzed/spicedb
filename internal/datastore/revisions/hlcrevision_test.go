@@ -295,3 +295,43 @@ func TestFailsIfLogicalClockExceedsMaxUin32(t *testing.T) {
 		_, _ = HLCRevisionFromString("0.9999999999")
 	})
 }
+
+func TestHLCRevisionKey(t *testing.T) {
+	testCases := []struct {
+		name     string
+		revision string
+	}{
+		{
+			name:     "simple timestamp",
+			revision: "1.0000000000",
+		},
+		{
+			name:     "with logical clock",
+			revision: "1703283409994227985.0000000004",
+		},
+		{
+			name:     "large logical clock",
+			revision: "1703283409994227985.0010000000",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rev, err := HLCRevisionFromString(tc.revision)
+			require.NoError(t, err)
+
+			// Key should be deterministic
+			key1 := rev.Key()
+			key2 := rev.Key()
+			require.Equal(t, key1, key2, "Key() should be deterministic")
+
+			// Key should equal String() for HLC revisions
+			require.Equal(t, rev.String(), key1, "Key() should match String() for HLC revisions")
+
+			// Equal revisions should have equal keys
+			rev2, err := HLCRevisionFromString(tc.revision)
+			require.NoError(t, err)
+			require.Equal(t, rev.Key(), rev2.Key(), "Equal revisions should have equal keys")
+		})
+	}
+}

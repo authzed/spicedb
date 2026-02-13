@@ -38,21 +38,23 @@ func (mdb *memdbDatastore) newRevisionID() revisions.TimestampRevision {
 	return created
 }
 
-func (mdb *memdbDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
+func (mdb *memdbDatastore) HeadRevision(_ context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 	if err := mdb.checkNotClosed(); err != nil {
-		return nil, err
+		return nil, noHashSupported, err
 	}
 
-	return mdb.headRevisionNoLock(), nil
+	rev, hash := mdb.headRevisionWithHashNoLock()
+	return rev, hash, nil
 }
 
 func (mdb *memdbDatastore) SquashRevisionsForTesting() {
 	mdb.revisions = []snapshot{
 		{
-			revision: nowRevision(),
-			db:       mdb.db,
+			revision:   nowRevision(),
+			schemaHash: noHashSupported,
+			db:         mdb.db,
 		},
 	}
 }
@@ -61,15 +63,21 @@ func (mdb *memdbDatastore) headRevisionNoLock() revisions.TimestampRevision {
 	return mdb.revisions[len(mdb.revisions)-1].revision
 }
 
-func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
+func (mdb *memdbDatastore) headRevisionWithHashNoLock() (revisions.TimestampRevision, datastore.SchemaHash) {
+	snap := mdb.revisions[len(mdb.revisions)-1]
+	return snap.revision, snap.schemaHash
+}
+
+func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, datastore.SchemaHash, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 	if err := mdb.checkNotClosed(); err != nil {
-		return nil, err
+		return nil, noHashSupported, err
 	}
 
 	now := nowRevision()
-	return revisions.NewForTimestamp(now.TimestampNanoSec() - now.TimestampNanoSec()%mdb.quantizationPeriod), nil
+	// Note: Memory datastore doesn't cache schemas, so we don't return a hash for OptimizedRevision
+	return revisions.NewForTimestamp(now.TimestampNanoSec() - now.TimestampNanoSec()%mdb.quantizationPeriod), noHashSupported, nil
 }
 
 func (mdb *memdbDatastore) CheckRevision(_ context.Context, dr datastore.Revision) error {

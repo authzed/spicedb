@@ -71,7 +71,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 		// The non-wildcard branch should only return concrete subjects, filtering out wildcards
 		nonWildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
 
-		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision, datastore.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
@@ -90,7 +90,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 		// The wildcard branch should enumerate concrete subjects when a wildcard exists
 		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
-		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision, datastore.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
@@ -112,7 +112,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 			NewDatastoreIterator(viewerRel.BaseRelations()[1]), // user:*
 		)
 
-		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision, datastore.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(union, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
@@ -179,7 +179,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 		// The wildcard branch should return empty because there's no wildcard relationship
 		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
-		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision, datastore.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "second"), NoObjectFilter())
 		require.NoError(err)
 
@@ -195,7 +195,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 		t.Parallel()
 		nonWildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
 
-		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithReader(rawDS.SnapshotReader(revision, datastore.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "second"), NoObjectFilter())
 		require.NoError(err)
 

@@ -3,8 +3,11 @@ package crdb
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast/v2"
@@ -16,11 +19,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
+	schemaadapter "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -565,7 +570,171 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames
 }
 
 func (rwt *crdbReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
-	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
+	// Wrap the transaction with an unexported schema writer
+	writer := &crdbSchemaWriter{rwt: rwt}
+	return schemaadapter.NewSchemaWriter(writer, writer, rwt.schemaMode), nil
+}
+
+// crdbSchemaWriter wraps a crdbReadWriteTXN and implements DualSchemaWriter.
+// This prevents direct access to schema write methods from the transaction.
+type crdbSchemaWriter struct {
+	rwt *crdbReadWriteTXN
+}
+
+// WriteStoredSchema implements datastore.SingleStoreSchemaWriter by writing within the current transaction
+func (w *crdbSchemaWriter) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	// Create a transaction-aware executor that uses the current transaction
+	executor := newTransactionAwareExecutor(w.rwt.tx)
+
+	// Use the shared schema reader/writer to write the schema
+	// CRDB uses delete-and-insert mode so no transaction ID provider is needed
+	if err := w.rwt.schemaReaderWriter.WriteSchema(ctx, schema, executor, common.NoTransactionID[any]); err != nil {
+		return err
+	}
+
+	// Write the schema hash to the schema_revision table for fast lookups
+	if err := w.writeSchemaHash(ctx, schema); err != nil {
+		return fmt.Errorf("failed to write schema hash: %w", err)
+	}
+
+	return nil
+}
+
+// writeSchemaHash writes the schema hash to the schema_revision table
+func (w *crdbSchemaWriter) writeSchemaHash(ctx context.Context, schema *core.StoredSchema) error {
+	v1 := schema.GetV1()
+	if v1 == nil {
+		return fmt.Errorf("unsupported schema version: %d", schema.Version)
+	}
+
+	// CRDB uses UPSERT (INSERT ON CONFLICT DO UPDATE) for schema_revision
+	sql, args, err := psql.Insert("schema_revision").
+		Columns("name", "hash", "timestamp").
+		Values("current", []byte(v1.SchemaHash), sq.Expr("now()")).
+		Suffix("ON CONFLICT (name) DO UPDATE SET hash = EXCLUDED.hash, timestamp = EXCLUDED.timestamp").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build upsert query: %w", err)
+	}
+
+	if _, err := w.rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to upsert hash: %w", err)
+	}
+
+	return nil
+}
+
+// ReadStoredSchema implements datastore.SingleStoreSchemaReader to satisfy DualSchemaReader interface requirements
+func (w *crdbSchemaWriter) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	// Create a revision-aware executor that applies AS OF SYSTEM TIME
+	// Within a transaction, we don't use AS OF SYSTEM TIME, so pass empty atSpecificRevision
+	executor := &revisionAwareExecutor{
+		query:             w.rwt.query,
+		addFromToQuery:    w.rwt.addFromToQuery,
+		assertAsOfSysTime: w.rwt.assertHasExpectedAsOfSystemTime,
+	}
+
+	// Use the shared schema reader/writer to read the schema
+	// Pass empty string to bypass cache (transaction read)
+	return w.rwt.schemaReaderWriter.ReadSchema(ctx, executor, nil, datastore.NoSchemaHashInTransaction)
+}
+
+// LegacyWriteNamespaces delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	return w.rwt.LegacyWriteNamespaces(ctx, newConfigs...)
+}
+
+// LegacyDeleteNamespaces delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
+	return w.rwt.LegacyDeleteNamespaces(ctx, nsNames, delOption)
+}
+
+// LegacyLookupNamespacesWithNames delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyLookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*core.NamespaceDefinition], error) {
+	return w.rwt.LegacyLookupNamespacesWithNames(ctx, nsNames)
+}
+
+// LegacyWriteCaveats delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	return w.rwt.LegacyWriteCaveats(ctx, caveats)
+}
+
+// LegacyDeleteCaveats delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyDeleteCaveats(ctx context.Context, names []string) error {
+	return w.rwt.LegacyDeleteCaveats(ctx, names)
+}
+
+// WriteLegacySchemaHashFromDefinitions implements datastore.LegacySchemaHashWriter
+func (w *crdbSchemaWriter) WriteLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	return w.rwt.writeLegacySchemaHashFromDefinitions(ctx, namespaces, caveats)
+}
+
+// writeLegacySchemaHashFromDefinitions writes the schema hash computed from the given definitions
+func (rwt *crdbReadWriteTXN) writeLegacySchemaHashFromDefinitions(ctx context.Context, namespaces []datastore.RevisionedNamespace, caveats []datastore.RevisionedCaveat) error {
+	// Build schema definitions list
+	definitions := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		definitions = append(definitions, ns.Definition)
+	}
+	for _, caveat := range caveats {
+		definitions = append(definitions, caveat.Definition)
+	}
+
+	// Sort definitions by name for consistent ordering
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].GetName() < definitions[j].GetName()
+	})
+
+	// Generate schema text from definitions
+	schemaText, _, err := generator.GenerateSchema(definitions)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	// Compute schema hash (SHA256)
+	hash := sha256.Sum256([]byte(schemaText))
+	schemaHash := hex.EncodeToString(hash[:])
+
+	// CRDB uses UPSERT (INSERT ON CONFLICT DO UPDATE) for schema_revision
+	sql, args, err := psql.Insert("schema_revision").
+		Columns("name", "hash", "timestamp").
+		Values("current", []byte(schemaHash), sq.Expr("now()")).
+		Suffix("ON CONFLICT (name) DO UPDATE SET hash = EXCLUDED.hash, timestamp = EXCLUDED.timestamp").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build upsert query: %w", err)
+	}
+
+	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("failed to upsert hash: %w", err)
+	}
+
+	return nil
+}
+
+// LegacyReadCaveatByName delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	return w.rwt.LegacyReadCaveatByName(ctx, name)
+}
+
+// LegacyListAllCaveats delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return w.rwt.LegacyListAllCaveats(ctx)
+}
+
+// LegacyLookupCaveatsWithNames delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyLookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return w.rwt.LegacyLookupCaveatsWithNames(ctx, names)
+}
+
+// LegacyReadNamespaceByName delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return w.rwt.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+// LegacyListAllNamespaces delegates to the underlying transaction
+func (w *crdbSchemaWriter) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return w.rwt.LegacyListAllNamespaces(ctx)
 }
 
 var copyCols = []string{
@@ -605,4 +774,9 @@ func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWr
 	return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyCols, iter)
 }
 
-var _ datastore.ReadWriteTransaction = &crdbReadWriteTXN{}
+var (
+	_ datastore.ReadWriteTransaction = &crdbReadWriteTXN{}
+	_ datastore.LegacySchemaWriter   = &crdbReadWriteTXN{}
+	_ datastore.DualSchemaWriter     = &crdbSchemaWriter{}
+	_ datastore.DualSchemaReader     = &crdbSchemaWriter{}
+)

@@ -148,7 +148,11 @@ func (rwt *mysqlReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []
 }
 
 func (rwt *mysqlReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []string) error {
-	return rwt.deleteCaveatsFromNames(ctx, names)
+	if err := rwt.deleteCaveatsFromNames(ctx, names); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (rwt *mysqlReadWriteTXN) deleteCaveatsFromNames(ctx context.Context, names []string) error {

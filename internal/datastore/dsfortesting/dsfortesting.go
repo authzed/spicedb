@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -43,12 +44,48 @@ type validatingDatastore struct {
 	datastore.Datastore
 }
 
-func (vds validatingDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	return validatingReader{vds.Datastore.SnapshotReader(rev)}
+func (vds validatingDatastore) SnapshotReader(rev datastore.Revision, hash datastore.SchemaHash) datastore.Reader {
+	return validatingReader{vds.Datastore.SnapshotReader(rev, hash)}
+}
+
+// SchemaHashReaderForTesting delegates to the underlying datastore if it implements the test interface
+func (vds validatingDatastore) SchemaHashReaderForTesting() interface {
+	ReadSchemaHash(ctx context.Context) (string, error)
+} {
+	type schemaHashReaderProvider interface {
+		SchemaHashReaderForTesting() interface {
+			ReadSchemaHash(ctx context.Context) (string, error)
+		}
+	}
+
+	if hashReader, ok := vds.Datastore.(schemaHashReaderProvider); ok {
+		return hashReader.SchemaHashReaderForTesting()
+	}
+	return nil
+}
+
+// SchemaModeForTesting delegates to the underlying datastore if it implements the test interface
+func (vds validatingDatastore) SchemaModeForTesting() (options.SchemaMode, error) {
+	type schemaModeProvider interface {
+		SchemaModeForTesting() (options.SchemaMode, error)
+	}
+
+	if provider, ok := vds.Datastore.(schemaModeProvider); ok {
+		return provider.SchemaModeForTesting()
+	}
+	return options.SchemaModeReadLegacyWriteLegacy, errors.New("delegate datastore does not implement SchemaModeForTesting()")
 }
 
 type validatingReader struct {
 	datastore.Reader
+}
+
+func (vr validatingReader) ReadStoredSchema(ctx context.Context) (*core.StoredSchema, error) {
+	singleStoreReader, ok := vr.Reader.(datastore.SingleStoreSchemaReader)
+	if !ok {
+		return nil, errors.New("validating reader delegate does not implement SingleStoreSchemaReader")
+	}
+	return singleStoreReader.ReadStoredSchema(ctx)
 }
 
 func (vr validatingReader) QueryRelationships(
@@ -161,3 +198,9 @@ func (vr validatingReader) QueryRelationships(
 		}
 	}, nil
 }
+
+var (
+	_ datastore.Datastore               = validatingDatastore{}
+	_ datastore.Reader                  = validatingReader{}
+	_ datastore.SingleStoreSchemaReader = validatingReader{}
+)

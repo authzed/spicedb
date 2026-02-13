@@ -108,14 +108,18 @@ func (r *memdbReader) LegacyLookupCaveatsWithNames(ctx context.Context, caveatNa
 	return toReturn, nil
 }
 
-func (rwt *memdbReadWriteTx) LegacyWriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt *memdbReadWriteTx) LegacyWriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
 	if err != nil {
 		return err
 	}
-	return rwt.writeCaveat(tx, caveats)
+	if err := rwt.writeCaveat(tx, caveats); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDefinition) error {
@@ -140,7 +144,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDe
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) LegacyDeleteCaveats(_ context.Context, names []string) error {
+func (rwt *memdbReadWriteTx) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
@@ -152,5 +156,6 @@ func (rwt *memdbReadWriteTx) LegacyDeleteCaveats(_ context.Context, names []stri
 			return err
 		}
 	}
+
 	return nil
 }

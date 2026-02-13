@@ -144,12 +144,17 @@ func (rwt *pgReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*co
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf(errWriteCaveats, err)
 	}
+
 	return nil
 }
 
 func (rwt *pgReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	// mark current caveats as deleted
-	return rwt.deleteCaveatsFromNames(ctx, names)
+	if err := rwt.deleteCaveatsFromNames(ctx, names); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (rwt *pgReadWriteTXN) deleteCaveatsFromNames(ctx context.Context, names []string) error {
