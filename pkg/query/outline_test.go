@@ -668,16 +668,16 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 		require := require.New(t)
 
 		// Create a complex nested structure
-		// Union( Fixed, Intersection( Fixed, Fixed ) )
+		// Union( Null, Intersection( Null, Null ) )
 		original := Outline{
 			Type: UnionIteratorType,
 			Subiterators: []Outline{
-				{Type: FixedIteratorType},
+				{Type: NullIteratorType},
 				{
 					Type: IntersectionIteratorType,
 					Subiterators: []Outline{
-						{Type: FixedIteratorType},
-						{Type: FixedIteratorType},
+						{Type: NullIteratorType},
+						{Type: NullIteratorType},
 					},
 				},
 			},
@@ -737,7 +737,7 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 			Type: CaveatIteratorType,
 			Args: &IteratorArgs{Caveat: caveat},
 			Subiterators: []Outline{
-				{Type: FixedIteratorType},
+				{Type: NullIteratorType},
 			},
 		}
 
