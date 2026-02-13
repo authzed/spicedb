@@ -1661,3 +1661,303 @@ definition user {}`
 	// Verify the resolved field points to the correct synthetic permission
 	require.Equal(t, synthPerm, firstChild.resolved, "ResolvedRelationReference should point to the synthetic permission")
 }
+
+func TestFlattenSchema_PreservesParentPointers(t *testing.T) {
+	schemaString := `definition document {
+	relation owner: user
+	relation editor: user
+	permission view = owner + (editor & owner)
+}
+
+definition user {}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+
+	// Flatten the schema
+	flattened, err := FlattenSchema(resolved, FlattenSeparatorDollar)
+	require.NoError(t, err)
+	require.NotNil(t, flattened)
+
+	s := flattened.ResolvedSchema().Schema()
+	def, ok := s.GetTypeDefinition("document")
+	require.True(t, ok)
+
+	// Check Definition parent (should still point to schema)
+	require.Equal(t, s, def.Parent(), "Definition should have Schema as parent after flattening")
+
+	// Check Permission parent
+	viewPerm, ok := def.GetPermission("view")
+	require.True(t, ok)
+	require.Equal(t, def, viewPerm.Parent(), "Permission should have Definition as parent after flattening")
+
+	// Check root operation parent
+	op := viewPerm.Operation()
+	require.NotNil(t, op)
+	require.Equal(t, viewPerm, op.Parent(), "Root operation should have Permission as parent after flattening")
+
+	// Root should be a union
+	rootUnion, ok := op.(*UnionOperation)
+	require.True(t, ok, "Root operation should be UnionOperation")
+
+	// Check children parents
+	children := rootUnion.Children()
+	require.NotEmpty(t, children, "Union should have children")
+
+	for i, child := range children {
+		require.NotNil(t, child.Parent(), "Child %d should have a parent after flattening", i)
+		require.Equal(t, rootUnion, child.Parent(), "Child %d should have union as parent after flattening", i)
+	}
+}
+
+func TestFlattenSchema_SyntheticPermissionsHaveParentPointers(t *testing.T) {
+	schemaString := `definition document {
+	relation viewer: user
+	relation editor: user
+	relation owner: user
+	permission view = (viewer + editor) & owner
+}
+
+definition user {}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+
+	// Flatten the schema
+	flattened, err := FlattenSchema(resolved, FlattenSeparatorDoubleUnderscore)
+	require.NoError(t, err)
+
+	s := flattened.ResolvedSchema().Schema()
+	def, ok := s.GetTypeDefinition("document")
+	require.True(t, ok)
+
+	// Check all synthetic permissions have correct parent pointers
+	for name, perm := range def.Permissions() {
+		if perm.IsSynthetic() {
+			require.Equal(t, def, perm.Parent(), "Synthetic permission %s should have Definition as parent", name)
+
+			if perm.Operation() != nil {
+				require.Equal(t, perm, perm.Operation().Parent(), "Synthetic permission %s operation should have permission as parent", name)
+
+				// Check nested operations within synthetic permissions
+				verifyOperationParentHierarchy(t, perm.Operation(), perm)
+			}
+		}
+	}
+}
+
+func TestFlattenSchema_DeeplyNestedOperationsPreserveParents(t *testing.T) {
+	schemaString := `definition document {
+	relation alpha: user
+	relation beta: user
+	relation gamma: user
+	relation delta: user
+	permission view = ((alpha & beta) - gamma) & delta
+}
+
+definition user {}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+
+	// Flatten the schema
+	flattened, err := FlattenSchema(resolved, FlattenSeparatorDoubleUnderscore)
+	require.NoError(t, err)
+
+	s := flattened.ResolvedSchema().Schema()
+	def, ok := s.GetTypeDefinition("document")
+	require.True(t, ok)
+
+	// Verify all permissions (including synthetic ones) have correct parent hierarchies
+	for _, perm := range def.Permissions() {
+		require.Equal(t, def, perm.Parent(), "Permission %s should have Definition as parent", perm.Name())
+
+		if perm.Operation() != nil {
+			verifyOperationParentHierarchy(t, perm.Operation(), perm)
+		}
+	}
+}
+
+func TestFlattenSchema_ArrowOperationsPreserveParents(t *testing.T) {
+	schemaString := `definition document {
+	relation foo: folder
+	relation bar: folder
+	permission view = (foo->bar & bar->baz)
+}
+
+definition folder {
+	relation bar: folder
+	permission baz = bar
+}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+
+	// Flatten the schema with arrows flattened
+	flattened, err := FlattenSchemaWithOptions(resolved, FlattenOptions{
+		Separator:                 FlattenSeparatorDoubleUnderscore,
+		FlattenNonUnionOperations: true,
+		FlattenArrows:             true,
+	})
+	require.NoError(t, err)
+
+	s := flattened.ResolvedSchema().Schema()
+	def, ok := s.GetTypeDefinition("document")
+	require.True(t, ok)
+
+	// Verify all permissions have correct parent hierarchies
+	for _, perm := range def.Permissions() {
+		require.Equal(t, def, perm.Parent(), "Permission %s should have Definition as parent", perm.Name())
+
+		if perm.Operation() != nil {
+			verifyOperationParentHierarchy(t, perm.Operation(), perm)
+		}
+	}
+}
+
+func TestFlattenSchema_ComplexNestedWithMultipleSyntheticPermissions(t *testing.T) {
+	schemaString := `definition document {
+	relation alpha: user
+	relation beta: user
+	relation gamma: user
+	permission view = (alpha + beta) & (beta - gamma)
+}
+
+definition user {}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+
+	// Resolve the schema
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+
+	// Flatten the schema
+	flattened, err := FlattenSchema(resolved, FlattenSeparatorDoubleUnderscore)
+	require.NoError(t, err)
+
+	s := flattened.ResolvedSchema().Schema()
+	def, ok := s.GetTypeDefinition("document")
+	require.True(t, ok)
+
+	// Should have created multiple synthetic permissions
+	require.Greater(t, len(def.Permissions()), 1, "Should have synthetic permissions")
+
+	// Verify every permission and its operations have correct parents
+	for name, perm := range def.Permissions() {
+		require.Equal(t, def, perm.Parent(), "Permission %s should have Definition as parent", name)
+
+		if perm.Operation() != nil {
+			require.Equal(t, perm, perm.Operation().Parent(), "Root operation of permission %s should have permission as parent", name)
+			verifyOperationParentHierarchy(t, perm.Operation(), perm)
+		}
+	}
+}
+
+// verifyOperationParentHierarchy recursively verifies that all operations in a tree
+// have their parent pointers correctly set.
+func verifyOperationParentHierarchy(t *testing.T, op Operation, expectedRootParent Parented) {
+	t.Helper()
+
+	if op == nil {
+		return
+	}
+
+	// Root operation should have the permission/permission as parent
+	if op.Parent() == expectedRootParent {
+		// This is the root, continue checking children
+	} else {
+		// This is a child operation, verify its parent is an operation
+		_, ok := op.Parent().(Operation)
+		require.True(t, ok, "Non-root operation should have an Operation as parent, got %T", op.Parent())
+	}
+
+	switch o := op.(type) {
+	case *UnionOperation:
+		for i, child := range o.children {
+			require.NotNil(t, child.Parent(), "Union child %d should have parent", i)
+			require.Equal(t, o, child.Parent(), "Union child %d should have union as parent", i)
+			verifyOperationParentHierarchy(t, child, expectedRootParent)
+		}
+
+	case *IntersectionOperation:
+		for i, child := range o.children {
+			require.NotNil(t, child.Parent(), "Intersection child %d should have parent", i)
+			require.Equal(t, o, child.Parent(), "Intersection child %d should have intersection as parent", i)
+			verifyOperationParentHierarchy(t, child, expectedRootParent)
+		}
+
+	case *ExclusionOperation:
+		require.NotNil(t, o.left.Parent(), "Exclusion left child should have parent")
+		require.Equal(t, o, o.left.Parent(), "Exclusion left child should have exclusion as parent")
+		verifyOperationParentHierarchy(t, o.left, expectedRootParent)
+
+		require.NotNil(t, o.right.Parent(), "Exclusion right child should have parent")
+		require.Equal(t, o, o.right.Parent(), "Exclusion right child should have exclusion as parent")
+		verifyOperationParentHierarchy(t, o.right, expectedRootParent)
+
+	case *ResolvedRelationReference, *ResolvedArrowReference, *ResolvedFunctionedArrowReference,
+		*RelationReference, *ArrowReference, *FunctionedArrowReference, *NilReference:
+		// Leaf nodes - no children to verify
+		return
+
+	default:
+		t.Fatalf("Unknown operation type: %T", op)
+	}
+}
