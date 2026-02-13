@@ -186,15 +186,18 @@ func Decompile(it Iterator) (Outline, error) {
 		}, nil
 
 	case *FixedIterator:
-		var args *IteratorArgs
-		if len(typed.paths) > 0 {
-			args = &IteratorArgs{
-				FixedPaths: typed.paths,
-			}
+		// Empty FixedIterator is represented as NullIteratorType
+		if len(typed.paths) == 0 {
+			return Outline{
+				Type:         NullIteratorType,
+				Subiterators: decompSubs,
+			}, nil
 		}
 		return Outline{
-			Type:         FixedIteratorType,
-			Args:         args,
+			Type: FixedIteratorType,
+			Args: &IteratorArgs{
+				FixedPaths: typed.paths,
+			},
 			Subiterators: decompSubs,
 		}, nil
 
