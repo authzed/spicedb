@@ -107,8 +107,17 @@ func TestWalkSchema_Nil(t *testing.T) {
 func TestWalkSchema_Empty(t *testing.T) {
 	schema := &Schema{
 		definitions: make(map[string]*Definition),
-		caveats:     make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
+	schema.caveats["is_admin"].parent = schema
 
 	visitor := &testVisitor{}
 	_, err := WalkSchema(schema, visitor, struct{}{})
@@ -117,7 +126,7 @@ func TestWalkSchema_Empty(t *testing.T) {
 	require.Len(t, visitor.schemas, 1)
 	require.Same(t, schema, visitor.schemas[0])
 	require.Empty(t, visitor.definitions)
-	require.Empty(t, visitor.caveats)
+	require.Len(t, visitor.caveats, 1)
 }
 
 func TestWalkSchema_WithDefinitionsAndCaveats(t *testing.T) {
@@ -467,9 +476,18 @@ func TestWalkSchema_PartialVisitor(t *testing.T) {
 				permissions: map[string]*Permission{},
 			},
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	schema.definitions["user"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	_, err := WalkSchema(schema, pv, struct{}{})
 	require.NoError(t, err)
@@ -503,10 +521,19 @@ func TestWalkSchema_ErrorPropagation(t *testing.T) {
 				permissions: make(map[string]*Permission),
 			},
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	schema.definitions["user"].parent = schema
 	schema.definitions["document"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	ev := &errorVisitor{}
 	_, err := WalkSchema(schema, ev, struct{}{})
@@ -539,9 +566,18 @@ func TestWalkSchema_EarlyTerminationOnSchema(t *testing.T) {
 				permissions: make(map[string]*Permission),
 			},
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	schema.definitions["user"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	sv := &stopVisitor{}
 	_, err := WalkSchema(schema, sv, struct{}{})
@@ -739,16 +775,25 @@ func TestWalkSchema_ValueThreading(t *testing.T) {
 				permissions: make(map[string]*Permission),
 			},
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	schema.definitions["user"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	visitor := &intVisitor{}
 	result, err := WalkSchema(schema, visitor, 0)
 	require.NoError(t, err)
 
-	// Should have visited: Schema (+1), Definition (+10) = 11
-	require.Equal(t, 11, result)
+	// Should have visited: Schema (+1), Definition (+10), Caveat (+100) = 111
+	require.Equal(t, 111, result)
 }
 
 func TestWalkDefinition_ValueThreading(t *testing.T) {
@@ -970,7 +1015,15 @@ func TestArrowOperationVisitor(t *testing.T) {
 		definitions: map[string]*Definition{
 			"document": def,
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	def.parent = schema
 
@@ -1454,7 +1507,15 @@ func buildTestSchema(t *testing.T) *Schema {
 		definitions: map[string]*Definition{
 			"document": docDef,
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	docDef.parent = schema
 
