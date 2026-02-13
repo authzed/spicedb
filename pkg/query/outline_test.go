@@ -1170,3 +1170,358 @@ func TestCaveatCompare(t *testing.T) {
 		require.Equal(0, result)
 	})
 }
+
+func TestCanonicalKey_Type(t *testing.T) {
+	t.Parallel()
+
+	t.Run("String method", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		key := CanonicalKey("test_key")
+		require.Equal("test_key", key.String())
+	})
+
+	t.Run("IsEmpty returns true for empty key", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		key := CanonicalKey("")
+		require.True(key.IsEmpty())
+	})
+
+	t.Run("IsEmpty returns false for non-empty key", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		key := CanonicalKey("test_key")
+		require.False(key.IsEmpty())
+	})
+
+	t.Run("Hash produces consistent value", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		key := CanonicalKey("test_key")
+		hash1 := key.Hash()
+		hash2 := key.Hash()
+		require.Equal(hash1, hash2)
+	})
+
+	t.Run("Hash produces different values for different keys", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		key1 := CanonicalKey("key1")
+		key2 := CanonicalKey("key2")
+		hash1 := key1.Hash()
+		hash2 := key2.Hash()
+		require.NotEqual(hash1, hash2)
+	})
+}
+
+func TestSerializeOutline(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NullIteratorType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{Type: NullIteratorType}
+		key := SerializeOutline(outline)
+		require.Equal("0", key.String())
+	})
+
+	t.Run("DatastoreIteratorType with Relation", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
+		outline := Outline{
+			Type: DatastoreIteratorType,
+			Args: &IteratorArgs{
+				Relation: rel,
+			},
+		}
+
+		key := SerializeOutline(outline)
+		// Should contain type 'D', base relation serialization
+		require.Contains(key.String(), "D(")
+		require.Contains(key.String(), "base:")
+		require.Contains(key.String(), "document/viewer/user")
+	})
+
+	t.Run("UnionIteratorType with subiterators", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: UnionIteratorType,
+			Subiterators: []Outline{
+				{Type: NullIteratorType},
+				{Type: NullIteratorType},
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Equal("|[0,0]", key.String())
+	})
+
+	t.Run("IntersectionIteratorType with subiterators", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: IntersectionIteratorType,
+			Subiterators: []Outline{
+				{Type: NullIteratorType},
+				{Type: NullIteratorType},
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Equal("&[0,0]", key.String())
+	})
+
+	t.Run("Nested structure", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		// Union( Null, Intersection( Null, Null ) )
+		outline := Outline{
+			Type: UnionIteratorType,
+			Subiterators: []Outline{
+				{Type: NullIteratorType},
+				{
+					Type: IntersectionIteratorType,
+					Subiterators: []Outline{
+						{Type: NullIteratorType},
+						{Type: NullIteratorType},
+					},
+				},
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Equal("|[0,&[0,0]]", key.String())
+	})
+
+	t.Run("CaveatIteratorType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		caveat := &core.ContextualizedCaveat{CaveatName: "age_check"}
+		outline := Outline{
+			Type: CaveatIteratorType,
+			Args: &IteratorArgs{
+				Caveat: caveat,
+			},
+			Subiterators: []Outline{
+				{Type: NullIteratorType},
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Equal("C(cav:age_check)[0]", key.String())
+	})
+
+	t.Run("AliasIteratorType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: AliasIteratorType,
+			Args: &IteratorArgs{
+				RelationName: "viewer",
+			},
+			Subiterators: []Outline{
+				{Type: NullIteratorType},
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Equal("@(rel:viewer)[0]", key.String())
+	})
+
+	t.Run("RecursiveIteratorType", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: RecursiveIteratorType,
+			Args: &IteratorArgs{
+				DefinitionName: "document",
+				RelationName:   "parent",
+			},
+			Subiterators: []Outline{
+				{Type: NullIteratorType},
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Equal("R(def:document,rel:parent)[0]", key.String())
+	})
+
+	t.Run("FixedIteratorType with paths", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		path1 := MustPathFromString("document:doc1#viewer@user:alice")
+		path2 := MustPathFromString("document:doc2#viewer@user:bob")
+
+		outline := Outline{
+			Type: FixedIteratorType,
+			Args: &IteratorArgs{
+				FixedPaths: []Path{path1, path2},
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Equal("F(paths:2)", key.String())
+	})
+
+	t.Run("Empty Args", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: UnionIteratorType,
+			Args: &IteratorArgs{}, // Empty but non-nil
+		}
+
+		key := SerializeOutline(outline)
+		// Should not include parentheses for empty args
+		require.Equal("|", key.String())
+	})
+
+	t.Run("Nil Args", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: IntersectionIteratorType,
+			Args: nil,
+		}
+
+		key := SerializeOutline(outline)
+		require.Equal("&", key.String())
+	})
+}
+
+func TestSerializeOutline_Deterministic(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
+	outline := Outline{
+		Type: UnionIteratorType,
+		Subiterators: []Outline{
+			{
+				Type: DatastoreIteratorType,
+				Args: &IteratorArgs{Relation: rel},
+			},
+			{Type: NullIteratorType},
+		},
+	}
+
+	// Serialize multiple times
+	key1 := SerializeOutline(outline)
+	key2 := SerializeOutline(outline)
+	key3 := SerializeOutline(outline)
+
+	// Should all be identical
+	require.Equal(key1.String(), key2.String())
+	require.Equal(key2.String(), key3.String())
+}
+
+func TestSerializeOutline_Args(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DefinitionName only", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: RecursiveSentinelIteratorType,
+			Args: &IteratorArgs{
+				DefinitionName: "document",
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Contains(key.String(), "def:document")
+	})
+
+	t.Run("RelationName only", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: AliasIteratorType,
+			Args: &IteratorArgs{
+				RelationName: "viewer",
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Contains(key.String(), "rel:viewer")
+	})
+
+	t.Run("Multiple Args fields", func(t *testing.T) {
+		t.Parallel()
+		require := require.New(t)
+
+		outline := Outline{
+			Type: RecursiveIteratorType,
+			Args: &IteratorArgs{
+				DefinitionName: "document",
+				RelationName:   "parent",
+			},
+		}
+
+		key := SerializeOutline(outline)
+		require.Contains(key.String(), "def:document")
+		require.Contains(key.String(), "rel:parent")
+	})
+}
+
+func TestSerializeOutline_IgnoresCanonicalKey(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create two identical outlines with different CanonicalKeys
+	outline1 := Outline{
+		Type:         NullIteratorType,
+		CanonicalKey: CanonicalKey("key1"),
+	}
+
+	outline2 := Outline{
+		Type:         NullIteratorType,
+		CanonicalKey: CanonicalKey("key2"),
+	}
+
+	// Serialization should be identical (ignoring CanonicalKey field)
+	key1 := SerializeOutline(outline1)
+	key2 := SerializeOutline(outline2)
+	require.Equal(key1.String(), key2.String())
+}
+
+func TestCanonicalKey_Hash(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create different keys
+	key1 := CanonicalKey("|[0,0]")
+	key2 := CanonicalKey("&[0,0]")
+	key3 := CanonicalKey("|[0,0]") // Same as key1
+
+	hash1 := key1.Hash()
+	hash2 := key2.Hash()
+	hash3 := key3.Hash()
+
+	// Same keys produce same hash
+	require.Equal(hash1, hash3)
+
+	// Different keys produce different hashes
+	require.NotEqual(hash1, hash2)
+}

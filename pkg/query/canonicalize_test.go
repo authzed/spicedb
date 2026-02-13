@@ -949,3 +949,296 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 		})
 	}
 }
+
+func TestCanonicalizeOutline_PopulatesCanonicalKey(t *testing.T) {
+	t.Parallel()
+
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+
+	tests := []struct {
+		name    string
+		outline Outline
+	}{
+		{
+			name:    "simple outline",
+			outline: Outline{Type: NullIteratorType},
+		},
+		{
+			name: "outline with args",
+			outline: Outline{
+				Type: DatastoreIteratorType,
+				Args: &IteratorArgs{Relation: rel},
+			},
+		},
+		{
+			name: "union with subiterators",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{Type: NullIteratorType},
+					{Type: NullIteratorType},
+				},
+			},
+		},
+		{
+			name: "complex nested structure",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type: IntersectionIteratorType,
+						Subiterators: []Outline{
+							{
+								Type: DatastoreIteratorType,
+								Args: &IteratorArgs{Relation: rel},
+							},
+							{Type: NullIteratorType},
+						},
+					},
+					{Type: NullIteratorType},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require := require.New(t)
+
+			canonical, err := CanonicalizeOutline(tt.outline)
+			require.NoError(err)
+
+			// CanonicalKey should be populated
+			require.False(canonical.CanonicalKey.IsEmpty(),
+				"CanonicalKey should be populated after canonicalization")
+		})
+	}
+}
+
+func TestCanonicalKey_MatchesSerialization(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+	outline := Outline{
+		Type: UnionIteratorType,
+		Subiterators: []Outline{
+			{Type: NullIteratorType},
+			{
+				Type: DatastoreIteratorType,
+				Args: &IteratorArgs{Relation: rel},
+			},
+		},
+	}
+
+	canonical, err := CanonicalizeOutline(outline)
+	require.NoError(err)
+
+	// CanonicalKey should match the result of calling SerializeOutline
+	directSerialization := SerializeOutline(canonical)
+	require.Equal(directSerialization.String(), canonical.CanonicalKey.String(),
+		"CanonicalKey should match direct serialization result")
+}
+
+func TestCanonicalKey_AllNodesPopulated(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+	outline := Outline{
+		Type: UnionIteratorType,
+		Subiterators: []Outline{
+			{
+				Type: IntersectionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type: DatastoreIteratorType,
+						Args: &IteratorArgs{Relation: rel},
+					},
+					{Type: NullIteratorType},
+				},
+			},
+			{Type: NullIteratorType},
+		},
+	}
+
+	canonical, err := CanonicalizeOutline(outline)
+	require.NoError(err)
+
+	// Helper function to check all nodes recursively
+	var checkAllNodes func(o Outline)
+	checkAllNodes = func(o Outline) {
+		require.False(o.CanonicalKey.IsEmpty(),
+			"All nodes should have non-empty CanonicalKey")
+
+		for _, sub := range o.Subiterators {
+			checkAllNodes(sub)
+		}
+	}
+
+	checkAllNodes(canonical)
+}
+
+func TestCanonicalKey_Uniqueness(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rel1 := schema.NewTestBaseRelation("doc", "rel1", "user", tuple.Ellipsis)
+	rel2 := schema.NewTestBaseRelation("doc", "rel2", "user", tuple.Ellipsis)
+
+	// Create two different outlines
+	outline1 := Outline{
+		Type: UnionIteratorType,
+		Subiterators: []Outline{
+			{
+				Type: DatastoreIteratorType,
+				Args: &IteratorArgs{Relation: rel1},
+			},
+			{Type: NullIteratorType},
+		},
+	}
+
+	outline2 := Outline{
+		Type: UnionIteratorType,
+		Subiterators: []Outline{
+			{
+				Type: DatastoreIteratorType,
+				Args: &IteratorArgs{Relation: rel2},
+			},
+			{Type: NullIteratorType},
+		},
+	}
+
+	canonical1, err := CanonicalizeOutline(outline1)
+	require.NoError(err)
+
+	canonical2, err := CanonicalizeOutline(outline2)
+	require.NoError(err)
+
+	// Different outlines should have different CanonicalKeys
+	require.NotEqual(canonical1.CanonicalKey.String(), canonical2.CanonicalKey.String(),
+		"Different outlines should produce different CanonicalKeys")
+}
+
+func TestCanonicalKey_Equivalence(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel}}
+	b := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "other"}}
+
+	// Union[A,B] and Union[B,A] should produce the same CanonicalKey after canonicalization
+	outline1 := Outline{
+		Type:         UnionIteratorType,
+		Subiterators: []Outline{a, b},
+	}
+
+	outline2 := Outline{
+		Type:         UnionIteratorType,
+		Subiterators: []Outline{b, a},
+	}
+
+	canonical1, err := CanonicalizeOutline(outline1)
+	require.NoError(err)
+
+	canonical2, err := CanonicalizeOutline(outline2)
+	require.NoError(err)
+
+	// Equivalent outlines should have the same CanonicalKey
+	require.Equal(canonical1.CanonicalKey.String(), canonical2.CanonicalKey.String(),
+		"Equivalent outlines should produce identical CanonicalKeys after canonicalization")
+}
+
+func TestCanonicalKey_Idempotency(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+	outline := Outline{
+		Type: UnionIteratorType,
+		Subiterators: []Outline{
+			{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{Type: NullIteratorType},
+					{
+						Type: DatastoreIteratorType,
+						Args: &IteratorArgs{Relation: rel},
+					},
+				},
+			},
+			{Type: NullIteratorType},
+		},
+	}
+
+	// First canonicalization
+	canonical1, err := CanonicalizeOutline(outline)
+	require.NoError(err)
+	key1 := canonical1.CanonicalKey.String()
+
+	// Second canonicalization (should be idempotent)
+	canonical2, err := CanonicalizeOutline(canonical1)
+	require.NoError(err)
+	key2 := canonical2.CanonicalKey.String()
+
+	// CanonicalKeys should be identical
+	require.Equal(key1, key2,
+		"Re-canonicalizing should produce the same CanonicalKey")
+}
+
+func TestCanonicalKey_MethodsWork(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+	outline := Outline{
+		Type: DatastoreIteratorType,
+		Args: &IteratorArgs{Relation: rel},
+	}
+
+	canonical, err := CanonicalizeOutline(outline)
+	require.NoError(err)
+
+	// Test String() method
+	keyStr := canonical.CanonicalKey.String()
+	require.NotEmpty(keyStr)
+
+	// Test IsEmpty() method
+	require.False(canonical.CanonicalKey.IsEmpty())
+
+	// Test Hash() method
+	hash1 := canonical.CanonicalKey.Hash()
+	hash2 := canonical.CanonicalKey.Hash()
+	require.Equal(hash1, hash2, "Hash should be consistent")
+	require.NotZero(hash1, "Hash should not be zero for non-empty key")
+}
+
+func TestCanonicalKey_WithCaveats(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	caveat := &core.ContextualizedCaveat{CaveatName: "age_check"}
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+
+	outline := Outline{
+		Type: CaveatIteratorType,
+		Args: &IteratorArgs{Caveat: caveat},
+		Subiterators: []Outline{
+			{
+				Type: DatastoreIteratorType,
+				Args: &IteratorArgs{Relation: rel},
+			},
+		},
+	}
+
+	canonical, err := CanonicalizeOutline(outline)
+	require.NoError(err)
+
+	// CanonicalKey should be populated
+	require.False(canonical.CanonicalKey.IsEmpty())
+
+	// Should contain caveat name in the key
+	require.Contains(canonical.CanonicalKey.String(), "cav:age_check")
+}

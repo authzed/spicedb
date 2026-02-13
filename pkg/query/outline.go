@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cespare/xxhash/v2"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
@@ -29,11 +31,33 @@ const (
 	SelfIteratorType              IteratorType = '='
 )
 
+// CanonicalKey is a unique string identifier for a canonical Outline subtree.
+// It is computed after canonicalization and represents the entire structure
+// in a compact, deterministic format.
+type CanonicalKey string
+
+// String returns the string representation of the key
+func (k CanonicalKey) String() string {
+	return string(k)
+}
+
+// IsEmpty returns true if the key is empty (not yet computed)
+func (k CanonicalKey) IsEmpty() bool {
+	return string(k) == ""
+}
+
+// Hash returns a hash fingerprint of the key for use in maps
+func (k CanonicalKey) Hash() uint64 {
+	// Use xxhash for fast, non-cryptographic hashing
+	return xxhash.Sum64String(string(k))
+}
+
 // Outline is a single type representing the tree of yet-to-be-compiled Iterators.
 type Outline struct {
 	Type         IteratorType
 	Args         *IteratorArgs
 	Subiterators []Outline
+	CanonicalKey CanonicalKey // Populated only after canonicalization
 }
 
 // IteratorArgs represents all the possible arguments to the Iterator constructors.
@@ -441,4 +465,129 @@ func caveatCompare(a, b *core.ContextualizedCaveat) int {
 	}
 
 	return 0
+}
+
+// SerializeOutline generates a compact, deterministic string representation
+// of an Outline tree, excluding the CanonicalKey field itself.
+// Format: <Type>(<Args>)[<Sub1>,<Sub2>,...]
+// Returns a CanonicalKey wrapping the serialized string.
+func SerializeOutline(outline Outline) CanonicalKey {
+	var result string
+
+	// Add type (single character)
+	result += string(outline.Type)
+
+	// Add args if present
+	if outline.Args != nil {
+		argsStr := serializeArgs(outline.Args)
+		if argsStr != "" {
+			result += "(" + argsStr + ")"
+		}
+	}
+
+	// Add subiterators if present
+	if len(outline.Subiterators) > 0 {
+		result += "["
+		var resultSb522 strings.Builder
+		for i, sub := range outline.Subiterators {
+			if i > 0 {
+				resultSb522.WriteString(",")
+			}
+			resultSb522.WriteString(SerializeOutline(sub).String())
+		}
+		result += resultSb522.String()
+		result += "]"
+	}
+
+	return CanonicalKey(result)
+}
+
+// serializeArgs converts IteratorArgs to compact string representation
+// Format: field1:val1,field2:val2,...
+// Fields in deterministic order: DefinitionName, RelationName, Relation, Caveat, FixedPaths
+func serializeArgs(args *IteratorArgs) string {
+	if args == nil {
+		return ""
+	}
+
+	var parts []string
+
+	// DefinitionName
+	if args.DefinitionName != "" {
+		parts = append(parts, "def:"+args.DefinitionName)
+	}
+
+	// RelationName
+	if args.RelationName != "" {
+		parts = append(parts, "rel:"+args.RelationName)
+	}
+
+	// Relation (BaseRelation)
+	if args.Relation != nil {
+		parts = append(parts, "base:"+serializeRelation(args.Relation))
+	}
+
+	// Caveat
+	if args.Caveat != nil {
+		parts = append(parts, "cav:"+serializeCaveat(args.Caveat))
+	}
+
+	// FixedPaths (count only)
+	if len(args.FixedPaths) > 0 {
+		parts = append(parts, serializePaths(args.FixedPaths))
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	result := ""
+	var resultSb574 strings.Builder
+	for i, part := range parts {
+		if i > 0 {
+			resultSb574.WriteString(",")
+		}
+		resultSb574.WriteString(part)
+	}
+	result += resultSb574.String()
+	return result
+}
+
+// serializeRelation converts BaseRelation to compact string
+// Format: defName/relName/subjectType/subrel with flags /c (caveat), /e (expiration), /w (wildcard)
+func serializeRelation(rel *schema.BaseRelation) string {
+	if rel == nil {
+		return ""
+	}
+
+	result := rel.DefinitionName() + "/" + rel.RelationName() + "/" +
+		rel.Type() + "/" + rel.Subrelation()
+
+	// Add flags
+	if rel.Caveat() != "" {
+		result += "/c:" + rel.Caveat()
+	}
+	if rel.Expiration() {
+		result += "/e"
+	}
+	if rel.Wildcard() {
+		result += "/w"
+	}
+
+	return result
+}
+
+// serializeCaveat converts ContextualizedCaveat to compact string (name only)
+// Context is too verbose, so we only include the name
+func serializeCaveat(caveat *core.ContextualizedCaveat) string {
+	if caveat == nil {
+		return ""
+	}
+	return caveat.CaveatName
+}
+
+// serializePaths converts FixedPaths to compact representation (count only)
+// Full paths are too verbose, so we only include the count
+func serializePaths(paths []Path) string {
+	return fmt.Sprintf("paths:%d", len(paths))
 }

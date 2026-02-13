@@ -25,6 +25,9 @@ func CanonicalizeOutline(outline Outline) (Outline, error) {
 	// Wrap with caveats
 	result := nestCaveats(canonicalTree, caveats)
 
+	// Populate CanonicalKey fields bottom-up
+	result = populateCanonicalKeys(result)
+
 	return result, nil
 }
 
@@ -249,4 +252,21 @@ func isNullOutline(outline Outline) bool {
 		}
 	}
 	return false
+}
+
+// populateCanonicalKeys recursively sets CanonicalKey on all nodes
+// after canonicalization completes. Must be called bottom-up.
+func populateCanonicalKeys(outline Outline) Outline {
+	// Recurse on children first
+	if len(outline.Subiterators) > 0 {
+		newSubs := make([]Outline, len(outline.Subiterators))
+		for i, sub := range outline.Subiterators {
+			newSubs[i] = populateCanonicalKeys(sub)
+		}
+		outline.Subiterators = newSubs
+	}
+
+	// Set CanonicalKey on this node
+	outline.CanonicalKey = SerializeOutline(outline)
+	return outline
 }
