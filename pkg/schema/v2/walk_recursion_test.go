@@ -85,7 +85,7 @@ definition group {
 	tracker := &recursionTracker{}
 
 	// Walk with post-order traversal
-	opts := NewWalkOptions().WithStrategy(WalkPostOrder)
+	opts := NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild()
 	_, err = WalkSchemaWithOptions(resolved.Schema(), tracker, 0, opts)
 	require.NoError(t, err)
 
@@ -131,7 +131,7 @@ definition document {
 	tracker := &recursionTracker{}
 
 	// Walk with post-order traversal
-	opts := NewWalkOptions().WithStrategy(WalkPostOrder)
+	opts := NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild()
 	_, err = WalkSchemaWithOptions(resolved.Schema(), tracker, 0, opts)
 	require.NoError(t, err)
 
@@ -189,7 +189,7 @@ definition group {
 	tracker := &recursionTracker{}
 
 	// Walk with PRE-ORDER traversal (default)
-	opts := NewWalkOptions().WithStrategy(WalkPreOrder)
+	opts := NewWalkOptions().WithStrategy(WalkPreOrder).MustBuild()
 	_, err = WalkSchemaWithOptions(resolved.Schema(), tracker, 0, opts)
 	require.NoError(t, err)
 
@@ -237,7 +237,7 @@ definition document {
 	tracker := &recursionTracker{}
 
 	// Walk with PRE-ORDER traversal (default)
-	opts := NewWalkOptions().WithStrategy(WalkPreOrder)
+	opts := NewWalkOptions().WithStrategy(WalkPreOrder).MustBuild()
 	_, err = WalkSchemaWithOptions(resolved.Schema(), tracker, 0, opts)
 	require.NoError(t, err)
 
@@ -304,7 +304,7 @@ definition document {
 	// This should trigger the cycle detection in the arrow handling code
 	opts := NewWalkOptions().
 		WithStrategy(WalkPostOrder).
-		WithTraverseArrowTargets(resolved.Schema())
+		WithTraverseArrowTargets(resolved.Schema()).MustBuild()
 
 	_, err = WalkSchemaWithOptions(resolved.Schema(), tracker, 0, opts)
 	require.NoError(t, err)
@@ -367,7 +367,7 @@ definition resource {
 	// Walk with post-order traversal with arrow traversal
 	opts := NewWalkOptions().
 		WithStrategy(WalkPostOrder).
-		WithTraverseArrowTargets(resolved.Schema())
+		WithTraverseArrowTargets(resolved.Schema()).MustBuild()
 
 	_, err = WalkSchemaWithOptions(resolved.Schema(), tracker, 0, opts)
 	require.NoError(t, err)

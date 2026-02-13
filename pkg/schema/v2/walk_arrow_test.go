@@ -63,7 +63,7 @@ func TestTraverseArrowTargets_Basic(t *testing.T) {
 	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(resolved.Schema()),
+			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
 	)
 	require.NoError(t, err)
 
@@ -110,7 +110,7 @@ func TestTraverseArrowTargets_RequiresPostOrder(t *testing.T) {
 	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPreOrder). // PreOrder with TraverseArrowTargets should fail
-			WithTraverseArrowTargets(schema),
+			WithTraverseArrowTargets(schema).MustBuild(),
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TraverseArrowTargets requires PostOrder strategy")
@@ -153,7 +153,7 @@ func TestTraverseArrowTargets_MultipleTargets(t *testing.T) {
 	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(resolved.Schema()),
+			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
 	)
 	require.NoError(t, err)
 
@@ -198,7 +198,7 @@ func TestTraverseArrowTargets_CycleDetection(t *testing.T) {
 	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(resolved.Schema()),
+			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
 	)
 	require.NoError(t, err)
 
@@ -254,7 +254,7 @@ func TestTraverseArrowTargets_NestedArrows(t *testing.T) {
 	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(resolved.Schema()),
+			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
 	)
 	require.NoError(t, err)
 
@@ -303,7 +303,7 @@ func TestTraverseArrowTargets_DisabledByDefault(t *testing.T) {
 
 	visitor := &arrowTraversalVisitor{}
 	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
-		NewWalkOptions().WithStrategy(WalkPostOrder),
+		NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild(),
 		// No WithTraverseArrowTargets - should not traverse arrow targets
 	)
 	require.NoError(t, err)
@@ -329,7 +329,7 @@ func TestTraverseArrowTargets_DisabledByDefault(t *testing.T) {
 }
 
 func TestNewWalkOptions_Defaults(t *testing.T) {
-	opts := NewWalkOptions()
+	opts := defaultWalkOptions()
 
 	// Verify defaults
 	require.Equal(t, WalkPreOrder, opts.strategy)
@@ -353,7 +353,7 @@ func TestWalkOptions_FluentAPI(t *testing.T) {
 	// Test fluent chaining
 	opts := NewWalkOptions().
 		WithStrategy(WalkPostOrder).
-		WithTraverseArrowTargets(schema)
+		WithTraverseArrowTargets(schema).MustBuild()
 
 	require.Equal(t, WalkPostOrder, opts.strategy)
 	require.True(t, opts.traverseArrowTargets)
@@ -397,7 +397,7 @@ func TestTraverseArrowTargets_RequiresPostOrder_WalkPermission(t *testing.T) {
 	_, err = WalkPermissionWithOptions(viewPerm, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPreOrder). // PreOrder with TraverseArrowTargets should fail
-			WithTraverseArrowTargets(resolved.Schema()),
+			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TraverseArrowTargets requires PostOrder strategy")
@@ -429,13 +429,25 @@ func TestTraverseArrowTargets_RequiresSchema(t *testing.T) {
 	resolved, err := ResolveSchema(schema)
 	require.NoError(t, err)
 
-	// Pass nil schema - should fail
+	// Test 1: Pass nil schema to builder - should fail at build time
+	_, err = NewWalkOptions().
+		WithStrategy(WalkPostOrder).
+		WithTraverseArrowTargets(nil). // nil schema!
+		Build()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot resolve nil schema")
+
+	// Test 2: Manually construct options with nil schema to test runtime validation
+	// (This simulates the old behavior where errors were deferred to walk time)
+	optsWithNilSchema := WalkOptions{
+		strategy:             WalkPostOrder,
+		traverseArrowTargets: true,
+		schema:               nil, // nil schema!
+		visitedTargets:       make(map[string]bool),
+	}
+
 	visitor := &arrowTraversalVisitor{}
-	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
-		NewWalkOptions().
-			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(nil), // nil schema!
-	)
+	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{}, optsWithNilSchema)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TraverseArrowTargets requires a schema for target resolution")
 	require.Contains(t, err.Error(), "parent->view")
@@ -468,7 +480,7 @@ func TestTraverseArrowTargets_RequiresResolvedSchema(t *testing.T) {
 	_, err = WalkSchemaWithOptions(schema, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(schema), // Unresolved schema!
+			WithTraverseArrowTargets(schema).MustBuild(), // Unresolved schema!
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TraverseArrowTargets requires a resolved schema")
@@ -514,7 +526,7 @@ func TestTraverseArrowTargets_IndividualPermissionWalk(t *testing.T) {
 	_, err = WalkPermissionWithOptions(viewPerm, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(resolved.Schema()),
+			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
 	)
 	require.NoError(t, err)
 
@@ -576,7 +588,7 @@ func TestTraverseArrowTargets_IndividualRelationWalk(t *testing.T) {
 	_, err = WalkRelationWithOptions(parentRel, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(resolved.Schema()),
+			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
 	)
 	require.NoError(t, err)
 
@@ -622,7 +634,7 @@ func TestTraverseArrowTargets_DirectOperationWalk(t *testing.T) {
 	_, err = WalkOperationWithOptions(viewPerm.Operation(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
-			WithTraverseArrowTargets(resolved.Schema()),
+			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
 	)
 	require.NoError(t, err)
 

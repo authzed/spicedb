@@ -1223,7 +1223,7 @@ func TestWalkSchema_PreOrderVsPostOrder(t *testing.T) {
 
 	// Test PostOrder traversal
 	postOrderVisitor := &orderTrackingVisitor{}
-	_, err = WalkSchemaWithOptions(schema, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder))
+	_, err = WalkSchemaWithOptions(schema, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
 	require.NoError(t, err)
 
 	// Verify orders are different
@@ -1251,7 +1251,7 @@ func TestWalkDefinition_PreOrderVsPostOrder(t *testing.T) {
 
 	// PostOrder
 	postOrderVisitor := &orderTrackingVisitor{}
-	_, err = WalkDefinitionWithOptions(def, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder))
+	_, err = WalkDefinitionWithOptions(def, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
 	require.NoError(t, err)
 
 	// In PreOrder, definition should be first
@@ -1287,7 +1287,7 @@ func TestWalkOperation_PreOrderVsPostOrder(t *testing.T) {
 
 	// PostOrder: should visit leaves first, then union, then intersection
 	postOrderVisitor := &orderTrackingVisitor{}
-	_, err = WalkOperationWithOptions(op, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder))
+	_, err = WalkOperationWithOptions(op, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
 	require.NoError(t, err)
 
 	// Expected PostOrder: a, b, union, c, intersection (like postfix notation)
@@ -1334,7 +1334,7 @@ func TestWalkSchema_PostOrderValueThreading(t *testing.T) {
 
 	// Test with PostOrder
 	postOrderVisitor := &valueThreadingVisitor{}
-	postOrderResult, err := WalkSchemaWithOptions(schema, postOrderVisitor, 0, NewWalkOptions().WithStrategy(WalkPostOrder))
+	postOrderResult, err := WalkSchemaWithOptions(schema, postOrderVisitor, 0, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
 	require.NoError(t, err)
 
 	// Both should have visited the same nodes
@@ -1387,7 +1387,7 @@ func TestWalkDefinition_ContinueFlagInPostOrder(t *testing.T) {
 	def := schema.definitions["document"]
 
 	visitor := &continueTestVisitor{stopAtFirstDef: true}
-	_, err := WalkDefinitionWithOptions(def, visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder))
+	_, err := WalkDefinitionWithOptions(def, visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
 	require.NoError(t, err)
 
 	// In PostOrder, children are visited before parent, so continue flag doesn't affect them
@@ -1415,7 +1415,7 @@ func TestWalkDefinition_ErrorPropagationInPostOrder(t *testing.T) {
 	def := schema.definitions["document"]
 
 	visitor := &errorInChildVisitor{}
-	_, err := WalkDefinitionWithOptions(def, visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder))
+	_, err := WalkDefinitionWithOptions(def, visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
 	require.Error(t, err)
 	require.Equal(t, errTestError, err)
 }
@@ -1431,7 +1431,7 @@ func TestWalkSchema_BackwardCompatibility(t *testing.T) {
 
 	// Explicit PreOrder
 	preOrderVisitor := &orderTrackingVisitor{}
-	_, err = WalkSchemaWithOptions(schema, preOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPreOrder))
+	_, err = WalkSchemaWithOptions(schema, preOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPreOrder).MustBuild())
 	require.NoError(t, err)
 
 	// Both should visit the same number of nodes
@@ -1443,7 +1443,7 @@ func TestWalkSchema_BackwardCompatibility(t *testing.T) {
 
 	// PostOrder should be different - schema should be last
 	postOrderVisitor := &orderTrackingVisitor{}
-	_, err = WalkSchemaWithOptions(schema, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder))
+	_, err = WalkSchemaWithOptions(schema, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
 	require.NoError(t, err)
 
 	require.Equal(t, "schema", postOrderVisitor.visitOrder[len(postOrderVisitor.visitOrder)-1])
@@ -1680,7 +1680,7 @@ func TestOperationParentPointersPostOrderTraversal(t *testing.T) {
 
 	// Walk in post-order and verify we can access parents
 	visitor := &testVisitor{}
-	_, err := WalkOperationWithOptions(perm.Operation(), visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder))
+	_, err := WalkOperationWithOptions(perm.Operation(), visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
 	require.NoError(t, err)
 
 	// Verify that operations were visited
