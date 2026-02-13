@@ -15,7 +15,7 @@ const (
 )
 
 // WalkOptions configures how the walk traversal is performed.
-// Use NewWalkOptions() to create an instance and chain With* methods to configure.
+// Use NewWalkOptions() to create a builder and call Build() to get WalkOptions.
 type WalkOptions struct {
 	// strategy determines the traversal order (pre-order or post-order).
 	strategy WalkStrategy
@@ -35,8 +35,21 @@ type WalkOptions struct {
 	visitedTargets map[string]bool
 }
 
-// NewWalkOptions creates a new WalkOptions with default settings (PreOrder strategy).
-func NewWalkOptions() WalkOptions {
+// WalkOptionsBuilder provides a fluent interface for building WalkOptions with error handling.
+type WalkOptionsBuilder struct {
+	options WalkOptions
+	err     error
+}
+
+// NewWalkOptions creates a new WalkOptionsBuilder with default settings.
+func NewWalkOptions() *WalkOptionsBuilder {
+	return &WalkOptionsBuilder{
+		options: defaultWalkOptions(),
+	}
+}
+
+// defaultWalkOptions creates a new WalkOptions with default settings.
+func defaultWalkOptions() WalkOptions {
 	return WalkOptions{
 		strategy:       WalkPreOrder,
 		visitedTargets: make(map[string]bool),
@@ -49,18 +62,19 @@ func (opts WalkOptions) WithStrategy(strategy WalkStrategy) WalkOptions {
 	return opts
 }
 
+// WithStrategy sets the traversal strategy (PreOrder or PostOrder).
+func (b *WalkOptionsBuilder) WithStrategy(strategy WalkStrategy) *WalkOptionsBuilder {
+	b.options.strategy = strategy
+	return b
+}
+
 // WithTraverseArrowTargets enables automatic traversal of arrow reference targets.
 //
 // Requirements:
 //   - PostOrder strategy (set via WithStrategy)
-//   - Resolved schema (call ResolveSchema() before walking) - a resolved schema has all
-//     ArrowReference nodes replaced with ResolvedArrowReference nodes that contain
-//     direct pointers to the actual target relations and permissions
 //   - Schema parameter for target lookup
 //
 // The schema parameter is the root schema used to resolve arrow targets.
-// It MUST be a resolved schema (from ResolveSchema()) - if the schema contains
-// unresolved ArrowReference nodes, the walk will fail with a clear error message.
 //
 // When enabled, arrow references (e.g., "parent->view") will automatically
 // traverse into their target permissions before visiting the arrow reference itself.
@@ -68,15 +82,40 @@ func (opts WalkOptions) WithStrategy(strategy WalkStrategy) WalkOptions {
 //
 // Example:
 //
-//	schema, _ := BuildSchemaFromCompiledSchema(compiled)
-//	resolved, _ := ResolveSchema(schema)  // Required!
-//	opts := NewWalkOptions().
+//	builder := NewWalkOptions().
 //	    WithStrategy(WalkPostOrder).
-//	    WithTraverseArrowTargets(resolved.Schema())
-func (opts WalkOptions) WithTraverseArrowTargets(schema *Schema) WalkOptions {
-	opts.traverseArrowTargets = true
-	opts.schema = schema
-	return opts
+//	    WithTraverseArrowTargets(schema)
+//	opts, err := builder.Build()
+//	if err != nil {
+//	    return err
+//	}
+func (b *WalkOptionsBuilder) WithTraverseArrowTargets(schema *Schema) *WalkOptionsBuilder {
+	if b.err != nil {
+		return b
+	}
+
+	b.options.traverseArrowTargets = true
+	resolved, err := ResolveSchema(schema)
+	if err != nil {
+		b.err = err
+		return b
+	}
+
+	b.options.schema = resolved.Schema()
+	return b
+}
+
+// Build returns the configured WalkOptions or an error if any configuration step failed.
+func (b *WalkOptionsBuilder) Build() (WalkOptions, error) {
+	return b.options, b.err
+}
+
+// MustBuild returns the configured WalkOptions or panics if any configuration step failed.
+func (b *WalkOptionsBuilder) MustBuild() WalkOptions {
+	if b.err != nil {
+		panic("invalid WalkOptions configuration: " + b.err.Error())
+	}
+	return b.options
 }
 
 // Visitor is the base interface that all specific visitor interfaces embed.
@@ -187,41 +226,41 @@ type ArrowOperationVisitor[T any] interface {
 // WalkSchema walks the entire schema tree, calling appropriate visitor methods
 // on the provided Visitor for each node encountered. Returns the final value and error if any visitor returns an error.
 func WalkSchema[T any](s *Schema, v Visitor[T], value T) (T, error) {
-	return walkSchemaWithOptions(s, v, value, NewWalkOptions())
+	return walkSchemaWithOptions(s, v, value, defaultWalkOptions())
 }
 
 // WalkDefinition walks a definition and its relations and permissions.
 // Returns the final value and error if any visitor returns an error.
 func WalkDefinition[T any](d *Definition, v Visitor[T], value T) (T, error) {
-	return walkDefinitionWithOptions(d, v, value, NewWalkOptions())
+	return walkDefinitionWithOptions(d, v, value, defaultWalkOptions())
 }
 
 // WalkCaveat walks a caveat. Returns the final value and error if any visitor returns an error.
 func WalkCaveat[T any](c *Caveat, v Visitor[T], value T) (T, error) {
-	return walkCaveatWithOptions(c, v, value, NewWalkOptions())
+	return walkCaveatWithOptions(c, v, value, defaultWalkOptions())
 }
 
 // WalkRelation walks a relation and its base relations.
 // Returns the final value and error if any visitor returns an error.
 func WalkRelation[T any](r *Relation, v Visitor[T], value T) (T, error) {
-	return walkRelationWithOptions(r, v, value, NewWalkOptions())
+	return walkRelationWithOptions(r, v, value, defaultWalkOptions())
 }
 
 // WalkBaseRelation walks a base relation. Returns the final value and error if any visitor returns an error.
 func WalkBaseRelation[T any](br *BaseRelation, v Visitor[T], value T) (T, error) {
-	return walkBaseRelationWithOptions(br, v, value, NewWalkOptions())
+	return walkBaseRelationWithOptions(br, v, value, defaultWalkOptions())
 }
 
 // WalkPermission walks a permission and its operation tree.
 // Returns the final value and error if any visitor returns an error.
 func WalkPermission[T any](p *Permission, v Visitor[T], value T) (T, error) {
-	return walkPermissionWithOptions(p, v, value, NewWalkOptions())
+	return walkPermissionWithOptions(p, v, value, defaultWalkOptions())
 }
 
 // WalkOperation walks an operation tree recursively.
 // Returns the final value and error if any visitor returns an error.
 func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
-	return walkOperationWithOptions(op, v, value, NewWalkOptions())
+	return walkOperationWithOptions(op, v, value, defaultWalkOptions())
 }
 
 // walkSchemaWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
