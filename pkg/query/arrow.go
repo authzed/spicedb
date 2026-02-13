@@ -31,6 +31,7 @@ type ArrowIterator struct {
 	right         Iterator
 	direction     arrowDirection // execution direction
 	isSchemaArrow bool           // true for schema arrows (relation->permission), false for subrelation arrows
+	canonicalKey  CanonicalKey
 }
 
 var _ Iterator = &ArrowIterator{}

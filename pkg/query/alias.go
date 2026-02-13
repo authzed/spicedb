@@ -10,9 +10,10 @@ import (
 // AliasIterator is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type AliasIterator struct {
-	id       string
-	relation string
-	subIt    Iterator
+	id           string
+	relation     string
+	subIt        Iterator
+	canonicalKey CanonicalKey
 }
 
 var _ Iterator = &AliasIterator{}

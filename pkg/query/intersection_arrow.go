@@ -14,9 +14,10 @@ import (
 //
 // Ex: `group.all(member)` - user must be member of ALL groups
 type IntersectionArrowIterator struct {
-	id    string
-	left  Iterator
-	right Iterator
+	id           string
+	left         Iterator
+	right        Iterator
+	canonicalKey CanonicalKey
 }
 
 var _ Iterator = &IntersectionArrowIterator{}

@@ -34,6 +34,7 @@ type RecursiveIterator struct {
 	definitionName string                 // The schema definition this iterator is recursing on
 	relationName   string                 // The relation name this iterator is recursing on
 	checkStrategy  recursiveCheckStrategy // strategy for Check operations
+	canonicalKey   CanonicalKey
 }
 
 // NewRecursiveIterator creates a new recursive iterator controller
