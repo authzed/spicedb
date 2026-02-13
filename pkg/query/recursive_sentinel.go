@@ -18,6 +18,7 @@ type RecursiveSentinelIterator struct {
 	definitionName   string
 	relationName     string
 	withSubRelations bool
+	canonicalKey     CanonicalKey
 }
 
 // NewRecursiveSentinelIterator creates a new sentinel marking a recursion point
