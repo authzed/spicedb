@@ -9,6 +9,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // IteratorType is an enum to represent each basic type of iterator by a
@@ -72,6 +73,11 @@ type IteratorArgs struct {
 
 // Compile converts a query Outline into the actual Iterator representation.
 func (c Outline) Compile() (Iterator, error) {
+	// Check if CanonicalKey is populated (should be set by canonicalization)
+	if c.CanonicalKey.IsEmpty() {
+		return nil, spiceerrors.MustBugf("Outline CanonicalKey is empty - outline must be canonicalized before compilation")
+	}
+
 	// First, recursively compile all subiterators (bottom-up)
 	compiledSubs := make([]Iterator, len(c.Subiterators))
 	for i, sub := range c.Subiterators {
@@ -82,41 +88,57 @@ func (c Outline) Compile() (Iterator, error) {
 		compiledSubs[i] = compiled
 	}
 
-	// Now construct the iterator based on type
+	// Now construct the iterator based on type and set canonical key
 	switch c.Type {
 	case NullIteratorType:
-		return NewFixedIterator(), nil
+		it := NewFixedIterator()
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case DatastoreIteratorType:
 		if c.Args == nil || c.Args.Relation == nil {
 			return nil, errors.New("DatastoreIterator requires Relation in Args")
 		}
-		return NewDatastoreIterator(c.Args.Relation), nil
+		it := NewDatastoreIterator(c.Args.Relation)
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case UnionIteratorType:
-		return NewUnionIterator(compiledSubs...), nil
+		it := NewUnionIterator(compiledSubs...)
+		it.(*UnionIterator).canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case IntersectionIteratorType:
-		return NewIntersectionIterator(compiledSubs...), nil
+		it := NewIntersectionIterator(compiledSubs...)
+		it.(*IntersectionIterator).canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case FixedIteratorType:
 		// FixedIterator with no paths (would need additional args for paths)
+		var it *FixedIterator
 		if c.Args != nil {
-			return NewFixedIterator(c.Args.FixedPaths...), nil
+			it = NewFixedIterator(c.Args.FixedPaths...)
+		} else {
+			it = NewFixedIterator()
 		}
-		return NewFixedIterator(), nil
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case ArrowIteratorType:
 		if len(compiledSubs) != 2 {
 			return nil, fmt.Errorf("ArrowIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
-		return NewArrowIterator(compiledSubs[0], compiledSubs[1]), nil
+		it := NewArrowIterator(compiledSubs[0], compiledSubs[1])
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case ExclusionIteratorType:
 		if len(compiledSubs) != 2 {
 			return nil, fmt.Errorf("ExclusionIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
-		return NewExclusionIterator(compiledSubs[0], compiledSubs[1]), nil
+		it := NewExclusionIterator(compiledSubs[0], compiledSubs[1])
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case CaveatIteratorType:
 		if len(compiledSubs) != 1 {
@@ -125,7 +147,9 @@ func (c Outline) Compile() (Iterator, error) {
 		if c.Args == nil || c.Args.Caveat == nil {
 			return nil, errors.New("CaveatIterator requires Caveat in Args")
 		}
-		return NewCaveatIterator(compiledSubs[0], c.Args.Caveat), nil
+		it := NewCaveatIterator(compiledSubs[0], c.Args.Caveat)
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case AliasIteratorType:
 		if len(compiledSubs) != 1 {
@@ -134,7 +158,9 @@ func (c Outline) Compile() (Iterator, error) {
 		if c.Args == nil || c.Args.RelationName == "" {
 			return nil, errors.New("AliasIterator requires RelationName in Args")
 		}
-		return NewAliasIterator(c.Args.RelationName, compiledSubs[0]), nil
+		it := NewAliasIterator(c.Args.RelationName, compiledSubs[0])
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case RecursiveIteratorType:
 		if len(compiledSubs) != 1 {
@@ -143,26 +169,34 @@ func (c Outline) Compile() (Iterator, error) {
 		if c.Args == nil || c.Args.DefinitionName == "" || c.Args.RelationName == "" {
 			return nil, errors.New("RecursiveIterator requires DefinitionName and RelationName in Args")
 		}
-		return NewRecursiveIterator(compiledSubs[0], c.Args.DefinitionName, c.Args.RelationName), nil
+		it := NewRecursiveIterator(compiledSubs[0], c.Args.DefinitionName, c.Args.RelationName)
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case RecursiveSentinelIteratorType:
 		if c.Args == nil || c.Args.DefinitionName == "" || c.Args.RelationName == "" {
 			return nil, errors.New("RecursiveSentinelIterator requires DefinitionName and RelationName in Args")
 		}
 		// withSubRelations defaults to false for now
-		return NewRecursiveSentinelIterator(c.Args.DefinitionName, c.Args.RelationName, false), nil
+		it := NewRecursiveSentinelIterator(c.Args.DefinitionName, c.Args.RelationName, false)
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case IntersectionArrowIteratorType:
 		if len(compiledSubs) != 2 {
 			return nil, fmt.Errorf("IntersectionArrowIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
-		return NewIntersectionArrowIterator(compiledSubs[0], compiledSubs[1]), nil
+		it := NewIntersectionArrowIterator(compiledSubs[0], compiledSubs[1])
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	case SelfIteratorType:
 		if c.Args == nil || c.Args.RelationName == "" || c.Args.DefinitionName == "" {
 			return nil, errors.New("SelfIterator requires RelationName and DefinitionName in Args")
 		}
-		return NewSelfIterator(c.Args.RelationName, c.Args.DefinitionName), nil
+		it := NewSelfIterator(c.Args.RelationName, c.Args.DefinitionName)
+		it.canonicalKey = c.CanonicalKey
+		return it, nil
 
 	default:
 		return nil, fmt.Errorf("unknown iterator type: %c", c.Type)

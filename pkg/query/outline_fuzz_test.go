@@ -225,8 +225,15 @@ func FuzzOutlineCompileDecompile(f *testing.F) {
 		gen := newOutlineGenerator(data)
 		original := gen.Generate()
 
+		// Canonicalize first (required before compilation)
+		canonical, err := CanonicalizeOutline(original)
+		if err != nil {
+			// Some randomly generated outlines might be invalid
+			t.Skip()
+		}
+
 		// Try to compile it
-		compiled, err := original.Compile()
+		compiled, err := canonical.Compile()
 		if err != nil {
 			// Some randomly generated outlines might be invalid
 			// (e.g., wrong number of subiterators after generation)
@@ -240,9 +247,9 @@ func FuzzOutlineCompileDecompile(f *testing.F) {
 			t.Fatalf("Decompile failed: %v", err)
 		}
 
-		// Check that they're equal
-		if !original.Equals(roundtrip) {
-			t.Errorf("Roundtrip failed:\nOriginal:  %+v\nRoundtrip: %+v", original, roundtrip)
+		// Check that they're equal to canonical form
+		if !canonical.Equals(roundtrip) {
+			t.Errorf("Roundtrip failed:\nCanonical: %+v\nRoundtrip: %+v", canonical, roundtrip)
 		}
 	})
 }
@@ -379,8 +386,15 @@ func TestOutlineGeneratorBasic(t *testing.T) {
 		gen := newOutlineGenerator(data)
 		outline := gen.Generate()
 
+		// Canonicalize first (required before compilation)
+		canonical, err := CanonicalizeOutline(outline)
+		if err != nil {
+			// Some outlines might be invalid, which is okay
+			continue
+		}
+
 		// Try to compile - should not panic
-		it, err := outline.Compile()
+		it, err := canonical.Compile()
 		if err != nil {
 			// Some outlines might be invalid, which is okay
 			continue
@@ -390,8 +404,8 @@ func TestOutlineGeneratorBasic(t *testing.T) {
 		roundtrip, err := Decompile(it)
 		require.NoError(err)
 
-		// And they should be equal
-		require.True(outline.Equals(roundtrip), "Outline %d failed roundtrip", i)
+		// And they should be equal to canonical form
+		require.True(canonical.Equals(roundtrip), "Outline %d failed roundtrip", i)
 	}
 }
 

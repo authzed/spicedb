@@ -11,8 +11,9 @@ import (
 // Resource in the subiterator that connects it to
 // streamed from the sub-iterator to a specified alias relation.
 type SelfIterator struct {
-	id       string
-	relation string
+	id           string
+	relation     string
+	canonicalKey CanonicalKey
 	// typeName is the name of the type associated with the self definition.
 	// It's used to generate the ObjectType for ResourceType() and SubjectTypes().
 	typeName string

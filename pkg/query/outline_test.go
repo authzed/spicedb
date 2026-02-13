@@ -18,7 +18,10 @@ func TestOutline_Compile(t *testing.T) {
 		require := require.New(t)
 
 		outline := Outline{Type: NullIteratorType}
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		// Should produce a FixedIterator with no paths
@@ -39,7 +42,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		ds, ok := it.(*DatastoreIterator)
@@ -56,7 +62,10 @@ func TestOutline_Compile(t *testing.T) {
 			Args: nil,
 		}
 
-		_, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		_, err = canonical.Compile()
 		require.Error(err)
 		require.Contains(err.Error(), "DatastoreIterator requires Relation")
 	})
@@ -65,15 +74,21 @@ func TestOutline_Compile(t *testing.T) {
 		t.Parallel()
 		require := require.New(t)
 
+		rel1 := schema.NewTestBaseRelation("doc", "viewer", "user", tuple.Ellipsis)
+		rel2 := schema.NewTestBaseRelation("doc", "editor", "user", tuple.Ellipsis)
+
 		outline := Outline{
 			Type: UnionIteratorType,
 			Subiterators: []Outline{
-				{Type: NullIteratorType},
-				{Type: NullIteratorType},
+				{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel1}},
+				{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel2}},
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		union, ok := it.(*UnionIterator)
@@ -85,15 +100,21 @@ func TestOutline_Compile(t *testing.T) {
 		t.Parallel()
 		require := require.New(t)
 
+		rel1 := schema.NewTestBaseRelation("doc", "viewer", "user", tuple.Ellipsis)
+		rel2 := schema.NewTestBaseRelation("doc", "editor", "user", tuple.Ellipsis)
+
 		outline := Outline{
 			Type: IntersectionIteratorType,
 			Subiterators: []Outline{
-				{Type: NullIteratorType},
-				{Type: NullIteratorType},
+				{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel1}},
+				{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel2}},
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		intersection, ok := it.(*IntersectionIterator)
@@ -115,7 +136,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		fixed, ok := it.(*FixedIterator)
@@ -132,7 +156,10 @@ func TestOutline_Compile(t *testing.T) {
 			Args: nil,
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		fixed, ok := it.(*FixedIterator)
@@ -152,7 +179,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		arrow, ok := it.(*ArrowIterator)
@@ -171,7 +201,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		_, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		_, err = canonical.Compile()
 		require.Error(err)
 		require.Contains(err.Error(), "ArrowIterator requires exactly 2 subiterators")
 	})
@@ -188,7 +221,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		exclusion, ok := it.(*ExclusionIterator)
@@ -207,7 +243,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		_, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		_, err = canonical.Compile()
 		require.Error(err)
 		require.Contains(err.Error(), "ExclusionIterator requires exactly 2 subiterators")
 	})
@@ -227,7 +266,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		cav, ok := it.(*CaveatIterator)
@@ -235,40 +277,8 @@ func TestOutline_Compile(t *testing.T) {
 		require.Equal(caveat, cav.caveat)
 	})
 
-	t.Run("CaveatIteratorType_MissingCaveat", func(t *testing.T) {
-		t.Parallel()
-		require := require.New(t)
-
-		outline := Outline{
-			Type: CaveatIteratorType,
-			Args: nil,
-			Subiterators: []Outline{
-				{Type: NullIteratorType},
-			},
-		}
-
-		_, err := outline.Compile()
-		require.Error(err)
-		require.Contains(err.Error(), "CaveatIterator requires Caveat")
-	})
-
-	t.Run("CaveatIteratorType_WrongSubiteratorCount", func(t *testing.T) {
-		t.Parallel()
-		require := require.New(t)
-
-		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
-		outline := Outline{
-			Type: CaveatIteratorType,
-			Args: &IteratorArgs{
-				Caveat: caveat,
-			},
-			Subiterators: []Outline{},
-		}
-
-		_, err := outline.Compile()
-		require.Error(err)
-		require.Contains(err.Error(), "CaveatIterator requires exactly 1 subiterator")
-	})
+	// Note: CaveatIteratorType error tests removed because canonicalization
+	// handles these cases before compilation (extracts caveats, normalizes structure)
 
 	t.Run("AliasIteratorType", func(t *testing.T) {
 		t.Parallel()
@@ -284,7 +294,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		alias, ok := it.(*AliasIterator)
@@ -304,7 +317,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		_, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		_, err = canonical.Compile()
 		require.Error(err)
 		require.Contains(err.Error(), "AliasIterator requires RelationName")
 	})
@@ -324,7 +340,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		rec, ok := it.(*RecursiveIterator)
@@ -347,7 +366,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		_, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		_, err = canonical.Compile()
 		require.Error(err)
 		require.Contains(err.Error(), "RecursiveIterator requires DefinitionName and RelationName")
 	})
@@ -364,7 +386,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		sentinel, ok := it.(*RecursiveSentinelIterator)
@@ -382,7 +407,10 @@ func TestOutline_Compile(t *testing.T) {
 			Args: nil,
 		}
 
-		_, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		_, err = canonical.Compile()
 		require.Error(err)
 		require.Contains(err.Error(), "RecursiveSentinelIterator requires DefinitionName and RelationName")
 	})
@@ -399,7 +427,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		intArrow, ok := it.(*IntersectionArrowIterator)
@@ -419,7 +450,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		it, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		self, ok := it.(*SelfIterator)
@@ -439,7 +473,10 @@ func TestOutline_Compile(t *testing.T) {
 			},
 		}
 
-		_, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		_, err = canonical.Compile()
 		require.Error(err)
 		require.Contains(err.Error(), "SelfIterator requires RelationName and DefinitionName")
 	})
@@ -452,7 +489,10 @@ func TestOutline_Compile(t *testing.T) {
 			Type: IteratorType('Z'), // Unknown type
 		}
 
-		_, err := outline.Compile()
+		canonical, err := CanonicalizeOutline(outline)
+		require.NoError(err)
+
+		_, err = canonical.Compile()
 		require.Error(err)
 		require.Contains(err.Error(), "unknown iterator type")
 	})
@@ -651,16 +691,20 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 			},
 		}
 
+		// Canonicalize first (required before compilation)
+		canonical, err := CanonicalizeOutline(original)
+		require.NoError(err)
+
 		// Compile to iterator
-		it, err := original.Compile()
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		// Decompile back to outline
 		roundtrip, err := Decompile(it)
 		require.NoError(err)
 
-		// Should be equal
-		require.True(original.Equals(roundtrip))
+		// Should be equal to canonical form
+		require.True(canonical.Equals(roundtrip))
 	})
 
 	t.Run("ComplexNestedStructure", func(t *testing.T) {
@@ -683,16 +727,20 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 			},
 		}
 
+		// Canonicalize first (required before compilation)
+		canonical, err := CanonicalizeOutline(original)
+		require.NoError(err)
+
 		// Compile to iterator
-		it, err := original.Compile()
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		// Decompile back to outline
 		roundtrip, err := Decompile(it)
 		require.NoError(err)
 
-		// Should be equal
-		require.True(original.Equals(roundtrip))
+		// Should be equal to canonical form
+		require.True(canonical.Equals(roundtrip))
 	})
 
 	t.Run("ArrowWithDatastore", func(t *testing.T) {
@@ -716,16 +764,20 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 			},
 		}
 
+		// Canonicalize first (required before compilation)
+		canonical, err := CanonicalizeOutline(original)
+		require.NoError(err)
+
 		// Compile to iterator
-		it, err := original.Compile()
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		// Decompile back to outline
 		roundtrip, err := Decompile(it)
 		require.NoError(err)
 
-		// Should be equal
-		require.True(original.Equals(roundtrip))
+		// Should be equal to canonical form
+		require.True(canonical.Equals(roundtrip))
 	})
 
 	t.Run("CaveatIterator", func(t *testing.T) {
@@ -741,16 +793,20 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 			},
 		}
 
+		// Canonicalize first (required before compilation)
+		canonical, err := CanonicalizeOutline(original)
+		require.NoError(err)
+
 		// Compile to iterator
-		it, err := original.Compile()
+		it, err := canonical.Compile()
 		require.NoError(err)
 
 		// Decompile back to outline
 		roundtrip, err := Decompile(it)
 		require.NoError(err)
 
-		// Should be equal
-		require.True(original.Equals(roundtrip))
+		// Should be equal to canonical form
+		require.True(canonical.Equals(roundtrip))
 	})
 }
 

@@ -9,9 +9,10 @@ import (
 // ExclusionIterator represents the set of relations that are in the mainSet but not in the excluded set.
 // This is equivalent to `permission foo = bar - baz`
 type ExclusionIterator struct {
-	id       string
-	mainSet  Iterator
-	excluded Iterator
+	id           string
+	mainSet      Iterator
+	excluded     Iterator
+	canonicalKey CanonicalKey
 }
 
 var _ Iterator = &ExclusionIterator{}

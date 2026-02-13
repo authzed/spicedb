@@ -32,6 +32,7 @@ type FixedIterator struct {
 	paths        []Path
 	resourceType ObjectType
 	subjectTypes []ObjectType
+	canonicalKey CanonicalKey
 }
 
 var _ Iterator = &FixedIterator{}

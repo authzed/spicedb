@@ -13,9 +13,10 @@ import (
 // It checks caveat conditions on relationships during iteration and only yields
 // relationships that satisfy the caveat constraints.
 type CaveatIterator struct {
-	id          string
-	subiterator Iterator
-	caveat      *core.ContextualizedCaveat
+	id           string
+	subiterator  Iterator
+	caveat       *core.ContextualizedCaveat
+	canonicalKey CanonicalKey
 }
 
 var _ Iterator = &CaveatIterator{}
