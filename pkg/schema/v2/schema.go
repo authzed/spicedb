@@ -495,6 +495,83 @@ func (b *BaseRelation) cloneWithParent(parentRelation *Relation) *BaseRelation {
 	}
 }
 
+// Compare compares two BaseRelations, returning -1 if b < other, 0 if b == other, 1 if b > other.
+// Comparison is done lexicographically by: definition name, relation name, type, subrelation, caveat, expiration.
+func (b *BaseRelation) Compare(other *BaseRelation) int {
+	if b == nil && other == nil {
+		return 0
+	}
+	if b == nil {
+		return -1
+	}
+	if other == nil {
+		return 1
+	}
+
+	// Compare by definition name first
+	if b.DefinitionName() != other.DefinitionName() {
+		if b.DefinitionName() < other.DefinitionName() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then relation name
+	if b.RelationName() != other.RelationName() {
+		if b.RelationName() < other.RelationName() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then type
+	if b.Type() != other.Type() {
+		if b.Type() < other.Type() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then subrelation
+	if b.Subrelation() != other.Subrelation() {
+		if b.Subrelation() < other.Subrelation() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then caveat
+	if b.Caveat() != other.Caveat() {
+		if b.Caveat() < other.Caveat() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then wildcard
+	if b.Wildcard() != other.Wildcard() {
+		if b.Wildcard() {
+			return 1
+		}
+		return -1
+	}
+
+	// Finally expiration
+	if b.Expiration() != other.Expiration() {
+		if b.Expiration() {
+			return 1
+		}
+		return -1
+	}
+
+	return 0
+}
+
+// Equal checks if two BaseRelations are equal.
+func (b *BaseRelation) Equal(other *BaseRelation) bool {
+	return b.Compare(other) == 0
+}
+
 var _ schemaUnitWithParent[*BaseRelation, *Relation] = &BaseRelation{}
 
 // BuildSchemaFromCompiledSchema generates a Schema view from a CompiledSchema.

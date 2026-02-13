@@ -262,3 +262,147 @@ func Decompile(it Iterator) (Outline, error) {
 		return Outline{}, fmt.Errorf("unknown iterator type: %T", it)
 	}
 }
+
+// Equals checks if two Outlines are structurally equal
+func (c Outline) Equals(other Outline) bool {
+	return OutlineCompare(c, other) == 0
+}
+
+// OutlineCompare defines a total ordering on Outline for canonicalization.
+// Returns -1 if a < b, 0 if a == b, 1 if a > b.
+// Compatible with slices.SortFunc.
+func OutlineCompare(a, b Outline) int {
+	// First compare by type
+	if a.Type != b.Type {
+		if a.Type < b.Type {
+			return -1
+		}
+		return 1
+	}
+
+	// Then compare by args
+	argsCmp := argsCompare(a.Args, b.Args)
+	if argsCmp != 0 {
+		return argsCmp
+	}
+
+	// Then compare by number of subiterators
+	if len(a.Subiterators) != len(b.Subiterators) {
+		if len(a.Subiterators) < len(b.Subiterators) {
+			return -1
+		}
+		return 1
+	}
+
+	// Finally, lexicographic comparison of subiterators
+	for i := range a.Subiterators {
+		if !a.Subiterators[i].Equals(b.Subiterators[i]) {
+			return OutlineCompare(a.Subiterators[i], b.Subiterators[i])
+		}
+	}
+
+	return 0 // Equal
+}
+
+// argsCompare returns -1 if a < b, 0 if a == b, 1 if a > b
+func argsCompare(a, b *IteratorArgs) int {
+	if a == nil && b == nil {
+		return 0
+	}
+	if a == nil {
+		return -1
+	}
+	if b == nil {
+		return 1
+	}
+
+	// Compare DefinitionName
+	if a.DefinitionName != b.DefinitionName {
+		if a.DefinitionName < b.DefinitionName {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare RelationName
+	if a.RelationName != b.RelationName {
+		if a.RelationName < b.RelationName {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare Relation (BaseRelation)
+	if a.Relation != nil && b.Relation != nil {
+		if cmp := a.Relation.Compare(b.Relation); cmp != 0 {
+			return cmp
+		}
+	} else if a.Relation != nil {
+		return 1
+	} else if b.Relation != nil {
+		return -1
+	}
+
+	// Compare Caveat
+	if cmp := caveatCompare(a.Caveat, b.Caveat); cmp != 0 {
+		return cmp
+	}
+
+	// Compare FixedPaths length
+	if len(a.FixedPaths) != len(b.FixedPaths) {
+		if len(a.FixedPaths) < len(b.FixedPaths) {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare FixedPaths lexicographically
+	for i := range a.FixedPaths {
+		if cmp := PathOrder(a.FixedPaths[i], b.FixedPaths[i]); cmp != 0 {
+			return cmp
+		}
+	}
+
+	return 0
+}
+
+// caveatCompare compares two caveats, returns -1, 0, or 1
+// For ordering purposes, we compare by name first, then use EqualVT for tie-breaking
+func caveatCompare(a, b *core.ContextualizedCaveat) int {
+	if a == nil && b == nil {
+		return 0
+	}
+	if a == nil {
+		return -1
+	}
+	if b == nil {
+		return 1
+	}
+
+	// First compare by caveat name for a stable ordering
+	if a.CaveatName != b.CaveatName {
+		if a.CaveatName < b.CaveatName {
+			return -1
+		}
+		return 1
+	}
+
+	// If names are equal, use EqualVT to check if they're truly equal
+	// If not equal, we need some deterministic ordering for the context
+	if a.EqualVT(b) {
+		return 0
+	}
+
+	// For different contexts with same name, compare context string representation
+	// This ensures a stable (though arbitrary) ordering
+	aCtx := a.Context.String()
+	bCtx := b.Context.String()
+	if aCtx != bCtx {
+		if aCtx < bCtx {
+			return -1
+		}
+		return 1
+	}
+
+	return 0
+}
