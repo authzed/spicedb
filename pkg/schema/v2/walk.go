@@ -27,16 +27,19 @@ type WalkOptions struct {
 	// schema is the root schema, used for resolving arrow targets when traverseArrowTargets is enabled.
 	schema *Schema
 
-	// visitedArrowTargets tracks which permissions have been visited during arrow traversal
-	// to prevent infinite recursion in cyclic schemas. Internal use only.
-	visitedArrowTargets map[string]bool
+	// visitedTargets tracks which relations/permissions have been visited during traversal
+	// to prevent infinite recursion in cyclic schemas. Used for both arrow traversal and
+	// resolved relation reference traversal in PostOrder mode. Internal use only.
+	// Note that entities already traversed will not be traversed again when it happens through a non-recursive path
+	// (Example two different arrows in different permissions pointing at the same target relation)
+	visitedTargets map[string]bool
 }
 
 // NewWalkOptions creates a new WalkOptions with default settings (PreOrder strategy).
 func NewWalkOptions() WalkOptions {
 	return WalkOptions{
-		strategy:            WalkPreOrder,
-		visitedArrowTargets: make(map[string]bool),
+		strategy:       WalkPreOrder,
+		visitedTargets: make(map[string]bool),
 	}
 }
 
@@ -582,20 +585,40 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 		}
 
 	case *ResolvedRelationReference:
-		// walk resolved relation first
-		switch resolved := o.Resolved().(type) {
-		case *Relation:
-			newValue, err := walkRelationWithOptions(resolved, v, currentValue, options)
-			if err != nil {
-				return currentValue, err
+		// Walk resolved relation/permission first, with cycle detection
+		// Create a unique key for the resolved target to track visits
+		var targetKey string
+		if resolved := o.Resolved(); resolved != nil {
+			switch r := resolved.(type) {
+			case *Relation:
+				if r.parent != nil {
+					targetKey = r.parent.Name() + "#" + r.Name()
+				}
+			case *Permission:
+				if r.parent != nil {
+					targetKey = r.parent.Name() + "#" + r.Name()
+				}
 			}
-			currentValue = newValue
-		case *Permission:
-			newValue, err := walkPermissionWithOptions(resolved, v, currentValue, options)
-			if err != nil {
-				return currentValue, err
+		}
+
+		// Only walk into the resolved target if we haven't visited it yet
+		if targetKey != "" && !options.visitedTargets[targetKey] {
+			options.visitedTargets[targetKey] = true
+
+			switch resolved := o.Resolved().(type) {
+			case *Relation:
+				newValue, err := walkRelationWithOptions(resolved, v, currentValue, options)
+				if err != nil {
+					return currentValue, err
+				}
+				currentValue = newValue
+			case *Permission:
+				newValue, err := walkPermissionWithOptions(resolved, v, currentValue, options)
+				if err != nil {
+					return currentValue, err
+				}
+				currentValue = newValue
 			}
-			currentValue = newValue
 		}
 
 		if rrrv, ok := v.(ResolvedRelationReferenceVisitor[T]); ok {
@@ -626,10 +649,10 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 					targetKey := targetDefName + "#" + targetPermName
 
 					// Skip if already visited to prevent infinite recursion
-					if options.visitedArrowTargets[targetKey] {
+					if options.visitedTargets[targetKey] {
 						continue
 					}
-					options.visitedArrowTargets[targetKey] = true
+					options.visitedTargets[targetKey] = true
 
 					// Find the target definition in the schema
 					if targetDef, ok := options.schema.GetTypeDefinition(targetDefName); ok {
@@ -689,10 +712,10 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 					targetKey := targetDefName + "#" + targetPermName
 
 					// Skip if already visited to prevent infinite recursion
-					if options.visitedArrowTargets[targetKey] {
+					if options.visitedTargets[targetKey] {
 						continue
 					}
-					options.visitedArrowTargets[targetKey] = true
+					options.visitedTargets[targetKey] = true
 
 					// Find the target definition in the schema
 					if targetDef, ok := options.schema.GetTypeDefinition(targetDefName); ok {

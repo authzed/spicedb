@@ -335,7 +335,7 @@ func TestNewWalkOptions_Defaults(t *testing.T) {
 	require.Equal(t, WalkPreOrder, opts.strategy)
 	require.False(t, opts.traverseArrowTargets)
 	require.Nil(t, opts.schema)
-	require.NotNil(t, t, opts.visitedArrowTargets)
+	require.NotNil(t, t, opts.visitedTargets)
 }
 
 func TestWalkOptions_FluentAPI(t *testing.T) {
@@ -510,7 +510,7 @@ func TestTraverseArrowTargets_IndividualPermissionWalk(t *testing.T) {
 	visitor := &arrowTraversalVisitor{}
 
 	// Walk ONLY the document#view permission (not the entire schema) with TraverseArrowTargets
-	// This tests that visitedArrowTargets map is properly initialized in WalkPermissionWithOptions
+	// This tests that visitedTargets map is properly initialized in WalkPermissionWithOptions
 	_, err = WalkPermissionWithOptions(viewPerm, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
@@ -572,7 +572,7 @@ func TestTraverseArrowTargets_IndividualRelationWalk(t *testing.T) {
 	visitor := &arrowTraversalVisitor{}
 
 	// Walk ONLY the document#parent relation with TraverseArrowTargets
-	// This tests that visitedArrowTargets map is properly initialized in WalkRelationWithOptions
+	// This tests that visitedTargets map is properly initialized in WalkRelationWithOptions
 	_, err = WalkRelationWithOptions(parentRel, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
@@ -618,7 +618,7 @@ func TestTraverseArrowTargets_DirectOperationWalk(t *testing.T) {
 	visitor := &arrowTraversalVisitor{}
 
 	// Walk ONLY the operation directly (not the permission wrapper) with TraverseArrowTargets
-	// This tests that visitedArrowTargets map is properly initialized in WalkOperationWithOptions
+	// This tests that visitedTargets map is properly initialized in WalkOperationWithOptions
 	_, err = WalkOperationWithOptions(viewPerm.Operation(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
