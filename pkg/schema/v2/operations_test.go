@@ -225,7 +225,7 @@ func TestBuilderSetsParentsCorrectly(t *testing.T) {
 	}
 
 	// Use setParent to set the parent
-	setParent(selfRef, testPerm)
+	selfRef.setParent(testPerm)
 	require.NotNil(t, selfRef.Parent(), "SelfReference should have a parent after setParent")
 	require.Equal(t, testPerm, selfRef.Parent(), "SelfReference parent should be the test permission")
 
@@ -248,7 +248,7 @@ func TestBuilderSetsParentsCorrectly(t *testing.T) {
 	}
 
 	// Use setParent to set the parent
-	setParent(nilRef, testPerm2)
+	nilRef.setParent(testPerm2)
 	require.NotNil(t, nilRef.Parent(), "NilReference should have a parent after setParent")
 	require.Equal(t, testPerm2, nilRef.Parent(), "NilReference parent should be the test permission")
 

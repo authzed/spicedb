@@ -424,8 +424,8 @@ func (pb *PermissionBuilder) Exclusion(base, excluded Operation) *PermissionBuil
 		right: excluded,
 	}
 	pb.permission.operation = exclusion
-	setParent(base, exclusion)
-	setParent(excluded, exclusion)
+	base.setParent(exclusion)
+	excluded.setParent(exclusion)
 	return pb
 }
 
@@ -440,7 +440,7 @@ func (pb *PermissionBuilder) ExclusionExpr() *ExclusionExprBuilder {
 func (pb *PermissionBuilder) Done() *DefinitionBuilder {
 	// Set the root operation's parent to the permission
 	if pb.permission.operation != nil {
-		setParent(pb.permission.operation, pb.permission)
+		pb.permission.operation.setParent(pb.permission)
 	}
 	return pb.definitionBuilder
 }
@@ -603,8 +603,8 @@ func (eb *ExclusionExprBuilder) Done() *PermissionBuilder {
 		right: eb.excluded,
 	}
 	eb.permissionBuilder.permission.operation = exclusion
-	setParent(eb.base, exclusion)
-	setParent(eb.excluded, exclusion)
+	eb.base.setParent(exclusion)
+	eb.excluded.setParent(exclusion)
 	return eb.permissionBuilder
 }
 
@@ -615,8 +615,8 @@ func (eb *ExclusionExprBuilder) Build() Operation {
 		left:  eb.base,
 		right: eb.excluded,
 	}
-	setParent(eb.base, exclusion)
-	setParent(eb.excluded, exclusion)
+	eb.base.setParent(exclusion)
+	eb.excluded.setParent(exclusion)
 	return exclusion
 }
 
@@ -708,8 +708,8 @@ func Exclusion(base, excluded Operation) Operation {
 		left:  base,
 		right: excluded,
 	}
-	setParent(base, exclusion)
-	setParent(excluded, exclusion)
+	base.setParent(exclusion)
+	excluded.setParent(exclusion)
 	return exclusion
 }
 
@@ -748,7 +748,7 @@ func NewPermission(name string, operation Operation) *PermissionBuilder {
 		operation: operation,
 		synthetic: false,
 	}
-	setParent(operation, perm)
+	operation.setParent(perm)
 	return &PermissionBuilder{
 		permission: perm,
 	}

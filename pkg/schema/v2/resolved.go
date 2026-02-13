@@ -44,11 +44,9 @@ func ResolveSchema(s *Schema) (*ResolvedSchema, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve permission %s in definition %s: %w", perm.name, def.name, err)
 			}
+
 			perm.operation = resolvedOp
-			// Set the resolved operation's parent to the permission
-			if resolvedOp != nil {
-				setParent(resolvedOp, perm)
-			}
+			resolvedOp.setParent(perm)
 		}
 	}
 
@@ -151,8 +149,8 @@ func resolveOperation(op Operation, def *Definition) (Operation, error) {
 			right:  rightResolved,
 		}
 		// Set children's parent to the new exclusion
-		setParent(leftResolved, newExclusion)
-		setParent(rightResolved, newExclusion)
+		leftResolved.setParent(newExclusion)
+		rightResolved.setParent(newExclusion)
 		return newExclusion, nil
 
 	case *ResolvedRelationReference:
