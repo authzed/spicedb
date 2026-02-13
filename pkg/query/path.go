@@ -315,6 +315,149 @@ func (p Path) Equals(other Path) bool {
 	return true
 }
 
+// PathOrder defines ordering for Path objects
+// Returns -1 if a < b, 0 if a == b, 1 if a > b
+// PathOrder defines a total ordering on Path objects for canonicalization.
+// Returns -1 if a < b, 0 if a == b, 1 if a > b.
+// Compatible with slices.SortFunc.
+func PathOrder(a, b Path) int {
+	// Compare resource type
+	if a.Resource.ObjectType != b.Resource.ObjectType {
+		if a.Resource.ObjectType < b.Resource.ObjectType {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare resource ID
+	if a.Resource.ObjectID != b.Resource.ObjectID {
+		if a.Resource.ObjectID < b.Resource.ObjectID {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare relation
+	if a.Relation != b.Relation {
+		if a.Relation < b.Relation {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject type
+	if a.Subject.ObjectType != b.Subject.ObjectType {
+		if a.Subject.ObjectType < b.Subject.ObjectType {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject ID
+	if a.Subject.ObjectID != b.Subject.ObjectID {
+		if a.Subject.ObjectID < b.Subject.ObjectID {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject relation
+	if a.Subject.Relation != b.Subject.Relation {
+		if a.Subject.Relation < b.Subject.Relation {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare expiration
+	if (a.Expiration == nil) != (b.Expiration == nil) {
+		if a.Expiration == nil {
+			return -1
+		}
+		return 1
+	}
+	if a.Expiration != nil && b.Expiration != nil {
+		if a.Expiration.Before(*b.Expiration) {
+			return -1
+		}
+		if a.Expiration.After(*b.Expiration) {
+			return 1
+		}
+	}
+
+	// Compare caveat
+	if (a.Caveat == nil) != (b.Caveat == nil) {
+		if a.Caveat == nil {
+			return -1
+		}
+		return 1
+	}
+	if a.Caveat != nil && b.Caveat != nil {
+		aStr := a.Caveat.String()
+		bStr := b.Caveat.String()
+		if aStr != bStr {
+			if aStr < bStr {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	// Compare integrity length
+	if len(a.Integrity) != len(b.Integrity) {
+		if len(a.Integrity) < len(b.Integrity) {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare integrity elements
+	for i := range a.Integrity {
+		aStr := a.Integrity[i].String()
+		bStr := b.Integrity[i].String()
+		if aStr != bStr {
+			if aStr < bStr {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	// Compare metadata
+	// For deterministic ordering, we need to compare maps in a consistent way
+	// If one is nil and other isn't, nil comes first
+	if (a.Metadata == nil) != (b.Metadata == nil) {
+		if a.Metadata == nil {
+			return -1
+		}
+		return 1
+	}
+
+	// If both non-nil, compare by length first, then by equality
+	if a.Metadata != nil && b.Metadata != nil {
+		if len(a.Metadata) != len(b.Metadata) {
+			if len(a.Metadata) < len(b.Metadata) {
+				return -1
+			}
+			return 1
+		}
+
+		// For equal-length maps, use maps.Equal for equality check
+		// If not equal, we need some deterministic ordering
+		// Compare string representations as a fallback
+		if !maps.Equal(a.Metadata, b.Metadata) {
+			aStr := fmt.Sprintf("%v", a.Metadata)
+			bStr := fmt.Sprintf("%v", b.Metadata)
+			if aStr < bStr {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	return 0
+}
+
 // CollectAll is a helper function to build read a complete PathSeq and turn it into a fully realized slice of Paths.
 func CollectAll(seq PathSeq) ([]Path, error) {
 	out := make([]Path, 0)
