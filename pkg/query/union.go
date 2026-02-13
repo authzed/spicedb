@@ -9,8 +9,9 @@ import (
 // UnionIterator the set of paths that are in any of underlying subiterators.
 // This is equivalent to `permission foo = bar | baz`
 type UnionIterator struct {
-	id     string
-	subIts []Iterator
+	id           string
+	subIts       []Iterator
+	canonicalKey CanonicalKey
 }
 
 var _ Iterator = &UnionIterator{}
