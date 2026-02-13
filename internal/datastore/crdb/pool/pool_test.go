@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -79,58 +80,65 @@ func createTestRetryPool(testPool *TestPool) *RetryPool {
 }
 
 func TestContextCancelledDuringBlockingAcquire(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Block until context is cancelled
-		<-ctx.Done()
-		return nil, ctx.Err()
-	}
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Block until context is cancelled
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx, cancel := context.WithCancel(context.Background())
+		retryPool := createTestRetryPool(testPool)
+		ctx, cancel := context.WithCancel(t.Context())
 
-	// Cancel the context after a short delay
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		cancel()
-	}()
+		// Cancel the context after a short delay
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			cancel()
+		}()
 
-	err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		t.Fatal("function should not be called when acquire fails")
-		return nil
+		err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
+			t.Fatal("function should not be called when acquire fails")
+			return nil
+		})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.Canceled)
 	})
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestAcquireTimeoutReturnsErrAcquire(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Simulate slow acquire that times out
-		select {
-		case <-time.After(100 * time.Millisecond):
-			return nil, errors.New("should not reach here")
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Simulate slow acquire that times out
+			select {
+			case <-time.After(100 * time.Millisecond):
+				return nil, errors.New("should not reach here")
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
-	}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx := context.Background()
-	acquireTimeout := 50 * time.Millisecond
+		retryPool := createTestRetryPool(testPool)
+		ctx := t.Context()
+		acquireTimeout := 50 * time.Millisecond
 
-	err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
-		t.Fatal("function should not be called when acquire times out")
-		return nil
+		err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
+			t.Fatal("function should not be called when acquire times out")
+			return nil
+		})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "error acquiring connection from pool")
+		require.ErrorIs(t, errors.Unwrap(err), ErrAcquire)
 	})
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "error acquiring connection from pool")
-	require.ErrorIs(t, errors.Unwrap(err), ErrAcquire)
 }
 
 func TestAcquireSucceedsButTopLevelContextCancelled(t *testing.T) {
+	t.Parallel()
 	testPool := NewTestPool()
 
 	retryPool := createTestRetryPool(testPool)
@@ -147,6 +155,7 @@ func TestAcquireSucceedsButTopLevelContextCancelled(t *testing.T) {
 }
 
 func TestAcquireErrorWithConnectionReturned(t *testing.T) {
+	t.Parallel()
 	testPool := NewTestPool()
 	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
 		// Return both connection and error
@@ -167,32 +176,36 @@ func TestAcquireErrorWithConnectionReturned(t *testing.T) {
 }
 
 func TestAcquireSucceedsWithinTimeout(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Small delay but within timeout
-		select {
-		case <-time.After(10 * time.Millisecond):
-			return &pgxpool.Conn{}, nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Small delay but within timeout
+			select {
+			case <-time.After(10 * time.Millisecond):
+				return &pgxpool.Conn{}, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
-	}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx := context.Background()
-	acquireTimeout := 50 * time.Millisecond
-	functionCalled := false
+		retryPool := createTestRetryPool(testPool)
+		ctx := t.Context()
+		acquireTimeout := 50 * time.Millisecond
+		functionCalled := false
 
-	err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
-		functionCalled = true
-		return nil
+		err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
+			functionCalled = true
+			return nil
+		})
+
+		require.NoError(t, err)
+		require.True(t, functionCalled, "function should have been called")
 	})
-
-	require.NoError(t, err)
-	require.True(t, functionCalled, "function should have been called")
 }
 
 func TestNoAcquireTimeoutUsesOriginalContext(t *testing.T) {
+	t.Parallel()
 	var acquireContext context.Context
 
 	testPool := NewTestPool()
@@ -213,6 +226,7 @@ func TestNoAcquireTimeoutUsesOriginalContext(t *testing.T) {
 }
 
 func TestAcquireTimeoutCreatesSeparateContext(t *testing.T) {
+	t.Parallel()
 	var acquireContext context.Context
 
 	testPool := NewTestPool()
@@ -241,28 +255,32 @@ func TestAcquireTimeoutCreatesSeparateContext(t *testing.T) {
 }
 
 func TestAcquireTimeoutContextCausePreserved(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Wait for context timeout
-		<-ctx.Done()
-		return nil, ctx.Err()
-	}
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Wait for context timeout
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx := context.Background()
-	acquireTimeout := 10 * time.Millisecond
+		retryPool := createTestRetryPool(testPool)
+		ctx := t.Context()
+		acquireTimeout := 10 * time.Millisecond
 
-	err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
-		t.Fatal("function should not be called")
-		return nil
+		err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
+			t.Fatal("function should not be called")
+			return nil
+		})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "error acquiring connection from pool")
+		require.ErrorIs(t, errors.Unwrap(err), ErrAcquire)
 	})
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "error acquiring connection from pool")
-	require.ErrorIs(t, errors.Unwrap(err), ErrAcquire)
 }
 
 func TestSuccessfulFunctionExecution(t *testing.T) {
+	t.Parallel()
 	testPool := NewTestPool()
 	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
 		return &pgxpool.Conn{}, nil
