@@ -1,0 +1,951 @@
+package query
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/tuple"
+)
+
+func TestIsNull(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		outline  Outline
+		expected bool
+	}{
+		{
+			name:     "NullIteratorType is null",
+			outline:  Outline{Type: NullIteratorType},
+			expected: true,
+		},
+		{
+			name: "FixedIteratorType with no paths is null",
+			outline: Outline{
+				Type: FixedIteratorType,
+				Args: &IteratorArgs{FixedPaths: []Path{}},
+			},
+			expected: true,
+		},
+		{
+			name: "FixedIteratorType with nil Args is null",
+			outline: Outline{
+				Type: FixedIteratorType,
+				Args: nil,
+			},
+			expected: true,
+		},
+		{
+			name: "FixedIteratorType with paths is not null",
+			outline: Outline{
+				Type: FixedIteratorType,
+				Args: &IteratorArgs{FixedPaths: []Path{{}}},
+			},
+			expected: false,
+		},
+		{
+			name:     "DatastoreIteratorType is not null",
+			outline:  Outline{Type: DatastoreIteratorType},
+			expected: false,
+		},
+		{
+			name:     "UnionIteratorType is not null",
+			outline:  Outline{Type: UnionIteratorType},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := isNullOutline(tt.outline)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestReplaceEmptyComposites(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		outline  Outline
+		expected Outline
+	}{
+		{
+			name: "empty Union becomes Null",
+			outline: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{},
+			},
+			expected: Outline{Type: NullIteratorType},
+		},
+		{
+			name: "empty Intersection becomes Null",
+			outline: Outline{
+				Type:         IntersectionIteratorType,
+				Subiterators: []Outline{},
+			},
+			expected: Outline{Type: NullIteratorType},
+		},
+		{
+			name: "Union with children unchanged",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{Type: DatastoreIteratorType},
+				},
+			},
+			expected: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{Type: DatastoreIteratorType},
+				},
+			},
+		},
+		{
+			name:     "non-composite unchanged",
+			outline:  Outline{Type: DatastoreIteratorType},
+			expected: Outline{Type: DatastoreIteratorType},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := replaceEmptyComposites(tt.outline)
+			require.True(t, result.Equals(tt.expected), "expected %+v, got %+v", tt.expected, result)
+		})
+	}
+}
+
+func TestCollapseSingleChild(t *testing.T) {
+	t.Parallel()
+
+	childOutline := Outline{Type: DatastoreIteratorType}
+
+	tests := []struct {
+		name     string
+		outline  Outline
+		expected Outline
+	}{
+		{
+			name: "Union with single child collapses",
+			outline: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{childOutline},
+			},
+			expected: childOutline,
+		},
+		{
+			name: "Intersection with single child collapses",
+			outline: Outline{
+				Type:         IntersectionIteratorType,
+				Subiterators: []Outline{childOutline},
+			},
+			expected: childOutline,
+		},
+		{
+			name: "Union with multiple children unchanged",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{Type: DatastoreIteratorType},
+					{Type: DatastoreIteratorType},
+				},
+			},
+			expected: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{Type: DatastoreIteratorType},
+					{Type: DatastoreIteratorType},
+				},
+			},
+		},
+		{
+			name:     "non-composite unchanged",
+			outline:  Outline{Type: DatastoreIteratorType},
+			expected: Outline{Type: DatastoreIteratorType},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := collapseSingleChild(tt.outline)
+			require.True(t, result.Equals(tt.expected))
+		})
+	}
+}
+
+func TestPropagateNull(t *testing.T) {
+	t.Parallel()
+
+	nullOutline := Outline{Type: NullIteratorType}
+	dataOutline := Outline{Type: DatastoreIteratorType}
+
+	tests := []struct {
+		name     string
+		outline  Outline
+		expected Outline
+	}{
+		{
+			name: "Intersection with null becomes null",
+			outline: Outline{
+				Type: IntersectionIteratorType,
+				Subiterators: []Outline{
+					dataOutline,
+					nullOutline,
+				},
+			},
+			expected: nullOutline,
+		},
+		{
+			name: "Intersection with all nulls becomes null",
+			outline: Outline{
+				Type: IntersectionIteratorType,
+				Subiterators: []Outline{
+					nullOutline,
+					nullOutline,
+				},
+			},
+			expected: nullOutline,
+		},
+		{
+			name: "Intersection with no nulls unchanged",
+			outline: Outline{
+				Type: IntersectionIteratorType,
+				Subiterators: []Outline{
+					dataOutline,
+					dataOutline,
+				},
+			},
+			expected: Outline{
+				Type: IntersectionIteratorType,
+				Subiterators: []Outline{
+					dataOutline,
+					dataOutline,
+				},
+			},
+		},
+		{
+			name: "Union with all nulls becomes null",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					nullOutline,
+					nullOutline,
+				},
+			},
+			expected: nullOutline,
+		},
+		{
+			name: "Union with mixed nulls filters out nulls",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					nullOutline,
+					dataOutline,
+					nullOutline,
+				},
+			},
+			expected: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					dataOutline,
+				},
+			},
+		},
+		{
+			name: "Union with no nulls unchanged",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					dataOutline,
+					dataOutline,
+				},
+			},
+			expected: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					dataOutline,
+					dataOutline,
+				},
+			},
+		},
+		{
+			name:     "non-composite unchanged",
+			outline:  dataOutline,
+			expected: dataOutline,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := propagateNull(tt.outline)
+			require.True(t, result.Equals(tt.expected))
+		})
+	}
+}
+
+func TestFlattenComposites(t *testing.T) {
+	t.Parallel()
+
+	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "a"}}
+	b := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "b"}}
+	c := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "c"}}
+	d := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "d"}}
+
+	tests := []struct {
+		name     string
+		outline  Outline
+		expected Outline
+	}{
+		{
+			name: "Union[Union[A,B],C] flattens to Union[A,B,C]",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         UnionIteratorType,
+						Subiterators: []Outline{a, b},
+					},
+					c,
+				},
+			},
+			expected: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b, c},
+			},
+		},
+		{
+			name: "Union[Union[A,B],Union[C,D]] flattens to Union[A,B,C,D]",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         UnionIteratorType,
+						Subiterators: []Outline{a, b},
+					},
+					{
+						Type:         UnionIteratorType,
+						Subiterators: []Outline{c, d},
+					},
+				},
+			},
+			expected: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b, c, d},
+			},
+		},
+		{
+			name: "Intersection[Intersection[A,B],C] flattens",
+			outline: Outline{
+				Type: IntersectionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         IntersectionIteratorType,
+						Subiterators: []Outline{a, b},
+					},
+					c,
+				},
+			},
+			expected: Outline{
+				Type:         IntersectionIteratorType,
+				Subiterators: []Outline{a, b, c},
+			},
+		},
+		{
+			name: "Union[Intersection[A,B],C] does not flatten",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         IntersectionIteratorType,
+						Subiterators: []Outline{a, b},
+					},
+					c,
+				},
+			},
+			expected: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         IntersectionIteratorType,
+						Subiterators: []Outline{a, b},
+					},
+					c,
+				},
+			},
+		},
+		{
+			name: "Union[A,B] with no nesting unchanged",
+			outline: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b},
+			},
+			expected: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b},
+			},
+		},
+		{
+			name:     "non-composite unchanged",
+			outline:  a,
+			expected: a,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := flattenComposites(tt.outline)
+			require.True(t, result.Equals(tt.expected))
+		})
+	}
+}
+
+func TestSortCompositeChildren(t *testing.T) {
+	t.Parallel()
+
+	// Create outlines with different relation names for predictable sorting
+	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "a"}}
+	b := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "b"}}
+	c := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "c"}}
+
+	tests := []struct {
+		name     string
+		outline  Outline
+		expected Outline
+	}{
+		{
+			name: "Union children sorted",
+			outline: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{c, a, b},
+			},
+			expected: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b, c},
+			},
+		},
+		{
+			name: "Intersection children sorted",
+			outline: Outline{
+				Type:         IntersectionIteratorType,
+				Subiterators: []Outline{b, c, a},
+			},
+			expected: Outline{
+				Type:         IntersectionIteratorType,
+				Subiterators: []Outline{a, b, c},
+			},
+		},
+		{
+			name: "single child unchanged",
+			outline: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a},
+			},
+			expected: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a},
+			},
+		},
+		{
+			name:     "non-composite unchanged",
+			outline:  a,
+			expected: a,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := sortCompositeChildren(tt.outline)
+			require.True(t, result.Equals(tt.expected))
+		})
+	}
+}
+
+func TestExtractCaveats(t *testing.T) {
+	t.Parallel()
+
+	caveat1 := &core.ContextualizedCaveat{CaveatName: "caveat1"}
+	caveat2 := &core.ContextualizedCaveat{CaveatName: "caveat2"}
+	dataOutline := Outline{Type: DatastoreIteratorType}
+
+	tests := []struct {
+		name            string
+		outline         Outline
+		expectedTree    Outline
+		expectedCaveats []*core.ContextualizedCaveat
+	}{
+		{
+			name: "single caveat extracted",
+			outline: Outline{
+				Type:         CaveatIteratorType,
+				Args:         &IteratorArgs{Caveat: caveat1},
+				Subiterators: []Outline{dataOutline},
+			},
+			expectedTree:    dataOutline,
+			expectedCaveats: []*core.ContextualizedCaveat{caveat1},
+		},
+		{
+			name: "nested caveats extracted",
+			outline: Outline{
+				Type: CaveatIteratorType,
+				Args: &IteratorArgs{Caveat: caveat1},
+				Subiterators: []Outline{
+					{
+						Type:         CaveatIteratorType,
+						Args:         &IteratorArgs{Caveat: caveat2},
+						Subiterators: []Outline{dataOutline},
+					},
+				},
+			},
+			expectedTree:    dataOutline,
+			expectedCaveats: []*core.ContextualizedCaveat{caveat2, caveat1},
+		},
+		{
+			name: "caveats in union children extracted",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         CaveatIteratorType,
+						Args:         &IteratorArgs{Caveat: caveat1},
+						Subiterators: []Outline{dataOutline},
+					},
+					{
+						Type:         CaveatIteratorType,
+						Args:         &IteratorArgs{Caveat: caveat2},
+						Subiterators: []Outline{dataOutline},
+					},
+				},
+			},
+			expectedTree: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{dataOutline, dataOutline},
+			},
+			expectedCaveats: []*core.ContextualizedCaveat{caveat1, caveat2},
+		},
+		{
+			name:            "no caveats",
+			outline:         dataOutline,
+			expectedTree:    dataOutline,
+			expectedCaveats: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tree, caveats := extractCaveats(tt.outline)
+			require.True(t, tree.Equals(tt.expectedTree))
+			require.Len(t, caveats, len(tt.expectedCaveats))
+			for i, expectedCaveat := range tt.expectedCaveats {
+				require.True(t, expectedCaveat.EqualVT(caveats[i]))
+			}
+		})
+	}
+}
+
+func TestNestCaveats(t *testing.T) {
+	t.Parallel()
+
+	caveat1 := &core.ContextualizedCaveat{CaveatName: "caveat1"}
+	caveat2 := &core.ContextualizedCaveat{CaveatName: "caveat2"}
+	dataOutline := Outline{Type: DatastoreIteratorType}
+
+	tests := []struct {
+		name     string
+		outline  Outline
+		caveats  []*core.ContextualizedCaveat
+		expected Outline
+	}{
+		{
+			name:     "no caveats",
+			outline:  dataOutline,
+			caveats:  nil,
+			expected: dataOutline,
+		},
+		{
+			name:    "single caveat",
+			outline: dataOutline,
+			caveats: []*core.ContextualizedCaveat{caveat1},
+			expected: Outline{
+				Type:         CaveatIteratorType,
+				Args:         &IteratorArgs{Caveat: caveat1},
+				Subiterators: []Outline{dataOutline},
+			},
+		},
+		{
+			name:    "two caveats nested correctly",
+			outline: dataOutline,
+			caveats: []*core.ContextualizedCaveat{caveat1, caveat2},
+			expected: Outline{
+				Type: CaveatIteratorType,
+				Args: &IteratorArgs{Caveat: caveat1},
+				Subiterators: []Outline{
+					{
+						Type:         CaveatIteratorType,
+						Args:         &IteratorArgs{Caveat: caveat2},
+						Subiterators: []Outline{dataOutline},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := nestCaveats(tt.outline, tt.caveats)
+			require.True(t, result.Equals(tt.expected))
+		})
+	}
+}
+
+func TestCanonicalizeOutline(t *testing.T) {
+	t.Parallel()
+
+	caveat1 := &core.ContextualizedCaveat{CaveatName: "caveat1"}
+	caveat2 := &core.ContextualizedCaveat{CaveatName: "caveat2"}
+
+	// Create test relations for consistent ordering
+	rel1 := schema.NewTestBaseRelation("doc", "rel1", "user", tuple.Ellipsis)
+	rel2 := schema.NewTestBaseRelation("doc", "rel2", "user", tuple.Ellipsis)
+
+	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel1}}
+	b := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel2}}
+
+	tests := []struct {
+		name     string
+		outline  Outline
+		expected Outline
+	}{
+		{
+			name: "empty union becomes null",
+			outline: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{},
+			},
+			expected: Outline{Type: NullIteratorType},
+		},
+		{
+			name: "single child union collapses",
+			outline: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a},
+			},
+			expected: a,
+		},
+		{
+			name: "union with null removed",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{Type: NullIteratorType},
+					a,
+				},
+			},
+			expected: a,
+		},
+		{
+			name: "intersection with null becomes null",
+			outline: Outline{
+				Type: IntersectionIteratorType,
+				Subiterators: []Outline{
+					{Type: NullIteratorType},
+					a,
+				},
+			},
+			expected: Outline{Type: NullIteratorType},
+		},
+		{
+			name: "nested unions flattened and sorted",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         UnionIteratorType,
+						Subiterators: []Outline{b, a},
+					},
+					a,
+				},
+			},
+			expected: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, a, b},
+			},
+		},
+		{
+			name: "caveats lifted to top and sorted",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         CaveatIteratorType,
+						Args:         &IteratorArgs{Caveat: caveat2},
+						Subiterators: []Outline{a},
+					},
+					{
+						Type:         CaveatIteratorType,
+						Args:         &IteratorArgs{Caveat: caveat1},
+						Subiterators: []Outline{b},
+					},
+				},
+			},
+			expected: Outline{
+				Type: CaveatIteratorType,
+				Args: &IteratorArgs{Caveat: caveat1},
+				Subiterators: []Outline{
+					{
+						Type: CaveatIteratorType,
+						Args: &IteratorArgs{Caveat: caveat2},
+						Subiterators: []Outline{
+							{
+								Type:         UnionIteratorType,
+								Subiterators: []Outline{a, b},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "complex nested structure",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type: UnionIteratorType,
+						Subiterators: []Outline{
+							{Type: NullIteratorType},
+							a,
+						},
+					},
+					{
+						Type:         UnionIteratorType,
+						Subiterators: []Outline{b},
+					},
+				},
+			},
+			expected: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := CanonicalizeOutline(tt.outline)
+			require.NoError(t, err)
+			require.True(t, result.Equals(tt.expected), "expected %+v, got %+v", tt.expected, result)
+		})
+	}
+}
+
+func TestCanonicalizeIdempotency(t *testing.T) {
+	t.Parallel()
+
+	caveat := &core.ContextualizedCaveat{CaveatName: "test"}
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+
+	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel}}
+	b := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "other"}}
+
+	tests := []struct {
+		name    string
+		outline Outline
+	}{
+		{
+			name:    "simple outline",
+			outline: a,
+		},
+		{
+			name: "union",
+			outline: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{b, a},
+			},
+		},
+		{
+			name: "nested with caveat",
+			outline: Outline{
+				Type: CaveatIteratorType,
+				Args: &IteratorArgs{Caveat: caveat},
+				Subiterators: []Outline{
+					{
+						Type: UnionIteratorType,
+						Subiterators: []Outline{
+							a,
+							{Type: NullIteratorType},
+							b,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "complex nested structure",
+			outline: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type: UnionIteratorType,
+						Subiterators: []Outline{
+							{
+								Type:         CaveatIteratorType,
+								Args:         &IteratorArgs{Caveat: caveat},
+								Subiterators: []Outline{a},
+							},
+							b,
+						},
+					},
+					{Type: NullIteratorType},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// First canonicalization
+			canonical1, err := CanonicalizeOutline(tt.outline)
+			require.NoError(t, err)
+
+			// Second canonicalization (should be idempotent)
+			canonical2, err := CanonicalizeOutline(canonical1)
+			require.NoError(t, err)
+
+			// They should be equal
+			require.True(t, canonical1.Equals(canonical2),
+				"Canonicalization is not idempotent.\nFirst: %+v\nSecond: %+v",
+				canonical1, canonical2)
+		})
+	}
+}
+
+func TestCanonicalizeEquivalence(t *testing.T) {
+	t.Parallel()
+
+	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
+	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel}}
+	b := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "other"}}
+	c := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{DefinitionName: "def"}}
+
+	tests := []struct {
+		name        string
+		outline1    Outline
+		outline2    Outline
+		shouldMatch bool
+	}{
+		{
+			name: "Union[A,B] equals Union[B,A]",
+			outline1: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b},
+			},
+			outline2: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{b, a},
+			},
+			shouldMatch: true,
+		},
+		{
+			name: "Union[Union[A,B],C] equals Union[A,B,C]",
+			outline1: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					{
+						Type:         UnionIteratorType,
+						Subiterators: []Outline{a, b},
+					},
+					c,
+				},
+			},
+			outline2: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b, c},
+			},
+			shouldMatch: true,
+		},
+		{
+			name: "Union[A,Null] equals A",
+			outline1: Outline{
+				Type: UnionIteratorType,
+				Subiterators: []Outline{
+					a,
+					{Type: NullIteratorType},
+				},
+			},
+			outline2:    a,
+			shouldMatch: true,
+		},
+		{
+			name: "Union[A] equals A",
+			outline1: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a},
+			},
+			outline2:    a,
+			shouldMatch: true,
+		},
+		{
+			name: "Intersection[A,Null] equals Null",
+			outline1: Outline{
+				Type: IntersectionIteratorType,
+				Subiterators: []Outline{
+					a,
+					{Type: NullIteratorType},
+				},
+			},
+			outline2:    Outline{Type: NullIteratorType},
+			shouldMatch: true,
+		},
+		{
+			name: "Union[A,B] does not equal Union[A,C]",
+			outline1: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, b},
+			},
+			outline2: Outline{
+				Type:         UnionIteratorType,
+				Subiterators: []Outline{a, c},
+			},
+			shouldMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			canonical1, err := CanonicalizeOutline(tt.outline1)
+			require.NoError(t, err)
+
+			canonical2, err := CanonicalizeOutline(tt.outline2)
+			require.NoError(t, err)
+
+			if tt.shouldMatch {
+				require.True(t, canonical1.Equals(canonical2),
+					"Expected outlines to canonicalize to same form.\nCanonical1: %+v\nCanonical2: %+v",
+					canonical1, canonical2)
+			} else {
+				require.False(t, canonical1.Equals(canonical2),
+					"Expected outlines to canonicalize to different forms.\nCanonical1: %+v\nCanonical2: %+v",
+					canonical1, canonical2)
+			}
+		})
+	}
+}

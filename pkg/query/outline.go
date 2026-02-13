@@ -272,6 +272,32 @@ func Decompile(it Iterator) (Outline, error) {
 	}
 }
 
+type OutlineMutation func(Outline) Outline
+
+// MutateOutline performs a bottom-up traversal of the outline tree, applying
+// all the given transformation functions to each node after processing its children.
+func MutateOutline(outline Outline, fns []OutlineMutation) Outline {
+	// Recurse on children first (bottom-up)
+	if len(outline.Subiterators) > 0 {
+		newSubs := make([]Outline, len(outline.Subiterators))
+		for i, sub := range outline.Subiterators {
+			newSubs[i] = MutateOutline(sub, fns)
+		}
+		outline = Outline{
+			Type:         outline.Type,
+			Args:         outline.Args,
+			Subiterators: newSubs,
+		}
+	}
+
+	// Then apply all mutation functions in sequence to current node
+	result := outline
+	for _, fn := range fns {
+		result = fn(result)
+	}
+	return result
+}
+
 // Equals checks if two Outlines are structurally equal
 func (c Outline) Equals(other Outline) bool {
 	return OutlineCompare(c, other) == 0
