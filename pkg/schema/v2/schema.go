@@ -292,8 +292,8 @@ func (p *Permission) Parent() Parented {
 	return p.parent
 }
 
-// TypedParent returns the parent definition with its concrete type.
-func (p *Permission) TypedParent() *Definition {
+// Definition returns the parent definition with its concrete type.
+func (p *Permission) Definition() *Definition {
 	return p.parent
 }
 
@@ -369,8 +369,8 @@ func (r *Relation) Parent() Parented {
 	return r.parent
 }
 
-// TypedParent returns the parent definition with its concrete type.
-func (r *Relation) TypedParent() *Definition {
+// Definition returns the parent definition with its concrete type.
+func (r *Relation) Definition() *Definition {
 	return r.parent
 }
 

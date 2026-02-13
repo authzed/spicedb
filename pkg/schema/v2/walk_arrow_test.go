@@ -16,13 +16,13 @@ type arrowTraversalVisitor struct {
 }
 
 func (v *arrowTraversalVisitor) VisitPermission(p *Permission, value struct{}) (struct{}, bool, error) {
-	defName := p.TypedParent().Name()
+	defName := p.Definition().Name()
 	v.visitOrder = append(v.visitOrder, defName+"#"+p.Name())
 	return value, true, nil
 }
 
 func (v *arrowTraversalVisitor) VisitRelation(r *Relation, value struct{}) (struct{}, bool, error) {
-	defName := r.TypedParent().Name()
+	defName := r.Definition().Name()
 	v.visitOrder = append(v.visitOrder, defName+"#"+r.Name())
 	return value, true, nil
 }
