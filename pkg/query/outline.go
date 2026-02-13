@@ -1,7 +1,9 @@
 package query
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
@@ -63,7 +65,7 @@ func (c Outline) Compile() (Iterator, error) {
 
 	case DatastoreIteratorType:
 		if c.Args == nil || c.Args.Relation == nil {
-			return nil, fmt.Errorf("DatastoreIterator requires Relation in Args")
+			return nil, errors.New("DatastoreIterator requires Relation in Args")
 		}
 		return NewDatastoreIterator(c.Args.Relation), nil
 
@@ -97,7 +99,7 @@ func (c Outline) Compile() (Iterator, error) {
 			return nil, fmt.Errorf("CaveatIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
 		}
 		if c.Args == nil || c.Args.Caveat == nil {
-			return nil, fmt.Errorf("CaveatIterator requires Caveat in Args")
+			return nil, errors.New("CaveatIterator requires Caveat in Args")
 		}
 		return NewCaveatIterator(compiledSubs[0], c.Args.Caveat), nil
 
@@ -106,7 +108,7 @@ func (c Outline) Compile() (Iterator, error) {
 			return nil, fmt.Errorf("AliasIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
 		}
 		if c.Args == nil || c.Args.RelationName == "" {
-			return nil, fmt.Errorf("AliasIterator requires RelationName in Args")
+			return nil, errors.New("AliasIterator requires RelationName in Args")
 		}
 		return NewAliasIterator(c.Args.RelationName, compiledSubs[0]), nil
 
@@ -115,13 +117,13 @@ func (c Outline) Compile() (Iterator, error) {
 			return nil, fmt.Errorf("RecursiveIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
 		}
 		if c.Args == nil || c.Args.DefinitionName == "" || c.Args.RelationName == "" {
-			return nil, fmt.Errorf("RecursiveIterator requires DefinitionName and RelationName in Args")
+			return nil, errors.New("RecursiveIterator requires DefinitionName and RelationName in Args")
 		}
 		return NewRecursiveIterator(compiledSubs[0], c.Args.DefinitionName, c.Args.RelationName), nil
 
 	case RecursiveSentinelIteratorType:
 		if c.Args == nil || c.Args.DefinitionName == "" || c.Args.RelationName == "" {
-			return nil, fmt.Errorf("RecursiveSentinelIterator requires DefinitionName and RelationName in Args")
+			return nil, errors.New("RecursiveSentinelIterator requires DefinitionName and RelationName in Args")
 		}
 		// withSubRelations defaults to false for now
 		return NewRecursiveSentinelIterator(c.Args.DefinitionName, c.Args.RelationName, false), nil
@@ -134,7 +136,7 @@ func (c Outline) Compile() (Iterator, error) {
 
 	case SelfIteratorType:
 		if c.Args == nil || c.Args.RelationName == "" || c.Args.DefinitionName == "" {
-			return nil, fmt.Errorf("SelfIterator requires RelationName and DefinitionName in Args")
+			return nil, errors.New("SelfIterator requires RelationName and DefinitionName in Args")
 		}
 		return NewSelfIterator(c.Args.RelationName, c.Args.DefinitionName), nil
 
@@ -333,13 +335,14 @@ func argsCompare(a, b *IteratorArgs) int {
 	}
 
 	// Compare Relation (BaseRelation)
-	if a.Relation != nil && b.Relation != nil {
+	switch {
+	case a.Relation != nil && b.Relation != nil:
 		if cmp := a.Relation.Compare(b.Relation); cmp != 0 {
 			return cmp
 		}
-	} else if a.Relation != nil {
+	case a.Relation != nil:
 		return 1
-	} else if b.Relation != nil {
+	case b.Relation != nil:
 		return -1
 	}
 
