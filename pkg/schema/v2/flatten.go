@@ -112,18 +112,12 @@ func flattenDefinition(def *Definition, options FlattenOptions) error {
 
 		// Update the permission's operation to the flattened version
 		perm.operation = flattened
-		// Set the flattened operation's parent to the permission
-		if flattened != nil {
-			setParent(flattened, perm)
-		}
+		flattened.setParent(perm)
 
 		// Add any new synthetic permissions to the definition
 		for _, newPerm := range newPerms {
 			def.permissions[newPerm.name] = newPerm
-			// Set the synthetic permission's operation parent
-			if newPerm.operation != nil {
-				setParent(newPerm.operation, newPerm)
-			}
+			newPerm.operation.setParent(newPerm)
 		}
 	}
 
@@ -316,8 +310,8 @@ func flattenOperation(op Operation, def *Definition, baseName string, options Fl
 			right:  flattenedRight,
 		}
 		// Set children's parent to the new exclusion
-		setParent(flattenedLeft, newExclusion)
-		setParent(flattenedRight, newExclusion)
+		flattenedLeft.setParent(newExclusion)
+		flattenedRight.setParent(newExclusion)
 		return newExclusion, allNewPerms, nil
 
 	default:

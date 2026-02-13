@@ -106,7 +106,7 @@ func convertUserset(userset *corev1.UsersetRewrite) (*Permission, error) {
 	perm := &Permission{
 		operation: operation,
 	}
-	setParent(perm.operation, perm)
+	operation.setParent(perm)
 	return perm, nil
 }
 
@@ -233,8 +233,8 @@ func convertSetOperationAsExclusion(setOp *corev1.SetOperation) (Operation, erro
 		left:  children[0],
 		right: children[1],
 	}
-	setParent(children[0], exclusion)
-	setParent(children[1], exclusion)
+	children[0].setParent(exclusion)
+	children[1].setParent(exclusion)
 	return exclusion, nil
 }
 

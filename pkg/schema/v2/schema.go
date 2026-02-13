@@ -332,9 +332,7 @@ func (p *Permission) cloneWithParent(parentDefinition *Definition) *Permission {
 		operation: clonedOp,
 	}
 
-	if clonedOp != nil {
-		setParent(clonedOp, newPerm)
-	}
+	clonedOp.setParent(newPerm)
 
 	return newPerm
 }
