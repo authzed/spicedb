@@ -62,7 +62,7 @@ func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, re
 		return Outline{}, spiceerrors.MustBugf("unwrapped sentinels remaining: %d", len(builder.recursiveSentinels))
 	}
 
-	return result, nil
+	return CanonicalizeOutline(result)
 }
 
 func (b *outlineBuilder) buildOutlineFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Outline, error) {
