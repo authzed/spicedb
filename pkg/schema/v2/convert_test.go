@@ -1101,3 +1101,537 @@ func TestMetadataPreservation(t *testing.T) {
 		require.Equal(t, []string{"user", "group"}, rm.TypeAnnotations.Types)
 	})
 }
+
+// TestConvertOperationParentPointers verifies that parent pointers are correctly set
+// when operations are converted from proto definitions.
+func TestConvertOperationParentPointers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("comprehensive parent pointer verification", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a comprehensive proto definition that exercises all operation types and parent relationships
+		def := &corev1.NamespaceDefinition{
+			Name: "document",
+			Relation: []*corev1.Relation{
+				// Relation with type information - tests Relation and BaseRelation parent pointers
+				{
+					Name: "owner",
+					TypeInformation: &corev1.TypeInformation{
+						AllowedDirectRelations: []*corev1.AllowedRelation{
+							{
+								Namespace:          "user",
+								RelationOrWildcard: &corev1.AllowedRelation_Relation{Relation: "..."},
+							},
+							{
+								Namespace:          "team",
+								RelationOrWildcard: &corev1.AllowedRelation_Relation{Relation: "member"},
+							},
+						},
+					},
+				},
+				// Relation for arrow references
+				{
+					Name: "parent",
+					TypeInformation: &corev1.TypeInformation{
+						AllowedDirectRelations: []*corev1.AllowedRelation{
+							{
+								Namespace:          "folder",
+								RelationOrWildcard: &corev1.AllowedRelation_Relation{Relation: "..."},
+							},
+						},
+					},
+				},
+				// Permission with nested operations: ((a | b) & c) - (d)
+				// This tests Union, Intersection, Exclusion, and RelationReference
+				{
+					Name: "complex_view",
+					UsersetRewrite: &corev1.UsersetRewrite{
+						RewriteOperation: &corev1.UsersetRewrite_Exclusion{
+							Exclusion: &corev1.SetOperation{
+								Child: []*corev1.SetOperation_Child{
+									// Left side: (a | b) & c
+									{
+										ChildType: &corev1.SetOperation_Child_UsersetRewrite{
+											UsersetRewrite: &corev1.UsersetRewrite{
+												RewriteOperation: &corev1.UsersetRewrite_Intersection{
+													Intersection: &corev1.SetOperation{
+														Child: []*corev1.SetOperation_Child{
+															// Nested union: a | b
+															{
+																ChildType: &corev1.SetOperation_Child_UsersetRewrite{
+																	UsersetRewrite: &corev1.UsersetRewrite{
+																		RewriteOperation: &corev1.UsersetRewrite_Union{
+																			Union: &corev1.SetOperation{
+																				Child: []*corev1.SetOperation_Child{
+																					{
+																						ChildType: &corev1.SetOperation_Child_ComputedUserset{
+																							ComputedUserset: &corev1.ComputedUserset{
+																								Relation: "a",
+																							},
+																						},
+																					},
+																					{
+																						ChildType: &corev1.SetOperation_Child_ComputedUserset{
+																							ComputedUserset: &corev1.ComputedUserset{
+																								Relation: "b",
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+															// c
+															{
+																ChildType: &corev1.SetOperation_Child_ComputedUserset{
+																	ComputedUserset: &corev1.ComputedUserset{
+																		Relation: "c",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+									// Right side (excluded): d
+									{
+										ChildType: &corev1.SetOperation_Child_ComputedUserset{
+											ComputedUserset: &corev1.ComputedUserset{
+												Relation: "d",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				// Permission with arrow reference (TupleToUserset)
+				{
+					Name: "arrow_view",
+					UsersetRewrite: &corev1.UsersetRewrite{
+						RewriteOperation: &corev1.UsersetRewrite_Union{
+							Union: &corev1.SetOperation{
+								Child: []*corev1.SetOperation_Child{
+									{
+										ChildType: &corev1.SetOperation_Child_TupleToUserset{
+											TupleToUserset: &corev1.TupleToUserset{
+												Tupleset: &corev1.TupleToUserset_Tupleset{
+													Relation: "parent",
+												},
+												ComputedUserset: &corev1.ComputedUserset{
+													Relation: "view",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				// Permission with functioned arrow reference
+				{
+					Name: "functioned_view",
+					UsersetRewrite: &corev1.UsersetRewrite{
+						RewriteOperation: &corev1.UsersetRewrite_Union{
+							Union: &corev1.SetOperation{
+								Child: []*corev1.SetOperation_Child{
+									{
+										ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
+											FunctionedTupleToUserset: &corev1.FunctionedTupleToUserset{
+												Function: corev1.FunctionedTupleToUserset_FUNCTION_ALL,
+												Tupleset: &corev1.FunctionedTupleToUserset_Tupleset{
+													Relation: "parent",
+												},
+												ComputedUserset: &corev1.ComputedUserset{
+													Relation: "viewer",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				// Permission with _this (SelfReference) and nil
+				{
+					Name: "special_refs",
+					UsersetRewrite: &corev1.UsersetRewrite{
+						RewriteOperation: &corev1.UsersetRewrite_Union{
+							Union: &corev1.SetOperation{
+								Child: []*corev1.SetOperation_Child{
+									{
+										ChildType: &corev1.SetOperation_Child_XThis{},
+									},
+									{
+										ChildType: &corev1.SetOperation_Child_XNil{},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		// Convert to v2 schema - this should build the complete hierarchy
+		schema, err := BuildSchemaFromDefinitions([]*corev1.NamespaceDefinition{def}, nil)
+		require.NoError(t, err)
+		require.NotNil(t, schema)
+
+		// 1. Verify Definition → Schema parent pointer
+		docDef, ok := schema.GetTypeDefinition("document")
+		require.True(t, ok, "document definition should exist")
+		require.NotNil(t, docDef.Parent(), "Definition should have a parent")
+		require.Equal(t, schema, docDef.Parent(), "Definition's parent should be the schema")
+
+		// 2. Verify Relation → Definition parent pointer and BaseRelation → Relation parent pointers
+		ownerRel, ok := docDef.GetRelation("owner")
+		require.True(t, ok, "owner relation should exist")
+		require.NotNil(t, ownerRel.Parent(), "Relation should have a parent")
+		require.Equal(t, docDef, ownerRel.Parent(), "Relation's parent should be the definition")
+
+		baseRels := ownerRel.BaseRelations()
+		require.Len(t, baseRels, 2, "owner should have 2 base relations")
+		for i, baseRel := range baseRels {
+			require.NotNil(t, baseRel.Parent(), "BaseRelation %d should have a parent", i)
+			require.Equal(t, ownerRel, baseRel.Parent(), "BaseRelation %d's parent should be the relation", i)
+		}
+
+		// 3. Verify Permission → Definition parent pointer
+		complexViewPerm, ok := docDef.GetPermission("complex_view")
+		require.True(t, ok, "complex_view permission should exist")
+		require.NotNil(t, complexViewPerm.Parent(), "Permission should have a parent")
+		require.Equal(t, docDef, complexViewPerm.Parent(), "Permission's parent should be the definition")
+
+		// 4. Verify ExclusionOperation and its children's parent pointers
+		rootOp := complexViewPerm.Operation()
+		require.NotNil(t, rootOp, "Permission should have an operation")
+		require.NotNil(t, rootOp.Parent(), "Root operation should have a parent")
+		require.Equal(t, complexViewPerm, rootOp.Parent(), "Root operation's parent should be the permission")
+
+		exclusion, ok := rootOp.(*ExclusionOperation)
+		require.True(t, ok, "Root operation should be ExclusionOperation")
+
+		leftOp := exclusion.Left()
+		require.NotNil(t, leftOp, "Exclusion left should not be nil")
+		require.NotNil(t, leftOp.Parent(), "Exclusion left should have a parent")
+		require.Equal(t, exclusion, leftOp.Parent(), "Exclusion left's parent should be the exclusion")
+
+		rightOp := exclusion.Right()
+		require.NotNil(t, rightOp, "Exclusion right should not be nil")
+		require.NotNil(t, rightOp.Parent(), "Exclusion right should have a parent")
+		require.Equal(t, exclusion, rightOp.Parent(), "Exclusion right's parent should be the exclusion")
+
+		// 5. Verify IntersectionOperation and its children's parent pointers
+		intersection, ok := leftOp.(*IntersectionOperation)
+		require.True(t, ok, "Exclusion left should be IntersectionOperation")
+
+		intersectionChildren := intersection.Children()
+		require.Len(t, intersectionChildren, 2, "Intersection should have 2 children")
+		for i, child := range intersectionChildren {
+			require.NotNil(t, child, "Intersection child %d should not be nil", i)
+			require.NotNil(t, child.Parent(), "Intersection child %d should have a parent", i)
+			require.Equal(t, intersection, child.Parent(), "Intersection child %d's parent should be the intersection", i)
+		}
+
+		// 6. Verify UnionOperation and its children's parent pointers
+		union, ok := intersectionChildren[0].(*UnionOperation)
+		require.True(t, ok, "First intersection child should be UnionOperation")
+
+		unionChildren := union.Children()
+		require.Len(t, unionChildren, 2, "Union should have 2 children")
+		for i, child := range unionChildren {
+			require.NotNil(t, child, "Union child %d should not be nil", i)
+			require.NotNil(t, child.Parent(), "Union child %d should have a parent", i)
+			require.Equal(t, union, child.Parent(), "Union child %d's parent should be the union", i)
+
+			// Verify RelationReference
+			relRef, ok := child.(*RelationReference)
+			require.True(t, ok, "Union child %d should be RelationReference", i)
+			require.NotEmpty(t, relRef.RelationName(), "RelationReference should have a relation name")
+		}
+
+		// 7. Verify ArrowReference parent pointer
+		arrowViewPerm, ok := docDef.GetPermission("arrow_view")
+		require.True(t, ok, "arrow_view permission should exist")
+
+		arrowOp := arrowViewPerm.Operation()
+		require.NotNil(t, arrowOp, "arrow_view should have an operation")
+		require.NotNil(t, arrowOp.Parent(), "arrow_view root operation should have a parent")
+		require.Equal(t, arrowViewPerm, arrowOp.Parent(), "arrow_view root operation's parent should be the permission")
+
+		// The operation might be unwrapped if it's a single child, so check both cases
+		var arrow *ArrowReference
+		if a, ok := arrowOp.(*ArrowReference); ok {
+			arrow = a
+		} else if union, ok := arrowOp.(*UnionOperation); ok {
+			require.Len(t, union.Children(), 1, "Union should have 1 child")
+			arrow, ok = union.Children()[0].(*ArrowReference)
+			require.True(t, ok, "Union child should be ArrowReference")
+			require.NotNil(t, arrow.Parent(), "ArrowReference should have a parent")
+			require.Equal(t, union, arrow.Parent(), "ArrowReference's parent should be the union")
+		} else {
+			require.Fail(t, "Expected ArrowReference or UnionOperation with ArrowReference child")
+		}
+
+		require.Equal(t, "parent", arrow.Left(), "Arrow left should be 'parent'")
+		require.Equal(t, "view", arrow.Right(), "Arrow right should be 'view'")
+
+		// 8. Verify FunctionedArrowReference parent pointer
+		functionedViewPerm, ok := docDef.GetPermission("functioned_view")
+		require.True(t, ok, "functioned_view permission should exist")
+
+		functionedOp := functionedViewPerm.Operation()
+		require.NotNil(t, functionedOp, "functioned_view should have an operation")
+		require.NotNil(t, functionedOp.Parent(), "functioned_view root operation should have a parent")
+		require.Equal(t, functionedViewPerm, functionedOp.Parent(), "functioned_view root operation's parent should be the permission")
+
+		var funcArrow *FunctionedArrowReference
+		if fa, ok := functionedOp.(*FunctionedArrowReference); ok {
+			funcArrow = fa
+		} else if union, ok := functionedOp.(*UnionOperation); ok {
+			require.Len(t, union.Children(), 1, "Union should have 1 child")
+			funcArrow, ok = union.Children()[0].(*FunctionedArrowReference)
+			require.True(t, ok, "Union child should be FunctionedArrowReference")
+			require.NotNil(t, funcArrow.Parent(), "FunctionedArrowReference should have a parent")
+			require.Equal(t, union, funcArrow.Parent(), "FunctionedArrowReference's parent should be the union")
+		} else {
+			require.Fail(t, "Expected FunctionedArrowReference or UnionOperation with FunctionedArrowReference child")
+		}
+
+		require.Equal(t, "parent", funcArrow.Left(), "FunctionedArrow left should be 'parent'")
+		require.Equal(t, "viewer", funcArrow.Right(), "FunctionedArrow right should be 'viewer'")
+		require.Equal(t, FunctionTypeAll, funcArrow.Function(), "FunctionedArrow should have FUNCTION_ALL")
+
+		// 9. Verify SelfReference and NilReference parent pointers
+		specialRefsPerm, ok := docDef.GetPermission("special_refs")
+		require.True(t, ok, "special_refs permission should exist")
+
+		specialOp := specialRefsPerm.Operation()
+		require.NotNil(t, specialOp, "special_refs should have an operation")
+		require.NotNil(t, specialOp.Parent(), "special_refs root operation should have a parent")
+
+		specialUnion, ok := specialOp.(*UnionOperation)
+		require.True(t, ok, "special_refs operation should be UnionOperation")
+
+		specialChildren := specialUnion.Children()
+		require.Len(t, specialChildren, 2, "special_refs union should have 2 children")
+
+		// Check for SelfReference (from _this)
+		selfRef, ok := specialChildren[0].(*RelationReference)
+		require.True(t, ok, "First child should be RelationReference (converted from XThis)")
+		require.Equal(t, "_this", selfRef.RelationName(), "Should be _this reference")
+		require.NotNil(t, selfRef.Parent(), "SelfReference should have a parent")
+		require.Equal(t, specialUnion, selfRef.Parent(), "SelfReference's parent should be the union")
+
+		// Check for NilReference
+		nilRef, ok := specialChildren[1].(*NilReference)
+		require.True(t, ok, "Second child should be NilReference")
+		require.NotNil(t, nilRef.Parent(), "NilReference should have a parent")
+		require.Equal(t, specialUnion, nilRef.Parent(), "NilReference's parent should be the union")
+	})
+
+	t.Run("deeply nested operations maintain parent chain", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a deeply nested structure to verify the entire parent chain
+		// Use 2 children at the root union to avoid single-child optimization
+		def := &corev1.NamespaceDefinition{
+			Name: "resource",
+			Relation: []*corev1.Relation{
+				{
+					Name: "deep",
+					UsersetRewrite: &corev1.UsersetRewrite{
+						RewriteOperation: &corev1.UsersetRewrite_Union{
+							Union: &corev1.SetOperation{
+								Child: []*corev1.SetOperation_Child{
+									{
+										ChildType: &corev1.SetOperation_Child_UsersetRewrite{
+											UsersetRewrite: &corev1.UsersetRewrite{
+												RewriteOperation: &corev1.UsersetRewrite_Intersection{
+													Intersection: &corev1.SetOperation{
+														Child: []*corev1.SetOperation_Child{
+															{
+																ChildType: &corev1.SetOperation_Child_UsersetRewrite{
+																	UsersetRewrite: &corev1.UsersetRewrite{
+																		RewriteOperation: &corev1.UsersetRewrite_Exclusion{
+																			Exclusion: &corev1.SetOperation{
+																				Child: []*corev1.SetOperation_Child{
+																					{
+																						ChildType: &corev1.SetOperation_Child_ComputedUserset{
+																							ComputedUserset: &corev1.ComputedUserset{
+																								Relation: "leaf",
+																							},
+																						},
+																					},
+																					{
+																						ChildType: &corev1.SetOperation_Child_ComputedUserset{
+																							ComputedUserset: &corev1.ComputedUserset{
+																								Relation: "other",
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+															{
+																ChildType: &corev1.SetOperation_Child_ComputedUserset{
+																	ComputedUserset: &corev1.ComputedUserset{
+																		Relation: "middle",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+									// Add a second child to avoid single-child optimization
+									{
+										ChildType: &corev1.SetOperation_Child_ComputedUserset{
+											ComputedUserset: &corev1.ComputedUserset{
+												Relation: "sibling",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		schema, err := BuildSchemaFromDefinitions([]*corev1.NamespaceDefinition{def}, nil)
+		require.NoError(t, err)
+
+		resDef, ok := schema.GetTypeDefinition("resource")
+		require.True(t, ok)
+
+		deepPerm, ok := resDef.GetPermission("deep")
+		require.True(t, ok)
+
+		// Navigate down the tree and verify parent chain at each level
+		rootUnion, ok := deepPerm.Operation().(*UnionOperation)
+		require.True(t, ok, "Root should be UnionOperation (not optimized away since it has 2 children)")
+		require.Equal(t, deepPerm, rootUnion.Parent())
+
+		intersection, ok := rootUnion.Children()[0].(*IntersectionOperation)
+		require.True(t, ok)
+		require.Equal(t, rootUnion, intersection.Parent())
+
+		exclusion, ok := intersection.Children()[0].(*ExclusionOperation)
+		require.True(t, ok)
+		require.Equal(t, intersection, exclusion.Parent())
+
+		leftLeaf, ok := exclusion.Left().(*RelationReference)
+		require.True(t, ok)
+		require.Equal(t, exclusion, leftLeaf.Parent())
+		require.Equal(t, "leaf", leftLeaf.RelationName())
+
+		// Traverse up from the leaf to verify we can reach the root
+		current := leftLeaf.Parent()
+		require.Equal(t, exclusion, current, "First parent should be exclusion")
+
+		current = current.Parent()
+		require.Equal(t, intersection, current, "Second parent should be intersection")
+
+		current = current.Parent()
+		require.Equal(t, rootUnion, current, "Third parent should be root union")
+
+		current = current.Parent()
+		require.Equal(t, deepPerm, current, "Fourth parent should be permission")
+
+		current = current.Parent()
+		require.Equal(t, resDef, current, "Fifth parent should be definition")
+
+		current = current.Parent()
+		require.Equal(t, schema, current, "Sixth parent should be schema")
+
+		current = current.Parent()
+		require.Nil(t, current, "Schema should have no parent (top of hierarchy)")
+	})
+
+	t.Run("single child optimization preserves parent pointers", func(t *testing.T) {
+		t.Parallel()
+
+		// Test that single-child optimization (unwrapping) still maintains parent pointers
+		def := &corev1.NamespaceDefinition{
+			Name: "doc",
+			Relation: []*corev1.Relation{
+				{
+					Name: "single_union",
+					UsersetRewrite: &corev1.UsersetRewrite{
+						RewriteOperation: &corev1.UsersetRewrite_Union{
+							Union: &corev1.SetOperation{
+								Child: []*corev1.SetOperation_Child{
+									{
+										ChildType: &corev1.SetOperation_Child_ComputedUserset{
+											ComputedUserset: &corev1.ComputedUserset{
+												Relation: "only_child",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Name: "single_intersection",
+					UsersetRewrite: &corev1.UsersetRewrite{
+						RewriteOperation: &corev1.UsersetRewrite_Intersection{
+							Intersection: &corev1.SetOperation{
+								Child: []*corev1.SetOperation_Child{
+									{
+										ChildType: &corev1.SetOperation_Child_ComputedUserset{
+											ComputedUserset: &corev1.ComputedUserset{
+												Relation: "single_child",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		schema, err := BuildSchemaFromDefinitions([]*corev1.NamespaceDefinition{def}, nil)
+		require.NoError(t, err)
+
+		docDef, ok := schema.GetTypeDefinition("doc")
+		require.True(t, ok)
+
+		// Check union with single child (should be unwrapped)
+		singleUnionPerm, ok := docDef.GetPermission("single_union")
+		require.True(t, ok)
+
+		singleUnionOp := singleUnionPerm.Operation()
+		require.NotNil(t, singleUnionOp)
+		require.NotNil(t, singleUnionOp.Parent())
+		require.Equal(t, singleUnionPerm, singleUnionOp.Parent(), "Unwrapped operation should have permission as parent")
+
+		// Check intersection with single child (should be unwrapped)
+		singleIntersectionPerm, ok := docDef.GetPermission("single_intersection")
+		require.True(t, ok)
+
+		singleIntersectionOp := singleIntersectionPerm.Operation()
+		require.NotNil(t, singleIntersectionOp)
+		require.NotNil(t, singleIntersectionOp.Parent())
+		require.Equal(t, singleIntersectionPerm, singleIntersectionOp.Parent(), "Unwrapped operation should have permission as parent")
+	})
+}

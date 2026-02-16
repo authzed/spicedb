@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -106,8 +107,17 @@ func TestWalkSchema_Nil(t *testing.T) {
 func TestWalkSchema_Empty(t *testing.T) {
 	schema := &Schema{
 		definitions: make(map[string]*Definition),
-		caveats:     make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
+	schema.caveats["is_admin"].parent = schema
 
 	visitor := &testVisitor{}
 	_, err := WalkSchema(schema, visitor, struct{}{})
@@ -116,7 +126,7 @@ func TestWalkSchema_Empty(t *testing.T) {
 	require.Len(t, visitor.schemas, 1)
 	require.Same(t, schema, visitor.schemas[0])
 	require.Empty(t, visitor.definitions)
-	require.Empty(t, visitor.caveats)
+	require.Len(t, visitor.caveats, 1)
 }
 
 func TestWalkSchema_WithDefinitionsAndCaveats(t *testing.T) {
@@ -466,9 +476,18 @@ func TestWalkSchema_PartialVisitor(t *testing.T) {
 				permissions: map[string]*Permission{},
 			},
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	schema.definitions["user"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	_, err := WalkSchema(schema, pv, struct{}{})
 	require.NoError(t, err)
@@ -502,10 +521,19 @@ func TestWalkSchema_ErrorPropagation(t *testing.T) {
 				permissions: make(map[string]*Permission),
 			},
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	schema.definitions["user"].parent = schema
 	schema.definitions["document"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	ev := &errorVisitor{}
 	_, err := WalkSchema(schema, ev, struct{}{})
@@ -538,9 +566,18 @@ func TestWalkSchema_EarlyTerminationOnSchema(t *testing.T) {
 				permissions: make(map[string]*Permission),
 			},
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	schema.definitions["user"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	sv := &stopVisitor{}
 	_, err := WalkSchema(schema, sv, struct{}{})
@@ -738,16 +775,25 @@ func TestWalkSchema_ValueThreading(t *testing.T) {
 				permissions: make(map[string]*Permission),
 			},
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	schema.definitions["user"].parent = schema
+	schema.caveats["is_admin"].parent = schema
 
 	visitor := &intVisitor{}
 	result, err := WalkSchema(schema, visitor, 0)
 	require.NoError(t, err)
 
-	// Should have visited: Schema (+1), Definition (+10) = 11
-	require.Equal(t, 11, result)
+	// Should have visited: Schema (+1), Definition (+10), Caveat (+100) = 111
+	require.Equal(t, 111, result)
 }
 
 func TestWalkDefinition_ValueThreading(t *testing.T) {
@@ -969,7 +1015,15 @@ func TestArrowOperationVisitor(t *testing.T) {
 		definitions: map[string]*Definition{
 			"document": def,
 		},
-		caveats: make(map[string]*Caveat),
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
 	}
 	def.parent = schema
 
@@ -1105,4 +1159,699 @@ func TestNilReferenceVisitor_ErrorHandling(t *testing.T) {
 	_, err := WalkOperation(op, visitor, struct{}{})
 	require.Error(t, err)
 	require.Equal(t, errTestError, err)
+}
+
+// orderTrackingVisitor tracks the order of visited nodes by their names
+type orderTrackingVisitor struct {
+	visitOrder []string
+}
+
+func (otv *orderTrackingVisitor) VisitSchema(s *Schema, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "schema")
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitDefinition(d *Definition, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "def:"+d.name)
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitRelation(r *Relation, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "rel:"+r.name)
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitBaseRelation(br *BaseRelation, value struct{}) (struct{}, error) {
+	otv.visitOrder = append(otv.visitOrder, "baserel:"+br.subjectType)
+	return value, nil
+}
+
+func (otv *orderTrackingVisitor) VisitPermission(p *Permission, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "perm:"+p.name)
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitRelationReference(rr *RelationReference, value struct{}) (struct{}, error) {
+	otv.visitOrder = append(otv.visitOrder, "relref:"+rr.relationName)
+	return value, nil
+}
+
+func (otv *orderTrackingVisitor) VisitUnionOperation(uo *UnionOperation, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "union")
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitIntersectionOperation(io *IntersectionOperation, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "intersection")
+	return value, true, nil
+}
+
+func (otv *orderTrackingVisitor) VisitExclusionOperation(eo *ExclusionOperation, value struct{}) (struct{}, bool, error) {
+	otv.visitOrder = append(otv.visitOrder, "exclusion")
+	return value, true, nil
+}
+
+// TestWalkSchema_PreOrderVsPostOrder verifies that PreOrder and PostOrder produce different traversal orders
+func TestWalkSchema_PreOrderVsPostOrder(t *testing.T) {
+	// Build a simple schema with nested structure
+	schema := buildTestSchema(t)
+
+	// Test PreOrder traversal (default)
+	preOrderVisitor := &orderTrackingVisitor{}
+	_, err := WalkSchema(schema, preOrderVisitor, struct{}{})
+	require.NoError(t, err)
+
+	// Test PostOrder traversal
+	postOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkSchemaWithOptions(schema, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
+	require.NoError(t, err)
+
+	// Verify orders are different
+	require.NotEqual(t, preOrderVisitor.visitOrder, postOrderVisitor.visitOrder)
+
+	// Verify PreOrder visits parent before children
+	// Schema should be first in PreOrder
+	require.Equal(t, "schema", preOrderVisitor.visitOrder[0])
+
+	// Verify PostOrder visits children before parent
+	// Schema should be last in PostOrder
+	require.Equal(t, "schema", postOrderVisitor.visitOrder[len(postOrderVisitor.visitOrder)-1])
+}
+
+// TestWalkDefinition_PreOrderVsPostOrder tests order difference at definition level
+func TestWalkDefinition_PreOrderVsPostOrder(t *testing.T) {
+	schema := buildTestSchema(t)
+	def := schema.definitions["document"]
+	require.NotNil(t, def)
+
+	// PreOrder
+	preOrderVisitor := &orderTrackingVisitor{}
+	_, err := WalkDefinition(def, preOrderVisitor, struct{}{})
+	require.NoError(t, err)
+
+	// PostOrder
+	postOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkDefinitionWithOptions(def, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
+	require.NoError(t, err)
+
+	// In PreOrder, definition should be first
+	require.Equal(t, "def:document", preOrderVisitor.visitOrder[0])
+
+	// In PostOrder, definition should be last
+	require.Equal(t, "def:document", postOrderVisitor.visitOrder[len(postOrderVisitor.visitOrder)-1])
+}
+
+// TestWalkOperation_PreOrderVsPostOrder tests operation tree traversal order
+func TestWalkOperation_PreOrderVsPostOrder(t *testing.T) {
+	// Build operation tree: (a | b) & c
+	op := &IntersectionOperation{
+		children: []Operation{
+			&UnionOperation{
+				children: []Operation{
+					&RelationReference{relationName: "a"},
+					&RelationReference{relationName: "b"},
+				},
+			},
+			&RelationReference{relationName: "c"},
+		},
+	}
+
+	// PreOrder: should visit intersection, then union, then leaves
+	preOrderVisitor := &orderTrackingVisitor{}
+	_, err := WalkOperation(op, preOrderVisitor, struct{}{})
+	require.NoError(t, err)
+
+	// Expected PreOrder: intersection, union, a, b, c
+	expectedPreOrder := []string{"intersection", "union", "relref:a", "relref:b", "relref:c"}
+	require.Equal(t, expectedPreOrder, preOrderVisitor.visitOrder)
+
+	// PostOrder: should visit leaves first, then union, then intersection
+	postOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkOperationWithOptions(op, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
+	require.NoError(t, err)
+
+	// Expected PostOrder: a, b, union, c, intersection (like postfix notation)
+	expectedPostOrder := []string{"relref:a", "relref:b", "union", "relref:c", "intersection"}
+	require.Equal(t, expectedPostOrder, postOrderVisitor.visitOrder)
+}
+
+// valueThreadingVisitor tracks value threading by accumulating counts
+type valueThreadingVisitor struct {
+	schemaCount     int
+	definitionCount int
+	relationCount   int
+	permissionCount int
+}
+
+func (vtv *valueThreadingVisitor) VisitSchema(s *Schema, value int) (int, bool, error) {
+	vtv.schemaCount++
+	return value + 1, true, nil
+}
+
+func (vtv *valueThreadingVisitor) VisitDefinition(d *Definition, value int) (int, bool, error) {
+	vtv.definitionCount++
+	return value + 10, true, nil
+}
+
+func (vtv *valueThreadingVisitor) VisitRelation(r *Relation, value int) (int, bool, error) {
+	vtv.relationCount++
+	return value + 100, true, nil
+}
+
+func (vtv *valueThreadingVisitor) VisitPermission(p *Permission, value int) (int, bool, error) {
+	vtv.permissionCount++
+	return value + 1000, true, nil
+}
+
+// TestWalkSchema_PostOrderValueThreading verifies value threading works correctly in PostOrder
+func TestWalkSchema_PostOrderValueThreading(t *testing.T) {
+	schema := buildTestSchema(t)
+
+	// Test with PreOrder (baseline)
+	preOrderVisitor := &valueThreadingVisitor{}
+	preOrderResult, err := WalkSchema(schema, preOrderVisitor, 0)
+	require.NoError(t, err)
+
+	// Test with PostOrder
+	postOrderVisitor := &valueThreadingVisitor{}
+	postOrderResult, err := WalkSchemaWithOptions(schema, postOrderVisitor, 0, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
+	require.NoError(t, err)
+
+	// Both should have visited the same nodes
+	require.Equal(t, preOrderVisitor.schemaCount, postOrderVisitor.schemaCount)
+	require.Equal(t, preOrderVisitor.definitionCount, postOrderVisitor.definitionCount)
+	require.Equal(t, preOrderVisitor.relationCount, postOrderVisitor.relationCount)
+	require.Equal(t, preOrderVisitor.permissionCount, postOrderVisitor.permissionCount)
+
+	// Both should have the same final accumulated value
+	require.Equal(t, preOrderResult, postOrderResult)
+}
+
+// continueTestVisitor stops at definitions to test continue flag behavior
+type continueTestVisitor struct {
+	definitionsSeen int
+	relationsSeen   int
+	stopAtFirstDef  bool
+}
+
+func (ctv *continueTestVisitor) VisitDefinition(d *Definition, value struct{}) (struct{}, bool, error) {
+	ctv.definitionsSeen++
+	if ctv.stopAtFirstDef && ctv.definitionsSeen == 1 {
+		return value, false, nil // Stop - don't visit children
+	}
+	return value, true, nil
+}
+
+func (ctv *continueTestVisitor) VisitRelation(r *Relation, value struct{}) (struct{}, bool, error) {
+	ctv.relationsSeen++
+	return value, true, nil
+}
+
+// TestWalkDefinition_ContinueFlagInPreOrder verifies continue=false skips children in PreOrder
+func TestWalkDefinition_ContinueFlagInPreOrder(t *testing.T) {
+	schema := buildTestSchema(t)
+	def := schema.definitions["document"]
+
+	visitor := &continueTestVisitor{stopAtFirstDef: true}
+	_, err := WalkDefinition(def, visitor, struct{}{})
+	require.NoError(t, err)
+
+	// In PreOrder, continue=false should skip children
+	require.Equal(t, 1, visitor.definitionsSeen)
+	require.Equal(t, 0, visitor.relationsSeen) // Children not visited
+}
+
+// TestWalkDefinition_ContinueFlagInPostOrder verifies children are visited regardless in PostOrder
+func TestWalkDefinition_ContinueFlagInPostOrder(t *testing.T) {
+	schema := buildTestSchema(t)
+	def := schema.definitions["document"]
+
+	visitor := &continueTestVisitor{stopAtFirstDef: true}
+	_, err := WalkDefinitionWithOptions(def, visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
+	require.NoError(t, err)
+
+	// In PostOrder, children are visited before parent, so continue flag doesn't affect them
+	require.Equal(t, 1, visitor.definitionsSeen)
+	require.Positive(t, visitor.relationsSeen) // Children were visited
+}
+
+// errorInChildVisitor returns error from a relation to test error propagation
+type errorInChildVisitor struct{}
+
+func (ev *errorInChildVisitor) VisitRelation(r *Relation, value struct{}) (struct{}, bool, error) {
+	if r.name == "viewer" {
+		return value, false, errTestError
+	}
+	return value, true, nil
+}
+
+func (ev *errorInChildVisitor) VisitDefinition(d *Definition, value struct{}) (struct{}, bool, error) {
+	return value, true, nil
+}
+
+// TestWalkDefinition_ErrorPropagationInPostOrder verifies errors propagate correctly in PostOrder
+func TestWalkDefinition_ErrorPropagationInPostOrder(t *testing.T) {
+	schema := buildTestSchema(t)
+	def := schema.definitions["document"]
+
+	visitor := &errorInChildVisitor{}
+	_, err := WalkDefinitionWithOptions(def, visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
+	require.Error(t, err)
+	require.Equal(t, errTestError, err)
+}
+
+// TestWalkSchema_BackwardCompatibility verifies default behavior is PreOrder
+func TestWalkSchema_BackwardCompatibility(t *testing.T) {
+	schema := buildTestSchema(t)
+
+	// Default Walk (no options) should behave like PreOrder
+	defaultVisitor := &orderTrackingVisitor{}
+	_, err := WalkSchema(schema, defaultVisitor, struct{}{})
+	require.NoError(t, err)
+
+	// Explicit PreOrder
+	preOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkSchemaWithOptions(schema, preOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPreOrder).MustBuild())
+	require.NoError(t, err)
+
+	// Both should visit the same number of nodes
+	require.Len(t, defaultVisitor.visitOrder, len(preOrderVisitor.visitOrder))
+
+	// Both should have schema as the first node (PreOrder characteristic)
+	require.Equal(t, "schema", defaultVisitor.visitOrder[0])
+	require.Equal(t, "schema", preOrderVisitor.visitOrder[0])
+
+	// PostOrder should be different - schema should be last
+	postOrderVisitor := &orderTrackingVisitor{}
+	_, err = WalkSchemaWithOptions(schema, postOrderVisitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
+	require.NoError(t, err)
+
+	require.Equal(t, "schema", postOrderVisitor.visitOrder[len(postOrderVisitor.visitOrder)-1])
+	require.NotEqual(t, defaultVisitor.visitOrder[0], postOrderVisitor.visitOrder[0])
+}
+
+// buildTestSchema creates a test schema with nested structure for testing
+func buildTestSchema(t *testing.T) *Schema {
+	// Create base relations
+	viewerBR := &BaseRelation{subjectType: "user"}
+	editorBR := &BaseRelation{subjectType: "user"}
+
+	// Create relations
+	viewerRel := &Relation{
+		name:          "viewer",
+		baseRelations: []*BaseRelation{viewerBR},
+	}
+	editorRel := &Relation{
+		name:          "editor",
+		baseRelations: []*BaseRelation{editorBR},
+	}
+
+	// Create permissions with union operation
+	viewPerm := &Permission{
+		name: "view",
+		operation: &UnionOperation{
+			children: []Operation{
+				&RelationReference{relationName: "viewer"},
+				&RelationReference{relationName: "editor"},
+			},
+		},
+	}
+	editPerm := &Permission{
+		name:      "edit",
+		operation: &RelationReference{relationName: "editor"},
+	}
+
+	// Create definition
+	docDef := &Definition{
+		name: "document",
+		relations: map[string]*Relation{
+			"viewer": viewerRel,
+			"editor": editorRel,
+		},
+		permissions: map[string]*Permission{
+			"view": viewPerm,
+			"edit": editPerm,
+		},
+	}
+
+	// Set parent references
+	viewerBR.parent = viewerRel
+	editorBR.parent = editorRel
+	viewerRel.parent = docDef
+	editorRel.parent = docDef
+	viewPerm.parent = docDef
+	editPerm.parent = docDef
+
+	// Create schema
+	schema := &Schema{
+		definitions: map[string]*Definition{
+			"document": docDef,
+		},
+		caveats: map[string]*Caveat{
+			"is_admin": {
+				name:       "is_admin",
+				expression: "admin == true",
+				parameters: []CaveatParameter{
+					{name: "admin", typ: "bool"},
+				},
+			},
+		},
+	}
+	docDef.parent = schema
+
+	return schema
+}
+
+// TestOperationParentPointers verifies that parent pointers are correctly set
+// for operations in the tree when built using the schema builder.
+func TestOperationParentPointers(t *testing.T) {
+	schema := NewSchemaBuilder().
+		AddDefinition("document").
+		AddPermission("view").
+		UnionExpr().
+		AddRelationRef("owner").
+		AddRelationRef("viewer").
+		Done().
+		Done().
+		Done().
+		Build()
+
+	def, ok := schema.GetTypeDefinition("document")
+	require.True(t, ok)
+	perm, ok := def.GetPermission("view")
+	require.True(t, ok)
+	op := perm.Operation()
+
+	// Check that child operations have the union as their parent
+	union, ok := op.(*UnionOperation)
+	require.True(t, ok, "Expected UnionOperation")
+
+	require.Equal(t, perm, union.Parent(), "Union's parent should be the permission")
+
+	children := union.Children()
+	require.Len(t, children, 2)
+
+	for i, child := range children {
+		require.Equal(t, union, child.Parent(), "Child %d should have union as parent", i)
+	}
+}
+
+// TestOperationParentPointersNestedOperations verifies parent pointers in deeply nested operations.
+func TestOperationParentPointersNestedOperations(t *testing.T) {
+	// Build a schema with deeply nested operations: (a | b) & c
+	schema := NewSchemaBuilder().
+		AddDefinition("document").
+		AddPermission("complex").
+		Intersection(
+			Union(
+				RelRef("a"),
+				RelRef("b"),
+			),
+			RelRef("c"),
+		).
+		Done().
+		Done().
+		Build()
+
+	def, ok := schema.GetTypeDefinition("document")
+	require.True(t, ok)
+	perm, ok := def.GetPermission("complex")
+	require.True(t, ok)
+	op := perm.Operation()
+
+	// The root operation (intersection) should have the permission as parent
+	require.Equal(t, perm, op.Parent(), "Root operation's parent should be the permission")
+
+	intersection, ok := op.(*IntersectionOperation)
+	require.True(t, ok, "Expected IntersectionOperation")
+
+	children := intersection.Children()
+	require.Len(t, children, 2)
+
+	// First child is a union
+	union, ok := children[0].(*UnionOperation)
+	require.True(t, ok, "Expected first child to be UnionOperation")
+
+	// Union's parent should be the intersection
+	require.Equal(t, intersection, union.Parent(), "Union's parent should be intersection")
+
+	// Union's children should have union as parent
+	unionChildren := union.Children()
+	for i, child := range unionChildren {
+		require.Equal(t, union, child.Parent(), "Union child %d should have union as parent", i)
+	}
+
+	// Second child of intersection (RelRef("c")) should have intersection as parent
+	require.Equal(t, intersection, children[1].Parent(), "Second intersection child should have intersection as parent")
+}
+
+// TestOperationParentPointersExclusion verifies parent pointers in exclusion operations.
+func TestOperationParentPointersExclusion(t *testing.T) {
+	schema := NewSchemaBuilder().
+		AddDefinition("document").
+		AddPermission("restricted").
+		Exclusion(
+			Union(RelRef("a"), RelRef("b")),
+			RelRef("c"),
+		).
+		Done().
+		Done().
+		Build()
+
+	def, ok := schema.GetTypeDefinition("document")
+	require.True(t, ok)
+	perm, ok := def.GetPermission("restricted")
+	require.True(t, ok)
+	op := perm.Operation()
+
+	// Root operation (exclusion) should have the permission as parent
+	require.Equal(t, perm, op.Parent())
+
+	exclusion, ok := op.(*ExclusionOperation)
+	require.True(t, ok)
+
+	// Left side (union) should have exclusion as parent
+	leftOp := exclusion.Left()
+	require.Equal(t, exclusion, leftOp.Parent())
+
+	// Right side should have exclusion as parent
+	rightOp := exclusion.Right()
+	require.Equal(t, exclusion, rightOp.Parent())
+
+	// Children of the union should have union as parent
+	union, ok := leftOp.(*UnionOperation)
+	require.True(t, ok)
+	for _, child := range union.Children() {
+		require.Equal(t, union, child.Parent())
+	}
+}
+
+// TestOperationParentPointersPostOrderTraversal verifies that parent pointers
+// are accessible and correctly set during post-order traversal.
+func TestOperationParentPointersPostOrderTraversal(t *testing.T) {
+	schema := NewSchemaBuilder().
+		AddDefinition("document").
+		AddPermission("view").
+		UnionExpr().
+		AddRelationRef("owner").
+		AddRelationRef("viewer").
+		Done().
+		Done().
+		Done().
+		Build()
+
+	def, ok := schema.GetTypeDefinition("document")
+	require.True(t, ok)
+	perm, ok := def.GetPermission("view")
+	require.True(t, ok)
+
+	// Manually verify parent pointers during post-order traversal
+	union, ok := perm.Operation().(*UnionOperation)
+	require.True(t, ok)
+
+	// The union should have the permission as parent (it's the root)
+	require.Equal(t, perm, union.Parent())
+
+	// Each child should have the union as parent
+	children := union.Children()
+	for _, child := range children {
+		require.Equal(t, union, child.Parent())
+	}
+
+	// Walk in post-order and verify we can access parents
+	visitor := &testVisitor{}
+	_, err := WalkOperationWithOptions(perm.Operation(), visitor, struct{}{}, NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild())
+	require.NoError(t, err)
+
+	// Verify that operations were visited
+	require.NotEmpty(t, visitor.operations)
+	require.NotEmpty(t, visitor.relationReferences)
+
+	// Verify each visited operation has the correct parent
+	for _, relRef := range visitor.relationReferences {
+		require.NotNil(t, relRef.Parent(), "RelationReference should have a parent")
+		require.IsType(t, &UnionOperation{}, relRef.Parent(), "RelationReference parent should be UnionOperation")
+	}
+}
+
+func TestOperationParentWithPermission(t *testing.T) {
+	// Build a schema with a permission that has nested operations
+	schema := NewSchemaBuilder().
+		AddDefinition("document").
+		AddPermission("view").Union(
+		&RelationReference{relationName: "viewer"},
+		&ArrowReference{left: "parent", right: "view"},
+	).Done().
+		AddPermission("edit").Intersection(
+		&RelationReference{relationName: "editor"},
+		&RelationReference{relationName: "owner"},
+	).Done().
+		Done().
+		Build()
+
+	def, found := schema.GetTypeDefinition("document")
+	require.True(t, found, "definition should exist")
+	require.NotNil(t, def, "definition should not be nil")
+
+	viewPerm, found := def.GetPermission("view")
+	require.True(t, found, "view permission should exist")
+	require.NotNil(t, viewPerm, "view permission should not be nil")
+
+	editPerm, found := def.GetPermission("edit")
+	require.True(t, found, "edit permission should exist")
+	require.NotNil(t, editPerm, "edit permission should not be nil")
+
+	// Verify that the ROOT operation has the permission as parent
+	viewOp := viewPerm.Operation()
+	require.NotNil(t, viewOp, "view operation should exist")
+	require.Equal(t, viewPerm, viewOp.Parent(), "root operation's parent should be the permission")
+
+	// Verify that child operations have correct parent
+	if unionOp, ok := viewOp.(*UnionOperation); ok {
+		for _, child := range unionOp.Children() {
+			require.Equal(t, unionOp, child.Parent(), "child operation should have union as parent")
+		}
+	}
+
+	// Verify that the ROOT operation in edit has the permission as parent
+	editOp := editPerm.Operation()
+	require.NotNil(t, editOp, "edit operation should exist")
+	require.Equal(t, editPerm, editOp.Parent(), "root operation's parent should be the permission")
+
+	// Verify that child operations have correct parent
+	if intersectionOp, ok := editOp.(*IntersectionOperation); ok {
+		for _, child := range intersectionOp.Children() {
+			require.Equal(t, intersectionOp, child.Parent(), "child operation should have intersection as parent")
+		}
+	}
+}
+
+// TestCrossPermissionReferences verifies that when one permission references another,
+// the referencing operation has its parent set correctly.
+func TestCrossPermissionReferences(t *testing.T) {
+	// Build a schema where one permission references another
+	schema := NewSchemaBuilder().
+		AddDefinition("document").
+		AddRelation("viewer").AllowedDirectRelation("user").Done().
+		AddPermission("base_view").RelationRef("viewer").Done().
+		AddPermission("extended_view").Union(
+		&RelationReference{relationName: "base_view"}, // References another permission
+		&RelationReference{relationName: "viewer"},
+	).Done().
+		Done().
+		Build()
+
+	def, found := schema.GetTypeDefinition("document")
+	require.True(t, found, "definition should exist")
+
+	baseViewPerm, found := def.GetPermission("base_view")
+	require.True(t, found, "base_view permission should exist")
+
+	extendedViewPerm, found := def.GetPermission("extended_view")
+	require.True(t, found, "extended_view permission should exist")
+
+	// Verify that base_view's operation belongs to base_view
+	baseViewOp := baseViewPerm.Operation()
+	require.NotNil(t, baseViewOp, "base_view operation should exist")
+	require.Equal(t, baseViewPerm, baseViewOp.Parent(), "base_view root operation's parent should be base_view permission")
+
+	// Verify that extended_view's operations belong to extended_view
+	extendedViewOp := extendedViewPerm.Operation()
+	require.NotNil(t, extendedViewOp, "extended_view operation should exist")
+	require.Equal(t, extendedViewPerm, extendedViewOp.Parent(), "extended_view root operation's parent should be extended_view permission")
+
+	// Verify that the child operation that references base_view has correct parent
+	if unionOp, ok := extendedViewOp.(*UnionOperation); ok {
+		for _, child := range unionOp.Children() {
+			require.Equal(t, unionOp, child.Parent(), "child should have union as parent")
+		}
+	}
+}
+
+func TestOperationParentPointersFromProto(t *testing.T) {
+	// Test that operations created from proto definitions also have their parent set correctly
+	def := &corev1.NamespaceDefinition{
+		Name: "document",
+		Relation: []*corev1.Relation{
+			{
+				Name: "viewer",
+				TypeInformation: &corev1.TypeInformation{
+					AllowedDirectRelations: []*corev1.AllowedRelation{
+						{
+							Namespace: "user",
+						},
+					},
+				},
+			},
+			{
+				Name: "view",
+				UsersetRewrite: &corev1.UsersetRewrite{
+					RewriteOperation: &corev1.UsersetRewrite_Union{
+						Union: &corev1.SetOperation{
+							Child: []*corev1.SetOperation_Child{
+								{
+									ChildType: &corev1.SetOperation_Child_ComputedUserset{
+										ComputedUserset: &corev1.ComputedUserset{
+											Relation: "viewer",
+										},
+									},
+								},
+								{
+									ChildType: &corev1.SetOperation_Child_TupleToUserset{
+										TupleToUserset: &corev1.TupleToUserset{
+											Tupleset: &corev1.TupleToUserset_Tupleset{
+												Relation: "parent",
+											},
+											ComputedUserset: &corev1.ComputedUserset{
+												Relation: "view",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	convertedDef, err := convertDefinition(def)
+	require.NoError(t, err, "conversion should succeed")
+
+	viewPerm, found := convertedDef.GetPermission("view")
+	require.True(t, found, "view permission should exist")
+	require.NotNil(t, viewPerm, "view permission should not be nil")
+
+	// Verify that the operation has correct parent
+	viewOp := viewPerm.Operation()
+	require.NotNil(t, viewOp, "view operation should exist")
+	require.Equal(t, viewPerm, viewOp.Parent(), "view operation's parent should be the permission")
+
+	// Verify that child operations have correct parent
+	if unionOp, ok := viewOp.(*UnionOperation); ok {
+		for _, child := range unionOp.Children() {
+			require.Equal(t, unionOp, child.Parent(), "child operation should have union as parent")
+		}
+	}
 }

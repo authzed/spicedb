@@ -733,3 +733,256 @@ definition user {}`
 	require.NotNil(t, viewPerm.UsersetRewrite)
 	require.NotNil(t, viewPerm.UsersetRewrite.RewriteOperation)
 }
+
+func TestBuildSchemaFromDefinitions_ParentPointers(t *testing.T) {
+	// Create a simple schema: document with owner relation and view permission
+	objectDefs := []*core.NamespaceDefinition{
+		{
+			Name: "document",
+			Relation: []*core.Relation{
+				{
+					Name: "owner",
+					TypeInformation: &core.TypeInformation{
+						AllowedDirectRelations: []*core.AllowedRelation{
+							{
+								Namespace: "user",
+							},
+						},
+					},
+				},
+				{
+					Name: "view",
+					UsersetRewrite: &core.UsersetRewrite{
+						RewriteOperation: &core.UsersetRewrite_Union{
+							Union: &core.SetOperation{
+								Child: []*core.SetOperation_Child{
+									{
+										ChildType: &core.SetOperation_Child_ComputedUserset{
+											ComputedUserset: &core.ComputedUserset{
+												Relation: "owner",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	schema, err := BuildSchemaFromDefinitions(objectDefs, nil)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
+
+	// Check Definition parent
+	def, ok := schema.GetTypeDefinition("document")
+	require.True(t, ok)
+	require.NotNil(t, def)
+	require.Equal(t, schema, def.Parent(), "Definition should have Schema as parent")
+
+	// Check Relation parent
+	ownerRel, ok := def.GetRelation("owner")
+	require.True(t, ok)
+	require.NotNil(t, ownerRel)
+	require.Equal(t, def, ownerRel.Parent(), "Relation should have Definition as parent")
+
+	// Check BaseRelation parent
+	require.Len(t, ownerRel.BaseRelations(), 1)
+	baseRel := ownerRel.BaseRelations()[0]
+	require.Equal(t, ownerRel, baseRel.Parent(), "BaseRelation should have Relation as parent")
+
+	// Check Permission parent
+	viewPerm, ok := def.GetPermission("view")
+	require.True(t, ok)
+	require.NotNil(t, viewPerm)
+	require.Equal(t, def, viewPerm.Parent(), "Permission should have Definition as parent")
+
+	// Check Operation parent
+	op := viewPerm.Operation()
+	require.NotNil(t, op)
+	require.Equal(t, viewPerm, op.Parent(), "Root operation should have Permission as parent")
+}
+
+func TestResolveSchema_PreservesParentPointers(t *testing.T) {
+	// Create a schema with relations and permissions
+	objectDefs := []*core.NamespaceDefinition{
+		{
+			Name: "document",
+			Relation: []*core.Relation{
+				{
+					Name: "owner",
+					TypeInformation: &core.TypeInformation{
+						AllowedDirectRelations: []*core.AllowedRelation{
+							{
+								Namespace: "user",
+							},
+						},
+					},
+				},
+				{
+					Name: "editor",
+					TypeInformation: &core.TypeInformation{
+						AllowedDirectRelations: []*core.AllowedRelation{
+							{
+								Namespace: "user",
+							},
+						},
+					},
+				},
+				{
+					Name: "view",
+					UsersetRewrite: &core.UsersetRewrite{
+						RewriteOperation: &core.UsersetRewrite_Union{
+							Union: &core.SetOperation{
+								Child: []*core.SetOperation_Child{
+									{
+										ChildType: &core.SetOperation_Child_ComputedUserset{
+											ComputedUserset: &core.ComputedUserset{
+												Relation: "owner",
+											},
+										},
+									},
+									{
+										ChildType: &core.SetOperation_Child_ComputedUserset{
+											ComputedUserset: &core.ComputedUserset{
+												Relation: "editor",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	schema, err := BuildSchemaFromDefinitions(objectDefs, nil)
+	require.NoError(t, err)
+
+	// Resolve the schema
+	resolvedSchema, err := ResolveSchema(schema)
+	require.NoError(t, err)
+	require.NotNil(t, resolvedSchema)
+
+	s := resolvedSchema.Schema()
+	def, ok := s.GetTypeDefinition("document")
+	require.True(t, ok)
+
+	// Check Permission parent
+	viewPerm, ok := def.GetPermission("view")
+	require.True(t, ok)
+	require.Equal(t, def, viewPerm.Parent(), "Permission should have Definition as parent after resolution")
+
+	// Check root operation parent
+	op := viewPerm.Operation()
+	require.NotNil(t, op)
+	require.Equal(t, viewPerm, op.Parent(), "Root operation should have Permission as parent after resolution")
+
+	// Root should be a union
+	rootUnion, ok := op.(*UnionOperation)
+	require.True(t, ok, "Root operation should be UnionOperation")
+
+	// Check children parents
+	children := rootUnion.Children()
+	require.Len(t, children, 2)
+
+	for i, child := range children {
+		require.Equal(t, rootUnion, child.Parent(), "Child %d should have union as parent after resolution", i)
+
+		// Each child should be a ResolvedRelationReference
+		resolvedRef, ok := child.(*ResolvedRelationReference)
+		require.True(t, ok, "Child %d should be ResolvedRelationReference", i)
+		require.NotNil(t, resolvedRef.Resolved(), "Child %d should have resolved relation", i)
+	}
+}
+
+func TestBuildSchemaFromDefinitions_NestedOperationParents(t *testing.T) {
+	// Create a schema with nested operations: permission view = owner + (editor & viewer)
+	objectDefs := []*core.NamespaceDefinition{
+		{
+			Name: "document",
+			Relation: []*core.Relation{
+				{
+					Name: "view",
+					UsersetRewrite: &core.UsersetRewrite{
+						RewriteOperation: &core.UsersetRewrite_Union{
+							Union: &core.SetOperation{
+								Child: []*core.SetOperation_Child{
+									{
+										ChildType: &core.SetOperation_Child_ComputedUserset{
+											ComputedUserset: &core.ComputedUserset{
+												Relation: "owner",
+											},
+										},
+									},
+									{
+										ChildType: &core.SetOperation_Child_UsersetRewrite{
+											UsersetRewrite: &core.UsersetRewrite{
+												RewriteOperation: &core.UsersetRewrite_Intersection{
+													Intersection: &core.SetOperation{
+														Child: []*core.SetOperation_Child{
+															{
+																ChildType: &core.SetOperation_Child_ComputedUserset{
+																	ComputedUserset: &core.ComputedUserset{
+																		Relation: "editor",
+																	},
+																},
+															},
+															{
+																ChildType: &core.SetOperation_Child_ComputedUserset{
+																	ComputedUserset: &core.ComputedUserset{
+																		Relation: "viewer",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	schema, err := BuildSchemaFromDefinitions(objectDefs, nil)
+	require.NoError(t, err)
+
+	def, _ := schema.GetTypeDefinition("document")
+	viewPerm, _ := def.GetPermission("view")
+
+	// Root should be a union
+	rootUnion, ok := viewPerm.Operation().(*UnionOperation)
+	require.True(t, ok, "Root operation should be UnionOperation")
+	require.Equal(t, viewPerm, rootUnion.Parent(), "Root union should have Permission as parent")
+
+	// Check first child (owner reference)
+	children := rootUnion.Children()
+	require.Len(t, children, 2)
+
+	firstChild := children[0]
+	require.Equal(t, rootUnion, firstChild.Parent(), "First child should have union as parent")
+
+	// Check second child (intersection)
+	secondChild := children[1]
+	intersection, ok := secondChild.(*IntersectionOperation)
+	require.True(t, ok, "Second child should be IntersectionOperation")
+	require.Equal(t, rootUnion, intersection.Parent(), "Intersection should have union as parent")
+
+	// Check intersection's children
+	intersectionChildren := intersection.Children()
+	require.Len(t, intersectionChildren, 2)
+
+	for i, child := range intersectionChildren {
+		require.Equal(t, intersection, child.Parent(), "Intersection child %d should have intersection as parent", i)
+	}
+}

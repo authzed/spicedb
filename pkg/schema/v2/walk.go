@@ -1,5 +1,123 @@
 package schema
 
+import "errors"
+
+// WalkStrategy determines the order in which nodes are visited during traversal.
+type WalkStrategy int
+
+const (
+	// WalkPreOrder visits each node before visiting its children.
+	// This is the default traversal order.
+	WalkPreOrder WalkStrategy = iota
+
+	// WalkPostOrder visits each node's children before visiting the node itself.
+	WalkPostOrder
+)
+
+// WalkOptions configures how the walk traversal is performed.
+// Use NewWalkOptions() to create a builder and call Build() to get WalkOptions.
+type WalkOptions struct {
+	// strategy determines the traversal order (pre-order or post-order).
+	strategy WalkStrategy
+
+	// traverseArrowTargets enables automatic traversal of arrow reference targets
+	// during PostOrder traversal.
+	traverseArrowTargets bool
+
+	// schema is the root schema, used for resolving arrow targets when traverseArrowTargets is enabled.
+	schema *Schema
+
+	// visitedTargets tracks which relations/permissions have been visited during traversal
+	// to prevent infinite recursion in cyclic schemas. Used for both arrow traversal and
+	// resolved relation reference traversal in PostOrder mode. Internal use only.
+	// Note that entities already traversed will not be traversed again when it happens through a non-recursive path
+	// (Example two different arrows in different permissions pointing at the same target relation)
+	visitedTargets map[string]bool
+}
+
+// WalkOptionsBuilder provides a fluent interface for building WalkOptions with error handling.
+type WalkOptionsBuilder struct {
+	options WalkOptions
+	err     error
+}
+
+// NewWalkOptions creates a new WalkOptionsBuilder with default settings.
+func NewWalkOptions() *WalkOptionsBuilder {
+	return &WalkOptionsBuilder{
+		options: defaultWalkOptions(),
+	}
+}
+
+// defaultWalkOptions creates a new WalkOptions with default settings.
+func defaultWalkOptions() WalkOptions {
+	return WalkOptions{
+		strategy:       WalkPreOrder,
+		visitedTargets: make(map[string]bool),
+	}
+}
+
+// WithStrategy sets the traversal strategy (PreOrder or PostOrder).
+func (opts WalkOptions) WithStrategy(strategy WalkStrategy) WalkOptions {
+	opts.strategy = strategy
+	return opts
+}
+
+// WithStrategy sets the traversal strategy (PreOrder or PostOrder).
+func (b *WalkOptionsBuilder) WithStrategy(strategy WalkStrategy) *WalkOptionsBuilder {
+	b.options.strategy = strategy
+	return b
+}
+
+// WithTraverseArrowTargets enables automatic traversal of arrow reference targets.
+//
+// Requirements:
+//   - PostOrder strategy (set via WithStrategy)
+//   - Schema parameter for target lookup
+//
+// The schema parameter is the root schema used to resolve arrow targets.
+//
+// When enabled, arrow references (e.g., "parent->view") will automatically
+// traverse into their target permissions before visiting the arrow reference itself.
+// This enables single-pass validation of cross-definition references.
+//
+// Example:
+//
+//	builder := NewWalkOptions().
+//	    WithStrategy(WalkPostOrder).
+//	    WithTraverseArrowTargets(schema)
+//	opts, err := builder.Build()
+//	if err != nil {
+//	    return err
+//	}
+func (b *WalkOptionsBuilder) WithTraverseArrowTargets(schema *Schema) *WalkOptionsBuilder {
+	if b.err != nil {
+		return b
+	}
+
+	b.options.traverseArrowTargets = true
+	resolved, err := ResolveSchema(schema)
+	if err != nil {
+		b.err = err
+		return b
+	}
+
+	b.options.schema = resolved.Schema()
+	return b
+}
+
+// Build returns the configured WalkOptions or an error if any configuration step failed.
+func (b *WalkOptionsBuilder) Build() (WalkOptions, error) {
+	return b.options, b.err
+}
+
+// MustBuild returns the configured WalkOptions or panics if any configuration step failed.
+func (b *WalkOptionsBuilder) MustBuild() WalkOptions {
+	if b.err != nil {
+		panic("invalid WalkOptions configuration: " + b.err.Error())
+	}
+	return b.options
+}
+
 // Visitor is the base interface that all specific visitor interfaces embed.
 type Visitor[T any] any
 
@@ -108,81 +226,191 @@ type ArrowOperationVisitor[T any] interface {
 // WalkSchema walks the entire schema tree, calling appropriate visitor methods
 // on the provided Visitor for each node encountered. Returns the final value and error if any visitor returns an error.
 func WalkSchema[T any](s *Schema, v Visitor[T], value T) (T, error) {
+	return walkSchemaWithOptions(s, v, value, defaultWalkOptions())
+}
+
+// WalkDefinition walks a definition and its relations and permissions.
+// Returns the final value and error if any visitor returns an error.
+func WalkDefinition[T any](d *Definition, v Visitor[T], value T) (T, error) {
+	return walkDefinitionWithOptions(d, v, value, defaultWalkOptions())
+}
+
+// WalkCaveat walks a caveat. Returns the final value and error if any visitor returns an error.
+func WalkCaveat[T any](c *Caveat, v Visitor[T], value T) (T, error) {
+	return walkCaveatWithOptions(c, v, value, defaultWalkOptions())
+}
+
+// WalkRelation walks a relation and its base relations.
+// Returns the final value and error if any visitor returns an error.
+func WalkRelation[T any](r *Relation, v Visitor[T], value T) (T, error) {
+	return walkRelationWithOptions(r, v, value, defaultWalkOptions())
+}
+
+// WalkBaseRelation walks a base relation. Returns the final value and error if any visitor returns an error.
+func WalkBaseRelation[T any](br *BaseRelation, v Visitor[T], value T) (T, error) {
+	return walkBaseRelationWithOptions(br, v, value, defaultWalkOptions())
+}
+
+// WalkPermission walks a permission and its operation tree.
+// Returns the final value and error if any visitor returns an error.
+func WalkPermission[T any](p *Permission, v Visitor[T], value T) (T, error) {
+	return walkPermissionWithOptions(p, v, value, defaultWalkOptions())
+}
+
+// WalkOperation walks an operation tree recursively.
+// Returns the final value and error if any visitor returns an error.
+func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
+	return walkOperationWithOptions(op, v, value, defaultWalkOptions())
+}
+
+// walkSchemaWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
+func walkSchemaWithOptions[T any](s *Schema, v Visitor[T], value T, options WalkOptions) (T, error) {
 	if s == nil {
 		return value, nil
 	}
 
+	// Validate: arrow traversal requires PostOrder strategy
+	if options.traverseArrowTargets && options.strategy != WalkPostOrder {
+		return value, errors.New("TraverseArrowTargets requires PostOrder strategy")
+	}
+
 	currentValue := value
+
+	if options.strategy == WalkPostOrder {
+		// PostOrder: Visit children first, then parent
+		for _, def := range s.definitions {
+			newValue, err := walkDefinitionWithOptions(def, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		for _, caveat := range s.caveats {
+			newValue, err := walkCaveatWithOptions(caveat, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		// Visit schema after children
+		if sv, ok := v.(SchemaVisitor[T]); ok {
+			newValue, _, err := sv.VisitSchema(s, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		return currentValue, nil
+	}
+
+	// PreOrder: Visit parent first, then children (current behavior)
+	shouldVisitChildren := true
 	if sv, ok := v.(SchemaVisitor[T]); ok {
 		newValue, cont, err := sv.VisitSchema(s, currentValue)
 		if err != nil {
 			return currentValue, err
 		}
 		currentValue = newValue
-		if !cont {
-			return currentValue, nil
-		}
+		shouldVisitChildren = cont
 	}
 
-	for _, def := range s.definitions {
-		newValue, err := WalkDefinition(def, v, currentValue)
-		if err != nil {
-			return currentValue, err
+	if shouldVisitChildren {
+		for _, def := range s.definitions {
+			newValue, err := walkDefinitionWithOptions(def, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
 		}
-		currentValue = newValue
-	}
 
-	for _, caveat := range s.caveats {
-		newValue, err := WalkCaveat(caveat, v, currentValue)
-		if err != nil {
-			return currentValue, err
+		for _, caveat := range s.caveats {
+			newValue, err := walkCaveatWithOptions(caveat, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
 		}
-		currentValue = newValue
 	}
 
 	return currentValue, nil
 }
 
-// WalkDefinition walks a definition and its relations and permissions.
-// Returns the final value and error if any visitor returns an error.
-func WalkDefinition[T any](d *Definition, v Visitor[T], value T) (T, error) {
+// walkDefinitionWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
+func walkDefinitionWithOptions[T any](d *Definition, v Visitor[T], value T, options WalkOptions) (T, error) {
 	if d == nil {
 		return value, nil
 	}
 
 	currentValue := value
+
+	if options.strategy == WalkPostOrder {
+		// PostOrder: Visit children first, then parent
+		for _, rel := range d.relations {
+			newValue, err := walkRelationWithOptions(rel, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		for _, perm := range d.permissions {
+			newValue, err := walkPermissionWithOptions(perm, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		// Visit definition after children
+		if dv, ok := v.(DefinitionVisitor[T]); ok {
+			newValue, _, err := dv.VisitDefinition(d, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		return currentValue, nil
+	}
+
+	// PreOrder: Visit parent first, then children
+	shouldVisitChildren := true
 	if dv, ok := v.(DefinitionVisitor[T]); ok {
 		newValue, cont, err := dv.VisitDefinition(d, currentValue)
 		if err != nil {
 			return currentValue, err
 		}
 		currentValue = newValue
-		if !cont {
-			return currentValue, nil
-		}
+		shouldVisitChildren = cont
 	}
 
-	for _, rel := range d.relations {
-		newValue, err := WalkRelation(rel, v, currentValue)
-		if err != nil {
-			return currentValue, err
+	if shouldVisitChildren {
+		for _, rel := range d.relations {
+			newValue, err := walkRelationWithOptions(rel, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
 		}
-		currentValue = newValue
-	}
 
-	for _, perm := range d.permissions {
-		newValue, err := WalkPermission(perm, v, currentValue)
-		if err != nil {
-			return currentValue, err
+		for _, perm := range d.permissions {
+			newValue, err := walkPermissionWithOptions(perm, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
 		}
-		currentValue = newValue
 	}
 
 	return currentValue, nil
 }
 
-// WalkCaveat walks a caveat. Returns the final value and error if any visitor returns an error.
-func WalkCaveat[T any](c *Caveat, v Visitor[T], value T) (T, error) {
+// walkCaveatWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
+// Since Caveat is a terminal node (no children), the strategy doesn't affect behavior.
+func walkCaveatWithOptions[T any](c *Caveat, v Visitor[T], value T, options WalkOptions) (T, error) {
 	if c == nil {
 		return value, nil
 	}
@@ -198,38 +426,63 @@ func WalkCaveat[T any](c *Caveat, v Visitor[T], value T) (T, error) {
 	return value, nil
 }
 
-// WalkRelation walks a relation and its base relations.
-// Returns the final value and error if any visitor returns an error.
-func WalkRelation[T any](r *Relation, v Visitor[T], value T) (T, error) {
+// walkRelationWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
+func walkRelationWithOptions[T any](r *Relation, v Visitor[T], value T, options WalkOptions) (T, error) {
 	if r == nil {
 		return value, nil
 	}
 
 	currentValue := value
+
+	if options.strategy == WalkPostOrder {
+		// PostOrder: Visit children first, then parent
+		for _, br := range r.baseRelations {
+			newValue, err := walkBaseRelationWithOptions(br, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		// Visit relation after children
+		if rv, ok := v.(RelationVisitor[T]); ok {
+			newValue, _, err := rv.VisitRelation(r, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		return currentValue, nil
+	}
+
+	// PreOrder: Visit parent first, then children
+	shouldVisitChildren := true
 	if rv, ok := v.(RelationVisitor[T]); ok {
 		newValue, cont, err := rv.VisitRelation(r, currentValue)
 		if err != nil {
 			return currentValue, err
 		}
 		currentValue = newValue
-		if !cont {
-			return currentValue, nil
-		}
+		shouldVisitChildren = cont
 	}
 
-	for _, br := range r.baseRelations {
-		newValue, err := WalkBaseRelation(br, v, currentValue)
-		if err != nil {
-			return currentValue, err
+	if shouldVisitChildren {
+		for _, br := range r.baseRelations {
+			newValue, err := walkBaseRelationWithOptions(br, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
 		}
-		currentValue = newValue
 	}
 
 	return currentValue, nil
 }
 
-// WalkBaseRelation walks a base relation. Returns the final value and error if any visitor returns an error.
-func WalkBaseRelation[T any](br *BaseRelation, v Visitor[T], value T) (T, error) {
+// walkBaseRelationWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
+// Since BaseRelation is a terminal node (no children), the strategy doesn't affect behavior.
+func walkBaseRelationWithOptions[T any](br *BaseRelation, v Visitor[T], value T, options WalkOptions) (T, error) {
 	if br == nil {
 		return value, nil
 	}
@@ -245,45 +498,408 @@ func WalkBaseRelation[T any](br *BaseRelation, v Visitor[T], value T) (T, error)
 	return value, nil
 }
 
-// WalkPermission walks a permission and its operation tree.
-// Returns the final value and error if any visitor returns an error.
-func WalkPermission[T any](p *Permission, v Visitor[T], value T) (T, error) {
+// walkPermissionWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
+func walkPermissionWithOptions[T any](p *Permission, v Visitor[T], value T, options WalkOptions) (T, error) {
 	if p == nil {
 		return value, nil
 	}
 
 	currentValue := value
+
+	if options.strategy == WalkPostOrder {
+		// PostOrder: Visit children (operation tree) first, then parent
+		newValue, err := walkOperationWithOptions(p.operation, v, currentValue, options)
+		if err != nil {
+			return currentValue, err
+		}
+		currentValue = newValue
+
+		// Visit permission after children
+		if pv, ok := v.(PermissionVisitor[T]); ok {
+			newValue, _, err := pv.VisitPermission(p, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		return currentValue, nil
+	}
+
+	// PreOrder: Visit parent first, then children
+	shouldVisitChildren := true
 	if pv, ok := v.(PermissionVisitor[T]); ok {
 		newValue, cont, err := pv.VisitPermission(p, currentValue)
 		if err != nil {
 			return currentValue, err
 		}
 		currentValue = newValue
-		if !cont {
-			return currentValue, nil
-		}
+		shouldVisitChildren = cont
 	}
 
-	return WalkOperation(p.operation, v, currentValue)
+	if shouldVisitChildren {
+		return walkOperationWithOptions(p.operation, v, currentValue, options)
+	}
+
+	return currentValue, nil
 }
 
-// WalkOperation walks an operation tree recursively.
-// Returns the final value and error if any visitor returns an error.
-func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
+// walkOperationWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
+func walkOperationWithOptions[T any](op Operation, v Visitor[T], value T, options WalkOptions) (T, error) {
 	if op == nil {
 		return value, nil
 	}
 
+	// Validate: arrow traversal requires PostOrder strategy
+	if options.traverseArrowTargets && options.strategy != WalkPostOrder {
+		return value, errors.New("TraverseArrowTargets requires PostOrder strategy")
+	}
+
+	if options.strategy == WalkPostOrder {
+		return walkOperationPostOrder(op, v, value, options)
+	}
+	return walkOperationPreOrder(op, v, value, options)
+}
+
+// walkOperationPostOrder handles PostOrder traversal of operation trees.
+func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options WalkOptions) (T, error) {
 	currentValue := value
+
+	// PostOrder: Visit children first, then parent
+	switch o := op.(type) {
+	case *RelationReference:
+		// Terminal node - visit immediately
+		if rrv, ok := v.(RelationReferenceVisitor[T]); ok {
+			newValue, err := rrv.VisitRelationReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *NilReference:
+		// Terminal node - visit immediately
+		if nrv, ok := v.(NilReferenceVisitor[T]); ok {
+			newValue, err := nrv.VisitNilReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *ArrowReference:
+		// If arrow traversal is enabled but schema is not resolved, provide helpful error
+		if options.traverseArrowTargets {
+			return currentValue, errors.New(
+				"TraverseArrowTargets requires a resolved schema. " +
+					"Call ResolveSchema() on your schema before walking with arrow traversal enabled. " +
+					"Unresolved ArrowReference found: " + o.Left() + "->" + o.Right())
+		}
+
+		// Terminal node - call visitors
+		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
+			newValue, err := aov.VisitArrowOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		if arv, ok := v.(ArrowReferenceVisitor[T]); ok {
+			newValue, err := arv.VisitArrowReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *FunctionedArrowReference:
+		// Terminal node - call visitor
+		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
+			newValue, err := aov.VisitArrowOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *ResolvedRelationReference:
+		// Walk resolved relation/permission first, with cycle detection
+		// Create a unique key for the resolved target to track visits
+		var targetKey string
+		if resolved := o.Resolved(); resolved != nil {
+			switch r := resolved.(type) {
+			case *Relation:
+				if r.parent != nil {
+					targetKey = r.parent.Name() + "#" + r.Name()
+				}
+			case *Permission:
+				if r.parent != nil {
+					targetKey = r.parent.Name() + "#" + r.Name()
+				}
+			}
+		}
+
+		// Only walk into the resolved target if we haven't visited it yet
+		if targetKey != "" && !options.visitedTargets[targetKey] {
+			options.visitedTargets[targetKey] = true
+
+			switch resolved := o.Resolved().(type) {
+			case *Relation:
+				newValue, err := walkRelationWithOptions(resolved, v, currentValue, options)
+				if err != nil {
+					return currentValue, err
+				}
+				currentValue = newValue
+			case *Permission:
+				newValue, err := walkPermissionWithOptions(resolved, v, currentValue, options)
+				if err != nil {
+					return currentValue, err
+				}
+				currentValue = newValue
+			}
+		}
+
+		if rrrv, ok := v.(ResolvedRelationReferenceVisitor[T]); ok {
+			newValue, err := rrrv.VisitResolvedRelationReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *ResolvedArrowReference:
+		// If arrow traversal is enabled, walk target permissions first (PostOrder)
+		if options.traverseArrowTargets {
+			// Schema is required for arrow traversal
+			if options.schema == nil {
+				return currentValue, errors.New(
+					"TraverseArrowTargets requires a schema for target resolution. " +
+						"Arrow reference: " + o.Left() + "->" + o.Right())
+			}
+
+			// Get the resolved left relation to find allowed subject types
+			resolvedLeft := o.ResolvedLeft()
+			if resolvedLeft != nil {
+				// For each base relation (allowed subject type), walk the target permission
+				for _, br := range resolvedLeft.BaseRelations() {
+					targetDefName := br.Type()
+					targetPermName := o.Right()
+					targetKey := targetDefName + "#" + targetPermName
+
+					// Skip if already visited to prevent infinite recursion
+					if options.visitedTargets[targetKey] {
+						continue
+					}
+					options.visitedTargets[targetKey] = true
+
+					// Find the target definition in the schema
+					if targetDef, ok := options.schema.GetTypeDefinition(targetDefName); ok {
+						// Find the target relation/permission and walk it
+						if targetRel, ok := targetDef.GetRelation(targetPermName); ok {
+							newValue, err := walkRelationWithOptions(targetRel, v, currentValue, options)
+							if err != nil {
+								return currentValue, err
+							}
+							currentValue = newValue
+						} else if targetPerm, ok := targetDef.GetPermission(targetPermName); ok {
+							newValue, err := walkPermissionWithOptions(targetPerm, v, currentValue, options)
+							if err != nil {
+								return currentValue, err
+							}
+							currentValue = newValue
+						}
+					}
+				}
+			}
+		}
+
+		// Call visitors after traversing targets (in PostOrder)
+		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
+			newValue, err := aov.VisitArrowOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		if rarv, ok := v.(ResolvedArrowReferenceVisitor[T]); ok {
+			newValue, err := rarv.VisitResolvedArrowReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *ResolvedFunctionedArrowReference:
+		// If arrow traversal is enabled, walk target permissions first (PostOrder)
+		if options.traverseArrowTargets {
+			// Schema is required for arrow traversal
+			if options.schema == nil {
+				return currentValue, errors.New(
+					"TraverseArrowTargets requires a schema for target resolution. " +
+						"Functioned arrow reference: " + o.Left() + "->" + o.Right())
+			}
+
+			// Get the resolved left relation to find allowed subject types
+			resolvedLeft := o.ResolvedLeft()
+			if resolvedLeft != nil {
+				// For each base relation (allowed subject type), walk the target permission
+				for _, br := range resolvedLeft.BaseRelations() {
+					targetDefName := br.Type()
+					targetPermName := o.Right()
+					targetKey := targetDefName + "#" + targetPermName
+
+					// Skip if already visited to prevent infinite recursion
+					if options.visitedTargets[targetKey] {
+						continue
+					}
+					options.visitedTargets[targetKey] = true
+
+					// Find the target definition in the schema
+					if targetDef, ok := options.schema.GetTypeDefinition(targetDefName); ok {
+						// Find the target relation/permission and walk it
+						if targetRel, ok := targetDef.GetRelation(targetPermName); ok {
+							newValue, err := walkRelationWithOptions(targetRel, v, currentValue, options)
+							if err != nil {
+								return currentValue, err
+							}
+							currentValue = newValue
+						} else if targetPerm, ok := targetDef.GetPermission(targetPermName); ok {
+							newValue, err := walkPermissionWithOptions(targetPerm, v, currentValue, options)
+							if err != nil {
+								return currentValue, err
+							}
+							currentValue = newValue
+						}
+					}
+				}
+			}
+		}
+
+		// Call visitors after traversing targets (in PostOrder)
+		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
+			newValue, err := aov.VisitArrowOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		if rfarv, ok := v.(ResolvedFunctionedArrowReferenceVisitor[T]); ok {
+			newValue, err := rfarv.VisitResolvedFunctionedArrowReference(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *UnionOperation:
+		// Visit children first
+		for _, child := range o.children {
+			newValue, err := walkOperationWithOptions(child, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		// Then visit parent
+		if ov, ok := v.(OperationVisitor[T]); ok {
+			newValue, _, err := ov.VisitOperation(op, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		if uov, ok := v.(UnionOperationVisitor[T]); ok {
+			newValue, _, err := uov.VisitUnionOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *IntersectionOperation:
+		// Visit children first
+		for _, child := range o.children {
+			newValue, err := walkOperationWithOptions(child, v, currentValue, options)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		// Then visit parent
+		if ov, ok := v.(OperationVisitor[T]); ok {
+			newValue, _, err := ov.VisitOperation(op, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		if iov, ok := v.(IntersectionOperationVisitor[T]); ok {
+			newValue, _, err := iov.VisitIntersectionOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+	case *ExclusionOperation:
+		// Visit children first
+		newValue, err := walkOperationWithOptions(o.left, v, currentValue, options)
+		if err != nil {
+			return currentValue, err
+		}
+		currentValue = newValue
+
+		newValue, err = walkOperationWithOptions(o.right, v, currentValue, options)
+		if err != nil {
+			return currentValue, err
+		}
+		currentValue = newValue
+
+		// Then visit parent
+		if ov, ok := v.(OperationVisitor[T]); ok {
+			newValue, _, err := ov.VisitOperation(op, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+
+		if eov, ok := v.(ExclusionOperationVisitor[T]); ok {
+			newValue, _, err := eov.VisitExclusionOperation(o, currentValue)
+			if err != nil {
+				return currentValue, err
+			}
+			currentValue = newValue
+		}
+	}
+
+	return currentValue, nil
+}
+
+// walkOperationPreOrder handles PreOrder traversal of operation trees.
+func walkOperationPreOrder[T any](op Operation, v Visitor[T], value T, options WalkOptions) (T, error) {
+	currentValue := value
+
+	// PreOrder: Visit parent first, then children
+	shouldVisitChildren := true
 	if ov, ok := v.(OperationVisitor[T]); ok {
 		newValue, cont, err := ov.VisitOperation(op, currentValue)
 		if err != nil {
 			return currentValue, err
 		}
 		currentValue = newValue
-		if !cont {
-			return currentValue, nil
-		}
+		shouldVisitChildren = cont
+	}
+
+	if !shouldVisitChildren {
+		return currentValue, nil
 	}
 
 	switch o := op.(type) {
@@ -306,7 +922,6 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 		}
 
 	case *ArrowReference:
-		// Call ArrowOperationVisitor if present
 		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
 			newValue, err := aov.VisitArrowOperation(o, currentValue)
 			if err != nil {
@@ -324,7 +939,6 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 		}
 
 	case *FunctionedArrowReference:
-		// Call ArrowOperationVisitor if present
 		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
 			newValue, err := aov.VisitArrowOperation(o, currentValue)
 			if err != nil {
@@ -343,7 +957,6 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 		}
 
 	case *ResolvedArrowReference:
-		// Call ArrowOperationVisitor if present
 		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
 			newValue, err := aov.VisitArrowOperation(o, currentValue)
 			if err != nil {
@@ -361,7 +974,6 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 		}
 
 	case *ResolvedFunctionedArrowReference:
-		// Call ArrowOperationVisitor if present
 		if aov, ok := v.(ArrowOperationVisitor[T]); ok {
 			newValue, err := aov.VisitArrowOperation(o, currentValue)
 			if err != nil {
@@ -390,7 +1002,7 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 			}
 		}
 		for _, child := range o.children {
-			newValue, err := WalkOperation(child, v, currentValue)
+			newValue, err := walkOperationWithOptions(child, v, currentValue, options)
 			if err != nil {
 				return currentValue, err
 			}
@@ -409,7 +1021,7 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 			}
 		}
 		for _, child := range o.children {
-			newValue, err := WalkOperation(child, v, currentValue)
+			newValue, err := walkOperationWithOptions(child, v, currentValue, options)
 			if err != nil {
 				return currentValue, err
 			}
@@ -427,13 +1039,13 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 				return currentValue, nil
 			}
 		}
-		newValue, err := WalkOperation(o.left, v, currentValue)
+		newValue, err := walkOperationWithOptions(o.left, v, currentValue, options)
 		if err != nil {
 			return currentValue, err
 		}
 		currentValue = newValue
 
-		newValue, err = WalkOperation(o.right, v, currentValue)
+		newValue, err = walkOperationWithOptions(o.right, v, currentValue, options)
 		if err != nil {
 			return currentValue, err
 		}
@@ -441,4 +1053,54 @@ func WalkOperation[T any](op Operation, v Visitor[T], value T) (T, error) {
 	}
 
 	return currentValue, nil
+}
+
+// WalkSchemaWithOptions walks the entire schema tree with custom traversal options, calling appropriate visitor methods
+// on the provided Visitor for each node encountered. Returns the final value and error if any visitor returns an error.
+//
+// The strategy parameter controls traversal order:
+//   - WalkPreOrder (default): Visits each node before its children
+//   - WalkPostOrder: Visits each node after its children
+//
+// In pre-order traversal, visitor methods returning cont=false will skip that node's children.
+// In post-order traversal, children are visited before the parent, so cont=false only affects
+// the current level's continuation.
+func WalkSchemaWithOptions[T any](s *Schema, v Visitor[T], value T, options WalkOptions) (T, error) {
+	return walkSchemaWithOptions(s, v, value, options)
+}
+
+// WalkDefinitionWithOptions walks a definition and its relations and permissions with custom traversal options.
+// Returns the final value and error if any visitor returns an error.
+func WalkDefinitionWithOptions[T any](d *Definition, v Visitor[T], value T, options WalkOptions) (T, error) {
+	return walkDefinitionWithOptions(d, v, value, options)
+}
+
+// WalkCaveatWithOptions walks a caveat with custom traversal options.
+// Returns the final value and error if any visitor returns an error.
+func WalkCaveatWithOptions[T any](c *Caveat, v Visitor[T], value T, options WalkOptions) (T, error) {
+	return walkCaveatWithOptions(c, v, value, options)
+}
+
+// WalkRelationWithOptions walks a relation and its base relations with custom traversal options.
+// Returns the final value and error if any visitor returns an error.
+func WalkRelationWithOptions[T any](r *Relation, v Visitor[T], value T, options WalkOptions) (T, error) {
+	return walkRelationWithOptions(r, v, value, options)
+}
+
+// WalkBaseRelationWithOptions walks a base relation with custom traversal options.
+// Returns the final value and error if any visitor returns an error.
+func WalkBaseRelationWithOptions[T any](br *BaseRelation, v Visitor[T], value T, options WalkOptions) (T, error) {
+	return walkBaseRelationWithOptions(br, v, value, options)
+}
+
+// WalkPermissionWithOptions walks a permission and its operation tree with custom traversal options.
+// Returns the final value and error if any visitor returns an error.
+func WalkPermissionWithOptions[T any](p *Permission, v Visitor[T], value T, options WalkOptions) (T, error) {
+	return walkPermissionWithOptions(p, v, value, options)
+}
+
+// WalkOperationWithOptions walks an operation tree recursively with custom traversal options.
+// Returns the final value and error if any visitor returns an error.
+func WalkOperationWithOptions[T any](op Operation, v Visitor[T], value T, options WalkOptions) (T, error) {
+	return walkOperationWithOptions(op, v, value, options)
 }

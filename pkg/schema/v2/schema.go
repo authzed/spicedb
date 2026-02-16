@@ -5,6 +5,48 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
+// Parented is an interface for schema elements that have a parent.
+// It allows traversing up the schema hierarchy without type assertions.
+type Parented interface {
+	// Parent returns the parent element in the schema hierarchy.
+	// Returns nil for top-level elements (Schema).
+	Parent() Parented
+
+	// setParent sets the parent element. This is unexported to enforce that
+	// only code within this package can modify the parent relationships.
+	setParent(Parented)
+}
+
+// FindParent traverses up the parent hierarchy from the given element
+// and returns the first parent of the specified type T.
+// Returns the zero value of T if no parent of that type is found.
+//
+// Example usage:
+//
+//	// Find the Permission that owns an operation
+//	perm := schema.FindParent[*schema.Permission](operation)
+//
+//	// Find the Definition containing a relation
+//	def := schema.FindParent[*schema.Definition](relation)
+//
+//	// Find the Schema from any element
+//	s := schema.FindParent[*schema.Schema](element)
+func FindParent[T Parented](elem Parented) T {
+	var zero T
+	if elem == nil {
+		return zero
+	}
+
+	current := elem.Parent()
+	for current != nil {
+		if typed, ok := current.(T); ok {
+			return typed
+		}
+		current = current.Parent()
+	}
+	return zero
+}
+
 // schemaUnit is an interface for schema elements that can be cloned without a parent.
 type schemaUnit[T any] interface {
 	clone() T
@@ -19,6 +61,16 @@ type schemaUnitWithParent[T any, P any] interface {
 type Schema struct {
 	definitions map[string]*Definition
 	caveats     map[string]*Caveat
+}
+
+// Parent returns nil for Schema as it's the top-level element.
+func (s *Schema) Parent() Parented {
+	return nil
+}
+
+// setParent is a no-op for Schema since it's the top-level element.
+func (s *Schema) setParent(p Parented) {
+	// Schema has no parent
 }
 
 // Definitions returns the definitions in the schema.
@@ -74,8 +126,16 @@ type Definition struct {
 }
 
 // Parent returns the parent schema.
-func (d *Definition) Parent() *Schema {
+func (d *Definition) Parent() Parented {
 	return d.parent
+}
+
+func (d *Definition) setParent(p Parented) {
+	if s, ok := p.(*Schema); ok {
+		d.parent = s
+	}
+	// Note: We silently ignore non-Schema parents since this is an internal method
+	// and should only be called with correct types from within this package.
 }
 
 // Name returns the name of the definition.
@@ -162,8 +222,14 @@ type Caveat struct {
 }
 
 // Parent returns the parent schema.
-func (c *Caveat) Parent() *Schema {
+func (c *Caveat) Parent() Parented {
 	return c.parent
+}
+
+func (c *Caveat) setParent(p Parented) {
+	if s, ok := p.(*Schema); ok {
+		c.parent = s
+	}
 }
 
 // Name returns the name of the caveat.
@@ -222,8 +288,19 @@ type SyntheticPermission struct {
 }
 
 // Parent returns the parent definition.
-func (p *Permission) Parent() *Definition {
+func (p *Permission) Parent() Parented {
 	return p.parent
+}
+
+// Definition returns the parent definition with its concrete type.
+func (p *Permission) Definition() *Definition {
+	return p.parent
+}
+
+func (p *Permission) setParent(parent Parented) {
+	if d, ok := parent.(*Definition); ok {
+		p.parent = d
+	}
 }
 
 // Name returns the name of the permission.
@@ -244,11 +321,20 @@ func (p *Permission) cloneWithParent(parentDefinition *Definition) *Permission {
 		return nil
 	}
 
-	return &Permission{
+	var clonedOp Operation
+	if p.operation != nil {
+		clonedOp = p.operation.clone()
+	}
+
+	newPerm := &Permission{
 		parent:    parentDefinition,
 		name:      p.name,
-		operation: p.operation.clone(),
+		operation: clonedOp,
 	}
+
+	clonedOp.setParent(newPerm)
+
+	return newPerm
 }
 
 // IsSynthetic returns true if this permission was synthesized by the schema system.
@@ -279,8 +365,19 @@ type Relation struct {
 }
 
 // Parent returns the parent definition.
-func (r *Relation) Parent() *Definition {
+func (r *Relation) Parent() Parented {
 	return r.parent
+}
+
+// Definition returns the parent definition with its concrete type.
+func (r *Relation) Definition() *Definition {
+	return r.parent
+}
+
+func (r *Relation) setParent(p Parented) {
+	if d, ok := p.(*Definition); ok {
+		r.parent = d
+	}
 }
 
 // Name returns the name of the relation.
@@ -337,8 +434,14 @@ type BaseRelation struct {
 }
 
 // Parent returns the parent relation.
-func (b *BaseRelation) Parent() *Relation {
+func (b *BaseRelation) Parent() Parented {
 	return b.parent
+}
+
+func (b *BaseRelation) setParent(p Parented) {
+	if r, ok := p.(*Relation); ok {
+		b.parent = r
+	}
 }
 
 // Type returns the subject type of the base relation.
