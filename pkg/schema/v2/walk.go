@@ -35,6 +35,28 @@ type WalkOptions struct {
 	visitedTargets map[string]bool
 }
 
+// namedNode is an interface for schema elements that have a Name() method.
+type namedNode interface {
+	Name() string
+}
+
+// shouldSkipForCycleDetection checks if a relation/permission has been visited in PostOrder mode.
+// If not visited, marks it as visited. Returns true if already visited (should skip), false otherwise.
+// This is used for cycle detection in PostOrder traversal to ensure each node is visited at most once.
+func (opts *WalkOptions) shouldSkipForCycleDetection(parent namedNode, node namedNode) bool {
+	if parent == nil || node == nil {
+		return false
+	}
+
+	targetKey := parent.Name() + "#" + node.Name()
+	if opts.visitedTargets[targetKey] {
+		return true // Already visited, should skip
+	}
+
+	opts.visitedTargets[targetKey] = true
+	return false // Not visited yet, should process
+}
+
 // WalkOptionsBuilder provides a fluent interface for building WalkOptions with error handling.
 type WalkOptionsBuilder struct {
 	options WalkOptions
@@ -435,6 +457,13 @@ func walkRelationWithOptions[T any](r *Relation, v Visitor[T], value T, options 
 	currentValue := value
 
 	if options.strategy == WalkPostOrder {
+		// Mark this relation as visited BEFORE walking children to prevent re-traversal
+		// via ResolvedRelationReference or arrow references within the children
+		// (e.g. permission view = view or permission view = parent->view, with parent having the same type as this definition)
+		if options.shouldSkipForCycleDetection(r.parent, r) {
+			return currentValue, nil
+		}
+
 		// PostOrder: Visit children first, then parent
 		for _, br := range r.baseRelations {
 			newValue, err := walkBaseRelationWithOptions(br, v, currentValue, options)
@@ -507,6 +536,12 @@ func walkPermissionWithOptions[T any](p *Permission, v Visitor[T], value T, opti
 	currentValue := value
 
 	if options.strategy == WalkPostOrder {
+		// Mark this permission as visited BEFORE walking children to prevent re-traversal
+		// via ResolvedRelationReference or arrow references within the operation tree
+		if options.shouldSkipForCycleDetection(p.parent, p) {
+			return currentValue, nil
+		}
+
 		// PostOrder: Visit children (operation tree) first, then parent
 		newValue, err := walkOperationWithOptions(p.operation, v, currentValue, options)
 		if err != nil {
@@ -642,8 +677,6 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 
 		// Only walk into the resolved target if we haven't visited it yet
 		if targetKey != "" && !options.visitedTargets[targetKey] {
-			options.visitedTargets[targetKey] = true
-
 			switch resolved := o.Resolved().(type) {
 			case *Relation:
 				newValue, err := walkRelationWithOptions(resolved, v, currentValue, options)
@@ -681,17 +714,10 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 			// Get the resolved left relation to find allowed subject types
 			resolvedLeft := o.ResolvedLeft()
 			if resolvedLeft != nil {
-				// For each base relation (allowed subject type), walk the target permission
+				// For each base relation (allowed subject type), walk the target permission/relation.
 				for _, br := range resolvedLeft.BaseRelations() {
 					targetDefName := br.Type()
 					targetPermName := o.Right()
-					targetKey := targetDefName + "#" + targetPermName
-
-					// Skip if already visited to prevent infinite recursion
-					if options.visitedTargets[targetKey] {
-						continue
-					}
-					options.visitedTargets[targetKey] = true
 
 					// Find the target definition in the schema
 					if targetDef, ok := options.schema.GetTypeDefinition(targetDefName); ok {
@@ -744,17 +770,10 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 			// Get the resolved left relation to find allowed subject types
 			resolvedLeft := o.ResolvedLeft()
 			if resolvedLeft != nil {
-				// For each base relation (allowed subject type), walk the target permission
+				// For each base relation (allowed subject type), walk the target permission/relation.
 				for _, br := range resolvedLeft.BaseRelations() {
 					targetDefName := br.Type()
 					targetPermName := o.Right()
-					targetKey := targetDefName + "#" + targetPermName
-
-					// Skip if already visited to prevent infinite recursion
-					if options.visitedTargets[targetKey] {
-						continue
-					}
-					options.visitedTargets[targetKey] = true
 
 					// Find the target definition in the schema
 					if targetDef, ok := options.schema.GetTypeDefinition(targetDefName); ok {
