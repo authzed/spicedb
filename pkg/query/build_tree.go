@@ -49,9 +49,9 @@ func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, re
 	result := outline
 	for _, caveat := range builder.collectedCaveats {
 		result = Outline{
-			Type:         CaveatIteratorType,
-			Args:         &IteratorArgs{Caveat: caveat},
-			Subiterators: []Outline{result},
+			Type:        CaveatIteratorType,
+			Args:        &IteratorArgs{Caveat: caveat},
+			SubOutlines: []Outline{result},
 		}
 	}
 
@@ -143,7 +143,7 @@ func (b *outlineBuilder) buildOutlineFromSchemaInternal(definitionName string, r
 					DefinitionName: definitionName,
 					RelationName:   relationName,
 				},
-				Subiterators: []Outline{result},
+				SubOutlines: []Outline{result},
 			}
 		}
 
@@ -162,9 +162,9 @@ func (b *outlineBuilder) buildOutlineFromRelation(r *schema.Relation, withSubRel
 			return Outline{}, err
 		}
 		return Outline{
-			Type:         AliasIteratorType,
-			Args:         &IteratorArgs{RelationName: r.Name()},
-			Subiterators: []Outline{baseIt},
+			Type:        AliasIteratorType,
+			Args:        &IteratorArgs{RelationName: r.Name()},
+			SubOutlines: []Outline{baseIt},
 		}, nil
 	}
 	subIts := make([]Outline, 0, len(r.BaseRelations()))
@@ -176,13 +176,13 @@ func (b *outlineBuilder) buildOutlineFromRelation(r *schema.Relation, withSubRel
 		subIts = append(subIts, it)
 	}
 	union := Outline{
-		Type:         UnionIteratorType,
-		Subiterators: subIts,
+		Type:        UnionIteratorType,
+		SubOutlines: subIts,
 	}
 	return Outline{
-		Type:         AliasIteratorType,
-		Args:         &IteratorArgs{RelationName: r.Name()},
-		Subiterators: []Outline{union},
+		Type:        AliasIteratorType,
+		Args:        &IteratorArgs{RelationName: r.Name()},
+		SubOutlines: []Outline{union},
 	}, nil
 }
 
@@ -192,9 +192,9 @@ func (b *outlineBuilder) buildOutlineFromPermission(p *schema.Permission) (Outli
 		return Outline{}, err
 	}
 	return Outline{
-		Type:         AliasIteratorType,
-		Args:         &IteratorArgs{RelationName: p.Name()},
-		Subiterators: []Outline{baseIt},
+		Type:        AliasIteratorType,
+		Args:        &IteratorArgs{RelationName: p.Name()},
+		SubOutlines: []Outline{baseIt},
 	}, nil
 }
 
@@ -233,8 +233,8 @@ func (b *outlineBuilder) buildOutlineFromOperation(p *schema.Permission, op sche
 			subIts = append(subIts, it)
 		}
 		return Outline{
-			Type:         UnionIteratorType,
-			Subiterators: subIts,
+			Type:        UnionIteratorType,
+			SubOutlines: subIts,
 		}, nil
 
 	case *schema.IntersectionOperation:
@@ -247,8 +247,8 @@ func (b *outlineBuilder) buildOutlineFromOperation(p *schema.Permission, op sche
 			subIts = append(subIts, it)
 		}
 		return Outline{
-			Type:         IntersectionIteratorType,
-			Subiterators: subIts,
+			Type:        IntersectionIteratorType,
+			SubOutlines: subIts,
 		}, nil
 
 	case *schema.ExclusionOperation:
@@ -263,8 +263,8 @@ func (b *outlineBuilder) buildOutlineFromOperation(p *schema.Permission, op sche
 		}
 
 		return Outline{
-			Type:         ExclusionIteratorType,
-			Subiterators: []Outline{mainIt, excludedIt},
+			Type:        ExclusionIteratorType,
+			SubOutlines: []Outline{mainIt, excludedIt},
 		}, nil
 
 	case *schema.FunctionedArrowReference:
@@ -337,12 +337,12 @@ func (b *outlineBuilder) buildBaseDatastoreOutline(br *schema.BaseRelation, with
 
 	// We must check the effective arrow of a subrelation if we have one
 	arrow := Outline{
-		Type:         ArrowIteratorType,
-		Subiterators: []Outline{base, rightside},
+		Type:        ArrowIteratorType,
+		SubOutlines: []Outline{base, rightside},
 	}
 	union := Outline{
-		Type:         UnionIteratorType,
-		Subiterators: []Outline{base, arrow},
+		Type:        UnionIteratorType,
+		SubOutlines: []Outline{base, arrow},
 	}
 	return union, nil
 }
@@ -374,8 +374,8 @@ func (b *outlineBuilder) buildArrowOutline(rel *schema.Relation, rightSide strin
 		// Create arrow (both specific subrelations and ellipsis use ArrowIteratorType)
 		// The difference is handled by NewSchemaArrow vs NewArrowIterator during compilation
 		arrow := Outline{
-			Type:         ArrowIteratorType,
-			Subiterators: []Outline{left, right},
+			Type:        ArrowIteratorType,
+			SubOutlines: []Outline{left, right},
 		}
 		subIts = append(subIts, arrow)
 	}
@@ -386,8 +386,8 @@ func (b *outlineBuilder) buildArrowOutline(rel *schema.Relation, rightSide strin
 	}
 
 	return Outline{
-		Type:         UnionIteratorType,
-		Subiterators: subIts,
+		Type:        UnionIteratorType,
+		SubOutlines: subIts,
 	}, nil
 }
 
@@ -416,8 +416,8 @@ func (b *outlineBuilder) buildIntersectionArrowOutline(rel *schema.Relation, rig
 			return Outline{}, err
 		}
 		intersectionArrow := Outline{
-			Type:         IntersectionArrowIteratorType,
-			Subiterators: []Outline{left, right},
+			Type:        IntersectionArrowIteratorType,
+			SubOutlines: []Outline{left, right},
 		}
 		subIts = append(subIts, intersectionArrow)
 	}
@@ -428,8 +428,8 @@ func (b *outlineBuilder) buildIntersectionArrowOutline(rel *schema.Relation, rig
 	}
 
 	return Outline{
-		Type:         UnionIteratorType,
-		Subiterators: subIts,
+		Type:        UnionIteratorType,
+		SubOutlines: subIts,
 	}, nil
 }
 

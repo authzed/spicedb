@@ -25,8 +25,8 @@ func TestOutline_Compile(t *testing.T) {
 		require.NoError(err)
 
 		// Should produce a FixedIterator with no paths
-		fixed, ok := it.(*FixedIterator)
-		require.True(ok, "should be a FixedIterator")
+		require.IsType((*FixedIterator)(nil), it)
+		fixed := it.(*FixedIterator)
 		require.Empty(fixed.paths)
 	})
 
@@ -48,8 +48,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		ds, ok := it.(*DatastoreIterator)
-		require.True(ok, "should be a DatastoreIterator")
+		require.IsType((*DatastoreIterator)(nil), it)
+		ds := it.(*DatastoreIterator)
 		require.Equal(rel, ds.base)
 	})
 
@@ -79,7 +79,7 @@ func TestOutline_Compile(t *testing.T) {
 
 		outline := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel1}},
 				{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel2}},
 			},
@@ -91,8 +91,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		union, ok := it.(*UnionIterator)
-		require.True(ok, "should be a UnionIterator")
+		require.IsType((*UnionIterator)(nil), it)
+		union := it.(*UnionIterator)
 		require.Len(union.Subiterators(), 2)
 	})
 
@@ -105,7 +105,7 @@ func TestOutline_Compile(t *testing.T) {
 
 		outline := Outline{
 			Type: IntersectionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel1}},
 				{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel2}},
 			},
@@ -117,8 +117,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		intersection, ok := it.(*IntersectionIterator)
-		require.True(ok, "should be an IntersectionIterator")
+		require.IsType((*IntersectionIterator)(nil), it)
+		intersection := it.(*IntersectionIterator)
 		require.Len(intersection.Subiterators(), 2)
 	})
 
@@ -142,8 +142,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		fixed, ok := it.(*FixedIterator)
-		require.True(ok, "should be a FixedIterator")
+		require.IsType((*FixedIterator)(nil), it)
+		fixed := it.(*FixedIterator)
 		require.Len(fixed.paths, 2)
 	})
 
@@ -162,8 +162,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		fixed, ok := it.(*FixedIterator)
-		require.True(ok, "should be a FixedIterator")
+		require.IsType((*FixedIterator)(nil), it)
+		fixed := it.(*FixedIterator)
 		require.Empty(fixed.paths)
 	})
 
@@ -173,7 +173,7 @@ func TestOutline_Compile(t *testing.T) {
 
 		outline := Outline{
 			Type: ArrowIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{Type: NullIteratorType},
 			},
@@ -185,8 +185,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		arrow, ok := it.(*ArrowIterator)
-		require.True(ok, "should be an ArrowIterator")
+		require.IsType((*ArrowIterator)(nil), it)
+		arrow := it.(*ArrowIterator)
 		require.Len(arrow.Subiterators(), 2)
 	})
 
@@ -196,7 +196,7 @@ func TestOutline_Compile(t *testing.T) {
 
 		outline := Outline{
 			Type: ArrowIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
@@ -215,7 +215,7 @@ func TestOutline_Compile(t *testing.T) {
 
 		outline := Outline{
 			Type: ExclusionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{Type: NullIteratorType},
 			},
@@ -227,8 +227,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		exclusion, ok := it.(*ExclusionIterator)
-		require.True(ok, "should be an ExclusionIterator")
+		require.IsType((*ExclusionIterator)(nil), it)
+		exclusion := it.(*ExclusionIterator)
 		require.Len(exclusion.Subiterators(), 2)
 	})
 
@@ -238,7 +238,7 @@ func TestOutline_Compile(t *testing.T) {
 
 		outline := Outline{
 			Type: ExclusionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
@@ -261,7 +261,7 @@ func TestOutline_Compile(t *testing.T) {
 			Args: &IteratorArgs{
 				Caveat: caveat,
 			},
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
@@ -272,8 +272,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		cav, ok := it.(*CaveatIterator)
-		require.True(ok, "should be a CaveatIterator")
+		require.IsType((*CaveatIterator)(nil), it)
+		cav := it.(*CaveatIterator)
 		require.Equal(caveat, cav.caveat)
 	})
 
@@ -289,7 +289,7 @@ func TestOutline_Compile(t *testing.T) {
 			Args: &IteratorArgs{
 				RelationName: "viewer",
 			},
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
@@ -300,8 +300,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		alias, ok := it.(*AliasIterator)
-		require.True(ok, "should be an AliasIterator")
+		require.IsType((*AliasIterator)(nil), it)
+		alias := it.(*AliasIterator)
 		require.Equal("viewer", alias.relation)
 	})
 
@@ -312,7 +312,7 @@ func TestOutline_Compile(t *testing.T) {
 		outline := Outline{
 			Type: AliasIteratorType,
 			Args: nil,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
@@ -335,7 +335,7 @@ func TestOutline_Compile(t *testing.T) {
 				DefinitionName: "document",
 				RelationName:   "parent",
 			},
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
@@ -346,8 +346,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		rec, ok := it.(*RecursiveIterator)
-		require.True(ok, "should be a RecursiveIterator")
+		require.IsType((*RecursiveIterator)(nil), it)
+		rec := it.(*RecursiveIterator)
 		require.Equal("document", rec.definitionName)
 		require.Equal("parent", rec.relationName)
 	})
@@ -361,7 +361,7 @@ func TestOutline_Compile(t *testing.T) {
 			Args: &IteratorArgs{
 				RelationName: "parent",
 			},
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
@@ -392,8 +392,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		sentinel, ok := it.(*RecursiveSentinelIterator)
-		require.True(ok, "should be a RecursiveSentinelIterator")
+		require.IsType((*RecursiveSentinelIterator)(nil), it)
+		sentinel := it.(*RecursiveSentinelIterator)
 		require.Equal("document", sentinel.definitionName)
 		require.Equal("parent", sentinel.relationName)
 	})
@@ -421,7 +421,7 @@ func TestOutline_Compile(t *testing.T) {
 
 		outline := Outline{
 			Type: IntersectionArrowIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{Type: NullIteratorType},
 			},
@@ -433,8 +433,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		intArrow, ok := it.(*IntersectionArrowIterator)
-		require.True(ok, "should be an IntersectionArrowIterator")
+		require.IsType((*IntersectionArrowIterator)(nil), it)
+		intArrow := it.(*IntersectionArrowIterator)
 		require.Len(intArrow.Subiterators(), 2)
 	})
 
@@ -456,8 +456,8 @@ func TestOutline_Compile(t *testing.T) {
 		it, err := canonical.Compile()
 		require.NoError(err)
 
-		self, ok := it.(*SelfIterator)
-		require.True(ok, "should be a SelfIterator")
+		require.IsType((*SelfIterator)(nil), it)
+		self := it.(*SelfIterator)
 		require.Equal("viewer", self.relation)
 		require.Equal("document", self.typeName)
 	})
@@ -536,7 +536,7 @@ func TestOutline_Decompile(t *testing.T) {
 		outline, err := Decompile(union)
 		require.NoError(err)
 		require.Equal(UnionIteratorType, outline.Type)
-		require.Len(outline.Subiterators, 2)
+		require.Len(outline.SubOutlines, 2)
 	})
 
 	t.Run("IntersectionIterator", func(t *testing.T) {
@@ -551,7 +551,7 @@ func TestOutline_Decompile(t *testing.T) {
 		outline, err := Decompile(intersection)
 		require.NoError(err)
 		require.Equal(IntersectionIteratorType, outline.Type)
-		require.Len(outline.Subiterators, 2)
+		require.Len(outline.SubOutlines, 2)
 	})
 
 	t.Run("FixedIterator", func(t *testing.T) {
@@ -578,7 +578,7 @@ func TestOutline_Decompile(t *testing.T) {
 		outline, err := Decompile(arrow)
 		require.NoError(err)
 		require.Equal(ArrowIteratorType, outline.Type)
-		require.Len(outline.Subiterators, 2)
+		require.Len(outline.SubOutlines, 2)
 	})
 
 	t.Run("ExclusionIterator", func(t *testing.T) {
@@ -590,7 +590,7 @@ func TestOutline_Decompile(t *testing.T) {
 		outline, err := Decompile(exclusion)
 		require.NoError(err)
 		require.Equal(ExclusionIteratorType, outline.Type)
-		require.Len(outline.Subiterators, 2)
+		require.Len(outline.SubOutlines, 2)
 	})
 
 	t.Run("CaveatIterator", func(t *testing.T) {
@@ -605,7 +605,7 @@ func TestOutline_Decompile(t *testing.T) {
 		require.Equal(CaveatIteratorType, outline.Type)
 		require.NotNil(outline.Args)
 		require.Equal(caveat, outline.Args.Caveat)
-		require.Len(outline.Subiterators, 1)
+		require.Len(outline.SubOutlines, 1)
 	})
 
 	t.Run("AliasIterator", func(t *testing.T) {
@@ -658,7 +658,7 @@ func TestOutline_Decompile(t *testing.T) {
 		outline, err := Decompile(intArrow)
 		require.NoError(err)
 		require.Equal(IntersectionArrowIteratorType, outline.Type)
-		require.Len(outline.Subiterators, 2)
+		require.Len(outline.SubOutlines, 2)
 	})
 
 	t.Run("SelfIterator", func(t *testing.T) {
@@ -715,11 +715,11 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 		// Union( Null, Intersection( Null, Null ) )
 		original := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{
 					Type: IntersectionIteratorType,
-					Subiterators: []Outline{
+					SubOutlines: []Outline{
 						{Type: NullIteratorType},
 						{Type: NullIteratorType},
 					},
@@ -752,7 +752,7 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 
 		original := Outline{
 			Type: ArrowIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{
 					Type: DatastoreIteratorType,
 					Args: &IteratorArgs{Relation: rel1},
@@ -788,7 +788,7 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 		original := Outline{
 			Type: CaveatIteratorType,
 			Args: &IteratorArgs{Caveat: caveat},
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
@@ -859,13 +859,13 @@ func TestOutline_Equals(t *testing.T) {
 
 		o1 := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
 		o2 := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{Type: NullIteratorType},
 			},
@@ -880,13 +880,13 @@ func TestOutline_Equals(t *testing.T) {
 
 		o1 := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
 		o2 := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: FixedIteratorType},
 			},
 		}
@@ -967,13 +967,13 @@ func TestOutlineCompare(t *testing.T) {
 
 		o1 := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
 		o2 := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{Type: NullIteratorType},
 			},
@@ -989,13 +989,13 @@ func TestOutlineCompare(t *testing.T) {
 
 		o1 := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: DatastoreIteratorType},
 			},
 		}
 		o2 := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: UnionIteratorType},
 			},
 		}
@@ -1284,7 +1284,7 @@ func TestSerializeOutline(t *testing.T) {
 		require := require.New(t)
 
 		outline := Outline{Type: NullIteratorType}
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("0", key.String())
 	})
 
@@ -1300,7 +1300,7 @@ func TestSerializeOutline(t *testing.T) {
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		// Should contain type 'D', base relation serialization
 		require.Contains(key.String(), "D(")
 		require.Contains(key.String(), "base:")
@@ -1313,13 +1313,13 @@ func TestSerializeOutline(t *testing.T) {
 
 		outline := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{Type: NullIteratorType},
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("|[0,0]", key.String())
 	})
 
@@ -1329,13 +1329,13 @@ func TestSerializeOutline(t *testing.T) {
 
 		outline := Outline{
 			Type: IntersectionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{Type: NullIteratorType},
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("&[0,0]", key.String())
 	})
 
@@ -1346,11 +1346,11 @@ func TestSerializeOutline(t *testing.T) {
 		// Union( Null, Intersection( Null, Null ) )
 		outline := Outline{
 			Type: UnionIteratorType,
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 				{
 					Type: IntersectionIteratorType,
-					Subiterators: []Outline{
+					SubOutlines: []Outline{
 						{Type: NullIteratorType},
 						{Type: NullIteratorType},
 					},
@@ -1358,7 +1358,7 @@ func TestSerializeOutline(t *testing.T) {
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("|[0,&[0,0]]", key.String())
 	})
 
@@ -1372,12 +1372,12 @@ func TestSerializeOutline(t *testing.T) {
 			Args: &IteratorArgs{
 				Caveat: caveat,
 			},
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("C(cav:age_check)[0]", key.String())
 	})
 
@@ -1390,12 +1390,12 @@ func TestSerializeOutline(t *testing.T) {
 			Args: &IteratorArgs{
 				RelationName: "viewer",
 			},
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("@(rel:viewer)[0]", key.String())
 	})
 
@@ -1409,12 +1409,12 @@ func TestSerializeOutline(t *testing.T) {
 				DefinitionName: "document",
 				RelationName:   "parent",
 			},
-			Subiterators: []Outline{
+			SubOutlines: []Outline{
 				{Type: NullIteratorType},
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("R(def:document,rel:parent)[0]", key.String())
 	})
 
@@ -1432,7 +1432,7 @@ func TestSerializeOutline(t *testing.T) {
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("F(paths:2)", key.String())
 	})
 
@@ -1445,7 +1445,7 @@ func TestSerializeOutline(t *testing.T) {
 			Args: &IteratorArgs{}, // Empty but non-nil
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		// Should not include parentheses for empty args
 		require.Equal("|", key.String())
 	})
@@ -1459,7 +1459,7 @@ func TestSerializeOutline(t *testing.T) {
 			Args: nil,
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Equal("&", key.String())
 	})
 }
@@ -1471,7 +1471,7 @@ func TestSerializeOutline_Deterministic(t *testing.T) {
 	rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
 	outline := Outline{
 		Type: UnionIteratorType,
-		Subiterators: []Outline{
+		SubOutlines: []Outline{
 			{
 				Type: DatastoreIteratorType,
 				Args: &IteratorArgs{Relation: rel},
@@ -1481,9 +1481,9 @@ func TestSerializeOutline_Deterministic(t *testing.T) {
 	}
 
 	// Serialize multiple times
-	key1 := SerializeOutline(outline)
-	key2 := SerializeOutline(outline)
-	key3 := SerializeOutline(outline)
+	key1 := outline.Serialize()
+	key2 := outline.Serialize()
+	key3 := outline.Serialize()
 
 	// Should all be identical
 	require.Equal(key1.String(), key2.String())
@@ -1504,7 +1504,7 @@ func TestSerializeOutline_Args(t *testing.T) {
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Contains(key.String(), "def:document")
 	})
 
@@ -1519,7 +1519,7 @@ func TestSerializeOutline_Args(t *testing.T) {
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Contains(key.String(), "rel:viewer")
 	})
 
@@ -1535,7 +1535,7 @@ func TestSerializeOutline_Args(t *testing.T) {
 			},
 		}
 
-		key := SerializeOutline(outline)
+		key := outline.Serialize()
 		require.Contains(key.String(), "def:document")
 		require.Contains(key.String(), "rel:parent")
 	})
@@ -1557,8 +1557,8 @@ func TestSerializeOutline_IgnoresCanonicalKey(t *testing.T) {
 	}
 
 	// Serialization should be identical (ignoring CanonicalKey field)
-	key1 := SerializeOutline(outline1)
-	key2 := SerializeOutline(outline2)
+	key1 := outline1.Serialize()
+	key2 := outline2.Serialize()
 	require.Equal(key1.String(), key2.String())
 }
 

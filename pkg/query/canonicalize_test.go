@@ -79,16 +79,16 @@ func TestReplaceEmptyComposites(t *testing.T) {
 		{
 			name: "empty Union becomes Null",
 			outline: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{},
 			},
 			expected: Outline{Type: NullIteratorType},
 		},
 		{
 			name: "empty Intersection becomes Null",
 			outline: Outline{
-				Type:         IntersectionIteratorType,
-				Subiterators: []Outline{},
+				Type:        IntersectionIteratorType,
+				SubOutlines: []Outline{},
 			},
 			expected: Outline{Type: NullIteratorType},
 		},
@@ -96,13 +96,13 @@ func TestReplaceEmptyComposites(t *testing.T) {
 			name: "Union with children unchanged",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{Type: DatastoreIteratorType},
 				},
 			},
 			expected: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{Type: DatastoreIteratorType},
 				},
 			},
@@ -136,16 +136,16 @@ func TestCollapseSingleChild(t *testing.T) {
 		{
 			name: "Union with single child collapses",
 			outline: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{childOutline},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{childOutline},
 			},
 			expected: childOutline,
 		},
 		{
 			name: "Intersection with single child collapses",
 			outline: Outline{
-				Type:         IntersectionIteratorType,
-				Subiterators: []Outline{childOutline},
+				Type:        IntersectionIteratorType,
+				SubOutlines: []Outline{childOutline},
 			},
 			expected: childOutline,
 		},
@@ -153,14 +153,14 @@ func TestCollapseSingleChild(t *testing.T) {
 			name: "Union with multiple children unchanged",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{Type: DatastoreIteratorType},
 					{Type: DatastoreIteratorType},
 				},
 			},
 			expected: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{Type: DatastoreIteratorType},
 					{Type: DatastoreIteratorType},
 				},
@@ -197,7 +197,7 @@ func TestPropagateNull(t *testing.T) {
 			name: "Intersection with null becomes null",
 			outline: Outline{
 				Type: IntersectionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					dataOutline,
 					nullOutline,
 				},
@@ -208,7 +208,7 @@ func TestPropagateNull(t *testing.T) {
 			name: "Intersection with all nulls becomes null",
 			outline: Outline{
 				Type: IntersectionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					nullOutline,
 					nullOutline,
 				},
@@ -219,14 +219,14 @@ func TestPropagateNull(t *testing.T) {
 			name: "Intersection with no nulls unchanged",
 			outline: Outline{
 				Type: IntersectionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					dataOutline,
 					dataOutline,
 				},
 			},
 			expected: Outline{
 				Type: IntersectionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					dataOutline,
 					dataOutline,
 				},
@@ -236,7 +236,7 @@ func TestPropagateNull(t *testing.T) {
 			name: "Union with all nulls becomes null",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					nullOutline,
 					nullOutline,
 				},
@@ -247,7 +247,7 @@ func TestPropagateNull(t *testing.T) {
 			name: "Union with mixed nulls filters out nulls",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					nullOutline,
 					dataOutline,
 					nullOutline,
@@ -255,7 +255,7 @@ func TestPropagateNull(t *testing.T) {
 			},
 			expected: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					dataOutline,
 				},
 			},
@@ -264,14 +264,14 @@ func TestPropagateNull(t *testing.T) {
 			name: "Union with no nulls unchanged",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					dataOutline,
 					dataOutline,
 				},
 			},
 			expected: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					dataOutline,
 					dataOutline,
 				},
@@ -310,74 +310,74 @@ func TestFlattenComposites(t *testing.T) {
 			name: "Union[Union[A,B],C] flattens to Union[A,B,C]",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         UnionIteratorType,
-						Subiterators: []Outline{a, b},
+						Type:        UnionIteratorType,
+						SubOutlines: []Outline{a, b},
 					},
 					c,
 				},
 			},
 			expected: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b, c},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b, c},
 			},
 		},
 		{
 			name: "Union[Union[A,B],Union[C,D]] flattens to Union[A,B,C,D]",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         UnionIteratorType,
-						Subiterators: []Outline{a, b},
+						Type:        UnionIteratorType,
+						SubOutlines: []Outline{a, b},
 					},
 					{
-						Type:         UnionIteratorType,
-						Subiterators: []Outline{c, d},
+						Type:        UnionIteratorType,
+						SubOutlines: []Outline{c, d},
 					},
 				},
 			},
 			expected: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b, c, d},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b, c, d},
 			},
 		},
 		{
 			name: "Intersection[Intersection[A,B],C] flattens",
 			outline: Outline{
 				Type: IntersectionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         IntersectionIteratorType,
-						Subiterators: []Outline{a, b},
+						Type:        IntersectionIteratorType,
+						SubOutlines: []Outline{a, b},
 					},
 					c,
 				},
 			},
 			expected: Outline{
-				Type:         IntersectionIteratorType,
-				Subiterators: []Outline{a, b, c},
+				Type:        IntersectionIteratorType,
+				SubOutlines: []Outline{a, b, c},
 			},
 		},
 		{
 			name: "Union[Intersection[A,B],C] does not flatten",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         IntersectionIteratorType,
-						Subiterators: []Outline{a, b},
+						Type:        IntersectionIteratorType,
+						SubOutlines: []Outline{a, b},
 					},
 					c,
 				},
 			},
 			expected: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         IntersectionIteratorType,
-						Subiterators: []Outline{a, b},
+						Type:        IntersectionIteratorType,
+						SubOutlines: []Outline{a, b},
 					},
 					c,
 				},
@@ -386,12 +386,12 @@ func TestFlattenComposites(t *testing.T) {
 		{
 			name: "Union[A,B] with no nesting unchanged",
 			outline: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b},
 			},
 			expected: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b},
 			},
 		},
 		{
@@ -426,34 +426,34 @@ func TestSortCompositeChildren(t *testing.T) {
 		{
 			name: "Union children sorted",
 			outline: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{c, a, b},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{c, a, b},
 			},
 			expected: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b, c},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b, c},
 			},
 		},
 		{
 			name: "Intersection children sorted",
 			outline: Outline{
-				Type:         IntersectionIteratorType,
-				Subiterators: []Outline{b, c, a},
+				Type:        IntersectionIteratorType,
+				SubOutlines: []Outline{b, c, a},
 			},
 			expected: Outline{
-				Type:         IntersectionIteratorType,
-				Subiterators: []Outline{a, b, c},
+				Type:        IntersectionIteratorType,
+				SubOutlines: []Outline{a, b, c},
 			},
 		},
 		{
 			name: "single child unchanged",
 			outline: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a},
 			},
 			expected: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a},
 			},
 		},
 		{
@@ -488,9 +488,9 @@ func TestExtractCaveats(t *testing.T) {
 		{
 			name: "single caveat extracted",
 			outline: Outline{
-				Type:         CaveatIteratorType,
-				Args:         &IteratorArgs{Caveat: caveat1},
-				Subiterators: []Outline{dataOutline},
+				Type:        CaveatIteratorType,
+				Args:        &IteratorArgs{Caveat: caveat1},
+				SubOutlines: []Outline{dataOutline},
 			},
 			expectedTree:    dataOutline,
 			expectedCaveats: []*core.ContextualizedCaveat{caveat1},
@@ -500,11 +500,11 @@ func TestExtractCaveats(t *testing.T) {
 			outline: Outline{
 				Type: CaveatIteratorType,
 				Args: &IteratorArgs{Caveat: caveat1},
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         CaveatIteratorType,
-						Args:         &IteratorArgs{Caveat: caveat2},
-						Subiterators: []Outline{dataOutline},
+						Type:        CaveatIteratorType,
+						Args:        &IteratorArgs{Caveat: caveat2},
+						SubOutlines: []Outline{dataOutline},
 					},
 				},
 			},
@@ -515,22 +515,22 @@ func TestExtractCaveats(t *testing.T) {
 			name: "caveats in union children extracted",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         CaveatIteratorType,
-						Args:         &IteratorArgs{Caveat: caveat1},
-						Subiterators: []Outline{dataOutline},
+						Type:        CaveatIteratorType,
+						Args:        &IteratorArgs{Caveat: caveat1},
+						SubOutlines: []Outline{dataOutline},
 					},
 					{
-						Type:         CaveatIteratorType,
-						Args:         &IteratorArgs{Caveat: caveat2},
-						Subiterators: []Outline{dataOutline},
+						Type:        CaveatIteratorType,
+						Args:        &IteratorArgs{Caveat: caveat2},
+						SubOutlines: []Outline{dataOutline},
 					},
 				},
 			},
 			expectedTree: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{dataOutline, dataOutline},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{dataOutline, dataOutline},
 			},
 			expectedCaveats: []*core.ContextualizedCaveat{caveat1, caveat2},
 		},
@@ -545,7 +545,8 @@ func TestExtractCaveats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tree, caveats := extractCaveats(tt.outline)
+			tree, caveats, err := extractCaveats(tt.outline)
+			require.NoError(t, err)
 			require.True(t, tree.Equals(tt.expectedTree))
 			require.Len(t, caveats, len(tt.expectedCaveats))
 			for i, expectedCaveat := range tt.expectedCaveats {
@@ -579,9 +580,9 @@ func TestNestCaveats(t *testing.T) {
 			outline: dataOutline,
 			caveats: []*core.ContextualizedCaveat{caveat1},
 			expected: Outline{
-				Type:         CaveatIteratorType,
-				Args:         &IteratorArgs{Caveat: caveat1},
-				Subiterators: []Outline{dataOutline},
+				Type:        CaveatIteratorType,
+				Args:        &IteratorArgs{Caveat: caveat1},
+				SubOutlines: []Outline{dataOutline},
 			},
 		},
 		{
@@ -591,11 +592,11 @@ func TestNestCaveats(t *testing.T) {
 			expected: Outline{
 				Type: CaveatIteratorType,
 				Args: &IteratorArgs{Caveat: caveat1},
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         CaveatIteratorType,
-						Args:         &IteratorArgs{Caveat: caveat2},
-						Subiterators: []Outline{dataOutline},
+						Type:        CaveatIteratorType,
+						Args:        &IteratorArgs{Caveat: caveat2},
+						SubOutlines: []Outline{dataOutline},
 					},
 				},
 			},
@@ -632,16 +633,16 @@ func TestCanonicalizeOutline(t *testing.T) {
 		{
 			name: "empty union becomes null",
 			outline: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{},
 			},
 			expected: Outline{Type: NullIteratorType},
 		},
 		{
 			name: "single child union collapses",
 			outline: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a},
 			},
 			expected: a,
 		},
@@ -649,7 +650,7 @@ func TestCanonicalizeOutline(t *testing.T) {
 			name: "union with null removed",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{Type: NullIteratorType},
 					a,
 				},
@@ -660,7 +661,7 @@ func TestCanonicalizeOutline(t *testing.T) {
 			name: "intersection with null becomes null",
 			outline: Outline{
 				Type: IntersectionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{Type: NullIteratorType},
 					a,
 				},
@@ -671,47 +672,47 @@ func TestCanonicalizeOutline(t *testing.T) {
 			name: "nested unions flattened and sorted",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         UnionIteratorType,
-						Subiterators: []Outline{b, a},
+						Type:        UnionIteratorType,
+						SubOutlines: []Outline{b, a},
 					},
 					a,
 				},
 			},
 			expected: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, a, b},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, a, b},
 			},
 		},
 		{
 			name: "caveats lifted to top and sorted",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         CaveatIteratorType,
-						Args:         &IteratorArgs{Caveat: caveat2},
-						Subiterators: []Outline{a},
+						Type:        CaveatIteratorType,
+						Args:        &IteratorArgs{Caveat: caveat2},
+						SubOutlines: []Outline{a},
 					},
 					{
-						Type:         CaveatIteratorType,
-						Args:         &IteratorArgs{Caveat: caveat1},
-						Subiterators: []Outline{b},
+						Type:        CaveatIteratorType,
+						Args:        &IteratorArgs{Caveat: caveat1},
+						SubOutlines: []Outline{b},
 					},
 				},
 			},
 			expected: Outline{
 				Type: CaveatIteratorType,
 				Args: &IteratorArgs{Caveat: caveat1},
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
 						Type: CaveatIteratorType,
 						Args: &IteratorArgs{Caveat: caveat2},
-						Subiterators: []Outline{
+						SubOutlines: []Outline{
 							{
-								Type:         UnionIteratorType,
-								Subiterators: []Outline{a, b},
+								Type:        UnionIteratorType,
+								SubOutlines: []Outline{a, b},
 							},
 						},
 					},
@@ -722,23 +723,23 @@ func TestCanonicalizeOutline(t *testing.T) {
 			name: "complex nested structure",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
 						Type: UnionIteratorType,
-						Subiterators: []Outline{
+						SubOutlines: []Outline{
 							{Type: NullIteratorType},
 							a,
 						},
 					},
 					{
-						Type:         UnionIteratorType,
-						Subiterators: []Outline{b},
+						Type:        UnionIteratorType,
+						SubOutlines: []Outline{b},
 					},
 				},
 			},
 			expected: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b},
 			},
 		},
 	}
@@ -773,8 +774,8 @@ func TestCanonicalizeIdempotency(t *testing.T) {
 		{
 			name: "union",
 			outline: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{b, a},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{b, a},
 			},
 		},
 		{
@@ -782,10 +783,10 @@ func TestCanonicalizeIdempotency(t *testing.T) {
 			outline: Outline{
 				Type: CaveatIteratorType,
 				Args: &IteratorArgs{Caveat: caveat},
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
 						Type: UnionIteratorType,
-						Subiterators: []Outline{
+						SubOutlines: []Outline{
 							a,
 							{Type: NullIteratorType},
 							b,
@@ -798,14 +799,14 @@ func TestCanonicalizeIdempotency(t *testing.T) {
 			name: "complex nested structure",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
 						Type: UnionIteratorType,
-						Subiterators: []Outline{
+						SubOutlines: []Outline{
 							{
-								Type:         CaveatIteratorType,
-								Args:         &IteratorArgs{Caveat: caveat},
-								Subiterators: []Outline{a},
+								Type:        CaveatIteratorType,
+								Args:        &IteratorArgs{Caveat: caveat},
+								SubOutlines: []Outline{a},
 							},
 							b,
 						},
@@ -853,12 +854,12 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 		{
 			name: "Union[A,B] equals Union[B,A]",
 			outline1: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b},
 			},
 			outline2: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{b, a},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{b, a},
 			},
 			shouldMatch: true,
 		},
@@ -866,17 +867,17 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 			name: "Union[Union[A,B],C] equals Union[A,B,C]",
 			outline1: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
-						Type:         UnionIteratorType,
-						Subiterators: []Outline{a, b},
+						Type:        UnionIteratorType,
+						SubOutlines: []Outline{a, b},
 					},
 					c,
 				},
 			},
 			outline2: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b, c},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b, c},
 			},
 			shouldMatch: true,
 		},
@@ -884,7 +885,7 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 			name: "Union[A,Null] equals A",
 			outline1: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					a,
 					{Type: NullIteratorType},
 				},
@@ -895,8 +896,8 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 		{
 			name: "Union[A] equals A",
 			outline1: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a},
 			},
 			outline2:    a,
 			shouldMatch: true,
@@ -905,7 +906,7 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 			name: "Intersection[A,Null] equals Null",
 			outline1: Outline{
 				Type: IntersectionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					a,
 					{Type: NullIteratorType},
 				},
@@ -916,12 +917,12 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 		{
 			name: "Union[A,B] does not equal Union[A,C]",
 			outline1: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, b},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, b},
 			},
 			outline2: Outline{
-				Type:         UnionIteratorType,
-				Subiterators: []Outline{a, c},
+				Type:        UnionIteratorType,
+				SubOutlines: []Outline{a, c},
 			},
 			shouldMatch: false,
 		},
@@ -974,7 +975,7 @@ func TestCanonicalizeOutline_PopulatesCanonicalKey(t *testing.T) {
 			name: "union with subiterators",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{Type: NullIteratorType},
 					{Type: NullIteratorType},
 				},
@@ -984,10 +985,10 @@ func TestCanonicalizeOutline_PopulatesCanonicalKey(t *testing.T) {
 			name: "complex nested structure",
 			outline: Outline{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
 						Type: IntersectionIteratorType,
-						Subiterators: []Outline{
+						SubOutlines: []Outline{
 							{
 								Type: DatastoreIteratorType,
 								Args: &IteratorArgs{Relation: rel},
@@ -1023,7 +1024,7 @@ func TestCanonicalKey_MatchesSerialization(t *testing.T) {
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
 	outline := Outline{
 		Type: UnionIteratorType,
-		Subiterators: []Outline{
+		SubOutlines: []Outline{
 			{Type: NullIteratorType},
 			{
 				Type: DatastoreIteratorType,
@@ -1036,7 +1037,7 @@ func TestCanonicalKey_MatchesSerialization(t *testing.T) {
 	require.NoError(err)
 
 	// CanonicalKey should match the result of calling SerializeOutline
-	directSerialization := SerializeOutline(canonical)
+	directSerialization := canonical.Serialize()
 	require.Equal(directSerialization.String(), canonical.CanonicalKey.String(),
 		"CanonicalKey should match direct serialization result")
 }
@@ -1048,10 +1049,10 @@ func TestCanonicalKey_AllNodesPopulated(t *testing.T) {
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
 	outline := Outline{
 		Type: UnionIteratorType,
-		Subiterators: []Outline{
+		SubOutlines: []Outline{
 			{
 				Type: IntersectionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{
 						Type: DatastoreIteratorType,
 						Args: &IteratorArgs{Relation: rel},
@@ -1072,7 +1073,7 @@ func TestCanonicalKey_AllNodesPopulated(t *testing.T) {
 		require.False(o.CanonicalKey.IsEmpty(),
 			"All nodes should have non-empty CanonicalKey")
 
-		for _, sub := range o.Subiterators {
+		for _, sub := range o.SubOutlines {
 			checkAllNodes(sub)
 		}
 	}
@@ -1090,7 +1091,7 @@ func TestCanonicalKey_Uniqueness(t *testing.T) {
 	// Create two different outlines
 	outline1 := Outline{
 		Type: UnionIteratorType,
-		Subiterators: []Outline{
+		SubOutlines: []Outline{
 			{
 				Type: DatastoreIteratorType,
 				Args: &IteratorArgs{Relation: rel1},
@@ -1101,7 +1102,7 @@ func TestCanonicalKey_Uniqueness(t *testing.T) {
 
 	outline2 := Outline{
 		Type: UnionIteratorType,
-		Subiterators: []Outline{
+		SubOutlines: []Outline{
 			{
 				Type: DatastoreIteratorType,
 				Args: &IteratorArgs{Relation: rel2},
@@ -1131,13 +1132,13 @@ func TestCanonicalKey_Equivalence(t *testing.T) {
 
 	// Union[A,B] and Union[B,A] should produce the same CanonicalKey after canonicalization
 	outline1 := Outline{
-		Type:         UnionIteratorType,
-		Subiterators: []Outline{a, b},
+		Type:        UnionIteratorType,
+		SubOutlines: []Outline{a, b},
 	}
 
 	outline2 := Outline{
-		Type:         UnionIteratorType,
-		Subiterators: []Outline{b, a},
+		Type:        UnionIteratorType,
+		SubOutlines: []Outline{b, a},
 	}
 
 	canonical1, err := CanonicalizeOutline(outline1)
@@ -1158,10 +1159,10 @@ func TestCanonicalKey_Idempotency(t *testing.T) {
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
 	outline := Outline{
 		Type: UnionIteratorType,
-		Subiterators: []Outline{
+		SubOutlines: []Outline{
 			{
 				Type: UnionIteratorType,
-				Subiterators: []Outline{
+				SubOutlines: []Outline{
 					{Type: NullIteratorType},
 					{
 						Type: DatastoreIteratorType,
@@ -1225,7 +1226,7 @@ func TestCanonicalKey_WithCaveats(t *testing.T) {
 	outline := Outline{
 		Type: CaveatIteratorType,
 		Args: &IteratorArgs{Caveat: caveat},
-		Subiterators: []Outline{
+		SubOutlines: []Outline{
 			{
 				Type: DatastoreIteratorType,
 				Args: &IteratorArgs{Relation: rel},
