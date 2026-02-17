@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
@@ -423,32 +424,34 @@ func PathOrder(a, b Path) int {
 		}
 	}
 
-	// Compare metadata
-	// For deterministic ordering, we need to compare maps in a consistent way
-	// If one is nil and other isn't, nil comes first
-	if (a.Metadata == nil) != (b.Metadata == nil) {
-		if a.Metadata == nil {
-			return -1
-		}
-		return 1
-	}
+	// Compare metadata: extract sorted key lists, compare keys first,
+	// then compare values key-by-key using the common sorted key order.
+	// nil maps are treated as empty.
+	aKeys := slices.Sorted(maps.Keys(a.Metadata))
+	bKeys := slices.Sorted(maps.Keys(b.Metadata))
 
-	// If both non-nil, compare by length first, then by equality
-	if a.Metadata != nil && b.Metadata != nil {
-		if len(a.Metadata) != len(b.Metadata) {
-			if len(a.Metadata) < len(b.Metadata) {
+	for i, ak := range aKeys {
+		if i >= len(bKeys) {
+			return 1
+		}
+		bk := bKeys[i]
+		if ak != bk {
+			if ak < bk {
 				return -1
 			}
 			return 1
 		}
+	}
+	if len(aKeys) < len(bKeys) {
+		return -1
+	}
 
-		// For equal-length maps, use maps.Equal for equality check
-		// If not equal, we need some deterministic ordering
-		// Compare string representations as a fallback
-		if !maps.Equal(a.Metadata, b.Metadata) {
-			aStr := fmt.Sprintf("%v", a.Metadata)
-			bStr := fmt.Sprintf("%v", b.Metadata)
-			if aStr < bStr {
+	// Same keys; compare values in sorted-key order
+	for _, k := range aKeys {
+		aVal := fmt.Sprintf("%v", a.Metadata[k])
+		bVal := fmt.Sprintf("%v", b.Metadata[k])
+		if aVal != bVal {
+			if aVal < bVal {
 				return -1
 			}
 			return 1
