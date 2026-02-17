@@ -947,6 +947,100 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 }
 
+func TestPathOrder_Metadata(t *testing.T) {
+	t.Parallel()
+
+	base := MustPathFromString("document:doc1#view@user:alice")
+	withMeta := func(m map[string]any) Path {
+		p := base
+		p.Metadata = m
+		return p
+	}
+
+	t.Run("nil vs nil equal", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, 0, PathOrder(withMeta(nil), withMeta(nil)))
+	})
+
+	t.Run("nil vs empty equal", func(t *testing.T) {
+		t.Parallel()
+		// nil and empty map both have zero keys
+		require.Equal(t, 0, PathOrder(withMeta(nil), withMeta(map[string]any{})))
+	})
+
+	t.Run("no metadata less than with metadata", func(t *testing.T) {
+		t.Parallel()
+		// nil (0 keys) < map with 1 key ("a" is the first key encountered)
+		require.Equal(t, -1, PathOrder(withMeta(nil), withMeta(map[string]any{"a": "x"})))
+		require.Equal(t, 1, PathOrder(withMeta(map[string]any{"a": "x"}), withMeta(nil)))
+	})
+
+	t.Run("first differing key determines order", func(t *testing.T) {
+		t.Parallel()
+		// {a:x} < {b:x} because key "a" < "b"
+		require.Equal(t, -1, PathOrder(
+			withMeta(map[string]any{"a": "x"}),
+			withMeta(map[string]any{"b": "x"}),
+		))
+		require.Equal(t, 1, PathOrder(
+			withMeta(map[string]any{"b": "x"}),
+			withMeta(map[string]any{"a": "x"}),
+		))
+	})
+
+	t.Run("key order beats key count", func(t *testing.T) {
+		t.Parallel()
+		// sorted keys ["a","b"] vs ["b","c"]: first key "a" < "b", so first map is less
+		// even though both have the same count
+		require.Equal(t, -1, PathOrder(
+			withMeta(map[string]any{"a": "x", "b": "x"}),
+			withMeta(map[string]any{"b": "x", "c": "x"}),
+		))
+	})
+
+	t.Run("same keys compare values", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, -1, PathOrder(
+			withMeta(map[string]any{"k": "alpha"}),
+			withMeta(map[string]any{"k": "beta"}),
+		))
+		require.Equal(t, 1, PathOrder(
+			withMeta(map[string]any{"k": "beta"}),
+			withMeta(map[string]any{"k": "alpha"}),
+		))
+	})
+
+	t.Run("same keys same values equal", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, 0, PathOrder(
+			withMeta(map[string]any{"x": "1", "y": "2"}),
+			withMeta(map[string]any{"x": "1", "y": "2"}),
+		))
+	})
+
+	t.Run("value compared in sorted key order", func(t *testing.T) {
+		t.Parallel()
+		// Keys ["a","b"] match; first values match; second value "alpha" < "beta"
+		require.Equal(t, -1, PathOrder(
+			withMeta(map[string]any{"a": "same", "b": "alpha"}),
+			withMeta(map[string]any{"a": "same", "b": "beta"}),
+		))
+	})
+
+	t.Run("prefix key list is less", func(t *testing.T) {
+		t.Parallel()
+		// {a:x} keys ["a"] vs {a:x, b:x} keys ["a","b"]: first keys match, then left runs out
+		require.Equal(t, -1, PathOrder(
+			withMeta(map[string]any{"a": "x"}),
+			withMeta(map[string]any{"a": "x", "b": "x"}),
+		))
+		require.Equal(t, 1, PathOrder(
+			withMeta(map[string]any{"a": "x", "b": "x"}),
+			withMeta(map[string]any{"a": "x"}),
+		))
+	})
+}
+
 func TestCombineExpiration(t *testing.T) {
 	t.Parallel()
 

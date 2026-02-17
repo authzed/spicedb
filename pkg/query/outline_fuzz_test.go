@@ -14,6 +14,37 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+var (
+	randomCaveats  = []string{"caveat1", "caveat2", "caveat3", "test_caveat"}
+	randomIDs      = []string{"id1", "id2", "id3", "alice", "bob", "doc1", "doc2", "folder1"}
+	randomMetaKeys = []string{"source", "priority", "tenant", "region", "version"}
+	randomMetaVals = []string{"low", "high", "us-east", "us-west", "v1", "v2", "prod", "dev"}
+)
+
+var allIteratorTypes = []IteratorType{
+	NullIteratorType,
+	DatastoreIteratorType,
+	UnionIteratorType,
+	IntersectionIteratorType,
+	FixedIteratorType,
+	ArrowIteratorType,
+	ExclusionIteratorType,
+	CaveatIteratorType,
+	AliasIteratorType,
+	RecursiveIteratorType,
+	RecursiveSentinelIteratorType,
+	IntersectionArrowIteratorType,
+	SelfIteratorType,
+}
+
+var leafIteratorTypes = []IteratorType{
+	NullIteratorType,
+	DatastoreIteratorType,
+	FixedIteratorType,
+	RecursiveSentinelIteratorType,
+	SelfIteratorType,
+}
+
 // outlineGenerator generates random but valid Outlines for fuzzing
 type outlineGenerator struct {
 	rng       *rand.Rand
@@ -198,7 +229,19 @@ func (g *outlineGenerator) randomPath() Path {
 	subjectID := g.randomID()
 
 	pathStr := resource + ":" + resourceID + "#" + relation + "@" + subjectType + ":" + subjectID
-	return MustPathFromString(pathStr)
+	path := MustPathFromString(pathStr)
+
+	// Randomly include 0–3 metadata entries
+	if numEntries := g.rng.Intn(4); numEntries > 0 {
+		path.Metadata = make(map[string]any, numEntries)
+		for range numEntries {
+			key := randomMetaKeys[g.rng.Intn(len(randomMetaKeys))]
+			val := randomMetaVals[g.rng.Intn(len(randomMetaVals))]
+			path.Metadata[key] = val
+		}
+	}
+
+	return path
 }
 
 func (g *outlineGenerator) randomID() string {
@@ -285,13 +328,9 @@ func FuzzOutlineCompare(f *testing.F) {
 				t.Errorf("Antisymmetry violated: compare(a,b)==0 but compare(b,a)!= 0")
 			}
 		case cmp12 > 0:
-			if cmp21 >= 0 {
-				t.Errorf("Antisymmetry violated: compare(a,b)>0 but compare(b,a)>=0")
-			}
+			require.Negative(t, cmp21, "Antisymmetry violated: compare(a,b)>0 but compare(b,a)>=0")
 		default:
-			if cmp21 <= 0 {
-				t.Errorf("Antisymmetry violated: compare(a,b)<0 but compare(b,a)<=0")
-			}
+			require.Positive(t, cmp21, "Antisymmetry violated: compare(a,b)<0 but compare(b,a)<=0")
 		}
 
 		// Property: compare(a, a) == 0 (reflexivity)
