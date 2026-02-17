@@ -37,11 +37,11 @@ func FuzzPathOrder(f *testing.F) {
 		ab := PathOrder(a, b)
 		ba := PathOrder(b, a)
 		if ab < 0 {
-			require.Greater(t, ba, 0, "PathOrder should be antisymmetric: if PathOrder(a, b) < 0, then PathOrder(b, a) > 0")
+			require.Positive(t, ba, "PathOrder should be antisymmetric: if PathOrder(a, b) < 0, then PathOrder(b, a) > 0")
 		} else if ab > 0 {
-			require.Less(t, ba, 0, "PathOrder should be antisymmetric: if PathOrder(a, b) > 0, then PathOrder(b, a) < 0")
+			require.Negative(t, ba, "PathOrder should be antisymmetric: if PathOrder(a, b) > 0, then PathOrder(b, a) < 0")
 		} else {
-			require.Equal(t, ba, 0, "PathOrder should be antisymmetric: if PathOrder(a, b) == 0, then PathOrder(b, a) == 0")
+			require.Equal(t, 0, ba, "PathOrder should be antisymmetric: if PathOrder(a, b) == 0, then PathOrder(b, a) == 0")
 		}
 
 		// Test transitivity: if PathOrder(a, b) < 0 and PathOrder(b, c) < 0, then PathOrder(a, c) < 0
@@ -50,10 +50,10 @@ func FuzzPathOrder(f *testing.F) {
 
 		if ab < 0 && bc < 0 {
 			// Case 1: a < b and b < c => a < c
-			require.Less(t, ac, 0, "PathOrder transitivity: if a < b and b < c, then a < c")
+			require.Negative(t, ac, "PathOrder transitivity: if a < b and b < c, then a < c")
 		} else if ab > 0 && bc > 0 {
 			// Case 2: a > b and b > c => a > c
-			require.Greater(t, ac, 0, "PathOrder transitivity: if a > b and b > c, then a > c")
+			require.Positive(t, ac, "PathOrder transitivity: if a > b and b > c, then a > c")
 		} else if ab > 0 {
 			// Otherwise, b is least element.
 			paths := []Path{a, b, c}
@@ -69,22 +69,22 @@ func FuzzPathOrder(f *testing.F) {
 		// Test more complex transitivity chains
 		// If a == b and b < c, then a < c
 		if ab == 0 && bc < 0 {
-			require.Less(t, ac, 0, "PathOrder transitivity: if a == b and b < c, then a < c")
+			require.Negative(t, ac, "PathOrder transitivity: if a == b and b < c, then a < c")
 		}
 
 		// If a == b and b > c, then a > c
 		if ab == 0 && bc > 0 {
-			require.Greater(t, ac, 0, "PathOrder transitivity: if a == b and b > c, then a > c")
+			require.Positive(t, ac, "PathOrder transitivity: if a == b and b > c, then a > c")
 		}
 
 		// If a < b and b == c, then a < c
 		if ab < 0 && bc == 0 {
-			require.Less(t, ac, 0, "PathOrder transitivity: if a < b and b == c, then a < c")
+			require.Negative(t, ac, "PathOrder transitivity: if a < b and b == c, then a < c")
 		}
 
 		// If a > b and b == c, then a > c
 		if ab > 0 && bc == 0 {
-			require.Greater(t, ac, 0, "PathOrder transitivity: if a > b and b == c, then a > c")
+			require.Positive(t, ac, "PathOrder transitivity: if a > b and b == c, then a > c")
 		}
 
 		// If all are equal

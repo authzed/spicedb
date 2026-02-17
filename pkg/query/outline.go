@@ -14,6 +14,8 @@ import (
 
 // IteratorType is an enum to represent each basic type of iterator by a
 // well-known byte.
+//
+// Remember to also update  the allIteratorTypes list below when adding a new one.
 type IteratorType byte
 
 const (
@@ -57,7 +59,7 @@ func (k CanonicalKey) Hash() uint64 {
 type Outline struct {
 	Type         IteratorType
 	Args         *IteratorArgs
-	Subiterators []Outline
+	SubOutlines  []Outline
 	CanonicalKey CanonicalKey // Populated only after canonicalization
 }
 
@@ -72,15 +74,15 @@ type IteratorArgs struct {
 }
 
 // Compile converts a query Outline into the actual Iterator representation.
-func (c Outline) Compile() (Iterator, error) {
+func (outline Outline) Compile() (Iterator, error) {
 	// Check if CanonicalKey is populated (should be set by canonicalization)
-	if c.CanonicalKey.IsEmpty() {
+	if outline.CanonicalKey.IsEmpty() {
 		return nil, spiceerrors.MustBugf("Outline CanonicalKey is empty - outline must be canonicalized before compilation")
 	}
 
 	// First, recursively compile all subiterators (bottom-up)
-	compiledSubs := make([]Iterator, len(c.Subiterators))
-	for i, sub := range c.Subiterators {
+	compiledSubs := make([]Iterator, len(outline.SubOutlines))
+	for i, sub := range outline.SubOutlines {
 		compiled, err := sub.Compile()
 		if err != nil {
 			return nil, err
@@ -89,39 +91,39 @@ func (c Outline) Compile() (Iterator, error) {
 	}
 
 	// Now construct the iterator based on type and set canonical key
-	switch c.Type {
+	switch outline.Type {
 	case NullIteratorType:
 		it := NewFixedIterator()
-		it.canonicalKey = c.CanonicalKey
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case DatastoreIteratorType:
-		if c.Args == nil || c.Args.Relation == nil {
+		if outline.Args == nil || outline.Args.Relation == nil {
 			return nil, errors.New("DatastoreIterator requires Relation in Args")
 		}
-		it := NewDatastoreIterator(c.Args.Relation)
-		it.canonicalKey = c.CanonicalKey
+		it := NewDatastoreIterator(outline.Args.Relation)
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case UnionIteratorType:
 		it := NewUnionIterator(compiledSubs...)
-		it.(*UnionIterator).canonicalKey = c.CanonicalKey
+		it.(*UnionIterator).canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case IntersectionIteratorType:
 		it := NewIntersectionIterator(compiledSubs...)
-		it.(*IntersectionIterator).canonicalKey = c.CanonicalKey
+		it.(*IntersectionIterator).canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case FixedIteratorType:
 		// FixedIterator with no paths (would need additional args for paths)
 		var it *FixedIterator
-		if c.Args != nil {
-			it = NewFixedIterator(c.Args.FixedPaths...)
+		if outline.Args != nil {
+			it = NewFixedIterator(outline.Args.FixedPaths...)
 		} else {
 			it = NewFixedIterator()
 		}
-		it.canonicalKey = c.CanonicalKey
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case ArrowIteratorType:
@@ -129,7 +131,7 @@ func (c Outline) Compile() (Iterator, error) {
 			return nil, fmt.Errorf("ArrowIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
 		it := NewArrowIterator(compiledSubs[0], compiledSubs[1])
-		it.canonicalKey = c.CanonicalKey
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case ExclusionIteratorType:
@@ -137,49 +139,49 @@ func (c Outline) Compile() (Iterator, error) {
 			return nil, fmt.Errorf("ExclusionIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
 		it := NewExclusionIterator(compiledSubs[0], compiledSubs[1])
-		it.canonicalKey = c.CanonicalKey
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case CaveatIteratorType:
 		if len(compiledSubs) != 1 {
 			return nil, fmt.Errorf("CaveatIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
 		}
-		if c.Args == nil || c.Args.Caveat == nil {
+		if outline.Args == nil || outline.Args.Caveat == nil {
 			return nil, errors.New("CaveatIterator requires Caveat in Args")
 		}
-		it := NewCaveatIterator(compiledSubs[0], c.Args.Caveat)
-		it.canonicalKey = c.CanonicalKey
+		it := NewCaveatIterator(compiledSubs[0], outline.Args.Caveat)
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case AliasIteratorType:
 		if len(compiledSubs) != 1 {
 			return nil, fmt.Errorf("AliasIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
 		}
-		if c.Args == nil || c.Args.RelationName == "" {
+		if outline.Args == nil || outline.Args.RelationName == "" {
 			return nil, errors.New("AliasIterator requires RelationName in Args")
 		}
-		it := NewAliasIterator(c.Args.RelationName, compiledSubs[0])
-		it.canonicalKey = c.CanonicalKey
+		it := NewAliasIterator(outline.Args.RelationName, compiledSubs[0])
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case RecursiveIteratorType:
 		if len(compiledSubs) != 1 {
 			return nil, fmt.Errorf("RecursiveIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
 		}
-		if c.Args == nil || c.Args.DefinitionName == "" || c.Args.RelationName == "" {
+		if outline.Args == nil || outline.Args.DefinitionName == "" || outline.Args.RelationName == "" {
 			return nil, errors.New("RecursiveIterator requires DefinitionName and RelationName in Args")
 		}
-		it := NewRecursiveIterator(compiledSubs[0], c.Args.DefinitionName, c.Args.RelationName)
-		it.canonicalKey = c.CanonicalKey
+		it := NewRecursiveIterator(compiledSubs[0], outline.Args.DefinitionName, outline.Args.RelationName)
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case RecursiveSentinelIteratorType:
-		if c.Args == nil || c.Args.DefinitionName == "" || c.Args.RelationName == "" {
+		if outline.Args == nil || outline.Args.DefinitionName == "" || outline.Args.RelationName == "" {
 			return nil, errors.New("RecursiveSentinelIterator requires DefinitionName and RelationName in Args")
 		}
 		// withSubRelations defaults to false for now
-		it := NewRecursiveSentinelIterator(c.Args.DefinitionName, c.Args.RelationName, false)
-		it.canonicalKey = c.CanonicalKey
+		it := NewRecursiveSentinelIterator(outline.Args.DefinitionName, outline.Args.RelationName, false)
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case IntersectionArrowIteratorType:
@@ -187,19 +189,19 @@ func (c Outline) Compile() (Iterator, error) {
 			return nil, fmt.Errorf("IntersectionArrowIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
 		it := NewIntersectionArrowIterator(compiledSubs[0], compiledSubs[1])
-		it.canonicalKey = c.CanonicalKey
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	case SelfIteratorType:
-		if c.Args == nil || c.Args.RelationName == "" || c.Args.DefinitionName == "" {
+		if outline.Args == nil || outline.Args.RelationName == "" || outline.Args.DefinitionName == "" {
 			return nil, errors.New("SelfIterator requires RelationName and DefinitionName in Args")
 		}
-		it := NewSelfIterator(c.Args.RelationName, c.Args.DefinitionName)
-		it.canonicalKey = c.CanonicalKey
+		it := NewSelfIterator(outline.Args.RelationName, outline.Args.DefinitionName)
+		it.canonicalKey = outline.CanonicalKey
 		return it, nil
 
 	default:
-		return nil, fmt.Errorf("unknown iterator type: %c", c.Type)
+		return nil, fmt.Errorf("unknown iterator type: %c", outline.Type)
 	}
 }
 
@@ -228,27 +230,27 @@ func Decompile(it Iterator) (Outline, error) {
 			Args: &IteratorArgs{
 				Relation: typed.base,
 			},
-			Subiterators: decompSubs,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *UnionIterator:
 		return Outline{
-			Type:         UnionIteratorType,
-			Subiterators: decompSubs,
+			Type:        UnionIteratorType,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *IntersectionIterator:
 		return Outline{
-			Type:         IntersectionIteratorType,
-			Subiterators: decompSubs,
+			Type:        IntersectionIteratorType,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *FixedIterator:
 		// Empty FixedIterator is represented as NullIteratorType
 		if len(typed.paths) == 0 {
 			return Outline{
-				Type:         NullIteratorType,
-				Subiterators: decompSubs,
+				Type:        NullIteratorType,
+				SubOutlines: decompSubs,
 			}, nil
 		}
 		return Outline{
@@ -256,19 +258,19 @@ func Decompile(it Iterator) (Outline, error) {
 			Args: &IteratorArgs{
 				FixedPaths: typed.paths,
 			},
-			Subiterators: decompSubs,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *ArrowIterator:
 		return Outline{
-			Type:         ArrowIteratorType,
-			Subiterators: decompSubs,
+			Type:        ArrowIteratorType,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *ExclusionIterator:
 		return Outline{
-			Type:         ExclusionIteratorType,
-			Subiterators: decompSubs,
+			Type:        ExclusionIteratorType,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *CaveatIterator:
@@ -277,7 +279,7 @@ func Decompile(it Iterator) (Outline, error) {
 			Args: &IteratorArgs{
 				Caveat: typed.caveat,
 			},
-			Subiterators: decompSubs,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *AliasIterator:
@@ -286,7 +288,7 @@ func Decompile(it Iterator) (Outline, error) {
 			Args: &IteratorArgs{
 				RelationName: typed.relation,
 			},
-			Subiterators: decompSubs,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *RecursiveIterator:
@@ -296,7 +298,7 @@ func Decompile(it Iterator) (Outline, error) {
 				DefinitionName: typed.definitionName,
 				RelationName:   typed.relationName,
 			},
-			Subiterators: decompSubs,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *RecursiveSentinelIterator:
@@ -306,13 +308,13 @@ func Decompile(it Iterator) (Outline, error) {
 				DefinitionName: typed.definitionName,
 				RelationName:   typed.relationName,
 			},
-			Subiterators: decompSubs,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *IntersectionArrowIterator:
 		return Outline{
-			Type:         IntersectionArrowIteratorType,
-			Subiterators: decompSubs,
+			Type:        IntersectionArrowIteratorType,
+			SubOutlines: decompSubs,
 		}, nil
 
 	case *SelfIterator:
@@ -322,7 +324,7 @@ func Decompile(it Iterator) (Outline, error) {
 				RelationName:   typed.relation,
 				DefinitionName: typed.typeName,
 			},
-			Subiterators: decompSubs,
+			SubOutlines: decompSubs,
 		}, nil
 
 	default:
@@ -336,15 +338,15 @@ type OutlineMutation func(Outline) Outline
 // all the given transformation functions to each node after processing its children.
 func MutateOutline(outline Outline, fns []OutlineMutation) Outline {
 	// Recurse on children first (bottom-up)
-	if len(outline.Subiterators) > 0 {
-		newSubs := make([]Outline, len(outline.Subiterators))
-		for i, sub := range outline.Subiterators {
+	if len(outline.SubOutlines) > 0 {
+		newSubs := make([]Outline, len(outline.SubOutlines))
+		for i, sub := range outline.SubOutlines {
 			newSubs[i] = MutateOutline(sub, fns)
 		}
 		outline = Outline{
-			Type:         outline.Type,
-			Args:         outline.Args,
-			Subiterators: newSubs,
+			Type:        outline.Type,
+			Args:        outline.Args,
+			SubOutlines: newSubs,
 		}
 	}
 
@@ -357,8 +359,8 @@ func MutateOutline(outline Outline, fns []OutlineMutation) Outline {
 }
 
 // Equals checks if two Outlines are structurally equal
-func (c Outline) Equals(other Outline) bool {
-	return OutlineCompare(c, other) == 0
+func (outline Outline) Equals(other Outline) bool {
+	return OutlineCompare(outline, other) == 0
 }
 
 // OutlineCompare defines a total ordering on Outline for canonicalization.
@@ -380,17 +382,17 @@ func OutlineCompare(a, b Outline) int {
 	}
 
 	// Then compare by number of subiterators
-	if len(a.Subiterators) != len(b.Subiterators) {
-		if len(a.Subiterators) < len(b.Subiterators) {
+	if len(a.SubOutlines) != len(b.SubOutlines) {
+		if len(a.SubOutlines) < len(b.SubOutlines) {
 			return -1
 		}
 		return 1
 	}
 
 	// Finally, lexicographic comparison of subiterators
-	for i := range a.Subiterators {
-		if !a.Subiterators[i].Equals(b.Subiterators[i]) {
-			return OutlineCompare(a.Subiterators[i], b.Subiterators[i])
+	for i := range a.SubOutlines {
+		if !a.SubOutlines[i].Equals(b.SubOutlines[i]) {
+			return OutlineCompare(a.SubOutlines[i], b.SubOutlines[i])
 		}
 	}
 
@@ -501,39 +503,39 @@ func caveatCompare(a, b *core.ContextualizedCaveat) int {
 	return 0
 }
 
-// SerializeOutline generates a compact, deterministic string representation
+// Serialize generates a compact, deterministic string representation
 // of an Outline tree, excluding the CanonicalKey field itself.
 // Format: <Type>(<Args>)[<Sub1>,<Sub2>,...]
 // Returns a CanonicalKey wrapping the serialized string.
-func SerializeOutline(outline Outline) CanonicalKey {
-	var result string
+func (outline Outline) Serialize() CanonicalKey {
+	var result strings.Builder
 
 	// Add type (single character)
-	result += string(outline.Type)
+	result.WriteByte(byte(outline.Type))
 
 	// Add args if present
 	if outline.Args != nil {
 		argsStr := serializeArgs(outline.Args)
 		if argsStr != "" {
-			result += "(" + argsStr + ")"
+			result.WriteByte('(')
+			result.WriteString(argsStr)
+			result.WriteByte(')')
 		}
 	}
 
 	// Add subiterators if present
-	if len(outline.Subiterators) > 0 {
-		result += "["
-		var resultSb522 strings.Builder
-		for i, sub := range outline.Subiterators {
+	if len(outline.SubOutlines) > 0 {
+		result.WriteByte('[')
+		for i, sub := range outline.SubOutlines {
 			if i > 0 {
-				resultSb522.WriteString(",")
+				result.WriteString(",")
 			}
-			resultSb522.WriteString(SerializeOutline(sub).String())
+			result.WriteString(sub.Serialize().String())
 		}
-		result += resultSb522.String()
-		result += "]"
+		result.WriteByte(']')
 	}
 
-	return CanonicalKey(result)
+	return CanonicalKey(result.String())
 }
 
 // serializeArgs converts IteratorArgs to compact string representation
@@ -544,47 +546,50 @@ func serializeArgs(args *IteratorArgs) string {
 		return ""
 	}
 
-	var parts []string
+	var sb strings.Builder
 
 	// DefinitionName
 	if args.DefinitionName != "" {
-		parts = append(parts, "def:"+args.DefinitionName)
+		sb.WriteString("def:")
+		sb.WriteString(args.DefinitionName)
 	}
 
 	// RelationName
 	if args.RelationName != "" {
-		parts = append(parts, "rel:"+args.RelationName)
+		if sb.Len() > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString("rel:")
+		sb.WriteString(args.RelationName)
 	}
 
 	// Relation (BaseRelation)
 	if args.Relation != nil {
-		parts = append(parts, "base:"+serializeRelation(args.Relation))
+		if sb.Len() > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString("base:")
+		sb.WriteString(serializeRelation(args.Relation))
 	}
 
 	// Caveat
 	if args.Caveat != nil {
-		parts = append(parts, "cav:"+serializeCaveat(args.Caveat))
+		if sb.Len() > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString("cav:")
+		sb.WriteString(serializeCaveat(args.Caveat))
 	}
 
 	// FixedPaths (count only)
 	if len(args.FixedPaths) > 0 {
-		parts = append(parts, serializePaths(args.FixedPaths))
-	}
-
-	if len(parts) == 0 {
-		return ""
-	}
-
-	result := ""
-	var resultSb574 strings.Builder
-	for i, part := range parts {
-		if i > 0 {
-			resultSb574.WriteString(",")
+		if sb.Len() > 0 {
+			sb.WriteByte(',')
 		}
-		resultSb574.WriteString(part)
+		sb.WriteString(serializePaths(args.FixedPaths))
 	}
-	result += resultSb574.String()
-	return result
+
+	return sb.String()
 }
 
 // serializeRelation converts BaseRelation to compact string
@@ -594,21 +599,27 @@ func serializeRelation(rel *schema.BaseRelation) string {
 		return ""
 	}
 
-	result := rel.DefinitionName() + "/" + rel.RelationName() + "/" +
-		rel.Type() + "/" + rel.Subrelation()
+	var sb strings.Builder
+	sb.WriteString(rel.DefinitionName())
+	sb.WriteByte('/')
+	sb.WriteString(rel.RelationName())
+	sb.WriteByte('/')
+	sb.WriteString(rel.Type())
+	sb.WriteByte('/')
+	sb.WriteString(rel.Subrelation())
 
-	// Add flags
 	if rel.Caveat() != "" {
-		result += "/c:" + rel.Caveat()
+		sb.WriteString("/c:")
+		sb.WriteString(rel.Caveat())
 	}
 	if rel.Expiration() {
-		result += "/e"
+		sb.WriteString("/e")
 	}
 	if rel.Wildcard() {
-		result += "/w"
+		sb.WriteString("/w")
 	}
 
-	return result
+	return sb.String()
 }
 
 // serializeCaveat converts ContextualizedCaveat to compact string (name only)

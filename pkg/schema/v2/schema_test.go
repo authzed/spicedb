@@ -330,6 +330,166 @@ func TestFindParent_SkipIntermediateTypes(t *testing.T) {
 	require.Equal(t, intersectionOp, intersection, "should find the correct intersection operation")
 }
 
+func TestBaseRelationCompare(t *testing.T) {
+	t.Parallel()
+
+	getBase := func(t *testing.T, s *Schema, defName, relName string, idx int) *BaseRelation {
+		t.Helper()
+		def, ok := s.GetTypeDefinition(defName)
+		require.True(t, ok)
+		rel, ok := def.GetRelation(relName)
+		require.True(t, ok)
+		return rel.BaseRelations()[idx]
+	}
+
+	t.Run("both nil", func(t *testing.T) {
+		t.Parallel()
+		var a, b *BaseRelation
+		require.Equal(t, 0, a.Compare(b))
+	})
+
+	t.Run("left nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("user").Done().
+			AddDefinition("doc").AddRelation("viewer").AllowedDirectRelation("user").Done().Done().
+			Build()
+		b := getBase(t, s, "doc", "viewer", 0)
+		var a *BaseRelation
+		require.Equal(t, -1, a.Compare(b))
+	})
+
+	t.Run("right nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("user").Done().
+			AddDefinition("doc").AddRelation("viewer").AllowedDirectRelation("user").Done().Done().
+			Build()
+		a := getBase(t, s, "doc", "viewer", 0)
+		require.Equal(t, 1, a.Compare(nil))
+	})
+
+	t.Run("equal", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("user").Done().
+			AddDefinition("doc").AddRelation("viewer").
+			AllowedDirectRelation("user").
+			AllowedDirectRelation("user").
+			Done().Done().
+			Build()
+		a := getBase(t, s, "doc", "viewer", 0)
+		b := getBase(t, s, "doc", "viewer", 1)
+		require.Equal(t, 0, a.Compare(b))
+	})
+
+	t.Run("different definition name", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("user").Done().
+			AddDefinition("aaa").AddRelation("viewer").AllowedDirectRelation("user").Done().Done().
+			AddDefinition("zzz").AddRelation("viewer").AllowedDirectRelation("user").Done().Done().
+			Build()
+		a := getBase(t, s, "aaa", "viewer", 0)
+		b := getBase(t, s, "zzz", "viewer", 0)
+		require.Equal(t, -1, a.Compare(b))
+		require.Equal(t, 1, b.Compare(a))
+	})
+
+	t.Run("different relation name", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("user").Done().
+			AddDefinition("doc").
+			AddRelation("admin").AllowedDirectRelation("user").Done().
+			AddRelation("viewer").AllowedDirectRelation("user").Done().
+			Done().
+			Build()
+		a := getBase(t, s, "doc", "admin", 0)
+		b := getBase(t, s, "doc", "viewer", 0)
+		require.Equal(t, -1, a.Compare(b))
+		require.Equal(t, 1, b.Compare(a))
+	})
+
+	t.Run("different subject type", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("org").Done().
+			AddDefinition("user").Done().
+			AddDefinition("doc").AddRelation("viewer").
+			AllowedDirectRelation("org").
+			AllowedDirectRelation("user").
+			Done().Done().
+			Build()
+		a := getBase(t, s, "doc", "viewer", 0) // type = "org"
+		b := getBase(t, s, "doc", "viewer", 1) // type = "user"
+		require.Equal(t, -1, a.Compare(b))
+		require.Equal(t, 1, b.Compare(a))
+	})
+
+	t.Run("different subrelation", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("org").Done().
+			AddDefinition("doc").AddRelation("viewer").
+			AllowedRelation("org", "admin").
+			AllowedRelation("org", "member").
+			Done().Done().
+			Build()
+		a := getBase(t, s, "doc", "viewer", 0) // subrelation = "admin"
+		b := getBase(t, s, "doc", "viewer", 1) // subrelation = "member"
+		require.Equal(t, -1, a.Compare(b))
+		require.Equal(t, 1, b.Compare(a))
+	})
+
+	t.Run("different caveat", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("user").Done().
+			AddDefinition("doc").AddRelation("viewer").
+			AllowedDirectRelationWithCaveat("user", "alpha_caveat").
+			AllowedDirectRelationWithCaveat("user", "beta_caveat").
+			Done().Done().
+			Build()
+		a := getBase(t, s, "doc", "viewer", 0) // caveat = "alpha_caveat"
+		b := getBase(t, s, "doc", "viewer", 1) // caveat = "beta_caveat"
+		require.Equal(t, -1, a.Compare(b))
+		require.Equal(t, 1, b.Compare(a))
+	})
+
+	t.Run("different wildcard", func(t *testing.T) {
+		t.Parallel()
+		// Use AllowedRelation with empty subrelation and AllowedWildcard (also empty subrelation)
+		// so comparison reaches the wildcard field.
+		s := NewSchemaBuilder().
+			AddDefinition("user").Done().
+			AddDefinition("doc").AddRelation("viewer").
+			AllowedRelation("user", "").
+			AllowedWildcard("user").
+			Done().Done().
+			Build()
+		a := getBase(t, s, "doc", "viewer", 0) // wildcard = false
+		b := getBase(t, s, "doc", "viewer", 1) // wildcard = true
+		require.Equal(t, -1, a.Compare(b))
+		require.Equal(t, 1, b.Compare(a))
+	})
+
+	t.Run("different expiration", func(t *testing.T) {
+		t.Parallel()
+		s := NewSchemaBuilder().
+			AddDefinition("user").Done().
+			AddDefinition("doc").AddRelation("viewer").
+			AllowedRelation("user", "member").
+			AllowedRelationWithExpiration("user", "member").
+			Done().Done().
+			Build()
+		a := getBase(t, s, "doc", "viewer", 0) // expiration = false
+		b := getBase(t, s, "doc", "viewer", 1) // expiration = true
+		require.Equal(t, -1, a.Compare(b))
+		require.Equal(t, 1, b.Compare(a))
+	})
+}
+
 func TestFindParent_FromDifferentElements(t *testing.T) {
 	s := NewSchemaBuilder().
 		AddDefinition("document").

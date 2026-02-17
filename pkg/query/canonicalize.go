@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // CanonicalizeOutline transforms an Outline into canonical form.
@@ -17,7 +18,13 @@ import (
 // The function is idempotent: applying it multiple times produces the same result.
 func CanonicalizeOutline(outline Outline) (Outline, error) {
 	// Phase 1: Extract and lift caveats
-	caveatlessTree, caveats := extractAndLiftCaveats(outline)
+	caveatlessTree, caveats, err := extractCaveats(outline)
+	if err != nil {
+		return Outline{}, err
+	}
+
+	// Sort caveats for deterministic ordering
+	slices.SortFunc(caveats, caveatCompare)
 
 	// Phase 2: Apply bottom-up canonicalization
 	canonicalTree := applyBottomUpCanonicalization(caveatlessTree)
@@ -31,64 +38,54 @@ func CanonicalizeOutline(outline Outline) (Outline, error) {
 	return result, nil
 }
 
-// extractAndLiftCaveats extracts all caveats from the tree, sorts them,
-// and returns the caveatless tree and sorted caveat list.
-func extractAndLiftCaveats(outline Outline) (Outline, []*core.ContextualizedCaveat) {
-	caveatlessTree, caveats := extractCaveats(outline)
-
-	// Sort caveats for deterministic ordering
-	slices.SortFunc(caveats, caveatCompare)
-
-	return caveatlessTree, caveats
-}
-
 // extractCaveats recursively extracts all CaveatIteratorType nodes from the tree.
 // Returns the tree with caveats removed and a list of all extracted caveats.
-func extractCaveats(outline Outline) (Outline, []*core.ContextualizedCaveat) {
+func extractCaveats(outline Outline) (Outline, []*core.ContextualizedCaveat, error) {
 	// If this is a caveat node, extract it
 	if outline.Type == CaveatIteratorType {
 		if outline.Args == nil || outline.Args.Caveat == nil {
-			// Malformed caveat node, skip it
-			if len(outline.Subiterators) > 0 {
-				return extractCaveats(outline.Subiterators[0])
-			}
-			return Outline{Type: NullIteratorType}, nil
+			// Malformed caveat node?
+			return Outline{}, nil, spiceerrors.MustBugf("extractCaveats: malformed caveat node")
 		}
 
 		// Extract the caveat and recurse on the child
 		caveat := outline.Args.Caveat
+		var err error
 		var childTree Outline
 		var childCaveats []*core.ContextualizedCaveat
 
-		if len(outline.Subiterators) > 0 {
-			childTree, childCaveats = extractCaveats(outline.Subiterators[0])
+		if len(outline.SubOutlines) > 0 {
+			childTree, childCaveats, err = extractCaveats(outline.SubOutlines[0])
 		} else {
 			childTree = Outline{Type: NullIteratorType}
 		}
 
 		// Return the child tree and all caveats (innermost caveats first)
-		return childTree, append(childCaveats, caveat)
+		return childTree, append(childCaveats, caveat), err
 	}
 
 	// Not a caveat node, recurse on all subiterators
-	if len(outline.Subiterators) == 0 {
-		return outline, nil
+	if len(outline.SubOutlines) == 0 {
+		return outline, nil, nil
 	}
 
-	newSubs := make([]Outline, len(outline.Subiterators))
+	newSubs := make([]Outline, len(outline.SubOutlines))
 	var allCaveats []*core.ContextualizedCaveat
 
-	for i, sub := range outline.Subiterators {
-		newSub, subCaveats := extractCaveats(sub)
+	for i, sub := range outline.SubOutlines {
+		newSub, subCaveats, err := extractCaveats(sub)
+		if err != nil {
+			return outline, nil, err
+		}
 		newSubs[i] = newSub
 		allCaveats = append(allCaveats, subCaveats...)
 	}
 
 	return Outline{
-		Type:         outline.Type,
-		Args:         outline.Args,
-		Subiterators: newSubs,
-	}, allCaveats
+		Type:        outline.Type,
+		Args:        outline.Args,
+		SubOutlines: newSubs,
+	}, allCaveats, nil
 }
 
 // nestCaveats wraps the given outline in nested CaveatIteratorType nodes,
@@ -104,32 +101,31 @@ func nestCaveats(outline Outline, caveats []*core.ContextualizedCaveat) Outline 
 			Args: &IteratorArgs{
 				Caveat: caveats[i],
 			},
-			Subiterators: []Outline{result},
+			SubOutlines: []Outline{result},
 		}
 	}
 
 	return result
 }
 
+var canonicalizationSteps = []OutlineMutation{
+	replaceEmptyComposites,
+	propagateNull,
+	flattenComposites,
+	collapseSingleChild,
+	sortCompositeChildren,
+}
+
 // applyBottomUpCanonicalization applies five canonicalization steps sequentially
 // in a single bottom-up traversal of the tree.
-// Some steps are applied multiple times to ensure convergence (e.g., collapseSingleChild
-// after propagateNull, since propagateNull can create single-child composites).
 func applyBottomUpCanonicalization(outline Outline) Outline {
-	steps := []OutlineMutation{
-		replaceEmptyComposites,
-		propagateNull,
-		flattenComposites,
-		collapseSingleChild,
-		sortCompositeChildren,
-	}
-	return MutateOutline(outline, steps)
+	return MutateOutline(outline, canonicalizationSteps)
 }
 
 // replaceEmptyComposites converts Union/Intersection with 0 children to NullIteratorType.
 func replaceEmptyComposites(outline Outline) Outline {
 	if (outline.Type == UnionIteratorType || outline.Type == IntersectionIteratorType) &&
-		len(outline.Subiterators) == 0 {
+		len(outline.SubOutlines) == 0 {
 		return Outline{Type: NullIteratorType}
 	}
 	return outline
@@ -139,8 +135,8 @@ func replaceEmptyComposites(outline Outline) Outline {
 // that contain only a single subiterator.
 func collapseSingleChild(outline Outline) Outline {
 	if (outline.Type == UnionIteratorType || outline.Type == IntersectionIteratorType) &&
-		len(outline.Subiterators) == 1 {
-		return outline.Subiterators[0]
+		len(outline.SubOutlines) == 1 {
+		return outline.SubOutlines[0]
 	}
 	return outline
 }
@@ -153,13 +149,13 @@ func propagateNull(outline Outline) Outline {
 	switch outline.Type {
 	case IntersectionIteratorType:
 		// Any null child makes the intersection null
-		if slices.ContainsFunc(outline.Subiterators, isNullOutline) {
+		if slices.ContainsFunc(outline.SubOutlines, isNullOutline) {
 			return Outline{Type: NullIteratorType}
 		}
 	case UnionIteratorType:
 		// Filter out null children
-		nonNullSubs := make([]Outline, 0, len(outline.Subiterators))
-		for _, sub := range outline.Subiterators {
+		nonNullSubs := make([]Outline, 0, len(outline.SubOutlines))
+		for _, sub := range outline.SubOutlines {
 			if !isNullOutline(sub) {
 				nonNullSubs = append(nonNullSubs, sub)
 			}
@@ -171,11 +167,11 @@ func propagateNull(outline Outline) Outline {
 		}
 
 		// If some children were null, return union of non-null children
-		if len(nonNullSubs) < len(outline.Subiterators) {
+		if len(nonNullSubs) < len(outline.SubOutlines) {
 			return Outline{
-				Type:         UnionIteratorType,
-				Args:         outline.Args,
-				Subiterators: nonNullSubs,
+				Type:        UnionIteratorType,
+				Args:        outline.Args,
+				SubOutlines: nonNullSubs,
 			}
 		}
 	}
@@ -192,7 +188,7 @@ func flattenComposites(outline Outline) Outline {
 
 	// Check if any children match the parent type
 	needsFlattening := false
-	for _, sub := range outline.Subiterators {
+	for _, sub := range outline.SubOutlines {
 		if sub.Type == outline.Type {
 			needsFlattening = true
 			break
@@ -204,11 +200,11 @@ func flattenComposites(outline Outline) Outline {
 	}
 
 	// Flatten: collect all grandchildren from matching children
-	flattenedSubs := make([]Outline, 0, len(outline.Subiterators))
-	for _, sub := range outline.Subiterators {
+	flattenedSubs := make([]Outline, 0, len(outline.SubOutlines))
+	for _, sub := range outline.SubOutlines {
 		if sub.Type == outline.Type {
 			// Child matches parent type, append its children
-			flattenedSubs = append(flattenedSubs, sub.Subiterators...)
+			flattenedSubs = append(flattenedSubs, sub.SubOutlines...)
 		} else {
 			// Child doesn't match, keep it as is
 			flattenedSubs = append(flattenedSubs, sub)
@@ -216,9 +212,9 @@ func flattenComposites(outline Outline) Outline {
 	}
 
 	return Outline{
-		Type:         outline.Type,
-		Args:         outline.Args,
-		Subiterators: flattenedSubs,
+		Type:        outline.Type,
+		Args:        outline.Args,
+		SubOutlines: flattenedSubs,
 	}
 }
 
@@ -226,15 +222,15 @@ func flattenComposites(outline Outline) Outline {
 // using OutlineCompare for deterministic ordering.
 func sortCompositeChildren(outline Outline) Outline {
 	if (outline.Type == UnionIteratorType || outline.Type == IntersectionIteratorType) &&
-		len(outline.Subiterators) > 1 {
-		sortedSubs := make([]Outline, len(outline.Subiterators))
-		copy(sortedSubs, outline.Subiterators)
+		len(outline.SubOutlines) > 1 {
+		sortedSubs := make([]Outline, len(outline.SubOutlines))
+		copy(sortedSubs, outline.SubOutlines)
 		slices.SortFunc(sortedSubs, OutlineCompare)
 
 		return Outline{
-			Type:         outline.Type,
-			Args:         outline.Args,
-			Subiterators: sortedSubs,
+			Type:        outline.Type,
+			Args:        outline.Args,
+			SubOutlines: sortedSubs,
 		}
 	}
 	return outline
@@ -258,15 +254,15 @@ func isNullOutline(outline Outline) bool {
 // after canonicalization completes. Must be called bottom-up.
 func populateCanonicalKeys(outline Outline) Outline {
 	// Recurse on children first
-	if len(outline.Subiterators) > 0 {
-		newSubs := make([]Outline, len(outline.Subiterators))
-		for i, sub := range outline.Subiterators {
+	if len(outline.SubOutlines) > 0 {
+		newSubs := make([]Outline, len(outline.SubOutlines))
+		for i, sub := range outline.SubOutlines {
 			newSubs[i] = populateCanonicalKeys(sub)
 		}
-		outline.Subiterators = newSubs
+		outline.SubOutlines = newSubs
 	}
 
 	// Set CanonicalKey on this node
-	outline.CanonicalKey = SerializeOutline(outline)
+	outline.CanonicalKey = outline.Serialize()
 	return outline
 }

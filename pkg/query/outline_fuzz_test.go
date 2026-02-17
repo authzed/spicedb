@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ var leafIteratorTypes = []IteratorType{
 // outlineGenerator generates random but valid Outlines for fuzzing
 type outlineGenerator struct {
 	rng       *rand.Rand
-	maxDepth  int
+	depth     int
 	typeNames []string
 	relations []string
 }
@@ -61,9 +62,14 @@ func newOutlineGenerator(data []byte) *outlineGenerator {
 		seed = int64(binary.LittleEndian.Uint64(data[:8]))
 	}
 
+	depth := 3
+	if len(data) >= 9 {
+		depth = int(data[8]) % 10
+	}
+
 	return &outlineGenerator{
 		rng:       rand.New(rand.NewSource(seed)), //nolint:gosec // weak random is fine for fuzz testing
-		maxDepth:  5,                              // Limit depth to avoid extremely large structures
+		depth:     depth,
 		typeNames: []string{"document", "folder", "user", "group", "organization"},
 		relations: []string{"viewer", "editor", "owner", "member", "parent"},
 	}
@@ -71,50 +77,24 @@ func newOutlineGenerator(data []byte) *outlineGenerator {
 
 // Generate creates a random valid Outline
 func (g *outlineGenerator) Generate() Outline {
-	return g.generateWithDepth(0)
+	return g.generateWithDepth(g.depth)
 }
 
-// generateWithDepth generates an outline with depth tracking
+// generateWithDepth generates an outline with depth tracking; depth 0 produces a leaf
 func (g *outlineGenerator) generateWithDepth(depth int) Outline {
-	// At max depth, only generate leaf iterators
-	if depth >= g.maxDepth {
-		return g.generateLeafIterator()
+	if depth == 0 {
+		return g.generateLeafOutline()
 	}
 
-	// Pick a random iterator type
-	iteratorTypes := []IteratorType{
-		NullIteratorType,
-		DatastoreIteratorType,
-		UnionIteratorType,
-		IntersectionIteratorType,
-		FixedIteratorType,
-		ArrowIteratorType,
-		ExclusionIteratorType,
-		CaveatIteratorType,
-		AliasIteratorType,
-		RecursiveIteratorType,
-		RecursiveSentinelIteratorType,
-		IntersectionArrowIteratorType,
-		SelfIteratorType,
-	}
-
-	iterType := iteratorTypes[g.rng.Intn(len(iteratorTypes))]
+	iterType := allIteratorTypes[g.rng.Intn(len(allIteratorTypes))]
 
 	return g.generateOutlineOfType(iterType, depth)
 }
 
-// generateLeafIterator generates a leaf iterator (no subiterators)
-func (g *outlineGenerator) generateLeafIterator() Outline {
-	leafTypes := []IteratorType{
-		NullIteratorType,
-		DatastoreIteratorType,
-		FixedIteratorType,
-		RecursiveSentinelIteratorType,
-		SelfIteratorType,
-	}
-
-	iterType := leafTypes[g.rng.Intn(len(leafTypes))]
-	return g.generateOutlineOfType(iterType, g.maxDepth)
+// generateLeafOutline generates a leaf iterator (no subiterators)
+func (g *outlineGenerator) generateLeafOutline() Outline {
+	iterType := leafIteratorTypes[g.rng.Intn(len(leafIteratorTypes))]
+	return g.generateOutlineOfType(iterType, 0)
 }
 
 // generateOutlineOfType generates an outline of a specific type
@@ -133,41 +113,41 @@ func (g *outlineGenerator) generateOutlineOfType(iterType IteratorType, depth in
 	case UnionIteratorType, IntersectionIteratorType:
 		// Generate 1-3 subiterators (0 gets normalized to NullIteratorType)
 		numSubs := 1 + g.rng.Intn(3)
-		outline.Subiterators = make([]Outline, numSubs)
-		for i := 0; i < numSubs; i++ {
-			outline.Subiterators[i] = g.generateWithDepth(depth + 1)
+		outline.SubOutlines = make([]Outline, numSubs)
+		for i := range numSubs {
+			outline.SubOutlines[i] = g.generateWithDepth(depth - 1)
 		}
 
 	case FixedIteratorType:
 		// Generate 1-3 fixed paths (0 paths becomes NullIteratorType)
 		numPaths := 1 + g.rng.Intn(3)
 		paths := make([]Path, numPaths)
-		for i := 0; i < numPaths; i++ {
+		for i := range numPaths {
 			paths[i] = g.randomPath()
 		}
 		outline.Args = &IteratorArgs{FixedPaths: paths}
 
 	case ArrowIteratorType, ExclusionIteratorType, IntersectionArrowIteratorType:
 		// These require exactly 2 subiterators
-		outline.Subiterators = []Outline{
-			g.generateWithDepth(depth + 1),
-			g.generateWithDepth(depth + 1),
+		outline.SubOutlines = []Outline{
+			g.generateWithDepth(depth - 1),
+			g.generateWithDepth(depth - 1),
 		}
 
 	case CaveatIteratorType:
 		outline.Args = &IteratorArgs{
 			Caveat: g.randomCaveat(),
 		}
-		outline.Subiterators = []Outline{
-			g.generateWithDepth(depth + 1),
+		outline.SubOutlines = []Outline{
+			g.generateWithDepth(depth - 1),
 		}
 
 	case AliasIteratorType:
 		outline.Args = &IteratorArgs{
 			RelationName: g.randomRelation(),
 		}
-		outline.Subiterators = []Outline{
-			g.generateWithDepth(depth + 1),
+		outline.SubOutlines = []Outline{
+			g.generateWithDepth(depth - 1),
 		}
 
 	case RecursiveIteratorType:
@@ -175,8 +155,8 @@ func (g *outlineGenerator) generateOutlineOfType(iterType IteratorType, depth in
 			DefinitionName: g.randomTypeName(),
 			RelationName:   g.randomRelation(),
 		}
-		outline.Subiterators = []Outline{
-			g.generateWithDepth(depth + 1),
+		outline.SubOutlines = []Outline{
+			g.generateWithDepth(depth - 1),
 		}
 
 	case RecursiveSentinelIteratorType:
@@ -215,9 +195,8 @@ func (g *outlineGenerator) randomBaseRelation() *schema.BaseRelation {
 }
 
 func (g *outlineGenerator) randomCaveat() *core.ContextualizedCaveat {
-	caveats := []string{"caveat1", "caveat2", "caveat3", "test_caveat"}
 	return &core.ContextualizedCaveat{
-		CaveatName: caveats[g.rng.Intn(len(caveats))],
+		CaveatName: randomCaveats[g.rng.Intn(len(randomCaveats))],
 	}
 }
 
@@ -245,18 +224,16 @@ func (g *outlineGenerator) randomPath() Path {
 }
 
 func (g *outlineGenerator) randomID() string {
-	ids := []string{"id1", "id2", "id3", "alice", "bob", "doc1", "doc2", "folder1"}
-	return ids[g.rng.Intn(len(ids))]
+	return randomIDs[g.rng.Intn(len(randomIDs))]
 }
 
 // FuzzOutlineCompileDecompile tests that compiling and decompiling Outlines
 // preserves their structure
 func FuzzOutlineCompileDecompile(f *testing.F) {
 	// Add some seed corpus
-	f.Add([]byte{0})
-	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8})
-	f.Add([]byte{255, 255, 255, 255, 255, 255, 255, 255})
-	f.Add(bytes.Repeat([]byte{42}, 100))
+	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0, 3})
+	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 5})
+	f.Add([]byte{255, 255, 255, 255, 255, 255, 255, 255, 7})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// Skip if data is too small
@@ -270,39 +247,27 @@ func FuzzOutlineCompileDecompile(f *testing.F) {
 
 		// Canonicalize first (required before compilation)
 		canonical, err := CanonicalizeOutline(original)
-		if err != nil {
-			// Some randomly generated outlines might be invalid
-			t.Skip()
-		}
+		require.NoError(t, err)
 
 		// Try to compile it
 		compiled, err := canonical.Compile()
-		if err != nil {
-			// Some randomly generated outlines might be invalid
-			// (e.g., wrong number of subiterators after generation)
-			// This is acceptable - just skip
-			t.Skip()
-		}
+		require.NoError(t, err)
 
 		// Decompile it back
 		roundtrip, err := Decompile(compiled)
-		if err != nil {
-			t.Fatalf("Decompile failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Check that they're equal to canonical form
-		if !canonical.Equals(roundtrip) {
-			t.Errorf("Roundtrip failed:\nCanonical: %+v\nRoundtrip: %+v", canonical, roundtrip)
-		}
+		require.True(t, canonical.Equals(roundtrip), "Roundtrip failed:\nCanonical: %+v\nRoundtrip: %+v", canonical, roundtrip)
 	})
 }
 
 // FuzzOutlineCompare tests the comparison function for consistency
 func FuzzOutlineCompare(f *testing.F) {
 	// Add some seed corpus
-	f.Add([]byte{0}, []byte{0})
-	f.Add([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8})
-	f.Add([]byte{255}, []byte{0})
+	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0, 3}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 3})
+	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 4}, []byte{5, 6, 7, 8, 9, 10, 11, 12, 4})
+	f.Add([]byte{255, 255, 255, 255, 255, 255, 255, 255, 7}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 5})
 
 	f.Fuzz(func(t *testing.T, data1 []byte, data2 []byte) {
 		// Skip if data is too small
@@ -324,41 +289,31 @@ func FuzzOutlineCompare(f *testing.F) {
 		// Property: compare(a, b) == -compare(b, a) (antisymmetry)
 		switch {
 		case cmp12 == 0:
-			if cmp21 != 0 {
-				t.Errorf("Antisymmetry violated: compare(a,b)==0 but compare(b,a)!= 0")
-			}
+			require.Equal(t, 0, cmp21, "Antisymmetry violated: compare(a,b)==0 but compare(b,a)!=0")
 		case cmp12 > 0:
 			require.Negative(t, cmp21, "Antisymmetry violated: compare(a,b)>0 but compare(b,a)>=0")
 		default:
-			require.Positive(t, cmp21, "Antisymmetry violated: compare(a,b)<0 but compare(b,a)<=0")
+			require.Greater(t, cmp21, 0, "Antisymmetry violated: compare(a,b)<0 but compare(b,a)<=0")
 		}
 
 		// Property: compare(a, a) == 0 (reflexivity)
-		if OutlineCompare(outline1, outline1) != 0 {
-			t.Errorf("Reflexivity violated: compare(a,a) != 0")
-		}
-		if OutlineCompare(outline2, outline2) != 0 {
-			t.Errorf("Reflexivity violated: compare(b,b) != 0")
-		}
+		require.Equal(t, 0, OutlineCompare(outline1, outline1), "Reflexivity violated: compare(a,a) != 0")
+		require.Equal(t, 0, OutlineCompare(outline2, outline2), "Reflexivity violated: compare(b,b) != 0")
 
 		// Property: equals should match compare
 		if outline1.Equals(outline2) {
-			if cmp12 != 0 {
-				t.Errorf("Equals and Compare disagree: Equals=true but Compare=%d", cmp12)
-			}
+			require.Equal(t, 0, cmp12, "Equals and Compare disagree: Equals=true but Compare=%d", cmp12)
 		} else {
-			if cmp12 == 0 {
-				t.Errorf("Equals and Compare disagree: Equals=false but Compare=0")
-			}
+			require.NotEqual(t, 0, cmp12, "Equals and Compare disagree: Equals=false but Compare=0")
 		}
 	})
 }
 
 // FuzzOutlineEquals tests the Equals method for consistency
 func FuzzOutlineEquals(f *testing.F) {
-	f.Add([]byte{0}, []byte{0})
-	f.Add([]byte{1, 2, 3, 4}, []byte{1, 2, 3, 4})
-	f.Add([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8})
+	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0, 3}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 3})
+	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 4}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 4})
+	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 4}, []byte{5, 6, 7, 8, 9, 10, 11, 12, 6})
 
 	f.Fuzz(func(t *testing.T, data1 []byte, data2 []byte) {
 		if len(data1) < 8 || len(data2) < 8 {
@@ -376,40 +331,37 @@ func FuzzOutlineEquals(f *testing.F) {
 		eq21 := outline2.Equals(outline1)
 
 		// Property: equals is symmetric
-		if eq12 != eq21 {
-			t.Errorf("Symmetry violated: a.Equals(b)=%v but b.Equals(a)=%v", eq12, eq21)
-		}
+		require.Equal(t, eq12, eq21, "Symmetry violated: a.Equals(b)=%v but b.Equals(a)=%v", eq12, eq21)
 
 		// Property: equals is reflexive
-		if !outline1.Equals(outline1) { //nolint:gocritic // intentionally checking reflexivity
-			t.Errorf("Reflexivity violated: a.Equals(a) is false")
-		}
-		if !outline2.Equals(outline2) { //nolint:gocritic // intentionally checking reflexivity
-			t.Errorf("Reflexivity violated: b.Equals(b) is false")
-		}
+		require.True(t, outline1.Equals(outline1), "Reflexivity violated: a.Equals(a) is false") //nolint:gocritic // intentionally checking reflexivity
+		require.True(t, outline2.Equals(outline2), "Reflexivity violated: b.Equals(b) is false") //nolint:gocritic // intentionally checking reflexivity
 	})
 }
 
 // dumpOutline creates a string representation of an outline tree
 func dumpOutline(o Outline, indent string) string {
-	var result string
-	result += indent + string(o.Type)
+	var sb strings.Builder
+	sb.WriteString(indent)
+	sb.WriteByte(byte(o.Type))
 	if o.Args != nil {
 		if o.Args.RelationName != "" {
-			result += " rel=" + o.Args.RelationName
+			sb.WriteString(" rel=")
+			sb.WriteString(o.Args.RelationName)
 		}
 		if o.Args.DefinitionName != "" {
-			result += " def=" + o.Args.DefinitionName
+			sb.WriteString(" def=")
+			sb.WriteString(o.Args.DefinitionName)
 		}
 		if len(o.Args.FixedPaths) > 0 {
-			result += fmt.Sprintf(" paths=%d", len(o.Args.FixedPaths))
+			fmt.Fprintf(&sb, " paths=%d", len(o.Args.FixedPaths))
 		}
 	}
-	result += "\n"
-	for _, sub := range o.Subiterators {
-		result += dumpOutline(sub, indent+"  ")
+	sb.WriteByte('\n')
+	for _, sub := range o.SubOutlines {
+		sb.WriteString(dumpOutline(sub, indent+"  "))
 	}
-	return result
+	return sb.String()
 }
 
 // TestOutlineGeneratorBasic tests that the generator produces valid outlines
@@ -418,9 +370,10 @@ func TestOutlineGeneratorBasic(t *testing.T) {
 	require := require.New(t)
 
 	// Test with various seeds
-	for i := 0; i < 100; i++ {
-		data := make([]byte, 8)
+	for i := range 100 {
+		data := make([]byte, 9)
 		binary.LittleEndian.PutUint64(data, uint64(i))
+		data[8] = byte(i)
 
 		gen := newOutlineGenerator(data)
 		outline := gen.Generate()
@@ -453,7 +406,7 @@ func TestOutlineGeneratorDeterministic(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	data := []byte{1, 2, 3, 4, 5, 6, 7, 8, 5}
 
 	// Generate twice with same seed
 	gen1 := newOutlineGenerator(data)
@@ -474,9 +427,10 @@ func TestOutlineGeneratorCoverage(t *testing.T) {
 	typesSeen := make(map[IteratorType]bool)
 
 	// Generate many outlines
-	for i := 0; i < 1000; i++ {
-		data := make([]byte, 8)
+	for i := range 1000 {
+		data := make([]byte, 9)
 		binary.LittleEndian.PutUint64(data, uint64(i))
+		data[8] = byte(i)
 
 		gen := newOutlineGenerator(data)
 		outline := gen.Generate()
@@ -485,7 +439,7 @@ func TestOutlineGeneratorCoverage(t *testing.T) {
 		typesSeen[outline.Type] = true
 
 		// Also check subiterators
-		for _, sub := range outline.Subiterators {
+		for _, sub := range outline.SubOutlines {
 			typesSeen[sub.Type] = true
 		}
 	}
@@ -497,9 +451,9 @@ func TestOutlineGeneratorCoverage(t *testing.T) {
 // FuzzOutlineCanonicalize tests that canonicalization is idempotent and stable
 func FuzzOutlineCanonicalize(f *testing.F) {
 	// Add some seed corpus
-	f.Add([]byte{0})
-	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8})
-	f.Add([]byte{255, 255, 255, 255, 255, 255, 255, 255})
+	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0, 3})
+	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 5})
+	f.Add([]byte{255, 255, 255, 255, 255, 255, 255, 255, 7})
 	f.Add(bytes.Repeat([]byte{42}, 100))
 	f.Add(bytes.Repeat([]byte{17}, 50))
 
@@ -515,45 +469,26 @@ func FuzzOutlineCanonicalize(f *testing.F) {
 
 		// Canonicalize it once
 		canonical1, err := CanonicalizeOutline(original)
-		if err != nil {
-			t.Fatalf("First canonicalization failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Canonicalize it again (idempotency test)
 		canonical2, err := CanonicalizeOutline(canonical1)
-		if err != nil {
-			t.Fatalf("Second canonicalization failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Property 1: Idempotency - canonicalizing twice should produce the same result
-		if !canonical1.Equals(canonical2) {
-			t.Errorf("Canonicalization is not idempotent:\nFirst:  %s\nSecond: %s",
-				dumpOutline(canonical1, ""),
-				dumpOutline(canonical2, ""))
-		}
+		require.True(t, canonical1.Equals(canonical2), "Canonicalization is not idempotent:\nFirst:  %s\nSecond: %s",
+			dumpOutline(canonical1, ""), dumpOutline(canonical2, ""))
 
 		// Property 2: Canonicalization should produce consistent comparison results
-		cmp11 := OutlineCompare(canonical1, canonical1)
-		if cmp11 != 0 {
-			t.Errorf("Canonical form does not compare equal to itself: compare=%d", cmp11)
-		}
-
-		cmp12 := OutlineCompare(canonical1, canonical2)
-		if cmp12 != 0 {
-			t.Errorf("Two canonicalizations of same outline don't compare equal: compare=%d", cmp12)
-		}
+		require.Equal(t, 0, OutlineCompare(canonical1, canonical1), "Canonical form does not compare equal to itself")
+		require.Equal(t, 0, OutlineCompare(canonical1, canonical2), "Two canonicalizations of same outline don't compare equal")
 
 		// Property 3: Canonicalize the original again to ensure determinism
 		canonical3, err := CanonicalizeOutline(original)
-		if err != nil {
-			t.Fatalf("Third canonicalization failed: %v", err)
-		}
+		require.NoError(t, err)
 
-		if !canonical1.Equals(canonical3) {
-			t.Errorf("Canonicalization is not deterministic:\nFirst:  %s\nThird:  %s",
-				dumpOutline(canonical1, ""),
-				dumpOutline(canonical3, ""))
-		}
+		require.True(t, canonical1.Equals(canonical3), "Canonicalization is not deterministic:\nFirst: %s\nThird: %s",
+			dumpOutline(canonical1, ""), dumpOutline(canonical3, ""))
 	})
 }
 
@@ -561,8 +496,8 @@ func FuzzOutlineCanonicalize(f *testing.F) {
 // canonicalize to the same form
 func FuzzOutlineCanonicalizeEquivalence(f *testing.F) {
 	// Add some seed corpus with pairs that should be equivalent
-	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8}, []byte{1, 2, 3, 4, 5, 6, 7, 8})
-	f.Add([]byte{10, 20, 30, 40, 50, 60, 70, 80}, []byte{10, 20, 30, 40, 50, 60, 70, 80})
+	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 4}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 4})
+	f.Add([]byte{10, 20, 30, 40, 50, 60, 70, 80, 5}, []byte{10, 20, 30, 40, 50, 60, 70, 80, 5})
 
 	f.Fuzz(func(t *testing.T, data1 []byte, data2 []byte) {
 		// Skip if data is too small
@@ -579,49 +514,25 @@ func FuzzOutlineCanonicalizeEquivalence(f *testing.F) {
 
 		// Canonicalize both
 		canonical1, err := CanonicalizeOutline(outline1)
-		if err != nil {
-			t.Fatalf("Canonicalization of outline1 failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		canonical2, err := CanonicalizeOutline(outline2)
-		if err != nil {
-			t.Fatalf("Canonicalization of outline2 failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Property: If two canonical forms are equal, they should compare as equal
 		if canonical1.Equals(canonical2) {
-			cmp := OutlineCompare(canonical1, canonical2)
-			if cmp != 0 {
-				t.Errorf("Equal canonical forms don't compare as equal: compare=%d", cmp)
-			}
-		}
-
-		// Property: OutlineCompare should be consistent with Equals
-		cmp := OutlineCompare(canonical1, canonical2)
-		equals := canonical1.Equals(canonical2)
-		if (cmp == 0) != equals {
-			t.Errorf("OutlineCompare and Equals disagree: compare=%d, equals=%v", cmp, equals)
+			require.Equal(t, 0, OutlineCompare(canonical1, canonical2), "Equal canonical forms don't compare as equal")
 		}
 
 		// Property: Canonical forms should be stable under repeated canonicalization
 		canonical1Again, err := CanonicalizeOutline(canonical1)
-		if err != nil {
-			t.Fatalf("Re-canonicalization of canonical1 failed: %v", err)
-		}
-		if !canonical1.Equals(canonical1Again) {
-			t.Errorf("Canonical form is not stable:\nFirst:  %s\nAgain:  %s",
-				dumpOutline(canonical1, ""),
-				dumpOutline(canonical1Again, ""))
-		}
+		require.NoError(t, err)
+		require.True(t, canonical1.Equals(canonical1Again), "Canonical form is not stable:\nFirst: %s\nAgain: %s",
+			dumpOutline(canonical1, ""), dumpOutline(canonical1Again, ""))
 
 		canonical2Again, err := CanonicalizeOutline(canonical2)
-		if err != nil {
-			t.Fatalf("Re-canonicalization of canonical2 failed: %v", err)
-		}
-		if !canonical2.Equals(canonical2Again) {
-			t.Errorf("Canonical form is not stable:\nFirst:  %s\nAgain:  %s",
-				dumpOutline(canonical2, ""),
-				dumpOutline(canonical2Again, ""))
-		}
+		require.NoError(t, err)
+		require.True(t, canonical2.Equals(canonical2Again), "Canonical form is not stable:\nFirst: %s\nAgain: %s",
+			dumpOutline(canonical2, ""), dumpOutline(canonical2Again, ""))
 	})
 }

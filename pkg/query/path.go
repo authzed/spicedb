@@ -318,8 +318,7 @@ func (p Path) Equals(other Path) bool {
 
 // PathOrder defines ordering for Path objects
 // Returns -1 if a < b, 0 if a == b, 1 if a > b
-// PathOrder defines a total ordering on Path objects for canonicalization.
-// Returns -1 if a < b, 0 if a == b, 1 if a > b.
+//
 // Compatible with slices.SortFunc.
 func PathOrder(a, b Path) int {
 	// Compare resource type
