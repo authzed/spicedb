@@ -1,41 +1,69 @@
 ---
 # FOR DEVELOPMENT ONLY. Run with
-# docker-compose -f docker-compose.spanner.yaml up --build
+# docker-compose -f docker-compose.postgres.yaml up --build
 services:
-  spanner:
-    image: "gcr.io/cloud-spanner-emulator/emulator"
-    restart: "no"
-    ports:
-      - "9010:9010"
-  spanner-init:
-    image: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    command: >
-      bash -c 'gcloud config configurations create emulator &&
-              gcloud config set auth/disable_credentials true &&
-              gcloud config set project $${PROJECT_ID} &&
-              gcloud config set api_endpoint_overrides/spanner $${SPANNER_EMULATOR_URL} &&
-              gcloud config set auth/disable_credentials true &&
-              gcloud spanner instances create $${INSTANCE_NAME} --config=emulator-config --description=Emulator --nodes=1 &&
-              gcloud spanner databases create $${DATABASE_NAME} --instance=$${INSTANCE_NAME}'
+  postgres-primary:
+    image: "postgres:16"
+    container_name: "postgres-primary"
     environment:
-      PROJECT_ID: "test-project"
-      SPANNER_EMULATOR_URL: "http://spanner:9020/"
-      INSTANCE_NAME: "test-instance"
-      DATABASE_NAME: "test-database"
+      - "POSTGRES_USER=spicedb"
+      - "POSTGRES_PASSWORD=spicedb"
+      - "POSTGRES_DB=spicedb"
+      - "POSTGRES_HOST_AUTH_METHOD=md5"
+    ports:
+      - "5432"
+    volumes:
+      - "postgres-primary-data:/var/lib/postgresql/data"
+      - "./development/postgres/primary-init.sh:/docker-entrypoint-initdb.d/primary-init.sh"
+    command: >
+      postgres
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spicedb"]
+      interval: "3s"
+      timeout: "3s"
+      retries: 5
+    restart: "unless-stopped"
+
+  postgres-replica:
+    image: "postgres:16"
+    container_name: "postgres-replica"
+    environment:
+      - "PGPASSWORD=replicator"
+      - "REPLICA_APPLY_DELAY=100ms"
+    ports:
+      - "5432"
+    volumes:
+      - "postgres-replica-data:/var/lib/postgresql/data"
+      - "./development/postgres/replica-init.sh:/replica-init.sh"
+    depends_on:
+      postgres-primary:
+        condition: "service_healthy"
+    entrypoint: ["/bin/bash", "/replica-init.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spicedb || exit 1"]
+      interval: "5s"
+      timeout: "3s"
+      retries: 10
+    restart: "unless-stopped"
+
   migrate:
     depends_on:
-      spanner-init:
-        condition: "service_completed_successfully"
-        required: false
+      postgres-primary:
+        condition: "service_healthy"
     build: "."
     container_name: "migrate"
     environment:
-      - "SPICEDB_DATASTORE_ENGINE=spanner"
-      - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
-      - "SPANNER_EMULATOR_HOST=spanner:9010"
+      - "SPICEDB_DATASTORE_ENGINE=postgres"
+        # Run migrations on primary
+      - "SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb@postgres-primary:5432/spicedb?sslmode=disable"
     command: "datastore migrate head"
     networks:
       - "default"
+
   nginx:
     image: "nginx:latest"
     ports:
@@ -48,6 +76,7 @@ services:
         condition: "service_healthy"
       spicedb-2:
         condition: "service_healthy"
+
   spicedb-1:
     container_name: "spicedb-1"
     build: "."
@@ -63,9 +92,9 @@ services:
       - "SPICEDB_LOG_LEVEL=info"
       - "SPICEDB_HTTP_ENABLED=true"
       - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
-      - "SPICEDB_DATASTORE_ENGINE=spanner"
-      - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
-      - "SPANNER_EMULATOR_HOST=spanner:9010"
+      - "SPICEDB_DATASTORE_ENGINE=postgres"
+      - "SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb@postgres-primary:5432/spicedb?sslmode=disable"
+      - "SPICEDB_DATASTORE_READ_REPLICA_CONN_URI=postgres://spicedb:spicedb@postgres-replica:5432/spicedb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
       - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-2:50053"
       - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
@@ -75,9 +104,12 @@ services:
       - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
       - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
       - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+      - "SPICEDB_DATASTORE_FOLLOWER_READ_DELAY_DURATION=2000ms"
     depends_on:
       migrate:
         condition: "service_completed_successfully"
+      postgres-replica:
+        condition: "service_healthy"
       otel-collector:
         condition: "service_started"
     healthcheck:
@@ -85,6 +117,7 @@ services:
       interval: "5s"
       timeout: "30s"
       retries: 3
+
   spicedb-2:
     container_name: "spicedb-2"
     build: "."
@@ -92,17 +125,17 @@ services:
     restart: "no"
     ports:
       - "9090" # prometheus metrics
-      - "8443" # http endpoint
       - "50051" # grpc endpoint
+      - "8443" # http endpoint
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
       - "SPICEDB_HTTP_ENABLED=true"
       - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
-      - "SPICEDB_DATASTORE_ENGINE=spanner"
-      - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
-      - "SPANNER_EMULATOR_HOST=spanner:9010"
+      - "SPICEDB_DATASTORE_ENGINE=postgres"
+      - "SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb@postgres-primary:5432/spicedb?sslmode=disable"
+      - "SPICEDB_DATASTORE_READ_REPLICA_CONN_URI=postgres://spicedb:spicedb@postgres-replica:5432/spicedb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
       - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-1:50053"
       - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
@@ -112,9 +145,12 @@ services:
       - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
       - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
       - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+      - "SPICEDB_DATASTORE_FOLLOWER_READ_DELAY_DURATION=2000ms"
     depends_on:
       migrate:
         condition: "service_completed_successfully"
+      postgres-replica:
+        condition: "service_healthy"
       otel-collector:
         condition: "service_started"
     healthcheck:
@@ -122,6 +158,7 @@ services:
       interval: "5s"
       timeout: "30s"
       retries: 3
+
   prometheus:
     image: "prom/prometheus:v2.47.0"
     command:
@@ -132,6 +169,7 @@ services:
     ports:
       - "9091:9090" # Prometheus UI
     restart: "unless-stopped"
+
   otel-collector:
     image: "otel/opentelemetry-collector:0.60.0"
     command: "--config /etc/otel-config.yaml"
@@ -142,6 +180,8 @@ services:
       - "8888" # Prometheus metrics for collector
     depends_on:
       - "tempo"
+    restart: "unless-stopped"
+
   loki:
     image: "grafana/loki:2.9.0"
     command: "-config.file=/etc/loki/loki.yaml"
@@ -150,6 +190,7 @@ services:
     ports:
       - "3100" # Loki API
     restart: "unless-stopped"
+
   tempo:
     image: "grafana/tempo:1.5.0"
     command: "-search.enabled=true -config.file=/etc/tempo.yaml"
@@ -159,6 +200,7 @@ services:
     ports:
       - "4317" # OTLP gRPC
       - "3100" # tempo
+
   grafana:
     image: "grafana/grafana:9.1.5-ubuntu"
     volumes:
@@ -175,3 +217,8 @@ services:
       - "tempo"
       - "prometheus"
       - "loki"
+    restart: "unless-stopped"
+
+volumes:
+  postgres-primary-data:
+  postgres-replica-data:
