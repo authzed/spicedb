@@ -93,8 +93,15 @@ definition group {
 	require.NotEmpty(t, tracker.visitedRelations, "Should have visited at least one relation")
 	require.Contains(t, tracker.visitedRelations, "group#member", "Should have visited the member relation")
 
+	// Verify each relation/permission is visited exactly once (proper cycle detection)
+	memberCount := countOccurrences(tracker.visitedRelations, "group#member")
+	isMemberCount := countOccurrences(tracker.visitedPermissions, "group#is_member")
+
+	require.Equal(t, 1, memberCount, "group#member should be visited exactly once")
+	require.Equal(t, 1, isMemberCount, "group#is_member should be visited exactly once")
+
 	// Check that we didn't get stuck in infinite recursion
-	require.Equal(t, 2, tracker.maxDepth, "Depth should not indicate infinite recursion")
+	require.Equal(t, 1, tracker.maxDepth, "Depth should not indicate infinite recursion")
 }
 
 // TestWalkPostOrder_MutuallyRecursivePermissions tests that the walker can handle
@@ -142,18 +149,17 @@ definition document {
 	require.True(t, containsPermission(tracker.visitedPermissions, "view"), "Should have visited view permission")
 	require.True(t, containsPermission(tracker.visitedPermissions, "edit"), "Should have visited edit permission")
 
+	// Verify each permission is visited exactly once (proper cycle detection)
+	ownerCount := countOccurrences(tracker.visitedRelations, "document#owner")
+	viewCount := countOccurrences(tracker.visitedPermissions, "document#view")
+	editCount := countOccurrences(tracker.visitedPermissions, "document#edit")
+
+	require.Equal(t, 1, ownerCount, "document#owner should be visited exactly once")
+	require.Equal(t, 1, viewCount, "document#view should be visited exactly once")
+	require.Equal(t, 1, editCount, "document#edit should be visited exactly once")
+
 	// Check depth - this will reveal if there's cycle detection or if it walks the cycle multiple times
-	require.Equal(t, 4, tracker.maxDepth, "Depth should not indicate infinite recursion")
-
-	// Count how many times each permission was visited
-	viewCount := countOccurrences(tracker.visitedPermissions, "view")
-	editCount := countOccurrences(tracker.visitedPermissions, "edit")
-
-	// If there's proper cycle detection, each should be visited once
-	// If not, they might be visited multiple times (but should still terminate)
-	// The key is that it should NOT infinite loop
-	require.Positive(t, viewCount, "view should be visited at least once")
-	require.Positive(t, editCount, "edit should be visited at least once")
+	require.Equal(t, 2, tracker.maxDepth, "Depth should not indicate infinite recursion")
 }
 
 // TestWalkPreOrder_RecursiveGroupRelation tests pre-order with recursive group relation
@@ -321,12 +327,20 @@ definition document {
 	// Verify no infinite recursion
 	require.Less(t, 2, tracker.maxDepth, "Depth should not indicate infinite recursion")
 
-	// The arrow cycle detection should prevent folder#view from being visited multiple times
-	// when following the parent->view arrow
-	viewCount := countOccurrences(tracker.visitedPermissions, "folder#view")
+	// Verify each relation/permission is visited exactly once (proper cycle detection)
+	folderParentCount := countOccurrences(tracker.visitedRelations, "folder#parent")
+	folderViewerCount := countOccurrences(tracker.visitedRelations, "folder#viewer")
+	folderViewCount := countOccurrences(tracker.visitedPermissions, "folder#view")
+	documentParentCount := countOccurrences(tracker.visitedRelations, "document#parent")
+	documentOwnerCount := countOccurrences(tracker.visitedRelations, "document#owner")
+	documentViewCount := countOccurrences(tracker.visitedPermissions, "document#view")
 
-	// With proper cycle detection, it should be visited a reasonable number of times
-	require.Equal(t, 2, viewCount, "folder#view should not be visited excessive times due to cycle detection")
+	require.Equal(t, 1, folderParentCount, "folder#parent should be visited exactly once")
+	require.Equal(t, 1, folderViewerCount, "folder#viewer should be visited exactly once")
+	require.Equal(t, 1, folderViewCount, "folder#view should be visited exactly once")
+	require.Equal(t, 1, documentParentCount, "document#parent should be visited exactly once")
+	require.Equal(t, 1, documentOwnerCount, "document#owner should be visited exactly once")
+	require.Equal(t, 1, documentViewCount, "document#view should be visited exactly once")
 }
 
 // TestWalkPostOrder_DeeplyNestedRecursion tests a more complex scenario with multiple levels
@@ -380,8 +394,79 @@ definition resource {
 	require.True(t, containsPermission(tracker.visitedPermissions, "edit"), "Should have visited edit")
 	require.True(t, containsPermission(tracker.visitedPermissions, "delete"), "Should have visited delete")
 
+	// Verify each permission is visited at most once (proper cycle detection)
+	viewCount := countOccurrences(tracker.visitedPermissions, "resource#view")
+	editCount := countOccurrences(tracker.visitedPermissions, "resource#edit")
+	deleteCount := countOccurrences(tracker.visitedPermissions, "resource#delete")
+
+	require.Equal(t, 1, viewCount, "resource#view should be visited exactly once")
+	require.Equal(t, 1, editCount, "resource#edit should be visited exactly once")
+	require.Equal(t, 1, deleteCount, "resource#delete should be visited exactly once")
+
 	// Check for reasonable depth
-	require.Equal(t, 9, tracker.maxDepth, "Depth should not indicate infinite recursion")
+	require.Equal(t, 5, tracker.maxDepth, "Depth should not indicate infinite recursion")
+}
+
+// TestWalkPostOrder_RecursiveResourceWithTeamMembers tests a schema with both
+// recursive relation non-terminal types and recursive permission on the same resource
+func TestWalkPostOrder_RecursiveRelationAndPermission(t *testing.T) {
+	schemaString := `definition user {}
+
+definition team {
+	relation members: user | team#members
+}
+
+definition resource {
+	relation parent: resource
+	relation reader: user | team#members
+
+	permission read = reader + parent->read
+}`
+
+	// Compile the schema
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	// Convert to *Schema
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
+
+	// Resolve the schema (required for arrow traversal)
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+
+	// Track what gets visited
+	tracker := &recursionTracker{}
+
+	// Walk with post-order traversal with arrow traversal
+	opts := NewWalkOptions().
+		WithStrategy(WalkPostOrder).
+		WithTraverseArrowTargets(resolved.Schema()).MustBuild()
+
+	_, err = WalkSchemaWithOptions(resolved.Schema(), tracker, 0, opts)
+	require.NoError(t, err)
+
+	// The walker should have completed without infinite recursion
+	require.NotEmpty(t, tracker.visitedPermissions, "Should have visited at least one permission")
+	require.NotEmpty(t, tracker.visitedRelations, "Should have visited at least one relation")
+
+	teamMembersCount := countOccurrences(tracker.visitedRelations, "team#members")
+	resourceReaderCount := countOccurrences(tracker.visitedRelations, "resource#reader")
+	resourceParentCount := countOccurrences(tracker.visitedRelations, "resource#parent")
+	resourceReadCount := countOccurrences(tracker.visitedPermissions, "resource#read")
+
+	require.Equal(t, 1, teamMembersCount, "team#members should be visited exactly once")
+	require.Equal(t, 1, resourceReaderCount, "resource#reader should be visited exactly once")
+	require.Equal(t, 1, resourceParentCount, "resource#parent should be visited exactly once")
+	require.Equal(t, 1, resourceReadCount, "resource#read should be visited exactly once")
+
+	// Check for reasonable depth (should not indicate infinite recursion)
+	require.Equal(t, 3, tracker.maxDepth, "Depth should not indicate infinite recursion")
 }
 
 // Helper functions
