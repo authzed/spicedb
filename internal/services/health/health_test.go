@@ -1,58 +1,24 @@
 package health
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	dispatchmocks "github.com/authzed/spicedb/internal/dispatch/mocks"
 	"github.com/authzed/spicedb/pkg/datastore"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	datastoremocks "github.com/authzed/spicedb/pkg/datastore/mocks"
 )
 
-// fakeDatastoreChecker implements DatastoreChecker for testing
-type fakeDatastoreChecker struct {
-	readyState datastore.ReadyState
-	err        error
-}
-
-func (f *fakeDatastoreChecker) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
-	return f.readyState, f.err
-}
-
-// fakeDispatcher implements dispatch.Dispatcher for testing
-type fakeDispatcher struct {
-	readyState dispatch.ReadyState
-}
-
-func (f *fakeDispatcher) ReadyState() dispatch.ReadyState {
-	return f.readyState
-}
-
-func (f *fakeDispatcher) Close() error { return nil }
-
-// The following methods are required by dispatch.Dispatcher interface but not used in health tests
-func (f *fakeDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (f *fakeDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (f *fakeDispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
-	return errors.New("not implemented")
-}
-
-func (f *fakeDispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2Request, stream dispatch.LookupResources2Stream) error {
-	return errors.New("not implemented")
-}
-
 func TestNewHealthManager(t *testing.T) {
-	dispatcher := &fakeDispatcher{}
-	dsc := &fakeDatastoreChecker{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dispatcher := dispatchmocks.NewMockDispatcher(ctrl)
+	dsc := datastoremocks.NewMockDatastore(ctrl)
 
 	manager := NewHealthManager(dispatcher, dsc)
 
@@ -61,8 +27,11 @@ func TestNewHealthManager(t *testing.T) {
 }
 
 func TestHealthManagerRegisterReportedService(t *testing.T) {
-	dispatcher := &fakeDispatcher{}
-	dsc := &fakeDatastoreChecker{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dispatcher := dispatchmocks.NewMockDispatcher(ctrl)
+	dsc := datastoremocks.NewMockDatastore(ctrl)
 	manager := NewHealthManager(dispatcher, dsc)
 
 	serviceName := "test-service"
@@ -128,30 +97,14 @@ func TestHealthManagerCheckIsReady(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dispatcher := &fakeDispatcher{
-				readyState: dispatch.ReadyState{
-					IsReady: tc.dispatcherReady,
-					Message: func() string {
-						if tc.dispatcherReady {
-							return "dispatcher ready"
-						}
-						return "dispatcher not ready"
-					}(),
-				},
-			}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-			dsc := &fakeDatastoreChecker{
-				readyState: datastore.ReadyState{
-					IsReady: tc.datastoreReady,
-					Message: func() string {
-						if tc.datastoreReady {
-							return "datastore ready"
-						}
-						return "datastore not ready"
-					}(),
-				},
-				err: tc.datastoreError,
-			}
+			dispatcher := dispatchmocks.NewMockDispatcher(ctrl)
+			dispatcher.EXPECT().ReadyState().Return(dispatch.ReadyState{IsReady: tc.dispatcherReady}).MaxTimes(1)
+
+			dsc := datastoremocks.NewMockDatastore(ctrl)
+			dsc.EXPECT().ReadyState(gomock.Any()).Return(datastore.ReadyState{IsReady: tc.datastoreReady}, tc.datastoreError).Times(1)
 
 			hm := &healthManager{
 				dispatcher: dispatcher,
