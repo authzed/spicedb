@@ -41,8 +41,10 @@ services:
     volumes:
       - "./development/nginx.conf:/etc/nginx/nginx.conf"
     depends_on:
-      - "spicedb-1"
-      - "spicedb-2"
+      spicedb-1:
+        condition: "service_healthy"
+      spicedb-2:
+        condition: "service_healthy"
   spicedb-1:
     container_name: "spicedb-1"
     build: "."
@@ -75,7 +77,7 @@ services:
       otel-collector:
         condition: "service_started"
     healthcheck:
-      test: ["CMD", "/bin/grpc_health_probe", "-addr=spicedb:50051"]
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
       interval: "5s"
       timeout: "30s"
       retries: 3
@@ -92,7 +94,7 @@ services:
     environment:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
-      - "SPICEDB_HTTP_ENABLED=false"
+      - "SPICEDB_HTTP_ENABLED=true"
       - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
       - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
       - "SPICEDB_DATASTORE_CONN_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable"
@@ -110,6 +112,11 @@ services:
         condition: "service_completed_successfully"
       otel-collector:
         condition: "service_started"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
+      interval: "5s"
+      timeout: "30s"
+      retries: 3
   prometheus:
     image: "prom/prometheus:v2.47.0"
     command:
