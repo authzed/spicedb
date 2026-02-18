@@ -16,6 +16,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	prom_collectors "github.com/prometheus/client_golang/prometheus/collectors"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
@@ -700,7 +701,12 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, con
 	}
 
 	db := sql.OpenDB(connector)
-	collector := sqlstats.NewStatsCollector(dbName, db)
+	deprecatedCollector := sqlstats.NewStatsCollector(dbName, db) // TODO(miparnisari): remove in v1.51.0
+	collector := prom_collectors.NewDBStatsCollector(db, dbName)
+	if err := prometheus.Register(deprecatedCollector); err != nil {
+		return nil, collectors, err
+	}
+	collectors = append(collectors, deprecatedCollector)
 	if err := prometheus.Register(collector); err != nil {
 		return nil, collectors, err
 	}

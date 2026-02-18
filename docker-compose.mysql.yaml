@@ -1,0 +1,176 @@
+---
+# FOR DEVELOPMENT ONLY
+# docker-compose -f docker-compose.mysql.yaml up --build
+services:
+  mysql:
+    image: "mysql:latest"
+    restart: "unless-stopped"
+    ports:
+      - "3306:3306"
+    environment:
+      - "MYSQL_ROOT_PASSWORD=secret"
+      - "MYSQL_DATABASE=spicedb"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-psecret",
+        ]
+      interval: "3s"
+      timeout: "3s"
+      retries: 10
+  migrate:
+    depends_on:
+      mysql:
+        condition: "service_healthy"
+    build: "."
+    container_name: "migrate"
+    environment:
+      - "SPICEDB_DATASTORE_ENGINE=mysql"
+      - "SPICEDB_DATASTORE_CONN_URI=root:secret@(mysql:3306)/spicedb?parseTime=true"
+    command: "datastore migrate head"
+    networks:
+      - "default"
+  nginx:
+    image: "nginx:latest"
+    ports:
+      - "50051:50051" # grpc
+      - "8443:8443" # http
+    volumes:
+      - "./development/nginx.conf:/etc/nginx/nginx.conf"
+    depends_on:
+      spicedb-1:
+        condition: "service_healthy"
+      spicedb-2:
+        condition: "service_healthy"
+  spicedb-1:
+    container_name: "spicedb-1"
+    build: "."
+    command: "serve"
+    restart: "no"
+    ports:
+      - "9090" # prometheus metrics
+      - "50051" # grpc endpoint
+      - "8443" # http endpoint
+      - "50053" # dispatch endpoint
+    environment:
+      - "SPICEDB_LOG_FORMAT=json"
+      - "SPICEDB_LOG_LEVEL=info"
+      - "SPICEDB_HTTP_ENABLED=true"
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=mysql"
+      - "SPICEDB_DATASTORE_CONN_URI=root:secret@(mysql:3306)/spicedb?parseTime=true"
+      - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
+      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-2:50053"
+      - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
+      - "SPICEDB_OTEL_SAMPLE_RATIO=1"
+      - "SPICEDB_TELEMETRY_ENDPOINT="
+      - "SPICEDB_GRPC_LOG_REQUESTS_ENABLED=false"
+      - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
+      - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+    depends_on:
+      migrate:
+        condition: "service_completed_successfully"
+      otel-collector:
+        condition: "service_started"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
+      interval: "5s"
+      timeout: "30s"
+      retries: 3
+  spicedb-2:
+    container_name: "spicedb-2"
+    build: "."
+    command: "serve"
+    restart: "no"
+    ports:
+      - "9090" # prometheus metrics
+      - "50051" # grpc endpoint
+      - "8443" # http endpoint
+      - "50053" # dispatch endpoint
+    environment:
+      - "SPICEDB_LOG_FORMAT=json"
+      - "SPICEDB_LOG_LEVEL=info"
+      - "SPICEDB_HTTP_ENABLED=true"
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=mysql"
+      - "SPICEDB_DATASTORE_CONN_URI=root:secret@(mysql:3306)/spicedb?parseTime=true"
+      - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
+      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-1:50053"
+      - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
+      - "SPICEDB_OTEL_SAMPLE_RATIO=1"
+      - "SPICEDB_TELEMETRY_ENDPOINT="
+      - "SPICEDB_GRPC_LOG_REQUESTS_ENABLED=true"
+      - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
+      - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+    depends_on:
+      migrate:
+        condition: "service_completed_successfully"
+      otel-collector:
+        condition: "service_started"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
+      interval: "5s"
+      timeout: "30s"
+      retries: 3
+  prometheus:
+    image: "prom/prometheus:v2.47.0"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - "./development/prometheus.yaml:/etc/prometheus/prometheus.yaml"
+    ports:
+      - "9091:9090" # Prometheus UI
+    restart: "unless-stopped"
+  otel-collector:
+    image: "otel/opentelemetry-collector:0.60.0"
+    command: "--config /etc/otel-config.yaml"
+    volumes:
+      - "./development/otel-config.yaml:/etc/otel-config.yaml"
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "8888" # Prometheus metrics for collector
+    depends_on:
+      - "tempo"
+  loki:
+    image: "grafana/loki:2.9.0"
+    command: "-config.file=/etc/loki/loki.yaml"
+    volumes:
+      - "./development/loki.yaml:/etc/loki/loki.yaml"
+    ports:
+      - "3100" # Loki API
+    restart: "unless-stopped"
+  tempo:
+    image: "grafana/tempo:1.5.0"
+    command: "-search.enabled=true -config.file=/etc/tempo.yaml"
+    volumes:
+      - "./development/tempo.yaml:/etc/tempo.yaml"
+    restart: "unless-stopped"
+    ports:
+      - "4317" # OTLP gRPC
+      - "3100" # tempo
+  grafana:
+    image: "grafana/grafana:9.1.5-ubuntu"
+    volumes:
+      - "./development/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources"
+      - "./development/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards"
+      - "./development/grafana/dashboards:/etc/grafana/dashboards"
+    environment:
+      - "GF_AUTH_ANONYMOUS_ENABLED=true"
+      - "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin"
+      - "GF_AUTH_DISABLE_LOGIN_FORM=true"
+    ports:
+      - "3000:3000" # UI
+    depends_on:
+      - "tempo"
+      - "prometheus"
+      - "loki"
