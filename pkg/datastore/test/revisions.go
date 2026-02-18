@@ -20,7 +20,6 @@ import (
 
 // RevisionQuantizationTest tests whether or not the requirements for revisions hold
 // for a particular datastore.
-// TODO: rewrite using synctest
 func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 	testCases := []struct {
 		quantizationRange        time.Duration
@@ -178,6 +177,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	time.Sleep(gcWindow)
 
 	gcable, ok := ds.(common.GarbageCollectableDatastore)
+	// NOTE: CRDB and Spanner both do garbage collection with row-level TTLs
 	if ok {
 		// Run garbage collection.
 		gcable.ResetGCCompleted()
@@ -201,6 +201,12 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	head, err = ds.HeadRevision(ctx)
 	require.NoError(err)
 
+	// assert that recent call to head revision is also valid, even after a GC window cycle without writes elapsed
+	require.NoError(ds.CheckRevision(ctx, head), "expected freshly obtained head revision to be valid")
+
+	// TODO: these reads are taking a significant amount of time on CRDB, on the order
+	// of 100ms for a row read. We need to ascertain whether this is a test artifact
+	// or a performance regression.
 	// check that we can read a caveat whose revision has been garbage collectged
 	_, _, err = ds.SnapshotReader(head).LegacyReadCaveatByName(ctx, testCaveat.Name)
 	require.NoError(err, "expected previously written caveat should exist at head")
@@ -212,9 +218,6 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	// state of the system is also consistent at a recent call to head
 	_, _, err = ds.SnapshotReader(head).LegacyReadNamespaceByName(ctx, "foo/bar")
 	require.NoError(err, "expected previously written schema to exist at head")
-
-	// and that recent call to head revision is also valid, even after a GC window cycle without writes elapsed
-	require.NoError(ds.CheckRevision(ctx, head), "expected freshly obtained head revision to be valid")
 
 	// write happens, we get a new head revision
 	newerRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

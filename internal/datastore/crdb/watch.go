@@ -28,7 +28,11 @@ import (
 )
 
 const (
-	queryChangefeed       = "CREATE CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '0';"
+	// cursor: the revision before which we want to start the changefeed
+	// resolved: the minimum duration between "resolved" checkpoint messages
+	// min_checkpoint_frequency: how frequently CRDB will attempt to produce a checkpoint. the docs say that this can be 0,
+	// but that doesn't seem to be true for 26.1, so we set it to 1ms, which is still short but seems to work.
+	queryChangefeed       = "CREATE CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '1ms';"
 	queryChangefeedPreV25 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '0';"
 	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s';"
 )

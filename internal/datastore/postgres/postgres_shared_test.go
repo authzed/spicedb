@@ -1937,7 +1937,7 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Verify the relationship create was tracked by the watch.
-	test.VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+	test.VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
 		{
 			tuple.Touch(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject")),
 		},
@@ -1953,7 +1953,7 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Verify the delete.
-	test.VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+	test.VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
 		{
 			tuple.Delete(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject")),
 		},

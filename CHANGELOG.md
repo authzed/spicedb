@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   NOTE: in a future release, MySQL metrics will change.
 - Add support for imports and partials to the schemadsl package that drives the LSP and development server (https://github.com/authzed/spicedb/pull/2919).
 - `DatastoreTester.New` now takes a `testing.TB` as its first argument, allowing per-test cleanup in datastore test suites (https://github.com/authzed/spicedb/pull/2925).
+- Added support for CRDB 26.1 by fixing how version information is read from the cluster
 
 ### Fixed
 - enforce graceful shutdown on serve and serve-testing (https://github.com/authzed/spicedb/pull/2888)

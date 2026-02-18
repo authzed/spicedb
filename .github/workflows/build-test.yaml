@@ -262,7 +262,11 @@ jobs:
       fail-fast: false
       matrix:
         datastore: ["crdb"]
-        crdbversion: ["25.2.0", "25.3.0"]
+        crdbversion:
+          # the version many folks are on
+          - "25.2.0"
+          # the most recent version
+          - "26.1.0"
     steps:
       - uses: "actions/checkout@v6"
         if: |
@@ -297,7 +301,11 @@ jobs:
       fail-fast: false
       matrix:
         datastore: ["crdb"]
-        crdbversion: ["25.2.0", "25.3.0"]
+        crdbversion:
+          # the version many folks are on
+          - "25.2.0"
+          # the most recent version
+          - "26.1.0"
     steps:
       - uses: "actions/checkout@v6"
         if: |

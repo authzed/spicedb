@@ -17,6 +17,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,7 +120,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(ctx, uri, options...)
 			require.NoError(t, err)
@@ -959,4 +961,40 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 	require.Equal(t, float64(writeMaxConns), poolWriteMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
 	require.NotNil(t, poolReadMetric)
 	require.Equal(t, float64(readMaxConns), poolReadMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
+}
+
+func TestVersionReading(t *testing.T) {
+	require := require.New(t)
+
+	expectedVersionList := strings.Split(crdbTestVersion(), ".")
+	expectedMajor, err := strconv.Atoi(expectedVersionList[0])
+	require.NoError(err)
+	expectedMinor, err := strconv.Atoi(expectedVersionList[1])
+	require.NoError(err)
+	expectedPatch, err := strconv.Atoi(expectedVersionList[2])
+	require.NoError(err)
+
+	var version crdbVersion
+
+	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	uri := b.NewDatabase(t)
+
+	// Set up a raw connection to the DB
+	initPoolConfig, err := pgxpool.ParseConfig(uri)
+	require.NoError(err)
+	checker, err := pool.NewNodeHealthChecker(uri)
+	require.NoError(err)
+	initPool, err := pool.NewRetryPool(t.Context(), "pool", initPoolConfig, checker, 18, 20)
+	require.NoError(err)
+	t.Cleanup(func() {
+		initPool.Close()
+	})
+
+	// Make the query for the server version
+	err = queryServerVersion(t.Context(), initPool, &version)
+	require.NoError(err)
+
+	require.Equal(expectedMajor, version.Major)
+	require.Equal(expectedMinor, version.Minor)
+	require.Equal(expectedPatch, version.Patch)
 }
