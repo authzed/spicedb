@@ -1,0 +1,11 @@
+// NOTE: this is mostly to validate parser behavior; this path
+// would be treated as invalid by the compiler/importer.
+use import
+
+import """path/to/'"user.zed"""
+
+definition resource {
+    relation user: user
+    relation persona: persona
+    permission view = user + persona
+}

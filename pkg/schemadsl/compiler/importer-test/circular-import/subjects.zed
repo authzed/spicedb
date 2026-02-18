@@ -1,0 +1,5 @@
+use import
+
+import "user.zed"
+
+definition persona {}

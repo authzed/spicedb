@@ -117,7 +117,7 @@ type ObjectPrefixOption func(*config)
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
 	cfg := &config{
-		allowedFlags: mapz.NewSet[string](expirationFlag, selfFlag),
+		allowedFlags: mapz.NewSet(expirationFlag, selfFlag),
 	}
 
 	prefix(cfg) // required option

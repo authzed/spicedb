@@ -3,6 +3,8 @@ package compiler
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 
 	"google.golang.org/protobuf/proto"
 
@@ -56,6 +58,10 @@ type config struct {
 	objectTypePrefix *string
 	allowedFlags     *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
+
+	// In an import context, this is the FS containing
+	// the importing schema (as opposed to imported schemas)
+	sourceFS fs.FS
 }
 
 func SkipValidation() Option { return func(cfg *config) { cfg.skipValidation = true } }
@@ -74,6 +80,18 @@ func AllowUnprefixedObjectType() ObjectPrefixOption {
 
 func CaveatTypeSet(cts *caveattypes.TypeSet) Option {
 	return func(cfg *config) { cfg.caveatTypeSet = cts }
+}
+
+// Config that supplies the root source folder for compilation. Required
+// for relative import syntax to work properly.
+func SourceFolder(sourceFolder string) Option {
+	return func(cfg *config) { cfg.sourceFS = os.DirFS(sourceFolder) }
+}
+
+// Config that supplies the fs.FS for compilation as an alternative to
+// SourceFolder.
+func SourceFS(fsys fs.FS) Option {
+	return func(cfg *config) { cfg.sourceFS = fsys }
 }
 
 const (
@@ -107,11 +125,20 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		fn(cfg)
 	}
 
-	mapper := newPositionMapper(schema)
-	root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
-	errs := root.FindAll(dslshape.NodeTypeError)
-	if len(errs) > 0 {
-		err := errorNodeToError(errs[0], mapper)
+	root, mapper, err := parseSchema(schema)
+	if err != nil {
+		return nil, err
+	}
+
+	// NOTE: import translation is done separately so that partial references
+	// and definitions defined in separate files can correctly resolve.
+	err = translateImports(importResolutionContext{
+		globallyVisitedFiles: mapz.NewSet[string](),
+		locallyVisitedFiles:  mapz.NewSet[string](),
+		sourceFS:             cfg.sourceFS,
+		mapper:               mapper,
+	}, root)
+	if err != nil {
 		return nil, err
 	}
 
@@ -139,6 +166,17 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	}
 
 	return compiled, nil
+}
+
+func parseSchema(schema InputSchema) (*dslNode, input.PositionMapper, error) {
+	mapper := newPositionMapper(schema)
+	root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
+	errs := root.FindAll(dslshape.NodeTypeError)
+	if len(errs) > 0 {
+		err := errorNodeToError(errs[0], mapper)
+		return nil, nil, err
+	}
+	return root, mapper, nil
 }
 
 func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {

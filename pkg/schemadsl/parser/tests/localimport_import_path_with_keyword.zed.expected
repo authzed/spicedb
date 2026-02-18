@@ -1,0 +1,75 @@
+NodeTypeFile
+  end-rune = 161
+  input-source = local imports with keyword in import path test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 9
+      input-source = local imports with keyword in import path test
+      start-rune = 0
+      use-flag-name = import
+    NodeTypeImport
+      end-rune = 44
+      import-path = path/definition/user.zed
+      input-source = local imports with keyword in import path test
+      start-rune = 12
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 160
+      input-source = local imports with keyword in import path test
+      start-rune = 47
+      child-node =>
+        NodeTypeRelation
+          end-rune = 91
+          input-source = local imports with keyword in import path test
+          relation-name = user
+          start-rune = 73
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 91
+              input-source = local imports with keyword in import path test
+              start-rune = 88
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 91
+                  input-source = local imports with keyword in import path test
+                  start-rune = 88
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 121
+          input-source = local imports with keyword in import path test
+          relation-name = persona
+          start-rune = 97
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 121
+              input-source = local imports with keyword in import path test
+              start-rune = 115
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 121
+                  input-source = local imports with keyword in import path test
+                  start-rune = 115
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 158
+          input-source = local imports with keyword in import path test
+          relation-name = view
+          start-rune = 127
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 158
+              input-source = local imports with keyword in import path test
+              start-rune = 145
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 148
+                  identifier-value = user
+                  input-source = local imports with keyword in import path test
+                  start-rune = 145
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 158
+                  identifier-value = persona
+                  input-source = local imports with keyword in import path test
+                  start-rune = 152

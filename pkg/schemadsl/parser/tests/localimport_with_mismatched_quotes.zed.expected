@@ -1,0 +1,29 @@
+NodeTypeFile
+  end-rune = 17
+  input-source = local imports with mismatched quotes on import test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 9
+      input-source = local imports with mismatched quotes on import test
+      start-rune = 0
+      use-flag-name = import
+    NodeTypeImport
+      end-rune = 17
+      input-source = local imports with mismatched quotes on import test
+      start-rune = 12
+      child-node =>
+        NodeTypeError
+          end-rune = 17
+          error-message = Expected quote-delimited string, found token TokenTypeError
+          error-source = 
+
+          input-source = local imports with mismatched quotes on import test
+          start-rune = 19
+    NodeTypeError
+      end-rune = 17
+      error-message = Unexpected token at root level: TokenTypeError
+      error-source = 
+
+      input-source = local imports with mismatched quotes on import test
+      start-rune = 19

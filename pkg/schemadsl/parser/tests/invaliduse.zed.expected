@@ -10,7 +10,7 @@ NodeTypeFile
       child-node =>
         NodeTypeError
           end-rune = 12
-          error-message = Unknown use flag: `something`. Options are: expiration, partial, self, typechecking
+          error-message = Unknown use flag: `something`. Options are: expiration, import, partial, self, typechecking
           error-source = 
 
           input-source = invalid use

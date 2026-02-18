@@ -1,0 +1,8 @@
+use import
+
+import "user/user.zed"
+
+definition resource {
+  relation viewer: user
+  permission view = viewer
+}

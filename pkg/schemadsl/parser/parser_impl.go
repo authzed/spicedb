@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -207,6 +208,37 @@ func (p *sourceParser) tryConsumeKeyword(keyword string) bool {
 
 	p.consumeToken()
 	return true
+}
+
+// consumeStringLiteral consumes a string token and returns the unwrapped string or adds an error node.
+func (p *sourceParser) consumeStringLiteral() (string, bool) {
+	consumedString, ok := p.tryConsumeStringLiteral()
+	if !ok {
+		p.emitErrorf("Expected quote-delimited string, found token %v", p.currentToken.Kind)
+		return "", false
+	}
+	return consumedString, true
+}
+
+// tryConsumeStringLiteral attempts to consume an expected string token and return the unwrapped string.
+func (p *sourceParser) tryConsumeStringLiteral() (string, bool) {
+	wrappedStringToken, ok := p.tryConsume(lexer.TokenTypeString)
+	if !ok {
+		return "", false
+	}
+	wrappedString := wrappedStringToken.Value
+
+	// NOTE: We can't just trim here, because a user may use a combination of
+	// single and double quotes to escape.
+	// If we have a string wrapped in singlequotes (singular or plural),
+	// strip those specifically.
+	if strings.Index(wrappedString, `'`) == 0 {
+		return strings.Trim(wrappedString, `'`), true
+	}
+
+	// Else strip doublequotes, because the set of string delimiters is limited
+	// by the lexer.
+	return strings.Trim(wrappedString, `"`), true
 }
 
 // cosumeIdentifier consumes an expected identifier token or adds an error node.

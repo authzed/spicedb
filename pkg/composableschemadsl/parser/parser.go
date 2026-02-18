@@ -2,6 +2,7 @@
 package parser
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -450,6 +451,7 @@ func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
 	p.consumeKeyword("with")
 
 	if !p.isKeyword("expiration") {
+		fmt.Println("treating expiration as caveat")
 		caveatNode, ok := p.tryConsumeWithCaveat()
 		if ok {
 			specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
@@ -461,6 +463,7 @@ func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
 	}
 
 	if p.isKeyword("expiration") {
+		fmt.Println("treating expiration as trait")
 		// Check for expiration trait.
 		traitNode := p.consumeExpirationTrait()
 

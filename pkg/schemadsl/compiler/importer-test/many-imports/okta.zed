@@ -1,0 +1,10 @@
+use import
+
+import "caveat.zed"
+import "teams.zed"
+
+// okta
+definition okta {
+	relation d_caveat: d_caveat
+	relation teams: teams
+}

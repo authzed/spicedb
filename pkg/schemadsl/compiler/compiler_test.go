@@ -1328,19 +1328,6 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
-			"duplicate use of expiration pragmas",
-			withTenantPrefix,
-			`
-			use expiration
-			use expiration
-
-			definition simple {
-				relation viewer: user with expiration
-			}`,
-			`found duplicate use flag`,
-			[]SchemaDefinition{},
-		},
-		{
 			"self is allowed when used in arrow and interpreted as relation name",
 			withTenantPrefix,
 			`definition expressioned {
@@ -1422,19 +1409,6 @@ func TestCompile(t *testing.T) {
 				permission foos = self->other
 			}`,
 			"Expected end of statement or definition, found: TokenTypeRightArrow",
-			[]SchemaDefinition{},
-		},
-		{
-			"duplicate use of self pragmas errors",
-			withTenantPrefix,
-			`
-			use self
-			use self
-
-			definition expressioned {
-				permission foos = ((arel->brel) + self) - drel
-			}`,
-			`found duplicate use flag`,
 			[]SchemaDefinition{},
 		},
 		{

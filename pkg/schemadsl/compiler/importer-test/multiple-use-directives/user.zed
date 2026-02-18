@@ -1,0 +1,5 @@
+use expiration
+
+definition user {
+  relation timeout: user with expiration
+}

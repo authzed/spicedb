@@ -4,10 +4,14 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
+	"path/filepath"
 	"strings"
+	"container/list"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/stringz"
+	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -101,6 +105,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 			orderedDefinitions = append(orderedDefinitions, def)
 
 		case dslshape.NodeTypeDefinition:
+			log.Trace().Msg("adding object definition")
 			def, err := translateObjectDefinition(tctx, topLevelNode)
 			if err != nil {
 				return nil, err
@@ -756,7 +761,9 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 }
 
 func addWithExpiration(tctx *translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
+	fmt.Println("adding with expiration")
 	if traitNode, err := typeRefNode.Lookup(dslshape.NodeSpecificReferencePredicateTrait); err == nil {
+		fmt.Println("inside the if statement")
 		traitName, err := traitNode.GetString(dslshape.NodeTraitPredicateTrait)
 		if err != nil {
 			return err
@@ -770,6 +777,7 @@ func addWithExpiration(tctx *translationContext, typeRefNode *dslNode, ref *core
 			return errors.New("expiration trait is not allowed")
 		}
 
+		fmt.Println("setting required expiration")
 		ref.RequiredExpiration = &core.ExpirationTrait{}
 	}
 	return nil
@@ -798,6 +806,98 @@ func addWithCaveats(tctx *translationContext, typeRefNode *dslNode, ref *core.Al
 	ref.RequiredCaveat = &core.AllowedCaveat{
 		CaveatName: nspath,
 	}
+	return nil
+}
+
+type importResolutionContext struct {
+	// The global set of files we've visited in the import process.
+	// If these collide we short circuit, preventing duplicate imports.
+	globallyVisitedFiles *mapz.Set[string]
+	// The set of files that we've visited on a particular leg of the recursion.
+	// This allows for detection of circular imports.
+	// NOTE: This depends on an assumption that a depth-first search will always
+	// find a cycle, even if we're otherwise marking globally visited nodes.
+	locallyVisitedFiles *mapz.Set[string]
+	sourceFS            fs.FS
+	sourcePrefix        string
+	mapper              input.PositionMapper
+}
+
+// Takes a parsed schema and recursively translates import syntax and replaces
+// import nodes with parsed nodes from the target files
+func translateImports(itctx importResolutionContext, root *dslNode) error {
+	// We create a new list so that we can maintain the order
+	// of imported nodes
+	importedDefinitionNodes := list.New()
+
+	for _, topLevelNode := range root.GetChildren() {
+		// Process import nodes; ignore the others
+		if topLevelNode.GetType() == dslshape.NodeTypeImport {
+			// Do the handling of recursive imports etc here
+			importPath, err := topLevelNode.GetString(dslshape.NodeImportPredicatePath)
+			if err != nil {
+				return err
+			}
+
+			if err := validateFilepath(importPath); err != nil {
+				return err
+			}
+			filePath := filepath.Join(itctx.sourcePrefix, importPath)
+
+			newSourcePrefix := filepath.Dir(filePath)
+
+			currentLocallyVisitedFiles := itctx.locallyVisitedFiles.Copy()
+
+			if ok := currentLocallyVisitedFiles.Add(filePath); !ok {
+				// If we've already visited the file on this particular branch walk, it's
+				// a circular import issue.
+				return &CircularImportError{
+					error:    fmt.Errorf("circular import detected: %s has been visited on this branch", filePath),
+					filePath: filePath,
+				}
+			}
+
+			if ok := itctx.globallyVisitedFiles.Add(filePath); !ok {
+				// If the file has already been visited, we short-circuit the import process
+				// by not reading the schema file in and compiling a schema with an empty string.
+				// This prevents duplicate definitions from ending up in the output, as well
+				// as preventing circular imports.
+				log.Debug().Str("filepath", filePath).Msg("file has already been visited in another part of the walk")
+				continue
+			}
+
+			// Do the actual import here
+			// This is a new node provided by the translateImport
+			parsedImportRoot, err := importFile(itctx.sourceFS, filePath)
+			if err != nil {
+				return toContextError("failed to read import in schema file", "", topLevelNode, itctx.mapper)
+			}
+
+			// We recurse on that node to resolve any further imports
+			err = translateImports(importResolutionContext{
+				sourceFS:             itctx.sourceFS,
+				sourcePrefix:         newSourcePrefix,
+				locallyVisitedFiles:  currentLocallyVisitedFiles,
+				globallyVisitedFiles: itctx.globallyVisitedFiles,
+				mapper:               itctx.mapper,
+			}, parsedImportRoot)
+			if err != nil {
+				return err
+			}
+
+			// And then append the definition to the list of definitions to be added
+			for _, importedNode := range parsedImportRoot.GetChildren() {
+				if importedNode.GetType() != dslshape.NodeTypeImport {
+					importedDefinitionNodes.PushBack(importedNode)
+				}
+			}
+		}
+	}
+
+	// finally, take the list of definitions to add and prepend them
+	// (effectively hoists definitions)
+	root.ConnectAndHoistMany(dslshape.NodePredicateChild, importedDefinitionNodes)
+
 	return nil
 }
 
@@ -887,9 +987,10 @@ func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
 	if err != nil {
 		return err
 	}
-	if tctx.enabledFlags.Has(flagName) {
-		return useFlagNode.Errorf("found duplicate use flag: %s", flagName)
-	}
+	// NOTE: we're okay with multiple instances of a given `use` directive in
+	// composable schemas, because each file may declare it separately
+	// and that should be valid.
+
 	// TODO: make this check the list of allowed flags. this will be required for
 	// `use import` support.
 	tctx.enabledFlags.Insert(flagName)

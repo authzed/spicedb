@@ -1,0 +1,10 @@
+use import
+
+import "caveat.zed"
+import "teams.zed"
+
+// aws
+definition aws {
+	relation d_caveat: d_caveat
+	relation teams: teams
+}
