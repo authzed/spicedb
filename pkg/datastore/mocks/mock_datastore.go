@@ -734,6 +734,20 @@ func (mr *MockReadOnlyDatastoreMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReadOnlyDatastore)(nil).Close))
 }
 
+// DefaultsWatchOptions mocks base method.
+func (m *MockReadOnlyDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DefaultsWatchOptions")
+	ret0, _ := ret[0].(datastore.WatchOptions)
+	return ret0
+}
+
+// DefaultsWatchOptions indicates an expected call of DefaultsWatchOptions.
+func (mr *MockReadOnlyDatastoreMockRecorder) DefaultsWatchOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultsWatchOptions", reflect.TypeOf((*MockReadOnlyDatastore)(nil).DefaultsWatchOptions))
+}
+
 // Features mocks base method.
 func (m *MockReadOnlyDatastore) Features(ctx context.Context) (*datastore.Features, error) {
 	m.ctrl.T.Helper()
@@ -948,6 +962,20 @@ func (m *MockDatastore) Close() error {
 func (mr *MockDatastoreMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatastore)(nil).Close))
+}
+
+// DefaultsWatchOptions mocks base method.
+func (m *MockDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DefaultsWatchOptions")
+	ret0, _ := ret[0].(datastore.WatchOptions)
+	return ret0
+}
+
+// DefaultsWatchOptions indicates an expected call of DefaultsWatchOptions.
+func (mr *MockDatastoreMockRecorder) DefaultsWatchOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultsWatchOptions", reflect.TypeOf((*MockDatastore)(nil).DefaultsWatchOptions))
 }
 
 // Features mocks base method.
@@ -1271,6 +1299,20 @@ func (mr *MockSQLDatastoreMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSQLDatastore)(nil).Close))
 }
 
+// DefaultsWatchOptions mocks base method.
+func (m *MockSQLDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DefaultsWatchOptions")
+	ret0, _ := ret[0].(datastore.WatchOptions)
+	return ret0
+}
+
+// DefaultsWatchOptions indicates an expected call of DefaultsWatchOptions.
+func (mr *MockSQLDatastoreMockRecorder) DefaultsWatchOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultsWatchOptions", reflect.TypeOf((*MockSQLDatastore)(nil).DefaultsWatchOptions))
+}
+
 // Features mocks base method.
 func (m *MockSQLDatastore) Features(ctx context.Context) (*datastore.Features, error) {
 	m.ctrl.T.Helper()
@@ -1536,6 +1578,20 @@ func (mr *MockStrictReadDatastoreMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStrictReadDatastore)(nil).Close))
 }
 
+// DefaultsWatchOptions mocks base method.
+func (m *MockStrictReadDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DefaultsWatchOptions")
+	ret0, _ := ret[0].(datastore.WatchOptions)
+	return ret0
+}
+
+// DefaultsWatchOptions indicates an expected call of DefaultsWatchOptions.
+func (mr *MockStrictReadDatastoreMockRecorder) DefaultsWatchOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultsWatchOptions", reflect.TypeOf((*MockStrictReadDatastore)(nil).DefaultsWatchOptions))
+}
+
 // Features mocks base method.
 func (m *MockStrictReadDatastore) Features(ctx context.Context) (*datastore.Features, error) {
 	m.ctrl.T.Helper()
@@ -1786,6 +1842,20 @@ func (mr *MockStartableDatastoreMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStartableDatastore)(nil).Close))
 }
 
+// DefaultsWatchOptions mocks base method.
+func (m *MockStartableDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DefaultsWatchOptions")
+	ret0, _ := ret[0].(datastore.WatchOptions)
+	return ret0
+}
+
+// DefaultsWatchOptions indicates an expected call of DefaultsWatchOptions.
+func (mr *MockStartableDatastoreMockRecorder) DefaultsWatchOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultsWatchOptions", reflect.TypeOf((*MockStartableDatastore)(nil).DefaultsWatchOptions))
+}
+
 // Features mocks base method.
 func (m *MockStartableDatastore) Features(ctx context.Context) (*datastore.Features, error) {
 	m.ctrl.T.Helper()
@@ -2034,6 +2104,20 @@ func (m *MockRepairableDatastore) Close() error {
 func (mr *MockRepairableDatastoreMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockRepairableDatastore)(nil).Close))
+}
+
+// DefaultsWatchOptions mocks base method.
+func (m *MockRepairableDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DefaultsWatchOptions")
+	ret0, _ := ret[0].(datastore.WatchOptions)
+	return ret0
+}
+
+// DefaultsWatchOptions indicates an expected call of DefaultsWatchOptions.
+func (mr *MockRepairableDatastoreMockRecorder) DefaultsWatchOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultsWatchOptions", reflect.TypeOf((*MockRepairableDatastore)(nil).DefaultsWatchOptions))
 }
 
 // Features mocks base method.

@@ -214,6 +214,10 @@ func (r *relationshipIntegrityProxy) RevisionFromString(serialized string) (data
 	return r.ds.RevisionFromString(serialized)
 }
 
+func (r *relationshipIntegrityProxy) DefaultsWatchOptions() datastore.WatchOptions {
+	return r.ds.DefaultsWatchOptions()
+}
+
 func (r *relationshipIntegrityProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
 	return r.ds.Statistics(ctx)
 }

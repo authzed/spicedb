@@ -40,7 +40,7 @@ const DisableGC = time.Duration(math.MaxInt64)
 //
 // If the watchBufferLength value of 0 is set then a default value of 128 will be used.
 func NewMemdbDatastore(
-	watchBufferLength uint16,
+	watchBufferLength uint16, // TODO(miparnisari): remove
 	revisionQuantization,
 	gcWindow time.Duration,
 ) (datastore.Datastore, error) {
@@ -57,10 +57,6 @@ func NewMemdbDatastore(
 		return nil, err
 	}
 
-	if watchBufferLength == 0 {
-		watchBufferLength = defaultWatchBufferLength
-	}
-
 	uniqueID := uuid.NewString()
 	return &memdbDatastore{
 		CommonDecoder: revisions.CommonDecoder{
@@ -74,11 +70,9 @@ func NewMemdbDatastore(
 			},
 		},
 
-		negativeGCWindow:        gcWindow.Nanoseconds() * -1,
-		quantizationPeriod:      revisionQuantization.Nanoseconds(),
-		watchBufferLength:       watchBufferLength,
-		watchBufferWriteTimeout: 100 * time.Millisecond,
-		uniqueID:                uniqueID,
+		negativeGCWindow:   gcWindow.Nanoseconds() * -1,
+		quantizationPeriod: revisionQuantization.Nanoseconds(),
+		uniqueID:           uniqueID,
 	}, nil
 }
 
@@ -91,11 +85,9 @@ type memdbDatastore struct {
 	revisions      []snapshot   // GUARDED_BY(RWMutex)
 	activeWriteTxn *memdb.Txn   // GUARDED_BY(RWMutex)
 
-	negativeGCWindow        int64
-	quantizationPeriod      int64
-	watchBufferLength       uint16
-	watchBufferWriteTimeout time.Duration
-	uniqueID                string
+	negativeGCWindow   int64
+	quantizationPeriod int64
+	uniqueID           string
 }
 
 type snapshot struct {

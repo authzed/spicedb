@@ -968,6 +968,10 @@ func (*fakeDatastore) Statistics(context.Context) (datastore.Stats, error) {
 	return datastore.Stats{}, fmt.Errorf("not implemented")
 }
 
+func (*fakeDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	return datastore.WatchOptions{}
+}
+
 func (fds *fakeDatastore) Watch(_ context.Context, _ datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	if opts.Content&datastore.WatchSchema != datastore.WatchSchema {
 		panic("unexpected option")

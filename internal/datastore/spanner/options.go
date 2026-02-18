@@ -38,26 +38,23 @@ const (
 )
 
 type spannerOptions struct {
-	watchBufferLength            uint16
-	watchChangeBufferMaximumSize uint64
-	watchBufferWriteTimeout      time.Duration
-	revisionQuantization         time.Duration
-	followerReadDelay            time.Duration
-	maxRevisionStalenessPercent  float64
-	credentialsFilePath          string
-	credentialsJSON              []byte
-	emulatorHost                 string
-	disableStats                 bool
-	readMaxOpen                  int
-	writeMaxOpen                 int
-	minSessions                  uint64
-	maxSessions                  uint64
-	migrationPhase               string
-	allowedMigrations            []string
-	filterMaximumIDCount         uint16
-	columnOptimizationOption     common.ColumnOptimizationOption
-	watchDisabled                bool
-	datastoreMetricsOption       DatastoreMetricsOption
+	revisionQuantization        time.Duration
+	followerReadDelay           time.Duration
+	maxRevisionStalenessPercent float64
+	credentialsFilePath         string
+	credentialsJSON             []byte
+	emulatorHost                string
+	disableStats                bool
+	readMaxOpen                 int
+	writeMaxOpen                int
+	minSessions                 uint64
+	maxSessions                 uint64
+	migrationPhase              string
+	allowedMigrations           []string
+	filterMaximumIDCount        uint16
+	columnOptimizationOption    common.ColumnOptimizationOption
+	watchDisabled               bool
+	datastoreMetricsOption      DatastoreMetricsOption
 }
 
 type migrationPhase uint8
@@ -76,6 +73,8 @@ const (
 	defaultRevisionQuantization        = 5 * time.Second
 	defaultFollowerReadDelay           = 0 * time.Second
 	defaultMaxRevisionStalenessPercent = 0.1
+	minimumCheckpointInterval          = 100 * time.Millisecond
+	maximumCheckpointInterval          = 300000 * time.Millisecond
 	defaultWatchBufferLength           = 128
 	defaultWatchBufferWriteTimeout     = 1 * time.Second
 	defaultDisableStats                = false
@@ -94,8 +93,6 @@ func generateConfig(options []Option) (spannerOptions, error) {
 	// This determines if there are more CPU cores to increase the default number of connections
 	defaultNumberConnections := max(1, math.Round(float64(runtime.GOMAXPROCS(0))))
 	computed := spannerOptions{
-		watchBufferLength:           defaultWatchBufferLength,
-		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
@@ -133,28 +130,6 @@ func generateConfig(options []Option) (spannerOptions, error) {
 	}
 
 	return computed, nil
-}
-
-// WatchBufferLength is the number of entries that can be stored in the watch
-// buffer while awaiting read by the client.
-//
-// This value defaults to 128.
-func WatchBufferLength(watchBufferLength uint16) Option {
-	return func(so *spannerOptions) {
-		so.watchBufferLength = watchBufferLength
-	}
-}
-
-// WatchBufferWriteTimeout is the maximum timeout for writing to the watch buffer,
-// after which the caller to the watch will be disconnected.
-func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
-	return func(so *spannerOptions) { so.watchBufferWriteTimeout = watchBufferWriteTimeout }
-}
-
-// WatchBufferMaximumSize is the maximum size in bytes of the watch buffer.
-// If this value is exceeded the caller will receive an error.
-func WatchChangeBufferMaximumSize(maxSize uint64) Option {
-	return func(so *spannerOptions) { so.watchChangeBufferMaximumSize = maxSize }
 }
 
 // RevisionQuantization is the time bucket size to which advertised revisions

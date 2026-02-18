@@ -17,16 +17,20 @@ const (
 	watchSleep = 100 * time.Millisecond
 )
 
+func (mds *mysqlDatastore) DefaultsWatchOptions() datastore.WatchOptions {
+	return datastore.WatchOptions{
+		WatchBufferLength:       defaultWatchBufferLength,
+		WatchBufferWriteTimeout: defaultWatchBufferWriteTimeout,
+		// MySQL does not use CheckpointInterval or WatchConnectTimeout
+		// MySQL does not support EmitImmediatelyStrategy or WatchSchema
+	}
+}
+
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
 func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
-	watchBufferLength := options.WatchBufferLength
-	if watchBufferLength == 0 {
-		watchBufferLength = mds.watchBufferLength
-	}
-
-	updates := make(chan datastore.RevisionChanges, watchBufferLength)
+	updates := make(chan datastore.RevisionChanges, options.WatchBufferLength)
 	errs := make(chan error, 1)
 
 	if !mds.watchEnabled {
@@ -53,11 +57,6 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 		return updates, errs
 	}
 
-	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
-	if watchBufferWriteTimeout <= 0 {
-		watchBufferWriteTimeout = mds.watchBufferWriteTimeout
-	}
-
 	sendChange := func(change datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
@@ -67,7 +66,7 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 			// If we cannot immediately write, setup the timer and try again.
 		}
 
-		timer := time.NewTimer(watchBufferWriteTimeout)
+		timer := time.NewTimer(options.WatchBufferWriteTimeout)
 		defer timer.Stop()
 
 		select {
@@ -138,12 +137,7 @@ func (mds *mysqlDatastore) loadChanges(
 		return changes, newRevision, err
 	}
 
-	watchBufferSize := options.MaximumBufferedChangesByteSize
-	if watchBufferSize == 0 {
-		watchBufferSize = mds.watchChangeBufferMaximumSize
-	}
-
-	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content, watchBufferSize)
+	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
 
 	// Load any metadata for the revision range.
 	sql, args, err := mds.LoadRevisionRange.Where(sq.Or{
