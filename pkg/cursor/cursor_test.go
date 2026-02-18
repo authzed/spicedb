@@ -45,7 +45,6 @@ func TestEncodeDecode(t *testing.T) {
 			"another",
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			encoded, err := EncodeFromDispatchCursor(&dispatch.Cursor{
@@ -121,7 +120,6 @@ func TestDecode(t *testing.T) {
 			expectError:      false,
 		},
 	} {
-		testCase := testCase
 		testName := fmt.Sprintf("%s(%s)=>%s", testCase.name, testCase.token, testCase.expectedRevision)
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)

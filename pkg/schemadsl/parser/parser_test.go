@@ -152,7 +152,6 @@ func TestParser(t *testing.T) {
 	}
 
 	for _, test := range parserTests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			root := Parse(createAstNode, input.Source(test.name), test.input())
@@ -174,10 +173,10 @@ func TestParser(t *testing.T) {
 }
 
 func getParseTree(currentNode *testNode, indentation int) string {
-	parseTree := ""
-	parseTree += strings.Repeat(" ", indentation)
-	parseTree += fmt.Sprintf("%v", currentNode.nodeType)
-	parseTree += "\n"
+	var parseTree strings.Builder
+	parseTree.WriteString(strings.Repeat(" ", indentation))
+	parseTree.WriteString(fmt.Sprintf("%v", currentNode.nodeType))
+	parseTree.WriteString("\n")
 
 	keys := make([]string, 0, len(currentNode.properties))
 
@@ -188,9 +187,9 @@ func getParseTree(currentNode *testNode, indentation int) string {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		parseTree += strings.Repeat(" ", indentation+2)
-		parseTree += fmt.Sprintf("%s = %v", key, currentNode.properties[key])
-		parseTree += "\n"
+		parseTree.WriteString(strings.Repeat(" ", indentation+2))
+		parseTree.WriteString(fmt.Sprintf("%s = %v", key, currentNode.properties[key]))
+		parseTree.WriteString("\n")
 	}
 
 	keys = make([]string, 0, len(currentNode.children))
@@ -203,13 +202,13 @@ func getParseTree(currentNode *testNode, indentation int) string {
 
 	for _, key := range keys {
 		value := currentNode.children[key]
-		parseTree += fmt.Sprintf("%s%v =>", strings.Repeat(" ", indentation+2), key)
-		parseTree += "\n"
+		parseTree.WriteString(fmt.Sprintf("%s%v =>", strings.Repeat(" ", indentation+2), key))
+		parseTree.WriteString("\n")
 
 		for e := value.Front(); e != nil; e = e.Next() {
-			parseTree += getParseTree(e.Value.(*testNode), indentation+4)
+			parseTree.WriteString(getParseTree(e.Value.(*testNode), indentation+4))
 		}
 	}
 
-	return parseTree
+	return parseTree.String()
 }

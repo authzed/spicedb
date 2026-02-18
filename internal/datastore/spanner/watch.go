@@ -84,10 +84,7 @@ func (sd *spannerDatastore) watch(
 	defer close(errs)
 
 	// NOTE: 100ms is the minimum allowed.
-	heartbeatInterval := opts.CheckpointInterval
-	if heartbeatInterval < 100*time.Millisecond {
-		heartbeatInterval = 100 * time.Millisecond
-	}
+	heartbeatInterval := max(opts.CheckpointInterval, 100*time.Millisecond)
 
 	sendError := func(err error) {
 		if errors.Is(ctx.Err(), context.Canceled) || common.IsCancellationError(err) {

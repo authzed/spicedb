@@ -1,6 +1,8 @@
 package common
 
 import (
+	"slices"
+
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
@@ -25,10 +27,5 @@ type IndexDefinition struct {
 
 // matchesShape returns true if the index matches the given shape.
 func (id IndexDefinition) matchesShape(shape queryshape.Shape) bool {
-	for _, s := range id.Shapes {
-		if s == shape {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(id.Shapes, shape)
 }

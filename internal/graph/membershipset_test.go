@@ -129,7 +129,6 @@ func TestMembershipSetAddDirectMember(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ms := membershipSetFromMap(tc.existingMembers)
 			ms.AddDirectMember(tc.directMemberID, unwrapCaveat(tc.directMemberCaveat))
@@ -232,7 +231,6 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ms := membershipSetFromMap(tc.existingMembers)
 			ms.AddMemberViaRelationship(tc.resourceID, tc.resourceCaveatExpression, tc.parentRelationship)
@@ -374,7 +372,6 @@ func TestMembershipSetUnionWith(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ms1 := membershipSetFromMap(tc.set1)
 			ms2 := membershipSetFromMap(tc.set2)
@@ -551,7 +548,6 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ms1 := membershipSetFromMap(tc.set1)
 			ms2 := membershipSetFromMap(tc.set2)
@@ -740,7 +736,6 @@ func TestMembershipSetSubtract(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ms1 := membershipSetFromMap(tc.set1)
 			ms2 := membershipSetFromMap(tc.set2)

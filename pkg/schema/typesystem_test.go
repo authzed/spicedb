@@ -44,16 +44,14 @@ func TestTypeSystemConcurrency(t *testing.T) {
 	errs := make(chan error, 600)
 
 	for range 10 {
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			for range 20 {
 				for _, n := range []string{"document", "user", "team"} {
 					_, err := ts.GetValidatedDefinition(ctx, n)
 					errs <- err
 				}
 			}
-			wg.Done()
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -164,7 +162,6 @@ func TestApplyExpirationFilter(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -344,7 +341,6 @@ func TestDirectPossibleTraitsForFilter(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -667,7 +663,6 @@ func TestPossibleTraitsForFilter(t *testing.T) {
 
 	// Run expiration filter tests for PossibleTraitsForFilter
 	for _, tc := range expirationTestCases {
-		tc := tc
 		t.Run("PossibleTraitsForFilter with expiration: "+tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -688,7 +683,6 @@ func TestPossibleTraitsForFilter(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 

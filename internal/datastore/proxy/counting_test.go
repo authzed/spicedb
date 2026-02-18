@@ -169,16 +169,14 @@ func TestCountingProxyThreadSafety(t *testing.T) {
 	callsPerGoroutine := uint64(100)
 
 	var wg sync.WaitGroup
-	for i := uint64(0); i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			r := ds.SnapshotReader(datastore.NoRevision)
 			for range callsPerGoroutine {
 				_, err := r.QueryRelationships(ctx, datastore.RelationshipsFilter{})
 				assert.NoError(t, err)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

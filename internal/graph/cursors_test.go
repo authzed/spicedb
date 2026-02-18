@@ -273,7 +273,7 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 
 	items := []int{}
 	expected := []int{}
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		items = append(items, i)
 		expected = append(expected, i*10)
 	}

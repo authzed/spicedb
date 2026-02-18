@@ -43,7 +43,6 @@ func TestParseDispatchExpression(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := ParseDispatchExpression("somemethod", tc.expr)
 			if tc.expectedError != "" {
@@ -139,7 +138,6 @@ func TestRunCheckDispatchExpr(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			parsed, err := ParseDispatchExpression("check", tc.expr)
 			require.NoError(t, err)

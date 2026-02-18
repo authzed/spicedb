@@ -96,7 +96,6 @@ func TestAreProtoEqual(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			err := AreProtoEqual(tc.first, tc.second, "something went wrong")
 			require.Equal(t, tc.expectedEqual, err == nil)
@@ -151,7 +150,6 @@ func TestRequireProtoEqual(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			RequireProtoEqual(t, tc.first, tc.second, "something went wrong")
 		})
@@ -219,7 +217,6 @@ func TestAreProtoSlicesEqual(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			err := AreProtoSlicesEqual(tc.first, tc.second, func(first, second *core.ObjectAndRelation) int {
 				return strings.Compare(first.ObjectId, second.ObjectId)
@@ -265,7 +262,6 @@ func TestRequireProtoSlicesEqual(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			RequireProtoSlicesEqual(t, tc.first, tc.second, func(first *core.ObjectAndRelation, second *core.ObjectAndRelation) int {
 				return strings.Compare(first.ObjectId, second.ObjectId)

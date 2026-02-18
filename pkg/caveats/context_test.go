@@ -110,7 +110,6 @@ func TestConvertContextToStruct(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := ConvertContextToStruct(tc.input)
 			require.NoError(t, err)

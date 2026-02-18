@@ -610,7 +610,7 @@ func TestSpanned(t *testing.T) {
 		defer cleanup()
 
 		source := func(yield func(string, error) bool) {
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				if !yield("item", nil) {
 					return
 				}

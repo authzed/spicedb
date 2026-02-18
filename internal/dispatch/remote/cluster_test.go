@@ -165,7 +165,6 @@ func TestDispatchTimeout(t *testing.T) {
 			20 * time.Millisecond,
 		},
 	} {
-		tc := tc
 		t.Run(fmt.Sprintf("%v", tc.timeout > tc.sleepTime), func(t *testing.T) {
 			// Configure a fake dispatcher service and an associated buffconn-based
 			// connection to it.
@@ -326,7 +325,6 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 			1,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: tc.primarySleepTime})
@@ -899,7 +897,7 @@ func TestGetPrimaryWaitTime(t *testing.T) {
 	dispatcher := d.(*clusterDispatcher)
 
 	// Add a bunch of times to the secondary.
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		dispatcher.secondaryInitialResponseDigests["check"].addResultTime(2 * time.Millisecond)
 	}
 
@@ -1038,7 +1036,7 @@ func TestSupportedResourceSubjectTrackerParallelUpdates(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			tracker.updateForError(testResourceRelationError{fmt.Errorf("foo"), "document", "viewer"})
 		}
 	}()
@@ -1046,7 +1044,7 @@ func TestSupportedResourceSubjectTrackerParallelUpdates(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			tracker.updateForSuccess(tuple.RR("document", "editor"), tuple.RR("user", "..."))
 		}
 	}()
@@ -1159,7 +1157,7 @@ func TestDALCount(t *testing.T) {
 		lock:   sync.RWMutex{},
 	}
 
-	for i := 0; i < minimumDigestCount-1; i++ {
+	for i := range minimumDigestCount - 1 {
 		uintValue, err := safecast.Convert[uint64](i + 1)
 		require.NoError(t, err)
 

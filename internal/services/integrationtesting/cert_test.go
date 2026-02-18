@@ -266,7 +266,7 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, certFile.Close())
 
 	// check for waitFactor*initialValidDuration seconds
-	for i := 0; i < waitFactor; i++ {
+	for range waitFactor {
 		_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 			Consistency: &v1.Consistency{
 				Requirement: &v1.Consistency_AtLeastAsFresh{

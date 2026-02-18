@@ -151,7 +151,6 @@ var oldtesters = []oldTesterDef{
 
 func TestOldSnapshotCaching(t *testing.T) {
 	for _, tester := range oldtesters {
-		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 
@@ -368,7 +367,6 @@ func TestSnapshotCaching(t *testing.T) {
 
 func TestOldRWTCaching(t *testing.T) {
 	for _, tester := range oldtesters {
-		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 			rwtMock := &proxy_test.MockReadWriteTransaction{}
@@ -458,7 +456,6 @@ func TestRWTCaching(t *testing.T) {
 
 func TestOldRWTCacheWithWrites(t *testing.T) {
 	for _, tester := range oldtesters {
-		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 			rwtMock := &proxy_test.MockReadWriteTransaction{}
@@ -507,7 +504,6 @@ func TestOldRWTCacheWithWrites(t *testing.T) {
 
 func TestOldSingleFlight(t *testing.T) {
 	for _, tester := range oldtesters {
-		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 
@@ -642,7 +638,6 @@ func TestOldSnapshotCachingRealDatastore(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(t, err)
@@ -720,7 +715,6 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(t, err)
@@ -813,7 +807,6 @@ func (r *singleflightReader) LookupTypeDefByName(ctx context.Context, name strin
 
 func TestOldSingleFlightCancelled(t *testing.T) {
 	for _, tester := range oldtesters {
-		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 			ctx1, cancel1 := context.WithCancel(t.Context())
@@ -897,7 +890,6 @@ func TestSingleFlightCancelled(t *testing.T) {
 
 func TestOldMixedCaching(t *testing.T) {
 	for _, tester := range oldtesters {
-		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 

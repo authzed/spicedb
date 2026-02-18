@@ -319,21 +319,21 @@ func TestConcurrentAccess(t *testing.T) {
 	done := make(chan bool, 3)
 
 	go func() {
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			pkg.AddSample(float32(i), safecast.MustConvert[uint](i*10))
 		}
 		done <- true
 	}()
 
 	go func() {
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			pkg.AddWidthSample(safecast.MustConvert[uint](i * 5))
 		}
 		done <- true
 	}()
 
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			_ = pkg.Explain()
 		}
 		done <- true

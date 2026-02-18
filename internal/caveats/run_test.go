@@ -447,7 +447,6 @@ func TestRunCaveatExpressions(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 
@@ -476,7 +475,6 @@ func TestRunCaveatExpressions(t *testing.T) {
 				RunCaveatExpressionNoDebugging,
 				RunCaveatExpressionWithDebugInformation,
 			} {
-				debugOption := debugOption
 				t.Run(fmt.Sprintf("%v", debugOption), func(t *testing.T) {
 					req := require.New(t)
 

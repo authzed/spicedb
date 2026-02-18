@@ -338,10 +338,7 @@ func (c *SQLByteChunker[T]) chunkData(data []byte) [][]byte {
 	chunks := make([][]byte, 0, numChunks)
 
 	for i := 0; i < len(data); i += c.config.MaxChunkSize {
-		end := i + c.config.MaxChunkSize
-		if end > len(data) {
-			end = len(data)
-		}
+		end := min(i+c.config.MaxChunkSize, len(data))
 		chunks = append(chunks, data[i:end])
 	}
 

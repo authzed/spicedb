@@ -803,7 +803,6 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(t, err)
@@ -817,7 +816,6 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, r := range tt.checks {
-				r := r
 				t.Run(fmt.Sprintf("%s::%v", r.check, r.context), func(t *testing.T) {
 					rel := tuple.MustParse(r.check)
 

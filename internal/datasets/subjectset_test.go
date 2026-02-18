@@ -228,8 +228,6 @@ func TestSubjectSetAdd(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
@@ -597,8 +595,6 @@ func TestSubjectSetSubtract(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
@@ -933,8 +929,6 @@ func TestSubjectSetIntersection(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
@@ -1308,8 +1302,6 @@ func TestMultipleOperations(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			set := NewSubjectSet()
 			tc.runOps(set)
@@ -1355,8 +1347,6 @@ func TestSubtractAll(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			set := NewSubjectSet()
 
@@ -1464,7 +1454,6 @@ var testSets = [][]*v1.FoundSubject{
 
 func TestUnionCommutativity(t *testing.T) {
 	for _, pair := range allSubsets(testSets, 2) {
-		pair := pair
 		t.Run(fmt.Sprintf("%v", pair), func(t *testing.T) {
 			left1, left2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range pair[0] {
@@ -1491,7 +1480,6 @@ func TestUnionCommutativity(t *testing.T) {
 
 func TestUnionAssociativity(t *testing.T) {
 	for _, triple := range allSubsets(testSets, 3) {
-		triple := triple
 		t.Run(fmt.Sprintf("%s U %s U %s", testutil.FormatSubjects(triple[0]), testutil.FormatSubjects(triple[1]), testutil.FormatSubjects(triple[2])), func(t *testing.T) {
 			// A U (B U C) == (A U B) U C
 
@@ -1528,7 +1516,6 @@ func TestUnionAssociativity(t *testing.T) {
 
 func TestIntersectionCommutativity(t *testing.T) {
 	for _, pair := range allSubsets(testSets, 2) {
-		pair := pair
 		t.Run(fmt.Sprintf("%v", pair), func(t *testing.T) {
 			left1, left2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range pair[0] {
@@ -1554,7 +1541,6 @@ func TestIntersectionCommutativity(t *testing.T) {
 
 func TestIntersectionAssociativity(t *testing.T) {
 	for _, triple := range allSubsets(testSets, 3) {
-		triple := triple
 		t.Run(fmt.Sprintf("%s ∩ %s ∩ %s", testutil.FormatSubjects(triple[0]), testutil.FormatSubjects(triple[1]), testutil.FormatSubjects(triple[2])), func(t *testing.T) {
 			// A ∩ (B ∩ C) == (A ∩ B) ∩ C
 
@@ -1591,7 +1577,6 @@ func TestIntersectionAssociativity(t *testing.T) {
 
 func TestIdempotentUnion(t *testing.T) {
 	for _, set := range testSets {
-		set := set
 		t.Run(fmt.Sprintf("%v", set), func(t *testing.T) {
 			// A U A == A
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
@@ -1610,7 +1595,6 @@ func TestIdempotentUnion(t *testing.T) {
 
 func TestIdempotentIntersection(t *testing.T) {
 	for _, set := range testSets {
-		set := set
 		t.Run(fmt.Sprintf("%v", set), func(t *testing.T) {
 			// A ∩ A == A
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
@@ -1725,8 +1709,6 @@ func TestUnionWildcardWithWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			produced, err := unionWildcardWithWildcard(existing, tc.toUnion, subjectSetConstructor)
@@ -1845,8 +1827,6 @@ func TestUnionWildcardWithConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			produced := unionWildcardWithConcrete(existing, tc.toUnion, subjectSetConstructor)
@@ -1905,8 +1885,6 @@ func TestUnionConcreteWithConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			toUnion := wrap(tc.toUnion)
@@ -2048,8 +2026,6 @@ func TestSubtractWildcardFromWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 
@@ -2157,8 +2133,6 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%v - %v", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractWildcardFromConcrete(tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
@@ -2208,8 +2182,6 @@ func TestSubtractConcreteFromConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractConcreteFromConcrete(tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
@@ -2283,8 +2255,6 @@ func TestSubtractConcreteFromWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractConcreteFromWildcard(tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
@@ -2341,8 +2311,6 @@ func TestIntersectConcreteWithConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.first), testutil.FormatSubject(tc.second)), func(t *testing.T) {
 			second := wrap(tc.second)
 
@@ -2453,8 +2421,6 @@ func TestIntersectWildcardWithWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.first), testutil.FormatSubject(tc.second)), func(t *testing.T) {
 			first := wrap(tc.first)
 			second := wrap(tc.second)
@@ -2582,8 +2548,6 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.concrete), testutil.FormatSubject(tc.wildcard)), func(t *testing.T) {
 			wildcard := wrap(tc.wildcard)
 
@@ -2601,7 +2565,7 @@ func allSubsets[T any](objs []T, n int) [][]T {
 	maxInt := uint64(math.Exp2(float64(len(objs)))) - 1
 	all := make([][]T, 0)
 
-	for i := uint64(0); i < maxInt; i++ {
+	for i := range maxInt {
 		set := make([]T, 0, n)
 		for digit := uint64(0); digit < uint64(len(objs)); digit++ {
 			mask := uint64(1) << digit

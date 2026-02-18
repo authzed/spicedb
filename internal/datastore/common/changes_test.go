@@ -308,7 +308,6 @@ func TestChanges(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -903,7 +902,6 @@ func TestCanonicalize(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			require.Equal(tc.expected, canonicalize(tc.input))
@@ -978,7 +976,7 @@ func TestThreadSafe(t *testing.T) {
 	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, math.MaxInt64)
 
 	var wg errgroup.Group
-	for i := 0; i < 1_000; i++ {
+	for i := range 1_000 {
 		wg.Go(func() error {
 			rel := tuple.MustParse("document:" + strconv.Itoa(i) + "#reader@user:anne")
 			return ch.AddRelationshipChange(t.Context(), revisions.NewForTransactionID(1), rel, tuple.UpdateOperationTouch)

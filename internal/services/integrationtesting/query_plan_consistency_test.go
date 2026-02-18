@@ -197,7 +197,6 @@ func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandl
 		func(t *testing.T, resourceRelation tuple.RelationReference) {
 			t.Parallel()
 			for _, subject := range accessibilitySet.AllSubjectsNoWildcards() {
-				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					accessibleResources := accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
 					queryCtx := handle.buildContext(t)
@@ -248,7 +247,6 @@ func runQueryPlanLookupSubjects(t *testing.T, handle *queryPlanConsistencyHandle
 		func(t *testing.T, resourceRelation tuple.RelationReference) {
 			t.Parallel()
 			for _, resource := range accessibilitySet.AllResourcesNoWildcards() {
-				resource := resource
 				// Only test resources that match the current resource type
 				if resource.ObjectType != resourceRelation.ObjectType || resource.Relation != resourceRelation.Relation {
 					continue

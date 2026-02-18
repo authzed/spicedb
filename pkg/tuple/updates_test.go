@@ -36,7 +36,6 @@ func TestUpdateMethods(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(fmt.Sprintf("%d", tc.expected.Operation), func(t *testing.T) {
 			if tc.input != tc.expected {
 				t.Errorf("expected %v, got %v", tc.expected, tc.input)

@@ -43,7 +43,7 @@ func TestPublishError(t *testing.T) {
 
 	// test error metadata is truncated when too large
 	var builder strings.Builder
-	for i := 0; i < kubeTerminationLogLimit; i++ {
+	for range kubeTerminationLogLimit {
 		builder.WriteString("a")
 	}
 	publishedError.Metadata["large_value"] = builder.String()

@@ -5,7 +5,7 @@ import (
 )
 
 type InitializeResult struct {
-	Capabilities ServerCapabilities `json:"capabilities,omitempty"`
+	Capabilities ServerCapabilities `json:"capabilities"`
 }
 
 type ServerCapabilities struct {
@@ -44,7 +44,7 @@ type InitializeParams struct {
 	RootPath string `json:"rootPath,omitempty"`
 
 	RootURI               baselsp.DocumentURI `json:"rootUri,omitempty"`
-	ClientInfo            baselsp.ClientInfo  `json:"clientInfo,omitempty"`
+	ClientInfo            baselsp.ClientInfo  `json:"clientInfo"`
 	Trace                 baselsp.Trace       `json:"trace,omitempty"`
 	InitializationOptions any                 `json:"initializationOptions,omitempty"`
 	Capabilities          ClientCapabilities  `json:"capabilities"`
@@ -53,7 +53,7 @@ type InitializeParams struct {
 }
 
 type ClientCapabilities struct {
-	Diagnostics DiagnosticWorkspaceClientCapabilities `json:"diagnostics,omitempty"`
+	Diagnostics DiagnosticWorkspaceClientCapabilities `json:"diagnostics"`
 }
 
 type DiagnosticWorkspaceClientCapabilities struct {

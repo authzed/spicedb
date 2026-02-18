@@ -396,8 +396,8 @@ func (sg *sourceGenerator) appendComment(comment string) {
 	case strings.HasPrefix(comment, "/*"):
 		stripped := strings.TrimSpace(comment)
 
-		if strings.HasPrefix(stripped, "/**") {
-			stripped = strings.TrimPrefix(stripped, "/**")
+		if after, ok := strings.CutPrefix(stripped, "/**"); ok {
+			stripped = after
 			sg.append("/**")
 		} else {
 			stripped = strings.TrimPrefix(stripped, "/*")

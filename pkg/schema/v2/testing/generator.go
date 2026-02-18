@@ -182,7 +182,7 @@ func mustGenerateOperation(t *rapid.T, relationNames []string, subjectRelationNa
 		// Union
 		numChildren := rapid.IntRange(1, 3).Draw(t, path+"::unionNumChildren")
 		unionBuilder := schema.NewUnion()
-		for i := 0; i < numChildren; i++ {
+		for i := range numChildren {
 			childOp := mustGenerateOperation(t, relationNames, subjectRelationNames, depthRemaining-1, path+"::unionChild#"+strconv.Itoa(i))
 			unionBuilder = unionBuilder.Add(childOp)
 		}
@@ -192,7 +192,7 @@ func mustGenerateOperation(t *rapid.T, relationNames []string, subjectRelationNa
 		// Intersection
 		numChildren := rapid.IntRange(1, 3).Draw(t, "intersectionNumChildren")
 		intersectionBuilder := schema.NewIntersection()
-		for i := 0; i < numChildren; i++ {
+		for i := range numChildren {
 			childOp := mustGenerateOperation(t, relationNames, subjectRelationNames, depthRemaining-1, path+"::intersectionChild#"+strconv.Itoa(i))
 			intersectionBuilder = intersectionBuilder.Add(childOp)
 		}

@@ -78,7 +78,6 @@ func TestInvalidModification(t *testing.T) {
 			err: "duplicate names in middleware modification",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.mod.validate()
 			if tt.err != "" {
@@ -183,7 +182,6 @@ func TestChainValidate(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := mc.validate(tt.mod)
 			if tt.err != "" {
