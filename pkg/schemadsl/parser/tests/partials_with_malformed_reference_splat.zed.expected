@@ -1,0 +1,66 @@
+NodeTypeFile
+  end-rune = 126
+  input-source = partials with malformed reference splat
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 10
+      input-source = partials with malformed reference splat
+      start-rune = 0
+      use-flag-name = partial
+    NodeTypePartial
+      end-rune = 83
+      input-source = partials with malformed reference splat
+      partial-name = view_partial
+      start-rune = 13
+      child-node =>
+        NodeTypeRelation
+          end-rune = 56
+          input-source = partials with malformed reference splat
+          relation-name = user
+          start-rune = 38
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 56
+              input-source = partials with malformed reference splat
+              start-rune = 53
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 56
+                  input-source = partials with malformed reference splat
+                  start-rune = 53
+                  type-name = user
+        NodeTypePermission
+          end-rune = 81
+          input-source = partials with malformed reference splat
+          relation-name = view
+          start-rune = 60
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 81
+              identifier-value = user
+              input-source = partials with malformed reference splat
+              start-rune = 78
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 103
+      input-source = partials with malformed reference splat
+      start-rune = 86
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 126
+      input-source = partials with malformed reference splat
+      start-rune = 106
+      child-node =>
+        NodeTypeError
+          end-rune = 126
+          error-message = Expected end of statement or definition, found: TokenTypePeriod
+          error-source = .
+          input-source = partials with malformed reference splat
+          start-rune = 130
+    NodeTypeError
+      end-rune = 126
+      error-message = Unexpected token at root level: TokenTypePeriod
+      error-source = .
+      input-source = partials with malformed reference splat
+      start-rune = 130
