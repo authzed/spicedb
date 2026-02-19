@@ -10,7 +10,6 @@ import (
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -630,8 +629,4 @@ func (w *watchingCachingReader) LegacyLookupCaveatsWithNames(
 	caveatNames []string,
 ) ([]datastore.RevisionedCaveat, error) {
 	return w.p.caveatCache.readDefinitionsWithNames(ctx, caveatNames, w.rev)
-}
-
-func (w *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(w), nil
 }

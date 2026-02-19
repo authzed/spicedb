@@ -13,8 +13,9 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/pkg/cursor"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -32,11 +33,12 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
-	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds, "somelabel", TreatMismatchingTokensAsError)
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -51,9 +53,10 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -61,7 +64,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 				MinimizeLatency: true,
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -76,9 +79,10 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("HeadRevision").Return(head, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -86,7 +90,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 				FullyConsistent: true,
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -102,9 +106,10 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -112,7 +117,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(exact),
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -128,9 +133,10 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("CheckRevision", exact).Return(nil).Times(1)
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -138,7 +144,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(exact),
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -154,9 +160,10 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("CheckRevision", zero).Return(datastore.NewInvalidRevisionErr(zero, datastore.RevisionStale)).Times(1)
 	ds.On("RevisionFromString", zero.String()).Return(zero, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -164,7 +171,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(zero),
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.Error(err)
 	grpcutil.RequireStatus(t, codes.OutOfRange, err)
 	ds.AssertExpectations(t)
@@ -174,9 +181,10 @@ func TestAddRevisionToContextNoConsistencyAPI(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
+	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	_, _, err := RevisionFromContext(updated)
 	require.Error(err)
@@ -188,6 +196,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("CheckRevision", optimized).Return(nil).Times(1)
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	// cursor is at `optimized`
 	cursor, err := cursor.EncodeFromDispatchCursor(&dispatch.Cursor{}, "somehash", optimized, nil)
@@ -195,7 +204,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(t.Context())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	err = AddRevisionToContext(updated, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
@@ -204,7 +213,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 			},
 		},
 		OptionalCursor: cursor,
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
 	// ensure we get back `optimized` from the cursor
@@ -230,6 +239,7 @@ func TestAddRevisionToContextAtMalformedExactSnapshot(t *testing.T) {
 func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	err := AddRevisionToContext(ContextWithHandle(t.Context()), &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
@@ -237,7 +247,7 @@ func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 				AtLeastAsFresh: &v1.ZedToken{Token: "blah"},
 			},
 		},
-	}, ds, "", TreatMismatchingTokensAsError)
+	}, dl, "", TreatMismatchingTokensAsError)
 	require.Error(t, err)
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 }
@@ -301,14 +311,15 @@ func TestAtExactSnapshotWithMismatchedToken(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(context.Background())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
-	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, ds)
+	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, dl)
 	require.NoError(err)
 
 	ds.CurrentUniqueID = "bar"
@@ -318,7 +329,7 @@ func TestAtExactSnapshotWithMismatchedToken(t *testing.T) {
 				AtExactSnapshot: zedToken,
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.Error(err)
 	require.ErrorContains(err, "ZedToken specified references a different datastore instance but at-exact-snapshot")
 }
@@ -329,14 +340,15 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(context.Background())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
-	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, ds)
+	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, dl)
 	require.NoError(err)
 
 	ds.CurrentUniqueID = "bar"
@@ -346,7 +358,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
 				AtLeastAsFresh: zedToken,
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.Error(err)
 	require.ErrorContains(err, "ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
 }
@@ -357,14 +369,15 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(context.Background())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
-	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, ds)
+	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, dl)
 	require.NoError(err)
 
 	ds.CurrentUniqueID = "bar"
@@ -374,7 +387,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 				AtLeastAsFresh: zedToken,
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsMinLatency)
+	}, dl, "somelabel", TreatMismatchingTokensAsMinLatency)
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -391,14 +404,15 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 	ds.On("HeadRevision").Return(head, nil).Once()
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(context.Background())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
-	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, ds)
+	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, dl)
 	require.NoError(err)
 
 	ds.CurrentUniqueID = "bar"
@@ -408,7 +422,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 				AtLeastAsFresh: zedToken,
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsFullConsistency)
+	}, dl, "somelabel", TreatMismatchingTokensAsFullConsistency)
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -426,9 +440,10 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
 	ds.CurrentUniqueID = "foo"
+	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(context.Background())
-	updated = datastoremw.ContextWithDatastore(updated, ds)
+	updated = datalayermw.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -436,7 +451,7 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(exact),
 			},
 		},
-	}, ds, "somelabel", TreatMismatchingTokensAsError)
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)

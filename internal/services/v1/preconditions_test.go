@@ -11,7 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 )
 
 var companyPlanFolder = &v1.RelationshipFilter{
@@ -40,7 +40,8 @@ func TestPreconditions(t *testing.T) {
 	ds, _ := testfixtures.StandardDatastoreWithData(uninitialized, require)
 
 	ctx := t.Context()
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	dl := datalayer.NewDataLayer(ds)
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		require.NoError(checkPreconditions(ctx, rwt, []*v1.Precondition{
 			{
 				Operation: v1.Precondition_OPERATION_MUST_MATCH,

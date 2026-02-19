@@ -9,6 +9,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema/v2"
@@ -86,7 +87,7 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 
 	// Create query context
 	queryCtx := query.NewLocalContext(ctx,
-		query.WithReader(rawDS.SnapshotReader(revision)),
+		query.WithReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)),
 		query.WithMaxRecursionDepth(50),
 	)
 

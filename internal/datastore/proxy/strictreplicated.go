@@ -260,9 +260,3 @@ func (rr *strictReadReplicatedReader) LookupCounters(ctx context.Context) ([]dat
 	}
 	return counters, err
 }
-
-// SchemaReader returns the SchemaReader instance of the replica's SchemaReader at the
-// associated revision.
-func (rr *strictReadReplicatedReader) SchemaReader() (datastore.SchemaReader, error) {
-	return rr.replica.SnapshotReader(rr.rev).SchemaReader()
-}

@@ -259,21 +259,6 @@ func (mr *MockReaderMockRecorder) ReverseQueryRelationships(ctx, subjectsFilter 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReverseQueryRelationships", reflect.TypeOf((*MockReader)(nil).ReverseQueryRelationships), varargs...)
 }
 
-// SchemaReader mocks base method.
-func (m *MockReader) SchemaReader() (datastore.SchemaReader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaReader")
-	ret0, _ := ret[0].(datastore.SchemaReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SchemaReader indicates an expected call of SchemaReader.
-func (mr *MockReaderMockRecorder) SchemaReader() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaReader", reflect.TypeOf((*MockReader)(nil).SchemaReader))
-}
-
 // MockReadWriteTransaction is a mock of ReadWriteTransaction interface.
 type MockReadWriteTransaction struct {
 	ctrl     *gomock.Controller
@@ -569,36 +554,6 @@ func (mr *MockReadWriteTransactionMockRecorder) ReverseQueryRelationships(ctx, s
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, subjectsFilter}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReverseQueryRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReverseQueryRelationships), varargs...)
-}
-
-// SchemaReader mocks base method.
-func (m *MockReadWriteTransaction) SchemaReader() (datastore.SchemaReader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaReader")
-	ret0, _ := ret[0].(datastore.SchemaReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SchemaReader indicates an expected call of SchemaReader.
-func (mr *MockReadWriteTransactionMockRecorder) SchemaReader() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaReader", reflect.TypeOf((*MockReadWriteTransaction)(nil).SchemaReader))
-}
-
-// SchemaWriter mocks base method.
-func (m *MockReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaWriter")
-	ret0, _ := ret[0].(datastore.SchemaWriter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SchemaWriter indicates an expected call of SchemaWriter.
-func (mr *MockReadWriteTransactionMockRecorder) SchemaWriter() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaWriter", reflect.TypeOf((*MockReadWriteTransaction)(nil).SchemaWriter))
 }
 
 // StoreCounterValue mocks base method.

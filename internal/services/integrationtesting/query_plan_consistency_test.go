@@ -17,9 +17,10 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema/v2"
@@ -48,7 +49,7 @@ type queryPlanConsistencyHandle struct {
 
 func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 	return query.NewLocalContext(t.Context(),
-		query.WithReader(q.ds.SnapshotReader(q.revision)),
+		query.WithReader(datalayer.NewDataLayer(q.ds).SnapshotReader(q.revision)),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 		query.WithTraceLogger(query.NewTraceLogger())) // Enable tracing for debugging
 }
@@ -58,7 +59,7 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
 	require.NoError(err)
-	populated, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{filePath})
+	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{filePath})
 	require.NoError(err)
 
 	headRevision, err := ds.HeadRevision(t.Context())
@@ -188,8 +189,8 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 }
 
 func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandle) {
-	dsCtx := datastoremw.ContextWithHandle(t.Context())
-	require.NoError(t, datastoremw.SetInContext(dsCtx, handle.ds))
+	dsCtx := datalayermw.ContextWithHandle(t.Context())
+	require.NoError(t, datalayermw.SetInContext(dsCtx, datalayer.NewDataLayer(handle.ds)))
 	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, dsCtx, handle.populated, handle.ds)
 	// Run a lookup resources for each resource type and ensure that the returned objects are those
 	// that are accessible to the subject.
@@ -238,8 +239,8 @@ func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandl
 }
 
 func runQueryPlanLookupSubjects(t *testing.T, handle *queryPlanConsistencyHandle) {
-	dsCtx := datastoremw.ContextWithHandle(t.Context())
-	require.NoError(t, datastoremw.SetInContext(dsCtx, handle.ds))
+	dsCtx := datalayermw.ContextWithHandle(t.Context())
+	require.NoError(t, datalayermw.SetInContext(dsCtx, datalayer.NewDataLayer(handle.ds)))
 	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, dsCtx, handle.populated, handle.ds)
 	// Run a lookup subjects for each resource type and ensure that the returned subjects are those
 	// that have access to the resource.
@@ -331,11 +332,11 @@ func TestAccessibilitySetMethods(t *testing.T) {
 
 	// Use a simple test config
 	testConfigPath := filepath.Join("testconfigs", "document.yaml")
-	populated, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{testConfigPath})
+	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{testConfigPath})
 	require.NoError(err)
 
-	dsCtx := datastoremw.ContextWithHandle(t.Context())
-	require.NoError(datastoremw.SetInContext(dsCtx, ds))
+	dsCtx := datalayermw.ContextWithHandle(t.Context())
+	require.NoError(datalayermw.SetInContext(dsCtx, datalayer.NewDataLayer(ds)))
 
 	// Build the accessibility set
 	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, dsCtx, populated, ds)

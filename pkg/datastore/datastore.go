@@ -518,7 +518,6 @@ type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 // Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	LegacySchemaReader
-	SchemaReadable
 	CounterReader
 
 	// QueryRelationships reads relationships, starting from the resource side.
@@ -536,10 +535,10 @@ type Reader interface {
 	) (RelationshipIterator, error)
 }
 
+// ReadWriteTransaction is an interface for reading and writing relationships in a transaction.
 type ReadWriteTransaction interface {
 	Reader
 	LegacySchemaWriter
-	SchemaWriteable
 	CounterRegisterer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.

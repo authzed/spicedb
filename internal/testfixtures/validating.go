@@ -185,10 +185,6 @@ func (vsr validatingSnapshotReader) LegacyListAllCaveats(ctx context.Context) ([
 	return read, err
 }
 
-func (vsr validatingSnapshotReader) SchemaReader() (datastore.SchemaReader, error) {
-	return vsr.delegate.SchemaReader()
-}
-
 type validatingReadWriteTransaction struct {
 	validatingSnapshotReader
 	delegate datastore.ReadWriteTransaction
@@ -253,10 +249,6 @@ func (vrwt validatingReadWriteTransaction) LegacyWriteCaveats(ctx context.Contex
 
 func (vrwt validatingReadWriteTransaction) LegacyDeleteCaveats(ctx context.Context, names []string) error {
 	return vrwt.delegate.LegacyDeleteCaveats(ctx, names)
-}
-
-func (vrwt validatingReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
-	return vrwt.delegate.SchemaWriter()
 }
 
 func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source datastore.BulkWriteRelationshipSource) (uint64, error) {

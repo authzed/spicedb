@@ -1,4 +1,4 @@
-package datastore
+package datalayer
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -21,16 +22,16 @@ func TestUnaryCountingInterceptor(t *testing.T) {
 	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
 	mockReader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
 
-	// Create context with datastore
+	// Create context with datastore, wrapping mock in datalayer
 	ctx := ContextWithHandle(context.Background())
-	require.NoError(SetInContext(ctx, mockDS))
+	require.NoError(SetInContext(ctx, datalayer.NewDataLayer(mockDS)))
 
 	// Track if handler was called
 	handlerCalled := false
 	handler := func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
 
-		// Get the datastore from context - should be wrapped
+		// Get the datalayer from context - should be wrapped with counting
 		ds := MustFromContext(ctx)
 
 		// Make some calls to trigger counting
@@ -50,9 +51,6 @@ func TestUnaryCountingInterceptor(t *testing.T) {
 	require.Equal("response", resp)
 	require.True(handlerCalled)
 
-	// Note: We can't easily verify Prometheus metrics were updated without
-	// complex setup, but we've verified the counting proxy was applied
-	// and WriteMethodCounts() was called (no panic)
 	mockDS.AssertExpectations(t)
 	mockReader.AssertExpectations(t)
 }
@@ -66,9 +64,9 @@ func TestStreamCountingInterceptor(t *testing.T) {
 	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
 	mockReader.On("ReverseQueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
 
-	// Create context with datastore
+	// Create context with datastore, wrapping mock in datalayer
 	ctx := ContextWithHandle(context.Background())
-	require.NoError(SetInContext(ctx, mockDS))
+	require.NoError(SetInContext(ctx, datalayer.NewDataLayer(mockDS)))
 
 	// Create mock server stream
 	mockStream := &mockServerStream{ctx: ctx}
@@ -78,7 +76,7 @@ func TestStreamCountingInterceptor(t *testing.T) {
 	handler := func(srv any, ss grpc.ServerStream) error {
 		handlerCalled = true
 
-		// Get the datastore from context - should be wrapped
+		// Get the datalayer from context - should be wrapped with counting
 		ds := MustFromContext(ss.Context())
 
 		// Make some calls to trigger counting
@@ -107,18 +105,18 @@ func TestUnaryCountingInterceptor_HandlerError(t *testing.T) {
 	mockDS := &proxy_test.MockDatastore{}
 	mockReader := &proxy_test.MockReader{}
 	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
-	mockReader.On("LegacyReadNamespaceByName", "test").Return(nil, datastore.NoRevision, nil)
+	mockReader.On("QueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
 
-	// Create context with datastore
+	// Create context with datastore, wrapping mock in datalayer
 	ctx := ContextWithHandle(context.Background())
-	require.NoError(SetInContext(ctx, mockDS))
+	require.NoError(SetInContext(ctx, datalayer.NewDataLayer(mockDS)))
 
 	// Handler that returns an error
 	handler := func(ctx context.Context, req any) (any, error) {
 		// Make a call before erroring
 		ds := MustFromContext(ctx)
 		reader := ds.SnapshotReader(datastore.NoRevision)
-		_, _, _ = reader.LegacyReadNamespaceByName(ctx, "test")
+		_, _ = reader.QueryRelationships(ctx, datastore.RelationshipsFilter{})
 
 		return nil, &testError{}
 	}
@@ -131,7 +129,7 @@ func TestUnaryCountingInterceptor_HandlerError(t *testing.T) {
 	require.Error(err)
 	require.Equal("test error", err.Error())
 
-	// Counts should still be exported (WriteMethodCounts called)
+	// Counts should still be exported
 	mockDS.AssertExpectations(t)
 	mockReader.AssertExpectations(t)
 }
@@ -143,11 +141,11 @@ func TestStreamCountingInterceptor_HandlerError(t *testing.T) {
 	mockDS := &proxy_test.MockDatastore{}
 	mockReader := &proxy_test.MockReader{}
 	mockDS.On("SnapshotReader", mock.Anything).Return(mockReader)
-	mockReader.On("LegacyListAllNamespaces").Return([]datastore.RevisionedNamespace{}, nil)
+	mockReader.On("ReverseQueryRelationships", mock.Anything, mock.Anything).Return(nil, nil)
 
-	// Create context with datastore
+	// Create context with datastore, wrapping mock in datalayer
 	ctx := ContextWithHandle(context.Background())
-	require.NoError(SetInContext(ctx, mockDS))
+	require.NoError(SetInContext(ctx, datalayer.NewDataLayer(mockDS)))
 
 	// Create mock server stream
 	mockStream := &mockServerStream{ctx: ctx}
@@ -157,7 +155,7 @@ func TestStreamCountingInterceptor_HandlerError(t *testing.T) {
 		// Make a call before erroring
 		ds := MustFromContext(ss.Context())
 		reader := ds.SnapshotReader(datastore.NoRevision)
-		_, _ = reader.LegacyListAllNamespaces(ss.Context())
+		_, _ = reader.ReverseQueryRelationships(ss.Context(), datastore.SubjectsFilter{SubjectType: "user"})
 
 		return &testError{}
 	}
@@ -170,7 +168,7 @@ func TestStreamCountingInterceptor_HandlerError(t *testing.T) {
 	require.Error(err)
 	require.Equal("test error", err.Error())
 
-	// Counts should still be exported (WriteMethodCounts called)
+	// Counts should still be exported
 	mockDS.AssertExpectations(t)
 	mockReader.AssertExpectations(t)
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -182,7 +182,7 @@ func TestPopulateFromFiles(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, 0)
 			require.NoError(err)
 
-			parsed, _, err := PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, tt.filePaths)
+			parsed, _, err := PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, tt.filePaths)
 			if tt.expectedError == nil {
 				require.NoError(err)
 
@@ -225,19 +225,18 @@ func TestPopulationChunking(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, 0)
 	require.NoError(err)
 
-	cs := txCountingDatastore{delegate: ds}
-	_, _, err = PopulateFromFiles(t.Context(), &cs, caveattypes.Default.TypeSet, []string{"testdata/requires_chunking.yaml"})
+	cs := &txCountingDataLayer{DataLayer: datalayer.NewDataLayer(ds)}
+	_, _, err = PopulateFromFiles(t.Context(), cs, caveattypes.Default.TypeSet, []string{"testdata/requires_chunking.yaml"})
 	require.NoError(err)
 	require.Equal(3, cs.count)
 }
 
-type txCountingDatastore struct {
-	proxy_test.MockDatastore
-	count    int
-	delegate datastore.Datastore
+type txCountingDataLayer struct {
+	datalayer.DataLayer
+	count int
 }
 
-func (c *txCountingDatastore) ReadWriteTx(ctx context.Context, userFunc datastore.TxUserFunc, option ...options.RWTOptionsOption) (datastore.Revision, error) {
+func (c *txCountingDataLayer) ReadWriteTx(ctx context.Context, fn datalayer.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
 	c.count++
-	return c.delegate.ReadWriteTx(ctx, userFunc, option...)
+	return c.DataLayer.ReadWriteTx(ctx, fn, opts...)
 }

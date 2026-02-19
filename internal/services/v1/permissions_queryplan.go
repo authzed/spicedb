@@ -6,7 +6,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	caveatsimpl "github.com/authzed/spicedb/internal/caveats"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/query"
@@ -21,17 +21,22 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(atRevision)
+	dl := datalayermw.MustFromContext(ctx)
+	reader := dl.SnapshotReader(atRevision)
 
 	// Load all namespace and caveat definitions to build the schema
 	// TODO: Better schema caching
-	namespaces, err := reader.LegacyListAllNamespaces(ctx)
+	sr, err := reader.ReadSchema()
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	caveats, err := reader.LegacyListAllCaveats(ctx)
+	namespaces, err := sr.ListAllTypeDefinitions(ctx)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	caveats, err := sr.ListAllCaveatDefinitions(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}

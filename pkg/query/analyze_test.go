@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -140,7 +141,7 @@ func TestAnalysisIntegration(t *testing.T) {
 	// Create a context with analysis enabled
 	analyze := NewAnalyzeCollector()
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithAnalyze(analyze))
 
 	// Execute a Check operation
@@ -294,7 +295,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()
 		ctxUnoptimized := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 			WithAnalyze(analyzeUnoptimized))
 
 		resources := []Object{{ObjectType: "document", ObjectID: "doc1"}}
@@ -317,7 +318,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		// Execute optimized tree
 		analyzeOptimized := NewAnalyzeCollector()
 		ctxOptimized := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 			WithAnalyze(analyzeOptimized))
 
 		pathSeq, err = ctxOptimized.Check(optimized, resources, subject)
@@ -365,7 +366,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()
 		ctxUnoptimized := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 			WithAnalyze(analyzeUnoptimized))
 
 		resources := []Object{{ObjectType: "document", ObjectID: "doc1"}}
@@ -388,7 +389,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		// Execute optimized tree
 		analyzeOptimized := NewAnalyzeCollector()
 		ctxOptimized := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 			WithAnalyze(analyzeOptimized))
 
 		pathSeq, err = ctxOptimized.Check(optimized, resources, subject)
@@ -460,7 +461,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		// Execute unoptimized tree
 		analyzeUnoptimized := NewAnalyzeCollector()
 		ctxUnoptimized := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 			WithAnalyze(analyzeUnoptimized))
 
 		resources := []Object{
@@ -486,7 +487,7 @@ func TestOptimizationImprovements(t *testing.T) {
 		// Execute optimized tree
 		analyzeOptimized := NewAnalyzeCollector()
 		ctxOptimized := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(datastore.NoRevision)),
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 			WithAnalyze(analyzeOptimized))
 
 		pathSeq, err = ctxOptimized.Check(optimized, resources, subject)

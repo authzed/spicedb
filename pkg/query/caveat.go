@@ -130,12 +130,16 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path Path) (*core.CaveatEx
 	}
 
 	// Use the SimplifyCaveatExpression function to properly handle AND/OR logic
+	sr, err := getSchemaReaderFromReader(ctx.Reader)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get schema reader: %w", err)
+	}
 	simplified, passes, err := SimplifyCaveatExpression(
 		ctx,
 		ctx.CaveatRunner,
 		path.Caveat,
 		ctx.CaveatContext,
-		ctx.Reader,
+		sr,
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to simplify caveat: %w", err)

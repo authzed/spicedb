@@ -46,10 +46,10 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 	for _, filePath := range consistencyTestFiles {
 		t.Run(path.Base(filePath), func(t *testing.T) {
 			require := require.New(t)
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 1*time.Second, memdb.DisableGC)
+			dl, err := dsfortesting.DataLayerForTesting(t, 0, 1*time.Second, memdb.DisableGC)
 			require.NoError(err)
 
-			fullyResolved, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{filePath})
+			fullyResolved, _, err := validationfile.PopulateFromFiles(t.Context(), dl, caveattypes.Default.TypeSet, []string{filePath})
 			require.NoError(err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {

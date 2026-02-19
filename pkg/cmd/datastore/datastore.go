@@ -22,6 +22,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -445,17 +446,25 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 
 		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("initializing datastore from bootstrap files")
 
-		if len(opts.BootstrapFiles) > 0 {
-			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.CaveatTypeSet, opts.BootstrapFiles)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
+		// Combine bootstrap files and direct contents into a single set so that
+		// all definitions are written together (WriteSchema replaces the full schema).
+		bootstrapContents := make(map[string][]byte, len(opts.BootstrapFiles)+len(opts.BootstrapFileContents))
+		for _, filePath := range opts.BootstrapFiles {
+			fileContents, rerr := os.ReadFile(filePath)
+			if rerr != nil {
+				return nil, fmt.Errorf("failed to read bootstrap file %s: %w", filePath, rerr)
 			}
+			bootstrapContents[filePath] = fileContents
+		}
+		for k, v := range opts.BootstrapFileContents {
+			bootstrapContents[k] = v
 		}
 
-		if len(opts.BootstrapFileContents) > 0 {
-			_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.CaveatTypeSet, opts.BootstrapFileContents)
+		if len(bootstrapContents) > 0 {
+			bootstrapDL := datalayer.NewDataLayer(ds)
+			_, _, err = validationfile.PopulateFromFilesContents(ctx, bootstrapDL, opts.CaveatTypeSet, bootstrapContents)
 			if err != nil {
-				return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
+				return nil, fmt.Errorf("failed to load bootstrap data: %w", err)
 			}
 		}
 		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("completed datastore initialization from bootstrap files")

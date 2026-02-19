@@ -33,10 +33,11 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/logging"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	consistencymw "github.com/authzed/spicedb/pkg/middleware/consistency"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
@@ -224,16 +225,17 @@ func (m MiddlewareOption) WithDatastoreMiddleware(middleware Middleware) Middlew
 }
 
 func (m MiddlewareOption) WithDatastore(ds datastore.Datastore) MiddlewareOption {
+	dl := datalayer.NewDataLayer(ds)
 	unary := NewUnaryMiddleware().
 		WithName(DefaultInternalMiddlewareDatastore).
 		WithInternal(true).
-		WithInterceptor(datastoremw.UnaryServerInterceptor(ds)).
+		WithInterceptor(datalayermw.UnaryServerInterceptor(dl)).
 		Done()
 
 	stream := NewStreamMiddleware().
 		WithName(DefaultInternalMiddlewareDatastore).
 		WithInternal(true).
-		WithInterceptor(datastoremw.StreamServerInterceptor(ds)).
+		WithInterceptor(datalayermw.StreamServerInterceptor(dl)).
 		Done()
 
 	m.unaryDatastoreMiddleware = &unary
@@ -337,7 +339,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareDatastoreCounting).
 			WithInternal(true).
-			WithInterceptor(datastoremw.UnaryCountingInterceptor()).
+			WithInterceptor(datalayermw.UnaryCountingInterceptor()).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -416,7 +418,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareDatastoreCounting).
 			WithInternal(true).
-			WithInterceptor(datastoremw.StreamCountingInterceptor()).
+			WithInterceptor(datalayermw.StreamCountingInterceptor()).
 			Done(),
 
 		NewStreamMiddleware().
@@ -450,6 +452,7 @@ func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
 func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, disableGRPCLatencyHistogram bool, memoryUsageProvider memoryprotection.MemoryUsageProvider) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
 	dispatchMemoryProtection := memoryprotection.New(memoryUsageProvider, "dispatch-middleware")
+	dl := datalayer.NewDataLayer(ds)
 
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
@@ -458,7 +461,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			grpcMetricsUnaryInterceptor,
 			dispatchMemoryProtection.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
-			datastoremw.UnaryServerInterceptor(ds),
+			datalayermw.UnaryServerInterceptor(dl),
 			servicespecific.UnaryServerInterceptor,
 		}, []grpc.StreamServerInterceptor{
 			// NOTE: the logging middlewares are not present here in streaming, to remove their significant overhead
@@ -467,7 +470,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			grpcMetricsStreamingInterceptor,
 			dispatchMemoryProtection.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
-			datastoremw.StreamServerInterceptor(ds),
+			datalayermw.StreamServerInterceptor(dl),
 			servicespecific.StreamServerInterceptor,
 		}
 }

@@ -5,7 +5,6 @@ import (
 	"maps"
 
 	"github.com/authzed/spicedb/internal/caveats"
-	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -76,7 +75,7 @@ func SimplifyCaveatExpression(
 	runner *caveats.CaveatRunner,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader caveats.CaveatDefinitionLookup,
 ) (*core.CaveatExpression, bool, error) {
 	if err := runner.PopulateCaveatDefinitionsForExpr(ctx, expr, reader); err != nil {
 		return nil, false, err
@@ -90,7 +89,7 @@ func simplifyCaveatExpressionInternal(
 	runner *caveats.CaveatRunner,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader caveats.CaveatDefinitionLookup,
 ) (*core.CaveatExpression, bool, error) {
 	// If this is a leaf caveat, evaluate it
 	if expr.GetCaveat() != nil {
@@ -111,7 +110,7 @@ func evaluateLeaf(
 	runner *caveats.CaveatRunner,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader caveats.CaveatDefinitionLookup,
 ) (*core.CaveatExpression, bool, error) {
 	// For complex expressions (AND/OR), we need to collect contexts from the entire expression tree
 	var fullContext map[string]any
@@ -148,7 +147,7 @@ func simplifyOperation(
 	expr *core.CaveatExpression,
 	cop *core.CaveatOperation,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader caveats.CaveatDefinitionLookup,
 ) (*core.CaveatExpression, bool, error) {
 	switch cop.Op {
 	case core.CaveatOperation_AND:
@@ -168,7 +167,7 @@ func simplifyAndOperation(
 	runner *caveats.CaveatRunner,
 	cop *core.CaveatOperation,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader caveats.CaveatDefinitionLookup,
 ) (*core.CaveatExpression, bool, error) {
 	var simplifiedChildren []*core.CaveatExpression
 
@@ -218,7 +217,7 @@ func simplifyOrOperation(
 	expr *core.CaveatExpression,
 	cop *core.CaveatOperation,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader caveats.CaveatDefinitionLookup,
 ) (*core.CaveatExpression, bool, error) {
 	var simplifiedChildren []*core.CaveatExpression
 
@@ -268,7 +267,7 @@ func simplifyNotOperation(
 	expr *core.CaveatExpression,
 	cop *core.CaveatOperation,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader caveats.CaveatDefinitionLookup,
 ) (*core.CaveatExpression, bool, error) {
 	if len(cop.Children) != 1 {
 		// NOT should have exactly one child

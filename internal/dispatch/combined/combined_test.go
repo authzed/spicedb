@@ -7,8 +7,9 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -20,7 +21,7 @@ func TestCombinedRecursiveCall(t *testing.T) {
 
 	t.Cleanup(func() { dispatcher.Close() })
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
+	ctx := datalayermw.ContextWithHandle(t.Context())
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -36,7 +37,7 @@ func TestCombinedRecursiveCall(t *testing.T) {
 		tuple.MustParse("resource:someresource#viewer@resource:someresource#viewer"),
 	}, require.New(t))
 
-	require.NoError(t, datastoremw.SetInContext(ctx, ds))
+	require.NoError(t, datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	_, err = dispatcher.DispatchCheck(ctx, &dispatchv1.DispatchCheckRequest{
 		ResourceRelation: &core.RelationReference{

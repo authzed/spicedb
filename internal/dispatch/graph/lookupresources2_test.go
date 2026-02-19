@@ -15,8 +15,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -322,8 +323,8 @@ func TestMaxDepthLookup2(t *testing.T) {
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
-	require.NoError(datastoremw.SetInContext(ctx, ds))
+	ctx := datalayermw.ContextWithHandle(t.Context())
+	require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -765,8 +766,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 
 					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-					ctx := datastoremw.ContextWithHandle(t.Context())
-					require.NoError(datastoremw.SetInContext(ctx, ds))
+					ctx := datalayermw.ContextWithHandle(t.Context())
+					require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 					var currentCursor *v1.Cursor
 					foundResourceIDs := mapz.NewSet[string]()
@@ -845,11 +846,11 @@ func TestLookupResources2ImmediateTimeout(t *testing.T) {
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
+	ctx := datalayermw.ContextWithHandle(t.Context())
 	cctx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
 	defer cancel()
 
-	require.NoError(datastoremw.SetInContext(cctx, ds))
+	require.NoError(datalayermw.SetInContext(cctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -881,11 +882,11 @@ func TestLookupResources2WithError(t *testing.T) {
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
+	ctx := datalayermw.ContextWithHandle(t.Context())
 	cctx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
 	defer cancel()
 
-	require.NoError(datastoremw.SetInContext(cctx, ds))
+	require.NoError(datalayermw.SetInContext(cctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -1361,11 +1362,11 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			require.NoError(err)
 			defer dispatcher.Close()
 
-			ctx := datastoremw.ContextWithHandle(t.Context())
+			ctx := datalayermw.ContextWithHandle(t.Context())
 			cctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 			defer cancel()
 
-			require.NoError(datastoremw.SetInContext(cctx, checkingDS))
+			require.NoError(datalayermw.SetInContext(cctx, datalayer.NewDataLayer(checkingDS)))
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 			err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{

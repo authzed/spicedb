@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -46,7 +47,9 @@ func TestSimplifyLeafCaveat(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create caveat expression without context
@@ -63,7 +66,7 @@ func TestSimplifyLeafCaveat(t *testing.T) {
 		// Context that makes caveat true (45 >= 42)
 		context := map[string]any{"value": int64(45)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, caveatExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, caveatExpr, context, sr)
 		require.NoError(err)
 		require.Nil(simplified) // nil means unconditionally true
 		require.True(passes)    // should pass
@@ -73,7 +76,7 @@ func TestSimplifyLeafCaveat(t *testing.T) {
 		// Context that makes caveat false (30 < 42)
 		context := map[string]any{"value": int64(30)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, caveatExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, caveatExpr, context, sr)
 		require.NoError(err)
 		require.NotNil(simplified) // Should return the expression (indicates what failed)
 		require.False(passes)      // should not pass
@@ -84,7 +87,7 @@ func TestSimplifyLeafCaveat(t *testing.T) {
 		// No context - caveat should be partial
 		context := map[string]any{}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, caveatExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, caveatExpr, context, sr)
 		require.NoError(err)
 		require.NotNil(simplified) // Should return the expression (partial)
 		require.True(passes)       // should pass conditionally
@@ -133,7 +136,9 @@ func TestSimplifyAndOperation(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create AND expression: caveat1 AND caveat2
@@ -161,7 +166,7 @@ func TestSimplifyAndOperation(t *testing.T) {
 		// Both caveats true: a=15 >= 10, b=25 >= 20
 		context := map[string]any{"a": int64(15), "b": int64(25)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, sr)
 		require.NoError(err)
 		require.Nil(simplified) // AND of all true = true
 		require.True(passes)    // should pass
@@ -171,7 +176,7 @@ func TestSimplifyAndOperation(t *testing.T) {
 		// First true, second partial: a=15 >= 10, no b value
 		context := map[string]any{"a": int64(15)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, sr)
 		require.NoError(err)
 		require.NotNil(simplified)
 		require.True(passes) // should pass conditionally
@@ -185,7 +190,7 @@ func TestSimplifyAndOperation(t *testing.T) {
 		// First false: a=5 < 10
 		context := map[string]any{"a": int64(5), "b": int64(25)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, sr)
 		require.NoError(err)
 		require.NotNil(simplified)
 		require.False(passes) // should not pass
@@ -237,7 +242,9 @@ func TestSimplifyOrOperation(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create OR expression: caveat1 OR caveat2
@@ -265,7 +272,7 @@ func TestSimplifyOrOperation(t *testing.T) {
 		// First true: a=15 >= 10
 		context := map[string]any{"a": int64(15), "b": int64(5)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, sr)
 		require.NoError(err)
 		require.Nil(simplified) // OR with any true = true
 		require.True(passes)    // should pass
@@ -275,7 +282,7 @@ func TestSimplifyOrOperation(t *testing.T) {
 		// First false, second partial: a=5 < 10, no b value
 		context := map[string]any{"a": int64(5)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, sr)
 		require.NoError(err)
 		require.NotNil(simplified)
 		require.True(passes) // should pass conditionally
@@ -289,7 +296,7 @@ func TestSimplifyOrOperation(t *testing.T) {
 		// Both false: a=5 < 10, b=15 < 20
 		context := map[string]any{"a": int64(5), "b": int64(15)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, sr)
 		require.NoError(err)
 		require.NotNil(simplified)
 		require.False(passes) // should not pass
@@ -353,7 +360,9 @@ func TestSimplifyNestedOperations(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create nested expression: (caveat1 OR caveat2) AND caveat3
@@ -395,7 +404,7 @@ func TestSimplifyNestedOperations(t *testing.T) {
 		// caveat1 true, caveat3 partial: (true OR x) AND partial = partial
 		context := map[string]any{"a": int64(15)} // caveat1 true, others partial
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, nestedExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, nestedExpr, context, sr)
 		require.NoError(err)
 		require.NotNil(simplified)
 		require.True(passes) // should pass conditionally
@@ -438,7 +447,9 @@ func TestSimplifyOrWithSameCaveatDifferentContexts(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create OR expression: write_limit(limit=2) OR write_limit(limit=4)
@@ -465,7 +476,7 @@ func TestSimplifyOrWithSameCaveatDifferentContexts(t *testing.T) {
 		// count=3: (3 < 2) OR (3 < 4) = false OR true = true
 		context := map[string]any{"count": uint64(3)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, sr)
 		require.NoError(err)
 		require.True(passes, "Expected OR expression to pass with count=3")
 		require.Nil(simplified, "Expected simplified expression to be nil (unconditionally true)")
@@ -475,7 +486,7 @@ func TestSimplifyOrWithSameCaveatDifferentContexts(t *testing.T) {
 		// count=1: (1 < 2) OR (1 < 4) = true OR true = true
 		context := map[string]any{"count": uint64(1)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, sr)
 		require.NoError(err)
 		require.True(passes, "Expected OR expression to pass with count=1")
 		require.Nil(simplified, "Expected simplified expression to be nil (unconditionally true)")
@@ -485,7 +496,7 @@ func TestSimplifyOrWithSameCaveatDifferentContexts(t *testing.T) {
 		// count=5: (5 < 2) OR (5 < 4) = false OR false = false
 		context := map[string]any{"count": uint64(5)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, orExpr, context, sr)
 		require.NoError(err)
 		require.False(passes, "Expected OR expression to fail with count=5")
 		require.NotNil(simplified, "Expected simplified expression to contain the failed OR")
@@ -524,7 +535,9 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create AND expression: write_limit(limit=2) AND write_limit(limit=4)
@@ -551,7 +564,7 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 		// count=1: (1 < 2) AND (1 < 4) = true AND true = true
 		context := map[string]any{"count": uint64(1)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, sr)
 		require.NoError(err)
 		require.True(passes, "Expected AND expression to pass with count=1")
 		require.Nil(simplified, "Expected simplified expression to be nil (unconditionally true)")
@@ -561,7 +574,7 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 		// count=3: (3 < 2) AND (3 < 4) = false AND true = false
 		context := map[string]any{"count": uint64(3)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, sr)
 		require.NoError(err)
 		require.False(passes, "Expected AND expression to fail with count=3")
 		require.NotNil(simplified, "Expected simplified expression to contain the failed caveat")
@@ -576,7 +589,7 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 		// count=5: (5 < 2) AND (5 < 4) = false AND false = false
 		context := map[string]any{"count": uint64(5)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, andExpr, context, sr)
 		require.NoError(err)
 		require.False(passes, "Expected AND expression to fail with count=5")
 		require.NotNil(simplified, "Expected simplified expression to contain the failed caveat")
@@ -620,7 +633,9 @@ func TestSimplifyNotWithSameCaveatDifferentContexts(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create NOT expression: NOT write_limit(limit=4)
@@ -639,7 +654,7 @@ func TestSimplifyNotWithSameCaveatDifferentContexts(t *testing.T) {
 		// count=3: NOT (3 < 4) = NOT true = false
 		context := map[string]any{"count": uint64(3)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, notExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, notExpr, context, sr)
 		require.NoError(err)
 		require.False(passes, "Expected NOT expression to fail with count=3 (since 3 < 4 is true, NOT true = false)")
 		require.NotNil(simplified, "Expected simplified expression to contain the failed NOT expression")
@@ -649,7 +664,7 @@ func TestSimplifyNotWithSameCaveatDifferentContexts(t *testing.T) {
 		// count=5: NOT (5 < 4) = NOT false = true
 		context := map[string]any{"count": uint64(5)}
 
-		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, notExpr, context, reader)
+		simplified, passes, err := SimplifyCaveatExpression(ctx, runner, notExpr, context, sr)
 		require.NoError(err)
 		require.True(passes, "Expected NOT expression to pass with count=5 (since 5 < 4 is false, NOT false = true)")
 		require.Nil(simplified, "Expected simplified expression to be nil (unconditionally true)")
@@ -702,7 +717,9 @@ func TestSimplifyComplexNestedExpressions(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	t.Run("OrOfAnds_ComplexNesting", func(t *testing.T) {
@@ -748,14 +765,14 @@ func TestSimplifyComplexNestedExpressions(t *testing.T) {
 
 		// Test count=1: First AND is (1<2 AND 1<5) = true, so entire OR is true
 		context1 := map[string]any{"count": uint64(1)}
-		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, complexExpr, context1, reader)
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, complexExpr, context1, sr)
 		require.NoError(err1)
 		require.True(passes1, "Expected complex expression to pass with count=1")
 		require.Nil(simplified1, "Expected simplified expression to be nil (unconditionally true)")
 
 		// Test count=4: First AND is (4<2 AND 4<5) = false, Second AND is (4<6 AND 4<3) = false, so OR is false
 		context2 := map[string]any{"count": uint64(4)}
-		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, complexExpr, context2, reader)
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, complexExpr, context2, sr)
 		require.NoError(err2)
 		require.False(passes2, "Expected complex expression to fail with count=4")
 		require.NotNil(simplified2, "Expected simplified expression to contain the failed OR")
@@ -804,21 +821,21 @@ func TestSimplifyComplexNestedExpressions(t *testing.T) {
 
 		// Test count=1: First OR is (1<2 OR 1<6) = true, Second OR is (1<3 OR 1<7) = true, so AND is true
 		context1 := map[string]any{"count": uint64(1)}
-		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, complexExpr, context1, reader)
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, complexExpr, context1, sr)
 		require.NoError(err1)
 		require.True(passes1, "Expected complex expression to pass with count=1")
 		require.Nil(simplified1, "Expected simplified expression to be nil (unconditionally true)")
 
 		// Test count=4: First OR is (4<2 OR 4<6) = true, Second OR is (4<3 OR 4<7) = true, so AND is true
 		context2 := map[string]any{"count": uint64(4)}
-		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, complexExpr, context2, reader)
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, complexExpr, context2, sr)
 		require.NoError(err2)
 		require.True(passes2, "Expected complex expression to pass with count=4")
 		require.Nil(simplified2, "Expected simplified expression to be nil (unconditionally true)")
 
 		// Test count=8: First OR is (8<2 OR 8<6) = false, so entire AND is false
 		context3 := map[string]any{"count": uint64(8)}
-		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, complexExpr, context3, reader)
+		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, complexExpr, context3, sr)
 		require.NoError(err3)
 		require.False(passes3, "Expected complex expression to fail with count=8")
 		require.NotNil(simplified3, "Expected simplified expression to contain the failed first OR")
@@ -849,14 +866,14 @@ func TestSimplifyComplexNestedExpressions(t *testing.T) {
 
 		// Test count=1: Inner OR is (1<2 OR 1<6) = true, so NOT true = false
 		context1 := map[string]any{"count": uint64(1)}
-		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, complexExpr, context1, reader)
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, complexExpr, context1, sr)
 		require.NoError(err1)
 		require.False(passes1, "Expected NOT expression to fail with count=1")
 		require.NotNil(simplified1, "Expected simplified expression to contain the failed NOT")
 
 		// Test count=8: Inner OR is (8<2 OR 8<6) = false, so NOT false = true
 		context2 := map[string]any{"count": uint64(8)}
-		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, complexExpr, context2, reader)
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, complexExpr, context2, sr)
 		require.NoError(err2)
 		require.True(passes2, "Expected NOT expression to pass with count=8")
 		require.Nil(simplified2, "Expected simplified expression to be nil (unconditionally true)")
@@ -1169,7 +1186,9 @@ func TestSimplifyWithEmptyContext(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create nested expression: (caveat1 OR caveat2) AND caveat3
@@ -1209,7 +1228,7 @@ func TestSimplifyWithEmptyContext(t *testing.T) {
 
 	// Empty context - all caveats should be partial
 	emptyContext := map[string]any{}
-	simplified, passes, err := SimplifyCaveatExpression(ctx, runner, nestedExpr, emptyContext, reader)
+	simplified, passes, err := SimplifyCaveatExpression(ctx, runner, nestedExpr, emptyContext, sr)
 	require.NoError(err)
 	require.NotNil(simplified, "Should return the expression (partial)")
 	require.True(passes, "Should pass conditionally with empty context")
@@ -1251,7 +1270,9 @@ func TestSimplifyNotConditional(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Create NOT expression: NOT limit_check(limit=10)
@@ -1271,7 +1292,7 @@ func TestSimplifyNotConditional(t *testing.T) {
 	// We provide limit but not count, making the child caveat partial
 	partialContext := map[string]any{} // No count provided, only limit is in relationship context
 
-	simplified, passes, err := SimplifyCaveatExpression(ctx, runner, notExpr, partialContext, reader)
+	simplified, passes, err := SimplifyCaveatExpression(ctx, runner, notExpr, partialContext, sr)
 	require.NoError(err)
 	require.True(passes, "NOT of conditional caveat should pass conditionally")
 	require.NotNil(simplified, "NOT of conditional caveat should remain as NOT expression")
@@ -1337,7 +1358,9 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 	})
 	require.NoError(err)
 
-	reader := ds.SnapshotReader(revision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
 	// Helper to create caveat expressions
@@ -1362,7 +1385,7 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 
 		// Test 1: All values satisfy all caveats
 		context1 := map[string]any{"a": int64(15), "b": int64(25), "c": int64(35), "d": int64(45), "e": int64(55)}
-		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, reader)
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, sr)
 		require.NoError(err1)
 		require.True(passes1, "All caveats satisfied should pass")
 		require.Nil(simplified1, "Should simplify to unconditionally true")
@@ -1370,7 +1393,7 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 		// Test 2: Only left branch of OR satisfies, and E satisfies
 		// (a=15>=10 AND b=25>=20) OR (c=25<30 AND d=35<40) = true OR false = true, then true AND e=55>=50 = true
 		context2 := map[string]any{"a": int64(15), "b": int64(25), "c": int64(25), "d": int64(35), "e": int64(55)}
-		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, reader)
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, sr)
 		require.NoError(err2)
 		require.True(passes2, "Left branch of OR satisfies, should pass")
 		require.Nil(simplified2, "Should simplify to unconditionally true")
@@ -1378,7 +1401,7 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 		// Test 3: OR branch passes but E fails
 		// (a=15>=10 AND b=25>=20) = true, then true AND e=45<50 = false
 		context3 := map[string]any{"a": int64(15), "b": int64(25), "c": int64(25), "d": int64(35), "e": int64(45)}
-		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, reader)
+		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, sr)
 		require.NoError(err3)
 		require.False(passes3, "E fails, entire expression should fail")
 		require.NotNil(simplified3, "Should return failed caveat")
@@ -1386,7 +1409,7 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 		// Test 4: Neither OR branch satisfies
 		// Both AND branches fail, so OR fails, making entire expression fail
 		context4 := map[string]any{"a": int64(5), "b": int64(15), "c": int64(25), "d": int64(35), "e": int64(55)}
-		simplified4, passes4, err4 := SimplifyCaveatExpression(ctx, runner, deepExpr, context4, reader)
+		simplified4, passes4, err4 := SimplifyCaveatExpression(ctx, runner, deepExpr, context4, sr)
 		require.NoError(err4)
 		require.False(passes4, "OR branch fails, entire expression should fail")
 		require.NotNil(simplified4, "Should return failed expression")
@@ -1409,21 +1432,21 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 
 		// Test 1: Left branch fully satisfies (a passes, c passes)
 		context1 := map[string]any{"a": int64(15), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(5), "f": int64(5)}
-		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, reader)
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, sr)
 		require.NoError(err1)
 		require.True(passes1, "Left branch satisfies, should pass")
 		require.Nil(simplified1, "Should simplify to unconditionally true")
 
 		// Test 2: Right branch satisfies (e passes, f passes)
 		context2 := map[string]any{"a": int64(5), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(55), "f": int64(65)}
-		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, reader)
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, sr)
 		require.NoError(err2)
 		require.True(passes2, "Right branch satisfies, should pass")
 		require.Nil(simplified2, "Should simplify to unconditionally true")
 
 		// Test 3: Both branches fail
 		context3 := map[string]any{"a": int64(5), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(5), "f": int64(65)}
-		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, reader)
+		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, sr)
 		require.NoError(err3)
 		require.False(passes3, "Both branches fail, should fail")
 		require.NotNil(simplified3, "Should return failed expression")
@@ -1445,35 +1468,35 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 
 		// Test 1: All pass
 		context1 := map[string]any{"a": int64(15), "b": int64(25), "c": int64(35), "d": int64(45), "e": int64(55), "f": int64(65)}
-		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, reader)
+		simplified1, passes1, err1 := SimplifyCaveatExpression(ctx, runner, deepExpr, context1, sr)
 		require.NoError(err1)
 		require.True(passes1, "All pass, should pass")
 		require.Nil(simplified1, "Should simplify to unconditionally true")
 
 		// Test 2: Left branch passes (a passes, c passes)
 		context2 := map[string]any{"a": int64(15), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(5), "f": int64(5)}
-		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, reader)
+		simplified2, passes2, err2 := SimplifyCaveatExpression(ctx, runner, deepExpr, context2, sr)
 		require.NoError(err2)
 		require.True(passes2, "Left branch passes, should pass")
 		require.Nil(simplified2, "Should simplify to unconditionally true")
 
 		// Test 3: Right branch passes (e and f pass)
 		context3 := map[string]any{"a": int64(5), "b": int64(5), "c": int64(35), "d": int64(5), "e": int64(55), "f": int64(65)}
-		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, reader)
+		simplified3, passes3, err3 := SimplifyCaveatExpression(ctx, runner, deepExpr, context3, sr)
 		require.NoError(err3)
 		require.True(passes3, "Right branch passes, should pass")
 		require.Nil(simplified3, "Should simplify to unconditionally true")
 
 		// Test 4: Left branch partial fails (a passes but c and d fail)
 		context4 := map[string]any{"a": int64(15), "b": int64(5), "c": int64(5), "d": int64(5), "e": int64(5), "f": int64(5)}
-		simplified4, passes4, err4 := SimplifyCaveatExpression(ctx, runner, deepExpr, context4, reader)
+		simplified4, passes4, err4 := SimplifyCaveatExpression(ctx, runner, deepExpr, context4, sr)
 		require.NoError(err4)
 		require.False(passes4, "Both branches fail, should fail")
 		require.NotNil(simplified4, "Should return failed expression")
 
 		// Test 5: Right branch partial fails (only e passes, not f)
 		context5 := map[string]any{"a": int64(5), "b": int64(5), "c": int64(5), "d": int64(5), "e": int64(55), "f": int64(5)}
-		simplified5, passes5, err5 := SimplifyCaveatExpression(ctx, runner, deepExpr, context5, reader)
+		simplified5, passes5, err5 := SimplifyCaveatExpression(ctx, runner, deepExpr, context5, sr)
 		require.NoError(err5)
 		require.False(passes5, "Both branches fail, should fail")
 		require.NotNil(simplified5, "Should return failed expression")

@@ -144,10 +144,6 @@ func (r *ctxReader) ReverseQueryRelationships(ctx context.Context, subjectsFilte
 	return r.delegate.ReverseQueryRelationships(context.WithoutCancel(ctx), subjectsFilter, options...)
 }
 
-func (r *ctxReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.delegate.SchemaReader()
-}
-
 var (
 	_ datastore.Datastore = (*ctxProxy)(nil)
 	_ datastore.Reader    = (*ctxReader)(nil)

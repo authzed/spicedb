@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -18,10 +19,28 @@ type TypeSystemResolver interface {
 	LookupCaveat(ctx context.Context, name string) (*Caveat, error)
 }
 
+// ResolverFor returns a TypeSystemResolver for a SchemaReader.
+func ResolverFor(sr datalayer.SchemaReader) *DatastoreResolver {
+	return &DatastoreResolver{
+		lookup: sr,
+	}
+}
+
+// ResolverForSchemaReader returns a TypeSystemResolver for a datalayer reader.
+// The reader's ReadSchema() method is called eagerly to resolve definitions.
+func ResolverForSchemaReader(reader datalayer.RevisionedReader) (*DatastoreResolver, error) {
+	sr, err := reader.ReadSchema()
+	if err != nil {
+		return nil, err
+	}
+	return &DatastoreResolver{lookup: sr}, nil
+}
+
 // ResolverForDatastoreReader returns a TypeSystemResolver for a datastore reader.
+// This uses the Legacy* methods directly on the reader.
 func ResolverForDatastoreReader(ds datastore.Reader) *DatastoreResolver {
 	return &DatastoreResolver{
-		ds: ds,
+		lookup: datalayer.SchemaReaderFromLegacy(ds),
 	}
 }
 
@@ -57,7 +76,7 @@ func ResolverForSchema(schema *compiler.CompiledSchema) TypeSystemResolver {
 
 // DatastoreResolver is a resolver implementation for a datastore, to look up schema stored in the underlying storage.
 type DatastoreResolver struct {
-	ds         datastore.Reader
+	lookup     datalayer.SchemaReader
 	predefined PredefinedElements
 }
 
@@ -71,15 +90,11 @@ func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (
 		}
 	}
 
-	if r.ds == nil {
+	if r.lookup == nil {
 		return nil, false, asTypeError(NewDefinitionNotFoundErr(name))
 	}
 
-	schemaReader, err := r.ds.SchemaReader()
-	if err != nil {
-		return nil, false, err
-	}
-	revDef, found, err := schemaReader.LookupTypeDefByName(ctx, name)
+	revDef, found, err := r.lookup.LookupTypeDefByName(ctx, name)
 	if err != nil {
 		return nil, false, err
 	}
@@ -94,7 +109,7 @@ func (r *DatastoreResolver) LookupDefinition(ctx context.Context, name string) (
 // for the datastore, often for validation.
 func (r *DatastoreResolver) WithPredefinedElements(predefined PredefinedElements) TypeSystemResolver {
 	return &DatastoreResolver{
-		ds:         r.ds,
+		lookup:     r.lookup,
 		predefined: predefined.combineWith(r.predefined),
 	}
 }
@@ -109,16 +124,11 @@ func (r *DatastoreResolver) LookupCaveat(ctx context.Context, name string) (*Cav
 		}
 	}
 
-	if r.ds == nil {
+	if r.lookup == nil {
 		return nil, asTypeError(NewCaveatNotFoundErr(name))
 	}
 
-	schemaReader, err := r.ds.SchemaReader()
-	if err != nil {
-		return nil, err
-	}
-
-	revDef, found, err := schemaReader.LookupCaveatDefByName(ctx, name)
+	revDef, found, err := r.lookup.LookupCaveatDefByName(ctx, name)
 	if err != nil {
 		return nil, err
 	}

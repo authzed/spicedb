@@ -10,7 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -617,7 +617,8 @@ definition resource {
 
 			require.NoError(err)
 
-			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			dl := datalayer.NewDataLayer(ds)
+			_, err = dl.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 				applied, err := ApplySchemaChanges(t.Context(), rwt, caveattypes.Default.TypeSet, validated)
 				if tc.expectedError != "" {
 					require.EqualError(err, tc.expectedError)
@@ -757,7 +758,8 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 
 			require.NoError(err)
 
-			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			dl := datalayer.NewDataLayer(ds)
+			_, err = dl.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 				applied, err := ApplySchemaChangesOverExisting(
 					t.Context(),
 					rwt,
@@ -774,11 +776,11 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 				require.NoError(err)
 				require.Equal(tc.expectedAppliedSchemaChanges, *applied)
 
-				reader, err := rwt.SchemaReader()
+				sr, err := rwt.ReadSchema()
 				require.NoError(err)
-				schema, err := reader.SchemaText()
+				schemaText, err := sr.SchemaText()
 				require.NoError(err)
-				require.Equal(tc.expectedSchema, schema)
+				require.Equal(tc.expectedSchema, schemaText)
 				return nil
 			})
 			require.NoError(err)

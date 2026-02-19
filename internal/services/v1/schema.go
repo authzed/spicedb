@@ -11,12 +11,12 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -81,20 +81,20 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	// Schema is always read from the head revision.
-	ds := datastoremw.MustFromContext(ctx)
-	headRevision, err := ds.HeadRevision(ctx)
+	dl := datalayermw.MustFromContext(ctx)
+	headRevision, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := dl.SnapshotReader(headRevision)
 
-	schemaReader, err := reader.SchemaReader()
+	sr, err := reader.ReadSchema()
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	schemaText, err := schemaReader.SchemaText()
+	schemaText, err := sr.SchemaText()
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -103,7 +103,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 		DispatchCount: 1,
 	})
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, ds)
+	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, dl)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -119,7 +119,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 
-	ds := datastoremw.MustFromContext(ctx)
+	dl := datalayermw.MustFromContext(ctx)
 
 	// Compile the schema into the namespace definitions.
 	opts := make([]compiler.Option, 0, 3)
@@ -144,8 +144,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	// Update the schema.
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		applied, err := shared.ApplySchemaChanges(ctx, rwt, ss.caveatTypeSet, validated)
 		if err != nil {
 			return err
@@ -165,7 +164,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, ds)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, dl)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -217,8 +216,8 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 		}
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
-	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, ds)
+	dl := datalayermw.MustFromContext(ctx)
+	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -265,8 +264,12 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	sr, err := dl.ReadSchema()
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -281,11 +284,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		}
 	}
 
-	schemaReader, err := ds.SchemaReader()
-	if err != nil {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
-	}
-	typeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
+	typeDefs, err := sr.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -352,8 +351,12 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	sr2, err := dl.ReadSchema()
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr2))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)

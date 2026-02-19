@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
@@ -31,7 +32,7 @@ func TestBuildTree(t *testing.T) {
 	require.NoError(err)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -61,7 +62,7 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 	require.Contains(explain.String(), "Union", "edit permission should create a union iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -112,7 +113,7 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	require.NotEmpty(explain.String())
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	// Just test that the iterator can be executed without error
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
@@ -211,7 +212,7 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	require.Contains(explain.String(), "Intersection", "should create intersection iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	// Test execution
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
@@ -274,7 +275,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	userDef := testfixtures.UserNS.CloneVT()
 
@@ -534,7 +535,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	require.Contains(explain.String(), "Datastore", "should create datastore iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	// Test execution
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
@@ -554,7 +555,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	userDef := testfixtures.UserNS.CloneVT()
 

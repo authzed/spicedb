@@ -15,7 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -163,11 +163,16 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 		bulkResponseMutex.Lock()
 		defer bulkResponseMutex.Unlock()
 
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+		dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+		sr, err := dl.ReadSchema()
+		if err != nil {
+			return err
+		}
 
 		schemaText := ""
 		if len(debugInfos) > 0 {
-			schema, err := getFullSchema(ctx, ds)
+			schema, err := getFullSchema(ctx, sr)
 			if err != nil {
 				return err
 			}
@@ -215,7 +220,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 					}
 
 					// Convert to debug information.
-					dt, err := convertCheckDispatchDebugInformationWithSchema(ctx, params.CaveatContext, wrappedDebugInfo, ds, bc.caveatTypeSet, schemaText)
+					dt, err := convertCheckDispatchDebugInformationWithSchema(ctx, params.CaveatContext, wrappedDebugInfo, sr, bc.caveatTypeSet, schemaText)
 					if err != nil {
 						return err
 					}
@@ -246,10 +251,15 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 			tr.Add(func(ctx context.Context) error {
 				startTime := time.Now()
 
-				ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+				dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+				sr, err := dl.ReadSchema()
+				if err != nil {
+					return appendResultsForError(group.params, resourceIDs, err)
+				}
 
 				// Ensure the check namespaces and relations are valid.
-				err := namespace.CheckNamespaceAndRelations(ctx,
+				err = namespace.CheckNamespaceAndRelations(ctx,
 					[]namespace.TypeAndRelationToCheck{
 						{
 							NamespaceName: group.params.ResourceType.ObjectType,
@@ -261,7 +271,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 							RelationName:  cmp.Or(group.params.Subject.Relation, graph.Ellipsis),
 							AllowEllipsis: true,
 						},
-					}, ds)
+					}, sr)
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}

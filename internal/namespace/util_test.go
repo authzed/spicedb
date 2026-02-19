@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -169,9 +170,11 @@ func TestCheckNamespaceAndRelations(t *testing.T) {
 			rev, err := ds.HeadRevision(t.Context())
 			require.NoError(t, err)
 
-			reader := ds.SnapshotReader(rev)
+			dl := datalayer.NewDataLayer(ds)
+			sr, err := dl.SnapshotReader(rev).ReadSchema()
+			require.NoError(t, err)
 
-			err = namespace.CheckNamespaceAndRelations(t.Context(), tc.checks, reader)
+			err = namespace.CheckNamespaceAndRelations(t.Context(), tc.checks, sr)
 			if tc.expectedError == "" {
 				require.NoError(t, err)
 			} else {

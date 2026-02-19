@@ -1,4 +1,4 @@
-package schema
+package datalayer
 
 import (
 	"context"
@@ -17,23 +17,21 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// LegacySchemaReaderAdapter is a common implementation of SchemaReader that uses the legacy
-// schema reader methods. This allows datastores to implement the new SchemaReader interface
-// while still using the legacy methods internally during the transition period.
-type LegacySchemaReaderAdapter struct {
-	legacyReader datastore.LegacySchemaReader
+// SchemaReaderFromLegacy returns a SchemaReader that adapts a datastore.LegacySchemaReader
+// by calling Legacy* methods on the underlying reader.
+func SchemaReaderFromLegacy(legacyReader datastore.LegacySchemaReader) SchemaReader {
+	return &legacySchemaReaderAdapter{legacyReader: legacyReader}
 }
 
-// NewLegacySchemaReaderAdapter creates a new LegacySchemaReaderAdapter that wraps a LegacySchemaReader.
-func NewLegacySchemaReaderAdapter(legacyReader datastore.LegacySchemaReader) *LegacySchemaReaderAdapter {
-	return &LegacySchemaReaderAdapter{
-		legacyReader: legacyReader,
-	}
+// legacySchemaReaderAdapter implements SchemaReader by calling
+// Legacy* methods on the underlying datastore.LegacySchemaReader.
+type legacySchemaReaderAdapter struct {
+	legacyReader datastore.LegacySchemaReader
 }
 
 // SchemaText returns the schema text at the current revision by reading all namespaces and caveats
 // and generating the schema text from them.
-func (l *LegacySchemaReaderAdapter) SchemaText() (string, error) {
+func (l *legacySchemaReaderAdapter) SchemaText() (string, error) {
 	ctx := context.Background()
 
 	// Read all namespaces
@@ -73,10 +71,9 @@ func (l *LegacySchemaReaderAdapter) SchemaText() (string, error) {
 }
 
 // LookupTypeDefByName looks up a type definition (namespace) by name.
-func (l *LegacySchemaReaderAdapter) LookupTypeDefByName(ctx context.Context, name string) (datastore.RevisionedTypeDefinition, bool, error) {
+func (l *legacySchemaReaderAdapter) LookupTypeDefByName(ctx context.Context, name string) (datastore.RevisionedTypeDefinition, bool, error) {
 	ns, revision, err := l.legacyReader.LegacyReadNamespaceByName(ctx, name)
 	if err != nil {
-		// Check if it's a not found error
 		if errors.As(err, &datastore.NamespaceNotFoundError{}) {
 			return datastore.RevisionedTypeDefinition{}, false, nil
 		}
@@ -90,10 +87,9 @@ func (l *LegacySchemaReaderAdapter) LookupTypeDefByName(ctx context.Context, nam
 }
 
 // LookupCaveatDefByName looks up a caveat definition by name.
-func (l *LegacySchemaReaderAdapter) LookupCaveatDefByName(ctx context.Context, name string) (datastore.RevisionedCaveat, bool, error) {
+func (l *legacySchemaReaderAdapter) LookupCaveatDefByName(ctx context.Context, name string) (datastore.RevisionedCaveat, bool, error) {
 	caveat, revision, err := l.legacyReader.LegacyReadCaveatByName(ctx, name)
 	if err != nil {
-		// Check if it's a not found error
 		if errors.As(err, &datastore.CaveatNameNotFoundError{}) {
 			return datastore.RevisionedCaveat{}, false, nil
 		}
@@ -107,7 +103,7 @@ func (l *LegacySchemaReaderAdapter) LookupCaveatDefByName(ctx context.Context, n
 }
 
 // ListAllTypeDefinitions lists all type definitions (namespaces).
-func (l *LegacySchemaReaderAdapter) ListAllTypeDefinitions(ctx context.Context) ([]datastore.RevisionedTypeDefinition, error) {
+func (l *legacySchemaReaderAdapter) ListAllTypeDefinitions(ctx context.Context) ([]datastore.RevisionedTypeDefinition, error) {
 	namespaces, err := l.legacyReader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list namespaces: %w", err)
@@ -116,7 +112,7 @@ func (l *LegacySchemaReaderAdapter) ListAllTypeDefinitions(ctx context.Context) 
 }
 
 // ListAllCaveatDefinitions lists all caveat definitions.
-func (l *LegacySchemaReaderAdapter) ListAllCaveatDefinitions(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (l *legacySchemaReaderAdapter) ListAllCaveatDefinitions(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	caveats, err := l.legacyReader.LegacyListAllCaveats(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list caveats: %w", err)
@@ -125,10 +121,9 @@ func (l *LegacySchemaReaderAdapter) ListAllCaveatDefinitions(ctx context.Context
 }
 
 // ListAllSchemaDefinitions lists all type and caveat definitions.
-func (l *LegacySchemaReaderAdapter) ListAllSchemaDefinitions(ctx context.Context) (map[string]datastore.SchemaDefinition, error) {
+func (l *legacySchemaReaderAdapter) ListAllSchemaDefinitions(ctx context.Context) (map[string]datastore.SchemaDefinition, error) {
 	result := make(map[string]datastore.SchemaDefinition)
 
-	// Read all namespaces
 	namespaces, err := l.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return nil, err
@@ -138,7 +133,6 @@ func (l *LegacySchemaReaderAdapter) ListAllSchemaDefinitions(ctx context.Context
 		result[ns.Definition.Name] = ns.Definition
 	}
 
-	// Read all caveats
 	caveats, err := l.ListAllCaveatDefinitions(ctx)
 	if err != nil {
 		return nil, err
@@ -152,34 +146,30 @@ func (l *LegacySchemaReaderAdapter) ListAllSchemaDefinitions(ctx context.Context
 }
 
 // LookupSchemaDefinitionsByNames looks up type and caveat definitions by name.
-func (l *LegacySchemaReaderAdapter) LookupSchemaDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
+func (l *legacySchemaReaderAdapter) LookupSchemaDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
 	nameSet := mapz.NewSet(names...)
 	allDefs := make(map[string]datastore.SchemaDefinition, len(names))
 
-	// Look up as typedefs first
 	typeDefs, err := l.LookupTypeDefinitionsByNames(ctx, names)
 	if err != nil {
 		return nil, err
 	}
 
-	// Look up remaining names as caveats
 	remainingNames := nameSet.Subtract(mapz.NewSet(slices.Collect(maps.Keys(typeDefs))...))
 	caveatDefs, err := l.LookupCaveatDefinitionsByNames(ctx, remainingNames.AsSlice())
 	if err != nil {
 		return nil, err
 	}
 
-	// Merge the maps and return
-	// NOTE: we're able to do this naively because caveat names and definition names can't overlap.
 	maps.Copy(allDefs, typeDefs)
 	maps.Copy(allDefs, caveatDefs)
 	return allDefs, nil
 }
 
-func (l *LegacySchemaReaderAdapter) LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
+// LookupTypeDefinitionsByNames looks up type definitions by name.
+func (l *legacySchemaReaderAdapter) LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
 	result := make(map[string]datastore.SchemaDefinition)
 
-	// Try to look up as namespaces
 	namespaces, err := l.legacyReader.LegacyLookupNamespacesWithNames(ctx, names)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup namespaces: %w", err)
@@ -191,8 +181,8 @@ func (l *LegacySchemaReaderAdapter) LookupTypeDefinitionsByNames(ctx context.Con
 	return result, nil
 }
 
-// LookupCaveatDefinitionsByNames looks up type definitions by name.
-func (l *LegacySchemaReaderAdapter) LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
+// LookupCaveatDefinitionsByNames looks up caveat definitions by name.
+func (l *legacySchemaReaderAdapter) LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
 	result := make(map[string]datastore.SchemaDefinition)
 
 	caveats, err := l.legacyReader.LegacyLookupCaveatsWithNames(ctx, names)
@@ -207,29 +197,13 @@ func (l *LegacySchemaReaderAdapter) LookupCaveatDefinitionsByNames(ctx context.C
 	return result, nil
 }
 
-var _ datastore.SchemaReader = (*LegacySchemaReaderAdapter)(nil)
+var _ SchemaReader = (*legacySchemaReaderAdapter)(nil)
 
-// LegacySchemaWriterAdapter is a common implementation of SchemaWriter that uses the legacy
-// schema writer methods. This allows datastores to implement the new SchemaWriter interface
-// while still using the legacy methods internally during the transition period.
-type LegacySchemaWriterAdapter struct {
-	legacyWriter datastore.LegacySchemaWriter
-	legacyReader datastore.LegacySchemaReader
-}
-
-// NewLegacySchemaWriterAdapter creates a new LegacySchemaWriterAdapter that wraps a LegacySchemaWriter.
-func NewLegacySchemaWriterAdapter(legacyWriter datastore.LegacySchemaWriter, legacyReader datastore.LegacySchemaReader) *LegacySchemaWriterAdapter {
-	return &LegacySchemaWriterAdapter{
-		legacyWriter: legacyWriter,
-		legacyReader: legacyReader,
-	}
-}
-
-// WriteSchema writes the full set of schema definitions. The schema string is provided for
-// future use but is currently ignored by implementations. The method validates that no
-// definition names overlap, loads existing definitions, replaces changed ones, and deletes
-// definitions no longer present.
-func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *types.TypeSet) error {
+// writeSchemaViaLegacy implements the WriteSchema logic using Legacy* methods.
+func writeSchemaViaLegacy(ctx context.Context, legacyWriter datastore.LegacySchemaWriter,
+	legacyReader datastore.LegacySchemaReader, definitions []datastore.SchemaDefinition,
+	schemaString string, caveatTypeSet *types.TypeSet,
+) error {
 	// Validate that no definition names overlap
 	nameSet := mapz.NewSet[string]()
 	var namespaces []*core.NamespaceDefinition
@@ -242,7 +216,6 @@ func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions
 		}
 		nameSet.Insert(name)
 
-		// Type assertion to determine if it's a namespace or caveat
 		switch typedDef := def.(type) {
 		case *core.NamespaceDefinition:
 			namespaces = append(namespaces, typedDef)
@@ -254,12 +227,12 @@ func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions
 	}
 
 	// Load existing type and caveat names
-	existingTypeDefs, err := l.legacyReader.LegacyListAllNamespaces(ctx)
+	existingTypeDefs, err := legacyReader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list existing namespaces: %w", err)
 	}
 
-	existingCaveatDefs, err := l.legacyReader.LegacyListAllCaveats(ctx)
+	existingCaveatDefs, err := legacyReader.LegacyListAllCaveats(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list existing caveats: %w", err)
 	}
@@ -303,14 +276,14 @@ func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions
 
 	// Write namespaces (only new and changed)
 	if len(namespacesToWrite) > 0 {
-		if err := l.legacyWriter.LegacyWriteNamespaces(ctx, namespacesToWrite...); err != nil {
+		if err := legacyWriter.LegacyWriteNamespaces(ctx, namespacesToWrite...); err != nil {
 			return fmt.Errorf("failed to write namespaces: %w", err)
 		}
 	}
 
 	// Write caveats (only new and changed)
 	if len(caveatsToWrite) > 0 {
-		if err := l.legacyWriter.LegacyWriteCaveats(ctx, caveatsToWrite); err != nil {
+		if err := legacyWriter.LegacyWriteCaveats(ctx, caveatsToWrite); err != nil {
 			return fmt.Errorf("failed to write caveats: %w", err)
 		}
 	}
@@ -318,7 +291,7 @@ func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions
 	// Delete removed namespaces
 	removedTypeNames := existingTypeNames.Subtract(newTypeNames)
 	if removedTypeNames.Len() > 0 {
-		if err := l.legacyWriter.LegacyDeleteNamespaces(ctx, removedTypeNames.AsSlice(), datastore.DeleteNamespacesOnly); err != nil {
+		if err := legacyWriter.LegacyDeleteNamespaces(ctx, removedTypeNames.AsSlice(), datastore.DeleteNamespacesOnly); err != nil {
 			return fmt.Errorf("failed to delete removed namespaces: %w", err)
 		}
 	}
@@ -326,7 +299,7 @@ func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions
 	// Delete removed caveats
 	removedCaveatNames := existingCaveatNames.Subtract(newCaveatNames)
 	if removedCaveatNames.Len() > 0 {
-		if err := l.legacyWriter.LegacyDeleteCaveats(ctx, removedCaveatNames.AsSlice()); err != nil {
+		if err := legacyWriter.LegacyDeleteCaveats(ctx, removedCaveatNames.AsSlice()); err != nil {
 			return fmt.Errorf("failed to delete removed caveats: %w", err)
 		}
 	}
@@ -334,17 +307,16 @@ func (l *LegacySchemaWriterAdapter) WriteSchema(ctx context.Context, definitions
 	return nil
 }
 
-// AddDefinitionsForTesting adds or overwrites the given schema definitions. This method is
-// only for use in testing and requires a testing.TB instance to enforce this constraint.
-func (l *LegacySchemaWriterAdapter) AddDefinitionsForTesting(ctx context.Context, tb testing.TB, definitions ...datastore.SchemaDefinition) error {
-	// The tb parameter ensures this is only called from tests
+// addDefinitionsForTestingViaLegacy implements AddDefinitionsForTesting using Legacy* methods.
+func addDefinitionsForTestingViaLegacy(ctx context.Context, legacyWriter datastore.LegacySchemaWriter,
+	tb testing.TB, definitions ...datastore.SchemaDefinition,
+) error {
 	tb.Helper()
 
 	var namespaces []*core.NamespaceDefinition
 	var caveats []*core.CaveatDefinition
 
 	for _, def := range definitions {
-		// Type assertion to determine if it's a namespace or caveat
 		switch typedDef := def.(type) {
 		case *core.NamespaceDefinition:
 			namespaces = append(namespaces, typedDef)
@@ -355,21 +327,17 @@ func (l *LegacySchemaWriterAdapter) AddDefinitionsForTesting(ctx context.Context
 		}
 	}
 
-	// Write namespaces (add or overwrite)
 	if len(namespaces) > 0 {
-		if err := l.legacyWriter.LegacyWriteNamespaces(ctx, namespaces...); err != nil {
+		if err := legacyWriter.LegacyWriteNamespaces(ctx, namespaces...); err != nil {
 			return fmt.Errorf("failed to write namespaces: %w", err)
 		}
 	}
 
-	// Write caveats (add or overwrite)
 	if len(caveats) > 0 {
-		if err := l.legacyWriter.LegacyWriteCaveats(ctx, caveats); err != nil {
+		if err := legacyWriter.LegacyWriteCaveats(ctx, caveats); err != nil {
 			return fmt.Errorf("failed to write caveats: %w", err)
 		}
 	}
 
 	return nil
 }
-
-var _ datastore.SchemaWriter = (*LegacySchemaWriterAdapter)(nil)

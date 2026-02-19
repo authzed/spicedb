@@ -385,12 +385,6 @@ func (r relationshipIntegrityReader) LegacyReadNamespaceByName(ctx context.Conte
 	return r.wrapped.LegacyReadNamespaceByName(ctx, nsName)
 }
 
-// SchemaReader returns a handle to the wrapped reader's SchemaReader, as this
-// proxy does not interact with schema methods.
-func (r relationshipIntegrityReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.wrapped.SchemaReader()
-}
-
 type relationshipIntegrityTx struct {
 	datastore.ReadWriteTransaction
 
