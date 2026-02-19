@@ -47,11 +47,3 @@ jobs:
         with:
           path: ""
           fixup-command: "go run mage.go lint:all"
-
-  conventional-commits:
-    name: "Lint Commit Messages"
-    runs-on: "depot-ubuntu-24.04-small"
-    if: "github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened' || github.event.action == 'edited')"
-    steps:
-      - uses: "actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8" # v4.2.2
-      - uses: "webiny/action-conventional-commits@v1.3.1"
