@@ -293,6 +293,127 @@ func ApplySchemaChangesOverExisting(
 	}, nil
 }
 
+// ApplySchemaChangesDryRun performs all the validation that ApplySchemaChanges would do,
+// but without actually writing any changes to the datastore.
+func ApplySchemaChangesDryRun(ctx context.Context, reader datastore.Reader, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
+	existingCaveats, err := reader.ListAllCaveats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	existingObjectDefs, err := reader.ListAllNamespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return ApplySchemaChangesOverExistingDryRun(ctx, reader, caveatTypeSet, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
+}
+
+// ApplySchemaChangesOverExistingDryRun performs dry-run validation of schema changes against
+// existing caveat and object definitions, without actually writing any changes.
+func ApplySchemaChangesOverExistingDryRun(
+	ctx context.Context,
+	reader datastore.Reader,
+	caveatTypeSet *caveattypes.TypeSet,
+	validated *ValidatedSchemaChanges,
+	existingCaveats []*core.CaveatDefinition,
+	existingObjectDefs []*core.NamespaceDefinition,
+) (*AppliedSchemaChanges, error) {
+	// Build a map of existing caveats to determine those being removed, if any.
+	existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
+	existingCaveatDefNames := mapz.NewSet[string]()
+
+	for _, existingCaveat := range existingCaveats {
+		existingCaveatDefMap[existingCaveat.Name] = existingCaveat
+		existingCaveatDefNames.Insert(existingCaveat.Name)
+	}
+
+	// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
+	caveatDefsWithChanges := make([]*core.CaveatDefinition, 0, len(validated.compiled.CaveatDefinitions))
+	for _, caveatDef := range validated.compiled.CaveatDefinitions {
+		diff, err := sanityCheckCaveatChanges(ctx, nil, caveatTypeSet, caveatDef, existingCaveatDefMap)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(diff.Deltas()) > 0 {
+			caveatDefsWithChanges = append(caveatDefsWithChanges, caveatDef)
+		}
+	}
+
+	removedCaveatDefNames := existingCaveatDefNames.Subtract(validated.newCaveatDefNames)
+
+	// Build a map of existing definitions to determine those being removed, if any.
+	existingObjectDefMap := make(map[string]*core.NamespaceDefinition, len(existingObjectDefs))
+	existingObjectDefNames := mapz.NewSet[string]()
+	for _, existingDef := range existingObjectDefs {
+		existingObjectDefMap[existingDef.Name] = existingDef
+		existingObjectDefNames.Insert(existingDef.Name)
+	}
+
+	// For each definition, perform a diff and ensure the changes will not result in any
+	// breaking changes.
+	objectDefsWithChanges := make([]*core.NamespaceDefinition, 0, len(validated.compiled.ObjectDefinitions))
+	for _, nsdef := range validated.compiled.ObjectDefinitions {
+		diff, err := sanityCheckNamespaceChangesDryRun(ctx, reader, nsdef, existingObjectDefMap)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(diff.Deltas()) > 0 {
+			objectDefsWithChanges = append(objectDefsWithChanges, nsdef)
+
+			vts, ok := validated.validatedTypeSystems[nsdef.Name]
+			if !ok {
+				return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.Name)
+			}
+
+			if err := namespace.AnnotateNamespace(vts); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	log.Ctx(ctx).
+		Trace().
+		Int("objectDefinitions", len(validated.compiled.ObjectDefinitions)).
+		Int("caveatDefinitions", len(validated.compiled.CaveatDefinitions)).
+		Int("objectDefsWithChanges", len(objectDefsWithChanges)).
+		Int("caveatDefsWithChanges", len(caveatDefsWithChanges)).
+		Bool("dryRun", true).
+		Msg("validated namespace definitions (dry run)")
+
+	// Ensure that deleting namespaces will not result in any relationships left without associated
+	// schema. We only check the resource type as the subject type is handled by the schema validator,
+	// which will allow the deletion of the subject type if it is not used in any relation anyway.
+	removedObjectDefNames := existingObjectDefNames.Subtract(validated.newObjectDefNames)
+	if !validated.additiveOnly {
+		if err := removedObjectDefNames.ForEach(func(nsdefName string) error {
+			return ensureNoRelationshipsExistWithResourceTypeDryRun(ctx, reader, nsdefName)
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	log.Ctx(ctx).Trace().
+		Interface("objectDefinitions", validated.compiled.ObjectDefinitions).
+		Interface("caveatDefinitions", validated.compiled.CaveatDefinitions).
+		Object("addedOrChangedObjectDefinitions", validated.newObjectDefNames).
+		Object("removedObjectDefinitions", removedObjectDefNames).
+		Object("addedOrChangedCaveatDefinitions", validated.newCaveatDefNames).
+		Object("removedCaveatDefinitions", removedCaveatDefNames).
+		Bool("dryRun", true).
+		Msg("completed schema update validation (dry run)")
+
+	return &AppliedSchemaChanges{
+		TotalOperationCount:   len(validated.compiled.ObjectDefinitions) + len(validated.compiled.CaveatDefinitions) + removedObjectDefNames.Len() + removedCaveatDefNames.Len(),
+		NewObjectDefNames:     validated.newObjectDefNames.Subtract(existingObjectDefNames).AsSlice(),
+		RemovedObjectDefNames: removedObjectDefNames.AsSlice(),
+		NewCaveatDefNames:     validated.newCaveatDefNames.Subtract(existingCaveatDefNames).AsSlice(),
+		RemovedCaveatDefNames: removedCaveatDefNames.AsSlice(),
+	}, nil
+}
+
 // sanityCheckCaveatChanges ensures that a caveat definition being written does not break
 // the types of the parameters that may already exist on relationships.
 func sanityCheckCaveatChanges(
@@ -350,6 +471,24 @@ func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datasto
 			"resource_type": namespaceName,
 			"operation":     "delete_object_definition",
 		},
+	)
+}
+
+// ensureNoRelationshipsExistWithResourceTypeDryRun ensures that no relationships exist within the namespace
+// with the given name as a resource type, using only read operations.
+func ensureNoRelationshipsExistWithResourceTypeDryRun(ctx context.Context, reader datastore.Reader, namespaceName string) error {
+	qy, qyErr := reader.QueryRelationships(
+		ctx,
+		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
+		options.WithLimit(options.LimitOne),
+		options.WithQueryShape(queryshape.FindResourceOfType),
+	)
+	return errorIfTupleIteratorReturnsTuples(
+		ctx,
+		qy,
+		qyErr,
+		"cannot delete object definition `%s`, as a relationship exists under it",
+		namespaceName,
 	)
 }
 
@@ -553,4 +692,154 @@ func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.Relations
 	}
 
 	return nil
+}
+
+// sanityCheckNamespaceChangesDryRun performs the same validation as sanityCheckNamespaceChanges
+// but using only read operations from a datastore.Reader.
+func sanityCheckNamespaceChangesDryRun(
+	ctx context.Context,
+	reader datastore.Reader,
+	nsdef *core.NamespaceDefinition,
+	existingDefs map[string]*core.NamespaceDefinition,
+) (*nsdiff.Diff, error) {
+	// Ensure that the updated namespace does not break the existing tuple data.
+	existing := existingDefs[nsdef.Name]
+	diff, err := nsdiff.DiffNamespaces(existing, nsdef)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, delta := range diff.Deltas() {
+		switch delta.Type {
+		case nsdiff.RemovedRelation:
+			// NOTE: We add the subject filters here to ensure the reverse relationship index is used
+			// by the datastores. As there is no index that has {namespace, relation} directly, but there
+			// *is* an index that has {subject_namespace, subject_relation, namespace, relation}, we can
+			// force the datastore to use the reverse index by adding the subject filters.
+			var previousRelation *core.Relation
+			for _, relation := range existing.Relation {
+				if relation.Name == delta.RelationName {
+					previousRelation = relation
+					break
+				}
+			}
+
+			if previousRelation == nil {
+				return nil, spiceerrors.MustBugf("relation `%s` not found in existing namespace definition", delta.RelationName)
+			}
+
+			subjectSelectors := make([]datastore.SubjectsSelector, 0, len(previousRelation.TypeInformation.AllowedDirectRelations))
+			for _, allowedType := range previousRelation.TypeInformation.AllowedDirectRelations {
+				if allowedType.GetRelation() == datastore.Ellipsis {
+					subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
+						OptionalSubjectType: allowedType.Namespace,
+						RelationFilter: datastore.SubjectRelationFilter{
+							IncludeEllipsisRelation: true,
+						},
+					})
+				} else {
+					subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
+						OptionalSubjectType: allowedType.Namespace,
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: allowedType.GetRelation(),
+						},
+					})
+				}
+			}
+
+			qy, qyErr := reader.QueryRelationships(
+				ctx,
+				datastore.RelationshipsFilter{
+					OptionalResourceType:      nsdef.Name,
+					OptionalResourceRelation:  delta.RelationName,
+					OptionalSubjectsSelectors: subjectSelectors,
+				},
+				options.WithLimit(options.LimitOne),
+				options.WithQueryShape(queryshape.FindResourceOfTypeAndRelation),
+			)
+
+			err = errorIfTupleIteratorReturnsTuples(
+				ctx,
+				qy,
+				qyErr,
+				"cannot delete relation `%s` in object definition `%s`, as a relationship exists under it", delta.RelationName, nsdef.Name)
+			if err != nil {
+				return diff, err
+			}
+
+			// Also check for right sides of tuples.
+			qy, qyErr = reader.ReverseQueryRelationships(
+				ctx,
+				datastore.SubjectsFilter{
+					SubjectType: nsdef.Name,
+					RelationFilter: datastore.SubjectRelationFilter{
+						NonEllipsisRelation: delta.RelationName,
+					},
+				},
+				options.WithLimitForReverse(options.LimitOne),
+				options.WithQueryShapeForReverse(queryshape.FindSubjectOfTypeAndRelation),
+			)
+			err = errorIfTupleIteratorReturnsTuples(
+				ctx,
+				qy,
+				qyErr,
+				"cannot delete relation `%s` in object definition `%s`, as a relationship references it", delta.RelationName, nsdef.Name)
+			if err != nil {
+				return diff, err
+			}
+
+		case nsdiff.RelationAllowedTypeRemoved:
+			var optionalSubjectIds []string
+			var relationFilter datastore.SubjectRelationFilter
+			var optionalCaveatNameFilter datastore.CaveatNameFilter
+
+			if delta.AllowedType.GetPublicWildcard() != nil {
+				optionalSubjectIds = []string{tuple.PublicWildcard}
+			} else {
+				relationFilter = datastore.SubjectRelationFilter{
+					NonEllipsisRelation: delta.AllowedType.GetRelation(),
+				}
+			}
+
+			if delta.AllowedType.GetRequiredCaveat() != nil && delta.AllowedType.GetRequiredCaveat().CaveatName != "" {
+				optionalCaveatNameFilter = datastore.WithCaveatName(delta.AllowedType.GetRequiredCaveat().CaveatName)
+			} else {
+				optionalCaveatNameFilter = datastore.WithNoCaveat()
+			}
+
+			expirationOption := datastore.ExpirationFilterOptionNoExpiration
+			if delta.AllowedType.RequiredExpiration != nil {
+				expirationOption = datastore.ExpirationFilterOptionHasExpiration
+			}
+
+			qyr, qyrErr := reader.QueryRelationships(
+				ctx,
+				datastore.RelationshipsFilter{
+					OptionalResourceType:     nsdef.Name,
+					OptionalResourceRelation: delta.RelationName,
+					OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+						{
+							OptionalSubjectType: delta.AllowedType.Namespace,
+							OptionalSubjectIds:  optionalSubjectIds,
+							RelationFilter:      relationFilter,
+						},
+					},
+					OptionalCaveatNameFilter: optionalCaveatNameFilter,
+					OptionalExpirationOption: expirationOption,
+				},
+				options.WithLimit(options.LimitOne),
+				options.WithQueryShape(queryshape.FindResourceRelationForSubjectRelation),
+			)
+			err = errorIfTupleIteratorReturnsTuples(
+				ctx,
+				qyr,
+				qyrErr,
+				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
+				schema.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
+			if err != nil {
+				return diff, err
+			}
+		}
+	}
+	return diff, nil
 }
