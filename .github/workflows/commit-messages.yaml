@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+---
+name: "Lint Commit Messages"
+on: # yamllint disable-line rule:truthy
+  pull_request:
+    types:
+      - "edited"
+      - "opened"
+      - "reopened"
+permissions:
+  contents: "read"
+jobs:
+  conventional-commits:
+    name: "Lint Commit Messages"
+    runs-on: "depot-ubuntu-24.04-small"
+    steps:
+      - uses: "actions/checkout@v6"
+      - uses: "webiny/action-conventional-commits@v1.3.1"
+      - uses: "amannn/action-semantic-pull-request@v6.1.1"
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
