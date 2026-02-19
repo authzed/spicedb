@@ -177,50 +177,43 @@ func BenchmarkServices(b *testing.B) {
 	}
 
 	for _, bt := range bts {
-		b.Run(bt.title, func(b *testing.B) {
-			for _, engineID := range enginesToBenchmark {
-				b.Run(engineID, func(b *testing.B) {
-					b.StopTimer()
+		for _, engineID := range enginesToBenchmark {
+			// Setup before the benchmark to exclude from profiling
+			b.StopTimer()
+			brequire := require.New(b)
 
-					brequire := require.New(b)
+			rde := testdatastore.RunDatastoreEngine(b, engineID)
+			ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
+				dsconfig.WithWatchBufferLength(0),
+				dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
+				dsconfig.WithRevisionQuantization(10),
+				dsconfig.WithMaxRetries(50),
+				dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
+			))
 
-					rde := testdatastore.RunDatastoreEngine(b, engineID)
-					ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
-						dsconfig.WithWatchBufferLength(0),
-						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-						dsconfig.WithRevisionQuantization(10),
-						dsconfig.WithMaxRetries(50),
-						dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
-					))
+			contents, err := testFiles.ReadFile(bt.fileName)
+			require.NoError(b, err)
 
-					contents, err := testFiles.ReadFile(bt.fileName)
-					require.NoError(b, err)
+			_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), ds, caveattypes.Default.TypeSet, map[string][]byte{
+				"testfile": contents,
+			})
+			brequire.NoError(err)
 
-					_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), ds, caveattypes.Default.TypeSet, map[string][]byte{
-						"testfile": contents,
-					})
-					brequire.NoError(err)
+			conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds)
+			b.Cleanup(cleanup)
 
-					conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds)
-					b.Cleanup(cleanup)
+			dsCtx := datastoremw.ContextWithHandle(context.Background())
+			brequire.NoError(datastoremw.SetInContext(dsCtx, ds))
 
-					dsCtx := datastoremw.ContextWithHandle(context.Background())
-					brequire.NoError(datastoremw.SetInContext(dsCtx, ds))
+			testers := consistencytestutil.ServiceTesters(conn[0])
 
-					testers := consistencytestutil.ServiceTesters(conn[0])
-
-					b.StartTimer()
-
-					for _, tester := range testers {
-						b.Run(tester.Name(), func(b *testing.B) {
-							require := require.New(b)
-							for n := 0; n < b.N; n++ {
-								require.NoError(bt.runner(dsCtx, b, tester, revision))
-							}
-						})
+			for _, tester := range testers {
+				b.Run(bt.title+"/"+engineID+"/"+tester.Name(), func(b *testing.B) {
+					for n := 0; n < b.N; n++ {
+						require.NoError(b, bt.runner(dsCtx, b, tester, revision))
 					}
 				})
 			}
-		})
+		}
 	}
 }
