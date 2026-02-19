@@ -475,7 +475,7 @@ func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, refs l
 		return nil, err
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(refs.ts)
 	return rg.FirstEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: refs.req.SubjectRelation.Namespace,
 		Relation:  refs.req.SubjectRelation.Relation,

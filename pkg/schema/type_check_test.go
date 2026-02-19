@@ -513,7 +513,7 @@ func TestTypeAnnotationsValidation(t *testing.T) {
 					foundError = err
 					break
 				}
-				_, verr := def.Validate(t.Context())
+				_, verr := ts.Validate(t.Context(), def)
 				if verr != nil {
 					foundError = verr
 					break

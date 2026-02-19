@@ -134,7 +134,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 		return err
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	entrypoints, err := rg.FirstEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: req.SubjectRelation.Namespace,
 		Relation:  req.SubjectRelation.Relation,

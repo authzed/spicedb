@@ -531,10 +531,10 @@ func TestCanonicalization(t *testing.T) {
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 
-			def, err := schema.NewDefinition(ts, tc.toCheck)
+			def, err := schema.NewDefinition(tc.toCheck)
 			require.NoError(err)
 
-			vdef, derr := def.Validate(ctx)
+			vdef, derr := ts.Validate(ctx, def)
 			require.NoError(derr)
 
 			aliases, aerr := computePermissionAliases(vdef)
@@ -664,11 +664,11 @@ func TestCanonicalizationComparison(t *testing.T) {
 			lastRevision, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
 
-			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
-			def, err := schema.NewDefinition(ts, compiled.ObjectDefinitions[0])
+			def, err := schema.NewDefinition(compiled.ObjectDefinitions[0])
 			require.NoError(err)
 
-			vts, terr := def.Validate(ctx)
+			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			vts, terr := ts.Validate(ctx, def)
 			require.NoError(terr)
 
 			aliases, aerr := computePermissionAliases(vts)

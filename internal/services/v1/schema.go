@@ -295,7 +295,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		allDefinitions = append(allDefinitions, typeDef.Definition)
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  relationName,
@@ -368,7 +368,7 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  req.PermissionName,

@@ -149,7 +149,7 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 			continue
 		}
 
-		vts, err := typedschema.NewDefinition(typedschema.NewTypeSystem(typedschema.ResolverForDatastoreReader(rwt)), nsDef)
+		vts, err := typedschema.NewDefinition(nsDef)
 		if err != nil {
 			return nil, handleWriteError(err)
 		}
