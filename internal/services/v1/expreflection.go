@@ -10,7 +10,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -519,8 +519,8 @@ func expConvertDiff(
 		}
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
-	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, ds)
+	dl := datalayermw.MustFromContext(ctx)
+	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, dl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zed token: %w", err)
 	}

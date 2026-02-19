@@ -11,7 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -103,13 +103,14 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			dl := datalayer.NewDataLayer(ds)
+			rev, err := dl.ReadWriteTx(context.Background(), func(ctx context.Context, tx datalayer.ReadWriteTransaction) error {
 				return nil
 			})
 			require.NoError(t, err)
 
 			queryCtx := NewLocalContext(context.Background(),
-				WithReader(ds.SnapshotReader(rev)),
+				WithReader(dl.SnapshotReader(rev)),
 				WithCaveatContext(tc.caveatContext),
 				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 
@@ -195,13 +196,14 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+			dl := datalayer.NewDataLayer(ds)
+			rev, err := dl.ReadWriteTx(context.Background(), func(ctx context.Context, tx datalayer.ReadWriteTransaction) error {
 				return nil
 			})
 			require.NoError(t, err)
 
 			queryCtx := NewLocalContext(context.Background(),
-				WithReader(ds.SnapshotReader(rev)),
+				WithReader(dl.SnapshotReader(rev)),
 				WithCaveatContext(tc.caveatContext),
 				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 

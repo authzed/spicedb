@@ -14,13 +14,14 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -196,7 +197,7 @@ func BenchmarkServices(b *testing.B) {
 					contents, err := testFiles.ReadFile(bt.fileName)
 					require.NoError(b, err)
 
-					_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), ds, caveattypes.Default.TypeSet, map[string][]byte{
+					_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, map[string][]byte{
 						"testfile": contents,
 					})
 					brequire.NoError(err)
@@ -204,8 +205,8 @@ func BenchmarkServices(b *testing.B) {
 					conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds)
 					b.Cleanup(cleanup)
 
-					dsCtx := datastoremw.ContextWithHandle(context.Background())
-					brequire.NoError(datastoremw.SetInContext(dsCtx, ds))
+					dsCtx := datalayermw.ContextWithHandle(context.Background())
+					brequire.NoError(datalayermw.SetInContext(dsCtx, datalayer.NewDataLayer(ds)))
 
 					testers := consistencytestutil.ServiceTesters(conn[0])
 

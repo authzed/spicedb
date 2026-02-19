@@ -19,6 +19,12 @@ import (
 
 var tracer = otel.Tracer("spicedb/internal/caveats/run")
 
+// CaveatDefinitionLookup is an interface for looking up caveat definitions by name.
+// datalayer.SchemaReader satisfies this interface.
+type CaveatDefinitionLookup interface {
+	LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error)
+}
+
 // RunCaveatExpressionDebugOption are the options for running caveat expression evaluation
 // with debugging enabled or disabled.
 type RunCaveatExpressionDebugOption int
@@ -38,7 +44,7 @@ func RunSingleCaveatExpression(
 	ts *caveattypes.TypeSet,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader CaveatDefinitionLookup,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
 	runner := NewCaveatRunner(ts)
@@ -66,7 +72,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 	ctx context.Context,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	reader datastore.SchemaReadable,
+	reader CaveatDefinitionLookup,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
 	ctx, span := tracer.Start(ctx, "RunCaveatExpression")
@@ -82,7 +88,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 
 // PopulateCaveatDefinitionsForExpr populates the CaveatRunner's cache with the definitions
 // referenced in the given caveat expression.
-func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader datastore.SchemaReadable) error {
+func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader CaveatDefinitionLookup) error {
 	ctx, span := tracer.Start(ctx, "PopulateCaveatDefinitions")
 	defer span.End()
 
@@ -107,12 +113,7 @@ func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, ex
 	}
 
 	// Bulk lookup all of the referenced caveat definitions.
-	// TODO(jschorr): Remove the local population here once the general schema cache is in place.
-	schemaReader, err := reader.SchemaReader()
-	if err != nil {
-		return err
-	}
-	foundDefs, err := schemaReader.LookupCaveatDefinitionsByNames(ctx, caveatNames.AsSlice())
+	foundDefs, err := reader.LookupCaveatDefinitionsByNames(ctx, caveatNames.AsSlice())
 	if err != nil {
 		return err
 	}

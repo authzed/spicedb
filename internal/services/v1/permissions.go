@@ -24,7 +24,7 @@ import (
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -33,6 +33,7 @@ import (
 	"github.com/authzed/spicedb/internal/telemetry"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -79,9 +80,14 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	sr, err := dl.ReadSchema()
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -98,7 +104,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 				RelationName:  normalizeSubjectRelation(req.Subject),
 				AllowEllipsis: true,
 			},
-		}, ds); err != nil {
+		}, sr); err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
@@ -133,7 +139,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	var debugTrace *v1.DebugInformation
 	if debugOption != computed.NoDebugging && metadata.DebugInfo != nil {
 		// Convert the dispatch debug information into API debug information.
-		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, metadata.DebugInfo, ds)
+		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, metadata.DebugInfo, sr)
 		if cerr != nil {
 			return nil, ps.rewriteError(ctx, cerr)
 		}
@@ -145,7 +151,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		// a dispatch error occurs and debug was requested.
 		if dispatchDebugInfo, ok := spiceerrors.GetDetails[*dispatch.DebugInformation](err); ok {
 			// Convert the dispatch debug information into API debug information.
-			converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, dispatchDebugInfo, ds)
+			converted, cerr := ConvertCheckDispatchDebugInformation(ctx, ps.config.CaveatTypeSet, caveatContext, dispatchDebugInfo, sr)
 			if cerr != nil {
 				return nil, ps.rewriteError(ctx, cerr)
 			}
@@ -246,9 +252,14 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	err = namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
+	sr, err := dl.ReadSchema()
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	err = namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, sr)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -484,7 +495,12 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		return ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+	sr, err := dl.ReadSchema()
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
 
 	if err := namespace.CheckNamespaceAndRelations(ctx,
 		[]namespace.TypeAndRelationToCheck{
@@ -498,7 +514,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				RelationName:  normalizeSubjectRelation(req.Subject),
 				AllowEllipsis: true,
 			},
-		}, ds); err != nil {
+		}, sr); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
@@ -630,7 +646,12 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		return ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+	sr, err := dl.ReadSchema()
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
 
 	if err := namespace.CheckNamespaceAndRelations(ctx,
 		[]namespace.TypeAndRelationToCheck{
@@ -644,7 +665,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 				RelationName:  normalizeSubjectRelation(req.Subject),
 				AllowEllipsis: true,
 			},
-		}, ds); err != nil {
+		}, sr); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
@@ -781,9 +802,14 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		return ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	sr, err := dl.ReadSchema()
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -800,7 +826,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				RelationName:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 				AllowEllipsis: true,
 			},
-		}, ds); err != nil {
+		}, sr); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
@@ -831,7 +857,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 			excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.ExcludedSubjects))
 			for _, excludedSubject := range foundSubject.ExcludedSubjects {
-				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds, ps.config.CaveatTypeSet)
+				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, sr, ps.config.CaveatTypeSet)
 				if err != nil {
 					return err
 				}
@@ -843,7 +869,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				excludedSubjects = append(excludedSubjects, resolvedExcludedSubject)
 			}
 
-			subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, ds, ps.config.CaveatTypeSet)
+			subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, sr, ps.config.CaveatTypeSet)
 			if err != nil {
 				return err
 			}
@@ -900,13 +926,13 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	return nil
 }
 
-func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.Reader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
+func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, sr datalayer.SchemaReader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 	if foundSubject.GetCaveatExpression() != nil {
 		permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 
-		cr, err := cexpr.RunSingleCaveatExpression(ctx, caveatTypeSet, foundSubject.GetCaveatExpression(), caveatContext, ds, cexpr.RunCaveatExpressionNoDebugging)
+		cr, err := cexpr.RunSingleCaveatExpression(ctx, caveatTypeSet, foundSubject.GetCaveatExpression(), caveatContext, sr, cexpr.RunCaveatExpressionNoDebugging)
 		if err != nil {
 			return nil, err
 		}
@@ -1050,10 +1076,10 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]) error {
 	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
 
-	ds := datastoremw.MustFromContext(stream.Context())
+	dl := datalayermw.MustFromContext(stream.Context())
 
 	var numWritten uint64
-	if _, err := ds.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	if _, err := dl.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		loadedNamespaces := make(map[string]*schema.Definition, 2)
 		loadedCaveats := make(map[string]*core.CaveatDefinition, 0)
 
@@ -1066,11 +1092,12 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 		}
 		var streamWritten uint64
 		var err error
+
 		for ; adapter.err == nil && err == nil; streamWritten, err = rwt.BulkLoad(stream.Context(), adapter) {
 			numWritten += streamWritten
 
 			// The stream has terminated because we're awaiting namespace and/or caveat information
-			schemaReader, err := rwt.SchemaReader()
+			schemaReader, err := rwt.ReadSchema()
 			if err != nil {
 				return err
 			}
@@ -1138,13 +1165,13 @@ func (ps *permissionServer) ExportBulkRelationships(
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	return ExportBulk(ctx, datastoremw.MustFromContext(ctx), uint64(ps.config.MaxBulkExportRelationshipsLimit), req, atRevision, resp.Send)
+	return ExportBulk(ctx, datalayermw.MustFromContext(ctx), uint64(ps.config.MaxBulkExportRelationshipsLimit), req, atRevision, resp.Send)
 }
 
-// ExportBulk implements the ExportBulkRelationships API functionality. Given a datastore.Datastore, it will
+// ExportBulk implements the ExportBulkRelationships API functionality. Given a datalayer.DataLayer, it will
 // export stream via the sender all relationships matched by the incoming request.
 // If no cursor is provided, it will fallback to the provided revision.
-func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, req *v1.ExportBulkRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.ExportBulkRelationshipsResponse) error) error {
+func ExportBulk(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, req *v1.ExportBulkRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.ExportBulkRelationshipsResponse) error) error {
 	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
 		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
 	}
@@ -1154,15 +1181,20 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 	var cur dsoptions.Cursor
 	if req.OptionalCursor != nil {
 		var err error
-		atRevision, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
+		atRevision, curNamespace, cur, err = decodeCursor(dl, req.OptionalCursor)
 		if err != nil {
 			return shared.RewriteErrorWithoutConfig(ctx, err)
 		}
 	}
 
-	reader := ds.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision)
 
-	namespaces, err := reader.LegacyListAllNamespaces(ctx)
+	readerSchema, err := reader.ReadSchema()
+	if err != nil {
+		return shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	namespaces, err := readerSchema.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}

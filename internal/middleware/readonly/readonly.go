@@ -6,14 +6,14 @@ import (
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/datastore/proxy"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
+	"github.com/authzed/spicedb/pkg/datalayer"
 )
 
-// UnaryServerInterceptor returns a new unary server interceptor that sets the datastore to readonly
+// UnaryServerInterceptor returns a new unary server interceptor that sets the datalayer to readonly
 func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if err := datastoremw.SetInContext(ctx, proxy.NewReadonlyDatastore(datastoremw.MustFromContext(ctx))); err != nil {
+		if err := datalayermw.SetInContext(ctx, datalayer.NewReadonlyDataLayer(datalayermw.MustFromContext(ctx))); err != nil {
 			return nil, err
 		}
 
@@ -21,11 +21,11 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
-// StreamServerInterceptor returns a new stream server interceptor  that sets the datastore to readonly
+// StreamServerInterceptor returns a new stream server interceptor that sets the datalayer to readonly
 func StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		wrapped := middleware.WrapServerStream(stream)
-		if err := datastoremw.SetInContext(wrapped.WrappedContext, proxy.NewReadonlyDatastore(datastoremw.MustFromContext(stream.Context()))); err != nil {
+		if err := datalayermw.SetInContext(wrapped.WrappedContext, datalayer.NewReadonlyDataLayer(datalayermw.MustFromContext(stream.Context()))); err != nil {
 			return err
 		}
 		return handler(srv, wrapped)

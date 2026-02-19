@@ -10,11 +10,16 @@ import (
 	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// getSchemaReaderFromReader extracts a CaveatDefinitionLookup from a RevisionedReader.
+func getSchemaReaderFromReader(reader datalayer.RevisionedReader) (caveats.CaveatDefinitionLookup, error) {
+	return reader.ReadSchema()
+}
 
 // TraceLogger is used for debugging iterator execution
 type TraceLogger struct {
@@ -275,7 +280,7 @@ func (ac *AnalyzeCollector) GetStats() map[string]AnalyzeStats {
 type Context struct {
 	context.Context
 	Executor          Executor
-	Reader            datastore.Reader // Datastore reader for this query at a specific revision
+	Reader            datalayer.RevisionedReader // Datastore reader for this query at a specific revision
 	CaveatContext     map[string]any
 	CaveatRunner      *caveats.CaveatRunner
 	TraceLogger       *TraceLogger      // For debugging iterator execution
@@ -311,7 +316,7 @@ func NewLocalContext(stdContext context.Context, opts ...ContextOption) *Context
 type ContextOption func(*Context)
 
 // WithReader sets the datastore reader for the context.
-func WithReader(reader datastore.Reader) ContextOption {
+func WithReader(reader datalayer.RevisionedReader) ContextOption {
 	return func(ctx *Context) { ctx.Reader = reader }
 }
 

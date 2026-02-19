@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -40,7 +41,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(revision)))
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 		// Test: alice should have access because she's a member of ALL teams (team1 and team2)
 		resources := []Object{NewObject("document", "doc1")}
@@ -89,7 +90,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(revision)))
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 		// Test: alice should NOT have access because she's not a member of ALL teams
 		resources := []Object{NewObject("document", "doc1")}
@@ -129,7 +130,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(revision)))
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 		// Test: alice should have access because she's a member of the only team
 		resources := []Object{NewObject("document", "doc1")}
@@ -174,7 +175,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(revision)))
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -217,7 +218,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(revision)))
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -256,7 +257,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithReader(ds.SnapshotReader(revision)))
+			WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 		resources := []Object{}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -285,7 +286,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 	require.NoError(err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()
@@ -512,7 +513,7 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	require.NoError(err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(revision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	// Test that both iterators produce the same results
 	resources := []Object{NewObject("document", "doc1")}

@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/schema/v2"
@@ -81,7 +82,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx,
-			WithReader(rawDS.SnapshotReader(revision)),
+			WithReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)),
 			WithTraceLogger(NewTraceLogger())) // Enable tracing for debugging
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("document", "publicdoc"), NoObjectFilter())
 		require.NoError(err)
@@ -113,7 +114,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		)
 
 		queryCtx := NewLocalContext(ctx,
-			WithReader(rawDS.SnapshotReader(revision)),
+			WithReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)),
 			WithTraceLogger(NewTraceLogger())) // Enable tracing for debugging
 		subjects, err := queryCtx.IterSubjects(union, NewObject("document", "publicdoc"), NoObjectFilter())
 		require.NoError(err)

@@ -238,127 +238,103 @@ func TestSnapshotCaching(t *testing.T) {
 
 	// Get a handle on the reader for A
 	dsForA := ds.SnapshotReader(one)
-	schemaReaderForA, err := dsForA.SchemaReader()
-	require.NoError(err)
 
 	// Check that revisions match after one read for A
 	// Namespace
-	revNsDef, found, err := schemaReaderForA.LookupTypeDefByName(t.Context(), nsA)
+	_, updatedNsA, err := dsForA.LegacyReadNamespaceByName(t.Context(), nsA)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(old.Equal(revNsDef.LastWrittenRevision))
+	require.True(old.Equal(updatedNsA))
 
 	// Caveat
-	revCaveatDef, found, err := schemaReaderForA.LookupCaveatDefByName(t.Context(), caveatA)
+	_, updatedCaveatA, err := dsForA.LegacyReadCaveatByName(t.Context(), caveatA)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(old.Equal(revCaveatDef.LastWrittenRevision))
+	require.True(old.Equal(updatedCaveatA))
 
 	// Check that revisions match after another read on A
 	// Namespace
-	revNsDef, found, err = schemaReaderForA.LookupTypeDefByName(t.Context(), nsA)
+	_, updatedNsA, err = dsForA.LegacyReadNamespaceByName(t.Context(), nsA)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(old.Equal(revNsDef.LastWrittenRevision))
+	require.True(old.Equal(updatedNsA))
 
 	// Caveat
-	revCaveatDef, found, err = schemaReaderForA.LookupCaveatDefByName(t.Context(), caveatA)
+	_, updatedCaveatA, err = dsForA.LegacyReadCaveatByName(t.Context(), caveatA)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(old.Equal(revCaveatDef.LastWrittenRevision))
+	require.True(old.Equal(updatedCaveatA))
 
 	// Get a handle on the reader for B
 	dsForB := ds.SnapshotReader(one)
-	schemaReaderForB, err := dsForB.SchemaReader()
-	require.NoError(err)
 
 	// Check that revisions match after one read for B
 	// Namespace
-	revNsDef, found, err = schemaReaderForB.LookupTypeDefByName(t.Context(), nsB)
+	_, updatedNsB, err := dsForB.LegacyReadNamespaceByName(t.Context(), nsB)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(zero.Equal(revNsDef.LastWrittenRevision))
+	require.True(zero.Equal(updatedNsB))
 
 	// Caveat
-	revCaveatDef, found, err = schemaReaderForB.LookupCaveatDefByName(t.Context(), caveatB)
+	_, updatedCaveatB, err := dsForB.LegacyReadCaveatByName(t.Context(), caveatB)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
+	require.True(zero.Equal(updatedCaveatB))
 
 	// And again
 	// Namespace
-	revNsDef, found, err = schemaReaderForB.LookupTypeDefByName(t.Context(), nsB)
+	_, updatedNsB, err = dsForB.LegacyReadNamespaceByName(t.Context(), nsB)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(zero.Equal(revNsDef.LastWrittenRevision))
+	require.True(zero.Equal(updatedNsB))
 
 	// Caveat
-	revCaveatDef, found, err = schemaReaderForB.LookupCaveatDefByName(t.Context(), caveatB)
+	_, updatedCaveatB, err = dsForB.LegacyReadCaveatByName(t.Context(), caveatB)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
+	require.True(zero.Equal(updatedCaveatB))
 
 	// Get a handle on the second reader for A
 	dsForA = ds.SnapshotReader(two)
-	schemaReaderForA, err = dsForA.SchemaReader()
-	require.NoError(err)
 
 	// Check that revisions match after one read for A on the zero revision
 	// Namespace
-	revNsDef, found, err = schemaReaderForA.LookupTypeDefByName(t.Context(), nsA)
+	_, updatedNsA, err = dsForA.LegacyReadNamespaceByName(t.Context(), nsA)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(zero.Equal(revNsDef.LastWrittenRevision))
+	require.True(zero.Equal(updatedNsA))
 
 	// Caveat
-	revCaveatDef, found, err = schemaReaderForA.LookupCaveatDefByName(t.Context(), caveatA)
+	_, updatedCaveatA, err = dsForA.LegacyReadCaveatByName(t.Context(), caveatA)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
+	require.True(zero.Equal(updatedCaveatA))
 
 	// Check that revisions match after another read for A on the zero revision
 	// Namespace
-	revNsDef, found, err = schemaReaderForA.LookupTypeDefByName(t.Context(), nsA)
+	_, updatedNsA, err = dsForA.LegacyReadNamespaceByName(t.Context(), nsA)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(zero.Equal(revNsDef.LastWrittenRevision))
+	require.True(zero.Equal(updatedNsA))
 
 	// Caveat
-	revCaveatDef, found, err = schemaReaderForA.LookupCaveatDefByName(t.Context(), caveatA)
+	_, updatedCaveatA, err = dsForA.LegacyReadCaveatByName(t.Context(), caveatA)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(zero.Equal(revCaveatDef.LastWrittenRevision))
+	require.True(zero.Equal(updatedCaveatA))
 
 	// Get a handle on the second reader for B
 	dsForB = ds.SnapshotReader(two)
-	schemaReaderForB, err = dsForB.SchemaReader()
-	require.NoError(err)
 
 	// Check that revisions match after one read for B on the zero revision
 	// Namespace
-	revNsDef, found, err = schemaReaderForB.LookupTypeDefByName(t.Context(), nsB)
+	_, updatedNsB, err = dsForB.LegacyReadNamespaceByName(t.Context(), nsB)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(one.Equal(revNsDef.LastWrittenRevision))
+	require.True(one.Equal(updatedNsB))
 
 	// Caveat
-	revCaveatDef, found, err = schemaReaderForB.LookupCaveatDefByName(t.Context(), caveatB)
+	_, updatedCaveatB, err = dsForB.LegacyReadCaveatByName(t.Context(), caveatB)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(one.Equal(revCaveatDef.LastWrittenRevision))
+	require.True(one.Equal(updatedCaveatB))
 
 	// Check that revisions match after another read for B on the zero revision
 	// Namespace
-	revNsDef, found, err = schemaReaderForB.LookupTypeDefByName(t.Context(), nsB)
+	_, updatedNsB, err = dsForB.LegacyReadNamespaceByName(t.Context(), nsB)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(one.Equal(revNsDef.LastWrittenRevision))
+	require.True(one.Equal(updatedNsB))
 
 	// Caveat
-	revCaveatDef, found, err = schemaReaderForB.LookupCaveatDefByName(t.Context(), caveatB)
+	_, updatedCaveatB, err = dsForB.LegacyReadCaveatByName(t.Context(), caveatB)
 	require.NoError(err)
-	require.True(found, "could not find expected definition")
-	require.True(one.Equal(revCaveatDef.LastWrittenRevision))
+	require.True(one.Equal(updatedCaveatB))
 
 	dsMock.AssertExpectations(t)
 	oneReader.AssertExpectations(t)
@@ -416,34 +392,26 @@ func TestRWTCaching(t *testing.T) {
 	ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		// get a handle on the reader
-		reader, err := rwt.SchemaReader()
-		require.NoError(err)
-
 		// read the namespace
-		nsRevDef, found, err := reader.LookupTypeDefByName(ctx, nsA)
+		_, updatedNsA, err := rwt.LegacyReadNamespaceByName(ctx, nsA)
 		require.NoError(err)
-		require.True(found)
-		require.True(zero.Equal(nsRevDef.LastWrittenRevision))
+		require.True(zero.Equal(updatedNsA))
 
 		// read the caveat
-		caveatRevDef, found, err := reader.LookupCaveatDefByName(ctx, caveatA)
+		_, updatedCaveatA, err := rwt.LegacyReadCaveatByName(ctx, caveatA)
 		require.NoError(err)
-		require.True(found)
-		require.True(zero.Equal(caveatRevDef.LastWrittenRevision))
+		require.True(zero.Equal(updatedCaveatA))
 
 		// This will not call out the mock RWT again, the mock will panic if it does.
 		// read the namespace
-		nsRevDef, found, err = reader.LookupTypeDefByName(ctx, nsA)
+		_, updatedNsA, err = rwt.LegacyReadNamespaceByName(ctx, nsA)
 		require.NoError(err)
-		require.True(found)
-		require.True(zero.Equal(nsRevDef.LastWrittenRevision))
+		require.True(zero.Equal(updatedNsA))
 
 		// read the caveat
-		caveatRevDef, found, err = reader.LookupCaveatDefByName(ctx, caveatA)
+		_, updatedCaveatA, err = rwt.LegacyReadCaveatByName(ctx, caveatA)
 		require.NoError(err)
-		require.True(found)
-		require.True(zero.Equal(caveatRevDef.LastWrittenRevision))
+		require.True(zero.Equal(updatedCaveatA))
 
 		return nil
 	})
@@ -559,27 +527,21 @@ func TestSingleFlight(t *testing.T) {
 
 		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 		snapshotReader := ds.SnapshotReader(one)
-		schemaReader, err := snapshotReader.SchemaReader()
-		if !assert.NoError(err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
-			return
-		}
 
 		readNamespace := func() {
-			nsRevDef, found, err := schemaReader.LookupTypeDefByName(t.Context(), nsA)
+			_, updatedAt, err := snapshotReader.LegacyReadNamespaceByName(t.Context(), nsA)
 			if !assert.NoError(err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
 				return
 			}
-			assert.True(found)
-			assert.True(old.Equal(nsRevDef.LastWrittenRevision))
+			assert.True(old.Equal(updatedAt))
 		}
 
 		readCaveat := func() {
-			caveatRevDef, found, err := schemaReader.LookupCaveatDefByName(t.Context(), caveatA)
+			_, updatedAt, err := snapshotReader.LegacyReadCaveatByName(t.Context(), caveatA)
 			if !assert.NoError(err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
 				return
 			}
-			assert.True(found)
-			assert.True(old.Equal(caveatRevDef.LastWrittenRevision))
+			assert.True(old.Equal(updatedAt))
 		}
 
 		// NOTE: if the singleflight isn't working, the second call to land will invoke
@@ -724,11 +686,11 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 
 			if tc.nsDef != nil {
 				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-					schemaWriter, err := rwt.SchemaWriter()
+					err := rwt.LegacyWriteNamespaces(ctx, tc.nsDef)
 					if err != nil {
 						return err
 					}
-					return schemaWriter.WriteSchema(ctx, []datastore.SchemaDefinition{tc.nsDef, tc.caveatDef}, "", caveattypes.Default.TypeSet)
+					return rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{tc.caveatDef})
 				})
 				require.NoError(t, err)
 			}
@@ -737,24 +699,17 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 			require.NoError(t, err)
 
 			reader := ds.SnapshotReader(headRev)
-			schemaReader, err := reader.SchemaReader()
-			require.NoError(t, err)
+			nsDef, _, _ := reader.LegacyReadNamespaceByName(ctx, tc.namespaceName)
+			testutil.RequireProtoEqual(t, tc.nsDef, nsDef, "found different namespaces")
 
-			nsRevDef, _, err := schemaReader.LookupTypeDefByName(ctx, tc.namespaceName)
-			require.NoError(t, err)
-			testutil.RequireProtoEqual(t, tc.nsDef, nsRevDef.Definition, "found different namespaces")
+			nsDef2, _, _ := reader.LegacyReadNamespaceByName(ctx, tc.namespaceName)
+			testutil.RequireProtoEqual(t, tc.nsDef, nsDef2, "found different namespaces")
 
-			nsRevDef2, _, err := schemaReader.LookupTypeDefByName(ctx, tc.namespaceName)
-			require.NoError(t, err)
-			testutil.RequireProtoEqual(t, tc.nsDef, nsRevDef2.Definition, "found different namespaces")
+			c1, _, _ := reader.LegacyReadCaveatByName(ctx, tc.caveatName)
+			testutil.RequireProtoEqual(t, tc.caveatDef, c1, "found different caveats")
 
-			caveatRevDef, _, err := schemaReader.LookupCaveatDefByName(ctx, tc.caveatName)
-			require.NoError(t, err)
-			testutil.RequireProtoEqual(t, tc.caveatDef, caveatRevDef.Definition, "found different caveats")
-
-			caveatRevDef2, _, err := schemaReader.LookupCaveatDefByName(ctx, tc.caveatName)
-			require.NoError(t, err)
-			testutil.RequireProtoEqual(t, tc.caveatDef, caveatRevDef2.Definition, "found different caveats")
+			c2, _, _ := reader.LegacyReadCaveatByName(ctx, tc.caveatName)
+			testutil.RequireProtoEqual(t, tc.caveatDef, c2, "found different caveats")
 		})
 	}
 }
@@ -781,28 +736,6 @@ func (r *singleflightReader) LegacyReadCaveatByName(ctx context.Context, name st
 		return nil, old, fmt.Errorf("error")
 	}
 	return &core.CaveatDefinition{Name: name}, old, nil
-}
-
-func (r *singleflightReader) LookupCaveatDefByName(ctx context.Context, name string) (datastore.RevisionedCaveat, error) {
-	time.Sleep(10 * time.Millisecond)
-	if errors.Is(ctx.Err(), context.Canceled) {
-		return datastore.RevisionedCaveat{}, fmt.Errorf("error")
-	}
-	return datastore.RevisionedCaveat{
-		Definition:          &core.CaveatDefinition{Name: name},
-		LastWrittenRevision: old,
-	}, nil
-}
-
-func (r *singleflightReader) LookupTypeDefByName(ctx context.Context, name string) (datastore.RevisionedTypeDefinition, error) {
-	time.Sleep(10 * time.Millisecond)
-	if errors.Is(ctx.Err(), context.Canceled) {
-		return datastore.RevisionedTypeDefinition{}, fmt.Errorf("error")
-	}
-	return datastore.RevisionedTypeDefinition{
-		Definition:          &core.NamespaceDefinition{Name: name},
-		LastWrittenRevision: old,
-	}, nil
 }
 
 func TestOldSingleFlightCancelled(t *testing.T) {
@@ -853,21 +786,17 @@ func TestSingleFlightCancelled(t *testing.T) {
 
 		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 		snapshotReader := ds.SnapshotReader(one)
-		schemaReader, err := snapshotReader.SchemaReader()
-		if !assert.NoError(t, err) { //nolint:testifylint  // you can't use require within a goroutine; the linter is wrong.
-			return
-		}
 
-		var nsRevDef datastore.RevisionedTypeDefinition
-		var caveatRevDef datastore.RevisionedCaveat
+		var nsDef *core.NamespaceDefinition
+		var caveatDef *core.CaveatDefinition
 		go func() {
-			_, _, _ = schemaReader.LookupTypeDefByName(ctx1, nsA)
-			_, _, _ = schemaReader.LookupCaveatDefByName(ctx1, caveatA)
+			_, _, _ = snapshotReader.LegacyReadNamespaceByName(ctx1, nsA)
+			_, _, _ = snapshotReader.LegacyReadCaveatByName(ctx1, caveatA)
 		}()
 		go func() {
 			time.Sleep(5 * time.Millisecond)
-			nsRevDef, _, _ = schemaReader.LookupTypeDefByName(ctx2, nsA)
-			caveatRevDef, _, _ = schemaReader.LookupCaveatDefByName(ctx2, caveatA)
+			nsDef, _, _ = snapshotReader.LegacyReadNamespaceByName(ctx2, nsA)
+			caveatDef, _, _ = snapshotReader.LegacyReadCaveatByName(ctx2, caveatA)
 		}()
 
 		// Cancel the context immediately after spinning the goroutines
@@ -879,10 +808,10 @@ func TestSingleFlightCancelled(t *testing.T) {
 
 		// Assert that the second request made in the singleflight window
 		// still succeeds
-		assert.NotNil(t, nsRevDef)
-		assert.NotNil(t, caveatRevDef)
-		assert.Equal(t, nsA, nsRevDef.Definition.GetName())
-		assert.Equal(t, caveatA, caveatRevDef.Definition.GetName())
+		assert.NotNil(t, nsDef)
+		assert.NotNil(t, caveatDef)
+		assert.Equal(t, nsA, nsDef.GetName())
+		assert.Equal(t, caveatA, caveatDef.GetName())
 
 		dsMock.AssertExpectations(t)
 	})
@@ -996,40 +925,58 @@ func TestMixedCaching(t *testing.T) {
 	ds := NewCachingDatastoreProxy(dsMock, dptc, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 
 	dsReader := ds.SnapshotReader(one)
-	schemaReader, err := dsReader.SchemaReader()
-	require.NoError(err)
 
 	// Lookup name A and caveat A, which should populate the cache
-	_, _, err = schemaReader.LookupTypeDefByName(t.Context(), nsA)
+	_, _, err := dsReader.LegacyReadNamespaceByName(t.Context(), nsA)
 	require.NoError(err)
-	_, _, err = schemaReader.LookupCaveatDefByName(t.Context(), caveatA)
+	_, _, err = dsReader.LegacyReadCaveatByName(t.Context(), caveatA)
 	require.NoError(err)
 
 	// Lookup As and Bs, which should only lookup Bs and use As from cache.
-	typeDefMap, err := schemaReader.LookupTypeDefinitionsByNames(t.Context(), []string{nsA, nsB})
+	foundNs, err := dsReader.LegacyLookupNamespacesWithNames(t.Context(), []string{nsA, nsB})
 	require.NoError(err)
-	require.Len(typeDefMap, 2)
-	require.Contains(typeDefMap, nsA)
-	require.Contains(typeDefMap, nsB)
+	require.Len(foundNs, 2)
 
-	caveatDefMap, err := schemaReader.LookupCaveatDefinitionsByNames(t.Context(), []string{caveatA, caveatB})
+	nsNames := mapz.NewSet[string]()
+	for _, d := range foundNs {
+		nsNames.Add(d.Definition.GetName())
+	}
+	require.True(nsNames.Has(nsA))
+	require.True(nsNames.Has(nsB))
+
+	foundCaveats, err := dsReader.LegacyLookupCaveatsWithNames(t.Context(), []string{caveatA, caveatB})
 	require.NoError(err)
-	require.Len(caveatDefMap, 2)
-	require.Contains(caveatDefMap, caveatA)
-	require.Contains(caveatDefMap, caveatB)
+	require.Len(foundCaveats, 2)
+
+	caveatNames := mapz.NewSet[string]()
+	for _, d := range foundCaveats {
+		caveatNames.Add(d.Definition.GetName())
+	}
+	require.True(caveatNames.Has(caveatA))
+	require.True(caveatNames.Has(caveatB))
 
 	// Lookup As and Bs, which should use both from cache.
-	typeDefMapAgain, err := schemaReader.LookupTypeDefinitionsByNames(t.Context(), []string{nsA, nsB})
+	foundNsAgain, err := dsReader.LegacyLookupNamespacesWithNames(t.Context(), []string{nsA, nsB})
 	require.NoError(err)
-	require.Len(typeDefMapAgain, 2)
-	require.Contains(typeDefMapAgain, nsA)
-	require.Contains(typeDefMapAgain, nsB)
+	require.Len(foundNsAgain, 2)
 
-	caveatDefMapAgain, err := schemaReader.LookupCaveatDefinitionsByNames(t.Context(), []string{caveatA, caveatB})
+	nsNamesAgain := mapz.NewSet[string]()
+	for _, d := range foundNsAgain {
+		nsNamesAgain.Add(d.Definition.GetName())
+	}
+	require.True(nsNamesAgain.Has(nsA))
+	require.True(nsNamesAgain.Has(nsB))
+
+	foundCaveatsAgain, err := dsReader.LegacyLookupCaveatsWithNames(t.Context(), []string{caveatA, caveatB})
 	require.NoError(err)
-	require.Len(caveatDefMapAgain, 2)
-	require.Contains(caveatDefMapAgain, caveatA)
-	require.Contains(caveatDefMapAgain, caveatB)
+	require.Len(foundCaveatsAgain, 2)
+
+	caveatNamesAgain := mapz.NewSet[string]()
+	for _, d := range foundCaveatsAgain {
+		caveatNamesAgain.Add(d.Definition.GetName())
+	}
+	require.True(caveatNamesAgain.Has(caveatA))
+	require.True(caveatNamesAgain.Has(caveatB))
 
 	dsMock.AssertExpectations(t)
 	reader.AssertExpectations(t)
@@ -1089,22 +1036,19 @@ func TestInvalidNamespaceInCache(t *testing.T) {
 	headRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 	dsReader := ds.SnapshotReader(headRevision)
-	schemaReader, err := dsReader.SchemaReader()
-	require.NoError(err)
 
-	namespace, found, err := schemaReader.LookupTypeDefByName(ctx, invalidNamespace)
-	require.Zero(namespace)
-	// NOTE: we're expecting this to be false, because the namespace doesn't exist.
+	namespace, _, err := dsReader.LegacyReadNamespaceByName(ctx, invalidNamespace)
+	require.Nil(namespace)
+	// NOTE: we're expecting this to error, because the namespace doesn't exist.
 	// However, the act of calling it sets the cache value to nil, which means that
 	// subsequent calls to the cache return that nil value. That's what needed to
 	// be filtered out of the list call.
-	require.False(found)
-	require.NoError(err)
+	require.Error(err)
 
 	// Look it up again - in the bug that this captures,
 	// it was populated into the cache and came back out.
-	defMap, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, []string{invalidNamespace})
-	require.Empty(defMap)
+	found, err := dsReader.LegacyLookupNamespacesWithNames(ctx, []string{invalidNamespace})
+	require.Empty(found)
 	require.NoError(err)
 }
 
@@ -1170,33 +1114,26 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 
 	// Write in the valid namespace
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		schemaWriter, err := rwt.SchemaWriter()
-		require.NoError(err)
-		writeErr := schemaWriter.WriteSchema(ctx, []datastore.SchemaDefinition{
-			&core.NamespaceDefinition{
-				Name: validNamespace,
-			},
-		}, "", caveattypes.Default.TypeSet)
+		writeErr := rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{
+			Name: validNamespace,
+		})
 		return writeErr
 	})
 	require.NoError(err)
 
 	dsReader := ds.SnapshotReader(revision)
-	schemaReader, err := dsReader.SchemaReader()
-	require.NoError(err)
 
-	namespace, found, err := schemaReader.LookupTypeDefByName(ctx, invalidNamespace)
-	require.Zero(namespace)
-	// NOTE: we're expecting this to be false, because the namespace doesn't exist.
+	namespace, _, err := dsReader.LegacyReadNamespaceByName(ctx, invalidNamespace)
+	require.Nil(namespace)
+	// NOTE: we're expecting this to error, because the namespace doesn't exist.
 	// However, the act of calling it sets the cache value to nil, which means that
 	// subsequent calls to the cache return that nil value. That's what needed to
 	// be filtered out of the list call.
-	require.False(found)
-	require.NoError(err)
+	require.Error(err)
 
 	// We're asserting that we find the thing we're looking for and don't receive a notfound value
-	defMap, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, []string{invalidNamespace, validNamespace})
-	require.Len(defMap, 1)
-	require.Contains(defMap, validNamespace)
+	found, err := dsReader.LegacyLookupNamespacesWithNames(ctx, []string{invalidNamespace, validNamespace})
+	require.Len(found, 1)
+	require.Equal(validNamespace, found[0].Definition.Name)
 	require.NoError(err)
 }

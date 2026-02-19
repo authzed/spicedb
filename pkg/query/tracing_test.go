@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -23,7 +24,7 @@ func TestIteratorTracing(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(revision)),
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)),
 		WithTraceLogger(traceLogger),
 	)
 

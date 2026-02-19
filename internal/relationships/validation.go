@@ -6,7 +6,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	ns "github.com/authzed/spicedb/pkg/namespace"
@@ -20,7 +20,7 @@ import (
 // they can be applied against the datastore.
 func ValidateRelationshipUpdates(
 	ctx context.Context,
-	reader datastore.Reader,
+	sr datalayer.SchemaReader,
 	caveatTypeSet *caveattypes.TypeSet,
 	updates []tuple.RelationshipUpdate,
 ) error {
@@ -29,7 +29,7 @@ func ValidateRelationshipUpdates(
 	})
 
 	// Load namespaces and caveats.
-	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, reader)
+	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, sr)
 	if err != nil {
 		return err
 	}
@@ -61,12 +61,12 @@ func ValidateRelationshipUpdates(
 // NOTE: This method *cannot* be used for relationships that will be deleted.
 func ValidateRelationshipsForCreateOrTouch(
 	ctx context.Context,
-	reader datastore.Reader,
+	sr datalayer.SchemaReader,
 	caveatTypeSet *caveattypes.TypeSet,
 	rels ...tuple.Relationship,
 ) error {
 	// Load namespaces and caveats.
-	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, reader)
+	referencedNamespaceMap, referencedCaveatMap, err := loadNamespacesAndCaveats(ctx, rels, sr)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func ValidateRelationshipsForCreateOrTouch(
 	return nil
 }
 
-func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, reader datastore.Reader) (map[string]*schema.Definition, map[string]*core.CaveatDefinition, error) {
+func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, sr datalayer.SchemaReader) (map[string]*schema.Definition, map[string]*core.CaveatDefinition, error) {
 	referencedNamespaceNames := mapz.NewSet[string]()
 	referencedCaveatNamesWithContext := mapz.NewSet[string]()
 	for _, rel := range rels {
@@ -101,13 +101,8 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 	var referencedNamespaceMap map[string]*schema.Definition
 	var referencedCaveatMap map[string]*core.CaveatDefinition
 
-	schemaReader, err := reader.SchemaReader()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	if !referencedNamespaceNames.IsEmpty() {
-		foundNamespaceDefs, err := schemaReader.LookupTypeDefinitionsByNames(ctx, referencedNamespaceNames.AsSlice())
+		foundNamespaceDefs, err := sr.LookupTypeDefinitionsByNames(ctx, referencedNamespaceNames.AsSlice())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -124,7 +119,7 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, re
 	}
 
 	if !referencedCaveatNamesWithContext.IsEmpty() {
-		foundCaveatDefs, err := schemaReader.LookupCaveatDefinitionsByNames(ctx, referencedCaveatNamesWithContext.AsSlice())
+		foundCaveatDefs, err := sr.LookupCaveatDefinitionsByNames(ctx, referencedCaveatNamesWithContext.AsSlice())
 		if err != nil {
 			return nil, nil, err
 		}

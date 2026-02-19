@@ -43,8 +43,12 @@ func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject 
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
 	}
 
-	reader := devContext.Datastore.SnapshotReader(devContext.Revision)
-	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveattypes.Default.TypeSet, caveatContext, meta.DebugInfo, reader)
+	reader := devContext.DataLayer.SnapshotReader(devContext.Revision)
+	sr, srErr := reader.ReadSchema()
+	if srErr != nil {
+		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, srErr
+	}
+	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveattypes.Default.TypeSet, caveatContext, meta.DebugInfo, sr)
 	if err != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
 	}

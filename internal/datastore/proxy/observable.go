@@ -12,7 +12,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -278,12 +277,6 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 	}, nil
 }
 
-// SchemaReader returns a wrapped version of the proxy that exercises the
-// legacy methods to implement the new methods.
-func (r *observableReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
-}
-
 type observableRWT struct {
 	*observableReader
 	delegate datastore.ReadWriteTransaction
@@ -371,10 +364,6 @@ func (rwt *observableRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames []
 	defer closer()
 
 	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
-}
-
-func (rwt *observableRWT) SchemaWriter() (datastore.SchemaWriter, error) {
-	return rwt.delegate.SchemaWriter()
 }
 
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {

@@ -6,8 +6,8 @@ import (
 
 	"google.golang.org/grpc"
 
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/pkg/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
+	"github.com/authzed/spicedb/pkg/datalayer"
 )
 
 // ForceFullConsistencyUnaryServerInterceptor returns a new unary server interceptor that enforces full consistency
@@ -19,9 +19,9 @@ func ForceFullConsistencyUnaryServerInterceptor(serviceLabel string) grpc.UnaryS
 				return handler(ctx, req)
 			}
 		}
-		ds := datastoremw.MustFromContext(ctx)
+		dl := datalayermw.MustFromContext(ctx)
 		newCtx := ContextWithHandle(ctx)
-		if err := setFullConsistencyRevisionToContext(newCtx, req, ds, serviceLabel, TreatMismatchingTokensAsFullConsistency); err != nil {
+		if err := setFullConsistencyRevisionToContext(newCtx, req, dl, serviceLabel, TreatMismatchingTokensAsFullConsistency); err != nil {
 			return nil, err
 		}
 
@@ -43,7 +43,7 @@ func ForceFullConsistencyStreamServerInterceptor(serviceLabel string) grpc.Strea
 	}
 }
 
-func setFullConsistencyRevisionToContext(ctx context.Context, req any, ds datastore.Datastore, serviceLabel string, _ MismatchingTokenOption) error {
+func setFullConsistencyRevisionToContext(ctx context.Context, req any, dl datalayer.DataLayer, serviceLabel string, _ MismatchingTokenOption) error {
 	handle := ctx.Value(revisionKey)
 	if handle == nil {
 		return nil
@@ -54,7 +54,7 @@ func setFullConsistencyRevisionToContext(ctx context.Context, req any, ds datast
 			ConsistencyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
 		}
 
-		databaseRev, err := ds.HeadRevision(ctx)
+		databaseRev, err := dl.HeadRevision(ctx)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}

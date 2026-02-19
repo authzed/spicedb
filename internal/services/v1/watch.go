@@ -12,9 +12,10 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -52,11 +53,11 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	objectTypes := mapz.NewSet[string](req.GetOptionalObjectTypes()...)
 
 	ctx := stream.Context()
-	ds := datastoremw.MustFromContext(ctx)
+	dl := datalayermw.MustFromContext(ctx)
 
 	var afterRevision datastore.Revision
 	if req.OptionalStartCursor != nil && req.OptionalStartCursor.Token != "" {
-		decodedRevision, tokenStatus, err := zedtoken.DecodeRevision(req.OptionalStartCursor, ds)
+		decodedRevision, tokenStatus, err := zedtoken.DecodeRevision(req.OptionalStartCursor, dl)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
@@ -73,15 +74,19 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		afterRevision = decodedRevision
 	} else {
 		var err error
-		afterRevision, err = ds.OptimizedRevision(ctx)
+		afterRevision, err = dl.OptimizedRevision(ctx)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
 	}
 
-	reader := ds.SnapshotReader(afterRevision)
+	reader := dl.SnapshotReader(afterRevision)
+	sr, err := reader.ReadSchema()
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to read schema: %s", err)
+	}
 
-	filters, err := buildRelationshipFilters(req, stream, reader, ws, ctx)
+	filters, err := buildRelationshipFilters(req, stream, sr, ws, ctx)
 	if err != nil {
 		return err
 	}
@@ -90,7 +95,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		DispatchCount: 1,
 	})
 
-	updates, errchan := ds.Watch(ctx, afterRevision, datastore.WatchOptions{
+	updates, errchan := dl.Watch(ctx, afterRevision, datastore.WatchOptions{
 		Content:            convertWatchKindToContent(req.OptionalUpdateKinds),
 		CheckpointInterval: ws.heartbeatDuration,
 	})
@@ -104,7 +109,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 				}
 
 				filteredRelationshipUpdates := filterRelationshipUpdates(objectTypes, filters, update.RelationshipChanges)
-				zedToken, err := zedtoken.NewFromRevision(ctx, update.Revision, ds)
+				zedToken, err := zedtoken.NewFromRevision(ctx, update.Revision, dl)
 				if err != nil {
 					return err
 				}
@@ -151,10 +156,10 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	}
 }
 
-func buildRelationshipFilters(req *v1.WatchRequest, stream v1.WatchService_WatchServer, reader datastore.Reader, ws *watchServer, ctx context.Context) ([]datastore.RelationshipsFilter, error) {
+func buildRelationshipFilters(req *v1.WatchRequest, stream v1.WatchService_WatchServer, sr datalayer.SchemaReader, ws *watchServer, ctx context.Context) ([]datastore.RelationshipsFilter, error) {
 	filters := make([]datastore.RelationshipsFilter, 0, len(req.OptionalRelationshipFilters))
 	for _, filter := range req.OptionalRelationshipFilters {
-		if err := validateRelationshipsFilter(stream.Context(), filter, reader); err != nil {
+		if err := validateRelationshipsFilter(stream.Context(), filter, sr); err != nil {
 			return nil, ws.rewriteError(ctx, err)
 		}
 
