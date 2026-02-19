@@ -293,7 +293,7 @@ func FuzzOutlineCompare(f *testing.F) {
 		case cmp12 > 0:
 			require.Negative(t, cmp21, "Antisymmetry violated: compare(a,b)>0 but compare(b,a)>=0")
 		default:
-			require.Greater(t, cmp21, 0, "Antisymmetry violated: compare(a,b)<0 but compare(b,a)<=0")
+			require.Positive(t, cmp21, "Antisymmetry violated: compare(a,b)<0 but compare(b,a)<=0")
 		}
 
 		// Property: compare(a, a) == 0 (reflexivity)
