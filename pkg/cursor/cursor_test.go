@@ -79,7 +79,7 @@ func TestDecode(t *testing.T) {
 		expectedHash     string
 		expectError      bool
 	}{
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name:             "invalid",
 			token:            "abc",
 			expectedRevision: datastore.NoRevision,
@@ -87,7 +87,7 @@ func TestDecode(t *testing.T) {
 			expectedHash:     "",
 			expectError:      true,
 		},
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name:             "empty",
 			token:            "Cg0KATEaCHNvbWVoYXNo",
 			expectedRevision: revision1,
@@ -95,7 +95,7 @@ func TestDecode(t *testing.T) {
 			expectedHash:     "somehash",
 			expectError:      false,
 		},
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name:             "basic",
 			token:            "ChUKATESAWESAWISAWMaB2Fub3RoZXI=",
 			expectedRevision: revision1,
@@ -103,7 +103,7 @@ func TestDecode(t *testing.T) {
 			expectedHash:     "another",
 			expectError:      false,
 		},
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name:             "basic with wrong hash",
 			token:            "ChUKATESAWESAWISAWMaB2Fub3RoZXI=",
 			expectedRevision: revision1,
@@ -111,7 +111,7 @@ func TestDecode(t *testing.T) {
 			expectedHash:     "wrong",
 			expectError:      true,
 		},
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name:             "basic with different revision",
 			token:            "ChUKATISAWESAWISAWMaB2Fub3RoZXI=",
 			expectedRevision: revision2,

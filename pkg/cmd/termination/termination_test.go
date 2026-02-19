@@ -28,7 +28,7 @@ func TestPublishError(t *testing.T) {
 	var termErr spiceerrors.TerminationError
 	require.ErrorAs(t, err, &termErr)
 
-	jsonBytes, err := os.ReadFile(f.Name())
+	jsonBytes, err := os.ReadFile(f.Name()) //nolint:gosec  // path traversal isn't a problem in tests
 	require.NoError(t, err)
 	var readErr spiceerrors.TerminationError
 	err = json.Unmarshal(jsonBytes, &readErr)
@@ -51,7 +51,7 @@ func TestPublishError(t *testing.T) {
 		return publishedError
 	})(&cmd, nil)
 
-	jsonBytes, err = os.ReadFile(f.Name())
+	jsonBytes, err = os.ReadFile(f.Name()) //nolint:gosec  // path traversal isn't a problem in tests
 	require.NoError(t, err)
 	err = json.Unmarshal(jsonBytes, &readErr)
 	require.NoError(t, err)

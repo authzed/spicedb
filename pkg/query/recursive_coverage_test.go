@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -282,8 +283,13 @@ func (i *infiniteRecursiveIterator) IterSubjectsImpl(ctx *Context, resource Obje
 func (i *infiniteRecursiveIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	return func(yield func(Path, error) bool) {
 		i.counter++
+		counter, err := safecast.Convert[int32](i.counter)
+		if err != nil {
+			yield(Path{}, err)
+			return
+		}
 		path := Path{
-			Resource: Object{ObjectType: i.resourceType, ObjectID: "folder" + string(rune('0'+i.counter))},
+			Resource: Object{ObjectType: i.resourceType, ObjectID: "folder" + string('0'+counter)},
 			Relation: "parent",
 			Subject:  subject,
 		}

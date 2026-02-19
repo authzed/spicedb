@@ -81,15 +81,15 @@ func (rc RevisionChanges) DebugString() string {
 	}
 
 	for _, def := range rc.ChangedDefinitions {
-		debugString.WriteString(fmt.Sprintf("Definition: %T:%s\n", def, def.GetName()))
+		fmt.Fprintf(&debugString, "Definition: %T:%s\n", def, def.GetName())
 	}
 
 	for _, ns := range rc.DeletedNamespaces {
-		debugString.WriteString(fmt.Sprintf("DeletedNamespace: %s\n", ns))
+		fmt.Fprintf(&debugString, "DeletedNamespace: %s\n", ns)
 	}
 
 	for _, caveat := range rc.DeletedCaveats {
-		debugString.WriteString(fmt.Sprintf("DeletedCaveat: %s\n", caveat))
+		fmt.Fprintf(&debugString, "DeletedCaveat: %s\n", caveat)
 	}
 
 	return debugString.String()

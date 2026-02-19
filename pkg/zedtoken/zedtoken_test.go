@@ -75,70 +75,70 @@ var decodeTests = []struct {
 	expectedStatus    TokenStatus
 	expectError       bool
 }{
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "invalid",
 		token:            "abc",
 		expectedRevision: datastore.NoRevision,
 		expectedStatus:   StatusUnknown,
 		expectError:      true,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "V1 Zookie",
 		token:            "CAESAA==",
 		expectedRevision: revisions.NewForTransactionID(0),
 		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "V1 Zookie",
 		token:            "CAESAggB",
 		expectedRevision: revisions.NewForTransactionID(1),
 		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "V1 Zookie",
 		token:            "CAESAggC",
 		expectedRevision: revisions.NewForTransactionID(2),
 		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "V1 Zookie",
 		token:            "CAESAwiAAg==",
 		expectedRevision: revisions.NewForTransactionID(256),
 		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "V1 Zookie",
 		token:            "CAIaAwoBMA==",
 		expectedRevision: revisions.NewForTransactionID(0),
 		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "V1 ZedToken",
 		token:            "CAIaAwoBMQ==",
 		expectedRevision: revisions.NewForTransactionID(1),
 		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "V1 ZedToken",
 		token:            "CAIaAwoBMg==",
 		expectedRevision: revisions.NewForTransactionID(2),
 		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:           "V1 ZedToken",
 		token:            "CAIaAwoBNA==",
 		expectedRevision: revisions.NewForTransactionID(4),
 		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:            "V1 ZedToken with matching datastore unique ID",
 		token:             "Gg4KAjQyEghzb21ldW5pcQ==",
 		datastoreUniqueID: "someuniqueid",
@@ -146,7 +146,7 @@ var decodeTests = []struct {
 		expectedStatus:    StatusValid,
 		expectError:       false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:            "V1 ZedToken with mismatched datastore unique ID",
 		token:             "Gg4KAjQyEghzb21ldW5pcQ==",
 		datastoreUniqueID: "anotheruniqueid",
@@ -192,7 +192,7 @@ var hlcDecodeTests = []struct {
 	expectedStatus    TokenStatus
 	expectError       bool
 }{
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:         "V1 ZedToken",
 		token:          "CAIaFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
 		expectedStatus: StatusLegacyEmptyDatastoreID,
@@ -204,7 +204,7 @@ var hlcDecodeTests = []struct {
 			return r
 		}(),
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:         "V1 ZedToken",
 		token:          "GiAKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMQ==",
 		expectedStatus: StatusLegacyEmptyDatastoreID,
@@ -221,7 +221,7 @@ var hlcDecodeTests = []struct {
 		})(),
 		expectError: false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:            "V1 ZedToken with matching datastore unique ID",
 		token:             "GioKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIINjM0OWFhZjI=",
 		datastoreUniqueID: "6349aaf2-37cd-47b9-84e8-fe5fa6e2dead",
@@ -239,7 +239,7 @@ var hlcDecodeTests = []struct {
 		})(),
 		expectError: false,
 	},
-	{
+	{ //nolint:gosec  // this is a test file and test logic
 		format:            "V1 ZedToken with mismatched datastore unique ID",
 		token:             "GioKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIINjM0OWFhZjI=",
 		datastoreUniqueID: "arrrg-6349aaf2-37cd-47b9-84e8-fe5fa6e2dead",

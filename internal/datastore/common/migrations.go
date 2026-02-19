@@ -29,10 +29,10 @@ func (mv *MigrationValidator) MigrationReadyState(version string) datastore.Read
 		return datastore.ReadyState{IsReady: true}
 	}
 	var msgBuilder strings.Builder
-	msgBuilder.WriteString(fmt.Sprintf("datastore is not migrated: currently at revision %q, but requires %q", version, mv.headMigration))
+	fmt.Fprintf(&msgBuilder, "datastore is not migrated: currently at revision %q, but requires %q", version, mv.headMigration)
 
 	if len(mv.additionalAllowedMigrations) > 0 {
-		msgBuilder.WriteString(fmt.Sprintf(" (additional allowed migrations: %v)", mv.additionalAllowedMigrations))
+		fmt.Fprintf(&msgBuilder, " (additional allowed migrations: %v)", mv.additionalAllowedMigrations)
 	}
 	msgBuilder.WriteString(". Please run \"spicedb datastore migrate\".")
 	return datastore.ReadyState{
