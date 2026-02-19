@@ -36,11 +36,13 @@ func FuzzPathOrder(f *testing.F) {
 		// Test antisymmetry: if PathOrder(x, y) < 0, then PathOrder(y, x) > 0
 		ab := PathOrder(a, b)
 		ba := PathOrder(b, a)
-		if ab < 0 {
+
+		switch {
+		case ab < 0:
 			require.Positive(t, ba, "PathOrder should be antisymmetric: if PathOrder(a, b) < 0, then PathOrder(b, a) > 0")
-		} else if ab > 0 {
+		case ab > 0:
 			require.Negative(t, ba, "PathOrder should be antisymmetric: if PathOrder(a, b) > 0, then PathOrder(b, a) < 0")
-		} else {
+		default:
 			require.Equal(t, 0, ba, "PathOrder should be antisymmetric: if PathOrder(a, b) == 0, then PathOrder(b, a) == 0")
 		}
 
@@ -48,18 +50,19 @@ func FuzzPathOrder(f *testing.F) {
 		bc := PathOrder(b, c)
 		ac := PathOrder(a, c)
 
-		if ab < 0 && bc < 0 {
+		switch {
+		case ab < 0 && bc < 0:
 			// Case 1: a < b and b < c => a < c
 			require.Negative(t, ac, "PathOrder transitivity: if a < b and b < c, then a < c")
-		} else if ab > 0 && bc > 0 {
+		case ab > 0 && bc > 0:
 			// Case 2: a > b and b > c => a > c
 			require.Positive(t, ac, "PathOrder transitivity: if a > b and b > c, then a > c")
-		} else if ab > 0 {
+		case ab > 0:
 			// Otherwise, b is least element.
 			paths := []Path{a, b, c}
 			slices.SortFunc(paths, PathOrder)
 			require.Equal(t, 0, PathOrder(paths[0], b))
-		} else if ab < 0 {
+		case ab < 0:
 			// Or b is the greatest element
 			paths := []Path{a, b, c}
 			slices.SortFunc(paths, PathOrder)
