@@ -5,6 +5,7 @@ import (
 	dispatch "github.com/authzed/spicedb/internal/dispatch"
 	memoryprotection "github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	consistency "github.com/authzed/spicedb/pkg/middleware/consistency"
+	readiness "github.com/authzed/spicedb/pkg/middleware/readiness"
 	defaults "github.com/creasty/defaults"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	zerolog "github.com/rs/zerolog"
@@ -44,6 +45,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.MismatchingZedTokenOption = m.MismatchingZedTokenOption
 		to.MemoryUsageProvider = m.MemoryUsageProvider
+		to.ReadinessChecker = m.ReadinessChecker
 	}
 }
 
@@ -167,5 +169,12 @@ func WithMismatchingZedTokenOption(mismatchingZedTokenOption consistency.Mismatc
 func WithMemoryUsageProvider(memoryUsageProvider memoryprotection.MemoryUsageProvider) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MemoryUsageProvider = memoryUsageProvider
+	}
+}
+
+// WithReadinessChecker returns an option that can set ReadinessChecker on a MiddlewareOption
+func WithReadinessChecker(readinessChecker readiness.ReadinessChecker) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.ReadinessChecker = readinessChecker
 	}
 }

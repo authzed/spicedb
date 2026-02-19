@@ -176,3 +176,33 @@ type RevisionUnavailableError struct {
 func NewRevisionUnavailableError(err error) error {
 	return RevisionUnavailableError{err}
 }
+
+// SchemaNotInitializedError is returned when a datastore operation fails because the
+// required database tables do not exist. This typically means that migrations have not been run.
+type SchemaNotInitializedError struct {
+	error
+}
+
+func (err SchemaNotInitializedError) GRPCStatus() *status.Status {
+	// TODO: Update to use ERROR_REASON_DATASTORE_NOT_MIGRATED once authzed/api#159 is merged
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.FailedPrecondition,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			map[string]string{},
+		),
+	)
+}
+
+func (err SchemaNotInitializedError) Unwrap() error {
+	return err.error
+}
+
+// NewSchemaNotInitializedError creates a new SchemaNotInitializedError with a helpful message
+// instructing the user to run migrations.
+func NewSchemaNotInitializedError(underlying error) error {
+	return SchemaNotInitializedError{
+		fmt.Errorf("%w. please run \"spicedb datastore migrate\"", underlying),
+	}
+}
