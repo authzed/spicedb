@@ -66,7 +66,6 @@ caveat somecaveat(someParam int) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			source, ok, err := GenerateCaveatSource(test.input, caveattypes.Default.TypeSet)
@@ -233,7 +232,6 @@ definition foos/document {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			source, ok, err := GenerateSource(test.input, caveattypes.Default.TypeSet)
@@ -447,7 +445,6 @@ definition user {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			compiled, err := compiler.Compile(compiler.InputSchema{

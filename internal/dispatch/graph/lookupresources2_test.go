@@ -181,7 +181,6 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 			expectedSecond: []string{"companyplan", "masterplan"},
 		},
 	} {
-		tc := tc
 		t.Run(tc.subject, func(t *testing.T) {
 			t.Parallel()
 
@@ -748,11 +747,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, pageSize := range []int{0, 104, 1023} {
-				pageSize := pageSize
 				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
 					t.Parallel()
 					require := require.New(t)
@@ -1348,7 +1345,6 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1460,7 +1456,7 @@ func genRels(resourceName string, relation string, subjectName string, subjectID
 
 func genSubjectRels(resourceName string, relation string, subjectName string, subjectRelation string, number int) []tuple.Relationship {
 	rels := make([]tuple.Relationship, 0, number)
-	for i := 0; i < number; i++ {
+	for i := range number {
 		rel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i), relation),
@@ -1479,7 +1475,7 @@ func genRelsWithCaveat(resourceName string, relation string, subjectName string,
 
 func genRelsWithCaveatAndSubjectRelation(resourceName string, relation string, subjectName string, subjectID string, subjectRelation string, caveatName string, context map[string]any, offset int, number int) []tuple.Relationship {
 	rels := make([]tuple.Relationship, 0, number)
-	for i := 0; i < number; i++ {
+	for i := range number {
 		rel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
@@ -1497,7 +1493,7 @@ func genRelsWithCaveatAndSubjectRelation(resourceName string, relation string, s
 
 func genResourceIds(resourceName string, number int) []string {
 	resourceIDs := make([]string, 0, number)
-	for i := 0; i < number; i++ {
+	for i := range number {
 		resourceIDs = append(resourceIDs, fmt.Sprintf("%s-%d", resourceName, i))
 	}
 	return resourceIDs

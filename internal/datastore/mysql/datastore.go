@@ -207,15 +207,9 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
-	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
-	if quantizationPeriodNanos < 1 {
-		quantizationPeriodNanos = 1
-	}
+	quantizationPeriodNanos := max(config.revisionQuantization.Nanoseconds(), 1)
 
-	followerReadDelayNanos := config.followerReadDelay.Nanoseconds()
-	if followerReadDelayNanos < 0 {
-		followerReadDelayNanos = 0
-	}
+	followerReadDelayNanos := max(config.followerReadDelay.Nanoseconds(), 0)
 
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,

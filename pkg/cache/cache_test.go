@@ -98,7 +98,7 @@ func testCacheImplementation(t *testing.T, factory func() (Cache[StringKey, stri
 		cache, err := factory()
 		require.NoError(t, err)
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			cache.Close()
 		}
 	})

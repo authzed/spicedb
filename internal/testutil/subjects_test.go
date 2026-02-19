@@ -149,7 +149,6 @@ func TestCompareSubjects(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(fmt.Sprintf("%s vs %s", FormatSubject(tc.first), FormatSubject(tc.second)), func(t *testing.T) {
 			t.Parallel()
 

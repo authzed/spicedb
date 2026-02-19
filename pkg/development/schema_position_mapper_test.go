@@ -402,7 +402,6 @@ definition document {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("test"),

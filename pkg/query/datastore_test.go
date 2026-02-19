@@ -183,7 +183,6 @@ func TestDatastoreIteratorSubjectTypeMismatchScenarios(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -326,7 +325,6 @@ func TestDatastoreIteratorWildcardSubjectTypeMismatchScenarios(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

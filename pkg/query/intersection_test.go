@@ -1,6 +1,7 @@
 package query
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -218,13 +219,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Both iterators should produce identical results (order may vary)
 	require.Len(clonedResults, len(originalResults), "cloned iterator should produce same number of results")
 	for _, expectedPath := range originalResults {
-		found := false
-		for _, actualPath := range clonedResults {
-			if expectedPath.Equals(actualPath) {
-				found = true
-				break
-			}
-		}
+		found := slices.ContainsFunc(clonedResults, expectedPath.Equals)
 		require.True(found, "Expected path %v should be found in cloned results", expectedPath)
 	}
 }

@@ -3,6 +3,7 @@ package development
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ccoveille/go-safecast/v2"
 
@@ -123,13 +124,7 @@ func shouldSkipCheck(metadata *corev1.Metadata, name string) bool {
 	}
 
 	comments := namespace.GetComments(metadata)
-	for _, comment := range comments {
-		if comment == "// spicedb-ignore-warning: "+name {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(comments, "// spicedb-ignore-warning: "+name)
 }
 
 type tupleset interface {

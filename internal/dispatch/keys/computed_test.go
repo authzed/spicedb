@@ -405,7 +405,6 @@ func TestStableCacheKeys(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			key := tc.createKey()
 			require.Equal(t, tc.expected, hex.EncodeToString(key.StableSumAsBytes()))
@@ -568,27 +567,20 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 	require.Len(t, cachePrefixes, len(generatorFuncs))
 
 	for _, resourceIds := range allResourceIds {
-		resourceIds := resourceIds
 		t.Run(strings.Join(resourceIds, ","), func(t *testing.T) {
 			for _, subjectIds := range allSubjectIds {
-				subjectIds := subjectIds
 				t.Run(strings.Join(subjectIds, ","), func(t *testing.T) {
 					for _, resourceRelation := range resourceRelations {
-						resourceRelation := resourceRelation
 						t.Run(tuple.StringCoreRR(resourceRelation), func(t *testing.T) {
 							for _, subjectRelation := range subjectRelations {
-								subjectRelation := subjectRelation
 								t.Run(tuple.StringCoreRR(subjectRelation), func(t *testing.T) {
 									for _, revision := range revisions {
-										revision := revision
 										t.Run(revision, func(t *testing.T) {
 											metadata := &v1.ResolverMeta{
 												AtRevision: revision,
 											}
 
 											for prefix, f := range generatorFuncs {
-												prefix := prefix
-												f := f
 												t.Run(prefix, func(t *testing.T) {
 													generated, usedData := f(resourceIds, subjectIds, resourceRelation, subjectRelation, metadata)
 													usedDataString := fmt.Sprintf("%s:%s", prefix, strings.Join(usedData, ","))

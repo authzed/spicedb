@@ -446,13 +446,7 @@ func filterFuncForFilters(
 		}
 
 		if len(optionalSubjectsSelectors) > 0 {
-			hasMatchingSelector := false
-			for _, selector := range optionalSubjectsSelectors {
-				if applySubjectSelector(selector) {
-					hasMatchingSelector = true
-					break
-				}
-			}
+			hasMatchingSelector := slices.ContainsFunc(optionalSubjectsSelectors, applySubjectSelector)
 
 			if !hasMatchingSelector {
 				return true

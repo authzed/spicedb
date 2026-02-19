@@ -134,7 +134,6 @@ func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			computed, err := RelationshipsFilterFromPublicFilter(test.input)
 			if test.expectedError != "" {
@@ -296,7 +295,6 @@ func TestConvertedRelationshipFilterTest(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			filter, err := RelationshipsFilterFromPublicFilter(tc.filter)
 			require.NoError(t, err)
@@ -570,7 +568,6 @@ func TestRelationshipsFilterTest(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			relationship := tuple.MustParse(tc.relationshipString)
 			require.Equal(t, tc.expected, tc.filter.Test(relationship))

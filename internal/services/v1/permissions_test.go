@@ -250,13 +250,10 @@ func TestCheckPermissions(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
-		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, debug := range []bool{false, true} {
-				debug := debug
 				t.Run(fmt.Sprintf("debug%v", debug), func(t *testing.T) {
 					for _, tc := range testCases {
-						tc := tc
 						t.Run(fmt.Sprintf(
 							"%s:%s#%s@%s:%s#%s",
 							tc.resource.ObjectType,
@@ -623,13 +620,10 @@ func TestLookupResources(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
-		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
-				tc := tc
 				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
 					for _, useV2 := range []bool{false, true} {
-						useV2 := useV2
 						t.Run(fmt.Sprintf("v2:%v", useV2), func(t *testing.T) {
 							require := require.New(t)
 							conn, cleanup, _, revision := testserver.NewTestServerWithConfig(
@@ -714,10 +708,8 @@ func TestExpand(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
-		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
-				tc := tc
 				t.Run(fmt.Sprintf("%s:%s#%s", tc.startObjectType, tc.startObjectID, tc.startPermission), func(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -845,7 +837,6 @@ func TestTranslateExpansionTree(t *testing.T) {
 	}
 
 	for _, tt := range table {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			out := v1svc.TranslateRelationshipTree(v1svc.TranslateExpansionTree(tt.input))
 			require.Equal(t, tt.input, out)
@@ -984,10 +975,8 @@ func TestLookupSubjects(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
-		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
-				tc := tc
 				t.Run(fmt.Sprintf("%s:%s#%s for %s#%s", tc.resource.ObjectType, tc.resource.ObjectId, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -1158,7 +1147,6 @@ func TestCheckWithCaveatErrors(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			request := &v1.CheckPermissionRequest{
 				Consistency: &v1.Consistency{
@@ -1577,7 +1565,7 @@ func bySubjectID(a, b expectedSubject) int {
 
 func generateMap(length int) map[string]any {
 	output := make(map[string]any, length)
-	for i := 0; i < length; i++ {
+	for range length {
 		random := randString(32)
 		output[random] = random
 	}
@@ -1655,13 +1643,10 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
-		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, limit := range []int{1, 2, 5, 10, 100} {
-				limit := limit
 				t.Run(fmt.Sprintf("limit%d", limit), func(t *testing.T) {
 					for _, tc := range testCases {
-						tc := tc
 						t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
 							require := require.New(t)
 							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -1672,7 +1657,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 							var currentCursor *v1.Cursor
 							foundObjectIds := mapz.NewSet[string]()
 
-							for i := 0; i < 5; i++ {
+							for range 5 {
 								var trailer metadata.MD
 								uintLimit, err := safecast.Convert[uint32](limit)
 								require.NoError(err)
@@ -1913,7 +1898,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 			name: "chunking test",
 			requests: (func() []string {
 				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+5)
-				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
+				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
@@ -1921,7 +1906,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 			})(),
 			response: (func() []bulkCheckTest {
 				toReturn := make([]bulkCheckTest, 0, defaultFilterMaximumIDCountForTest+5)
-				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
+				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, bulkCheckTest{
 						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
 						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
@@ -1937,7 +1922,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+6)
 				toReturn = append(toReturn, `nondoc:masterplan#view@user:eng_lead`)
 
-				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
+				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
@@ -1950,7 +1935,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 					err: namespace.NewNamespaceNotFoundErr("nondoc"),
 				})
 
-				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
+				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, bulkCheckTest{
 						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
 						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
@@ -1980,7 +1965,6 @@ func TestCheckBulkPermissions(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			for _, withTracing := range []bool{true, false} {
 				t.Run(fmt.Sprintf("withTracing=%t", withTracing), func(t *testing.T) {
@@ -2092,7 +2076,6 @@ func TestImportBulkRelationships(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, withTrait := range []string{"", "caveated_viewer", "expiring_viewer"} {
-				withTrait := withTrait
 				t.Run(fmt.Sprintf("withTrait=%s", withTrait), func(t *testing.T) {
 					require := require.New(t)
 
@@ -2110,7 +2093,7 @@ func TestImportBulkRelationships(t *testing.T) {
 						batchSize := tc.batchSize()
 						batch := make([]*v1.Relationship, 0, batchSize)
 
-						for i := uint64(0); i < batchSize; i++ {
+						for i := range batchSize {
 							switch withTrait {
 							case "caveated_viewer":
 								batch = append(batch, mustRelWithCaveatAndContext(
@@ -2359,7 +2342,6 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 	batchSize := uint32(14)
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 

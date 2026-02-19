@@ -62,7 +62,6 @@ func TestReplaceVariable(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			env, err := cel.NewEnv(
 				cel.Variable("x", cel.IntType),

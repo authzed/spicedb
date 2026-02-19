@@ -199,13 +199,11 @@ func TestPrimarySleeper_ConcurrentCancelSleep(t *testing.T) {
 		start := time.Now()
 		var wg sync.WaitGroup
 
-		for i := 0; i < 10; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range 10 {
+			wg.Go(func() {
 				time.Sleep(5 * time.Millisecond)
 				sleeper.cancelSleep()
-			}()
+			})
 		}
 
 		go func() {
@@ -262,7 +260,7 @@ func TestPrimarySleeper_SleepConcurrently(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()

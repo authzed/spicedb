@@ -469,7 +469,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 
 	go (func() {
 		// Start a loop to write a namespace a bunch of times.
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			// Write somenamespace.
 			fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev(fmt.Sprintf("%d", i+1)))
 		}
@@ -479,7 +479,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 
 	go func() {
 		// Start a loop to read a namespace a bunch of times.
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			headRevision, err := fakeDS.HeadRevision(t.Context())
 			assert.NoError(t, err)
 
@@ -524,7 +524,7 @@ func TestOldWatchingCacheParallelReaderWriter(t *testing.T) {
 
 	go (func() {
 		// Start a loop to write a namespace a bunch of times.
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			// Write somenamespace.
 			fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev(fmt.Sprintf("%d", i+1)))
 		}
@@ -538,7 +538,7 @@ func TestOldWatchingCacheParallelReaderWriter(t *testing.T) {
 
 	go (func() {
 		// Start a loop to read a namespace a bunch of times.
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			headRevision, err := fakeDS.HeadRevision(t.Context())
 			headRevisionErrors <- err
 

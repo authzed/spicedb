@@ -253,15 +253,9 @@ func newPostgresDatastore(
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
-	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
-	if quantizationPeriodNanos < 1 {
-		quantizationPeriodNanos = 1
-	}
+	quantizationPeriodNanos := max(config.revisionQuantization.Nanoseconds(), 1)
 
-	followerReadDelayNanos := config.followerReadDelay.Nanoseconds()
-	if followerReadDelayNanos < 0 {
-		followerReadDelayNanos = 0
-	}
+	followerReadDelayNanos := max(config.followerReadDelay.Nanoseconds(), 0)
 
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,

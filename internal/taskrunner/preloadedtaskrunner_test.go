@@ -24,7 +24,7 @@ func TestPreloadedTaskRunnerCompletesAllTasks(t *testing.T) {
 	tr := NewPreloadedTaskRunner(t.Context(), 2, 5)
 	wg := sync.WaitGroup{}
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		wg.Add(1)
 		i := i
 		tr.Add(func(ctx context.Context) error {
@@ -51,8 +51,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 	tr := NewPreloadedTaskRunner(ctx, 3, 10)
 	completed := sync.Map{}
 
-	for i := 0; i < 10; i++ {
-		i := i
+	for i := range 10 {
 		tr.Add(func(ctx context.Context) error {
 			if i == 1 {
 				return fmt.Errorf("some error")
@@ -69,7 +68,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	count := 0
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if _, ok := completed.Load(i); ok {
 			count++
 		}
@@ -89,8 +88,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 	tr := NewPreloadedTaskRunner(ctx, 3, 10)
 	completed := sync.Map{}
 
-	for i := 0; i < 10; i++ {
-		i := i
+	for i := range 10 {
 		tr.Add(func(ctx context.Context) error {
 			if i == 1 {
 				cancel()
@@ -108,7 +106,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	count := 0
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if _, ok := completed.Load(i); ok {
 			count++
 		}
@@ -128,8 +126,7 @@ func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
 	tr := NewPreloadedTaskRunner(ctx, 3, 10)
 	completed := sync.Map{}
 
-	for i := 0; i < 10; i++ {
-		i := i
+	for i := range 10 {
 		tr.Add(func(ctx context.Context) error {
 			if i == 1 {
 				return fmt.Errorf("some error")
@@ -147,7 +144,7 @@ func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
 	require.ErrorContains(t, err, "some error")
 
 	count := 0
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if _, ok := completed.Load(i); ok {
 			count++
 		}

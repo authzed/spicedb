@@ -58,7 +58,7 @@ services:
     container_name: "migrate"
     environment:
       - "SPICEDB_DATASTORE_ENGINE=postgres"
-        # Run migrations on primary
+      # Run migrations on primary
       - "SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb@postgres-primary:5432/spicedb?sslmode=disable"
     command: "datastore migrate head"
     networks:

@@ -35,7 +35,7 @@ func (t *testServer) Ping(ctx context.Context, req *testpb.PingRequest) (*testpb
 
 func (t *testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	// Send a few responses to test server streaming
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if err := server.Send(&testpb.PingListResponse{Value: "ping"}); err != nil {
 			return err
 		}

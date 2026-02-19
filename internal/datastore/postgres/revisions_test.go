@@ -30,7 +30,6 @@ func TestRevisionOrdering(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("%s:%s", tc.lhsSnapshot, tc.rhsSnapshot), func(t *testing.T) {
 			require := require.New(t)
 
@@ -76,7 +75,6 @@ func TestRevisionSerDe(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.snapshot.String(), func(t *testing.T) {
 			require := require.New(t)
 
@@ -138,7 +136,6 @@ func TestRevisionParseOldDecimalFormat(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.snapshot.String(), func(t *testing.T) {
 			require := require.New(t)
 
@@ -180,7 +177,6 @@ func TestCombinedRevisionParsing(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.snapshot.String(), func(t *testing.T) {
 			require := require.New(t)
 
