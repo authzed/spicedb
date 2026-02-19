@@ -247,7 +247,7 @@ func TestCertRotation(t *testing.T) {
 	newCertParsed, err := x509.ParseCertificate(newCertBytes)
 	require.NoError(t, err)
 
-	keyFile, err = os.OpenFile(keyFile.Name(), os.O_WRONLY|os.O_TRUNC, 0o755)
+	keyFile, err = os.OpenFile(keyFile.Name(), os.O_WRONLY|os.O_TRUNC, 0o755) //nolint:gosec  // path traversal isn't a problem in tests
 	require.NoError(t, err)
 	newKeyBytes, err := x509.MarshalECPrivateKey(newCertPrivateKey)
 	require.NoError(t, err)
@@ -257,7 +257,7 @@ func TestCertRotation(t *testing.T) {
 	}))
 	require.NoError(t, keyFile.Close())
 
-	certFile, err = os.OpenFile(certFile.Name(), os.O_WRONLY|os.O_TRUNC, 0o755)
+	certFile, err = os.OpenFile(certFile.Name(), os.O_WRONLY|os.O_TRUNC, 0o755) //nolint:gosec  // path traversal isn't a problem in tests
 	require.NoError(t, err)
 	require.NoError(t, pem.Encode(certFile, &pem.Block{
 		Type:  "CERTIFICATE",

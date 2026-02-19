@@ -79,39 +79,36 @@ func TestDigestMap_MultipleKeys(t *testing.T) {
 
 func TestDigestMap_ConcurrentAccess(t *testing.T) {
 	dm := NewDigestMap()
-	numGoroutines := 10
-	numOperations := 100
+	numGoroutines := int32(10)
+	numOperations := int32(100)
 
 	var wg sync.WaitGroup
-	wg.Add(numGoroutines * 2) // writers and readers
 
 	// Concurrent writers
 	for i := range numGoroutines {
-		go func(id int) {
-			defer wg.Done()
-			key := "key-" + string(rune('0'+id))
+		wg.Go(func() {
+			key := "key-" + string('0'+i)
 			for j := range numOperations {
 				dm.Add(key, float64(j))
 			}
-		}(i)
+		})
 	}
 
 	// Concurrent readers
 	for i := range numGoroutines {
-		go func(id int) {
-			defer wg.Done()
-			key := "key-" + string(rune('0'+id))
+		wg.Go(func() {
+			key := "key-" + string('0'+i)
 			for range numOperations {
 				dm.CDF(key, 50.0)
 			}
-		}(i)
+		})
 	}
 
 	wg.Wait()
 
 	// Verify all keys have data
 	for i := range numGoroutines {
-		key := "key-" + string(rune('0'+i))
+		key := "key-" + string('0'+i)
 		cdf, ok := dm.CDF(key, 50.0)
 		require.True(t, ok)
 		require.True(t, cdf >= 0 && cdf <= 1)

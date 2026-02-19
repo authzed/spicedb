@@ -1836,7 +1836,7 @@ func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *tes
 
 	for i := range 50 {
 		g.Go(func() error {
-			updates := []*v1.RelationshipUpdate{}
+			updates := make([]*v1.RelationshipUpdate, 0, 500) //nolint:prealloc  // for some reason prealloc thinks this should be 1k
 			for j := range 500 {
 				updates = append(updates, &v1.RelationshipUpdate{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,

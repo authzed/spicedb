@@ -166,7 +166,7 @@ func TestPostgresFDWCompleteValidation(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("missing SpiceDB endpoint", func(t *testing.T) {
-		config := &PostgresFDWConfig{
+		config := &PostgresFDWConfig{ //nolint:gosec  // this is a test file and test logic
 			SpiceDBEndpoint:          "",
 			SecureSpiceDBAccessToken: "test_token",
 			PostgresEndpoint:         ":5432",
@@ -179,7 +179,7 @@ func TestPostgresFDWCompleteValidation(t *testing.T) {
 	})
 
 	t.Run("missing SpiceDB access token", func(t *testing.T) {
-		config := &PostgresFDWConfig{
+		config := &PostgresFDWConfig{ //nolint:gosec  // this is a test file and test logic
 			SpiceDBEndpoint:          "localhost:50051",
 			SecureSpiceDBAccessToken: "",
 			PostgresEndpoint:         ":5432",
@@ -192,7 +192,7 @@ func TestPostgresFDWCompleteValidation(t *testing.T) {
 	})
 
 	t.Run("missing Postgres access token", func(t *testing.T) {
-		config := &PostgresFDWConfig{
+		config := &PostgresFDWConfig{ //nolint:gosec  // this is a test file and test logic
 			SpiceDBEndpoint:          "localhost:50051",
 			SecureSpiceDBAccessToken: "test_token",
 			PostgresEndpoint:         ":5432",
@@ -205,7 +205,7 @@ func TestPostgresFDWCompleteValidation(t *testing.T) {
 	})
 
 	t.Run("missing Postgres username", func(t *testing.T) {
-		config := &PostgresFDWConfig{
+		config := &PostgresFDWConfig{ //nolint:gosec  // this is a test file and test logic
 			SpiceDBEndpoint:          "localhost:50051",
 			SecureSpiceDBAccessToken: "test_token",
 			PostgresEndpoint:         ":5432",

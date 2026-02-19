@@ -740,33 +740,32 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 					docsSlice = append(docsSlice, fmt.Sprintf("doc-%d", i))
 				}
 
-				items := []bulkCheckItem{
-					{
-						toCheck: "document:first#view@user:tom",
-						rda: []rda{
-							expectOrderedFrames(
-								frameInfo{
-									resourceType:   "document",
-									resourceIDs:    []string{"first"},
-									permission:     "view",
-									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
-								},
-								frameInfo{
-									resourceType:   "document",
-									resourceIDs:    docsSlice,
-									permission:     "view",
-									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
-								},
-								frameInfo{
-									resourceType:   "document",
-									resourceIDs:    docsSlice,
-									permission:     "viewer",
-									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
-								},
-							),
-						},
+				items := make([]bulkCheckItem, 0, 501) //nolint:prealloc  // for some reason prealloc thinks this should be 1002
+				items = append(items, bulkCheckItem{
+					toCheck: "document:first#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    docsSlice,
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    docsSlice,
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+						),
 					},
-				}
+				})
 
 				for i := range 500 {
 					items = append(items, bulkCheckItem{
