@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,15 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Run("TestTransactionMetadataMarking", createDatastoreTest(
 		b,
 		TransactionMetadataMarkingTest,
+		RevisionQuantization(0),
+		GCWindow(veryLargeGCWindow),
+		WithAcquireTimeout(5*time.Second),
+	))
+
+	t.Run("TestVersionReading", createDatastoreTest(
+		b,
+		// TODO
+		VersionReadingTest,
 		RevisionQuantization(0),
 		GCWindow(veryLargeGCWindow),
 		WithAcquireTimeout(5*time.Second),
@@ -959,4 +969,33 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 	require.Equal(t, float64(writeMaxConns), poolWriteMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
 	require.NotNil(t, poolReadMetric)
 	require.Equal(t, float64(readMaxConns), poolReadMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
+}
+
+func VersionReadingTest(t *testing.T, _ datastore.Datastore) {
+	require := require.New(t)
+
+	expectedVersionList := strings.Split(crdbTestVersion(), ".")
+	expectedMajor := expectedVersionList[0]
+	expectedMinor := expectedVersionList[1]
+	expectedPatch := expectedVersionList[2]
+
+	const (
+		readMaxConns = 10
+	)
+	// Set up a raw connection to the DB
+	initPoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", readMaxConns))
+	require.NoError(err)
+	initPool, err := pool.NewRetryPool(t.Context(), "read", initPoolConfig, nil, 18, 20)
+	require.NoError(err)
+	t.Cleanup(func() {
+		initPool.Close()
+	})
+
+	var version crdbVersion
+	err = queryServerVersion(t.Context(), initPool, &version)
+	require.NoError(err)
+
+	require.Equal(expectedMajor, version.Major)
+	require.Equal(expectedMinor, version.Minor)
+	require.Equal(expectedPatch, version.Patch)
 }
