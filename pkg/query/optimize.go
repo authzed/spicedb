@@ -24,11 +24,7 @@ func WrapOptimizer[T Iterator](fn TypedOptimizerFunc[T]) OptimizerFunc {
 	}
 }
 
-// StaticOptimizations is a list of optimization functions that can be safely applied
-// to any iterator tree without needing runtime information or context.
 var StaticOptimizations = []OptimizerFunc{
-	RemoveNullIterators,
-	CollapseSingletonUnionAndIntersection,
 	WrapOptimizer(PushdownCaveatEvaluation),
 }
 

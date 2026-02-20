@@ -40,8 +40,9 @@ func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) Pa
 //
 // The DatastoreIterator, being the leaf, generates this set by calling the datastore.
 type DatastoreIterator struct {
-	id   string
-	base *schema.BaseRelation
+	id           string
+	base         *schema.BaseRelation
+	canonicalKey CanonicalKey
 }
 
 var _ Iterator = &DatastoreIterator{}

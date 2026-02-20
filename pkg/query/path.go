@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
@@ -313,6 +314,150 @@ func (p Path) Equals(other Path) bool {
 	}
 
 	return true
+}
+
+// PathOrder defines ordering for Path objects
+// Returns -1 if a < b, 0 if a == b, 1 if a > b
+//
+// Compatible with slices.SortFunc.
+func PathOrder(a, b Path) int {
+	// Compare resource type
+	if a.Resource.ObjectType != b.Resource.ObjectType {
+		if a.Resource.ObjectType < b.Resource.ObjectType {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare resource ID
+	if a.Resource.ObjectID != b.Resource.ObjectID {
+		if a.Resource.ObjectID < b.Resource.ObjectID {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare relation
+	if a.Relation != b.Relation {
+		if a.Relation < b.Relation {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject type
+	if a.Subject.ObjectType != b.Subject.ObjectType {
+		if a.Subject.ObjectType < b.Subject.ObjectType {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject ID
+	if a.Subject.ObjectID != b.Subject.ObjectID {
+		if a.Subject.ObjectID < b.Subject.ObjectID {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject relation
+	if a.Subject.Relation != b.Subject.Relation {
+		if a.Subject.Relation < b.Subject.Relation {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare expiration
+	if (a.Expiration == nil) != (b.Expiration == nil) {
+		if a.Expiration == nil {
+			return -1
+		}
+		return 1
+	}
+	if a.Expiration != nil && b.Expiration != nil {
+		if a.Expiration.Before(*b.Expiration) {
+			return -1
+		}
+		if a.Expiration.After(*b.Expiration) {
+			return 1
+		}
+	}
+
+	// Compare caveat
+	if (a.Caveat == nil) != (b.Caveat == nil) {
+		if a.Caveat == nil {
+			return -1
+		}
+		return 1
+	}
+	if a.Caveat != nil && b.Caveat != nil {
+		aStr := a.Caveat.String()
+		bStr := b.Caveat.String()
+		if aStr != bStr {
+			if aStr < bStr {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	// Compare integrity length
+	if len(a.Integrity) != len(b.Integrity) {
+		if len(a.Integrity) < len(b.Integrity) {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare integrity elements
+	for i := range a.Integrity {
+		aStr := a.Integrity[i].String()
+		bStr := b.Integrity[i].String()
+		if aStr != bStr {
+			if aStr < bStr {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	// Compare metadata: extract sorted key lists, compare keys first,
+	// then compare values key-by-key using the common sorted key order.
+	// nil maps are treated as empty.
+	aKeys := slices.Sorted(maps.Keys(a.Metadata))
+	bKeys := slices.Sorted(maps.Keys(b.Metadata))
+
+	for i, ak := range aKeys {
+		if i >= len(bKeys) {
+			return 1
+		}
+		bk := bKeys[i]
+		if ak != bk {
+			if ak < bk {
+				return -1
+			}
+			return 1
+		}
+	}
+	if len(aKeys) < len(bKeys) {
+		return -1
+	}
+
+	// Same keys; compare values in sorted-key order
+	for _, k := range aKeys {
+		aVal := fmt.Sprintf("%v", a.Metadata[k])
+		bVal := fmt.Sprintf("%v", b.Metadata[k])
+		if aVal != bVal {
+			if aVal < bVal {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	return 0
 }
 
 // CollectAll is a helper function to build read a complete PathSeq and turn it into a fully realized slice of Paths.

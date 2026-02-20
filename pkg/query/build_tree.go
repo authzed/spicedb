@@ -11,12 +11,11 @@ import (
 )
 
 type recursiveSentinelInfo struct {
-	sentinel       *RecursiveSentinelIterator
 	definitionName string
 	relationName   string
 }
 
-type iteratorBuilder struct {
+type outlineBuilder struct {
 	schema             *schema.Schema
 	building           map[string]bool              // Track what's currently being built (call stack)
 	collectedCaveats   []*core.ContextualizedCaveat // Collect caveats to combine with AND logic
@@ -26,49 +25,64 @@ type iteratorBuilder struct {
 // BuildIteratorFromSchema takes a schema and walks the schema tree for a given definition namespace and a relationship or
 // permission therein. From this, it generates an iterator tree, rooted on that relationship.
 func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (Iterator, error) {
-	builder := &iteratorBuilder{
+	outline, err := BuildOutlineFromSchema(fullSchema, definitionName, relationName)
+	if err != nil {
+		return nil, err
+	}
+	return outline.Compile()
+}
+
+// BuildOutlineFromSchema builds a Outline tree from the schema
+func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (Outline, error) {
+	builder := &outlineBuilder{
 		schema:             fullSchema,
 		building:           make(map[string]bool),
 		collectedCaveats:   make([]*core.ContextualizedCaveat, 0),
 		recursiveSentinels: make([]*recursiveSentinelInfo, 0),
 	}
-	iterator, err := builder.buildIteratorFromSchemaInternal(definitionName, relationName, true)
+	outline, err := builder.buildOutlineFromSchemaInternal(definitionName, relationName, true)
 	if err != nil {
-		return nil, err
+		return Outline{}, err
 	}
 
 	// Apply collected caveats at top level as individual caveat iterators
-	result := iterator
+	result := outline
 	for _, caveat := range builder.collectedCaveats {
-		result = NewCaveatIterator(result, caveat)
+		result = Outline{
+			Type:        CaveatIteratorType,
+			Args:        &IteratorArgs{Caveat: caveat},
+			SubOutlines: []Outline{result},
+		}
 	}
 
 	// Note: RecursiveIterator wrapping happens at the recursion point,
 	// not at the top level. So we shouldn't have any sentinels left here.
 	if len(builder.recursiveSentinels) > 0 {
 		// This would be an error - sentinels should have been wrapped already
-		return nil, spiceerrors.MustBugf("unwrapped sentinels remaining: %d", len(builder.recursiveSentinels))
+		return Outline{}, spiceerrors.MustBugf("unwrapped sentinels remaining: %d", len(builder.recursiveSentinels))
 	}
 
-	return result, nil
+	return CanonicalizeOutline(result)
 }
 
-func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Iterator, error) {
+func (b *outlineBuilder) buildOutlineFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Outline, error) {
 	id := fmt.Sprintf("%s#%s", definitionName, relationName)
 
 	// Check if we're currently building this (true recursion)
-	// Check both with the same flag and opposite flag, since recursion can cross the boundary
 	if b.building[id] {
 		// Recursion detected - create sentinel and remember where
-		sentinel := NewRecursiveSentinelIterator(definitionName, relationName, withSubRelations)
-		// Track this sentinel with its location info
 		sentinelInfo := &recursiveSentinelInfo{
-			sentinel:       sentinel,
 			definitionName: definitionName,
 			relationName:   relationName,
 		}
 		b.recursiveSentinels = append(b.recursiveSentinels, sentinelInfo)
-		return sentinel, nil
+		return Outline{
+			Type: RecursiveSentinelIteratorType,
+			Args: &IteratorArgs{
+				DefinitionName: definitionName,
+				RelationName:   relationName,
+			},
+		}, nil
 	}
 
 	// Mark as currently building
@@ -80,15 +94,15 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	if !ok {
 		// Remove before returning error
 		delete(b.building, id)
-		return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find a schema definition named `%s`", definitionName)
+		return Outline{}, fmt.Errorf("BuildOutlineFromSchema: couldn't find a schema definition named `%s`", definitionName)
 	}
 
-	var result Iterator
+	var result Outline
 	var err error
 	if p, ok := def.GetPermission(relationName); ok {
-		result, err = b.buildIteratorFromPermission(p)
+		result, err = b.buildOutlineFromPermission(p)
 	} else if r, ok := def.GetRelation(relationName); ok {
-		result, err = b.buildIteratorFromRelation(r, withSubRelations)
+		result, err = b.buildOutlineFromRelation(r, withSubRelations)
 	} else {
 		err = RelationNotFoundError{
 			definitionName: definitionName,
@@ -100,7 +114,7 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	delete(b.building, id)
 
 	if err != nil {
-		return nil, err
+		return Outline{}, err
 	}
 
 	// Check if any NEW sentinels were added while building this
@@ -109,21 +123,28 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	if len(sentinelsAdded) > 0 {
 		// Filter sentinels to only include those matching this definition/relation
 		// Non-matching sentinels are left in the list for parent builds to handle
-		var matchingSentinels []*RecursiveSentinelIterator
+		var matchingCount int
 		var nonMatchingSentinels []*recursiveSentinelInfo
 
 		for _, info := range sentinelsAdded {
 			if info.definitionName == definitionName && info.relationName == relationName {
-				matchingSentinels = append(matchingSentinels, info.sentinel)
+				matchingCount++
 			} else {
 				nonMatchingSentinels = append(nonMatchingSentinels, info)
 			}
 		}
 
 		// Only wrap if we have matching sentinels
-		if len(matchingSentinels) > 0 {
+		if matchingCount > 0 {
 			// Wrap this subtree in RecursiveIterator with the current definition and relation
-			result = NewRecursiveIterator(result, definitionName, relationName)
+			result = Outline{
+				Type: RecursiveIteratorType,
+				Args: &IteratorArgs{
+					DefinitionName: definitionName,
+					RelationName:   relationName,
+				},
+				SubOutlines: []Outline{result},
+			}
 		}
 
 		// Remove matching sentinels from the list, but keep non-matching ones for parent
@@ -134,114 +155,146 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	return result, nil
 }
 
-func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubRelations bool) (Iterator, error) {
+func (b *outlineBuilder) buildOutlineFromRelation(r *schema.Relation, withSubRelations bool) (Outline, error) {
 	if len(r.BaseRelations()) == 1 {
-		baseIt, err := b.buildBaseDatastoreIterator(r.BaseRelations()[0], withSubRelations)
+		baseIt, err := b.buildBaseDatastoreOutline(r.BaseRelations()[0], withSubRelations)
 		if err != nil {
-			return nil, err
+			return Outline{}, err
 		}
-		return NewAliasIterator(r.Name(), baseIt), nil
+		return Outline{
+			Type:        AliasIteratorType,
+			Args:        &IteratorArgs{RelationName: r.Name()},
+			SubOutlines: []Outline{baseIt},
+		}, nil
 	}
-	subIts := make([]Iterator, 0, len(r.BaseRelations()))
+	subIts := make([]Outline, 0, len(r.BaseRelations()))
 	for _, br := range r.BaseRelations() {
-		it, err := b.buildBaseDatastoreIterator(br, withSubRelations)
+		it, err := b.buildBaseDatastoreOutline(br, withSubRelations)
 		if err != nil {
-			return nil, err
+			return Outline{}, err
 		}
 		subIts = append(subIts, it)
 	}
-	union := NewUnionIterator(subIts...)
-	return NewAliasIterator(r.Name(), union), nil
-}
-
-func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Iterator, error) {
-	baseIt, err := b.buildIteratorFromOperation(p, p.Operation())
-	if err != nil {
-		return nil, err
+	union := Outline{
+		Type:        UnionIteratorType,
+		SubOutlines: subIts,
 	}
-	return NewAliasIterator(p.Name(), baseIt), nil
+	return Outline{
+		Type:        AliasIteratorType,
+		Args:        &IteratorArgs{RelationName: r.Name()},
+		SubOutlines: []Outline{union},
+	}, nil
 }
 
-func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
-	parentDef := p.Definition()
+func (b *outlineBuilder) buildOutlineFromPermission(p *schema.Permission) (Outline, error) {
+	baseIt, err := b.buildOutlineFromOperation(p, p.Operation())
+	if err != nil {
+		return Outline{}, err
+	}
+	return Outline{
+		Type:        AliasIteratorType,
+		Args:        &IteratorArgs{RelationName: p.Name()},
+		SubOutlines: []Outline{baseIt},
+	}, nil
+}
 
+func (b *outlineBuilder) buildOutlineFromOperation(p *schema.Permission, op schema.Operation) (Outline, error) {
+	parentDef := p.Definition()
 	switch perm := op.(type) {
 	case *schema.ArrowReference:
 		rel, ok := parentDef.GetRelation(perm.Left())
 		if !ok {
-			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), parentDef.Name())
+			return Outline{}, fmt.Errorf("BuildOutlineFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), parentDef.Name())
 		}
-		return b.buildArrowIterators(rel, perm.Right())
+		return b.buildArrowOutline(rel, perm.Right())
 
 	case *schema.NilReference:
-		return NewFixedIterator(), nil
+		return Outline{Type: FixedIteratorType}, nil
 
 	case *schema.SelfReference:
-		return NewSelfIterator(p.Name(), p.Definition().Name()), nil
+		return Outline{
+			Type: SelfIteratorType,
+			Args: &IteratorArgs{
+				RelationName:   p.Name(),
+				DefinitionName: parentDef.Name(),
+			},
+		}, nil
 
 	case *schema.RelationReference:
-		return b.buildIteratorFromSchemaInternal(parentDef.Name(), perm.RelationName(), true)
+		return b.buildOutlineFromSchemaInternal(parentDef.Name(), perm.RelationName(), true)
 
 	case *schema.UnionOperation:
-		subIts := make([]Iterator, 0, len(perm.Children()))
+		subIts := make([]Outline, 0, len(perm.Children()))
 		for _, op := range perm.Children() {
-			it, err := b.buildIteratorFromOperation(p, op)
+			it, err := b.buildOutlineFromOperation(p, op)
 			if err != nil {
-				return nil, err
+				return Outline{}, err
 			}
 			subIts = append(subIts, it)
 		}
-		return NewUnionIterator(subIts...), nil
+		return Outline{
+			Type:        UnionIteratorType,
+			SubOutlines: subIts,
+		}, nil
 
 	case *schema.IntersectionOperation:
-		subIts := make([]Iterator, 0, len(perm.Children()))
+		subIts := make([]Outline, 0, len(perm.Children()))
 		for _, op := range perm.Children() {
-			it, err := b.buildIteratorFromOperation(p, op)
+			it, err := b.buildOutlineFromOperation(p, op)
 			if err != nil {
-				return nil, err
+				return Outline{}, err
 			}
 			subIts = append(subIts, it)
 		}
-		return NewIntersectionIterator(subIts...), nil
+		return Outline{
+			Type:        IntersectionIteratorType,
+			SubOutlines: subIts,
+		}, nil
 
 	case *schema.ExclusionOperation:
-		mainIt, err := b.buildIteratorFromOperation(p, perm.Left())
+		mainIt, err := b.buildOutlineFromOperation(p, perm.Left())
 		if err != nil {
-			return nil, err
+			return Outline{}, err
 		}
 
-		excludedIt, err := b.buildIteratorFromOperation(p, perm.Right())
+		excludedIt, err := b.buildOutlineFromOperation(p, perm.Right())
 		if err != nil {
-			return nil, err
+			return Outline{}, err
 		}
 
-		return NewExclusionIterator(mainIt, excludedIt), nil
+		return Outline{
+			Type:        ExclusionIteratorType,
+			SubOutlines: []Outline{mainIt, excludedIt},
+		}, nil
 
 	case *schema.FunctionedArrowReference:
 		rel, ok := parentDef.GetRelation(perm.Left())
 		if !ok {
-			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), parentDef.Name())
+			return Outline{}, fmt.Errorf("BuildOutlineFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), parentDef.Name())
 		}
 
 		switch perm.Function() {
 		case schema.FunctionTypeAny:
 			// any() functions just like an arrow
-			return b.buildArrowIterators(rel, perm.Right())
+			return b.buildArrowOutline(rel, perm.Right())
 
 		case schema.FunctionTypeAll:
 			// all() requires intersection arrow - user must have permission on ALL left subjects
-			return b.buildIntersectionArrowIterators(rel, perm.Right())
+			return b.buildIntersectionArrowOutline(rel, perm.Right())
 
 		default:
-			return nil, fmt.Errorf("unknown function type: %v", perm.Function())
+			return Outline{}, fmt.Errorf("unknown function type: %v", perm.Function())
 		}
 	}
 
-	return nil, fmt.Errorf("uncovered schema permission operation: %T", op)
+	return Outline{}, fmt.Errorf("uncovered schema permission operation: %T", op)
 }
 
-func (b *iteratorBuilder) buildBaseDatastoreIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
-	base := NewDatastoreIterator(br)
+func (b *outlineBuilder) buildBaseDatastoreOutline(br *schema.BaseRelation, withSubRelations bool) (Outline, error) {
+	base := Outline{
+		Type: DatastoreIteratorType,
+		Args: &IteratorArgs{Relation: br},
+	}
 
 	// Collect caveat to apply at top level instead of wrapping immediately
 	if br.Caveat() != "" {
@@ -262,13 +315,10 @@ func (b *iteratorBuilder) buildBaseDatastoreIterator(br *schema.BaseRelation, wi
 	}
 
 	// Check if we need to expand subrelations
-	// We always need to expand if withSubRelations=true (normal case)
-	// OR if the subrelation might be recursive (same type as something we're building)
 	needsExpansion := withSubRelations
 
 	if !needsExpansion {
 		// Check if this might be a recursive subrelation
-		// by seeing if the subrelation type matches any definition we're currently building
 		subrelID := fmt.Sprintf("%s#%s", br.Type(), br.Subrelation())
 		if b.building[subrelID] {
 			// This is recursive! We need to expand to detect it
@@ -280,101 +330,107 @@ func (b *iteratorBuilder) buildBaseDatastoreIterator(br *schema.BaseRelation, wi
 		return base, nil
 	}
 
-	rightside, err := b.buildIteratorFromSchemaInternal(br.Type(), br.Subrelation(), false)
+	rightside, err := b.buildOutlineFromSchemaInternal(br.Type(), br.Subrelation(), false)
 	if err != nil {
-		return nil, err
+		return Outline{}, err
 	}
 
 	// We must check the effective arrow of a subrelation if we have one
-	arrow := NewArrowIterator(base.Clone(), rightside)
-	union := NewUnionIterator(base, arrow)
+	arrow := Outline{
+		Type:        ArrowIteratorType,
+		SubOutlines: []Outline{base, rightside},
+	}
+	union := Outline{
+		Type:        UnionIteratorType,
+		SubOutlines: []Outline{base, arrow},
+	}
 	return union, nil
 }
 
-// buildArrowIterators creates a union of arrow iterators for the given relation and right-hand side
-func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
-	subIts := make([]Iterator, 0, len(rel.BaseRelations()))
+// buildArrowOutline creates a union of arrow iterators for the given relation and right-hand side
+func (b *outlineBuilder) buildArrowOutline(rel *schema.Relation, rightSide string) (Outline, error) {
+	subIts := make([]Outline, 0, len(rel.BaseRelations()))
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
 	for _, br := range rel.BaseRelations() {
-		left, err := b.buildBaseDatastoreIterator(br, false)
+		left, err := b.buildBaseDatastoreOutline(br, false)
 		if err != nil {
-			return nil, err
+			return Outline{}, err
 		}
-		right, err := b.buildIteratorFromSchemaInternal(br.Type(), rightSide, false)
+		right, err := b.buildOutlineFromSchemaInternal(br.Type(), rightSide, false)
 		if err != nil {
 			// If the right side doesn't exist on this type, the arrow produces an empty set.
-			// This is valid when a relation has multiple types and the arrow only
-			// applies to some of them. If there's only one base relation, we should error.
 			if errors.As(err, &RelationNotFoundError{}) {
 				if hasMultipleBaseRelations {
-					subIts = append(subIts, NewFixedIterator())
+					subIts = append(subIts, Outline{Type: FixedIteratorType})
 					continue
 				}
 				lastNotFoundError = err
 				continue
 			}
-			return nil, err
+			return Outline{}, err
 		}
-		// Use NewSchemaArrow only for BaseRelations without subrelations.
-		// BaseRelations with subrelations (like folder#parent) should use regular arrows
-		// because they need strict subrelation matching.
-		var arrow Iterator
-		if br.Subrelation() != "" && br.Subrelation() != tuple.Ellipsis {
-			// Has a specific subrelation: use regular arrow (no ellipsis queries)
-			arrow = NewArrowIterator(left, right)
-		} else {
-			// No subrelation or ellipsis: use schema arrow (with ellipsis queries)
-			arrow = NewSchemaArrow(left, right)
+		// Create arrow (both specific subrelations and ellipsis use ArrowIteratorType)
+		// The difference is handled by NewSchemaArrow vs NewArrowIterator during compilation
+		arrow := Outline{
+			Type:        ArrowIteratorType,
+			SubOutlines: []Outline{left, right},
 		}
 		subIts = append(subIts, arrow)
 	}
 
 	// If we have no sub-iterators and only have a not-found error, return that error
 	if len(subIts) == 0 && lastNotFoundError != nil {
-		return nil, lastNotFoundError
+		return Outline{}, lastNotFoundError
 	}
 
-	return NewUnionIterator(subIts...), nil
+	return Outline{
+		Type:        UnionIteratorType,
+		SubOutlines: subIts,
+	}, nil
 }
 
-// buildIntersectionArrowIterators creates a union of intersection arrow iterators for the given relation and right-hand side
-func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
-	subIts := make([]Iterator, 0, len(rel.BaseRelations()))
+// buildIntersectionArrowOutline creates a union of intersection arrow iterators
+func (b *outlineBuilder) buildIntersectionArrowOutline(rel *schema.Relation, rightSide string) (Outline, error) {
+	subIts := make([]Outline, 0, len(rel.BaseRelations()))
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
 	for _, br := range rel.BaseRelations() {
-		left, err := b.buildBaseDatastoreIterator(br, false)
+		left, err := b.buildBaseDatastoreOutline(br, false)
 		if err != nil {
-			return nil, err
+			return Outline{}, err
 		}
-		right, err := b.buildIteratorFromSchemaInternal(br.Type(), rightSide, false)
+		right, err := b.buildOutlineFromSchemaInternal(br.Type(), rightSide, false)
 		if err != nil {
 			// If the right side doesn't exist on this type, the intersection arrow produces an empty set.
-			// This is valid when a relation has multiple types and the arrow only
-			// applies to some of them. If there's only one base relation, we should error.
 			if errors.As(err, &RelationNotFoundError{}) {
 				if hasMultipleBaseRelations {
-					subIts = append(subIts, NewFixedIterator())
+					subIts = append(subIts, Outline{Type: FixedIteratorType})
 					continue
 				}
 				lastNotFoundError = err
 				continue
 			}
-			return nil, err
+			return Outline{}, err
 		}
-		intersectionArrow := NewIntersectionArrowIterator(left, right)
+		intersectionArrow := Outline{
+			Type:        IntersectionArrowIteratorType,
+			SubOutlines: []Outline{left, right},
+		}
 		subIts = append(subIts, intersectionArrow)
 	}
 
 	// If we have no sub-iterators and only have a not-found error, return that error
 	if len(subIts) == 0 && lastNotFoundError != nil {
-		return nil, lastNotFoundError
+		return Outline{}, lastNotFoundError
 	}
 
-	return NewUnionIterator(subIts...), nil
+	return Outline{
+		Type:        UnionIteratorType,
+		SubOutlines: subIts,
+	}, nil
 }
 
 func functionTypeString(ft schema.FunctionType) string {
@@ -395,5 +451,5 @@ type RelationNotFoundError struct {
 }
 
 func (e RelationNotFoundError) Error() string {
-	return fmt.Sprintf("BuildIteratorFromSchema: couldn't find a relation or permission named `%s` in definition `%s`", e.relationName, e.definitionName)
+	return fmt.Sprintf("BuildOutlineFromSchema: couldn't find a relation or permission named `%s` in definition `%s`", e.relationName, e.definitionName)
 }

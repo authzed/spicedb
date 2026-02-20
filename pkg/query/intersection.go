@@ -9,8 +9,9 @@ import (
 // IntersectionIterator the set of paths that are in all of underlying subiterators.
 // This is equivalent to `permission foo = bar & baz`
 type IntersectionIterator struct {
-	id     string
-	subIts []Iterator
+	id           string
+	subIts       []Iterator
+	canonicalKey CanonicalKey
 }
 
 var _ Iterator = &IntersectionIterator{}
