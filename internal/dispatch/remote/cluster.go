@@ -482,16 +482,16 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	stream dispatch.Stream[R],
 	handler func(context.Context, ClusterClient) (receiver[R], error),
 ) error {
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+	ctxWithTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 	defer cancelFn()
 
 	// If no secondary dispatches are defined, just invoke directly.
 	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
-		client, err := handler(withTimeout, cr.clusterClient)
+		client, err := handler(ctxWithTimeout, cr.clusterClient)
 		if err != nil {
 			return err
 		}
-		return publishClient(withTimeout, client, reqKey, stream, primaryDispatcher)
+		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
 	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
@@ -518,7 +518,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	} else if expr, ok := cr.secondaryDispatchExprs[reqKey]; ok {
 		dispatcherNames, err := RunDispatchExpr(expr, req)
 		if err != nil {
-			log.Ctx(ctx).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
+			log.Ctx(ctxWithTimeout).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
 		} else {
 			for _, secondaryDispatchName := range dispatcherNames {
 				if sd, ok := cr.secondaryDispatch[secondaryDispatchName]; ok {
@@ -534,11 +534,11 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 			return errors.New("cursor locked to unknown secondary dispatcher")
 		}
 
-		client, err := handler(withTimeout, cr.clusterClient)
+		client, err := handler(ctxWithTimeout, cr.clusterClient)
 		if err != nil {
 			return err
 		}
-		return publishClient(withTimeout, client, reqKey, stream, primaryDispatcher)
+		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
 	var maximumHedgingDelay time.Duration
@@ -548,10 +548,10 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 
 	contexts := make(map[string]ctxAndCancel, len(validSecondaryDispatchers)+1)
 
-	primaryCtx, primaryCancelFn := context.WithCancel(withTimeout)
+	primaryCtx, primaryCancelFn := context.WithCancel(ctxWithTimeout)
 	contexts[primaryDispatcher] = ctxAndCancel{primaryCtx, primaryCancelFn}
 	for _, secondary := range validSecondaryDispatchers {
-		secondaryCtx, secondaryCancelFn := context.WithCancel(withTimeout)
+		secondaryCtx, secondaryCancelFn := context.WithCancel(ctxWithTimeout)
 		contexts[secondary.Name] = ctxAndCancel{secondaryCtx, secondaryCancelFn}
 	}
 
@@ -574,29 +574,28 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		maximumHedgingDelay,
 	)
 
-	runHandler := func(name string, clusterClient ClusterClient) {
+	runHandler := func(handlerContext context.Context, name string, clusterClient ClusterClient) {
 		if name == "" {
-			log.Ctx(ctx).Warn().Msg("attempting to run a dispatch handler with an empty name, skipping")
+			log.Ctx(handlerContext).Warn().Msg("attempting to run a dispatch handler with an empty name, skipping")
 			wg.Done()
 			return
 		}
 
-		ctx := contexts[name].ctx
-		log.Ctx(ctx).Debug().Str("dispatcher", name).Msg("running secondary dispatcher")
+		log.Ctx(handlerContext).Debug().Str("dispatcher", name).Msg("running secondary dispatcher")
 		defer wg.Done()
 
 		var startTime time.Time
 		isPrimary := name == primaryDispatcher
 		if isPrimary {
 			// Have the primary wait a bit to ensure the secondaries have a chance to return first.
-			primarySleeper.sleep(ctx)
+			primarySleeper.sleep(handlerContext)
 		} else {
 			startTime = time.Now()
 		}
 
 		select {
-		case <-ctx.Done():
-			log.Ctx(ctx).Trace().Str("dispatcher", name).Msg("dispatcher context canceled")
+		case <-handlerContext.Done():
+			log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("dispatcher context canceled")
 			if isPrimary {
 				primaryDispatch.WithLabelValues("true", reqKey).Inc()
 			}
@@ -606,9 +605,9 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 			// Do the rest of the work in a function
 		}
 
-		log.Ctx(ctx).Trace().Str("dispatcher", name).Msg("running streaming dispatcher")
-		client, err := handler(ctx, clusterClient)
-		log.Ctx(ctx).Trace().Str("dispatcher", name).Msg("streaming dispatcher completed initial request")
+		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("running streaming dispatcher")
+		client, err := handler(handlerContext, clusterClient)
+		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("streaming dispatcher completed initial request")
 		if isPrimary {
 			primaryDispatch.WithLabelValues("false", reqKey).Inc()
 		}
@@ -617,7 +616,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 				cr.supportedResourceSubjectTracker.updateForError(err)
 			}
 
-			log.Ctx(ctx).Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
+			log.Ctx(handlerContext).Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
 			errorsByDispatcherName.Store(name, err)
 			return
 		}
@@ -625,14 +624,14 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		var hasPublishedFirstResult bool
 		for {
 			select {
-			case <-ctx.Done():
-				log.Ctx(ctx).Trace().Str("dispatcher", name).Msg("dispatcher context canceled, in results loop")
+			case <-handlerContext.Done():
+				log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("dispatcher context canceled, in results loop")
 				return
 
 			default:
 				result, err := client.Recv()
 				if err != nil {
-					log.Ctx(ctx).Trace().Str("dispatcher", name).Err(err).Msg("dispatcher recv error")
+					log.Ctx(handlerContext).Trace().Str("dispatcher", name).Err(err).Msg("dispatcher recv error")
 				}
 
 				// isResult is true if the result is not an error or we received an EOF, which is considered
@@ -644,7 +643,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 					if !isPrimary {
 						finishTime := time.Now()
 						duration := finishTime.Sub(startTime)
-						cr.secondaryInitialResponseDigests[reqKey].addResultTime(ctx, duration)
+						cr.secondaryInitialResponseDigests[reqKey].addResultTime(handlerContext, duration)
 						go cr.supportedResourceSubjectTracker.updateForSuccess(
 							tuple.FromCoreRelationReference(req.GetResourceRelation()),
 							tuple.FromCoreRelationReference(req.GetSubjectRelation()),
@@ -656,20 +655,20 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 					swapped := returnedResultsDispatcherName.CompareAndSwap(noDispatcherResults, name)
 					if !swapped {
 						// Another dispatcher has started returning results, so terminate.
-						log.Ctx(ctx).Trace().Str("dispatcher", name).Msg("another dispatcher has already returned results")
+						log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("another dispatcher has already returned results")
 						return
 					}
 
-					log.Ctx(ctx).Trace().Str("dispatcher", name).Msg("this dispatcher is the first to return results, will publish them and cancel the others")
+					log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("this dispatcher is the first to return results, will publish them and cancel the others")
 					dispatchCounter.WithLabelValues(reqKey, name).Add(1)
 
 					// Cancel all other contexts to prevent them from running, or stop them
 					// from running if started.
-					log.Ctx(ctx).Trace().Str("dispatcher", name).Msg("canceling other dispatchers")
-					for key, ctxAndCancel := range contexts {
+					log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("canceling other dispatchers")
+					for key, otherCtx := range contexts {
 						if key != name {
-							log.Ctx(ctx).Trace().Str("canceling-dispatcher", key).Msg("canceling dispatcher context")
-							ctxAndCancel.cancel()
+							log.Ctx(handlerContext).Trace().Str("canceling-dispatcher", key).Msg("canceling dispatcher context")
+							otherCtx.cancel()
 						}
 					}
 				}
@@ -704,12 +703,12 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 
 	// Run the primary.
 	if allowPrimary {
-		go runHandler(primaryDispatcher, cr.clusterClient)
+		go runHandler(contexts[primaryDispatcher].ctx, primaryDispatcher, cr.clusterClient)
 	}
 
 	// Run each of the secondary dispatches.
 	for _, secondary := range validSecondaryDispatchers {
-		go runHandler(secondary.Name, secondary.Client)
+		go runHandler(contexts[secondary.Name].ctx, secondary.Name, secondary.Client)
 	}
 
 	// Wait for all the handlers to finish.
@@ -718,13 +717,13 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	// Check for the first dispatcher that returned results and return its error, if any.
 	resultHandlerName := returnedResultsDispatcherName.Load()
 	if resultHandlerName == "" {
-		log.Ctx(ctx).Error().Msg("got empty result handler name; this should never happen")
+		log.Ctx(ctxWithTimeout).Error().Msg("got empty result handler name; this should never happen")
 		return spiceerrors.MustBugf("got empty result handler name")
 	}
 
 	if resultHandlerName != noDispatcherResults {
 		if err, ok := errorsByDispatcherName.Load(resultHandlerName); ok {
-			log.Ctx(ctx).Warn().Err(err).Str("dispatcher", resultHandlerName).Msg("dispatcher that returned results encountered an error during streaming")
+			log.Ctx(ctxWithTimeout).Warn().Err(err).Str("dispatcher", resultHandlerName).Msg("dispatcher that returned results encountered an error during streaming")
 			return err
 		}
 		return nil
@@ -737,7 +736,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 			allErrors = append(allErrors, value)
 			return true
 		})
-		log.Ctx(ctx).Warn().Err(primaryErr).Errs("all-errors", allErrors).Msg("returning primary dispatcher error as no dispatchers returned results")
+		log.Ctx(ctxWithTimeout).Warn().Err(primaryErr).Errs("all-errors", allErrors).Msg("returning primary dispatcher error as no dispatchers returned results")
 		return primaryErr
 	}
 
