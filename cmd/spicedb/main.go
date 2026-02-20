@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/sercand/kuberesolver/v5"
@@ -22,6 +23,7 @@ func main() {
 
 	// Set up root logger
 	// This will typically be overwritten by the logging setup for a given command.
+	zerolog.TimeFieldFormat = time.RFC3339Nano
 	log.SetGlobalLogger(zerolog.New(os.Stderr).Level(zerolog.InfoLevel))
 
 	// Enable Kubernetes gRPC resolver
