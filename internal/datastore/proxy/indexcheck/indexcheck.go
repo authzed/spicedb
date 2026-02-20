@@ -181,12 +181,6 @@ func (r *indexcheckingReader) ReverseQueryRelationships(ctx context.Context, sub
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
-// SchemaReader returns a reference to the wrapped reader, since this
-// proxy does not interact with schema methods.
-func (r *indexcheckingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.delegate.SchemaReader()
-}
-
 type indexcheckingRWT struct {
 	*indexcheckingReader
 	delegate datastore.ReadWriteTransaction
@@ -222,10 +216,6 @@ func (rwt *indexcheckingRWT) LegacyWriteNamespaces(ctx context.Context, newConfi
 
 func (rwt *indexcheckingRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, delOption datastore.DeleteNamespacesRelationshipsOption) error {
 	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
-}
-
-func (rwt *indexcheckingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
-	return rwt.delegate.SchemaWriter()
 }
 
 func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {

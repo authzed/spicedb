@@ -14,9 +14,10 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -333,7 +334,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		}
 	}()
 	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
 	directSubjectsAndWildcardsWithoutCaveats := 0
 	directSubjectsAndWildcardsWithoutExpiration := 0
@@ -421,7 +422,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			OptionalSubjectsSelectors: subjectSelectors,
 		}
 
-		it, err := ds.QueryRelationships(ctx, filter,
+		it, err := dl.QueryRelationships(ctx, filter,
 			options.WithSkipCaveats(!directSubjectOrWildcardCanHaveCaveats),
 			options.WithSkipExpiration(!directSubjectOrWildcardCanHaveExpiration),
 			options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -474,7 +475,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		},
 	}
 
-	it, err := ds.QueryRelationships(ctx, filter,
+	it, err := dl.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(!nonTerminalsCanHaveCaveats),
 		options.WithSkipExpiration(!nonTerminalsCanHaveExpiration),
 		options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects),
@@ -673,8 +674,12 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	// for TTU-based computed usersets, as directly computed ones reference relations within
 	// the same namespace as the caller, and thus must be fully typed checked.
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
-		err := namespace.CheckNamespaceAndRelation(ctx, targetRR.Namespace, targetRR.Relation, true, ds)
+		dl := datalayermw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+		sr, err := dl.ReadSchema()
+		if err != nil {
+			return checkResultError(err, emptyMetadata)
+		}
+		err = namespace.CheckNamespaceAndRelation(ctx, targetRR.Namespace, targetRR.Relation, true, sr)
 		if err != nil {
 			if errors.As(err, &namespace.RelationNotFoundError{}) {
 				return noMembers()
@@ -707,9 +712,9 @@ type Traits struct {
 
 // TraitsForArrowRelation returns traits such as HasCaveats and HasExpiration if *any* of the subject
 // types of the given relation support caveats or expiration.
-func TraitsForArrowRelation(ctx context.Context, reader datastore.Reader, namespaceName string, relationName string) (Traits, error) {
+func TraitsForArrowRelation(ctx context.Context, reader datalayer.RevisionedReader, namespaceName string, relationName string) (Traits, error) {
 	// TODO(jschorr): Change to use the type system once we wire it through Check dispatch.
-	schemaReader, err := reader.SchemaReader()
+	schemaReader, err := reader.ReadSchema()
 	if err != nil {
 		return Traits{}, err
 	}
@@ -753,11 +758,11 @@ func TraitsForArrowRelation(ctx context.Context, reader datastore.Reader, namesp
 	}, nil
 }
 
-func queryOptionsForArrowRelation(ctx context.Context, ds datastore.Reader, namespaceName string, relationName string) ([]options.QueryOptionsOption, error) {
+func queryOptionsForArrowRelation(ctx context.Context, reader datalayer.RevisionedReader, namespaceName string, relationName string) ([]options.QueryOptionsOption, error) {
 	opts := make([]options.QueryOptionsOption, 0, 3)
 	opts = append(opts, options.WithQueryShape(queryshape.AllSubjectsForResources))
 
-	traits, err := TraitsForArrowRelation(ctx, ds, namespaceName, relationName)
+	traits, err := TraitsForArrowRelation(ctx, reader, namespaceName, relationName)
 	if err != nil {
 		return nil, err
 	}
@@ -822,13 +827,13 @@ func checkIntersectionTupleToUserset(
 
 	// Query for the subjects over which to walk the TTU.
 	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
-	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
 
-	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+	it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      crc.filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
@@ -988,14 +993,14 @@ func checkTupleToUserset[T relation](
 	defer span.End()
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayermw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
-	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
 
-	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+	it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),

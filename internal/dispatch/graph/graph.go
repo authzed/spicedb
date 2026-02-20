@@ -16,7 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -204,10 +204,10 @@ type localDispatcher struct {
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, error) {
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
+	reader := datalayermw.MustFromContext(ctx).SnapshotReader(revision)
 
 	// Load namespace and relation from the datastore
-	schemaReader, err := ds.SchemaReader()
+	schemaReader, err := reader.ReadSchema()
 	if err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
@@ -224,8 +224,8 @@ func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, rev
 }
 
 func (ld *localDispatcher) parseRevision(ctx context.Context, s string) (datastore.Revision, error) {
-	ds := datastoremw.MustFromContext(ctx)
-	return ds.RevisionFromString(s)
+	dl := datalayermw.MustFromContext(ctx)
+	return dl.RevisionFromString(s)
 }
 
 func (ld *localDispatcher) lookupRelation(_ context.Context, ns *core.NamespaceDefinition, relationName string) (*core.Relation, error) {

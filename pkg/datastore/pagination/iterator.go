@@ -3,6 +3,7 @@ package pagination
 import (
 	"context"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -13,7 +14,7 @@ import (
 // interface that internally paginates over datastore results.
 func NewPaginatedIterator(
 	ctx context.Context,
-	reader datastore.Reader,
+	reader datalayer.RevisionedReader,
 	filter datastore.RelationshipsFilter,
 	limit uint64,
 	order options.SortOrder,

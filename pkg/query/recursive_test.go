@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -24,7 +25,7 @@ func TestRecursiveSentinel(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
 
 	// CheckImpl should return empty
 	seq, err := sentinel.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -61,7 +62,7 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
 
 	// Execute - should terminate immediately with empty result
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -165,7 +166,7 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
 
 	// Test CheckImpl with a faulty iterator
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -196,7 +197,7 @@ func TestRecursiveIteratorCollectionError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
 
 	// Test CheckImpl with a faulty iterator that fails on collection
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -221,7 +222,7 @@ func TestBFSEarlyTermination(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50)) // High max depth
 
 	// IterSubjects on a node with no children (sentinel returns empty)
@@ -269,7 +270,7 @@ func TestBFSCycleDetection(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(10))
 
 	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
@@ -302,7 +303,7 @@ func TestBFSSelfReferential(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(10))
 
 	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
@@ -344,7 +345,7 @@ func TestBFSResourcesWithEllipses(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(5))
 
 	// Query IterResources - should find folder2

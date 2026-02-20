@@ -20,13 +20,8 @@ func DefinitionsOf[T SchemaDefinition](revisionedDefinitions []RevisionedDefinit
 // The data is transactionally deleted, which means it may time out.
 func DeleteAllData(ctx context.Context, ds Datastore) error {
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		schemaReader, err := rwt.SchemaReader()
-		if err != nil {
-			return err
-		}
-
 		// Delete all relationships.
-		typeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
+		typeDefs, err := rwt.LegacyListAllNamespaces(ctx)
 		if err != nil {
 			return err
 		}
@@ -42,7 +37,7 @@ func DeleteAllData(ctx context.Context, ds Datastore) error {
 		}
 
 		// Delete all caveats.
-		caveatDefs, err := schemaReader.ListAllCaveatDefinitions(ctx)
+		caveatDefs, err := rwt.LegacyListAllCaveats(ctx)
 		if err != nil {
 			return err
 		}

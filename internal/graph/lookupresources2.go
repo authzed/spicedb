@@ -12,9 +12,10 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -126,9 +127,13 @@ func (crr *CursoredLookupResources2) afterSameType(
 	dispatched := NewSyncONRSet()
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
-	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(req.Revision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+	dl := datalayermw.MustFromContext(ctx)
+	reader := dl.SnapshotReader(req.Revision)
+	sr, err := reader.ReadSchema()
+	if err != nil {
+		return err
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.ResourceRelation.Namespace)
 	if err != nil {
 		return err
@@ -210,7 +215,7 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 	entrypoint schema.ReachabilityEntrypoint,
 	rg *schema.DefinitionReachability,
 	ts *schema.TypeSystem,
-	reader datastore.Reader,
+	reader datalayer.RevisionedReader,
 	req ValidatedLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
 	dispatched *syncONRSet,
@@ -293,7 +298,7 @@ type redispatchOverDatabaseConfig2 struct {
 	ts *schema.TypeSystem
 
 	// Direct reader for reverse ReverseQueryRelationships
-	reader datastore.Reader
+	reader datalayer.RevisionedReader
 
 	subjectsFilter     datastore.SubjectsFilter
 	sourceResourceType *core.RelationReference
@@ -359,6 +364,10 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap2], 0)
 			currentCursor := queryCursor
 			caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
+			caveatSR, err := config.reader.ReadSchema()
+			if err != nil {
+				return nil, err
+			}
 
 			for rel, err := range it {
 				if err != nil {
@@ -370,7 +379,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 				// If a caveat exists on the relationship, run it and filter the results, marking those that have missing context.
 				if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
 					caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
-					runResult, err := caveatRunner.RunCaveatExpression(ctx, caveatExpr, config.parentRequest.Context.AsMap(), config.reader, caveats.RunCaveatExpressionNoDebugging)
+					runResult, err := caveatRunner.RunCaveatExpression(ctx, caveatExpr, config.parentRequest.Context.AsMap(), caveatSR, caveats.RunCaveatExpressionNoDebugging)
 					if err != nil {
 						return nil, err
 					}
@@ -440,7 +449,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 	entrypoint schema.ReachabilityEntrypoint,
 	rg *schema.DefinitionReachability,
 	ts *schema.TypeSystem,
-	reader datastore.Reader,
+	reader datalayer.RevisionedReader,
 	req ValidatedLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
 	dispatched *syncONRSet,

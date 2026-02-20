@@ -10,7 +10,7 @@ import (
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -26,7 +26,7 @@ func ConvertCheckDispatchDebugInformation(
 	caveatTypeSet *caveattypes.TypeSet,
 	caveatContext map[string]any,
 	debugInfo *dispatch.DebugInformation,
-	reader datastore.Reader,
+	reader datalayer.SchemaReader,
 ) (*v1.DebugInformation, error) {
 	if debugInfo == nil {
 		return nil, nil
@@ -41,13 +41,13 @@ func ConvertCheckDispatchDebugInformation(
 }
 
 // getFullSchema returns the full schema from the reader.
-func getFullSchema(ctx context.Context, reader datastore.Reader) (string, error) {
-	caveats, err := reader.LegacyListAllCaveats(ctx)
+func getFullSchema(ctx context.Context, reader datalayer.SchemaReader) (string, error) {
+	caveats, err := reader.ListAllCaveatDefinitions(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	namespaces, err := reader.LegacyListAllNamespaces(ctx)
+	namespaces, err := reader.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -72,7 +72,7 @@ func convertCheckDispatchDebugInformationWithSchema(
 	ctx context.Context,
 	caveatContext map[string]any,
 	debugInfo *dispatch.DebugInformation,
-	reader datastore.Reader,
+	reader datalayer.SchemaReader,
 	caveatTypeSet *caveattypes.TypeSet,
 	schema string,
 ) (*v1.DebugInformation, error) {
@@ -87,7 +87,7 @@ func convertCheckDispatchDebugInformationWithSchema(
 	}, nil
 }
 
-func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *dispatch.CheckDebugTrace, reader datastore.Reader, caveatTypeSet *caveattypes.TypeSet) (*v1.CheckDebugTrace, error) {
+func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *dispatch.CheckDebugTrace, reader datalayer.SchemaReader, caveatTypeSet *caveattypes.TypeSet) (*v1.CheckDebugTrace, error) {
 	permissionType := v1.CheckDebugTrace_PERMISSION_TYPE_UNSPECIFIED
 	switch ct.ResourceRelationType {
 	case dispatch.CheckDebugTrace_PERMISSION:

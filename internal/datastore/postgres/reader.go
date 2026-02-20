@@ -11,7 +11,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -303,11 +302,6 @@ func revisionForVersion(version xid8) postgresRevision {
 		xmin: version.Uint64 + 1,
 		xmax: version.Uint64 + 1,
 	}}
-}
-
-// SchemaReader returns a SchemaReader for reading schema information.
-func (r *pgReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 var _ datastore.Reader = &pgReader{}

@@ -13,9 +13,10 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	itestutil "github.com/authzed/spicedb/internal/testutil"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -200,8 +201,8 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
-	require.NoError(datastoremw.SetInContext(ctx, ds))
+	ctx := log.Logger.WithContext(datalayermw.ContextWithHandle(t.Context()))
+	require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	tpl := tuple.MustParse("folder:oops#owner@folder:oops#owner")
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
@@ -1013,8 +1014,8 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datastoremw.ContextWithHandle(t.Context())
-			require.NoError(datastoremw.SetInContext(ctx, ds))
+			ctx := datalayermw.ContextWithHandle(t.Context())
+			require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 			err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{

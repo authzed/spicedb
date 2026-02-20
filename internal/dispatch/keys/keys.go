@@ -3,7 +3,7 @@ package keys
 import (
 	"context"
 
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -100,19 +100,24 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 	// a check for `somenamespace:someobject#somerel@somenamespace:someobject#somerel`.
 	if req.ResourceRelation.Namespace != req.Subject.Namespace {
 		// Load the relation to get its computed cache key, if any.
-		ds := datastoremw.MustFromContext(ctx)
+		dl := datalayermw.MustFromContext(ctx)
 
-		revision, err := ds.RevisionFromString(req.Metadata.AtRevision)
+		revision, err := dl.RevisionFromString(req.Metadata.AtRevision)
 		if err != nil {
 			return emptyDispatchCacheKey, err
 		}
-		r := ds.SnapshotReader(revision)
+		r := dl.SnapshotReader(revision)
+
+		sr, err := r.ReadSchema()
+		if err != nil {
+			return emptyDispatchCacheKey, err
+		}
 
 		_, relation, err := namespace.ReadNamespaceAndRelation(
 			ctx,
 			req.ResourceRelation.Namespace,
 			req.ResourceRelation.Relation,
-			r,
+			sr,
 		)
 		if err != nil {
 			return emptyDispatchCacheKey, err
