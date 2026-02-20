@@ -549,9 +549,13 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	contexts := make(map[string]ctxAndCancel, len(validSecondaryDispatchers)+1)
 
 	primaryCtx, primaryCancelFn := context.WithCancel(ctxWithTimeout)
+	primaryDeadline, _ := primaryCtx.Deadline()
+	primaryCtx = log.Ctx(primaryCtx).With().Time("deadline", primaryDeadline).Logger().WithContext(primaryCtx)
 	contexts[primaryDispatcher] = ctxAndCancel{primaryCtx, primaryCancelFn}
 	for _, secondary := range validSecondaryDispatchers {
 		secondaryCtx, secondaryCancelFn := context.WithCancel(ctxWithTimeout)
+		secondaryDeadline, _ := secondaryCtx.Deadline()
+		secondaryCtx = log.Ctx(secondaryCtx).With().Time("deadline", secondaryDeadline).Logger().WithContext(secondaryCtx)
 		contexts[secondary.Name] = ctxAndCancel{secondaryCtx, secondaryCancelFn}
 	}
 
@@ -575,14 +579,13 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	)
 
 	runHandler := func(handlerContext context.Context, name string, clusterClient ClusterClient) {
+		defer wg.Done()
 		if name == "" {
 			log.Ctx(handlerContext).Warn().Msg("attempting to run a dispatch handler with an empty name, skipping")
-			wg.Done()
 			return
 		}
 
-		log.Ctx(handlerContext).Debug().Str("dispatcher", name).Msg("running secondary dispatcher")
-		defer wg.Done()
+		log.Ctx(handlerContext).Debug().Str("dispatcher", name).Msg("preparing to run streaming dispatcher")
 
 		var startTime time.Time
 		isPrimary := name == primaryDispatcher
@@ -605,9 +608,9 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 			// Do the rest of the work in a function
 		}
 
-		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("running streaming dispatcher")
+		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("creating streaming dispatcher stream client")
 		client, err := handler(handlerContext, clusterClient)
-		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("streaming dispatcher completed initial request")
+		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("created streaming dispatcher stream client")
 		if isPrimary {
 			primaryDispatch.WithLabelValues("false", reqKey).Inc()
 		}
@@ -1010,7 +1013,7 @@ func (s *primarySleeper) sleep(parentCtx context.Context) {
 	s.lock.Unlock()
 
 	hedgeWaitHistogram.WithLabelValues(s.reqKey).Observe(s.waitTime.Seconds())
-	log.Ctx(parentCtx).Trace().Str("request-key", s.reqKey).Dur("wait-time", s.waitTime).Msg("primary dispatch waiting before running")
+	log.Ctx(parentCtx).Trace().Str("request-key", s.reqKey).Stringer("wait-time", s.waitTime).Msg("primary dispatch waiting before running")
 
 	startTime := time.Now()
 	timer := time.NewTimer(s.waitTime)
