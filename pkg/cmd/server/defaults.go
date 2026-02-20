@@ -154,6 +154,8 @@ var durationFieldOption = grpclog.WithDurationField(func(duration time.Duration)
 	return grpclog.Fields{"grpc.time_ms", duration.Milliseconds()}
 })
 
+var timestampFormatOption = grpclog.WithTimestampFormat(time.RFC3339Nano)
+
 var traceIDFieldOption = grpclog.WithFieldsFromContext(func(ctx context.Context) grpclog.Fields {
 	if span := trace.SpanContextFromContext(ctx); span.IsSampled() {
 		return grpclog.Fields{"traceID", span.TraceID().String()}
@@ -292,14 +294,14 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog + "-debug").
 			WithInterceptor(selector.UnaryServerInterceptor(
-				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, traceIDFieldOption),
+				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, timestampFormatOption, traceIDFieldOption),
 				selector.MatchFunc(matchesRoute(healthCheckRoute)))).
 			Done(),
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
 			WithInterceptor(selector.UnaryServerInterceptor(
-				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
+				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, timestampFormatOption, traceIDFieldOption),
 				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
 			Done(),
 
@@ -373,14 +375,14 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog + "-debug").
 			WithInterceptor(selector.StreamServerInterceptor(
-				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, traceIDFieldOption),
+				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, timestampFormatOption, traceIDFieldOption),
 				selector.MatchFunc(matchesRoute(healthCheckRoute)))).
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
 			WithInterceptor(selector.StreamServerInterceptor(
-				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
+				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, timestampFormatOption, traceIDFieldOption),
 				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
 			Done(),
 
@@ -456,7 +458,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
-			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
+			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, timestampFormatOption, traceIDFieldOption),
 			grpcMetricsUnaryInterceptor,
 			dispatchMemoryProtection.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
