@@ -898,7 +898,7 @@ func TestGetPrimaryWaitTime(t *testing.T) {
 
 	// Add a bunch of times to the secondary.
 	for range 100 {
-		dispatcher.secondaryInitialResponseDigests["check"].addResultTime(2 * time.Millisecond)
+		dispatcher.secondaryInitialResponseDigests["check"].addResultTime(t.Context(), 2*time.Millisecond)
 	}
 
 	// Ensure the primary wait time is ~=2ms.
@@ -1161,13 +1161,13 @@ func TestDALCount(t *testing.T) {
 		uintValue, err := safecast.Convert[uint64](i + 1)
 		require.NoError(t, err)
 
-		dal.addResultTime(3 * time.Millisecond)
+		dal.addResultTime(t.Context(), 3*time.Millisecond)
 		require.Equal(t, uintValue, dal.digest.Count())
 		require.Equal(t, dal.startingPrimaryHedgingDelay, dal.getWaitTime(10*time.Millisecond))
 	}
 
 	// Add the next result, which pushes it over the minimum count and now uses the quantile.
-	dal.addResultTime(3 * time.Millisecond)
+	dal.addResultTime(t.Context(), 3*time.Millisecond)
 	require.Equal(t, uint64(minimumDigestCount), dal.digest.Count())
 	require.Equal(t, 3*time.Millisecond, dal.getWaitTime(10*time.Millisecond))
 }
