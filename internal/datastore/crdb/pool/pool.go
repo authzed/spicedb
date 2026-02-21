@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // pgxPool interface is the subset of pgxpool.Pool that RetryPool needs
@@ -156,21 +156,13 @@ func (p *RetryPool) ID() string {
 // MaxConns returns the MaxConns configured on the underlying pool
 func (p *RetryPool) MaxConns() uint32 {
 	// This should be non-negative
-	maxConns, err := safecast.Convert[uint32](p.pool.Config().MaxConns)
-	if err != nil {
-		maxConns = 0
-	}
-	return maxConns
+	return spiceerrors.MustSafecast[uint32](p.pool.Config().MaxConns)
 }
 
 // MinConns returns the MinConns configured on the underlying pool
 func (p *RetryPool) MinConns() uint32 {
 	// This should be non-negative
-	minConns, err := safecast.Convert[uint32](p.pool.Config().MinConns)
-	if err != nil {
-		minConns = 0
-	}
-	return minConns
+	return spiceerrors.MustSafecast[uint32](p.pool.Config().MinConns)
 }
 
 // ExecFunc is a replacement for pgxpool.pgxPool.Exec that allows resetting the

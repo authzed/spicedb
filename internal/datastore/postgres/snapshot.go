@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // RegisterTypes registers pgSnapshot and xid8 with a pgtype.ConnInfo.
@@ -273,10 +274,7 @@ func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 	startingXipLen := len(newSnapshot.xipList)
 	for numToDrop = 0; numToDrop < startingXipLen; numToDrop++ {
 		// numToDrop should be nonnegative
-		uintNumToDrop, err := safecast.Convert[uint64](numToDrop)
-		if err != nil {
-			uintNumToDrop = 0
-		}
+		uintNumToDrop := spiceerrors.MustSafecast[uint64](numToDrop)
 
 		if newSnapshot.xipList[startingXipLen-1-numToDrop] != newSnapshot.xmax-uintNumToDrop-1 {
 			break

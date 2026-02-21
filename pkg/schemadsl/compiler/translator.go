@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/pkg/caveats"
@@ -16,6 +15,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type translationContext struct {
@@ -340,14 +340,8 @@ func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.Sour
 		return nil
 	}
 
-	uintLine, err := safecast.Convert[uint64](line)
-	if err != nil {
-		uintLine = 0
-	}
-	uintCol, err := safecast.Convert[uint64](col)
-	if err != nil {
-		uintCol = 0
-	}
+	uintLine := spiceerrors.MustSafecast[uint64](line)
+	uintCol := spiceerrors.MustSafecast[uint64](col)
 
 	return &core.SourcePosition{
 		ZeroIndexedLineNumber:     uintLine,
