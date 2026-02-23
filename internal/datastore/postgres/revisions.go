@@ -60,7 +60,7 @@ const (
 	SELECT selected.xid,
 		COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
 		%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d,
-		selected.%[3]s AS timestamp
+		(SELECT %[3]s FROM %[2]s WHERE %[1]s = selected.xid)
 	FROM selected;`
 
 	// queryValidTransaction will return a single row with three values:
