@@ -13,8 +13,8 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 	"github.com/authzed/spicedb/pkg/diff"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -554,7 +554,7 @@ func TestConvertDiff(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = datalayermw.ContextWithDataLayer(ctx, dl)
+			ctx = datalayer.ContextWithDataLayer(ctx, dl)
 
 			resp, err := convertDiff(
 				ctx,

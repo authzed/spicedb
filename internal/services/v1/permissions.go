@@ -24,7 +24,6 @@ import (
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -80,7 +79,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
@@ -252,7 +251,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	sr, err := dl.ReadSchema()
 	if err != nil {
@@ -495,7 +494,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		return ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	sr, err := dl.ReadSchema()
 	if err != nil {
@@ -646,7 +645,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		return ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	sr, err := dl.ReadSchema()
 	if err != nil {
@@ -802,7 +801,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		return ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
@@ -1076,7 +1075,7 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]) error {
 	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
 
-	dl := datalayermw.MustFromContext(stream.Context())
+	dl := datalayer.MustFromContext(stream.Context())
 
 	var numWritten uint64
 	if _, err := dl.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
@@ -1107,14 +1106,12 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 					return err
 				}
 
-				for _, def := range foundDefs {
-					if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-						newDef, err := schema.NewDefinition(nsDef)
-						if err != nil {
-							return err
-						}
-						loadedNamespaces[nsDef.Name] = newDef
+				for _, nsDef := range foundDefs {
+					newDef, err := schema.NewDefinition(nsDef)
+					if err != nil {
+						return err
 					}
+					loadedNamespaces[nsDef.Name] = newDef
 				}
 
 				adapter.awaitingNamespaces = nil
@@ -1125,10 +1122,8 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 					return err
 				}
 
-				for _, def := range foundCaveatDefs {
-					if caveatDef, ok := def.(*core.CaveatDefinition); ok {
-						loadedCaveats[caveatDef.Name] = caveatDef
-					}
+				for name, caveatDef := range foundCaveatDefs {
+					loadedCaveats[name] = caveatDef
 				}
 
 				adapter.awaitingCaveats = nil
@@ -1165,7 +1160,7 @@ func (ps *permissionServer) ExportBulkRelationships(
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	return ExportBulk(ctx, datalayermw.MustFromContext(ctx), uint64(ps.config.MaxBulkExportRelationshipsLimit), req, atRevision, resp.Send)
+	return ExportBulk(ctx, datalayer.MustFromContext(ctx), uint64(ps.config.MaxBulkExportRelationshipsLimit), req, atRevision, resp.Send)
 }
 
 // ExportBulk implements the ExportBulkRelationships API functionality. Given a datalayer.DataLayer, it will

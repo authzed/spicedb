@@ -3,8 +3,8 @@ package keys
 import (
 	"context"
 
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -100,7 +100,7 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 	// a check for `somenamespace:someobject#somerel@somenamespace:someobject#somerel`.
 	if req.ResourceRelation.Namespace != req.Subject.Namespace {
 		// Load the relation to get its computed cache key, if any.
-		dl := datalayermw.MustFromContext(ctx)
+		dl := datalayer.MustFromContext(ctx)
 
 		revision, err := dl.RevisionFromString(req.Metadata.AtRevision)
 		if err != nil {

@@ -6,7 +6,6 @@ import (
 
 	"google.golang.org/grpc"
 
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/pkg/datalayer"
 )
 
@@ -19,7 +18,7 @@ func ForceFullConsistencyUnaryServerInterceptor(serviceLabel string) grpc.UnaryS
 				return handler(ctx, req)
 			}
 		}
-		dl := datalayermw.MustFromContext(ctx)
+		dl := datalayer.MustFromContext(ctx)
 		newCtx := ContextWithHandle(ctx)
 		if err := setFullConsistencyRevisionToContext(newCtx, req, dl, serviceLabel, TreatMismatchingTokensAsFullConsistency); err != nil {
 			return nil, err

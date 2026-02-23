@@ -3,8 +3,8 @@ package v1
 import (
 	"context"
 
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/diff"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -14,7 +14,7 @@ import (
 )
 
 func loadCurrentSchema(ctx context.Context) (*diff.DiffableSchema, datastore.Revision, error) {
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {

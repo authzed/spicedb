@@ -5,8 +5,8 @@ import (
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -177,7 +177,7 @@ func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner,
 		return result, nil
 	}
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(params.AtRevision)
 	sr, err := reader.ReadSchema()
 	if err != nil {

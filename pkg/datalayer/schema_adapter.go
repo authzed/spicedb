@@ -155,20 +155,26 @@ func (l *legacySchemaReaderAdapter) LookupSchemaDefinitionsByNames(ctx context.C
 		return nil, err
 	}
 
+	for name, def := range typeDefs {
+		allDefs[name] = def
+	}
+
 	remainingNames := nameSet.Subtract(mapz.NewSet(slices.Collect(maps.Keys(typeDefs))...))
 	caveatDefs, err := l.LookupCaveatDefinitionsByNames(ctx, remainingNames.AsSlice())
 	if err != nil {
 		return nil, err
 	}
 
-	maps.Copy(allDefs, typeDefs)
-	maps.Copy(allDefs, caveatDefs)
+	for name, def := range caveatDefs {
+		allDefs[name] = def
+	}
+
 	return allDefs, nil
 }
 
 // LookupTypeDefinitionsByNames looks up type definitions by name.
-func (l *legacySchemaReaderAdapter) LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
-	result := make(map[string]datastore.SchemaDefinition)
+func (l *legacySchemaReaderAdapter) LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.TypeDefinition, error) {
+	result := make(map[string]datastore.TypeDefinition)
 
 	namespaces, err := l.legacyReader.LegacyLookupNamespacesWithNames(ctx, names)
 	if err != nil {
@@ -182,8 +188,8 @@ func (l *legacySchemaReaderAdapter) LookupTypeDefinitionsByNames(ctx context.Con
 }
 
 // LookupCaveatDefinitionsByNames looks up caveat definitions by name.
-func (l *legacySchemaReaderAdapter) LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
-	result := make(map[string]datastore.SchemaDefinition)
+func (l *legacySchemaReaderAdapter) LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.CaveatDefinition, error) {
+	result := make(map[string]datastore.CaveatDefinition)
 
 	caveats, err := l.legacyReader.LegacyLookupCaveatsWithNames(ctx, names)
 	if err != nil {

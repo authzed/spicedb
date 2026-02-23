@@ -17,7 +17,6 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -165,8 +164,8 @@ func TestMaxDepth(t *testing.T) {
 
 	mutation := tuple.Create(tuple.MustParse("folder:oops#parent@folder:oops"))
 
-	ctx := log.Logger.WithContext(datalayermw.ContextWithHandle(t.Context()))
-	require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	revision, err := common.UpdateRelationshipsInDatastore(ctx, ds, mutation)
 	require.NoError(err)
@@ -1433,8 +1432,8 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datalayermw.ContextWithHandle(t.Context())
-			require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+			ctx := datalayer.ContextWithHandle(t.Context())
+			require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 				ResourceRelation: RR(tc.resource.ObjectType, tc.resource.Relation).ToCoreRR(),
@@ -1941,8 +1940,8 @@ func TestCheckWithHints(t *testing.T) {
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datalayermw.ContextWithHandle(t.Context())
-			require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+			ctx := datalayer.ContextWithHandle(t.Context())
+			require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 				ResourceRelation: RR(tc.resource.ObjectType, tc.resource.Relation).ToCoreRR(),
@@ -1993,8 +1992,8 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 		tuple.MustParse("document:somedoc#viewer@user:tom"),
 	}, require)
 
-	ctx := datalayermw.ContextWithHandle(t.Context())
-	require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+	ctx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("document", "view").ToCoreRR(),
@@ -2048,8 +2047,8 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 		tuple.MustParse("organization:someorg#member@user:tom"),
 	}, require)
 
-	ctx := datalayermw.ContextWithHandle(t.Context())
-	require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+	ctx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("document", "view").ToCoreRR(),
@@ -2092,8 +2091,8 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 		cachingDispatcher.Close()
 	})
 
-	ctx := log.Logger.WithContext(datalayermw.ContextWithHandle(t.Context()))
-	require.NoError(t, datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
+	require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	return ctx, cachingDispatcher, revision
 }
@@ -2121,8 +2120,8 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 		cachingDispatcher.Close()
 	})
 
-	ctx := log.Logger.WithContext(datalayermw.ContextWithHandle(t.Context()))
-	require.NoError(t, datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
+	require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	return ctx, cachingDispatcher, revision
 }

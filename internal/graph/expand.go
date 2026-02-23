@@ -7,8 +7,8 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -58,7 +58,7 @@ func (ce *ConcurrentExpander) expandDirect(
 ) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		dl := datalayermw.MustFromContext(ctx).SnapshotReader(req.Revision)
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
@@ -243,7 +243,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(req.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision)
 	sr, err := dl.ReadSchema()
 	if err != nil {
 		return expandError(err)
@@ -281,7 +281,7 @@ func expandTupleToUserset[T relation](
 	expandFunc expandFunc,
 ) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		dl := datalayermw.MustFromContext(ctx).SnapshotReader(req.Revision)
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},

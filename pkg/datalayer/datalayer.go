@@ -14,6 +14,7 @@ import (
 )
 
 // LegacySchemaWriter provides access to legacy schema write operations.
+//
 // Deprecated: This is only for backwards-compatible additive-only schema changes
 // and will be removed when the additive-only schema mode is removed.
 type LegacySchemaWriter interface {
@@ -41,6 +42,11 @@ type DataLayer interface {
 	UniqueID(ctx context.Context) (string, error)
 	MetricsID() (string, error)
 	Close() error
+
+	// TODO: additional methods to support bulk operations, such as:
+	// BulkImport
+	// BulkExport
+	// DeleteAllData
 }
 
 // SchemaReader groups schema read methods, accessed via RevisionedReader.ReadSchema().
@@ -67,10 +73,10 @@ type SchemaReader interface {
 	LookupSchemaDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error)
 
 	// LookupTypeDefinitionsByNames looks up type definitions by name.
-	LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error)
+	LookupTypeDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.TypeDefinition, error)
 
 	// LookupCaveatDefinitionsByNames looks up caveat definitions by name.
-	LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error)
+	LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.CaveatDefinition, error)
 }
 
 // RevisionedReader reads data at a specific revision.
@@ -125,6 +131,7 @@ type ReadWriteTransaction interface {
 
 	// LegacySchemaWriter returns a legacy schema writer for backwards-compatible
 	// additive-only schema operations.
+	//
 	// Deprecated: Will be removed when additive-only schema mode is removed.
 	LegacySchemaWriter() LegacySchemaWriter
 

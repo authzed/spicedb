@@ -13,7 +13,6 @@ import (
 	"github.com/authzed/spicedb/internal/datasets"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -68,7 +67,7 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 		}
 	}
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(req.Revision)
 	sr, err := reader.ReadSchema()
 	if err != nil {
@@ -199,7 +198,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 	ts *schema.TypeSystem,
 	cu *core.ComputedUserset,
 ) error {
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
 	sr, err := dl.ReadSchema()
 	if err != nil {
 		return err
@@ -259,7 +258,7 @@ func lookupViaIntersectionTupleToUserset(
 	ts *schema.TypeSystem,
 	ttu *core.FunctionedTupleToUserset,
 ) error {
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
 	sr, err := dl.ReadSchema()
 	if err != nil {
 		return err
@@ -438,7 +437,7 @@ func lookupViaTupleToUserset[T relation](
 	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
 	relationshipsBySubjectONR := mapz.NewMultiMap[tuple.ObjectAndRelation, tuple.Relationship]()
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
 	sr, err := dl.ReadSchema()
 	if err != nil {
 		return err

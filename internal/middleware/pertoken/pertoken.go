@@ -12,7 +12,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	log "github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -82,8 +81,8 @@ func (m *MiddlewareForTesting) UnaryServerInterceptor() grpc.UnaryServerIntercep
 			return nil, err
 		}
 
-		newCtx := datalayermw.ContextWithHandle(ctx)
-		if err := datalayermw.SetInContext(newCtx, datalayer.NewDataLayer(tokenDatastore)); err != nil {
+		newCtx := datalayer.ContextWithHandle(ctx)
+		if err := datalayer.SetInContext(newCtx, datalayer.NewDataLayer(tokenDatastore)); err != nil {
 			return nil, err
 		}
 
@@ -100,8 +99,8 @@ func (m *MiddlewareForTesting) StreamServerInterceptor() grpc.StreamServerInterc
 		}
 
 		wrapped := middleware.WrapServerStream(stream)
-		wrapped.WrappedContext = datalayermw.ContextWithHandle(wrapped.WrappedContext)
-		if err := datalayermw.SetInContext(wrapped.WrappedContext, datalayer.NewDataLayer(tokenDatastore)); err != nil {
+		wrapped.WrappedContext = datalayer.ContextWithHandle(wrapped.WrappedContext)
+		if err := datalayer.SetInContext(wrapped.WrappedContext, datalayer.NewDataLayer(tokenDatastore)); err != nil {
 			return err
 		}
 		return handler(srv, wrapped)

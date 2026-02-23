@@ -12,7 +12,6 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 
 	log "github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -167,8 +166,6 @@ func PopulateFromFilesContents(ctx context.Context, dl datalayer.DataLayer, cave
 
 	// Load the definitions and relationships into the datastore.
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
-		ctx = datalayermw.ContextWithDataLayer(ctx, dl)
-
 		resolver, err := schema.ResolverForSchemaReader(rwt)
 		if err != nil {
 			return err

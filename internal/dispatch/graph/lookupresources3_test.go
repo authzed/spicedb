@@ -16,7 +16,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -264,8 +263,8 @@ func TestMaxDepthLookup3(t *testing.T) {
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datalayermw.ContextWithHandle(t.Context())
-	require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+	ctx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
 
 	err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
@@ -707,8 +706,8 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 
 					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-					ctx := datalayermw.ContextWithHandle(t.Context())
-					require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+					ctx := datalayer.ContextWithHandle(t.Context())
+					require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 					var currentCursor []string
 					foundResourceIDs := mapz.NewSet[string]()
@@ -795,11 +794,11 @@ func TestLookupResources3WithError(t *testing.T) {
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datalayermw.ContextWithHandle(t.Context())
+	ctx := datalayer.ContextWithHandle(t.Context())
 	cctx, cancel := context.WithCancel(ctx)
 	cancel()
 
-	require.NoError(datalayermw.SetInContext(cctx, datalayer.NewDataLayer(ds)))
+	require.NoError(datalayer.SetInContext(cctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
 
 	err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
@@ -1273,11 +1272,11 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 			require.NoError(err)
 			defer dispatcher.Close()
 
-			ctx := datalayermw.ContextWithHandle(t.Context())
+			ctx := datalayer.ContextWithHandle(t.Context())
 			cctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 			defer cancel()
 
-			require.NoError(datalayermw.SetInContext(cctx, datalayer.NewDataLayer(checkingDS)))
+			require.NoError(datalayer.SetInContext(cctx, datalayer.NewDataLayer(checkingDS)))
 			stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
 
 			err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{

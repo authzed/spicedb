@@ -14,7 +14,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -334,7 +333,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		}
 	}()
 	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
 	directSubjectsAndWildcardsWithoutCaveats := 0
 	directSubjectsAndWildcardsWithoutExpiration := 0
@@ -674,7 +673,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	// for TTU-based computed usersets, as directly computed ones reference relations within
 	// the same namespace as the caller, and thus must be fully typed checked.
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
-		dl := datalayermw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 		sr, err := dl.ReadSchema()
 		if err != nil {
 			return checkResultError(err, emptyMetadata)
@@ -827,7 +826,7 @@ func checkIntersectionTupleToUserset(
 
 	// Query for the subjects over which to walk the TTU.
 	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
@@ -993,7 +992,7 @@ func checkTupleToUserset[T relation](
 	defer span.End()
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
 	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {

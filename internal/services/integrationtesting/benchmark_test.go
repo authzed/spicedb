@@ -14,7 +14,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -205,8 +204,8 @@ func BenchmarkServices(b *testing.B) {
 					conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds)
 					b.Cleanup(cleanup)
 
-					dsCtx := datalayermw.ContextWithHandle(context.Background())
-					brequire.NoError(datalayermw.SetInContext(dsCtx, datalayer.NewDataLayer(ds)))
+					dsCtx := datalayer.ContextWithHandle(context.Background())
+					brequire.NoError(datalayer.SetInContext(dsCtx, datalayer.NewDataLayer(ds)))
 
 					testers := consistencytestutil.ServiceTesters(conn[0])
 

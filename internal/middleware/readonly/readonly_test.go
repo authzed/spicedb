@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -26,7 +25,7 @@ type testServer struct {
 
 func (t *testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
 	// Try to use ReadWriteTx which should be blocked by readonly middleware
-	dl := datalayermw.FromContext(ctx)
+	dl := datalayer.FromContext(ctx)
 	if dl == nil {
 		return nil, errors.New("no datastore in context")
 	}
@@ -43,7 +42,7 @@ func (t *testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) 
 
 func (t *testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	// Try to use ReadWriteTx which should be blocked by readonly middleware
-	dl := datalayermw.FromContext(server.Context())
+	dl := datalayer.FromContext(server.Context())
 	if dl == nil {
 		return errors.New("no datastore in context")
 	}
@@ -72,11 +71,11 @@ func TestReadonlyMiddleware(t *testing.T) {
 			TestService: &testServer{},
 			ServerOpts: []grpc.ServerOption{
 				grpc.ChainUnaryInterceptor(
-					datalayermw.UnaryServerInterceptor(datalayer.NewReadOnlyDataLayer(fakeDS)),
+					datalayer.UnaryServerInterceptor(datalayer.NewReadOnlyDataLayer(fakeDS)),
 					UnaryServerInterceptor(),
 				),
 				grpc.ChainStreamInterceptor(
-					datalayermw.StreamServerInterceptor(datalayer.NewReadOnlyDataLayer(fakeDS)),
+					datalayer.StreamServerInterceptor(datalayer.NewReadOnlyDataLayer(fakeDS)),
 					StreamServerInterceptor(),
 				),
 			},

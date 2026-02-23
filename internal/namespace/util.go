@@ -72,10 +72,8 @@ func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToC
 	}
 
 	mappedNamespaces := make(map[string]*core.NamespaceDefinition, len(foundDefs))
-	for _, def := range foundDefs {
-		if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-			mappedNamespaces[nsDef.Name] = nsDef
-		}
+	for name, nsDef := range foundDefs {
+		mappedNamespaces[name] = nsDef
 	}
 
 	for _, toCheck := range checks {

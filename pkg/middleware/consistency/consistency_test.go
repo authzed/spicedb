@@ -13,7 +13,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -36,7 +35,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
@@ -56,7 +55,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -82,7 +81,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -109,7 +108,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -136,7 +135,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -163,7 +162,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -184,7 +183,7 @@ func TestAddRevisionToContextNoConsistencyAPI(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	_, _, err := RevisionFromContext(updated)
 	require.Error(err)
@@ -204,7 +203,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(t.Context())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	err = AddRevisionToContext(updated, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
@@ -315,7 +314,7 @@ func TestAtExactSnapshotWithMismatchedToken(t *testing.T) {
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(context.Background())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
@@ -344,7 +343,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(context.Background())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
@@ -373,7 +372,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(context.Background())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
@@ -408,7 +407,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 
 	// revision in context is at `exact`
 	updated := ContextWithHandle(context.Background())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
@@ -443,7 +442,7 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(context.Background())
-	updated = datalayermw.ContextWithDataLayer(updated, dl)
+	updated = datalayer.ContextWithDataLayer(updated, dl)
 
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{

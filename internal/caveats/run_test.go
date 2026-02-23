@@ -642,7 +642,7 @@ func (f noCaveatsReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.
 	return nil, errors.New("should not be called")
 }
 
-func (f noCaveatsReader) LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error) {
+func (f noCaveatsReader) LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.CaveatDefinition, error) {
 	return nil, errors.New("should not be called")
 }
 

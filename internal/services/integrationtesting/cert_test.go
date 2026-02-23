@@ -25,7 +25,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -151,7 +150,7 @@ func TestCertRotation(t *testing.T) {
 				Middlewares: []server.ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
 						Name:       "datastore",
-						Middleware: datalayermw.UnaryServerInterceptor(datalayer.NewDataLayer(ds)),
+						Middleware: datalayer.UnaryServerInterceptor(datalayer.NewDataLayer(ds)),
 					},
 					{
 						Name:       "consistency",
@@ -170,7 +169,7 @@ func TestCertRotation(t *testing.T) {
 				Middlewares: []server.ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 					{
 						Name:       "datastore",
-						Middleware: datalayermw.StreamServerInterceptor(datalayer.NewDataLayer(ds)),
+						Middleware: datalayer.StreamServerInterceptor(datalayer.NewDataLayer(ds)),
 					},
 					{
 						Name:       "consistency",

@@ -23,12 +23,10 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/services/v1/options"
@@ -243,7 +241,7 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalService_BulkImportRelationshipsServer) error {
 	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
 
-	dl := datalayermw.MustFromContext(stream.Context())
+	dl := datalayer.MustFromContext(stream.Context())
 
 	var numWritten uint64
 	if _, err := dl.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
@@ -274,14 +272,12 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 					return err
 				}
 
-				for _, def := range foundDefs {
-					if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-						newDef, err := schema.NewDefinition(nsDef)
-						if err != nil {
-							return err
-						}
-						loadedNamespaces[nsDef.Name] = newDef
+				for _, nsDef := range foundDefs {
+					newDef, err := schema.NewDefinition(nsDef)
+					if err != nil {
+						return err
 					}
+					loadedNamespaces[nsDef.Name] = newDef
 				}
 
 				adapter.awaitingNamespaces = nil
@@ -292,10 +288,8 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 					return err
 				}
 
-				for _, def := range foundCaveatDefs {
-					if caveatDef, ok := def.(*core.CaveatDefinition); ok {
-						loadedCaveats[caveatDef.Name] = caveatDef
-					}
+				for name, caveatDef := range foundCaveatDefs {
+					loadedCaveats[name] = caveatDef
 				}
 
 				adapter.awaitingCaveats = nil
@@ -331,7 +325,7 @@ func (es *experimentalServer) BulkExportRelationships(
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	return BulkExport(ctx, datalayermw.MustFromContext(ctx), es.maxBatchSize, req, atRevision, resp.Send)
+	return BulkExport(ctx, datalayer.MustFromContext(ctx), es.maxBatchSize, req, atRevision, resp.Send)
 }
 
 // BulkExport implements the BulkExportRelationships API functionality. Given a datalayer.DataLayer, it will
@@ -557,7 +551,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 		}
 	}
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	readAt, err := zedtoken.NewFromRevision(ctx, atRevision, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -605,7 +599,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 	sr, err := dl.ReadSchema()
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -692,7 +686,7 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 	sr, err := dl.ReadSchema()
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -760,7 +754,7 @@ func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx contex
 		}
 	})
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	if req.Name == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
@@ -772,7 +766,7 @@ func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx contex
 			return err
 		}
 
-		if err := validateRelationshipsFilterWithSR(ctx, req.RelationshipFilter, sr); err != nil {
+		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, sr); err != nil {
 			return err
 		}
 
@@ -793,7 +787,7 @@ func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx cont
 		}
 	})
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	if req.Name == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
@@ -820,7 +814,7 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	headRev, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -850,37 +844,6 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 			},
 		},
 	}, nil
-}
-
-// validateRelationshipsFilterWithSR validates a relationship filter using a datalayer.SchemaReader
-// instead of a datastore.Reader. This is used when the caller has a datalayer.ReadWriteTransaction
-// which provides a SchemaReader via ReadSchema() rather than implementing datastore.Reader directly.
-func validateRelationshipsFilterWithSR(ctx context.Context, filter *v1.RelationshipFilter, sr datalayer.SchemaReader) error {
-	if filter.ResourceType != "" {
-		relationToTest := cmp.Or(filter.OptionalRelation, datastore.Ellipsis)
-		allowEllipsis := filter.OptionalRelation == ""
-		if err := namespace.CheckNamespaceAndRelation(ctx, filter.ResourceType, relationToTest, allowEllipsis, sr); err != nil {
-			return err
-		}
-	}
-
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil && subjectFilter.SubjectType != "" {
-		subjectRelation := ""
-		if subjectFilter.OptionalRelation != nil {
-			subjectRelation = subjectFilter.OptionalRelation.Relation
-		}
-		relationToTest := cmp.Or(subjectRelation, datastore.Ellipsis)
-		allowEllipsis := subjectRelation == ""
-		if err := namespace.CheckNamespaceAndRelation(ctx, subjectFilter.SubjectType, relationToTest, allowEllipsis, sr); err != nil {
-			return err
-		}
-	}
-
-	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
-		return NewInvalidFilterErr("resource_id and resource_id_prefix cannot be set at the same time", filter.String())
-	}
-
-	return checkIfFilterIsEmpty(filter)
 }
 
 func queryForEach(

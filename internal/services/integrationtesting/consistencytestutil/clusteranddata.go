@@ -14,13 +14,11 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/testserver"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -49,26 +47,16 @@ func LoadDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath st
 func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) ConsistencyClusterAndData {
 	require := require.New(t)
 
-	populated, revision, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{consistencyTestFilePath})
+	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{consistencyTestFilePath})
 	require.NoError(err)
 
 	connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds, additionalServerOptions...)
 	t.Cleanup(cleanup)
 
 	dl := datalayer.NewDataLayer(ds)
-	dsCtx := datalayermw.ContextWithHandle(t.Context())
-	require.NoError(datalayermw.SetInContext(dsCtx, dl))
-	reader := dl.SnapshotReader(revision)
-	sr, err := reader.ReadSchema()
-	require.NoError(err)
-	res := schema.ResolverFor(sr)
-	ts := schema.NewTypeSystem(res)
 
-	// Validate the type system for each namespace.
-	for _, nsDef := range populated.NamespaceDefinitions {
-		_, err = ts.GetValidatedDefinition(dsCtx, nsDef.GetName())
-		require.NoError(err)
-	}
+	dsCtx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(datalayer.SetInContext(dsCtx, dl))
 
 	return ConsistencyClusterAndData{
 		Conn:      connections[0],

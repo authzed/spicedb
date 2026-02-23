@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -29,7 +28,7 @@ type testServer struct {
 
 func (t testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
 	// Verify that a datastore is available in context
-	dl := datalayermw.FromContext(ctx)
+	dl := datalayer.FromContext(ctx)
 	if dl == nil {
 		return nil, errors.New("no datastore in context")
 	}
@@ -38,7 +37,7 @@ func (t testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) (
 
 func (t testServer) Ping(ctx context.Context, req *testpb.PingRequest) (*testpb.PingResponse, error) {
 	// Verify that a datastore is available in context
-	dl := datalayermw.FromContext(ctx)
+	dl := datalayer.FromContext(ctx)
 	if dl == nil {
 		return nil, errors.New("no datastore in context")
 	}
@@ -87,7 +86,7 @@ func (t testServer) PingError(ctx context.Context, _ *testpb.PingErrorRequest) (
 
 func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	// Verify that a datastore is available in context
-	dl := datalayermw.FromContext(server.Context())
+	dl := datalayer.FromContext(server.Context())
 	if dl == nil {
 		return errors.New("no datastore in context")
 	}

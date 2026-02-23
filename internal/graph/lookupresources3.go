@@ -18,7 +18,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -267,7 +266,7 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 
 	// Build refs for the lookup resources operation. The lr3refs holds references to shared
 	// interfaces used by various suboperations of the lookup resources operation.
-	dl := datalayermw.MustFromContext(stream.Context())
+	dl := datalayer.MustFromContext(stream.Context())
 	reader := dl.SnapshotReader(req.Revision)
 	sr, err := reader.ReadSchema()
 	if err != nil {

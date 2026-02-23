@@ -17,7 +17,6 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -189,8 +188,8 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 }
 
 func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandle) {
-	dsCtx := datalayermw.ContextWithHandle(t.Context())
-	require.NoError(t, datalayermw.SetInContext(dsCtx, datalayer.NewDataLayer(handle.ds)))
+	dsCtx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(t, datalayer.SetInContext(dsCtx, datalayer.NewDataLayer(handle.ds)))
 	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, dsCtx, handle.populated, handle.ds)
 	// Run a lookup resources for each resource type and ensure that the returned objects are those
 	// that are accessible to the subject.
@@ -239,8 +238,8 @@ func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandl
 }
 
 func runQueryPlanLookupSubjects(t *testing.T, handle *queryPlanConsistencyHandle) {
-	dsCtx := datalayermw.ContextWithHandle(t.Context())
-	require.NoError(t, datalayermw.SetInContext(dsCtx, datalayer.NewDataLayer(handle.ds)))
+	dsCtx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(t, datalayer.SetInContext(dsCtx, datalayer.NewDataLayer(handle.ds)))
 	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, dsCtx, handle.populated, handle.ds)
 	// Run a lookup subjects for each resource type and ensure that the returned subjects are those
 	// that have access to the resource.
@@ -335,8 +334,8 @@ func TestAccessibilitySetMethods(t *testing.T) {
 	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{testConfigPath})
 	require.NoError(err)
 
-	dsCtx := datalayermw.ContextWithHandle(t.Context())
-	require.NoError(datalayermw.SetInContext(dsCtx, datalayer.NewDataLayer(ds)))
+	dsCtx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(datalayer.SetInContext(dsCtx, datalayer.NewDataLayer(ds)))
 
 	// Build the accessibility set
 	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, dsCtx, populated, ds)

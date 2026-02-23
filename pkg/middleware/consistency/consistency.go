@@ -14,7 +14,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -78,7 +77,7 @@ func RevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken,
 		handle := c.(*revisionHandle)
 		rev := handle.revision
 		if rev != nil {
-			dl := datalayermw.FromContext(ctx)
+			dl := datalayer.FromContext(ctx)
 			if dl == nil {
 				return nil, nil, spiceerrors.MustBugf("consistency middleware did not inject datastore")
 			}
@@ -231,7 +230,7 @@ func UnaryServerInterceptor(serviceLabel string, option MismatchingTokenOption) 
 				return handler(ctx, req)
 			}
 		}
-		dl := datalayermw.MustFromContext(ctx)
+		dl := datalayer.MustFromContext(ctx)
 		newCtx := ContextWithHandle(ctx)
 		if err := AddRevisionToContext(newCtx, req, dl, serviceLabel, option); err != nil {
 			return nil, err
@@ -269,7 +268,7 @@ func (s *recvWrapper) RecvMsg(m any) error {
 	if err := s.ServerStream.RecvMsg(m); err != nil {
 		return err
 	}
-	dl := datalayermw.MustFromContext(s.ctx)
+	dl := datalayer.MustFromContext(s.ctx)
 	return s.handler(s.ctx, m, dl, s.serviceLabel, s.option)
 }
 

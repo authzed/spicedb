@@ -16,11 +16,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// getSchemaReaderFromReader extracts a CaveatDefinitionLookup from a RevisionedReader.
-func getSchemaReaderFromReader(reader datalayer.RevisionedReader) (caveats.CaveatDefinitionLookup, error) {
-	return reader.ReadSchema()
-}
-
 // TraceLogger is used for debugging iterator execution
 type TraceLogger struct {
 	traces []string

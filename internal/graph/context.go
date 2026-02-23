@@ -6,7 +6,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	log "github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 )
 
@@ -18,8 +18,8 @@ func branchContext(ctx context.Context) (context.Context, func(cancelErr error))
 	detachedContext := trace.ContextWithSpan(context.Background(), span)
 
 	// Add data layer to the context.
-	dl := datalayermw.FromContext(ctx)
-	detachedContext = datalayermw.ContextWithDataLayer(detachedContext, dl)
+	dl := datalayer.FromContext(ctx)
+	detachedContext = datalayer.ContextWithDataLayer(detachedContext, dl)
 
 	// Add logging to the context.
 	loggerFromContext := log.Ctx(ctx)

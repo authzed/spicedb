@@ -15,7 +15,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -23,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/internal/telemetry"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
@@ -163,7 +163,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 		bulkResponseMutex.Lock()
 		defer bulkResponseMutex.Unlock()
 
-		dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
 		sr, err := dl.ReadSchema()
 		if err != nil {
@@ -251,7 +251,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 			tr.Add(func(ctx context.Context) error {
 				startTime := time.Now()
 
-				dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+				dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
 				sr, err := dl.ReadSchema()
 				if err != nil {

@@ -12,7 +12,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -53,7 +52,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	objectTypes := mapz.NewSet[string](req.GetOptionalObjectTypes()...)
 
 	ctx := stream.Context()
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	var afterRevision datastore.Revision
 	if req.OptionalStartCursor != nil && req.OptionalStartCursor.Token != "" {

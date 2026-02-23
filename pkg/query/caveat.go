@@ -130,7 +130,7 @@ func (c *CaveatIterator) simplifyCaveat(ctx *Context, path Path) (*core.CaveatEx
 	}
 
 	// Use the SimplifyCaveatExpression function to properly handle AND/OR logic
-	sr, err := getSchemaReaderFromReader(ctx.Reader)
+	sr, err := ctx.Reader.ReadSchema()
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get schema reader: %w", err)
 	}

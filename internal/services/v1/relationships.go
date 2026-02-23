@@ -18,7 +18,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
@@ -201,7 +200,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		return ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 	sr, err := dl.ReadSchema()
 	if err != nil {
 		return ps.rewriteError(ctx, err)
@@ -327,7 +326,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	span := trace.SpanFromContext(ctx)
 	// Ensure that the updates and preconditions are not over the configured limits.
@@ -487,7 +486,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxDeleteRelationshipsLimit)))
 	}
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	deletionProgress := v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE
 
 	var deletedRelationshipCount uint64

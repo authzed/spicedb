@@ -17,7 +17,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	expand "github.com/authzed/spicedb/internal/graph"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/graph"
@@ -288,11 +287,11 @@ func TestMaxDepthExpand(t *testing.T) {
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
 	tpl := tuple.MustParse("folder:oops#parent@folder:oops")
-	ctx := datalayermw.ContextWithHandle(t.Context())
+	ctx := datalayer.ContextWithHandle(t.Context())
 
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
 	require.NoError(err)
-	require.NoError(datalayermw.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)

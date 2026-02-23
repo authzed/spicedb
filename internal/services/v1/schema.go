@@ -11,7 +11,6 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
@@ -81,7 +80,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	// Schema is always read from the head revision.
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	headRevision, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
@@ -119,7 +118,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	// Compile the schema into the namespace definitions.
 	opts := make([]compiler.Option, 0, 3)
@@ -216,7 +215,7 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 		}
 	}
 
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -264,7 +263,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 	sr, err := dl.ReadSchema()
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -351,7 +350,7 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	dl := datalayermw.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 	sr2, err := dl.ReadSchema()
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)

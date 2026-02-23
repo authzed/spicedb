@@ -23,7 +23,6 @@ import (
 	maingraph "github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
@@ -58,7 +57,7 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 		return nil, nil, err
 	}
 	dl := datalayer.NewDataLayer(ds)
-	ctx = datalayermw.ContextWithDataLayer(ctx, dl)
+	ctx = datalayer.ContextWithDataLayer(ctx, dl)
 
 	dctx, devErrs, nerr := newDevContextWithDataLayer(ctx, requestContext, dl)
 	if nerr != nil || devErrs != nil {
@@ -172,11 +171,11 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 
 	s := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			datalayermw.UnaryServerInterceptor(dc.DataLayer),
+			datalayer.UnaryServerInterceptor(dc.DataLayer),
 			consistency.UnaryServerInterceptor("development", consistency.TreatMismatchingTokensAsError),
 		),
 		grpc.ChainStreamInterceptor(
-			datalayermw.StreamServerInterceptor(dc.DataLayer),
+			datalayer.StreamServerInterceptor(dc.DataLayer),
 			consistency.StreamServerInterceptor("development", consistency.TreatMismatchingTokensAsError),
 		),
 	)

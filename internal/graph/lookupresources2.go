@@ -12,7 +12,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -127,7 +126,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 	dispatched := NewSyncONRSet()
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
-	dl := datalayermw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(req.Revision)
 	sr, err := reader.ReadSchema()
 	if err != nil {

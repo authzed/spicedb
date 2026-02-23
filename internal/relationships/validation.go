@@ -107,14 +107,12 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, sr
 			return nil, nil, err
 		}
 		referencedNamespaceMap = make(map[string]*schema.Definition, len(foundNamespaceDefs))
-		for _, def := range foundNamespaceDefs {
-			if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-				nts, err := schema.NewDefinition(nsDef)
-				if err != nil {
-					return nil, nil, err
-				}
-				referencedNamespaceMap[nsDef.Name] = nts
+		for _, nsDef := range foundNamespaceDefs {
+			nts, err := schema.NewDefinition(nsDef)
+			if err != nil {
+				return nil, nil, err
 			}
+			referencedNamespaceMap[nsDef.Name] = nts
 		}
 	}
 
@@ -124,10 +122,8 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []tuple.Relationship, sr
 			return nil, nil, err
 		}
 		referencedCaveatMap = make(map[string]*core.CaveatDefinition, len(foundCaveatDefs))
-		for _, def := range foundCaveatDefs {
-			if caveatDef, ok := def.(*core.CaveatDefinition); ok {
-				referencedCaveatMap[caveatDef.GetName()] = caveatDef
-			}
+		for name, caveatDef := range foundCaveatDefs {
+			referencedCaveatMap[name] = caveatDef
 		}
 	}
 

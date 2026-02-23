@@ -33,7 +33,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/logging"
-	datalayermw "github.com/authzed/spicedb/internal/middleware/datalayer"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
@@ -229,13 +228,13 @@ func (m MiddlewareOption) WithDatastore(ds datastore.Datastore) MiddlewareOption
 	unary := NewUnaryMiddleware().
 		WithName(DefaultInternalMiddlewareDatastore).
 		WithInternal(true).
-		WithInterceptor(datalayermw.UnaryServerInterceptor(dl)).
+		WithInterceptor(datalayer.UnaryServerInterceptor(dl)).
 		Done()
 
 	stream := NewStreamMiddleware().
 		WithName(DefaultInternalMiddlewareDatastore).
 		WithInternal(true).
-		WithInterceptor(datalayermw.StreamServerInterceptor(dl)).
+		WithInterceptor(datalayer.StreamServerInterceptor(dl)).
 		Done()
 
 	m.unaryDatastoreMiddleware = &unary
@@ -339,7 +338,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareDatastoreCounting).
 			WithInternal(true).
-			WithInterceptor(datalayermw.UnaryCountingInterceptor()).
+			WithInterceptor(datalayer.UnaryCountingInterceptor(nil)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -418,7 +417,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareDatastoreCounting).
 			WithInternal(true).
-			WithInterceptor(datalayermw.StreamCountingInterceptor()).
+			WithInterceptor(datalayer.StreamCountingInterceptor(nil)).
 			Done(),
 
 		NewStreamMiddleware().
@@ -461,7 +460,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			grpcMetricsUnaryInterceptor,
 			dispatchMemoryProtection.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
-			datalayermw.UnaryServerInterceptor(dl),
+			datalayer.UnaryServerInterceptor(dl),
 			servicespecific.UnaryServerInterceptor,
 		}, []grpc.StreamServerInterceptor{
 			// NOTE: the logging middlewares are not present here in streaming, to remove their significant overhead
@@ -470,7 +469,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			grpcMetricsStreamingInterceptor,
 			dispatchMemoryProtection.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
-			datalayermw.StreamServerInterceptor(dl),
+			datalayer.StreamServerInterceptor(dl),
 			servicespecific.StreamServerInterceptor,
 		}
 }

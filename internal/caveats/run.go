@@ -22,7 +22,7 @@ var tracer = otel.Tracer("spicedb/internal/caveats/run")
 // CaveatDefinitionLookup is an interface for looking up caveat definitions by name.
 // datalayer.SchemaReader satisfies this interface.
 type CaveatDefinitionLookup interface {
-	LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.SchemaDefinition, error)
+	LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.CaveatDefinition, error)
 }
 
 // RunCaveatExpressionDebugOption are the options for running caveat expression evaluation
@@ -119,10 +119,8 @@ func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, ex
 	}
 	span.AddEvent(otelconv.EventCaveatsLookedUp)
 
-	for _, def := range foundDefs {
-		if caveatDef, ok := def.(*core.CaveatDefinition); ok {
-			cr.caveatDefs[caveatDef.GetName()] = caveatDef
-		}
+	for name, def := range foundDefs {
+		cr.caveatDefs[name] = def
 	}
 
 	return nil
