@@ -60,7 +60,7 @@ const (
 	SELECT selected.xid,
 		COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
 		%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d,
-		selected.%[1]s AS timestamp
+		selected.%[3]s AS timestamp
 	FROM selected;`
 
 	// queryValidTransaction will return a single row with three values:
@@ -110,7 +110,7 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 	var revision xid8
 	var snapshot pgSnapshot
 	var validForNanos time.Duration
-	var timestamp *time.Time
+	var timestamp time.Time
 	var err error
 
 	if err := pgd.readPool.QueryRow(ctx, pgd.optimizedRevisionQuery).
@@ -118,12 +118,9 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
 
-	var tsNanos uint64
-	if timestamp != nil {
-		tsNanos, err = safecast.Convert[uint64](timestamp.UnixNano())
-		if err != nil {
-			return nil, 0, spiceerrors.MustBugf("could not cast timestamp to uint64")
-		}
+	tsNanos, err := safecast.Convert[uint64](timestamp.UnixNano())
+	if err != nil {
+		return nil, 0, spiceerrors.MustBugf("could not cast timestamp to uint64")
 	}
 
 	snapshot = snapshot.markComplete(revision.Uint64)
