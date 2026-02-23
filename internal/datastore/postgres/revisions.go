@@ -387,8 +387,9 @@ func (pr postgresRevision) String() string {
 	}
 
 	s, _ := json.Marshal(x)
+	fmt.Println("REVDATA", string(s))
 
-	return string(s) //base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
+	return base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
 }
 
 func (pr postgresRevision) mustMarshalBinary() []byte {
