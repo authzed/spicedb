@@ -327,6 +327,7 @@ func (m *DispatchLookupResources3Request) CloneVT() *DispatchLookupResources3Req
 	r.Metadata = m.Metadata.CloneVT()
 	r.Context = (*structpb.Struct)((*structpb1.Struct)(m.Context).CloneVT())
 	r.OptionalLimit = m.OptionalLimit
+	r.MaximumConcurrency = m.MaximumConcurrency
 	if rhs := m.ResourceRelation; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.RelationReference }); ok {
 			r.ResourceRelation = vtpb.CloneVT()
@@ -1091,6 +1092,9 @@ func (this *DispatchLookupResources3Request) EqualVT(that *DispatchLookupResourc
 		}
 	}
 	if this.OptionalLimit != that.OptionalLimit {
+		return false
+	}
+	if this.MaximumConcurrency != that.MaximumConcurrency {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -2313,6 +2317,11 @@ func (m *DispatchLookupResources3Request) MarshalToSizedBufferVT(dAtA []byte) (i
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.MaximumConcurrency != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.MaximumConcurrency))
+		i--
+		dAtA[i] = 0x48
+	}
 	if m.OptionalLimit != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.OptionalLimit))
 		i--
@@ -3476,6 +3485,9 @@ func (m *DispatchLookupResources3Request) SizeVT() (n int) {
 	}
 	if m.OptionalLimit != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.OptionalLimit))
+	}
+	if m.MaximumConcurrency != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.MaximumConcurrency))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -5946,6 +5958,25 @@ func (m *DispatchLookupResources3Request) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.OptionalLimit |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaximumConcurrency", wireType)
+			}
+			m.MaximumConcurrency = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaximumConcurrency |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

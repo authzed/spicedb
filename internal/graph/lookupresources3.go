@@ -271,12 +271,17 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
 	caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
 
+	concurrencyLimit := safecast.MustConvert[uint32](crr.concurrencyLimit)
+	if req.MaximumConcurrency > 0 && req.MaximumConcurrency < concurrencyLimit {
+		concurrencyLimit = req.MaximumConcurrency
+	}
+
 	refs := lr3refs{
 		req:              req,
 		reader:           reader,
 		ts:               ts,
 		caveatRunner:     caveatRunner,
-		concurrencyLimit: crr.concurrencyLimit,
+		concurrencyLimit: concurrencyLimit,
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -362,7 +367,7 @@ type lr3refs struct {
 	caveatRunner *caveats.CaveatRunner
 
 	// concurrencyLimit is the maximum number of concurrent operations that can be performed.
-	concurrencyLimit uint16
+	concurrencyLimit uint32
 }
 
 // unlimitedLookupResourcesIter performs the actual lookup resources operation, returning an iterator
@@ -433,18 +438,23 @@ func (crr *CursoredLookupResources3) entrypointsIter(refs lr3refs) cter.Next[pos
 			return cter.UncursoredEmpty[result]()
 		}
 
-		// For each entrypoint, create an iterator that will yield results for that entrypoint via
-		// the entrypointIter method.
-		entrypointIterators := make([]cter.Next[possibleResource], 0, len(entrypoints))
-		for _, ep := range entrypoints {
-			entrypointIterators = append(entrypointIterators, crr.entrypointIter(refs, ep))
-		}
-
 		// Execute the iterators in parallel, yielding results for each entrypoint in the proper order.
 		iter := estimatedConcurrencyLimit(crr, refs, keyedEntrypoints(entrypoints), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
 			ccl, err := safecast.Convert[int64](computedConcurrencyLimit)
 			if err != nil {
 				return cter.YieldsError[result](err)
+			}
+
+			parentParallelTotalWorkCount := safecast.MustConvert[uint16](len(entrypoints))
+			if computedConcurrencyLimit < parentParallelTotalWorkCount {
+				computedConcurrencyLimit = parentParallelTotalWorkCount
+			}
+
+			// For each entrypoint, create an iterator that will yield results for that entrypoint via
+			// the entrypointIter method.
+			entrypointIterators := make([]cter.Next[possibleResource], 0, len(entrypoints))
+			for _, ep := range entrypoints {
+				entrypointIterators = append(entrypointIterators, crr.entrypointIter(refs, ep, parentParallelTotalWorkCount))
 			}
 
 			iter := cter.CursoredParallelIterators(ctx, currentCursor, computedConcurrencyLimit, entrypointIterators...)
@@ -485,7 +495,7 @@ func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, refs l
 // entrypointIter is the iterator for a single entrypoint, which will yield results for the given
 // entrypoint and the subject IDs in the request. It will return an iterator sequence of results
 // for each entrypoint, dispatching further when necessary.
-func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint schema.ReachabilityEntrypoint) cter.Next[possibleResource] {
+func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint schema.ReachabilityEntrypoint, parentParallelTotalWorkCount uint16) cter.Next[possibleResource] {
 	return func(ctx context.Context, currentCursor cter.Cursor) iter.Seq2[result, error] {
 		switch entrypoint.EntrypointKind() {
 		case core.ReachabilityEntrypoint_SELF_ENTRYPOINT:
@@ -498,14 +508,14 @@ func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint sch
 			rm := subjectIDsToRelationshipsChunk(refs.req.SubjectRelation, refs.req.SubjectIds, containingRelation)
 
 			// Dispatch to continue finding resources up the tree.
-			return crr.checkedDispatchIter(ctx, refs, currentCursor, rm, containingRelation, entrypoint)
+			return crr.checkedDispatchIter(ctx, refs, currentCursor, rm, containingRelation, entrypoint, parentParallelTotalWorkCount)
 
 		// If the entrypoint is a relation entrypoint, we need to iterate over the relation's relationships
 		// for the given subject IDs and yield results for dispatching for each. For example, given a relation
 		// of `relation viewer: user`, we would lookup all relationships for the current user(s) and find
 		// all the document(s) on which the user is a viewer.
 		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-			iter := crr.relationEntrypointIter(ctx, refs, entrypoint, currentCursor)
+			iter := crr.relationEntrypointIter(ctx, refs, entrypoint, currentCursor, parentParallelTotalWorkCount)
 			return cter.Spanned(
 				ctx,
 				iter,
@@ -530,14 +540,14 @@ func (crr *CursoredLookupResources3) entrypointIter(refs lr3refs, entrypoint sch
 			rm := subjectIDsToRelationshipsChunk(refs.req.SubjectRelation, refs.req.SubjectIds, rewrittenSubjectRelation)
 
 			// Dispatch the rewritten subjects, to further find resources up the tree.
-			return crr.checkedDispatchIter(ctx, refs, currentCursor, rm, rewrittenSubjectRelation, entrypoint)
+			return crr.checkedDispatchIter(ctx, refs, currentCursor, rm, rewrittenSubjectRelation, entrypoint, parentParallelTotalWorkCount)
 
 		// If the entrypoint is a TTU entrypoint (arrow), we need to iterate over the tupleset's relationships
 		// for the given subject IDs and yield results for dispatching for each, rewriting based on the containing
 		// relation. For example, given an arrow of `parent->view`, we would lookup all relationships for the `parent`
 		// relation and then *dispatch* to the `view` permission for each.
 		case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-			iter := crr.ttuEntrypointIter(ctx, refs, entrypoint, currentCursor)
+			iter := crr.ttuEntrypointIter(ctx, refs, entrypoint, currentCursor, parentParallelTotalWorkCount)
 			return cter.Spanned(
 				ctx,
 				iter,
@@ -559,6 +569,7 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 	refs lr3refs,
 	entrypoint schema.ReachabilityEntrypoint,
 	currentCursor cter.Cursor,
+	parentParallelTotalWorkCount uint16,
 ) iter.Seq2[result, error] {
 	// Build a subject filter for the subjects for which to lookup relationships.
 	relationReference, err := entrypoint.DirectRelation()
@@ -621,10 +632,11 @@ func (crr *CursoredLookupResources3) relationEntrypointIter(
 
 	// Lookup relationships for the given subjects and relation reference, dispatching over the results.
 	return crr.relationshipsIter(ctx, refs, currentCursor, relationshipsIterConfig{
-		subjectsFilter:     subjectsFilter,
-		sourceResourceType: relationReference,
-		foundResourceType:  relationReference,
-		entrypoint:         entrypoint,
+		subjectsFilter:               subjectsFilter,
+		sourceResourceType:           relationReference,
+		foundResourceType:            relationReference,
+		entrypoint:                   entrypoint,
+		parentParallelTotalWorkCount: parentParallelTotalWorkCount,
 	})
 }
 
@@ -635,6 +647,7 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 	refs lr3refs,
 	entrypoint schema.ReachabilityEntrypoint,
 	currentCursor cter.Cursor,
+	parentParallelTotalWorkCount uint16,
 ) iter.Seq2[result, error] {
 	containingRelation := entrypoint.ContainingRelationOrPermission()
 
@@ -680,10 +693,11 @@ func (crr *CursoredLookupResources3) ttuEntrypointIter(
 
 	// Lookup relationships for the given subjects and relation reference, dispatching over the results.
 	return crr.relationshipsIter(ctx, refs, currentCursor, relationshipsIterConfig{
-		subjectsFilter:     subjectsFilter,
-		sourceResourceType: tuplesetRelationReference,
-		foundResourceType:  containingRelation,
-		entrypoint:         entrypoint,
+		subjectsFilter:               subjectsFilter,
+		sourceResourceType:           tuplesetRelationReference,
+		foundResourceType:            containingRelation,
+		entrypoint:                   entrypoint,
+		parentParallelTotalWorkCount: parentParallelTotalWorkCount,
 	})
 }
 
@@ -702,6 +716,10 @@ type relationshipsIterConfig struct {
 
 	// entrypoint is the reachability entrypoint for this lookup.
 	entrypoint schema.ReachabilityEntrypoint
+
+	// parentParallelTotalWorkCount represents the total number of parallel work units for the parent entrypoints,
+	// or relationship chunks, and should *roughly* match the number of parallel work units that will be dispatched.
+	parentParallelTotalWorkCount uint16
 }
 
 type coh = cter.ChunkOrHold[*relationshipsChunk, datastoreIndex]
@@ -889,7 +907,15 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 				// Return an iterator to continue finding resources by dispatching.
 				// NOTE(jschorr): Technically if we don't have any further entrypoints at this point, we could do checks locally,
 				// but that would require additional code just to save one dispatch hop, thus complicating the code base.
-				iter := crr.checkedDispatchIter(ctx, refs, remainingCursor, rm, config.foundResourceType, config.entrypoint)
+				iter := crr.checkedDispatchIter(
+					ctx,
+					refs,
+					remainingCursor,
+					rm,
+					config.foundResourceType,
+					config.entrypoint,
+					config.parentParallelTotalWorkCount,
+				)
 				return cter.Spanned(
 					ctx,
 					iter,
@@ -908,11 +934,12 @@ func (crr *CursoredLookupResources3) checkedDispatchIter(
 	rm *relationshipsChunk,
 	foundResourceType *core.RelationReference,
 	entrypoint schema.ReachabilityEntrypoint,
+	parentParallelTotalWorkCount uint16,
 ) iter.Seq2[result, error] {
 	// If the entrypoint is a direct result, we can simply dispatch the results, as it means no intersection,
 	// exclusion or intersection arrow was found "above" this entrypoint in the permission.
 	if entrypoint.IsDirectResult() {
-		return crr.dispatchIter(ctx, refs, currentCursor, rm, foundResourceType)
+		return crr.dispatchIter(ctx, refs, currentCursor, rm, foundResourceType, parentParallelTotalWorkCount)
 	}
 
 	// Otherwise, we need to check them before dispatching. This shears the tree of results for intersections, exclusions
@@ -922,7 +949,7 @@ func (crr *CursoredLookupResources3) checkedDispatchIter(
 		return cter.YieldsError[result](err)
 	}
 
-	return crr.dispatchIter(ctx, refs, currentCursor, filteredChunk, foundResourceType)
+	return crr.dispatchIter(ctx, refs, currentCursor, filteredChunk, foundResourceType, parentParallelTotalWorkCount)
 }
 
 // dispatchIter is a helper function that dispatches the resources found in the relationships chunk,
@@ -934,6 +961,7 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	currentCursor cter.Cursor,
 	rm *relationshipsChunk,
 	foundResourceType *core.RelationReference,
+	parentParallelTotalWorkCount uint16,
 ) iter.Seq2[result, error] {
 	if !rm.isPopulated() {
 		// If there are no relationships to dispatch, return an empty iterator.
@@ -941,6 +969,12 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	}
 
 	subjectIDs := rm.subjectIDsToDispatch()
+
+	// Allocate only a portion of the concurrency limit to this dispatch operation.
+	maximumConcurrency := refs.concurrencyLimit / safecast.MustConvert[uint32](parentParallelTotalWorkCount)
+	if maximumConcurrency < 2 {
+		maximumConcurrency = 2
+	}
 
 	// Return an iterator that invokes the dispatch operation for the given resource relation and subject IDs,
 	// yielding results for each resource found.
@@ -955,9 +989,10 @@ func (crr *CursoredLookupResources3) dispatchIter(
 				AtRevision:     refs.req.Revision.String(),
 				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
 			},
-			OptionalCursor: currentCursor,
-			OptionalLimit:  refs.req.OptionalLimit,
-			Context:        refs.req.Context,
+			OptionalCursor:     currentCursor,
+			OptionalLimit:      refs.req.OptionalLimit,
+			Context:            refs.req.Context,
+			MaximumConcurrency: maximumConcurrency,
 		}, stream)
 		if err != nil && !stream.canceled {
 			_ = yield(result{}, err)

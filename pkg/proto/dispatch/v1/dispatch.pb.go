@@ -939,8 +939,11 @@ type DispatchLookupResources3Request struct {
 	Context          *structpb.Struct       `protobuf:"bytes,6,opt,name=context,proto3" json:"context,omitempty"`
 	OptionalCursor   []string               `protobuf:"bytes,7,rep,name=optional_cursor,json=optionalCursor,proto3" json:"optional_cursor,omitempty"`
 	OptionalLimit    uint32                 `protobuf:"varint,8,opt,name=optional_limit,json=optionalLimit,proto3" json:"optional_limit,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// maximum_concurrency specifies the maximum number of concurrent dispatches.
+	// A value of 0 indicates to use the configured system default.
+	MaximumConcurrency uint32 `protobuf:"varint,9,opt,name=maximum_concurrency,json=maximumConcurrency,proto3" json:"maximum_concurrency,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *DispatchLookupResources3Request) Reset() {
@@ -1025,6 +1028,13 @@ func (x *DispatchLookupResources3Request) GetOptionalCursor() []string {
 func (x *DispatchLookupResources3Request) GetOptionalLimit() uint32 {
 	if x != nil {
 		return x.OptionalLimit
+	}
+	return 0
+}
+
+func (x *DispatchLookupResources3Request) GetMaximumConcurrency() uint32 {
+	if x != nil {
+		return x.MaximumConcurrency
 	}
 	return 0
 }
@@ -1726,7 +1736,7 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	" DispatchLookupResources2Response\x129\n" +
 	"\bresource\x18\x01 \x01(\v2\x1d.dispatch.v1.PossibleResourceR\bresource\x125\n" +
 	"\bmetadata\x18\x02 \x01(\v2\x19.dispatch.v1.ResponseMetaR\bmetadata\x12G\n" +
-	"\x15after_response_cursor\x18\x03 \x01(\v2\x13.dispatch.v1.CursorR\x13afterResponseCursor\"\xfb\x03\n" +
+	"\x15after_response_cursor\x18\x03 \x01(\v2\x13.dispatch.v1.CursorR\x13afterResponseCursor\"\xac\x04\n" +
 	"\x1fDispatchLookupResources3Request\x12?\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\b\xfaB\x05\x8a\x01\x02\x10\x01R\bmetadata\x12Q\n" +
 	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x10resourceRelation\x12O\n" +
@@ -1736,7 +1746,8 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\x10terminal_subject\x18\x05 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fterminalSubject\x121\n" +
 	"\acontext\x18\x06 \x01(\v2\x17.google.protobuf.StructR\acontext\x12'\n" +
 	"\x0foptional_cursor\x18\a \x03(\tR\x0eoptionalCursor\x12%\n" +
-	"\x0eoptional_limit\x18\b \x01(\rR\roptionalLimit\"N\n" +
+	"\x0eoptional_limit\x18\b \x01(\rR\roptionalLimit\x12/\n" +
+	"\x13maximum_concurrency\x18\t \x01(\rR\x12maximumConcurrency\"N\n" +
 	" DispatchLookupResources3Response\x12*\n" +
 	"\x05items\x18\x01 \x03(\v2\x14.dispatch.v1.LR3ItemR\x05items\"\xcd\x01\n" +
 	"\aLR3Item\x12\x1f\n" +

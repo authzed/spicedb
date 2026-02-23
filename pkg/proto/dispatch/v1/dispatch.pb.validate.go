@@ -2067,6 +2067,8 @@ func (m *DispatchLookupResources3Request) validate(all bool) error {
 
 	// no validation rules for OptionalLimit
 
+	// no validation rules for MaximumConcurrency
+
 	if len(errors) > 0 {
 		return DispatchLookupResources3RequestMultiError(errors)
 	}
