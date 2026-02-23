@@ -110,16 +110,20 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 	var revision xid8
 	var snapshot pgSnapshot
 	var validForNanos time.Duration
-	var timestamp time.Time
+	var timestamp *time.Time
+	var err error
 
 	if err := pgd.readPool.QueryRow(ctx, pgd.optimizedRevisionQuery).
 		Scan(&revision, &snapshot, &validForNanos, &timestamp); err != nil {
 		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
 
-	tsNanos, err := safecast.Convert[uint64](timestamp.UnixNano())
-	if err != nil {
-		return nil, 0, spiceerrors.MustBugf("could not cast timestamp to uint64")
+	var tsNanos uint64
+	if timestamp != nil {
+		tsNanos, err = safecast.Convert[uint64](timestamp.UnixNano())
+		if err != nil {
+			return nil, 0, spiceerrors.MustBugf("could not cast timestamp to uint64")
+		}
 	}
 
 	snapshot = snapshot.markComplete(revision.Uint64)
